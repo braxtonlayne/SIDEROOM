@@ -1178,7 +1178,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Review decisions reach the submitter as a system DM too (REV-CORE-007).
     let _ = review_dm.set(staff_voice.clone());
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
-        .with_extras(admin_repo)
+        .with_extras(admin_repo.clone())
+        .with_data_requests(admin_repo)
         .with_notifier(staff_voice.clone())
         .with_bus(bus.clone());
     // Incident "Resume invites" cards close once the pause is over, whoever ended it (D-253).

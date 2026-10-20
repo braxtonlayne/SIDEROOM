@@ -134,6 +134,23 @@ pub async fn request(
             retry_after_secs: w.ceil() as i64,
         }));
     }
+    queue_in(&mut tx, id, job_id, user).await?;
+    let row = query(format!("SELECT {COLS} FROM data_exports WHERE id = $1"))
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Ok(record(&row)?))
+}
+
+/// Insert the request row and its build job inside `tx` (shared by the self-service route and the staff
+/// data-request queue, which skips the 24-hour cooldown but not the one-open-request rule).
+pub(crate) async fn queue_in(
+    tx: &mut sqlx::PgConnection,
+    id: i64,
+    job_id: i64,
+    user: i64,
+) -> DbResult<()> {
     sqlx::query("INSERT INTO data_exports (id, user_id) VALUES ($1, $2)")
         .bind(id)
         .bind(user)
@@ -148,12 +165,7 @@ pub async fn request(
         ),
     )
     .await?;
-    let row = query(format!("SELECT {COLS} FROM data_exports WHERE id = $1"))
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(Ok(record(&row)?))
+    Ok(())
 }
 
 /// Claim a pending request for building. `None` when it is gone or already taken.
@@ -180,6 +192,14 @@ pub async fn finish(pool: &PgPool, id: i64, key: &str, size: i64) -> DbResult<()
     .bind(i32::try_from(KEEP_DAYS).unwrap_or(7))
     .execute(pool)
     .await?;
+    // A staff data-request export (M-25 step c) completes with its package.
+    sqlx::query(
+        "UPDATE data_requests SET state = 'completed', completed_at = now(), outcome = $2 WHERE export_id = $1 AND state = 'running'",
+    )
+    .bind(id)
+    .bind(sr_admin::data_requests::EXPORT_DONE)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -190,6 +210,13 @@ pub async fn fail(pool: &PgPool, id: i64, error: &str) -> DbResult<()> {
         .bind(error.chars().take(500).collect::<String>())
         .execute(pool)
         .await?;
+    // The queue entry goes back to verified so staff can run the export again.
+    sqlx::query(
+        "UPDATE data_requests SET state = 'verified', export_id = NULL WHERE export_id = $1 AND state = 'running'",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

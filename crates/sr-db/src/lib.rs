@@ -8,6 +8,7 @@
 pub mod account_deletion;
 pub mod accounts;
 pub mod admin_repo;
+mod admin_repo_dsr;
 mod admin_repo_ext;
 pub mod apps_repo;
 pub mod auth_repo;
