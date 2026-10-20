@@ -21,6 +21,10 @@ use sr_moderation::{Moderation, PolicySource, model::TakedownPolicy};
 pub const RESTORE_KIND: &str = "moderation.takedown_restore";
 /// Reserved singleton id (below any Snowflake; unique in this repository, see the grep in the handoff).
 pub const RESTORE_JOB_ID: i64 = 1120;
+const _: () = assert!(
+    RESTORE_JOB_ID < 1 << 40,
+    "singleton ids stay below the snowflakes"
+);
 pub const RESTORE_INTERVAL: Duration = Duration::from_secs(3600);
 
 fn now_ms() -> i64 {
@@ -107,11 +111,6 @@ mod tests {
         assert_eq!(p.strike_review_threshold, 3);
         assert_eq!(p.strike_window_months, 12);
         assert_eq!(p.operator_country, None);
-    }
-
-    #[test]
-    fn the_job_id_is_reserved_below_the_snowflakes() {
-        assert!(RESTORE_JOB_ID < 1 << 40);
     }
 }
 
