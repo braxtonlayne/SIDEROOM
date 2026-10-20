@@ -81,6 +81,11 @@ impl FeatureRuntime {
     pub async fn dispatch(&self, ev: &DomainEvent) {
         let Some(guild) = guild_of(ev) else { return };
         let scope = ScopeRef::Guild { guild };
+        if let DomainEvent::ChannelDeleted { channel, .. } = ev
+            && let Err(e) = self.ctx.settings.forget_channel(guild, *channel).await
+        {
+            tracing::warn!(error = %e, "could not drop the channel-scope module settings");
+        }
         for feature in self.ctx.settings.registry().iter() {
             match self.ctx.settings.is_enabled(feature.id(), &scope).await {
                 Ok(true) => {}

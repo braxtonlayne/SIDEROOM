@@ -127,7 +127,8 @@ async fn feature_view(
                 .await
                 .unwrap_or_default(),
         ),
-        schema: serde_json::to_value(f.settings_schema()).unwrap_or(Value::Null),
+        schema: serde_json::to_value(f.settings_schema().for_scope(sr_features::Scope::Platform))
+            .unwrap_or(Value::Null),
     })
 }
 
