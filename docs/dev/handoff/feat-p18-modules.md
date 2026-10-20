@@ -32,3 +32,8 @@ Conservative defaults taken (Discord has no equivalent module system, so no pari
 2. User scope has **no on/off** and is global across servers (not per server). A per-server personal setting would be a different scope.
 3. Which modules get a scope: message quotes (channel) and leveling announcements (user), as justified above. Confirm, or name others.
 4. `MANAGE_CHANNELS` is checked in the channel (overwrites applied), so a manager who cannot see the channel cannot configure it.
+
+## Follow-ups after the owner answers (D-319..D-323)
+- **N-11** (ticked): `lounge.auto_thread` gains channel scope (`name_template`, `ignore_bots` and the channel switch; `channels` stays server-level and is refused at channel level). It now also shows in Edit Channel > Modules. Tests: three `auto_thread` unit tests, `features_tests` list now expects two channel modules.
+- **N-12** (ticked): the data export's `settings.json` carries `module_settings` (feature, settings, updated_at) of the person's `scope = 'user'` rows; README line updated; Postgres `data_export` test covers own row in, another person's out.
+- Gates: sr-features 121 tests, sr-api features_tests, sr-db `data_export` (scratch DB created and dropped), fmt and clippy -D warnings on sr-features, sr-db, sr-api. No web change, so no new vitest run. N-10 left to the integrator.
