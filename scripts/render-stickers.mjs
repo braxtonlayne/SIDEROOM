@@ -120,7 +120,9 @@ try {
       },
       [png.toString('base64'), readFileSync(job.png).toString('base64')],
     );
-    if (diff > 0.02)
+    // 5 %: Windows-rendered PNGs differ by up to ~2.5 % on Linux CI (glyph-edge anti-aliasing on the larger
+    // italic words); a wrong font, a missing word or a colour change moves far more pixels than that.
+    if (diff > 0.05)
       failures.push(
         `${name}: differs from its SVG source (${(diff * 100).toFixed(1)}% of pixels); run \`just stickers\``,
       );
