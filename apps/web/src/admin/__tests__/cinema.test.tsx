@@ -78,6 +78,7 @@ describe('Cinema admin navigation', () => {
     await screen.findByRole('heading', { name: 'Cinema catalog' });
     expect(navNames()).toEqual([
       'Dashboard',
+      'Moderation',
       'Review queues',
       'Cinema catalog',
       'Cinema collections',

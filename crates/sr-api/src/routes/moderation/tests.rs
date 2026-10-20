@@ -35,6 +35,7 @@ use tower::ServiceExt;
 const OWNER: i64 = 10;
 const CASE_STAFF: i64 = 11;
 const BASIC: i64 = 12;
+const REVIEWER: i64 = 13;
 const MEMBER: i64 = 20;
 const TARGET: i64 = 21;
 
@@ -58,6 +59,7 @@ async fn env(pool: sqlx::PgPool) -> Env {
     for (id, name) in [
         (CASE_STAFF, "casestaff"),
         (BASIC, "basic"),
+        (REVIEWER, "reviewer"),
         (MEMBER, "member"),
         (TARGET, "target"),
     ] {
@@ -66,6 +68,7 @@ async fn env(pool: sqlx::PgPool) -> Env {
     admin.add_role(1, "Owner", 3, P::OWNER);
     admin.add_role(2, "Moderator", 2, P::STAFF_BASIC | P::MANAGE_CASES);
     admin.add_role(3, "Basic", 1, P::STAFF_BASIC);
+    admin.add_role(4, "Reader", 1, P::STAFF_BASIC | P::REVIEW_READING);
     admin.set_owner(OWNER);
     let svc = AdminService::new(admin.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
@@ -73,10 +76,13 @@ async fn env(pool: sqlx::PgPool) -> Env {
         .await
         .unwrap();
     svc.appoint(&op, BASIC, &[3], Some("test")).await.unwrap();
+    svc.appoint(&op, REVIEWER, &[4], Some("test"))
+        .await
+        .unwrap();
 
     let sessions = Arc::new(MemorySessions::new());
     let mut tokens = HashMap::new();
-    for (n, uid) in [OWNER, CASE_STAFF, BASIC, MEMBER, TARGET]
+    for (n, uid) in [OWNER, CASE_STAFF, BASIC, REVIEWER, MEMBER, TARGET]
         .into_iter()
         .enumerate()
     {
@@ -532,4 +538,84 @@ async fn report_to_case_to_hold_to_release_over_http() {
         mine[0]["outcome_line"],
         "Thank you, nothing broke the rules."
     );
+}
+
+/// N-23: a reviewer (REVIEW_READING) gets the queue of the cases routed to reviewers, and nothing of the rest.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_reviewer_sees_only_the_cases_routed_to_reviewers() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (BASIC, "basic"),
+        (REVIEWER, "reviewer"),
+        (MEMBER, "member"),
+        (TARGET, "target"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    let e = env(pool.clone()).await;
+    e.features
+        .set_enabled(
+            sr_features::REPORTS_FEATURE_ID,
+            &sr_features::ScopeRef::Platform,
+            Some(true),
+        )
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO reading_series (id, kind, title) VALUES (600, 'comic', 'Comic')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let report =
+        |kind: &str, id: &str| json!({"target_kind": kind, "target_id": id, "category": "spam"});
+    for body in [
+        report("library", "600"),
+        report("user", &TARGET.to_string()),
+    ] {
+        let (s, b) = e
+            .call(
+                Some(MEMBER),
+                Method::POST,
+                "/moderation/reports",
+                Some(body),
+            )
+            .await;
+        assert_eq!(s, StatusCode::CREATED, "{b}");
+    }
+    let (s, page) = e
+        .call(Some(REVIEWER), Method::GET, "/moderation/cases", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    let items = page["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "{page}");
+    assert_eq!(items[0]["routing"], "reviewers");
+    let id = items[0]["id"].as_str().unwrap();
+    // Work, but not the manage actions.
+    let (s, d) = e
+        .call(
+            Some(REVIEWER),
+            Method::GET,
+            &format!("/moderation/cases/{id}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!(d["access"], "work");
+    let (s, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::POST,
+            &format!("/moderation/cases/{id}/warn"),
+            Some(json!({"text": "x"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // The platform case (a user report) stays out of the reviewer's sight.
+    let (_, all) = e
+        .call(Some(CASE_STAFF), Method::GET, "/moderation/cases", None)
+        .await;
+    assert_eq!(all["items"].as_array().unwrap().len(), 2);
 }

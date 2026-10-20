@@ -3,13 +3,14 @@
 import { Tabs } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../i18n';
-import { SectionHeader } from '../ui';
+import { SectionHeader, useAdminViewer } from '../ui';
 import { CasePage } from './CasePage';
 import { CaseQueue } from './CaseQueue';
 import { AppealsTab, HoldsTab } from './HoldsAndAppeals';
 
 export function ModerationSection() {
   const t = useT();
+  const manage = useAdminViewer().can('MANAGE_CASES');
   const [tab, setTab] = useState('cases');
   const [caseId, setCaseId] = useState<string | null>(null);
 
@@ -26,6 +27,9 @@ export function ModerationSection() {
       />
       {caseId ? (
         <CasePage id={caseId} onBack={() => setCaseId(null)} />
+      ) : !manage ? (
+        // Reviewers work the cases routed to them; holds and appeals are platform staff's (D-213, D-215).
+        <CaseQueue onOpen={open} />
       ) : (
         <Tabs
           label={t('admin.moderation.tabsLabel')}

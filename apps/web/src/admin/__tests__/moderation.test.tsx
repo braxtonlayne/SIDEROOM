@@ -115,8 +115,8 @@ const DETAIL = {
 };
 
 describe('Admin > Moderation', () => {
-  it('is for staff with MANAGE_CASES only', async () => {
-    asStaff({ perms: ['STAFF_BASIC', 'DELETE_CONTENT'] });
+  it('is hidden from staff with no case or review bit', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'PLATFORM_BAN'] });
     server.use(http.get('*/api/v1/admin/stats', () => HttpResponse.json({})));
     openAdmin('dashboard');
     await screen.findByRole('heading', { name: 'Dashboard' });
@@ -351,5 +351,21 @@ describe('New case (N-22)', () => {
       },
       { path: 'note', body: { body: 'Saw chargebacks' } },
     ]);
+  });
+});
+
+describe('Reviewers (N-23)', () => {
+  it('see the section with the queue only: no holds, appeals or New case', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'REVIEW_READING'] });
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [{ ...CASE, routing: 'reviewers' }], next_cursor: null }),
+      ),
+    );
+    openAdmin('moderation');
+    expect(await screen.findByRole('button', { name: 'Open case 9001' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Holds' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Appeals' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New case' })).toBeNull();
   });
 });

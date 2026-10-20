@@ -83,7 +83,8 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     id: 'moderation',
     label: 'admin.moderation.navLabel',
     group: 'admin.adminApp.group.people',
-    visible: (v) => v.can('MANAGE_CASES'),
+    visible: (v) =>
+      hasAny(v.perms, 'MANAGE_CASES', 'REVIEW_READING', 'REVIEW_MEDIA', 'DELETE_CONTENT'),
     component: ModerationSection,
   },
   {
