@@ -9,6 +9,7 @@
 //!   [`rules`] the appointment rules and the default staff roles.
 
 pub mod chain;
+pub mod data_requests;
 pub mod error;
 pub mod ext;
 pub mod memory;
@@ -22,8 +23,14 @@ pub mod settings;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_dsr;
+#[cfg(test)]
 mod tests_ext;
 
+pub use data_requests::{
+    DataRequest, DataRequestKind, DataRequestRepository, DataRequestState, ErasureReport,
+    ErasureRun, MemoryDataRequests, NewDataRequest, RETAINED, RetainedRecord,
+};
 pub use error::{AdminError, AdminResult};
 pub use ext::*;
 pub use model::*;
