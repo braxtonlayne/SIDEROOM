@@ -108,14 +108,6 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     component: StaffSection,
   },
   {
-    // M-25 step c: its own page until the integrator places it under Admin > Moderation.
-    id: 'data-requests',
-    label: 'admin.adminApp.section.dataRequests',
-    group: 'admin.dataRequests.group',
-    visible: (v) => v.can('MANAGE_TAKEDOWNS'),
-    component: DataRequestsSection,
-  },
-  {
     id: 'review',
     label: 'admin.adminApp.section.review',
     group: 'admin.adminApp.group.content',
@@ -271,6 +263,14 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     visible: (v) =>
       hasAny(v.perms, 'MANAGE_INVITES', 'APPOINT_STAFF', 'OPERATOR', 'VIEW_ACCESS_LOG'),
     component: CliParitySection,
+  },
+  {
+    // M-25 step c: its own page until the integrator places it under Admin > Moderation.
+    id: 'data-requests',
+    label: 'admin.adminApp.section.dataRequests',
+    group: 'admin.dataRequests.group',
+    visible: (v) => v.can('MANAGE_TAKEDOWNS'),
+    component: DataRequestsSection,
   },
 ];
 

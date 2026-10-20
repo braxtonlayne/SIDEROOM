@@ -115,6 +115,7 @@ describe('admin shell', () => {
       'Private content',
       'Access log',
       'Command line',
+      'Data requests',
     ]);
   });
 
