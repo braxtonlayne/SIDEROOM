@@ -1461,7 +1461,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         media_service_shared,
         download_service,
     );
-    let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
+    let runner =
+        crate::payments_jobs::register(runner, &pool, payments.service.clone(), features.clone());
     let runner = crate::userset_jobs::register(
         runner,
         &pool,

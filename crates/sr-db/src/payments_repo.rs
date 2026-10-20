@@ -98,7 +98,11 @@ fn invoice_from(r: &PgRow) -> PayResult<Invoice> {
     Ok(Invoice {
         id: r.try_get("id").map_err(pe)?,
         wallet_id: r.try_get("wallet_id").map_err(pe)?,
-        user_id: r.try_get("user_id").map_err(pe)?,
+        // NULL: detached after the retention period (N-08, D-325); read as user 0, which no account has.
+        user_id: r
+            .try_get::<Option<i64>, _>("user_id")
+            .map_err(pe)?
+            .unwrap_or(0),
         purpose: Purpose::parse(&purpose)
             .ok_or_else(|| PayError::Storage(format!("unknown purpose {purpose}")))?,
         guild_id: r.try_get("guild_id").map_err(pe)?,

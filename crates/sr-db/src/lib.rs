@@ -21,6 +21,7 @@ mod error;
 mod guild_admin_repo;
 pub mod ingest_sources_repo;
 pub mod invite_join;
+pub mod invoice_retention;
 pub mod jobs;
 pub mod library_repo;
 pub mod library_state_repo;

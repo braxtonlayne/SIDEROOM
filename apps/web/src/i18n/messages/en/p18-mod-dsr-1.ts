@@ -114,4 +114,5 @@ export default {
   'admin.accountExtras.archiveDisplayName': 'Original display name',
   'admin.accountExtras.archiveDeleted': 'Deleted {when}',
   'admin.accountExtras.archiveRelease': 'Username free again {when}',
+  'admin.donations.invoices.detached': 'Detached (retention period over)',
 } satisfies Record<string, string>;
