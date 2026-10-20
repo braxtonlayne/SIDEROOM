@@ -127,7 +127,8 @@ async fn counts_and_hides_only_the_members_visible_messages_and_never_purges_hel
     // Servers only: the DM message stays visible.
     let hidden = self_delete::hide(pool, 1, Scope { dms: false, ..ALL }, 1_800_000_000_000)
         .await
-        .unwrap();
+        .unwrap()
+        .hidden;
     assert_eq!(hidden.len(), 1);
     assert_eq!((hidden[0].channel_id, hidden[0].guild_id), (10, Some(5)));
     assert_eq!(hidden[0].message_ids.len(), 2);
@@ -169,7 +170,8 @@ async fn counts_and_hides_only_the_members_visible_messages_and_never_purges_hel
     // Now the DMs.
     let hidden = self_delete::hide(pool, 1, ALL, 1_800_000_000_000)
         .await
-        .unwrap();
+        .unwrap()
+        .hidden;
     assert_eq!(hidden.len(), 1);
     assert_eq!((hidden[0].channel_id, hidden[0].guild_id), (11, None));
     assert_eq!(self_delete::count_visible(pool, 1, ALL).await.unwrap(), 0);
@@ -285,5 +287,144 @@ async fn one_run_at_a_time_and_once_per_24_hours_for_members() {
             .execute(pool)
             .await
             .is_err()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn reactions_and_poll_votes_go_with_the_run_closed_polls_keep_an_anonymous_tally_and_holds_stay()
+ {
+    use sr_chat::rich_repo::RichStore;
+    use sr_core::MessageId;
+    use sr_db::rich_repo::PgRichStore;
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    let base = seed(pool).await;
+    // Polls by another author: open (+10), closed (+11), under a hold (+12).
+    let now_ms = 1_800_000_000_000_i64;
+    for (off, poll, hold) in [
+        (
+            10,
+            format!(r#"{{"finalized":false,"expiry_ms":{}}}"#, now_ms * 2),
+            "NULL",
+        ),
+        (11, r#"{"finalized":true}"#.to_owned(), "NULL"),
+        (12, r#"{"finalized":true}"#.to_owned(), "7"),
+    ] {
+        exec(
+            pool,
+            &format!(
+                "INSERT INTO messages (id, channel_id, author_id, poll, hold_id) VALUES ({}, 10, 2, '{poll}'::jsonb, {hold})",
+                base + off
+            ),
+        )
+        .await;
+    }
+    // Reactions of account 1: two on a plain server message, one on a held message of theirs, one in the DM.
+    for (msg, emoji) in [
+        (base + 3, "a"),
+        (base + 3, "b"),
+        (base + 1, "a"),
+        (base + 2, "a"),
+    ] {
+        exec(
+            pool,
+            &format!("INSERT INTO reactions (message_id, emoji_key, user_id) VALUES ({msg}, '{emoji}', 1)"),
+        )
+        .await;
+    }
+    // Votes: account 1 on the open, closed and held polls; account 2 on the closed poll too.
+    for (msg, answer, user) in [(10, 1, 1), (11, 2, 1), (12, 1, 1), (11, 2, 2)] {
+        exec(
+            pool,
+            &format!("INSERT INTO poll_votes (message_id, answer_id, user_id) VALUES ({}, {answer}, {user})", base + msg),
+        )
+        .await;
+    }
+
+    let servers = Scope { dms: false, ..ALL };
+    let c = self_delete::counts(pool, 1, servers).await.unwrap();
+    assert_eq!(
+        (c.messages, c.reactions, c.poll_votes),
+        (2, 2, 2),
+        "held rows are not counted"
+    );
+    let all = self_delete::counts(pool, 1, ALL).await.unwrap();
+    assert_eq!((all.reactions, all.poll_votes), (3, 2));
+
+    let out = self_delete::hide(pool, 1, servers, now_ms).await.unwrap();
+    assert_eq!(out.poll_votes, 2);
+    assert_eq!(out.reactions.len(), 2);
+    assert!(
+        out.reactions
+            .iter()
+            .all(|r| r.channel_id == 10 && r.guild_id == Some(5) && r.message_id == base + 3)
+    );
+    let n = |sql: String| async move { scalar(pool, &sql).await };
+    // Held message's reaction and held poll's vote stay; the DM reaction stays without dms.
+    assert_eq!(
+        n(format!(
+            "SELECT count(*) FROM reactions WHERE user_id = 1 AND message_id IN ({}, {})",
+            base + 1,
+            base + 2
+        ))
+        .await,
+        2
+    );
+    assert_eq!(
+        n(format!(
+            "SELECT count(*) FROM poll_votes WHERE user_id = 1 AND message_id = {}",
+            base + 12
+        ))
+        .await,
+        1
+    );
+    assert_eq!(
+        n(format!(
+            "SELECT count(*) FROM poll_votes WHERE user_id = 1 AND message_id IN ({}, {})",
+            base + 10,
+            base + 11
+        ))
+        .await,
+        0
+    );
+    // The closed poll's result does not move; the voter is gone.
+    let rich = PgRichStore::new(pool.clone());
+    let t = rich
+        .poll_tallies(&[MessageId::new(u64::try_from(base + 11).unwrap())], None)
+        .await
+        .unwrap();
+    let tally = t.values().next().unwrap();
+    assert_eq!(
+        tally.counts.get(&2),
+        Some(&2),
+        "one named vote plus one anonymous"
+    );
+    let anon: Option<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT poll->'anonymous_counts'->>'2' FROM messages WHERE id = {}",
+        base + 11
+    )))
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(anon.as_deref(), Some("1"));
+    // The open poll just lost the vote.
+    let open = rich
+        .poll_tallies(&[MessageId::new(u64::try_from(base + 10).unwrap())], None)
+        .await
+        .unwrap();
+    assert!(open.is_empty());
+
+    // Direct messages only with dms; the cut-off applies to the reaction time.
+    let out = self_delete::hide(pool, 1, ALL, now_ms).await.unwrap();
+    assert_eq!(out.reactions.len(), 1);
+    assert_eq!(out.reactions[0].guild_id, None);
+    let old = Scope {
+        before_ms: Some(1_000_000_000_000),
+        ..ALL
+    };
+    assert_eq!(
+        self_delete::counts(pool, 1, old).await.unwrap().reactions,
+        0
     );
 }

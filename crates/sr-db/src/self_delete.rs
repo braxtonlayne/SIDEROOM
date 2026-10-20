@@ -114,6 +114,75 @@ const SCOPE_SQL: &str = "m.author_id = $1 AND m.visibility = 'visible' \
     AND ((c.guild_id IS NOT NULL AND $2) OR (c.guild_id IS NULL AND $3)) \
     AND ($4::bigint IS NULL OR m.id < sr_snowflake_floor(to_timestamp($4::double precision / 1000.0)))";
 
+/// Reactions of the member inside the scope on messages that are not held ($1 account, $2 servers, $3 dms,
+/// $4 cut-off ms on the reaction time). A reaction on a held message stays (D-122, D-332).
+const REACTION_SQL: &str = "r.user_id = $1 AND m.hold_id IS NULL \
+    AND ((c.guild_id IS NOT NULL AND $2) OR (c.guild_id IS NULL AND $3)) \
+    AND ($4::bigint IS NULL OR r.created_at < to_timestamp($4::double precision / 1000.0))";
+
+/// The same for poll votes (`pv`).
+const VOTE_SQL: &str = "pv.user_id = $1 AND m.hold_id IS NULL \
+    AND ((c.guild_id IS NOT NULL AND $2) OR (c.guild_id IS NULL AND $3)) \
+    AND ($4::bigint IS NULL OR pv.created_at < to_timestamp($4::double precision / 1000.0))";
+
+/// What a run with a scope would remove now (D-332).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Counts {
+    pub messages: i64,
+    pub reactions: i64,
+    pub poll_votes: i64,
+}
+
+/// A reaction a run removed, for the live `MESSAGE_REACTION_REMOVE`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovedReaction {
+    pub guild_id: Option<i64>,
+    pub channel_id: i64,
+    pub message_id: i64,
+    pub emoji_key: String,
+}
+
+/// What `hide` did.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Outcome {
+    pub hidden: Vec<Hidden>,
+    pub reactions: Vec<RemovedReaction>,
+    /// Poll votes removed (votes in closed polls became anonymous counts first).
+    pub poll_votes: i64,
+}
+
+/// Messages, reactions and poll votes a run with this scope would remove now.
+pub async fn counts(pool: &PgPool, account: i64, scope: Scope) -> DbResult<Counts> {
+    let messages = count_visible(pool, account, scope).await?;
+    let reactions: i64 = query(format!(
+        "SELECT count(*) FROM reactions r JOIN messages m ON m.id = r.message_id \
+         JOIN channels c ON c.id = m.channel_id WHERE {REACTION_SQL}"
+    ))
+    .bind(account)
+    .bind(scope.servers)
+    .bind(scope.dms)
+    .bind(scope.before_ms)
+    .fetch_one(pool)
+    .await?
+    .try_get(0)?;
+    let poll_votes: i64 = query(format!(
+        "SELECT count(*) FROM poll_votes pv JOIN messages m ON m.id = pv.message_id \
+         JOIN channels c ON c.id = m.channel_id WHERE {VOTE_SQL}"
+    ))
+    .bind(account)
+    .bind(scope.servers)
+    .bind(scope.dms)
+    .bind(scope.before_ms)
+    .fetch_one(pool)
+    .await?
+    .try_get(0)?;
+    Ok(Counts {
+        messages,
+        reactions,
+        poll_votes,
+    })
+}
+
 /// How many messages a run with this scope would hide now (the number the confirm dialog states).
 pub async fn count_visible(pool: &PgPool, account: i64, scope: Scope) -> DbResult<i64> {
     Ok(query(format!(
@@ -251,10 +320,17 @@ pub async fn fail(pool: &PgPool, id: i64, error: &str) -> DbResult<()> {
 /// Hide the member's visible messages inside `scope` as `user_deleted`, with the purge date
 /// `now + PURGE_DAYS` (unset for rows under a hold). Returns the hidden ids per channel, for the
 /// live `MESSAGE_DELETE_BULK` dispatch.
-pub async fn hide(pool: &PgPool, account: i64, scope: Scope, now_ms: i64) -> DbResult<Vec<Hidden>> {
+pub async fn hide(pool: &PgPool, account: i64, scope: Scope, now_ms: i64) -> DbResult<Outcome> {
     let channels: Vec<(i64, Option<i64>)> = query(format!(
-        "SELECT DISTINCT m.channel_id, c.guild_id FROM messages m \
-         JOIN channels c ON c.id = m.channel_id WHERE {SCOPE_SQL} ORDER BY m.channel_id"
+        "SELECT channel_id, guild_id FROM ( \
+           SELECT m.channel_id, c.guild_id FROM messages m \
+             JOIN channels c ON c.id = m.channel_id WHERE {SCOPE_SQL} \
+           UNION SELECT m.channel_id, c.guild_id FROM reactions r \
+             JOIN messages m ON m.id = r.message_id JOIN channels c ON c.id = m.channel_id \
+             WHERE {REACTION_SQL} \
+           UNION SELECT m.channel_id, c.guild_id FROM poll_votes pv \
+             JOIN messages m ON m.id = pv.message_id JOIN channels c ON c.id = m.channel_id \
+             WHERE {VOTE_SQL}) t ORDER BY channel_id"
     ))
     .bind(account)
     .bind(scope.servers)
@@ -266,7 +342,7 @@ pub async fn hide(pool: &PgPool, account: i64, scope: Scope, now_ms: i64) -> DbR
     .map(|r| Ok((r.try_get("channel_id")?, r.try_get("guild_id")?)))
     .collect::<DbResult<_>>()?;
     let purge_ms = now_ms + PURGE_DAYS * 86_400_000;
-    let mut out = Vec::new();
+    let mut out = Outcome::default();
     for chunk in channels.chunks(CHANNEL_CHUNK) {
         let ids: Vec<i64> = chunk.iter().map(|(c, _)| *c).collect();
         let mut tx = pool.begin().await?;
@@ -282,6 +358,68 @@ pub async fn hide(pool: &PgPool, account: i64, scope: Scope, now_ms: i64) -> DbR
         .bind(&ids)
         .execute(&mut *tx)
         .await?;
+        // Reactions go outright (D-332); held messages keep theirs.
+        let reaction_rows = query(format!(
+            "DELETE FROM reactions r USING messages m, channels c \
+             WHERE r.message_id = m.id AND c.id = m.channel_id AND {REACTION_SQL} AND m.channel_id = ANY($5) \
+             RETURNING m.channel_id, r.message_id, r.emoji_key"
+        ))
+        .bind(account)
+        .bind(scope.servers)
+        .bind(scope.dms)
+        .bind(scope.before_ms)
+        .bind(&ids)
+        .fetch_all(&mut *tx)
+        .await?;
+        // Votes in a closed poll become anonymous counts on the poll first, so the result the room saw
+        // does not move; then every vote in scope is deleted.
+        let closed = query(format!(
+            "SELECT pv.message_id, pv.answer_id, count(*) AS n FROM poll_votes pv \
+             JOIN messages m ON m.id = pv.message_id JOIN channels c ON c.id = m.channel_id \
+             WHERE {VOTE_SQL} AND m.channel_id = ANY($5) AND m.poll IS NOT NULL \
+               AND (COALESCE((m.poll->>'finalized')::boolean, false) \
+                    OR COALESCE((m.poll->>'expiry_ms')::bigint <= $6, false)) \
+             GROUP BY pv.message_id, pv.answer_id"
+        ))
+        .bind(account)
+        .bind(scope.servers)
+        .bind(scope.dms)
+        .bind(scope.before_ms)
+        .bind(&ids)
+        .bind(now_ms)
+        .fetch_all(&mut *tx)
+        .await?;
+        for r in &closed {
+            let (message, answer, n): (i64, i32, i64) = (
+                r.try_get("message_id")?,
+                r.try_get("answer_id")?,
+                r.try_get("n")?,
+            );
+            sqlx::query(
+                "UPDATE messages SET poll = jsonb_set( \
+                   jsonb_set(poll, '{anonymous_counts}', COALESCE(poll->'anonymous_counts', '{}'::jsonb)), \
+                   ARRAY['anonymous_counts', $2::text], \
+                   to_jsonb(COALESCE((poll->'anonymous_counts'->>$2::text)::bigint, 0) + $3)) \
+                 WHERE id = $1",
+            )
+            .bind(message)
+            .bind(answer.to_string())
+            .bind(n)
+            .execute(&mut *tx)
+            .await?;
+        }
+        out.poll_votes += query(format!(
+            "DELETE FROM poll_votes pv USING messages m, channels c \
+             WHERE pv.message_id = m.id AND c.id = m.channel_id AND {VOTE_SQL} AND m.channel_id = ANY($5)"
+        ))
+        .bind(account)
+        .bind(scope.servers)
+        .bind(scope.dms)
+        .bind(scope.before_ms)
+        .bind(&ids)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected() as i64;
         let rows = query(format!(
             "UPDATE messages m SET visibility = 'user_deleted', pinned = FALSE, \
              deleted_at = to_timestamp($6::double precision / 1000.0), \
@@ -300,6 +438,18 @@ pub async fn hide(pool: &PgPool, account: i64, scope: Scope, now_ms: i64) -> DbR
         .fetch_all(&mut *tx)
         .await?;
         tx.commit().await?;
+        for r in &reaction_rows {
+            let channel: i64 = r.try_get("channel_id")?;
+            out.reactions.push(RemovedReaction {
+                guild_id: chunk
+                    .iter()
+                    .find(|(c, _)| *c == channel)
+                    .and_then(|(_, g)| *g),
+                channel_id: channel,
+                message_id: r.try_get("message_id")?,
+                emoji_key: r.try_get("emoji_key")?,
+            });
+        }
         for (channel, guild) in chunk {
             let message_ids: Vec<i64> = rows
                 .iter()
@@ -310,7 +460,7 @@ pub async fn hide(pool: &PgPool, account: i64, scope: Scope, now_ms: i64) -> DbR
                 })
                 .collect();
             if !message_ids.is_empty() {
-                out.push(Hidden {
+                out.hidden.push(Hidden {
                     guild_id: *guild,
                     channel_id: *channel,
                     message_ids,
