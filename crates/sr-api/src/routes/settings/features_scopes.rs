@@ -64,6 +64,10 @@ pub struct ChannelFeatureObject {
     /// Effective settings in this channel (defaults, the server's, then the channel's).
     #[schema(value_type = Object)]
     pub settings: Value,
+    /// What the channel would use with no overrides of its own: the defaults and the server's
+    /// settings, for the fields that belong to the channel level.
+    #[schema(value_type = Object)]
+    pub inherited: Value,
     /// Only what this channel overrides.
     #[schema(value_type = Object)]
     pub overrides: Value,
@@ -151,6 +155,12 @@ async fn channel_view(
         .is_enabled(fid, &ScopeRef::Guild { guild })
         .await?;
     let channel_enabled = ctx.settings.is_enabled(fid, &scope).await?;
+    let schema = f.settings_schema();
+    let mut inherited = ctx
+        .settings
+        .effective_settings(fid, &ScopeRef::Guild { guild })
+        .await?;
+    schema.retain_scope(Scope::Channel, &mut inherited);
     Ok(ChannelFeatureObject {
         id: fid.to_owned(),
         name: meta.name,
@@ -161,9 +171,9 @@ async fn channel_view(
         enabled: guild_enabled && channel_enabled,
         platform_disabled: ctx.settings.platform_killed(fid).await?,
         settings: Value::Object(ctx.settings.effective_settings(fid, &scope).await?),
+        inherited: Value::Object(inherited),
         overrides: Value::Object(own.values),
-        schema: serde_json::to_value(f.settings_schema().for_scope(Scope::Channel))
-            .unwrap_or(Value::Null),
+        schema: serde_json::to_value(schema.for_scope(Scope::Channel)).unwrap_or(Value::Null),
     })
 }
 

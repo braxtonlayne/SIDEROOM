@@ -64086,6 +64086,7 @@
           "enabled",
           "platform_disabled",
           "settings",
+          "inherited",
           "overrides",
           "schema"
         ],
@@ -64103,6 +64104,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "inherited": {
+            "type": "object",
+            "description": "What the channel would use with no overrides of its own: the defaults and the server's\nsettings, for the fields that belong to the channel level."
           },
           "name": {
             "type": "string"

@@ -480,6 +480,10 @@ async fn a_channel_narrows_what_the_server_has_on_and_can_be_reset() {
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["settings"]["max_quotes"], 3);
     assert_eq!(v["overrides"]["max_quotes"], 3);
+    assert_eq!(
+        v["inherited"]["max_quotes"], 4,
+        "the server value stays the baseline"
+    );
     // The server keeps its own value.
     let (_, g) = e.get(&e.g("/sr/features"), "owner").await;
     let g = g
@@ -508,6 +512,7 @@ async fn a_channel_narrows_what_the_server_has_on_and_can_be_reset() {
     assert_eq!(v[0]["override_enabled"], Value::Null);
     assert_eq!(v[0]["overrides"], json!({}));
     assert_eq!(v[0]["enabled"], true);
+    assert_eq!(v[0]["inherited"]["max_quotes"], 4);
     assert_eq!(v[0]["settings"]["max_quotes"], 4);
 }
 

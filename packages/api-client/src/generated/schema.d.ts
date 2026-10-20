@@ -13428,6 +13428,11 @@ export interface components {
             /** @description Whether the module is on in the server. A channel cannot switch it on by itself. */
             guild_enabled: boolean;
             id: string;
+            /**
+             * @description What the channel would use with no overrides of its own: the defaults and the server's
+             *     settings, for the fields that belong to the channel level.
+             */
+            inherited: Record<string, never>;
             name: string;
             /** @description The channel's own switch: `true` or `false`, or `null` when it follows the server. */
             override_enabled?: boolean | null;
