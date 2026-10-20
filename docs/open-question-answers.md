@@ -2861,3 +2861,31 @@ Status: `ADOPTED` (D-315). Follow-up: M-25 (the backend, with the M-06 remainder
 ### Still with the owner
 
 Actions only, no decisions: pin the `electrs` image digest (a pull), the lawyer's review named in D-287, D-293 to D-295, D-297, D-309, D-311 and D-314, and the downloads and dispatches already listed in [open-questions.md](open-questions.md).
+
+## Phase 18 round (answered 2026-10-20, delegated)
+
+The questions the data-request branch left in its handoff (`docs/dev/handoff/feat-p18-mod-dsr.md`, M-25 step c), answered by the owner's proxy under the same delegation and limits as the owner and Phase 17 rounds above: decide and document only (no code, build, download or push), legal items get a reasoned project default that is plainly not legal advice, with what a lawyer should check. Decisions are D-316 to D-318 in [01-decisions-log.md](01-decisions-log.md); follow-ups are N-01 to N-03 under "Phase 18 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 3 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Data requests (P18-DSR, branch `feat/p18-mod-dsr`)
+
+**P18-1 (M-25 c, D-295). The single extension allows 1 to 60 days on the reading that GDPR 12(3) allows two further months. Is 60 days the right ceiling, or should it be "two months" counted in calendar months?**
+Decision: 60 days, counted in days, stays. Two calendar months are 59 to 62 days depending on the start date, so a 60-day cap is never longer than the statutory period and at most two days shorter: the conservative side. Days are the unit the whole queue uses (the deadline setting, `due_at`, the CHECKs, the overdue badge), and a month-based limit would vary with the month a request arrived in. 60 also covers CCPA's 45-day extension. The ceiling stays the constant `MAX_EXTENSION_DAYS`, not a setting. Not legal advice; a lawyer should confirm that counting two months as 60 days is acceptable where the instance runs and that 30 plus 60 days satisfies the combined "three months" reading.
+Status: `ADOPTED` (D-316). Follow-up: N-01 (copy only: say "days, not months" where the cap is shown).
+
+**P18-2 (M-25 c). Should granting an extension automatically DM the member? Article 12(3) requires informing the data subject of any extension, with reasons, within one month of receipt.**
+Decision: yes, automatically and best effort, reusing the system DM the export run already sends. The notice carries the new due date and the reason staff wrote; the extend dialog says the member will see the reason. The row records `member_notified_at` (null when no DM could go out: the subject's account may already be gone or may never sign in), the queue shows whether the member was told and prompts "reply by email" when not, and the access-log entry names the outcome. An extension after the original due date is still recorded but marked "extended late" in the queue, since it does not cure a missed deadline. Not legal advice; a lawyer should confirm an in-app DM counts as informing the data subject when the request came in by email (the "reply by email" prompt is the safer practice the queue asks for anyway).
+Status: `ADOPTED` (D-317). Follow-up: N-02.
+
+**P18-3 (D-124, D-295). Are the retained-record reasons in the erasure outcome correct? They restate D-124 and D-295: Person record, invite graph, invoices, staff-side moderation history, held content, linked Discord identity and the request log.**
+Decision: right in substance, four changes. (1) The Discord-identity reason is wrong as written: D-030 keeps it so a returning person is linked to the same Person record automatically, not to stop them registering (a new invite is all they need); reword. (2) Invoices: "for as long as accounting law requires", not an implied forever. (3) Add the entry the list omits and that matters most under article 17: messages and uploads the member did not delete stay, shown as "Deleted User" (D-029, D-123); the member is told before deleting that they can delete them first. (4) The deletion screen and the export README say "your sign-in data are removed", which the retained Discord link contradicts, and neither mentions messages; align both with the list. The Person record, invite graph (also the inviter's record), moderation history, held content (kept while the hold lasts, then the normal purge; case flagged for a decision) and request-log reasons stand. Also check what the account row keeps after `delete_account` (email, last sign-in addresses) and scrub or name it. Not legal advice; a lawyer should check, beyond D-295: the basis for keeping undeleted messages after an erasure request (article 17(3)(a), or 17(1)(c) with an overriding ground), whether the Discord identifier should be kept only as a keyed hash (article 25), the statutory invoice retention period in the operator's country, and whether held-content retention needs a stated basis per hold.
+Status: `ADOPTED` (D-318). Follow-up: N-03.
+
+### Still with the owner
+
+Actions only, no decisions: the lawyer's review named in D-295, now extended by D-316 to D-318 (the two-months-as-60-days count, DM as notice, the messages and Discord-identity bases), plus the actions already listed in [open-questions.md](open-questions.md).
