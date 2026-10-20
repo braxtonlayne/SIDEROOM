@@ -940,6 +940,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         GatewayConfig {
             // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
             allowed_origins: vec![cfg.server.public_url.trim_end_matches('/').to_owned()],
+            // READY always names a resume URL, as Discord's does: typed libraries (serenity's `Ready`) refuse a
+            // READY whose `resume_gateway_url` is null, and never get past it.
+            resume_gateway_url: Some(gateway_ws_url(&cfg.server.public_url)),
             voice: voice_setup.as_ref().map(|v| {
                 let mut g = v.gateway.clone();
                 g.calls = Some(call_recorder.clone());
@@ -1661,9 +1664,35 @@ fn integration_status(
     ]
 }
 
+/// `ws(s)://<host>/gateway` from `server.public_url`: the URL READY offers for resuming (the one
+/// `GET /gateway` answers).
+fn gateway_ws_url(public_url: &str) -> String {
+    let base = public_url.trim_end_matches('/');
+    let ws = if let Some(r) = base.strip_prefix("https://") {
+        format!("wss://{r}")
+    } else if let Some(r) = base.strip_prefix("http://") {
+        format!("ws://{r}")
+    } else {
+        format!("ws://{base}")
+    };
+    format!("{ws}/gateway")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_resume_url_is_the_gateway_of_the_public_origin() {
+        assert_eq!(
+            gateway_ws_url("https://chat.example.org/"),
+            "wss://chat.example.org/gateway"
+        );
+        assert_eq!(
+            gateway_ws_url("http://127.0.0.1:8080"),
+            "ws://127.0.0.1:8080/gateway"
+        );
+    }
 
     #[test]
     fn both_feature_module_sets_register_for_guilds() {
