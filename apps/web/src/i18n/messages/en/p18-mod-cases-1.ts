@@ -248,4 +248,15 @@ export default {
   'admin.moderation.newCase.category': 'Reason',
   'admin.moderation.newCase.severity': 'Severity',
   'admin.moderation.newCase.note': 'First note',
+
+  // ---- Settings > Privacy: your reports (N-24) ----
+  'settings.privacy.reports.title': 'Your reports',
+  'settings.privacy.reports.description':
+    'The state of the reports you sent. You will never see who or what the moderators did about the other person.',
+  'settings.privacy.reports.empty': 'You have not sent any reports.',
+  'settings.privacy.reports.listLabel': 'Your reports',
+  'settings.privacy.reports.filed': 'Sent {when}',
+  'settings.privacy.reports.stateReceived': 'Received',
+  'settings.privacy.reports.stateUnderReview': 'Under review',
+  'settings.privacy.reports.stateClosed': 'Closed',
 } satisfies Record<string, string>;
