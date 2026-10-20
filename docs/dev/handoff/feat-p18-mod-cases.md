@@ -15,6 +15,21 @@ Base `integration/phase18` (= main at `03fa69ed`). Migration range used: **1090*
   - **Web**: the report dialog replaces the "reporting is not available" dialog (`moderation/ReportDialog.tsx`; category, note, "server moderators may see my name", "also block"); Report entries for a message (not your own), a person (with the server it was opened in), a channel and a server; Admin > Moderation (`admin/moderation/`: queue with filters and claim, case page with reports, snapshots, holds, appeal, notes, timeline and the actions, Holds tab with the review flag, Appeals tab); the ban screen appeal form on the sign-in page (`routes/entrance/BanAppeal.tsx`).
 - **Docs**: spec status line, section 2 rows, section 13 step 1 and a new section 15 "Implementation notes, step 1"; doc 09 retention line; doc 13; M-25 in `answers-followups-p16.md` gets a "partly done" note (box left unticked).
 
+## Follow-ups N-20 to N-27 (D-328 to D-331)
+
+All eight are done on this branch; the hold API signatures are unchanged (`holds::place_hold_in`, `release_hold_in`, `Moderation::place_hold`, `release_hold`), two helpers were added next to them (`release_system_holds_in`, `replace_system_hold_in`).
+
+- **N-20** dismissal releases the case's system holds (staff holds stay) and moving a dismissed case back to work, or reopening, places the hold again; tests in `sr-moderation` and `sr-server`.
+- **N-21** `CaseActions` (trait in `sr-moderation`) implemented by `ChatCaseActions` in `sr-server` over the guild backend, the message service and the admin service: delete message, time out, kick, ban from the server, suspend an account, as the acting person, from the case's own target. **Not wired:** restore a message and remove an attachment (no service does either; the trait returns `Unsupported`, the API answers 409, the page does not offer them). The timeout audit row is the member-update row the member tool writes; it cannot carry `case:<id>` because that call has no reason field. The route test per kind covers the four kinds that need only a user (a message case needs the chat tables, so the message kinds are tested in `sr-moderation` and `sr-server`).
+- **N-22** New case dialog (`open_case_with` takes a server and a severity; `NewCase` is unchanged).
+- **N-23** reviewers see the section with the queue only; route test with a `REVIEW_READING` role. The Review hub count was skipped (optional).
+- **N-24** "Your reports" card in Settings > Privacy.
+- **N-25** Accounts ban dialog goes through a case (the Bans page only lifts bans, so it has no ban dialog). The queue gained a `subject_account_id` filter. The route test asked for is the service test that the ban lands on the timeline as `platform_ban` (the admin ban runs on the memory repo in route tests).
+- **N-26** `GuildAudit` trait, `GuildAuditAdapter` in `sr-server`, audit actions 210 to 213 and their strings in the server audit log.
+- **N-27** flag description and docs say platform-wide (D-329).
+
+Also: the open-question-answers entries are renumbered `P18-MOD-1` to `P18-MOD-3`.
+
 ## Decisions
 
 - **Two hats, one set of routes.** `rules::pick_who` chooses between platform staff (`MANAGE_CASES`) and a server moderator (`MANAGE_MESSAGES` in the case's server). D-209 is applied literally: platform staff do not see a guild-routed case until its moderators escalate; after that the moderators keep a list row and lose the detail. Reviewers (`REVIEW_*` / `DELETE_CONTENT`) get `work` access to cases routed to reviewers through the API only; no UI.
@@ -26,8 +41,7 @@ Base `integration/phase18` (= main at `03fa69ed`). Migration range used: **1090*
 
 ## Still open (with reasons)
 
-- `MOD-CASE-009` delete/restore content, remove an attachment, time out, kick, guild ban from the case: needs the chat services; today the moderator does it with the server's own tools and records it (`record_action`).
-- No Admin form to open a case without a report (`POST /moderation/cases` exists); no reviewers' queue UI; no reporter status page in Settings (`MOD-RPT-013`); the Accounts/Bans ban dialogs still use the severity-only choice (`MOD-BAN-002`); the configured report channel of spec 3.4.
+- Restoring a deleted message and removing one attachment from a case (no service does either); the configured report channel of spec 3.4; the optional Review hub report count (N-23).
 - Steps (b) takedown register (`MOD-TKD-*`) and (c) data requests (`MOD-DSR-*`) are not mine; dashboards and suspicion are later. Spec section 14 items 4 to 6 stay "still open".
 - Not exercised in a browser: no server on 8080/5173 and no Playwright in this wave (brief). The HTTP flow is tested over the router with Postgres; the web pages by Vitest.
 

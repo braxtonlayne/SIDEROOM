@@ -9236,7 +9236,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Record that an action was taken with the server's own tools; the case moves to `actioned`. */
+        /**
+         * Record that an action was taken with the server's own tools, or (`perform`) do it through the server's services
+         *     on the case's own target; either way the case moves to `actioned`.
+         */
         post: operations["record_action"];
         delete?: never;
         options?: never;
@@ -12721,6 +12724,17 @@ export interface components {
              */
             action: string;
             note?: string | null;
+            /**
+             * @description `true` performs the action through the server's services (`delete_message`, `restore_message`,
+             *     `remove_attachment`, `timeout`, `kick`, `guild_ban`, `suspend_account`) on the case's own target;
+             *     otherwise it only records work done elsewhere.
+             */
+            perform?: boolean;
+            /**
+             * Format: int64
+             * @description `timeout` when performing: minutes, 1 to 40320.
+             */
+            timeout_minutes?: number | null;
         };
         ActionMetadata: {
             channel_id?: string | null;
@@ -17919,6 +17933,12 @@ export interface components {
             channel_ids: string[];
             /** @description Roles newly granted by the answers (roles with moderation power are never granted). */
             role_ids: string[];
+        };
+        /** @description Body of a staff-opened case: the case plus an optional server and severity. */
+        OpenCaseBody: components["schemas"]["NewCase"] & {
+            /** @description The server the case is about. */
+            guild_id?: string | null;
+            severity?: null | components["schemas"]["CaseSeverity"];
         };
         OptionDto: {
             channel_ids?: string[];
@@ -52437,6 +52457,8 @@ export interface operations {
                 assignee?: string;
                 /** @description Platform staff only: cases of this server. */
                 guild_id?: string;
+                /** @description Cases about this account. */
+                subject_account_id?: string;
                 /** @description `next_cursor` of the previous page. */
                 cursor?: string;
                 /** @description Oldest first (the work queue); default newest first. */
@@ -52493,7 +52515,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NewCase"];
+                "application/json": components["schemas"]["OpenCaseBody"];
             };
         };
         responses: {
@@ -53210,6 +53232,8 @@ export interface operations {
                 assignee?: string;
                 /** @description Platform staff only: cases of this server. */
                 guild_id?: string;
+                /** @description Cases about this account. */
+                subject_account_id?: string;
                 /** @description `next_cursor` of the previous page. */
                 cursor?: string;
                 /** @description Oldest first (the work queue); default newest first. */

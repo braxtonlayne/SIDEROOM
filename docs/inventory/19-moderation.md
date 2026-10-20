@@ -16,11 +16,11 @@ Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HO
 - [x] **MOD-RPT-005** [BE] Rate limit of reports per account per day (platform setting `moderation.reports_per_day`) and duplicate rule (one open report per reporter and target) _(setting `moderation.reports_per_day` (default 20) and the one-open-report unique index.)_
 - [x] **MOD-RPT-006** [BE] Reports never auto-action; a report on a message places a hold on it and its attachments (spec 3.2) _(a message report places a system hold (`created_by` NULL) through `holds::place_hold_in`; nothing else changes. Dismissal releases it and reopening places it again, D-328 (N-20).)_
 - [x] **MOD-RPT-007** [BE] `GET /moderation/reports/mine` and status for the reporter: received, under review, closed, plus the outcome line, never the other party _(`GET /moderation/reports/mine`; the reporter sees state and outcome line, never the case. No Settings page for it yet.)_
-- [x] **MOD-RPT-008** [BE] Routing per spec 3.4 and D-209: guild content to the guild's moderators, DMs and group DMs, users outside a guild, servers and `child_safety` / `illegal_content` to platform staff, library and cinema items to reviewers and `DELETE_CONTENT` holders _(`rules::route` (unit tests). Reviewers see the cases of their kind through the API; there is no reviewer UI yet.)_
+- [x] **MOD-RPT-008** [BE] Routing per spec 3.4 and D-209: guild content to the guild's moderators, DMs and group DMs, users outside a guild, servers and `child_safety` / `illegal_content` to platform staff, library and cinema items to reviewers and `DELETE_CONTENT` holders _(`rules::route` (unit tests). Reviewers see the cases of their kind through the API; reviewers see the queue and work their cases in Admin > Moderation without holds or appeals, N-23.)_
 - [x] **MOD-RPT-009** [BE] Guild moderators' view: `GET /moderation/guilds/{guild_id}/reports` (`MANAGE_MESSAGES`) and an escalate action that hands the case to platform staff _(`GET /moderation/guilds/{guild_id}/cases` and `POST /moderation/cases/{id}/escalate`; a server moderator is wearing the `Who::GuildMod` hat of `rules::pick_who`.)_
 - [x] **MOD-RPT-010** [FE] Report dialog (category, note, "moderators may see my name", also block) replacing the "reporting is not available" dialog; targets: message, user, channel, library item, cinema item _(`moderation/ReportDialog.tsx` (replaces the "not available" dialog); "also block" calls the existing block route.)_
 - [x] **MOD-RPT-011** [FE] Report entry for a server (server menu) _(`useGuildMenuCore().report`; the member list passes its server on a user report.)_
-- [ ] **MOD-RPT-013** [FE] Reporter status list in Settings (`GET /moderation/reports/mine` exists; no page yet)
+- [x] **MOD-RPT-013** [FE] Reporter status list in Settings _(`settings/user/sections/YourReports.tsx`, Privacy.)_
 - [x] **MOD-RPT-012** [BE] Reported DM messages readable by case staff within the snapshot only, access-logged with the case id (D-214) _(`Moderation::get_case` logs a `private_read` row with reason `case <id>` before returning a DM snapshot; server moderators never get one.)_
 
 ## MOD-CASE — Cases (spec section 4)
@@ -32,9 +32,9 @@ Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HO
 - [x] **MOD-CASE-006** [BE] Internal notes (append-only) and the timeline; every action writes a case event and the platform access log _(notes and events are append-only (trigger); platform staff changes write the access log in the same transaction.)_
 - [x] **MOD-CASE-007** [BE] Staff-opened cases (no report) for a person or a thing _(`POST /moderation/cases` (API only; no staff form in Admin yet).)_
 - [x] **MOD-CASE-008** [BE] Actions from a case: warn (system DM), platform ban with `category` and `reason_category`, record a guild action taken, dismiss, close _(warn, record an action taken elsewhere, ban from the case (admin ban plus `reason_category`), dismiss and close.)_
-- [ ] **MOD-CASE-009** [BE] Actions from a case that need other services: delete or restore content, remove an attachment, time out, kick, guild ban, suspend an account _(Not built: these actions are performed with the server's own tools and recorded on the case with `record_action`; doing them from the case needs the chat services.)_
+- [x] **MOD-CASE-009** [BE] Actions from a case that need other services: delete content, time out, kick, guild ban, suspend an account _(`sr-moderation::actions` (`CaseActions`, `perform_action`), `sr-server/moderation_actions.rs`, `POST /moderation/cases/{id}/actions` with `perform`; restore a message and remove an attachment stay unsupported because no service does them.)_
 - [x] **MOD-CASE-010** [BE] System DM to the subject when an action is taken, never naming the reporter; serious bans may skip it (spec 4.5) _(warn and a non-serious ban DM the subject through `SubjectNotifier`; never the reporter.)_
-- [x] **MOD-CASE-011** [FE] Admin > Moderation: the case queue with filters and claim _(`admin/moderation/CaseQueue.tsx`.)_
+- [x] **MOD-CASE-011** [FE] Admin > Moderation: the case queue with filters and claim _(`admin/moderation/CaseQueue.tsx`; a New case dialog opens a case without a report, N-22.)_
 - [x] **MOD-CASE-012** [FE] Admin > Moderation: the case page (timeline, evidence, linked accounts, holds with release, notes, actions, appeal) _(`admin/moderation/CasePage.tsx`.)_
 - [x] **MOD-CASE-013** [BE] Guild-scoped escalation to platform staff keeps the case, flips its routing and logs it _(`Moderation::escalate`; the server keeps a list row and loses the detail.)_
 
@@ -84,7 +84,7 @@ Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HO
 
 ## MOD-BAN — Ban reason taxonomy (spec section 8; D-211)
 - [x] **MOD-BAN-001** [DB] `ban_reason_category` enum and `person_bans.reason_category` _(migration 0580, XC-MOD-001.)_
-- [ ] **MOD-BAN-002** [FE] Ban dialog picks `reason_category` with the serious-by-default mapping (D-211) and lets staff raise `harassment` and `ban_evasion` _(The ban dialog on a case picks `reason_category` with the D-211 presets; the Accounts and Bans pages still use the severity-only dialog.)_
+- [x] **MOD-BAN-002** [FE] Ban dialog picks `reason_category` with the serious-by-default mapping (D-211) and lets staff raise `harassment` and `ban_evasion` _(`admin/moderation/BanReasonFields.tsx`, used by the case page and the Accounts ban dialog, which opens or joins the person's platform case and bans through it; staff without `MANAGE_CASES` keep the severity-only request.)_
 - [ ] **MOD-BAN-003** [FE] Bans list filters by `reason_category`, severity and age
 
 ## MOD-DASH — Staff dashboards (spec section 9; step 4, later)
