@@ -464,6 +464,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
           } as MenuEntry,
         ]
       : []),
+    ...(core.report ? [core.report] : []),
     ...(core.isOwner ? [] : [{ type: 'separator' } as MenuEntry, core.leave]),
   ];
   return (

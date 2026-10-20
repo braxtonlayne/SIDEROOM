@@ -237,7 +237,7 @@ fn auth_err(e: AuthRouteError) -> HttpError {
 /// The answer says nothing about the ban beyond what the person already knows.
 #[utoipa::path(
     post, path = "/moderation/appeals", request_body = AppealBody,
-    responses((status = 201, description = "The appeal was filed"), (status = 400, body = ErrorBody),
+    responses((status = 204, description = "The appeal was filed"), (status = 400, body = ErrorBody),
               (status = 401, body = ErrorBody), (status = 409, body = ErrorBody),
               (status = 429, body = ErrorBody)),
     security(())
@@ -256,7 +256,7 @@ pub async fn file_appeal(
         .create_appeal(account, &b.message)
         .await
         .map_err(map_err)?;
-    Ok(StatusCode::CREATED)
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Debug, Default, Deserialize, IntoParams)]

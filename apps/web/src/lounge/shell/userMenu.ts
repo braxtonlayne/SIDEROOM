@@ -28,7 +28,11 @@ export async function sendServerInvite(
  * Entries about another person that DM rows, the member list and the friends page share: Add Note,
  * Invite to Server, and the relationship actions (LNG-HOME-008, LNG-GLD-023).
  */
-export function useUserMenuEntries(user: { id: string; name: string } | undefined) {
+export function useUserMenuEntries(
+  user: { id: string; name: string } | undefined,
+  /** The server the menu was opened in, so its moderators get a report about this person. */
+  guildId?: string,
+) {
   const guilds = useGuilds();
   const channelsByGuild = useAllChannels();
   const relationships = useSocial((s) => s.relationships);
@@ -70,7 +74,7 @@ export function useUserMenuEntries(user: { id: string; name: string } | undefine
       : []),
     { label: 'Ignore', onSelect: () => after(ignoreUser(user.id)) },
     { label: 'Block', danger: true, onSelect: () => after(blockUser(user.id)) },
-    ...entryList(reportEntry({ kind: 'user', id: user.id })),
+    ...entryList(reportEntry({ kind: 'user', id: user.id, authorId: user.id, guildId })),
   ];
   return { note, invite, relationship };
 }

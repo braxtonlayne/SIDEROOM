@@ -358,7 +358,14 @@ function MessageItemImpl(props: MessageItemProps) {
       });
     }
     if (appsMenu.length > 0) entries.push({ type: 'separator' }, ...appsMenu);
-    const report = reportEntry({ kind: 'message', id: m.id });
+    const report = isOwn
+      ? null
+      : reportEntry({
+          kind: 'message',
+          id: m.id,
+          channelId: m.channelId,
+          authorId: m.author.id,
+        });
     if (report) entries.push({ type: 'separator' }, report);
     if (developerMode) {
       entries.push({ type: 'separator' });

@@ -679,7 +679,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"library_updates","method":"get","path":"/library/updates","status":200,"body":{"items":[{}]}},
   {"id":"library_user_lists","method":"get","path":"/library/users/:user_id/lists","status":200,"body":{"items":[{}]}},
   {"id":"list_appeals","method":"get","path":"/moderation/appeals","status":200,"body":[{"appellant_account_id":"1","ban_id":"1","created_at_ms":0,"decision_reason":"string","id":"1","message":"string","person_id":"1","state":"string"}]},
-  {"id":"file_appeal","method":"post","path":"/moderation/appeals","status":201,"body":null},
+  {"id":"file_appeal","method":"post","path":"/moderation/appeals","status":204,"body":null},
   {"id":"decide_appeal","method":"post","path":"/moderation/appeals/:appeal_id/decision","status":200,"body":{"appellant_account_id":"1","ban_id":"1","created_at_ms":0,"decision_reason":"string","id":"1","message":"string","person_id":"1","state":"string"}},
   {"id":"list_cases","method":"get","path":"/moderation/cases","status":200,"body":{"items":[{}]}},
   {"id":"open_case","method":"post","path":"/moderation/cases","status":201,"body":{"active_holds":0,"category":"spam","escalated":false,"id":"1","opened_at_ms":0,"report_count":0,"routing":"guild","severity":"standard","state":"open","summary":"string","target_kind":"message","updated_at_ms":0}},

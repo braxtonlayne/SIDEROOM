@@ -13692,6 +13692,14 @@ export interface components {
             message: string;
             ok: boolean;
         };
+        /** @description Body of a ban from a case. */
+        CaseBanBody: {
+            /** @description Why, for the audit log and the case. Required. */
+            note?: string | null;
+            /** @description The why, from the section 8 vocabulary. */
+            reason_category: components["schemas"]["ReportCategory"];
+            severity?: null | components["schemas"]["CaseSeverity"];
+        };
         /** @description Everything about one case, as far as the viewer may see it. */
         CaseDetail: {
             /** @description What this viewer may do: `read`, `work` or `manage`. */
@@ -13733,6 +13741,11 @@ export interface components {
             /** Format: int64 */
             created_at_ms: number;
             id: string;
+        };
+        /** @description Body of an internal note. */
+        CaseNoteBody: {
+            /** @description Up to 4000 characters. */
+            body: string;
         };
         CasePage: {
             items: components["schemas"]["CaseSummary"][];
@@ -52305,7 +52318,7 @@ export interface operations {
         };
         responses: {
             /** @description The appeal was filed */
-            201: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -52742,7 +52755,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BanBody"];
+                "application/json": components["schemas"]["CaseBanBody"];
             };
         };
         responses: {
@@ -52940,7 +52953,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NoteBody"];
+                "application/json": components["schemas"]["CaseNoteBody"];
             };
         };
         responses: {

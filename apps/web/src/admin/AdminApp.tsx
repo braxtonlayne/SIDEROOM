@@ -45,6 +45,7 @@ import { ServersSection } from './sections/Servers';
 import { StaffSection } from './sections/Staff';
 import { ReviewHubSection } from './sections/ReviewHub';
 import { PrivateContentSection } from './sections/PrivateContent';
+import { ModerationSection } from './moderation/ModerationSection';
 import { JobsSection, SystemSection } from './sections/System';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
 
@@ -77,6 +78,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.people',
     visible: (v) => v.can('PLATFORM_BAN'),
     component: BansSection,
+  },
+  {
+    id: 'moderation',
+    label: 'admin.moderation.navLabel',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_CASES'),
+    component: ModerationSection,
   },
   {
     id: 'invites',

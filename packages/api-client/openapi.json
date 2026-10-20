@@ -47816,7 +47816,7 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "204": {
             "description": "The appeal was filed"
           },
           "400": {
@@ -48504,7 +48504,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BanBody"
+                "$ref": "#/components/schemas/CaseBanBody"
               }
             }
           },
@@ -48798,7 +48798,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NoteBody"
+                "$ref": "#/components/schemas/CaseNoteBody"
               }
             }
           },
@@ -65665,6 +65665,37 @@
           }
         }
       },
+      "CaseBanBody": {
+        "type": "object",
+        "description": "Body of a ban from a case.",
+        "required": [
+          "reason_category"
+        ],
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why, for the audit log and the case. Required."
+          },
+          "reason_category": {
+            "$ref": "#/components/schemas/ReportCategory",
+            "description": "The why, from the section 8 vocabulary."
+          },
+          "severity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CaseSeverity",
+                "description": "Omit it to take the default of `reason_category` (D-211); staff can raise or lower it."
+              }
+            ]
+          }
+        }
+      },
       "CaseDetail": {
         "type": "object",
         "description": "Everything about one case, as far as the viewer may see it.",
@@ -65833,6 +65864,19 @@
           },
           "id": {
             "type": "string"
+          }
+        }
+      },
+      "CaseNoteBody": {
+        "type": "object",
+        "description": "Body of an internal note.",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Up to 4000 characters."
           }
         }
       },
