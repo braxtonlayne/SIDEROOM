@@ -234,13 +234,13 @@ impl CaseActions for ChatCaseActions {
     async fn timeout_member(
         &self,
         by: &Caller,
-        _case: i64,
+        case: i64,
         guild: i64,
         user: i64,
         until_ms: i64,
     ) -> Result<String, ActionError> {
         self.guilds
-            .edit_member(
+            .edit_member_with_reason(
                 uid(by.user_id)?,
                 gid(guild)?,
                 uid(user)?,
@@ -248,6 +248,7 @@ impl CaseActions for ChatCaseActions {
                     communication_disabled_until_ms: Some(Some(until_ms)),
                     ..MemberPatch::default()
                 },
+                Some(format!("case:{case}")),
             )
             .await
             .map_err(refused)?;
