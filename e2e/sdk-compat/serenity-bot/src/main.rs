@@ -94,6 +94,16 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() {
+    // serenity drops a frame it cannot deserialize and reconnects, telling only `tracing`. Log to stderr
+    // (stdout carries the protocol); `RUST_LOG` overrides the default filter.
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_ansi(false)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn,serenity=info")),
+        )
+        .init();
     let base = std::env::var("SDK_COMPAT_BASE").expect("SDK_COMPAT_BASE");
     let token = std::env::var("SDK_COMPAT_TOKEN").expect("SDK_COMPAT_TOKEN");
     let mut intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES;
