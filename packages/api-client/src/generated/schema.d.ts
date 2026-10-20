@@ -12723,6 +12723,8 @@ export interface components {
              *     or `other`. Recording does not perform it.
              */
             action: string;
+            /** @description `remove_attachment` when performing: the attachment snowflake (one of the case's message). */
+            attachment_id?: string | null;
             note?: string | null;
             /**
              * @description `true` performs the action through the server's services (`delete_message`, `restore_message`,
