@@ -115,6 +115,9 @@ audit_actions! {
     ModerationCaseDismissed = 211,
     ModerationCaseActioned = 212,
     ModerationCaseActionRecorded = 213,
+    // A moderator restored a deleted message, or removed one attachment, from a case (N-21).
+    ModerationMessageRestored = 214,
+    ModerationAttachmentRemoved = 215,
 }
 
 /// One changed key, Discord shape: `{key, old_value, new_value}`.

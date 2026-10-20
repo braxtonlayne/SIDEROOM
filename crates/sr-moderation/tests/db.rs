@@ -1594,20 +1594,25 @@ impl sr_moderation::CaseActions for FakeActions {
     }
     async fn restore_message(
         &self,
-        _: &Caller,
-        _: i64,
-        _: i64,
-        _: i64,
+        by: &Caller,
+        case: i64,
+        ch: i64,
+        m: i64,
     ) -> Result<String, sr_moderation::ActionError> {
-        Err(sr_moderation::ActionError::Unsupported)
+        self.note(format!("restore {} {case} {ch} {m}", by.user_id))
     }
     async fn remove_attachment(
         &self,
-        _: &Caller,
-        _: i64,
-        _: i64,
+        by: &Caller,
+        case: i64,
+        ch: i64,
+        m: i64,
+        a: i64,
     ) -> Result<String, sr_moderation::ActionError> {
-        Err(sr_moderation::ActionError::Unsupported)
+        self.note(format!(
+            "remove_attachment {} {case} {ch} {m} {a}",
+            by.user_id
+        ))
     }
     async fn timeout_member(
         &self,
@@ -1689,6 +1694,7 @@ async fn actions_are_performed_on_the_cases_own_target_through_the_services() {
         action,
         note: note.into(),
         timeout_minutes: minutes,
+        attachment_id: None,
     };
 
     // A timeout needs a sensible length; a refusal changes nothing; an unsupported action says so.

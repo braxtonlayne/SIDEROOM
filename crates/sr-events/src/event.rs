@@ -222,6 +222,15 @@ pub enum DomainEvent {
         message_id: u64,
         data: serde_json::Value,
     },
+    /// A moderator restored a deleted message (N-21): clients get a `MESSAGE_CREATE` with the full object
+    /// (`data`) so it reappears in place. A separate event from [`Self::MessageSent`] because it is not a new
+    /// message: pushes, automation and bots that react to new messages do not fire for it; search re-indexes it.
+    MessageRestored {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        data: serde_json::Value,
+    },
     /// `MESSAGE_DELETE`.
     MessageDeleted {
         guild: Option<GuildId>,
@@ -503,6 +512,11 @@ impl DomainEvent {
                 channel,
                 ..
             }
+            | Self::MessageRestored {
+                guild: None,
+                channel,
+                ..
+            }
             | Self::MessageEdited {
                 guild: None,
                 channel,
@@ -599,6 +613,7 @@ impl DomainEvent {
                 vec![Topic::Guild(*guild), Topic::Channel(*channel)]
             }
             Self::MessageSent { guild, channel, .. }
+            | Self::MessageRestored { guild, channel, .. }
             | Self::MessageEdited { guild, channel, .. }
             | Self::MessageDeleted { guild, channel, .. }
             | Self::MessagesBulkDeleted { guild, channel, .. }

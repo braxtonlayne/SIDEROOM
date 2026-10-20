@@ -166,12 +166,53 @@ pub(crate) async fn purge_deleted_messages(
     Ok(total)
 }
 
+/// Finish the removal of attachments a moderation case took off their message (N-21): no hold covers them any
+/// more (a held one keeps its object and row for the evidence, D-122), so the stored object goes and then the
+/// row. An object that cannot be deleted leaves its row for the next run. Returns how many rows were removed.
+pub(crate) async fn purge_removed_attachments(
+    pool: &PgPool,
+    storage: &dyn ObjectStorage,
+) -> DbResult<i64> {
+    let rows: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT id, storage_key FROM attachments \
+         WHERE removed_at IS NOT NULL AND message_id IS NULL AND hold_id IS NULL \
+         ORDER BY removed_at LIMIT $1",
+    )
+    .bind(PURGE_BATCH)
+    .fetch_all(pool)
+    .await?;
+    let mut done: Vec<i64> = Vec::new();
+    for (id, key) in &rows {
+        if remove_object(storage, key).await {
+            done.push(*id);
+        }
+    }
+    if done.is_empty() {
+        return Ok(0);
+    }
+    let n = sqlx::query(
+        "DELETE FROM attachments WHERE id = ANY($1) AND removed_at IS NOT NULL AND hold_id IS NULL",
+    )
+    .bind(&done)
+    .execute(pool)
+    .await?
+    .rows_affected();
+    Ok(i64::try_from(n).unwrap_or(i64::MAX))
+}
+
 async fn purge_handler(
     pool: PgPool,
     storage: Arc<dyn ObjectStorage>,
     job: Job,
 ) -> Result<(), HandlerError> {
     let purged = purge_deleted_messages(&pool, storage.as_ref(), now_unix_ms()).await?;
+    let removed = purge_removed_attachments(&pool, storage.as_ref()).await?;
+    if removed > 0 {
+        tracing::info!(
+            removed,
+            "deleted attachments removed through moderation cases"
+        );
+    }
     let reaped = reap_deleted_guilds(&pool).await?;
     if reaped > 0 {
         tracing::info!(reaped, "removed deleted guilds");

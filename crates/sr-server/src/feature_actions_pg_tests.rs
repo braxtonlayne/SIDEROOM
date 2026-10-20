@@ -862,6 +862,7 @@ async fn actions_from_a_case_use_the_real_services_and_write_the_guild_audit() {
                 action: PerformedAction::Timeout,
                 note: "cool off".into(),
                 timeout_minutes: Some(10),
+                attachment_id: None,
             },
         )
         .await
@@ -896,6 +897,7 @@ async fn actions_from_a_case_use_the_real_services_and_write_the_guild_audit() {
                 action: PerformedAction::Kick,
                 note: String::new(),
                 timeout_minutes: None,
+                attachment_id: None,
             },
         )
         .await

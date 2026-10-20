@@ -10,9 +10,11 @@ use serde_json::json;
 use sr_admin::{AdminService, Caller};
 use sr_api::routes::guilds::GuildBackend;
 use sr_api::routes::messages::MessagesDeps;
+use sr_api::routes::messages::render::event_payload;
+use sr_chat::ChatError;
 use sr_chat::admin_rules::MemberPatch;
-use sr_chat::settings::audit::AuditAction;
-use sr_core::{ChannelId, GuildId, MessageId, UserId};
+use sr_chat::settings::audit::{AuditAction, AuditChange};
+use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, UserId};
 use sr_events::DomainEvent;
 use sr_moderation::{ActionError, CaseActions};
 
@@ -96,22 +98,137 @@ impl CaseActions for ChatCaseActions {
 
     async fn restore_message(
         &self,
-        _by: &Caller,
-        _case: i64,
-        _channel: i64,
-        _message: i64,
+        by: &Caller,
+        case: i64,
+        channel: i64,
+        message: i64,
     ) -> Result<String, ActionError> {
-        // No service restores a deleted message today.
-        Err(ActionError::Unsupported)
+        let (actor, channel_id, message_id) = (uid(by.user_id)?, cid(channel)?, mid(message)?);
+        // A message a platform member removed comes back only through platform staff; a server moderator's
+        // `Caller` carries no platform permission.
+        let by_platform = !by.permissions.is_empty();
+        let plan = self
+            .messages
+            .restore(actor, channel_id, message_id, by_platform)
+            .await
+            .map_err(restore_error)?;
+        let guild = self
+            .messages
+            .repo
+            .get_channel(plan.channel_id)
+            .await
+            .map_err(refused)?
+            .and_then(|c| c.guild_id);
+        // Clients dropped the message when it was deleted; they get the full object again (MESSAGE_CREATE), the
+        // search index takes it back.
+        let restored = self
+            .messages
+            .repo
+            .get_message(plan.channel_id, plan.message_id)
+            .await
+            .map_err(refused)?
+            .ok_or_else(|| ActionError::Failed("restored message vanished".into()))?;
+        let data = event_payload(&self.messages, &restored)
+            .await
+            .map_err(|_| ActionError::Failed("could not build the message".into()))?;
+        self.messages
+            .publish(DomainEvent::MessageRestored {
+                guild,
+                channel: plan.channel_id,
+                message_id: plan.message_id.get(),
+                data,
+            })
+            .await;
+        self.messages
+            .audit_with_reason(
+                guild,
+                actor,
+                AuditAction::ModerationMessageRestored,
+                Some(restored.author_id.get()),
+                vec![AuditChange::new(
+                    "message_id",
+                    None,
+                    Some(json!(plan.message_id.to_string())),
+                )],
+                &format!("case:{case}"),
+            )
+            .await;
+        Ok(format!("message_restore:{}", plan.message_id.get()))
     }
 
     async fn remove_attachment(
         &self,
-        _by: &Caller,
-        _case: i64,
-        _message: i64,
+        by: &Caller,
+        case: i64,
+        channel: i64,
+        message: i64,
+        attachment: i64,
     ) -> Result<String, ActionError> {
-        Err(ActionError::Unsupported)
+        let (actor, channel_id, message_id) = (uid(by.user_id)?, cid(channel)?, mid(message)?);
+        let attachment_id = u64::try_from(attachment)
+            .map(AttachmentId::new)
+            .map_err(|_| ActionError::Failed("bad id".into()))?;
+        let msg = self
+            .messages
+            .moderate(actor, channel_id, message_id)
+            .await
+            .map_err(refused)?;
+        let now_ms = self.messages.now_ms();
+        let detached = self
+            .messages
+            .store
+            .detach_attachment(attachment_id, message_id, case, actor, now_ms)
+            .await
+            .map_err(|e| ActionError::Failed(e.to_string()))?
+            .ok_or_else(|| ActionError::Conflict("That attachment is not on the message".into()))?;
+        // Not held: the stored object goes now (a missing one counts as gone) and then the row. Held (D-122):
+        // object and row stay for the evidence and the purge job takes them once the hold is released.
+        if !detached.held {
+            match self.messages.storage.delete(&detached.key).await {
+                Ok(()) | Err(sr_storage::StorageError::NotFound(_)) => {
+                    let _ = self
+                        .messages
+                        .store
+                        .forget_removed_attachment(attachment_id)
+                        .await;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "deleting a removed attachment's object failed; the purge job retries")
+                }
+            }
+        }
+        if msg.is_visible() {
+            let data = event_payload(&self.messages, &msg)
+                .await
+                .map_err(|_| ActionError::Failed("could not build the message".into()))?;
+            self.messages
+                .publish(DomainEvent::MessageEdited {
+                    guild: msg.guild_id,
+                    channel: channel_id,
+                    message_id: message_id.get(),
+                    data,
+                })
+                .await;
+        }
+        self.messages
+            .audit_with_reason(
+                msg.guild_id,
+                actor,
+                AuditAction::ModerationAttachmentRemoved,
+                Some(msg.author_id.get()),
+                vec![
+                    AuditChange::new("message_id", None, Some(json!(message_id.to_string()))),
+                    AuditChange::new(
+                        "attachment_id",
+                        None,
+                        Some(json!(attachment_id.to_string())),
+                    ),
+                    AuditChange::new("held", None, Some(json!(detached.held))),
+                ],
+                &format!("case:{case}"),
+            )
+            .await;
+        Ok(format!("attachment_remove:{attachment}"))
     }
 
     async fn timeout_member(
@@ -189,5 +306,31 @@ impl CaseActions for ChatCaseActions {
             .await
             .map_err(refused)?;
         Ok(format!("account.suspend:{account}"))
+    }
+}
+
+fn cid(v: i64) -> Result<ChannelId, ActionError> {
+    u64::try_from(v)
+        .map(ChannelId::new)
+        .map_err(|_| ActionError::Failed("bad id".into()))
+}
+
+fn mid(v: i64) -> Result<MessageId, ActionError> {
+    u64::try_from(v)
+        .map(MessageId::new)
+        .map_err(|_| ActionError::Failed("bad id".into()))
+}
+
+/// What a refused restore means to the person on the case page.
+fn restore_error(e: ChatError) -> ActionError {
+    match e {
+        ChatError::UnknownMessage => ActionError::Conflict(
+            "The message is gone for good or about to be purged, so it cannot be restored".into(),
+        ),
+        ChatError::Invalid {
+            code: "MESSAGE_NOT_DELETED",
+            ..
+        } => ActionError::Conflict("The message is not deleted".into()),
+        other => refused(other),
     }
 }

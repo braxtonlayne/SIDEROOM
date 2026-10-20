@@ -80,6 +80,11 @@ pub fn jobs_for_event(ev: &DomainEvent) -> Vec<IndexPayload> {
             channel,
             message_id,
             ..
+        }
+        | DomainEvent::MessageRestored {
+            channel,
+            message_id,
+            ..
         } => vec![IndexPayload {
             op: IndexOp::Upsert,
             channel_id: channel.get(),

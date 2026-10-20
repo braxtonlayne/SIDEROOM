@@ -6,7 +6,7 @@ use crate::admin_repo::{Ban, GuildAdminRepository, MemberFilter, PruneCriteria};
 use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
 use crate::error::RepoError;
 use crate::guild_rules::GuildBlueprint;
-use crate::message_rules::{DeletePlan, EditPlan};
+use crate::message_rules::{DeletePlan, EditPlan, RestorePlan};
 use crate::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
 use async_trait::async_trait;
 pub use messages::{Data, MemoryBackend};
@@ -383,6 +383,27 @@ impl MessageRepository for MemoryRepo {
             && let Some(t) = s.channels.get_mut(&ch).and_then(|c| c.thread.as_mut())
         {
             t.message_count = t.message_count.saturating_sub(1);
+        }
+        Ok(())
+    }
+
+    async fn apply_restore(&self, plan: &RestorePlan) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        let mut restored_in = None;
+        if let Some(m) = s
+            .messages
+            .iter_mut()
+            .find(|m| m.id == plan.message_id && !m.is_visible())
+        {
+            m.visibility = Visibility::Visible;
+            m.deleted_at_ms = None;
+            m.purge_after_ms = None;
+            restored_in = Some(m.channel_id);
+        }
+        if let Some(ch) = restored_in
+            && let Some(t) = s.channels.get_mut(&ch).and_then(|c| c.thread.as_mut())
+        {
+            t.message_count += 1;
         }
         Ok(())
     }

@@ -226,6 +226,18 @@ pub trait GuildBackend: Send + Sync {
         user: UserId,
         patch: MemberPatch,
     ) -> ChatResult<Member>;
+    /// [`Self::edit_member`] with the reason that goes on the audit row (a moderation case writes
+    /// `case:<id>`, N-21). Backends that write no audit row ignore it.
+    async fn edit_member_with_reason(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        patch: MemberPatch,
+        _reason: Option<String>,
+    ) -> ChatResult<Member> {
+        self.edit_member(actor, guild, user, patch).await
+    }
     async fn kick_member(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()>;
     /// [`Self::kick_member`] with the reason that goes on the audit row (the AutoMod alert
     /// buttons of D-244 give "AutoMod alert: <rule>").
@@ -965,10 +977,28 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         user: UserId,
         patch: MemberPatch,
     ) -> ChatResult<Member> {
+        self.edit_member_with_reason(actor, guild, user, patch, None)
+            .await
+    }
+
+    async fn edit_member_with_reason(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        user: UserId,
+        patch: MemberPatch,
+        reason: Option<String>,
+    ) -> ChatResult<Member> {
         let m = self.svc.edit_member(actor, guild, user, patch).await?;
         self.emit_member_updated(&m).await;
-        self.audit(guild, actor, AuditAction::MemberUpdate, user.get(), None)
-            .await;
+        self.audit(
+            guild,
+            actor,
+            AuditAction::MemberUpdate,
+            user.get(),
+            reason.as_deref(),
+        )
+        .await;
         Ok(m)
     }
 

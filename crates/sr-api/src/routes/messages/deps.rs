@@ -6,7 +6,7 @@ use super::store::MessageStore;
 use async_trait::async_trait;
 use moka::future::Cache;
 use sr_chat::message_hooks::MessageHooks;
-use sr_chat::message_rules::{DeletePlan, EditMessageInput, EditPlan};
+use sr_chat::message_rules::{DeletePlan, EditMessageInput, EditPlan, RestorePlan};
 use sr_chat::perms::dm_permissions;
 use sr_chat::repo::{ChatRepository, UserLookup};
 use sr_chat::{
@@ -85,6 +85,14 @@ trait ChatOps: Send + Sync {
     async fn delete(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<DeletePlan>;
     async fn bulk(&self, u: UserId, c: ChannelId, ids: &[MessageId])
     -> ChatResult<Vec<DeletePlan>>;
+    async fn restore(
+        &self,
+        u: UserId,
+        c: ChannelId,
+        m: MessageId,
+        platform: bool,
+    ) -> ChatResult<RestorePlan>;
+    async fn moderate(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<Message>;
     async fn pin(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<()>;
     async fn unpin(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<()>;
 }
@@ -113,6 +121,18 @@ impl<R: ChatRepository + 'static> ChatOps for ChatService<R> {
         ids: &[MessageId],
     ) -> ChatResult<Vec<DeletePlan>> {
         self.bulk_delete(u, c, ids).await
+    }
+    async fn restore(
+        &self,
+        u: UserId,
+        c: ChannelId,
+        m: MessageId,
+        platform: bool,
+    ) -> ChatResult<RestorePlan> {
+        self.restore_message(u, c, m, platform).await
+    }
+    async fn moderate(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<Message> {
+        self.authorize_moderation(u, c, m).await
     }
     async fn pin(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<()> {
         self.pin_message(u, c, m).await
@@ -264,6 +284,22 @@ impl MessagesDeps {
     ) {
         if let (Some(sink), Some(guild)) = (&self.audit, guild) {
             sink.record_with_options(guild, actor, action, target_id, options)
+                .await;
+        }
+    }
+
+    /// [`Self::audit`] with changes and a reason (a moderation case writes `case:<id>`, N-21).
+    pub async fn audit_with_reason(
+        &self,
+        guild: Option<sr_core::GuildId>,
+        actor: UserId,
+        action: sr_chat::settings::audit::AuditAction,
+        target_id: Option<u64>,
+        changes: Vec<sr_chat::settings::audit::AuditChange>,
+        reason: &str,
+    ) {
+        if let (Some(sink), Some(guild)) = (&self.audit, guild) {
+            sink.record(guild, actor, action, target_id, changes, Some(reason))
                 .await;
         }
     }
@@ -652,6 +688,21 @@ impl MessagesDeps {
         ids: &[MessageId],
     ) -> ChatResult<Vec<DeletePlan>> {
         self.chat.bulk(u, c, ids).await
+    }
+    /// Restore a deleted message for a moderation case (N-21); `platform` is a platform member acting, who
+    /// alone may restore a message a platform member removed.
+    pub async fn restore(
+        &self,
+        u: UserId,
+        c: ChannelId,
+        m: MessageId,
+        platform: bool,
+    ) -> ChatResult<RestorePlan> {
+        self.chat.restore(u, c, m, platform).await
+    }
+    /// The message, if `u` may moderate it (`MANAGE_MESSAGES` in its channel).
+    pub async fn moderate(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<Message> {
+        self.chat.moderate(u, c, m).await
     }
     pub async fn pin(&self, u: UserId, c: ChannelId, m: MessageId) -> ChatResult<()> {
         self.chat.pin(u, c, m).await
