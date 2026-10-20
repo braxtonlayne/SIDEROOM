@@ -3,7 +3,8 @@
 //! A request is an export or an erasure for one account of a Person. `due_at` is computed from
 //! `compliance.data_request_deadline_days` when the row is created and never recomputed; one
 //! documented extension of at most [`MAX_EXTENSION_DAYS`] days may be recorded (GDPR article
-//! 12(3)). Every state change writes the staff access log in the same transaction. Rows are kept
+//! 12(3); 60 days is the conservative count of "two further months": days, not calendar months,
+//! D-316). The member is told of an extension by system DM when reachable (D-317). Every state change writes the staff access log in the same transaction. Rows are kept
 //! forever (D-124, D-212): there is no delete path.
 //!
 //! Lifecycle: `open` (received) -> `verified` (staff checked who is asking) -> `running` (an
@@ -31,7 +32,8 @@ use crate::{
 
 /// Milliseconds in a day.
 pub const DAY_MS: i64 = 86_400_000;
-/// Longest single extension: two further months (GDPR article 12(3)).
+/// Longest single extension, in days: 60 days (the conservative count of article 12(3)'s two further
+/// months; days, not calendar months, D-316).
 pub const MAX_EXTENSION_DAYS: i64 = 60;
 /// Requests older than this when entered are refused as a typo (days).
 const MAX_BACKDATE_DAYS: i64 = 365;
@@ -109,7 +111,7 @@ pub struct RetainedRecord {
 
 /// The records an erasure keeps. The same list is written to the request's outcome and
 /// shown in the queue; a test guards that they really survive the run.
-pub const RETAINED: [RetainedRecord; 7] = [
+pub const RETAINED: [RetainedRecord; 8] = [
     RetainedRecord {
         id: "person_record",
         label: "Person record",
@@ -123,7 +125,7 @@ pub const RETAINED: [RetainedRecord; 7] = [
     RetainedRecord {
         id: "invoices",
         label: "Invoices",
-        reason: "Donation and purchase records kept for accounting duties (D-124).",
+        reason: "Donation and purchase records, kept for as long as accounting law requires (D-124).",
     },
     RetainedRecord {
         id: "moderation_history",
@@ -131,14 +133,19 @@ pub const RETAINED: [RetainedRecord; 7] = [
         reason: "Bans, cases and the staff access log keep staff decisions accountable (D-124, D-212).",
     },
     RetainedRecord {
+        id: "messages",
+        label: "Messages and uploads you did not delete",
+        reason: "They stay in the rooms they were posted in, shown as Deleted User, unless you deleted them first (D-029, D-123).",
+    },
+    RetainedRecord {
         id: "held_content",
         label: "Content under a moderation hold",
-        reason: "A held row is kept while its hold lasts; staff decide on release (D-122).",
+        reason: "A held row is kept while its hold lasts, then it follows the normal purge; staff decide on release (D-122).",
     },
     RetainedRecord {
         id: "external_identities",
         label: "Linked Discord identity",
-        reason: "Stays so the same identity cannot register again (D-030).",
+        reason: "Kept so a person who comes back is linked to the same Person record (D-030); it does not stop them from joining again with a new invite.",
     },
     RetainedRecord {
         id: "request_log",
@@ -185,6 +192,12 @@ pub struct DataRequest {
     /// Ids of the [`RETAINED`] records an erasure named.
     pub retained: Vec<String>,
     pub completed_at_ms: Option<i64>,
+    /// When the extension was recorded.
+    pub extended_at_ms: Option<i64>,
+    /// The extension was granted after the original `due_at` (it does not cure a missed deadline).
+    pub extended_late: bool,
+    /// When the member was told of the extension by system DM; `None` when no DM could be sent.
+    pub member_notified_at_ms: Option<i64>,
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub created_by: i64,
@@ -194,6 +207,7 @@ impl DataRequest {
     /// Fill the derived fields.
     pub fn with_clock(mut self, now_ms: i64) -> Self {
         self.effective_due_ms = self.extended_until_ms.unwrap_or(self.due_at_ms);
+        self.extended_late = self.extended_at_ms.is_some_and(|a| a > self.due_at_ms);
         self.overdue = self.state.is_active() && self.effective_due_ms < now_ms;
         self
     }
@@ -265,6 +279,15 @@ pub trait DataRequestRepository: Send + Sync {
         days: i64,
         reason: &str,
         by: i64,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest>;
+    /// Record the outcome of the extension notice: sets `member_notified_at` when `delivered` and
+    /// writes the access-log entry `audit` (which names the outcome).
+    async fn member_notice(
+        &self,
+        id: i64,
+        delivered: bool,
         now_ms: i64,
         audit: &AuditEntry,
     ) -> AdminResult<DataRequest>;
@@ -491,7 +514,7 @@ impl AdminService {
         let reason = Self::reason(reason)?;
         if !(1..=MAX_EXTENSION_DAYS).contains(&days) {
             return Err(AdminError::Invalid(format!(
-                "an extension is 1 to {MAX_EXTENSION_DAYS} days"
+                "an extension is 1 to {MAX_EXTENSION_DAYS} days (counted in days, not months)"
             )));
         }
         let audit = self.entry(
@@ -503,9 +526,28 @@ impl AdminService {
             json!({ "days": days }),
         );
         let now = self.now_ms();
-        Ok(self
+        let r = self
             .requests()?
             .extend(req_id, days, &reason, c.user_id, now, &audit)
+            .await?;
+        // D-317: article 12(3) makes telling the person part of the extension. Best effort.
+        let text = format!(
+            "Staff need more time for the data request you made. The new due date is {}. Reason from staff: {}",
+            date_utc(r.extended_until_ms.unwrap_or(r.due_at_ms)),
+            reason
+        );
+        let delivered = self.system_dm(r.account_id, &text).await;
+        let notice = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "data_request.extend_notice",
+            Some(("data_request", req_id)),
+            "",
+            json!({ "member_notified": delivered, "late": r.extended_at_ms.is_some_and(|a| a > r.due_at_ms) }),
+        );
+        Ok(self
+            .requests()?
+            .member_notice(req_id, delivered, now, &notice)
             .await?
             .with_clock(now))
     }
@@ -655,6 +697,9 @@ impl DataRequestRepository for MemoryDataRequests {
                 outcome: None,
                 retained: Vec::new(),
                 completed_at_ms: None,
+                extended_at_ms: None,
+                extended_late: false,
+                member_notified_at_ms: None,
                 created_by: n.created_by,
             };
             rows.push(row.clone());
@@ -743,7 +788,7 @@ impl DataRequestRepository for MemoryDataRequests {
         days: i64,
         reason: &str,
         by: i64,
-        _now_ms: i64,
+        now_ms: i64,
         audit: &AuditEntry,
     ) -> AdminResult<DataRequest> {
         let row = {
@@ -759,7 +804,27 @@ impl DataRequestRepository for MemoryDataRequests {
             }
             r.extended_until_ms = Some(r.due_at_ms + days * DAY_MS);
             r.extension_reason = Some(reason.to_owned());
+            r.extended_at_ms = Some(now_ms);
             let _ = by;
+            r.clone()
+        };
+        self.log(audit).await?;
+        Ok(row)
+    }
+
+    async fn member_notice(
+        &self,
+        id: i64,
+        delivered: bool,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest> {
+        let row = {
+            let mut rows = self.rows();
+            let r = rows.iter_mut().find(|r| r.id == id).ok_or_else(not_found)?;
+            if delivered {
+                r.member_notified_at_ms = Some(now_ms);
+            }
             r.clone()
         };
         self.log(audit).await?;
@@ -823,4 +888,18 @@ impl DataRequestRepository for MemoryDataRequests {
             report,
         })
     }
+}
+
+/// `YYYY-MM-DD` (UTC) of a Unix-millisecond time.
+pub fn date_utc(ms: i64) -> String {
+    let z = ms.div_euclid(DAY_MS) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    format!("{:04}-{:02}-{:02}", if m <= 2 { y + 1 } else { y }, m, d)
 }

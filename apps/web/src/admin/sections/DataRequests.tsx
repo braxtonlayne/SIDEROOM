@@ -159,7 +159,18 @@ export function DataRequestsSection() {
                               when: fmtMs(r.extended_until_ms),
                               reason: r.extension_reason ?? '',
                             })}{' '}
-                            ({t('admin.dataRequests.originalDue', { when: fmtMs(r.due_at_ms) })})
+                            ({t('admin.dataRequests.originalDue', { when: fmtMs(r.due_at_ms) })}){' '}
+                            {r.extended_late && (
+                              <Badge variant="warning">
+                                {t('admin.dataRequests.extendedLate')}
+                              </Badge>
+                            )}
+                            <br />
+                            {r.member_notified_at_ms
+                              ? t('admin.dataRequests.notified', {
+                                  date: fmtMs(r.member_notified_at_ms),
+                                })
+                              : t('admin.dataRequests.notNotified')}
                           </>
                         )}
                         {r.outcome && (
@@ -324,12 +335,14 @@ export function DataRequestsSection() {
       >
         <TextInput
           label={t('admin.dataRequests.extendDays')}
+          hint={t('admin.dataRequests.extend.daysHint')}
           type="number"
           min={1}
           max={60}
           value={days}
           onChange={(e) => setDays(e.target.value)}
         />
+        <p className="ss-sub">{t('admin.dataRequests.extend.reasonHint')}</p>
       </ReasonDialog>
 
       <ReasonDialog

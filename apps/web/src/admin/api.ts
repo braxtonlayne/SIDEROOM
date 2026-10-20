@@ -947,6 +947,11 @@ export interface DataRequest {
   outcome: string | null;
   retained: string[];
   completed_at_ms: number | null;
+  extended_at_ms: number | null;
+  /** The extension was granted after the original due date. */
+  extended_late: boolean;
+  /** When the member was told by system DM; null when no DM could be sent. */
+  member_notified_at_ms: number | null;
   created_by: string;
 }
 export interface RetainedRecord {

@@ -14746,12 +14746,24 @@ export interface components {
             export_id?: string | null;
             /**
              * Format: int64
+             * @description When the extension was recorded.
+             */
+            extended_at_ms?: number | null;
+            /** @description The extension was granted after the original `due_at` (it does not cure a missed deadline). */
+            extended_late: boolean;
+            /**
+             * Format: int64
              * @description The new deadline once the one extension was recorded.
              */
             extended_until_ms?: number | null;
             extension_reason?: string | null;
             id: string;
             kind: components["schemas"]["DataRequestKind"];
+            /**
+             * Format: int64
+             * @description When the member was told of the extension by system DM; `None` when no DM could be sent.
+             */
+            member_notified_at_ms?: number | null;
             note: string;
             outcome?: string | null;
             /** @description Active and past the effective deadline. */

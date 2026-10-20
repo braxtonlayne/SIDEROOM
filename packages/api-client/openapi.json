@@ -68392,6 +68392,7 @@
           "effective_due_ms",
           "overdue",
           "retained",
+          "extended_late",
           "created_by"
         ],
         "properties": {
@@ -68425,6 +68426,18 @@
             ],
             "description": "The `data_exports` row an export run queued."
           },
+          "extended_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the extension was recorded."
+          },
+          "extended_late": {
+            "type": "boolean",
+            "description": "The extension was granted after the original `due_at` (it does not cure a missed deadline)."
+          },
           "extended_until_ms": {
             "type": [
               "integer",
@@ -68444,6 +68457,14 @@
           },
           "kind": {
             "$ref": "#/components/schemas/DataRequestKind"
+          },
+          "member_notified_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the member was told of the extension by system DM; `None` when no DM could be sent."
           },
           "note": {
             "type": "string"

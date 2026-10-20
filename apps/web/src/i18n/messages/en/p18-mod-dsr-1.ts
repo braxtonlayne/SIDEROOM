@@ -74,4 +74,11 @@ export default {
   'admin.dataRequests.fieldNote': 'Note',
   'admin.dataRequests.fieldNoteHint': 'How it arrived and what was asked.',
   'admin.dataRequests.created': 'Request entered.',
+  'settings.account.removalMessages':
+    'Messages you leave in place stay. Delete them first if you want them gone.',
+  'admin.dataRequests.extend.daysHint': 'Up to 60 days, once. Counted in days, not months.',
+  'admin.dataRequests.extend.reasonHint': 'The member will see this reason.',
+  'admin.dataRequests.notified': 'Member told by DM on {date}',
+  'admin.dataRequests.notNotified': 'Not told in-app: reply by email',
+  'admin.dataRequests.extendedLate': 'Extended late',
 } satisfies Record<string, string>;

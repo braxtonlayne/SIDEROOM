@@ -26,12 +26,15 @@ fn cols() -> String {
     format!(
         "r.id, r.kind, r.person_id, r.account_id, a.username::text AS username, r.state, r.note, \
          {} AS received_ms, {} AS due_ms, {} AS ext_ms, r.extension_reason, r.verified_by, \
-         {} AS verified_ms, r.export_id, r.outcome, r.retained, {} AS completed_ms, r.created_by",
+         {} AS verified_ms, r.export_id, r.outcome, r.retained, {} AS completed_ms, r.created_by, \
+         {} AS extended_ms, {} AS notified_ms",
         ms("r.received_at"),
         ms("r.due_at"),
         ms("r.extended_until"),
         ms("r.verified_at"),
         ms("r.completed_at"),
+        ms("r.extended_at"),
+        ms("r.member_notified_at"),
     )
 }
 
@@ -69,6 +72,9 @@ fn row(r: &PgRow) -> Result<DataRequest, sqlx::Error> {
             })
             .unwrap_or_default(),
         completed_at_ms: r.try_get("completed_ms")?,
+        extended_at_ms: r.try_get("extended_ms")?,
+        extended_late: false,
+        member_notified_at_ms: r.try_get("notified_ms")?,
         created_by: r.try_get("created_by")?,
     })
 }
@@ -262,6 +268,32 @@ impl DataRequestRepository for PgAdminRepo {
         .execute(&mut *tx)
         .await
         .map_err(db)?;
+        self.audit_in(&mut tx, audit).await?;
+        let out = load(&mut tx, id, false).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(out)
+    }
+
+    async fn member_notice(
+        &self,
+        id: i64,
+        delivered: bool,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        load(&mut tx, id, true).await?;
+        if delivered {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "UPDATE data_requests SET member_notified_at = {} WHERE id = $1",
+                from_ms("$2")
+            )))
+            .bind(id)
+            .bind(now_ms)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
         self.audit_in(&mut tx, audit).await?;
         let out = load(&mut tx, id, false).await?;
         tx.commit().await.map_err(db)?;

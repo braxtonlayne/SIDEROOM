@@ -8,6 +8,7 @@ use crate::{
     model::*,
     repo::AdminRepository,
 };
+use async_trait::async_trait;
 use sr_core::{ManualClock, PlatformPermissions as P};
 use std::sync::Arc;
 
@@ -138,12 +139,14 @@ async fn extend_is_allowed_once_bounded_and_logged_with_its_reason() {
         .await
         .unwrap();
     for bad in [0, MAX_EXTENSION_DAYS + 1, -5] {
-        assert!(matches!(
+        assert_eq!(
             e.svc
                 .extend_data_request(&c, r.id, bad, Some("complex"))
                 .await,
-            Err(AdminError::Invalid(_))
-        ));
+            Err(AdminError::Invalid(
+                "an extension is 1 to 60 days (counted in days, not months)".into()
+            ))
+        );
     }
     assert_eq!(
         e.svc
@@ -297,4 +300,128 @@ async fn erasure_names_the_retained_records_and_a_blocked_account_stays_verified
         assert!(outcome.contains(rec.label), "{} is named", rec.label);
     }
     assert_eq!(run.request.retained.len(), RETAINED.len());
+    assert_eq!(
+        run.request.retained,
+        [
+            "person_record",
+            "invite_graph",
+            "invoices",
+            "moderation_history",
+            "messages",
+            "held_content",
+            "external_identities",
+            "request_log"
+        ]
+    );
+}
+
+// ---- N-02 (D-317): the extension notice -----------------------------------------------
+
+#[derive(Default)]
+struct Dms(std::sync::Mutex<Vec<(i64, String)>>);
+
+#[async_trait]
+impl crate::ext::StaffNotifier for Dms {
+    async fn appointment_offer(&self, _o: &crate::ext::StaffOffer) -> Option<(i64, i64)> {
+        None
+    }
+    async fn staff_notice(&self, _t: &str) {}
+    fn broadcast_announcement(&self, _a: &crate::ext::Announcement) {}
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.0.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
+}
+
+fn env_with_dms() -> (Env, Arc<Dms>) {
+    let mut e = env();
+    let dms = Arc::new(Dms::default());
+    e.svc = e.svc.clone().with_notifier(dms.clone());
+    (e, dms)
+}
+
+#[tokio::test]
+async fn the_member_is_told_of_an_extension_with_the_reason_and_the_new_date() {
+    let (e, dms) = env_with_dms();
+    let c = staff(&e, SENIOR, 2).await;
+    let r = e
+        .svc
+        .create_data_request(&c, DataRequestKind::Export, SUBJECT, None, None, 30)
+        .await
+        .unwrap();
+    let x = e
+        .svc
+        .extend_data_request(&c, r.id, 10, Some("many systems involved"))
+        .await
+        .unwrap();
+    assert_eq!(x.member_notified_at_ms, Some(T0));
+    assert!(!x.extended_late);
+    let sent = dms.0.lock().unwrap().clone();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].0, SUBJECT);
+    assert!(sent[0].1.contains("many systems involved"), "{}", sent[0].1);
+    assert!(
+        sent[0]
+            .1
+            .contains(&crate::data_requests::date_utc(r.due_at_ms + 10 * DAY_MS))
+    );
+    let log = e
+        .repo
+        .list_log(&AccessLogFilter {
+            action: Some("data_request.extend_notice".into()),
+            limit: 5,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(log.len(), 1);
+    assert!(log[0].detail.contains("\"member_notified\":true"));
+}
+
+#[tokio::test]
+async fn an_unreachable_member_is_recorded_and_a_late_extension_is_marked() {
+    let (e, dms) = env_with_dms();
+    let c = staff(&e, SENIOR, 2).await;
+    // The subject account is gone (deactivated): no DM, no timestamp.
+    e.repo
+        .add_account(30, "gone", AccountState::Deactivated, None, Some(OWNER));
+    let r = e
+        .svc
+        .create_data_request(
+            &c,
+            DataRequestKind::Export,
+            30,
+            Some(T0 - 40 * DAY_MS),
+            None,
+            30,
+        )
+        .await
+        .unwrap();
+    let x = e
+        .svc
+        .extend_data_request(&c, r.id, 5, Some("late but recorded"))
+        .await
+        .unwrap();
+    assert_eq!(x.member_notified_at_ms, None);
+    assert!(x.extended_late, "granted after the original due date");
+    assert!(dms.0.lock().unwrap().is_empty());
+    let log = e
+        .repo
+        .list_log(&AccessLogFilter {
+            action: Some("data_request.extend_notice".into()),
+            limit: 5,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(log[0].detail.contains("\"member_notified\":false"));
+}
+
+#[test]
+fn dates_in_the_notice_are_utc_calendar_days() {
+    assert_eq!(crate::data_requests::date_utc(0), "1970-01-01");
+    assert_eq!(
+        crate::data_requests::date_utc(1_800_000_000_000),
+        "2027-01-15"
+    );
 }
