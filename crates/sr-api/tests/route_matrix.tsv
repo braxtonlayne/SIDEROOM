@@ -143,6 +143,8 @@ GET	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-
 GET	/admin/cinema/reports	authenticated	staff	deny	-
 GET	/admin/cinema/titles	authenticated	staff	deny	-
 GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
+GET	/admin/data-requests	authenticated	staff	deny	-
+GET	/admin/data-requests/{request_id}	authenticated	staff	deny	-
 GET	/admin/developers/activities	authenticated	staff	deny	-
 GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-
 GET	/admin/developers/packages	authenticated	staff	deny	-
@@ -590,6 +592,11 @@ POST	/admin/cinema/titles/{title_id}/seasons	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/trailers	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/unpublish	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/variants	authenticated	staff	deny	-
+POST	/admin/data-requests	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/decline	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/extend	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/run	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/verify	authenticated	staff	deny	-
 POST	/admin/developers/activities/{application_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/suspend	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/unsuspend	authenticated	staff	deny	-
