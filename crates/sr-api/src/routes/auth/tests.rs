@@ -2626,11 +2626,19 @@ struct MemSelfDelete {
 
 #[async_trait::async_trait]
 impl super::SelfDeleteStore for MemSelfDelete {
-    async fn count(&self, _u: i64, s: super::SelfDeleteScope) -> Result<i64, String> {
-        Ok(if s.servers && s.dms {
-            self.visible
-        } else {
-            self.visible - 1
+    async fn count(
+        &self,
+        _u: i64,
+        s: super::SelfDeleteScope,
+    ) -> Result<super::SelfDeleteCounts, String> {
+        Ok(super::SelfDeleteCounts {
+            messages: if s.servers && s.dms {
+                self.visible
+            } else {
+                self.visible - 1
+            },
+            reactions: 4,
+            poll_votes: 2,
         })
     }
     async fn latest(&self, _u: i64) -> Result<Option<super::SelfDeleteRun>, String> {
@@ -2719,6 +2727,8 @@ async fn message_self_delete_counts_confirms_and_limits_runs() {
     let all = h.get(path).session(&s).send().await;
     assert_eq!(all.status, StatusCode::OK, "{:?}", all.body);
     assert_eq!(all.body["count"], 12);
+    assert_eq!(all.body["reactions"], 4);
+    assert_eq!(all.body["poll_votes"], 2);
     let part = h.get(&format!("{path}?dms=false")).session(&s).send().await;
     assert_eq!(part.body["count"], 11);
     let body = |user: &str, pw: &str| json!({"confirm_username": user, "password": pw, "servers": true, "dms": true});

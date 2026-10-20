@@ -453,7 +453,7 @@ impl DataRequestRepository for PgAdminRepo {
                 dms: true,
                 before_ms: None,
             };
-            let visible = crate::self_delete::count_visible(self.pool(), r.account_id, scope)
+            let visible = crate::self_delete::counts(self.pool(), r.account_id, scope)
                 .await
                 .map_err(|e| AdminError::Storage(e.to_string()))?;
             // An open run already covers them; the staff run skips only the 24-hour limit.
@@ -467,7 +467,9 @@ impl DataRequestRepository for PgAdminRepo {
             )
             .await
             .map_err(|e| AdminError::Storage(e.to_string()))?;
-            report.messages_queued = Some(visible);
+            report.messages_queued = Some(visible.messages);
+            report.reactions_queued = visible.reactions;
+            report.votes_queued = visible.poll_votes;
         }
         let outcome = erasure_outcome(&report, opts.invoice_years);
         let mut tx = self.pool().begin().await.map_err(db)?;

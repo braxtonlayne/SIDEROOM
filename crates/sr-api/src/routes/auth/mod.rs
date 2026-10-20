@@ -54,7 +54,8 @@ pub async fn confirm_password(
 /// Second-factor window of a staff session (ADM-STF-009).
 pub use identity::{STAFF_MFA_WINDOW_SECS, StaffMfa};
 pub use self_delete::{
-    SelfDeleteDeps, SelfDeleteRefusal, SelfDeleteRun, SelfDeleteScope, SelfDeleteStore,
+    SelfDeleteCounts, SelfDeleteDeps, SelfDeleteRefusal, SelfDeleteRun, SelfDeleteScope,
+    SelfDeleteStore,
 };
 
 /// Is the session's second factor fresh? (admin re-auth gate)

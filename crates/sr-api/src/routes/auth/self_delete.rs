@@ -33,6 +33,14 @@ pub struct SelfDeleteScope {
     pub before_ms: Option<i64>,
 }
 
+/// What a run would remove now.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SelfDeleteCounts {
+    pub messages: i64,
+    pub reactions: i64,
+    pub poll_votes: i64,
+}
+
 /// One run as the store keeps it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelfDeleteRun {
@@ -54,7 +62,7 @@ pub enum SelfDeleteRefusal {
 /// Persistence behind the routes.
 #[async_trait]
 pub trait SelfDeleteStore: Send + Sync {
-    async fn count(&self, user: i64, scope: SelfDeleteScope) -> Result<i64, String>;
+    async fn count(&self, user: i64, scope: SelfDeleteScope) -> Result<SelfDeleteCounts, String>;
     async fn latest(&self, user: i64) -> Result<Option<SelfDeleteRun>, String>;
     async fn request(
         &self,
@@ -106,6 +114,10 @@ pub struct PreviewObject {
     /// Visible messages inside the scope right now (messages under a hold are included: they are
     /// hidden from everyone but never purged).
     pub count: i64,
+    /// Your reactions inside the scope that a run would remove (not those on held messages).
+    pub reactions: i64,
+    /// Your poll votes a run would remove; votes in closed polls stay as anonymous counts.
+    pub poll_votes: i64,
     pub last: Option<RunObject>,
 }
 
@@ -163,14 +175,16 @@ pub async fn preview(
         dms: q.dms.unwrap_or(true),
         before_ms: q.before_ms,
     };
-    let count = if scope.servers || scope.dms {
+    let counts = if scope.servers || scope.dms {
         deps.store.count(p.user_id, scope).await.map_err(internal)?
     } else {
-        0
+        SelfDeleteCounts::default()
     };
     let last = deps.store.latest(p.user_id).await.map_err(internal)?;
     Ok(Json(PreviewObject {
-        count,
+        count: counts.messages,
+        reactions: counts.reactions,
+        poll_votes: counts.poll_votes,
         last: last.as_ref().map(RunObject::from),
     }))
 }

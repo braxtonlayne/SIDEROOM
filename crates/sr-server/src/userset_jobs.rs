@@ -20,7 +20,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde_json::json;
-use sr_api::routes::auth::{SelfDeleteRefusal, SelfDeleteRun, SelfDeleteScope, SelfDeleteStore};
+use sr_api::routes::auth::{
+    SelfDeleteCounts, SelfDeleteRefusal, SelfDeleteRun, SelfDeleteScope, SelfDeleteStore,
+};
 use sr_api::routes::social::SocialDeps;
 use sr_api::routes::userset::connections::{REFRESHABLE, refresh_stats};
 use sr_api::routes::userset::data_export::{DataExportStore, ExportRecord, Refusal};
@@ -156,9 +158,14 @@ impl PgSelfDeleteStore {
 
 #[async_trait]
 impl SelfDeleteStore for PgSelfDeleteStore {
-    async fn count(&self, user: i64, scope: SelfDeleteScope) -> Result<i64, String> {
-        sr_db::self_delete::count_visible(&self.pool, user, scope_in(scope))
+    async fn count(&self, user: i64, scope: SelfDeleteScope) -> Result<SelfDeleteCounts, String> {
+        sr_db::self_delete::counts(&self.pool, user, scope_in(scope))
             .await
+            .map(|c| SelfDeleteCounts {
+                messages: c.messages,
+                reactions: c.reactions,
+                poll_votes: c.poll_votes,
+            })
             .map_err(|e| e.to_string())
     }
 
@@ -221,9 +228,9 @@ pub(crate) async fn run_self_delete(
         return Ok(());
     };
     match sr_db::self_delete::hide(pool, run.account_id, run.scope, now_ms()).await {
-        Ok(hidden) => {
+        Ok(out) => {
             let mut total = 0_i64;
-            for h in &hidden {
+            for h in &out.hidden {
                 total += i64::try_from(h.message_ids.len()).unwrap_or(0);
                 let ev = DomainEvent::MessagesBulkDeleted {
                     guild: h
@@ -243,6 +250,38 @@ pub(crate) async fn run_self_delete(
                     }
                 }
             }
+            // The usual MESSAGE_REACTION_REMOVE per reaction, after the bulk delete, so clients and the
+            // starboard module see what a manual un-react produces (D-332). Votes have no live event.
+            for r in &out.reactions {
+                let (Ok(channel), Ok(message), Ok(account)) = (
+                    u64::try_from(r.channel_id),
+                    u64::try_from(r.message_id),
+                    u64::try_from(run.account_id),
+                ) else {
+                    continue;
+                };
+                let emoji = sr_chat::repo::EmojiKey::parse(&r.emoji_key)
+                    .map_or_else(|| json!({ "id": null, "name": r.emoji_key }), |k| k.json());
+                let ev = DomainEvent::ReactionRemoved {
+                    guild: r
+                        .guild_id
+                        .and_then(|g| u64::try_from(g).ok())
+                        .map(GuildId::new),
+                    channel: ChannelId::new(channel),
+                    message_id: message,
+                    user: sr_core::UserId::new(account),
+                    emoji,
+                };
+                for topic in ev.topics() {
+                    if let Err(e) = env.bus.publish(topic, ev.clone()).await {
+                        tracing::warn!(error = %e, "failed to publish a reaction removal");
+                    }
+                }
+            }
+            let (reactions, votes) = (
+                i64::try_from(out.reactions.len()).unwrap_or(0),
+                out.poll_votes,
+            );
             sr_db::self_delete::finish(pool, id, total).await?;
             let repo = sr_db::admin_repo::PgAdminRepo::new(pool.clone(), env.ids.clone());
             let entry = sr_admin::AuditEntry {
@@ -255,6 +294,8 @@ pub(crate) async fn run_self_delete(
                 ip: None,
                 detail: json!({
                     "count": total,
+                    "reactions": reactions,
+                    "poll_votes": votes,
                     "servers": run.scope.servers,
                     "dms": run.scope.dms,
                     "before_ms": run.scope.before_ms,
@@ -271,7 +312,7 @@ pub(crate) async fn run_self_delete(
                 n.system_dm(
                     run.account_id,
                     &format!(
-                        "Your messages were deleted: {total} hidden from everyone now and purged in 30 days. Messages under a moderation hold are kept for staff."
+                        "Your messages were deleted: {total} messages, {reactions} reactions and {votes} poll votes are gone for everyone now, and the messages are purged in 30 days. Messages, reactions and votes under a moderation hold are kept for staff."
                     ),
                 )
                 .await;

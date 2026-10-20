@@ -482,7 +482,7 @@ async fn the_erasure_outcome_says_what_happened_to_the_messages_both_ways() {
     assert!(left.contains("Messages left in place (D-029)"), "{left}");
     let deleted = erased(true, 10).await;
     assert!(
-        deleted.contains("Messages deleted at the member's request (0 rows, 30-day purge)"),
+        deleted.contains("Messages deleted at the member's request (0 messages, 0 reactions, 0 poll votes, 30-day purge)"),
         "{deleted}"
     );
 }

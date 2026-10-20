@@ -17142,6 +17142,16 @@ export interface components {
              */
             count: number;
             last?: null | components["schemas"]["MessagesSelfDeleteRun"];
+            /**
+             * Format: int64
+             * @description Your poll votes a run would remove; votes in closed polls stay as anonymous counts.
+             */
+            poll_votes: number;
+            /**
+             * Format: int64
+             * @description Your reactions inside the scope that a run would remove (not those on held messages).
+             */
+            reactions: number;
         };
         /** @description A run. */
         MessagesSelfDeleteRun: {

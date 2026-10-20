@@ -754,7 +754,7 @@ async fn erasure_can_queue_the_members_message_delete_and_the_archive_is_readabl
         run.request
             .outcome
             .unwrap()
-            .contains("Messages deleted at the member's request (2 rows, 30-day purge)")
+            .contains("Messages deleted at the member's request (2 messages, 0 reactions, 0 poll votes, 30-day purge)")
     );
     let (state, via): (String, String) =
         sqlx::query_as("SELECT state, via FROM message_self_deletes WHERE account_id = 100")

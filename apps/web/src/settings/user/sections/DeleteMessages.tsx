@@ -15,6 +15,8 @@ interface SelfDeleteRun {
 }
 interface Preview {
   count: number;
+  reactions: number;
+  poll_votes: number;
   last?: SelfDeleteRun | null;
 }
 
@@ -59,6 +61,7 @@ export function DeleteMessagesCard() {
     };
   }, [servers, dms, beforeMs, queued]);
 
+  const total = (preview?.count ?? 0) + (preview?.reactions ?? 0) + (preview?.poll_votes ?? 0);
   const typedOk = username !== '' && typed.trim().toLowerCase() === username.toLowerCase();
   const running = preview?.last?.state === 'queued' || preview?.last?.state === 'running';
   const canOpen = (servers || dms) && !running && !queued;
@@ -134,7 +137,13 @@ export function DeleteMessagesCard() {
         />
         {preview && (
           <p role="status">
-            {t('settings.privacy.deleteMessages.count', { count: preview.count })}
+            {total === 0
+              ? t('settings.privacy.deleteMessages.nothing')
+              : t('settings.privacy.deleteMessages.count', {
+                  messages: preview.count,
+                  reactions: preview.reactions ?? 0,
+                  votes: preview.poll_votes ?? 0,
+                })}
           </p>
         )}
         {queued && (
@@ -157,7 +166,7 @@ export function DeleteMessagesCard() {
         <div className="us-actions">
           <Button
             variant="danger"
-            disabled={!canOpen || (preview?.count ?? 0) === 0}
+            disabled={!canOpen || total === 0}
             onClick={() => {
               setError(null);
               setOpen(true);
@@ -173,7 +182,9 @@ export function DeleteMessagesCard() {
         size="sm"
         title={t('settings.privacy.deleteMessages.confirmTitle')}
         description={t('settings.privacy.deleteMessages.confirmDescription', {
-          count: preview?.count ?? 0,
+          messages: preview?.count ?? 0,
+          reactions: preview?.reactions ?? 0,
+          votes: preview?.poll_votes ?? 0,
         })}
       >
         <form

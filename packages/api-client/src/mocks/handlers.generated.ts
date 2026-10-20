@@ -744,7 +744,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"create","method":"post","path":"/sr/invites","status":201,"body":{"code":"string","created_at_ms":0,"link":"string","note":"string"}},
   {"id":"revoke","method":"delete","path":"/sr/invites/:code","status":204,"body":null},
   {"id":"get_catalog","method":"get","path":"/sr/profile-catalog","status":200,"body":{"decorations":[{}],"effects":[{}]}},
-  {"id":"preview","method":"get","path":"/sr/users/@me/messages/delete-all","status":200,"body":{"count":0}},
+  {"id":"preview","method":"get","path":"/sr/users/@me/messages/delete-all","status":200,"body":{"count":0,"poll_votes":0,"reactions":0}},
   {"id":"delete_all","method":"post","path":"/sr/users/@me/messages/delete-all","status":202,"body":{"dms":false,"id":"1","requested_at":"2026-01-01T00:00:00.000Z","servers":false,"state":"string"}},
   {"id":"turn_credentials","method":"get","path":"/sr/voice/turn","status":200,"body":{"password":"string","ttl":0,"uris":["string"],"username":"string"}},
   {"id":"respond","method":"post","path":"/staff/offers/:offer_id/respond","status":200,"body":{"account_id":"1","created_at_ms":0,"expires_at_ms":0,"id":"1","offered_by":"string","offered_by_name":"string","reason":"string","role_ids":["string"],"role_names":["string"],"state":"pending","username":"string"}},

@@ -7,7 +7,7 @@
 //! The package contains: `README.txt`, `account.json`, `settings.json`, `relationships.json`,
 //! `servers.json`, `connections.json`, `invites.json`, `invoices.json`, `activity.json`
 //! (ratings, reviews, watch and read history, lists), `security.json` (sessions and sign-in
-//! history, never password hashes or tokens), `attachments.json` (an index of uploads, not the
+//! history, never password hashes or tokens), `reactions.json` and `poll_votes.json` (the member's own reactions and votes, with the message and channel ids but not the message text, N-15), `attachments.json` (an index of uploads, not the
 //! files) and `messages/<channel id>.json` (the account's own undeleted messages).
 
 use std::io::{Seek, Write};
@@ -275,6 +275,8 @@ This archive holds the data tied to your account, as JSON files.\n\
   invoices.json       your donations and purchases\n\
   activity.json       ratings, reviews, lists, watch and read history, your profile page and packages\n\
   security.json       signed-in sessions and recent sign-in attempts\n\
+  reactions.json      the reactions you added (message, channel, emoji, time)\n\
+  poll_votes.json     the poll votes you cast (message, channel, answer, time)\n\
   attachments.json    an index of files you uploaded (the files themselves are not included)\n\
   messages/           the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
@@ -405,6 +407,19 @@ pub async fn build_package<W: Write + Seek>(
         &mut zip,
         "attachments.json",
         &rows(pool, "SELECT id::text AS id, message_id::text AS message_id, filename, content_type, size_bytes, width, height, description, is_large, expires_at, state::text AS state, created_at FROM attachments WHERE uploader_id = $1 ORDER BY id", user).await?,
+    )?;
+
+    // N-15 (Art. 15): the member's own reactions and poll votes. They name the message and channel but
+    // not its text, which belongs to the author.
+    put(
+        &mut zip,
+        "reactions.json",
+        &rows(pool, "SELECT r.message_id::text AS message_id, m.channel_id::text AS channel_id, r.emoji_key, r.burst, r.created_at FROM reactions r JOIN messages m ON m.id = r.message_id WHERE r.user_id = $1 ORDER BY r.created_at, r.message_id", user).await?,
+    )?;
+    put(
+        &mut zip,
+        "poll_votes.json",
+        &rows(pool, "SELECT v.message_id::text AS message_id, m.channel_id::text AS channel_id, v.answer_id, v.created_at FROM poll_votes v JOIN messages m ON m.id = v.message_id WHERE v.user_id = $1 ORDER BY v.created_at, v.message_id", user).await?,
     )?;
 
     // Messages: one file per channel, paged so a long history never sits in memory twice.

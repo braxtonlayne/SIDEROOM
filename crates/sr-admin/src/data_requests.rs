@@ -144,8 +144,8 @@ pub fn retained(invoice_years: u8) -> Vec<RetainedRecord> {
         ),
         r(
             "messages",
-            "Messages and uploads you did not delete",
-            "They stay in the rooms they were posted in, shown as Deleted User, unless you deleted them first (D-029, D-123).".into(),
+            "Messages, uploads, reactions and poll votes you did not delete",
+            "They stay in the rooms they were posted in, shown as Deleted User, unless you deleted them first (D-029, D-123, D-332).".into(),
         ),
         r(
             "held_content",
@@ -274,6 +274,9 @@ pub struct ErasureReport {
     /// `Some(n)` when the run queued the member's message self-delete at their request (N-06): `n`
     /// messages were visible when it was queued. `None`: the messages were left in place (D-029).
     pub messages_queued: Option<i64>,
+    /// Reactions and poll votes visible when the message delete was queued (N-14, D-332).
+    pub reactions_queued: i64,
+    pub votes_queued: i64,
 }
 
 /// Options of an erasure run.
@@ -378,7 +381,8 @@ pub fn erasure_outcome(report: &ErasureReport, invoice_years: u8) -> String {
     }
     match report.messages_queued {
         Some(n) => s.push_str(&format!(
-            " Messages deleted at the member's request ({n} rows, 30-day purge)."
+            " Messages deleted at the member's request ({n} messages, {} reactions, {} poll votes, 30-day purge).",
+            report.reactions_queued, report.votes_queued
         )),
         None => s.push_str(" Messages left in place (D-029)."),
     }

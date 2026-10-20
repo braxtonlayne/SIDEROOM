@@ -76139,7 +76139,9 @@
         "type": "object",
         "description": "What a run would hide, and the last run.",
         "required": [
-          "count"
+          "count",
+          "reactions",
+          "poll_votes"
         ],
         "properties": {
           "count": {
@@ -76156,6 +76158,16 @@
                 "$ref": "#/components/schemas/MessagesSelfDeleteRun"
               }
             ]
+          },
+          "poll_votes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Your poll votes a run would remove; votes in closed polls stay as anonymous counts."
+          },
+          "reactions": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Your reactions inside the scope that a run would remove (not those on held messages)."
           }
         }
       },

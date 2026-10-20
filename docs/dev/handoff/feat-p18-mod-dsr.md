@@ -28,6 +28,11 @@ Base: integration/phase18 (= main). Migration used: `1100_data_requests.sql` (ra
 - **N-13** two-row extension log documented and tested (D-327).
 - Migrations used: 1100, 1101, 1102, 1103. New job ids: 1105. New routes (matrix rows added): the two `/sr/users/@me/messages/delete-all` and the deleted-archive read.
 
+## Follow-ups N-14 and N-15 (D-332)
+- **N-14** the member self-delete (and the staff erasure option) also removes reactions and poll votes, same scope and cut-off, same run. Closed-poll votes become `anonymous_counts` on the poll (added into `poll_tallies`, shown inside the poll object, no migration); held messages keep reactions and votes. Live `MESSAGE_REACTION_REMOVE` per reaction. Counts in the `GET` response (`reactions`, `poll_votes`), card, access-log row, DM and the erasure outcome ("N messages, M reactions, K poll votes"). Retained label is now "Messages, uploads, reactions and poll votes you did not delete". `Poll` gained `anonymous_counts` (OpenAPI regenerated).
+- **N-15** export: `reactions.json` and `poll_votes.json` (own rows, ids only, no message text) plus README lines.
+- The integrator note about the moderation-case note is untouched.
+
 ## Still open / not done
 - Doc 13 Phase 7 "in progress" line and `docs/inventory/19-moderation.md` ticks: left to the integrator (the other agent owns the inventory file, and doc 13 is touched by both). The MOD-DSR ids to tick are the six bullets above.
 - Placing the page under Admin > Moderation (see above).

@@ -16,7 +16,7 @@ describe('Delete all my messages', () => {
     server.use(
       http.get(PATH, ({ request }) => {
         seen.push(new URL(request.url).search);
-        return HttpResponse.json({ count: 12, last: null });
+        return HttpResponse.json({ count: 12, reactions: 5, poll_votes: 2, last: null });
       }),
       http.post(PATH, async ({ request }) => {
         posted = await request.json();
@@ -33,7 +33,9 @@ describe('Delete all my messages', () => {
       }),
     );
     openSettings('privacy');
-    expect(await screen.findByText('12 messages would be hidden.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('12 messages, 5 reactions, 2 poll votes would be removed.'),
+    ).toBeInTheDocument();
     // Un-ticking direct messages asks for the narrower count.
     await userEvent.click(screen.getByLabelText('Messages in direct messages and group DMs'));
     await waitFor(() => expect(seen.some((s) => s.includes('dms=false'))).toBe(true));
