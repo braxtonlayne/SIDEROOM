@@ -25529,6 +25529,218 @@
         ]
       }
     },
+    "/channels/{channel_id}/sr/features": {
+      "get": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "The modules with a channel scope, with this channel's state (`MANAGE_CHANNELS`).",
+        "operationId": "list_channel_features",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelFeatureObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/sr/features/{feature_id}": {
+      "delete": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Remove this channel's switch and overrides, so it follows the server again\n(`MANAGE_CHANNELS`).",
+        "operationId": "reset_channel_feature",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. lounge.message_quotes",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Switch a module on or off in this channel, or change its settings here\n(`MANAGE_CHANNELS`).",
+        "operationId": "patch_channel_feature",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. lounge.message_quotes",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchChannelFeatureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelFeatureObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/thread-members": {
       "get": {
         "tags": [
@@ -57888,6 +58100,150 @@
         ]
       }
     },
+    "/users/@me/sr/features": {
+      "get": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "The modules with personal settings, with the caller's own preferences. Only the\ncaller can read them.",
+        "operationId": "list_user_features",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserFeatureObject"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/sr/features/{feature_id}": {
+      "delete": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Forget the caller's preferences for one module, so the defaults apply again.",
+        "operationId": "reset_user_feature",
+        "parameters": [
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. community.leveling",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Change the caller's own preferences for one module.",
+        "operationId": "patch_user_feature",
+        "parameters": [
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. community.leveling",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchUserFeatureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserFeatureObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/{user_id}/guestbook": {
       "get": {
         "tags": [
@@ -63715,6 +64071,67 @@
                 "$ref": "#/components/schemas/InstanceView"
               }
             ]
+          }
+        }
+      },
+      "ChannelFeatureObject": {
+        "type": "object",
+        "description": "One module as a channel sees it.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "section",
+          "guild_enabled",
+          "enabled",
+          "platform_disabled",
+          "settings",
+          "overrides",
+          "schema"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the module is on in this channel (the server's switch narrowed by the channel's)."
+          },
+          "guild_enabled": {
+            "type": "boolean",
+            "description": "Whether the module is on in the server. A channel cannot switch it on by itself."
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "override_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The channel's own switch: `true` or `false`, or `null` when it follows the server."
+          },
+          "overrides": {
+            "type": "object",
+            "description": "Only what this channel overrides."
+          },
+          "platform_disabled": {
+            "type": "boolean",
+            "description": "The platform operator switched the module off everywhere."
+          },
+          "schema": {
+            "type": "object",
+            "description": "The settings schema of the channel level, for the auto-rendered form."
+          },
+          "section": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Effective settings in this channel (defaults, the server's, then the channel's)."
           }
         }
       },
@@ -77604,6 +78021,25 @@
           }
         }
       },
+      "PatchChannelFeatureBody": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "This channel's own switch for the module."
+          },
+          "settings": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Replace the channel's setting overrides (validated against the channel schema)."
+          }
+        }
+      },
       "PatchConfigBody": {
         "type": "object",
         "required": [
@@ -77793,6 +78229,18 @@
           "values": {
             "type": "object",
             "description": "Setting key to new value; unknown keys or out-of-range values reject the whole patch."
+          }
+        }
+      },
+      "PatchUserFeatureBody": {
+        "type": "object",
+        "required": [
+          "settings"
+        ],
+        "properties": {
+          "settings": {
+            "type": "object",
+            "description": "Replace the person's preferences for the module (validated against the personal schema)."
           }
         }
       },
@@ -86982,6 +87430,45 @@
           "target": {
             "type": "string",
             "description": "`https://api.example.com/v1`: https, no query."
+          }
+        }
+      },
+      "UserFeatureObject": {
+        "type": "object",
+        "description": "One module as a person sees it.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "section",
+          "settings",
+          "overrides",
+          "schema"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "overrides": {
+            "type": "object",
+            "description": "Only what the person changed."
+          },
+          "schema": {
+            "type": "object",
+            "description": "The settings schema of the personal level, for the auto-rendered form."
+          },
+          "section": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "description": "The person's effective preferences (defaults plus what they chose)."
           }
         }
       },
