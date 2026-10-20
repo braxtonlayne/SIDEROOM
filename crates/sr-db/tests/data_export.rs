@@ -178,7 +178,7 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     .unwrap();
 
     let mut buf = Cursor::new(Vec::new());
-    let n = data_export::build_package(pool, 1, &mut buf, 1_700_000_000_000)
+    let n = data_export::build_package(pool, 1, &mut buf, 1_700_000_000_000, 10)
         .await
         .unwrap();
     assert_eq!(n, 2, "only the user's own, undeleted messages");

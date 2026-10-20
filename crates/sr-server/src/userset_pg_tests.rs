@@ -70,7 +70,7 @@ async fn the_export_job_builds_stores_and_the_sweep_removes_it() {
             .unwrap();
     assert_eq!(queued, 1);
 
-    run_export(&pool, &storage, &job_for(rec.id, 1))
+    run_export(&pool, &storage, &features(), &job_for(rec.id, 1))
         .await
         .unwrap();
     let done = store.get(1, rec.id).await.unwrap().unwrap();
@@ -88,7 +88,7 @@ async fn the_export_job_builds_stores_and_the_sweep_removes_it() {
     assert!(s.contains("writer"));
 
     // Running it again (a duplicate job) changes nothing.
-    run_export(&pool, &storage, &job_for(rec.id, 1))
+    run_export(&pool, &storage, &features(), &job_for(rec.id, 1))
         .await
         .unwrap();
 
@@ -122,7 +122,7 @@ async fn a_build_that_keeps_failing_is_marked_failed_after_the_last_attempt() {
     let storage = ObjectStoreStorage::in_memory();
     // Early attempts surface the error for a retry and leave the request building.
     assert!(
-        run_export(&pool, &storage, &job_for(rec.id, 1))
+        run_export(&pool, &storage, &features(), &job_for(rec.id, 1))
             .await
             .is_err()
     );
@@ -131,7 +131,7 @@ async fn a_build_that_keeps_failing_is_marked_failed_after_the_last_attempt() {
         "building"
     );
     // The last attempt gives up and frees the member to ask again.
-    run_export(&pool, &storage, &job_for(rec.id, 5))
+    run_export(&pool, &storage, &features(), &job_for(rec.id, 5))
         .await
         .unwrap();
     assert_eq!(store.get(1, rec.id).await.unwrap().unwrap().state, "failed");
@@ -139,4 +139,12 @@ async fn a_build_that_keeps_failing_is_marked_failed_after_the_last_attempt() {
         store.request(1).await.unwrap().is_ok(),
         "a failed build does not use up the day"
     );
+}
+
+fn features() -> sr_features::FeatureService {
+    sr_features::FeatureService::new(
+        std::sync::Arc::new(sr_features::FeatureRegistry::new()),
+        std::sync::Arc::new(sr_features::InMemorySettingsStore::new()),
+        None,
+    )
 }

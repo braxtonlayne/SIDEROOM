@@ -182,6 +182,8 @@ pub async fn compliance_settings(gf: &GuildFeatures) -> sr_features::ComplianceS
 pub struct PublicComplianceObject {
     /// The age a person must be to register (13 unless the operator raised it).
     pub minimum_age: u8,
+    /// Years invoices stay linked to a member after the year of payment (D-325).
+    pub invoice_retention_years: u8,
     /// The operator's country (ISO 3166-1 alpha-2), when set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operator_country: Option<String>,
@@ -203,6 +205,7 @@ pub async fn compliance_public(
     let s = compliance_settings(&gf).await;
     Ok(Json(PublicComplianceObject {
         minimum_age: s.minimum_age,
+        invoice_retention_years: s.invoice_retention_years,
         operator_country: s.operator_country,
         operator_contact: s.operator_contact,
     }))

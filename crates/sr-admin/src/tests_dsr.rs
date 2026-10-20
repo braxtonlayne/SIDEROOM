@@ -1,12 +1,13 @@
 //! Tests of the data-request queue service over the in-memory stores (M-25 step c).
 
 use crate::{
-    AdminError, AdminService, DataRequestKind, DataRequestState, MemoryDataRequests, RETAINED,
-    SYSTEM_USER_ID,
+    AdminError, AdminService, DataRequestKind, DataRequestState, ErasureOptions,
+    MemoryDataRequests, RETAINED_COUNT, SYSTEM_USER_ID,
     data_requests::{DAY_MS, MAX_EXTENSION_DAYS},
     memory::MemoryAdminRepo,
     model::*,
     repo::AdminRepository,
+    retained,
 };
 use async_trait::async_trait;
 use sr_core::{ManualClock, PlatformPermissions as P};
@@ -16,6 +17,10 @@ const OWNER: i64 = 10;
 const SENIOR: i64 = 11;
 const MODR: i64 = 12;
 const SUBJECT: i64 = 20;
+const OPTS: ErasureOptions = ErasureOptions {
+    delete_messages: false,
+    invoice_years: 10,
+};
 const T0: i64 = 1_800_000_000_000;
 
 struct Env {
@@ -254,7 +259,7 @@ async fn running_needs_verification_first_and_one_open_request_per_kind() {
     assert!(running.export_id.is_some());
     // An export request is not an erasure.
     assert!(matches!(
-        e.svc.run_data_erasure(&c, r.id).await,
+        e.svc.run_data_erasure(&c, r.id, OPTS).await,
         Err(AdminError::Conflict(_))
     ));
 }
@@ -274,7 +279,7 @@ async fn erasure_names_the_retained_records_and_a_blocked_account_stays_verified
         .unwrap();
     e.reqs.block_erasure(SUBJECT, "The account owns 1 server");
     assert!(matches!(
-        e.svc.run_data_erasure(&c, r.id).await,
+        e.svc.run_data_erasure(&c, r.id, OPTS).await,
         Err(AdminError::Conflict(_))
     ));
     assert_eq!(
@@ -293,13 +298,13 @@ async fn erasure_names_the_retained_records_and_a_blocked_account_stays_verified
         .verify_data_request(&c2, r2.id, Some("signed form"))
         .await
         .unwrap();
-    let run = e2.svc.run_data_erasure(&c2, r2.id).await.unwrap();
+    let run = e2.svc.run_data_erasure(&c2, r2.id, OPTS).await.unwrap();
     assert_eq!(run.request.state, DataRequestState::Completed);
     let outcome = run.request.outcome.unwrap();
-    for rec in RETAINED {
-        assert!(outcome.contains(rec.label), "{} is named", rec.label);
+    for rec in retained(10) {
+        assert!(outcome.contains(&rec.label), "{} is named", rec.label);
     }
-    assert_eq!(run.request.retained.len(), RETAINED.len());
+    assert_eq!(run.request.retained.len(), RETAINED_COUNT);
     assert_eq!(
         run.request.retained,
         [
@@ -310,6 +315,7 @@ async fn erasure_names_the_retained_records_and_a_blocked_account_stays_verified
             "messages",
             "held_content",
             "external_identities",
+            "deleted_account_archive",
             "request_log"
         ]
     );
@@ -424,4 +430,151 @@ fn dates_in_the_notice_are_utc_calendar_days() {
         crate::data_requests::date_utc(1_800_000_000_000),
         "2027-01-15"
     );
+}
+
+// ---- N-06, N-07, N-09, N-13 ----------------------------------------------------------------
+
+async fn erased(delete_messages: bool, years: u8) -> String {
+    let e = env();
+    let c = staff(&e, SENIOR, 2).await;
+    let r = e
+        .svc
+        .create_data_request(&c, DataRequestKind::Erasure, SUBJECT, None, None, 30)
+        .await
+        .unwrap();
+    e.svc
+        .verify_data_request(&c, r.id, Some("signed form"))
+        .await
+        .unwrap();
+    let run = e
+        .svc
+        .run_data_erasure(
+            &c,
+            r.id,
+            ErasureOptions {
+                delete_messages,
+                invoice_years: years,
+            },
+        )
+        .await
+        .unwrap();
+    // The flag is in the access-log entry of the run.
+    let log = e
+        .repo
+        .list_log(&AccessLogFilter {
+            action: Some("data_request.run_erasure".into()),
+            limit: 5,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(
+        log[0]
+            .detail
+            .contains(&format!("\"delete_messages\":{delete_messages}"))
+    );
+    run.request.outcome.unwrap()
+}
+
+#[tokio::test]
+async fn the_erasure_outcome_says_what_happened_to_the_messages_both_ways() {
+    let left = erased(false, 10).await;
+    assert!(left.contains("Messages left in place (D-029)"), "{left}");
+    let deleted = erased(true, 10).await;
+    assert!(
+        deleted.contains("Messages deleted at the member's request (0 rows, 30-day purge)"),
+        "{deleted}"
+    );
+}
+
+#[test]
+fn the_invoice_reason_names_the_configured_years_and_there_are_nine_records() {
+    let list = retained(7);
+    assert_eq!(list.len(), RETAINED_COUNT);
+    let invoices = list.iter().find(|r| r.id == "invoices").unwrap();
+    assert!(
+        invoices
+            .reason
+            .contains("7 years after the year of payment"),
+        "{}",
+        invoices.reason
+    );
+    assert!(retained(12)[2].reason.contains("12 years"));
+    assert_eq!(list[7].id, "deleted_account_archive");
+    assert_eq!(list[8].id, "request_log");
+}
+
+#[tokio::test]
+async fn viewing_the_deleted_archive_needs_manage_accounts_and_is_logged() {
+    let e = env();
+    e.reqs.add_archive(crate::DeletedArchive {
+        account_id: SUBJECT,
+        username: "old.name".into(),
+        email: "old@example.test".into(),
+        display_name: Some("Old".into()),
+        deleted_at_ms: T0,
+        username_release_at_ms: T0 + 30 * DAY_MS,
+        credits_forfeited: 0,
+        invites_revoked: 0,
+    });
+    // Senior Staff here holds MANAGE_TAKEDOWNS only: refused, and the denial is logged.
+    let senior = staff(&e, SENIOR, 2).await;
+    assert!(matches!(
+        e.svc.view_deleted_archive(&senior, SUBJECT).await,
+        Err(AdminError::MissingPermission(_))
+    ));
+    let owner = e.svc.resolve(OWNER, None).await.unwrap();
+    let a = e.svc.view_deleted_archive(&owner, SUBJECT).await.unwrap();
+    assert_eq!(a.email, "old@example.test");
+    assert!(matches!(
+        e.svc.view_deleted_archive(&owner, 999).await,
+        Err(AdminError::NotFound(_))
+    ));
+    let log = e
+        .repo
+        .list_log(&AccessLogFilter {
+            action: Some("account.deleted_archive.view".into()),
+            limit: 10,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(
+        log.iter()
+            .any(|l| l.kind == AccessKind::Read && l.target_id == Some(SUBJECT))
+    );
+    assert!(log.iter().any(|l| l.kind == AccessKind::Denied));
+}
+
+#[tokio::test]
+async fn the_extension_leaves_two_adjacent_rows_even_when_the_dm_fails() {
+    // D-327: the notice row is written after the DM attempt, also when it fails.
+    let (e, _dms) = env_with_dms();
+    let c = staff(&e, SENIOR, 2).await;
+    e.repo
+        .add_account(31, "gone2", AccountState::Deactivated, None, Some(OWNER));
+    let r = e
+        .svc
+        .create_data_request(&c, DataRequestKind::Export, 31, None, None, 30)
+        .await
+        .unwrap();
+    e.svc
+        .extend_data_request(&c, r.id, 5, Some("more time"))
+        .await
+        .unwrap();
+    let log = e
+        .repo
+        .list_log(&AccessLogFilter {
+            target_id: Some(r.id),
+            limit: 10,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    // Newest first: the notice, then the extension, both on the same data_request target.
+    assert_eq!(log[0].action, "data_request.extend_notice");
+    assert_eq!(log[1].action, "data_request.extend");
+    assert_eq!(log[0].target_id, log[1].target_id);
+    assert!(log[0].seq > log[1].seq);
+    assert!(log[0].detail.contains("\"member_notified\":false"));
 }

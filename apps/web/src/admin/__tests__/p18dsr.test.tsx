@@ -2,7 +2,17 @@
 // runs, and the section being hidden without MANAGE_TAKEDOWNS.
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { asStaff, http, HttpResponse, nav, openAdmin, readJson, server } from './helpers';
+import {
+  account,
+  asStaff,
+  detail,
+  http,
+  HttpResponse,
+  nav,
+  openAdmin,
+  readJson,
+  server,
+} from './helpers';
 
 const DAY = 86_400_000;
 const NOW = Date.now();
@@ -231,5 +241,62 @@ describe('Admin data requests', () => {
     await userEvent.click(confirm);
     expect(await screen.findByText('Request entered.')).toBeInTheDocument();
     expect(body).toEqual({ kind: 'export', account_id: '100', note: 'email of 3 Oct' });
+  });
+
+  it('queues the message delete with an erasure when the member asked for it', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TAKEDOWNS'] });
+    let body: unknown = 'unset';
+    server.use(
+      http.get('*/api/v1/admin/data-requests', () =>
+        HttpResponse.json(page([row({ kind: 'erasure', state: 'verified' })])),
+      ),
+      http.post('*/api/v1/admin/data-requests/900/run', async ({ request }) => {
+        body = await readJson(request);
+        return HttpResponse.json(row({ kind: 'erasure', state: 'completed', outcome: 'ok' }));
+      }),
+    );
+    openAdmin('data-requests');
+    await userEvent.click(await screen.findByRole('button', { name: /Run the request of alice/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Erase the account' });
+    await userEvent.click(
+      within(dialog).getByLabelText('The member also asked for their messages to be deleted'),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Erase account' }));
+    expect(await screen.findByText('Request run.')).toBeInTheDocument();
+    expect(body).toEqual({ delete_messages: true });
+  });
+});
+
+describe('Deleted account archive (D-326)', () => {
+  it('is read on request for a deleted account by someone with MANAGE_ACCOUNTS', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ACCOUNTS'] });
+    let reads = 0;
+    server.use(
+      http.get('*/api/v1/admin/accounts', () =>
+        HttpResponse.json({ items: [account({ state: 'deleted' })], next_after: null }),
+      ),
+      http.get('*/api/v1/admin/accounts/100', () =>
+        HttpResponse.json(detail({}, { state: 'deleted' })),
+      ),
+      http.get('*/api/v1/admin/accounts/100/deleted-archive', () => {
+        reads += 1;
+        return HttpResponse.json({
+          account_id: '100',
+          username: 'old.name',
+          email: 'old@example.test',
+          display_name: 'Old',
+          deleted_at_ms: NOW,
+          username_release_at_ms: NOW + 30 * DAY,
+          credits_forfeited: 0,
+          invites_revoked: 0,
+        });
+      }),
+    );
+    openAdmin('accounts');
+    await userEvent.click(await screen.findByRole('button', { name: 'View alice' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Show the archive' }));
+    expect(await screen.findByText('old@example.test')).toBeInTheDocument();
+    expect(screen.getByText('old.name')).toBeInTheDocument();
+    expect(reads).toBe(1);
   });
 });

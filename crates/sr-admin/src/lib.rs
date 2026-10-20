@@ -28,8 +28,9 @@ mod tests_dsr;
 mod tests_ext;
 
 pub use data_requests::{
-    DataRequest, DataRequestKind, DataRequestRepository, DataRequestState, ErasureReport,
-    ErasureRun, MemoryDataRequests, NewDataRequest, RETAINED, RetainedRecord,
+    DataRequest, DataRequestKind, DataRequestRepository, DataRequestState, DeletedArchive,
+    ErasureOptions, ErasureReport, ErasureRun, MemoryDataRequests, NewDataRequest, RETAINED_COUNT,
+    RetainedRecord, retained,
 };
 pub use error::{AdminError, AdminResult};
 pub use ext::*;

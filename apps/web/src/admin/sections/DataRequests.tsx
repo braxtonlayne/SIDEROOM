@@ -1,6 +1,15 @@
 // Data-subject request queue (M-25 step c, MOD-DSR; D-295): export and erasure requests with the due date
 // computed when they were entered, overdue marking, one extension, and the runs. Needs MANAGE_TAKEDOWNS.
-import { Badge, Button, EmptyState, Notice, Select, Switch, TextInput } from '@sideroom/ui';
+import {
+  Badge,
+  Button,
+  Checkbox,
+  EmptyState,
+  Notice,
+  Select,
+  Switch,
+  TextInput,
+} from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { useT, type MessageKey } from '../../i18n';
@@ -53,6 +62,7 @@ export function DataRequestsSection() {
     note: '',
   });
   const [days, setDays] = useState('30');
+  const [deleteMessages, setDeleteMessages] = useState(false);
   const action = useAction();
   const now = Date.now();
 
@@ -205,7 +215,10 @@ export function DataRequestsSection() {
                         size="sm"
                         variant={r.kind === 'erasure' ? 'danger' : 'primary'}
                         aria-label={t('admin.dataRequests.runAria', { name: r.username })}
-                        onClick={() => setDialog({ kind: 'run', req: r })}
+                        onClick={() => {
+                          setDeleteMessages(false);
+                          setDialog({ kind: 'run', req: r });
+                        }}
                       >
                         {t('admin.dataRequests.run')}
                       </Button>
@@ -367,12 +380,17 @@ export function DataRequestsSection() {
         onCancel={() => setDialog(null)}
         onConfirm={async () => {
           if (dialog?.kind !== 'run') return;
-          await api.runDataRequest(dialog.req.id);
+          await api.runDataRequest(dialog.req.id, dialog.req.kind === 'erasure' && deleteMessages);
           await done(t('admin.dataRequests.ran'));
         }}
       >
         {dialog?.kind === 'run' && dialog.req.kind === 'erasure' && (
           <>
+            <Checkbox
+              label={t('admin.dataRequests.run.deleteMessages')}
+              checked={deleteMessages}
+              onChange={(e) => setDeleteMessages(e.target.checked)}
+            />
             <p className="ss-sub">{t('admin.dataRequests.runErasureKept')}</p>
             <ul>
               {catalog.map((c) => (

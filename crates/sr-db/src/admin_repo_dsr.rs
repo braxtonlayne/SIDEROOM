@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use sqlx::{PgConnection, Row, postgres::PgRow};
 use sr_admin::{
     AdminError, AdminResult, AuditEntry, DataRequest, DataRequestKind, DataRequestRepository,
-    DataRequestState, ErasureReport, ErasureRun, NewDataRequest,
+    DataRequestState, DeletedArchive, ErasureOptions, ErasureReport, ErasureRun, NewDataRequest,
     data_requests::{DAY_MS, erasure_outcome, retained_ids},
 };
 
@@ -173,6 +173,34 @@ impl DataRequestRepository for PgAdminRepo {
         .await
         .map_err(db)?;
         rows.iter().map(|r| row(r).map_err(db)).collect()
+    }
+
+    async fn deleted_archive(&self, account_id: i64) -> AdminResult<Option<DeletedArchive>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT account_id, username::text AS username, email::text AS email, display_name, \
+             {} AS deleted_ms, {} AS release_ms, credits_forfeited, invites_revoked \
+             FROM deleted_accounts WHERE account_id = $1",
+            ms("deleted_at"),
+            ms("username_release_at")
+        )))
+        .bind(account_id)
+        .fetch_optional(self.pool())
+        .await
+        .map_err(db)?;
+        row.map(|r| {
+            Ok(DeletedArchive {
+                account_id: r.try_get("account_id")?,
+                username: r.try_get("username")?,
+                email: r.try_get("email")?,
+                display_name: r.try_get("display_name")?,
+                deleted_at_ms: r.try_get("deleted_ms")?,
+                username_release_at_ms: r.try_get("release_ms")?,
+                credits_forfeited: r.try_get("credits_forfeited")?,
+                invites_revoked: r.try_get("invites_revoked")?,
+            })
+        })
+        .transpose()
+        .map_err(db)
     }
 
     async fn verify(
@@ -347,6 +375,7 @@ impl DataRequestRepository for PgAdminRepo {
         &self,
         id: i64,
         now_ms: i64,
+        opts: ErasureOptions,
         audit: &AuditEntry,
     ) -> AdminResult<ErasureRun> {
         let r = {
@@ -416,7 +445,31 @@ impl DataRequestRepository for PgAdminRepo {
                 ));
             }
         }
-        let outcome = erasure_outcome(&report);
+        // N-06: the member also asked for their messages. Queued after the account is erased, so a
+        // blocked erasure leaves everything as it was; the job finds the messages by author id.
+        if opts.delete_messages {
+            let scope = crate::self_delete::Scope {
+                servers: true,
+                dms: true,
+                before_ms: None,
+            };
+            let visible = crate::self_delete::count_visible(self.pool(), r.account_id, scope)
+                .await
+                .map_err(|e| AdminError::Storage(e.to_string()))?;
+            // An open run already covers them; the staff run skips only the 24-hour limit.
+            let _ = crate::self_delete::request(
+                self.pool(),
+                self.next_id(),
+                self.next_id(),
+                r.account_id,
+                scope,
+                crate::self_delete::Via::Staff,
+            )
+            .await
+            .map_err(|e| AdminError::Storage(e.to_string()))?;
+            report.messages_queued = Some(visible);
+        }
+        let outcome = erasure_outcome(&report, opts.invoice_years);
         let mut tx = self.pool().begin().await.map_err(db)?;
         let done = sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE data_requests SET state = 'completed', outcome = $2, retained = $3, completed_at = {} \

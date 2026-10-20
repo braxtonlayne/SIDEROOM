@@ -285,16 +285,16 @@ Messages you deleted are hidden from everyone and are not listed.\n\
 ";
 
 /// The README: the fixed text, then what stays after erasure. The eight records come from
-/// [`sr_admin::RETAINED`], the same list the staff data-request queue writes into an erasure outcome
+/// [`sr_admin::retained`], the same list the staff data-request queue writes into an erasure outcome
 /// (D-318), so the package, the deletion screen and the outcome cannot drift apart.
-pub fn readme() -> String {
+pub fn readme(invoice_years: u8) -> String {
     let mut out = String::from(README);
     out.push_str("What stays after you delete your account\n");
     out.push_str(
-        "Your profile, password, passkeys, sessions and email address are removed; the linked Discord\n\
-         identity is kept only to recognise you if you return. These records stay:\n",
+        "Your profile, password, passkeys, sessions and email address are removed from your account;\n\
+         the linked Discord identity is kept only to recognise you if you return. These records stay:\n",
     );
-    for r in sr_admin::RETAINED {
+    for r in sr_admin::retained(invoice_years) {
         out.push_str(&format!("  - {}: {}\n", r.label, r.reason));
     }
     out.push_str("Messages you leave in place stay. Delete them first if you want them gone.\n");
@@ -307,11 +307,13 @@ pub async fn build_package<W: Write + Seek>(
     user: i64,
     out: W,
     now_ms: i64,
+    invoice_years: u8,
 ) -> DbResult<u64> {
     let mut zip = ZipWriter::new(out);
     zip.start_file("README.txt", SimpleFileOptions::default())
         .map_err(zip_err)?;
-    zip.write_all(readme().as_bytes()).map_err(zip_err)?;
+    zip.write_all(readme(invoice_years).as_bytes())
+        .map_err(zip_err)?;
 
     let account = rows(
         pool,

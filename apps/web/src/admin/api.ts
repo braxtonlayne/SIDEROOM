@@ -978,5 +978,23 @@ export const declineDataRequest = (id: string, reason: string) =>
   send<DataRequest>(`/admin/data-requests/${id}/decline`, 'POST', { reason });
 export const extendDataRequest = (id: string, days: number, reason: string) =>
   send<DataRequest>(`/admin/data-requests/${id}/extend`, 'POST', { days, reason });
-export const runDataRequest = (id: string) =>
-  send<DataRequest>(`/admin/data-requests/${id}/run`, 'POST');
+export const runDataRequest = (id: string, deleteMessages = false) =>
+  send<DataRequest>(
+    `/admin/data-requests/${id}/run`,
+    'POST',
+    deleteMessages ? { delete_messages: true } : undefined,
+  );
+
+export interface DeletedArchive {
+  account_id: string;
+  username: string;
+  email: string;
+  display_name: string | null;
+  deleted_at_ms: number;
+  username_release_at_ms: number;
+  credits_forfeited: number;
+  invites_revoked: number;
+}
+/** Original identifiers of a deleted account (D-326); each call is written to the access log. */
+export const getDeletedArchive = (accountId: string) =>
+  get<DeletedArchive>(`/admin/accounts/${accountId}/deleted-archive`);

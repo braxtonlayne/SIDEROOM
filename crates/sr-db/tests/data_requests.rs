@@ -8,10 +8,14 @@ use std::sync::{
 
 use sr_admin::{
     AccessKind, AdminError, AuditEntry, DataRequestKind, DataRequestRepository, DataRequestState,
-    NewDataRequest, RETAINED, data_requests::DAY_MS,
+    ErasureOptions, NewDataRequest, RETAINED_COUNT, data_requests::DAY_MS, retained,
 };
 use sr_db::{PgPool, admin_repo::PgAdminRepo, data_export, testing::TestDb};
 
+const OPTS: ErasureOptions = ErasureOptions {
+    delete_messages: false,
+    invoice_years: 10,
+};
 const T0: i64 = 1_800_000_000_000;
 const STAFF: i64 = 1;
 
@@ -432,7 +436,7 @@ async fn erasure_run_scrubs_the_account_and_keeps_the_retained_records() {
         .unwrap();
     assert!(
         matches!(
-            r.run_erasure(q.id, T0, &entry("data_request.run_erasure", q.id))
+            r.run_erasure(q.id, T0, OPTS, &entry("data_request.run_erasure", q.id))
                 .await,
             Err(AdminError::Conflict(_))
         ),
@@ -442,7 +446,12 @@ async fn erasure_run_scrubs_the_account_and_keeps_the_retained_records() {
         .await
         .unwrap();
     let run = r
-        .run_erasure(q.id, T0 + 5000, &entry("data_request.run_erasure", q.id))
+        .run_erasure(
+            q.id,
+            T0 + 5000,
+            OPTS,
+            &entry("data_request.run_erasure", q.id),
+        )
         .await
         .unwrap();
 
@@ -457,11 +466,11 @@ async fn erasure_run_scrubs_the_account_and_keeps_the_retained_records() {
     assert_eq!(run.request.state, DataRequestState::Completed);
     assert_eq!(run.report.held_rows, 1);
     let outcome = run.request.outcome.clone().unwrap();
-    for rec in RETAINED {
-        assert!(outcome.contains(rec.label), "outcome names {}", rec.label);
+    for rec in retained(10) {
+        assert!(outcome.contains(&rec.label), "outcome names {}", rec.label);
     }
     assert!(outcome.contains("1 held row"));
-    assert_eq!(run.request.retained.len(), RETAINED.len());
+    assert_eq!(run.request.retained.len(), RETAINED_COUNT);
 
     // ... and every retained record is still there.
     let one = |sql: &'static str| async move {
@@ -541,7 +550,7 @@ async fn erasure_run_scrubs_the_account_and_keeps_the_retained_records() {
 
     // A second run finds nothing left to do.
     assert!(
-        r.run_erasure(q.id, T0, &entry("data_request.run_erasure", q.id))
+        r.run_erasure(q.id, T0, OPTS, &entry("data_request.run_erasure", q.id))
             .await
             .is_err()
     );
@@ -576,7 +585,7 @@ async fn an_account_that_owns_a_server_cannot_be_erased_until_it_lets_go() {
         .await
         .unwrap();
     let err = r
-        .run_erasure(q.id, T0, &entry("data_request.run_erasure", q.id))
+        .run_erasure(q.id, T0, OPTS, &entry("data_request.run_erasure", q.id))
         .await
         .unwrap_err();
     match err {
@@ -655,8 +664,8 @@ fn nothing_in_the_workspace_purges_data_requests() {
 /// erasure outcome (N-03, D-318).
 #[test]
 fn readme_and_deletion_screen_list_the_same_eight_records() {
-    assert_eq!(RETAINED.len(), 8);
-    let readme = sr_db::data_export::readme();
+    assert_eq!(RETAINED_COUNT, 9);
+    let readme = sr_db::data_export::readme(10);
     let frag = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../apps/web/src/i18n/messages/en/p12-admin-mod-be-1.ts"),
@@ -668,26 +677,103 @@ fn readme_and_deletion_screen_list_the_same_eight_records() {
         .and_then(|t| t.split("',").next())
         .expect("deletion screen string");
     let (mut at_readme, mut at_screen) = (0, 0);
-    for r in RETAINED {
+    for r in retained(10) {
         let i = readme[at_readme..]
-            .find(r.label)
+            .find(&r.label)
             .unwrap_or_else(|| panic!("README names {}", r.label));
         at_readme += i;
         let j = screen[at_screen..]
-            .find(r.label)
+            .find(&r.label)
             .unwrap_or_else(|| panic!("screen names {}", r.label));
         at_screen += j;
         assert!(
-            readme.contains(r.reason),
+            readme.contains(&r.reason),
             "README carries the reason of {}",
             r.label
         );
     }
     for text in [&readme, &screen.to_owned()] {
         assert!(
-            text.contains("Your profile, password, passkeys, sessions and email address are removed; the linked Discord"),
+            text.contains("Your profile, password, passkeys, sessions and email address are removed from your account;"),
             "{text}"
         );
     }
     assert!(!readme.contains("sign-in data are removed"));
+}
+
+/// N-06 (D-324): the erasure run queues the member's message self-delete when asked, names it in the
+/// outcome, and leaves the messages in place otherwise. N-09 (D-326): the staff-only archive is
+/// readable through the repository.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn erasure_can_queue_the_members_message_delete_and_the_archive_is_readable() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    sqlx::query("INSERT INTO channels (id, type) VALUES (11, 1)")
+        .execute(pool)
+        .await
+        .unwrap();
+    let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE)")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let mid: i64 =
+        sqlx::query_scalar("SELECT sr_snowflake_floor(date_trunc('month', now())) + 1000")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    for off in 0..2 {
+        sqlx::query("INSERT INTO messages (id, channel_id, author_id) VALUES ($1, 11, 100)")
+            .bind(mid + off)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+    let r = repo(pool);
+    let q = r
+        .create(
+            &new(DataRequestKind::Erasure, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    r.verify(q.id, STAFF, T0, &entry("data_request.verify", q.id))
+        .await
+        .unwrap();
+    let opts = ErasureOptions {
+        delete_messages: true,
+        invoice_years: 10,
+    };
+    let run = r
+        .run_erasure(q.id, T0, opts, &entry("data_request.run_erasure", q.id))
+        .await
+        .unwrap();
+    assert_eq!(run.report.messages_queued, Some(2));
+    assert!(
+        run.request
+            .outcome
+            .unwrap()
+            .contains("Messages deleted at the member's request (2 rows, 30-day purge)")
+    );
+    let (state, via): (String, String) =
+        sqlx::query_as("SELECT state, via FROM message_self_deletes WHERE account_id = 100")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!((state.as_str(), via.as_str()), ("queued", "staff"));
+    let jobs: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM jobs WHERE kind = 'user.messages_self_delete'")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!(jobs, 1);
+    // The archive keeps the original identifiers for staff.
+    let a = r.deleted_archive(100).await.unwrap().unwrap();
+    assert_eq!(
+        (a.username.as_str(), a.email.as_str()),
+        ("subject", "subject@example.test")
+    );
+    assert!(a.username_release_at_ms > a.deleted_at_ms);
+    assert!(r.deleted_archive(1).await.unwrap().is_none());
 }

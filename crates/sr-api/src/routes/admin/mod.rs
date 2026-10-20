@@ -267,6 +267,10 @@ pub fn router() -> Router<AppState> {
             "/admin/data-requests/{request_id}/run",
             post(data_requests::run),
         )
+        .route(
+            "/admin/accounts/{account_id}/deleted-archive",
+            get(data_requests::deleted_archive),
+        )
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
         .route("/admin/card-actions", post(announce::card_action))
@@ -331,6 +335,7 @@ pub fn router() -> Router<AppState> {
         data_requests::decline,
         data_requests::extend,
         data_requests::run,
+        data_requests::deleted_archive,
         announce::alerts,
         announce::ack,
         announce::card_action,
@@ -397,6 +402,8 @@ pub fn router() -> Router<AppState> {
         data_requests::DataRequestList,
         data_requests::CreateBody,
         data_requests::ExtendBody,
+        data_requests::RunBody,
+        sr_admin::DeletedArchive,
         sr_admin::DataRequest,
         sr_admin::DataRequestKind,
         sr_admin::DataRequestState,

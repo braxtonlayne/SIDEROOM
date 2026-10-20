@@ -19,7 +19,7 @@ export default {
   'admin.accounts.banSeriousToggleHint':
     'A serious ban raises suspicion on the account that invited this person.',
   'settings.account.removalRetained':
-    'Your profile, password, passkeys, sessions and email address are removed; the linked Discord identity is kept only to recognise you if you return. These records stay: Person record, Invite graph, Invoices, Staff-side moderation history, Messages and uploads you did not delete, Content under a moderation hold, Linked Discord identity, This request and its audit trail. They are kept to stop banned people returning, to meet accounting duties and to keep staff decisions accountable.',
+    'Your profile, password, passkeys, sessions and email address are removed from your account; the linked Discord identity is kept only to recognise you if you return. These records stay: Person record, Invite graph, Invoices (kept {years} years after the year of payment, then no longer linked to you), Staff-side moderation history, Messages and uploads you did not delete, Content under a moderation hold, Linked Discord identity, Your original username, email address and display name, in a staff-only archive, This request and its audit trail. They are kept to stop banned people returning, to meet accounting duties and to keep staff decisions accountable.',
   'settings.userNav.invites': 'Invites',
   'settings.userInvites.title': 'Invites',
   'settings.userInvites.what': 'your invites',

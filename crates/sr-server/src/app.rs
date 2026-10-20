@@ -1474,6 +1474,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             notifier: Some(self_delete_voice),
             ids: id_src.clone(),
         },
+        features.clone(),
     );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;

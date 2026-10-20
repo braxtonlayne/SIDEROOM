@@ -10,7 +10,7 @@
 //! Lifecycle: `open` (received) -> `verified` (staff checked who is asking) -> `running` (an
 //! export is being built) -> `completed`; `declined` ends a request staff refuse with a reason.
 //! The export run reuses the self-service `user.data_export` job and its README; the erasure
-//! run reuses account deletion and names the records it keeps ([`RETAINED`]).
+//! run reuses account deletion and names the records it keeps ([`retained`]).
 //!
 //! Permission: `MANAGE_TAKEDOWNS` (D-210). Not legal advice; the retained-record bases are the
 //! project defaults of D-295 for a lawyer to check.
@@ -102,57 +102,73 @@ impl DataRequestState {
 }
 
 /// One record kept after an erasure, with the reason (G-66, D-124, D-295).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct RetainedRecord {
-    pub id: &'static str,
-    pub label: &'static str,
-    pub reason: &'static str,
+    pub id: String,
+    pub label: String,
+    pub reason: String,
 }
 
-/// The records an erasure keeps. The same list is written to the request's outcome and
-/// shown in the queue; a test guards that they really survive the run.
-pub const RETAINED: [RetainedRecord; 8] = [
-    RetainedRecord {
-        id: "person_record",
-        label: "Person record",
-        reason: "Links the accounts of one person so a ban cannot be evaded (D-124).",
-    },
-    RetainedRecord {
-        id: "invite_graph",
-        label: "Invite graph",
-        reason: "Who invited whom, for abuse tracing and inviter accountability (D-124).",
-    },
-    RetainedRecord {
-        id: "invoices",
-        label: "Invoices",
-        reason: "Donation and purchase records, kept for as long as accounting law requires (D-124).",
-    },
-    RetainedRecord {
-        id: "moderation_history",
-        label: "Staff-side moderation history",
-        reason: "Bans, cases and the staff access log keep staff decisions accountable (D-124, D-212).",
-    },
-    RetainedRecord {
-        id: "messages",
-        label: "Messages and uploads you did not delete",
-        reason: "They stay in the rooms they were posted in, shown as Deleted User, unless you deleted them first (D-029, D-123).",
-    },
-    RetainedRecord {
-        id: "held_content",
-        label: "Content under a moderation hold",
-        reason: "A held row is kept while its hold lasts, then it follows the normal purge; staff decide on release (D-122).",
-    },
-    RetainedRecord {
-        id: "external_identities",
-        label: "Linked Discord identity",
-        reason: "Kept so a person who comes back is linked to the same Person record (D-030); it does not stop them from joining again with a new invite.",
-    },
-    RetainedRecord {
-        id: "request_log",
-        label: "This request and its audit trail",
-        reason: "The request log is kept to show the deadline was met (D-295).",
-    },
-];
+/// Number of records an erasure keeps (D-318, D-326).
+pub const RETAINED_COUNT: usize = 9;
+
+/// The records an erasure keeps, in the order the export README and the deletion screen list them.
+/// `invoice_years` is `compliance.invoice_retention_years` (D-325). The same list is written to the
+/// request's outcome and shown in the queue; a test guards that they really survive the run.
+pub fn retained(invoice_years: u8) -> Vec<RetainedRecord> {
+    let r = |id: &str, label: &str, reason: String| RetainedRecord {
+        id: id.to_owned(),
+        label: label.to_owned(),
+        reason,
+    };
+    vec![
+        r(
+            "person_record",
+            "Person record",
+            "Links the accounts of one person so a ban cannot be evaded (D-124).".into(),
+        ),
+        r(
+            "invite_graph",
+            "Invite graph",
+            "Who invited whom, for abuse tracing and inviter accountability (D-124).".into(),
+        ),
+        r(
+            "invoices",
+            "Invoices",
+            format!("Donation and purchase records, kept for {invoice_years} years after the year of payment, as accounting law requires, then no longer linked to you (D-124, D-325)."),
+        ),
+        r(
+            "moderation_history",
+            "Staff-side moderation history",
+            "Bans, cases and the staff access log keep staff decisions accountable (D-124, D-212).".into(),
+        ),
+        r(
+            "messages",
+            "Messages and uploads you did not delete",
+            "They stay in the rooms they were posted in, shown as Deleted User, unless you deleted them first (D-029, D-123).".into(),
+        ),
+        r(
+            "held_content",
+            "Content under a moderation hold",
+            "A held row is kept while its hold lasts, then it follows the normal purge; staff decide on release (D-122).".into(),
+        ),
+        r(
+            "external_identities",
+            "Linked Discord identity",
+            "Kept so a person who comes back is linked to the same Person record (D-030); it does not stop them from joining again with a new invite.".into(),
+        ),
+        r(
+            "deleted_account_archive",
+            "Your original username, email address and display name, in a staff-only archive",
+            "So staff can recognise your account if you write in later (a data request, a dispute) and link a returning person to the same Person record (D-030); kept as long as the Person record (D-124); every staff view of it is logged (D-326).".into(),
+        ),
+        r(
+            "request_log",
+            "This request and its audit trail",
+            "The request log is kept to show the deadline was met (D-295).".into(),
+        ),
+    ]
+}
 
 /// A queue row.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -189,7 +205,7 @@ pub struct DataRequest {
     #[schema(value_type = Option<String>)]
     pub export_id: Option<i64>,
     pub outcome: Option<String>,
-    /// Ids of the [`RETAINED`] records an erasure named.
+    /// Ids of the [`retained`] records an erasure named.
     pub retained: Vec<String>,
     pub completed_at_ms: Option<i64>,
     /// When the extension was recorded.
@@ -211,6 +227,22 @@ impl DataRequest {
         self.overdue = self.state.is_active() && self.effective_due_ms < now_ms;
         self
     }
+}
+
+/// The staff-only archive of a deleted account's original identifiers (D-326).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct DeletedArchive {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub account_id: i64,
+    pub username: String,
+    pub email: String,
+    pub display_name: Option<String>,
+    pub deleted_at_ms: i64,
+    /// When the username can be taken again.
+    pub username_release_at_ms: i64,
+    pub credits_forfeited: i32,
+    pub invites_revoked: i32,
 }
 
 /// Input of [`DataRequestRepository::create`].
@@ -239,6 +271,18 @@ pub struct ErasureReport {
     pub held_rows: i64,
     /// The account was already deleted when the run started.
     pub already_deleted: bool,
+    /// `Some(n)` when the run queued the member's message self-delete at their request (N-06): `n`
+    /// messages were visible when it was queued. `None`: the messages were left in place (D-029).
+    pub messages_queued: Option<i64>,
+}
+
+/// Options of an erasure run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ErasureOptions {
+    /// The member also asked for their messages to be deleted (N-06, D-324).
+    pub delete_messages: bool,
+    /// `compliance.invoice_retention_years`, for the outcome text.
+    pub invoice_years: u8,
 }
 
 /// Result of an erasure run.
@@ -256,6 +300,8 @@ pub trait DataRequestRepository: Send + Sync {
     async fn get(&self, id: i64) -> AdminResult<Option<DataRequest>>;
     /// Active requests first by deadline, then closed ones newest first.
     async fn list(&self, active_only: bool, limit: i64) -> AdminResult<Vec<DataRequest>>;
+    /// The archive row of a deleted account, if there is one (D-326).
+    async fn deleted_archive(&self, account_id: i64) -> AdminResult<Option<DeletedArchive>>;
     /// `open` -> `verified`. `Conflict` from any other state.
     async fn verify(
         &self,
@@ -299,26 +345,27 @@ pub trait DataRequestRepository: Send + Sync {
         now_ms: i64,
         audit: &AuditEntry,
     ) -> AdminResult<DataRequest>;
-    /// Delete the account for a `verified` erasure request and complete it, naming [`RETAINED`].
+    /// Delete the account for a `verified` erasure request and complete it, naming [`retained`].
     /// `Conflict` (with the reason) when the account cannot be deleted yet, for example it owns servers.
     async fn run_erasure(
         &self,
         id: i64,
         now_ms: i64,
+        opts: ErasureOptions,
         audit: &AuditEntry,
     ) -> AdminResult<ErasureRun>;
 }
 
 /// The outcome text of an erasure: what went and what stays.
-pub fn erasure_outcome(report: &ErasureReport) -> String {
+pub fn erasure_outcome(report: &ErasureReport, invoice_years: u8) -> String {
     let mut s = String::from(
         "Account erased: it now reads \"Deleted User\", sign-in, sessions, memberships, friendships and \
          open invites are gone. Retained: ",
     );
     s.push_str(
-        &RETAINED
+        &retained(invoice_years)
             .iter()
-            .map(|r| r.label)
+            .map(|r| r.label.as_str())
             .collect::<Vec<_>>()
             .join("; "),
     );
@@ -329,15 +376,21 @@ pub fn erasure_outcome(report: &ErasureReport) -> String {
             report.held_rows
         ));
     }
+    match report.messages_queued {
+        Some(n) => s.push_str(&format!(
+            " Messages deleted at the member's request ({n} rows, 30-day purge)."
+        )),
+        None => s.push_str(" Messages left in place (D-029)."),
+    }
     if report.already_deleted {
         s.push_str(" The account had already been deleted by its owner.");
     }
     s
 }
 
-/// The ids of [`RETAINED`], as stored on the row.
+/// The ids of [`retained`], as stored on the row.
 pub fn retained_ids() -> Vec<String> {
-    RETAINED.iter().map(|r| r.id.to_owned()).collect()
+    retained(10).into_iter().map(|r| r.id).collect()
 }
 
 /// Outcome text of a finished export (set by the export job when the package is ready).
@@ -552,6 +605,33 @@ impl AdminService {
             .with_clock(now))
     }
 
+    /// The original username, email and display name of a deleted account, from the staff-only
+    /// archive (D-326). `MANAGE_ACCOUNTS`. Every view is written to the staff access log with
+    /// `account.deleted_archive.view`, written before the data is returned.
+    pub async fn view_deleted_archive(
+        &self,
+        c: &Caller,
+        account_id: i64,
+    ) -> AdminResult<DeletedArchive> {
+        self.require(c, P::MANAGE_ACCOUNTS, "account.deleted_archive.view")
+            .await?;
+        let a = self
+            .requests()?
+            .deleted_archive(account_id)
+            .await?
+            .ok_or(AdminError::NotFound("deleted account archive"))?;
+        let e = self.entry(
+            c,
+            AccessKind::Read,
+            "account.deleted_archive.view",
+            Some(("account", account_id)),
+            "",
+            json!({}),
+        );
+        self.repo().append_log(&e).await?;
+        Ok(a)
+    }
+
     /// Run an export request: queue the self-service build job for the subject.
     pub async fn run_data_export(&self, c: &Caller, req_id: i64) -> AdminResult<DataRequest> {
         self.require(c, P::MANAGE_TAKEDOWNS, "data_request.run")
@@ -578,7 +658,12 @@ impl AdminService {
 
     /// Run an erasure request through account deletion. The caller finishes the media clean-up
     /// and the live notices from the returned report.
-    pub async fn run_data_erasure(&self, c: &Caller, req_id: i64) -> AdminResult<ErasureRun> {
+    pub async fn run_data_erasure(
+        &self,
+        c: &Caller,
+        req_id: i64,
+        opts: ErasureOptions,
+    ) -> AdminResult<ErasureRun> {
         self.require(c, P::MANAGE_TAKEDOWNS, "data_request.run")
             .await?;
         let r = self.loaded_request(req_id).await?;
@@ -596,10 +681,13 @@ impl AdminService {
             "data_request.run_erasure",
             Some(("data_request", req_id)),
             "",
-            json!({ "account_id": r.account_id.to_string(), "retained": retained_ids() }),
+            json!({ "account_id": r.account_id.to_string(), "retained": retained_ids(), "delete_messages": opts.delete_messages }),
         );
         let now = self.now_ms();
-        let mut run = self.requests()?.run_erasure(req_id, now, &audit).await?;
+        let mut run = self
+            .requests()?
+            .run_erasure(req_id, now, opts, &audit)
+            .await?;
         run.request = run.request.with_clock(now);
         Ok(run)
     }
@@ -621,6 +709,7 @@ pub struct MemoryDataRequests {
     next: Mutex<i64>,
     /// Accounts whose erasure is blocked, with the reason (tests).
     blocked: Mutex<std::collections::HashMap<i64, String>>,
+    archives: Mutex<std::collections::HashMap<i64, DeletedArchive>>,
 }
 
 impl MemoryDataRequests {
@@ -630,7 +719,16 @@ impl MemoryDataRequests {
             rows: Mutex::new(Vec::new()),
             next: Mutex::new(9_000),
             blocked: Mutex::new(std::collections::HashMap::new()),
+            archives: Mutex::new(std::collections::HashMap::new()),
         }
+    }
+
+    /// Seed an archive row (tests).
+    pub fn add_archive(&self, a: DeletedArchive) {
+        self.archives
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .insert(a.account_id, a);
     }
 
     /// Make the erasure of `account` fail with a conflict (it owns servers, for example).
@@ -831,6 +929,15 @@ impl DataRequestRepository for MemoryDataRequests {
         Ok(row)
     }
 
+    async fn deleted_archive(&self, account_id: i64) -> AdminResult<Option<DeletedArchive>> {
+        Ok(self
+            .archives
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .get(&account_id)
+            .cloned())
+    }
+
     async fn run_export(
         &self,
         id: i64,
@@ -857,9 +964,13 @@ impl DataRequestRepository for MemoryDataRequests {
         &self,
         id: i64,
         now_ms: i64,
+        opts: ErasureOptions,
         audit: &AuditEntry,
     ) -> AdminResult<ErasureRun> {
-        let report = ErasureReport::default();
+        let report = ErasureReport {
+            messages_queued: opts.delete_messages.then_some(0),
+            ..ErasureReport::default()
+        };
         let row = {
             let mut rows = self.rows();
             let r = rows.iter_mut().find(|r| r.id == id).ok_or_else(not_found)?;
@@ -877,7 +988,7 @@ impl DataRequestRepository for MemoryDataRequests {
                 return Err(AdminError::Conflict(why.clone()));
             }
             r.state = DataRequestState::Completed;
-            r.outcome = Some(erasure_outcome(&report));
+            r.outcome = Some(erasure_outcome(&report, opts.invoice_years));
             r.retained = retained_ids();
             r.completed_at_ms = Some(now_ms);
             r.clone()

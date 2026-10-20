@@ -294,9 +294,10 @@ async fn build_and_store(
     storage: &dyn ObjectStorage,
     export: i64,
     user: i64,
+    invoice_years: u8,
 ) -> Result<(String, i64), HandlerError> {
     let mut file = tempfile::tempfile()?;
-    db::build_package(pool, user, &mut file, now_ms()).await?;
+    db::build_package(pool, user, &mut file, now_ms(), invoice_years).await?;
     let size = file.seek(SeekFrom::End(0))?;
     file.seek(SeekFrom::Start(0))?;
     let key = format!("exports/{user}/{export}.zip");
@@ -339,6 +340,7 @@ async fn build_and_store(
 pub(crate) async fn run_export(
     pool: &PgPool,
     storage: &dyn ObjectStorage,
+    features: &sr_features::FeatureService,
     job: &Job,
 ) -> Result<(), HandlerError> {
     let id: i64 = job.payload["export_id"]
@@ -349,7 +351,12 @@ pub(crate) async fn run_export(
     let Some(user) = db::begin(pool, id).await? else {
         return Ok(());
     };
-    match build_and_store(pool, storage, id, user).await {
+    let values = features
+        .effective_settings(sr_features::COMPLIANCE_ID, &sr_features::ScopeRef::Platform)
+        .await
+        .unwrap_or_default();
+    let years = sr_features::ComplianceSettings::from_values(&values).invoice_retention_years;
+    match build_and_store(pool, storage, id, user, years).await {
         Ok((key, size)) => {
             db::finish(pool, id, &key, size).await?;
             tracing::info!(export = id, bytes = size, "data package built");
@@ -422,11 +429,17 @@ pub fn register(
     client: SafeClient,
     packages: sr_packages::service::PackageService,
     self_delete: SelfDeleteEnv,
+    features: sr_features::FeatureService,
 ) -> JobRunner {
-    let (export_pool, export_storage) = (pool.clone(), storage.clone());
+    let (export_pool, export_storage, export_features) =
+        (pool.clone(), storage.clone(), features.clone());
     let runner = runner.register(db::JOB_KIND, 1, move |job: Job| {
-        let (pool, storage) = (export_pool.clone(), export_storage.clone());
-        Box::pin(async move { run_export(&pool, storage.as_ref(), &job).await })
+        let (pool, storage, features) = (
+            export_pool.clone(),
+            export_storage.clone(),
+            export_features.clone(),
+        );
+        Box::pin(async move { run_export(&pool, storage.as_ref(), &features, &job).await })
     });
     let sd_pool = pool.clone();
     let runner = runner.register(sr_db::self_delete::JOB_KIND, 1, move |job: Job| {

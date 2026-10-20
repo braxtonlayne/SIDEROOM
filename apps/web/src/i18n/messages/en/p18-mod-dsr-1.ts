@@ -81,4 +81,37 @@ export default {
   'admin.dataRequests.notified': 'Member told by DM on {date}',
   'admin.dataRequests.notNotified': 'Not told in-app: reply by email',
   'admin.dataRequests.extendedLate': 'Extended late',
+  'settings.privacy.deleteMessages.title': 'Delete all my messages',
+  'settings.privacy.deleteMessages.description':
+    'Hide every message and upload you wrote, in servers and in direct messages, in one go.',
+  'settings.privacy.deleteMessages.servers': 'Messages in servers (including servers you left)',
+  'settings.privacy.deleteMessages.dms': 'Messages in direct messages and group DMs',
+  'settings.privacy.deleteMessages.before': 'Only messages before',
+  'settings.privacy.deleteMessages.beforeHint': 'Leave empty to delete everything.',
+  'settings.privacy.deleteMessages.count':
+    '{count, plural, =0 {Nothing to delete here.} one {1 message would be hidden.} other {# messages would be hidden.}}',
+  'settings.privacy.deleteMessages.note':
+    'They are hidden from everyone at once and purged after 30 days; messages under a moderation hold are kept for staff. You can run this once every 24 hours.',
+  'settings.privacy.deleteMessages.button': 'Delete my messages',
+  'settings.privacy.deleteMessages.queued':
+    'Started. It runs in the background and you will get a message when it is done.',
+  'settings.privacy.deleteMessages.running': 'A bulk delete is running.',
+  'settings.privacy.deleteMessages.lastRun': 'Last run {when}: {count} messages hidden.',
+  'settings.privacy.deleteMessages.confirmTitle': 'Delete all my messages?',
+  'settings.privacy.deleteMessages.confirmDescription':
+    '{count, plural, one {1 message will be hidden from everyone.} other {# messages will be hidden from everyone.}} This cannot be undone.',
+  'settings.privacy.deleteMessages.confirm': 'Delete messages',
+  'settings.privacy.deleteMessages.cancel': 'Cancel',
+  'settings.account.removalMessagesLink': 'Delete all my messages',
+  'admin.dataRequests.run.deleteMessages': 'The member also asked for their messages to be deleted',
+  'admin.accountExtras.archiveTitle': 'Deleted account archive',
+  'admin.accountExtras.archiveHint':
+    'The original username, email address and display name of a deleted account, kept for staff. Each view is written to the access log.',
+  'admin.accountExtras.archiveShow': 'Show the archive',
+  'admin.accountExtras.archiveLoading': 'Loading the archive',
+  'admin.accountExtras.archiveUsername': 'Original username',
+  'admin.accountExtras.archiveEmail': 'Original email address',
+  'admin.accountExtras.archiveDisplayName': 'Original display name',
+  'admin.accountExtras.archiveDeleted': 'Deleted {when}',
+  'admin.accountExtras.archiveRelease': 'Username free again {when}',
 } satisfies Record<string, string>;

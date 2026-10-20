@@ -2989,14 +2989,14 @@ async fn the_data_request_queue_runs_from_entry_to_completion() {
     assert_eq!(s, StatusCode::OK, "{l}");
     assert_eq!(l["items"].as_array().unwrap().len(), 1);
     assert_eq!(l["deadline_days"], 30);
-    assert_eq!(l["retained_catalog"].as_array().unwrap().len(), 8);
+    assert_eq!(l["retained_catalog"].as_array().unwrap().len(), 9);
 
     // The erasure completes and names what stays.
     let (s, done) = e.call(Some(OWNER), Method::POST, &path("/run"), None).await;
     assert_eq!(s, StatusCode::OK, "{done}");
     assert_eq!(done["state"], "completed");
     assert!(done["outcome"].as_str().unwrap().contains("Person record"));
-    assert_eq!(done["retained"].as_array().unwrap().len(), 8);
+    assert_eq!(done["retained"].as_array().unwrap().len(), 9);
 
     // Every step is in the access log, with the extension reason.
     let (s, log) = e

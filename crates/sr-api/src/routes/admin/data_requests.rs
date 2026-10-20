@@ -18,7 +18,9 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
-use sr_admin::{DataRequest, DataRequestKind, ErasureReport, RETAINED, RetainedRecord};
+use sr_admin::{
+    DataRequest, DataRequestKind, ErasureOptions, ErasureReport, RetainedRecord, retained,
+};
 use sr_features::{COMPLIANCE_ID, ComplianceSettings, ScopeRef};
 use utoipa::ToSchema;
 
@@ -63,15 +65,19 @@ pub struct ExtendBody {
     pub reason: Option<String>,
 }
 
-async fn deadline_days(ctx: &StaffCtx) -> u16 {
+async fn compliance(ctx: &StaffCtx) -> ComplianceSettings {
     let Some(f) = &ctx.deps.features else {
-        return ComplianceSettings::default().data_request_deadline_days;
+        return ComplianceSettings::default();
     };
     let values = f
         .effective_settings(COMPLIANCE_ID, &ScopeRef::Platform)
         .await
         .unwrap_or_default();
-    ComplianceSettings::from_values(&values).data_request_deadline_days
+    ComplianceSettings::from_values(&values)
+}
+
+async fn deadline_days(ctx: &StaffCtx) -> u16 {
+    compliance(ctx).await.data_request_deadline_days
 }
 
 /// The queue, active requests by due date first (`MANAGE_TAKEDOWNS`).
@@ -93,7 +99,7 @@ pub async fn list(ctx: StaffCtx, Query(q): Query<ListQuery>) -> ApiResult<Json<D
     Ok(Json(DataRequestList {
         items,
         deadline_days: deadline_days(&ctx).await,
-        retained_catalog: RETAINED.to_vec(),
+        retained_catalog: retained(compliance(&ctx).await.invoice_retention_years),
     }))
 }
 
@@ -213,12 +219,23 @@ pub async fn extend(
         .map_err(map_err)
 }
 
+/// Body of `POST /admin/data-requests/{id}/run` (optional).
+#[derive(Debug, Default, Deserialize, ToSchema)]
+#[schema(as = AdminRunDataRequestBody)]
+pub struct RunBody {
+    /// Erasure only: the member also asked for their messages to be deleted (N-06, D-324). The
+    /// member's message self-delete is queued with servers and direct messages, no cut-off.
+    #[serde(default)]
+    pub delete_messages: bool,
+}
+
 /// Run a verified request. An export queues the self-service data package for the person (they
 /// download it from Settings for 7 days); an erasure deletes the account through account
 /// deletion and completes with an outcome that names the records that stay (D-124, G-66).
 #[utoipa::path(
     post, path = "/admin/data-requests/{request_id}/run",
     params(("request_id" = String, Path, description = "Data request snowflake")),
+    request_body(content = RunBody, description = "Optional"),
     responses((status = 200, body = DataRequest), (status = 401, body = ErrorBody),
               (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
               (status = 409, body = ErrorBody)),
@@ -229,8 +246,10 @@ pub async fn run(
     MaybeExt(social): MaybeExt<SocialDeps>,
     MaybeExt(media): MaybeExt<MediaDeps>,
     Path(request_id): Path<String>,
+    body: Option<Json<RunBody>>,
 ) -> ApiResult<Json<DataRequest>> {
     let rid = id(&request_id)?;
+    let delete_messages = body.is_some_and(|b| b.0.delete_messages);
     let existing = ctx
         .svc()
         .get_data_request(&ctx.caller, rid)
@@ -256,7 +275,14 @@ pub async fn run(
             ctx.require_reauth().await?;
             let run = ctx
                 .svc()
-                .run_data_erasure(&ctx.caller, rid)
+                .run_data_erasure(
+                    &ctx.caller,
+                    rid,
+                    ErasureOptions {
+                        delete_messages,
+                        invoice_years: compliance(&ctx).await.invoice_retention_years,
+                    },
+                )
                 .await
                 .map_err(map_err)?;
             finish_erasure(media, social, run.request.account_id, &run.report).await;
@@ -307,4 +333,24 @@ async fn finish_erasure(
         };
         crate::routes::social::announce_account_deleted(&social, account, &done).await;
     }
+}
+
+/// The original username, email and display name of a deleted account, from the staff-only archive
+/// (`MANAGE_ACCOUNTS`, D-326). Each view is written to the access log.
+#[utoipa::path(
+    get, path = "/admin/accounts/{account_id}/deleted-archive",
+    params(("account_id" = String, Path, description = "Account snowflake")),
+    responses((status = 200, body = sr_admin::DeletedArchive), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn deleted_archive(
+    ctx: StaffCtx,
+    Path(account_id): Path<String>,
+) -> ApiResult<Json<sr_admin::DeletedArchive>> {
+    ctx.svc()
+        .view_deleted_archive(&ctx.caller, id(&account_id)?)
+        .await
+        .map(Json)
+        .map_err(map_err)
 }
