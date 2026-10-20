@@ -91,3 +91,72 @@ export const applySlowmode = (
     retries: 0,
     json: body,
   });
+
+// ---- channel and user scope (LNG-CHN-017, LNG-USET-036): crates/sr-api/src/routes/settings/features_scopes.rs
+
+/** One module as a channel sees it. */
+export interface ChannelFeature {
+  id: string;
+  name: string;
+  description: string;
+  section: string;
+  /** Whether the module is on in the server; a channel cannot switch it on by itself. */
+  guild_enabled: boolean;
+  /** The channel's own switch, `null` when it follows the server. */
+  override_enabled: boolean | null;
+  /** On in this channel: the server's switch narrowed by the channel's. */
+  enabled: boolean;
+  platform_disabled: boolean;
+  /** Effective settings in this channel. */
+  settings: Record<string, unknown>;
+  /** What the channel would use with no overrides of its own (defaults plus the server's settings). */
+  inherited: Record<string, unknown>;
+  /** Only what the channel overrides. */
+  overrides: Record<string, unknown>;
+  schema: unknown;
+}
+
+export const channelFeaturesPath = (channelId: string) => `/channels/${channelId}/sr/features`;
+
+export const listChannelFeatures = (channelId: string) =>
+  apiFetch<ChannelFeature[]>(channelFeaturesPath(channelId), { retries: 0 });
+
+export const patchChannelFeature = (channelId: string, featureId: string, body: PatchFeatureBody) =>
+  apiFetch<ChannelFeature>(`${channelFeaturesPath(channelId)}/${encodeURIComponent(featureId)}`, {
+    method: 'PATCH',
+    retries: 0,
+    json: body,
+  });
+
+export const resetChannelFeature = (channelId: string, featureId: string) =>
+  apiFetch<void>(`${channelFeaturesPath(channelId)}/${encodeURIComponent(featureId)}`, {
+    method: 'DELETE',
+    retries: 0,
+  });
+
+/** One module as the signed-in person sees it. */
+export interface UserFeature {
+  id: string;
+  name: string;
+  description: string;
+  section: string;
+  settings: Record<string, unknown>;
+  overrides: Record<string, unknown>;
+  schema: unknown;
+}
+
+export const listUserFeatures = () =>
+  apiFetch<UserFeature[]>('/users/@me/sr/features', { retries: 0 });
+
+export const patchUserFeature = (featureId: string, settings: Record<string, unknown>) =>
+  apiFetch<UserFeature>(`/users/@me/sr/features/${encodeURIComponent(featureId)}`, {
+    method: 'PATCH',
+    retries: 0,
+    json: { settings },
+  });
+
+export const resetUserFeature = (featureId: string) =>
+  apiFetch<void>(`/users/@me/sr/features/${encodeURIComponent(featureId)}`, {
+    method: 'DELETE',
+    retries: 0,
+  });

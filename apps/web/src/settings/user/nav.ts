@@ -49,6 +49,15 @@ export const USER_SETTINGS_SECTIONS = [
     },
   },
   {
+    id: 'modules',
+    get label() {
+      return t('settings.userNav.modules');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
     id: 'devices',
     get label() {
       return t('settings.userNav.devices');
