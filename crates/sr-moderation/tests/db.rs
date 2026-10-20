@@ -1329,3 +1329,121 @@ async fn appeals_one_per_ban_reviewed_by_somebody_else() {
             .is_ok()
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn dismissal_releases_the_system_hold_and_reopening_puts_it_back() {
+    let w = world().await;
+    let target = w.talk().await;
+    let other = w.base + 20;
+    w.m.file_report(
+        w.reporter,
+        &report(
+            TargetKind::Message,
+            target,
+            Some(w.channel),
+            ReportCategory::Spam,
+        ),
+    )
+    .await
+    .unwrap();
+    let gm = w.gm();
+    let id =
+        w.m.list_cases(
+            &gm,
+            &CaseFilter {
+                limit: 10,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap()
+        .items[0]
+            .id;
+    let held = |m: i64| {
+        let pool = w.pool().clone();
+        async move {
+            sqlx::query_scalar::<_, Option<i64>>("SELECT hold_id FROM messages WHERE id = $1")
+                .bind(m)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                .is_some()
+        }
+    };
+    assert!(held(target).await);
+
+    // The author deletes the reported message while it is held (no purge_after, D-122).
+    sqlx::query("UPDATE messages SET visibility = 'user_deleted', deleted_at = now() - interval '60 days', purge_after = NULL WHERE id = $1")
+        .bind(target)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    // A staff hold on another message of the same case stays through the dismissal.
+    sqlx::query("UPDATE moderation_cases SET routing = 'platform' WHERE id = $1")
+        .bind(id)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let s = staff(w.staff_id, P::MANAGE_CASES);
+    let who = Who::Staff(&s);
+    w.m.place_hold(&who, id, HoldScope::Message(other), Some("related"))
+        .await
+        .unwrap();
+
+    let t = |to, o: Option<&str>| Transition {
+        to,
+        outcome: o.map(str::to_owned),
+        reporter_line: None,
+    };
+    let dismissed =
+        w.m.set_state(&who, id, &t(CaseState::Dismissed, Some("not a breach")))
+            .await
+            .unwrap();
+    assert_eq!(dismissed.active_holds, 1, "only the staff hold remains");
+    assert!(!held(target).await, "the report hold is released");
+    assert!(held(other).await, "a staff hold is not touched");
+    let purge_past: bool =
+        sqlx::query_scalar("SELECT purge_after < now() FROM messages WHERE id = $1")
+            .bind(target)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+    assert!(purge_past, "a message deleted while held becomes purgeable");
+    let reason: String = sqlx::query_scalar(
+        "SELECT release_reason FROM moderation_holds WHERE case_id = $1 AND created_by IS NULL",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(reason, "case dismissed: not a breach");
+
+    // Back to work: the report hold is placed again on a message that still exists.
+    sqlx::query("UPDATE messages SET visibility = 'visible', deleted_at = NULL, purge_after = NULL WHERE id = $1")
+        .bind(target)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let back =
+        w.m.set_state(&who, id, &t(CaseState::Investigating, None))
+            .await
+            .unwrap();
+    assert_eq!(back.active_holds, 2);
+    assert!(held(target).await);
+
+    // A message that is gone is skipped without a stray hold.
+    w.m.set_state(&who, id, &t(CaseState::Dismissed, None))
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM messages WHERE id = $1")
+        .bind(target)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let again =
+        w.m.set_state(&who, id, &t(CaseState::Investigating, None))
+            .await
+            .unwrap();
+    assert_eq!(again.active_holds, 1);
+}

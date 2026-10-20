@@ -1057,6 +1057,128 @@ mod moderation_release_tests {
         );
         db.cleanup().await.expect("cleanup");
     }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn dismissing_a_case_releases_the_report_hold_so_the_purge_takes_the_message() {
+        use sr_moderation::{
+            Transition,
+            model::{CaseState, NewReport, ReportCategory},
+        };
+        let db = TestDb::new().await.expect("test db");
+        let pool = db.pool();
+        for (id, name) in [(1_i64, "author"), (2, "staff"), (3, "reporter")] {
+            sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+                .bind(id)
+                .execute(pool)
+                .await
+                .expect("person");
+            sqlx::query(
+                "INSERT INTO accounts (id, person_id, username, email, password_hash) VALUES ($1, $1, $2, $3, 'x')",
+            )
+            .bind(id)
+            .bind(name)
+            .bind(format!("{name}@example.test"))
+            .execute(pool)
+            .await
+            .expect("account");
+        }
+        sqlx::query("INSERT INTO channels (id, type) VALUES (10, 1)")
+            .execute(pool)
+            .await
+            .expect("channel");
+        for u in [1_i64, 3] {
+            sqlx::query("INSERT INTO channel_recipients (channel_id, user_id) VALUES (10, $1)")
+                .bind(u)
+                .execute(pool)
+                .await
+                .expect("recipient");
+        }
+        let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE)")
+            .fetch_one(pool)
+            .await
+            .expect("partition");
+        let msg: i64 =
+            sqlx::query_scalar("SELECT sr_snowflake_floor(date_trunc('month', now())) + 1000")
+                .fetch_one(pool)
+                .await
+                .expect("floor");
+        sqlx::query(
+            "INSERT INTO messages (id, channel_id, author_id, content) VALUES ($1, 10, 1, 'x')",
+        )
+        .bind(msg)
+        .execute(pool)
+        .await
+        .expect("message");
+        let ids = std::sync::atomic::AtomicI64::new(8_000_000);
+        let moderation = Moderation::new(
+            pool.clone(),
+            std::sync::Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed)),
+        );
+        moderation
+            .file_report(
+                3,
+                &NewReport {
+                    target_kind: TargetKind::Message,
+                    target_id: msg,
+                    channel_id: Some(10),
+                    guild_id: None,
+                    category: ReportCategory::Spam,
+                    note: String::new(),
+                    moderators_may_see_name: false,
+                },
+            )
+            .await
+            .expect("report");
+        // Deleted by its author while the report hold stands.
+        sqlx::query(
+            "UPDATE messages SET visibility = 'user_deleted', deleted_at = now() - interval '90 days', purge_after = NULL WHERE id = $1",
+        )
+        .bind(msg)
+        .execute(pool)
+        .await
+        .expect("delete");
+        let storage = sr_storage::ObjectStoreStorage::in_memory();
+        let later = now_unix_ms() + 1000;
+        assert_eq!(
+            purge_deleted_messages(pool, &storage, later)
+                .await
+                .expect("purge"),
+            0
+        );
+
+        let staff = sr_admin::Caller {
+            user_id: 2,
+            permissions: sr_core::PlatformPermissions::MANAGE_CASES,
+            is_owner: false,
+            ip: None,
+        };
+        let who = Who::Staff(&staff);
+        let case: i64 = sqlx::query_scalar("SELECT id FROM moderation_cases")
+            .fetch_one(pool)
+            .await
+            .expect("case");
+        moderation
+            .set_state(
+                &who,
+                case,
+                &Transition {
+                    to: CaseState::Dismissed,
+                    outcome: Some("fine".into()),
+                    reporter_line: None,
+                },
+            )
+            .await
+            .expect("dismiss");
+        assert_eq!(
+            purge_deleted_messages(pool, &storage, later)
+                .await
+                .expect("purge"),
+            1,
+            "dismissed: the report hold is gone, so the deleted message is purged"
+        );
+        db.cleanup().await.expect("cleanup");
+    }
 }
 
 /// LNG-MSG-023: clock-override tests for the 30-day purge and the 7-day attachment

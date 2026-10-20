@@ -525,3 +525,72 @@ impl Moderation {
         Ok(())
     }
 }
+
+/// Release the holds the system placed for a case (a report froze the message; `created_by` is empty), leaving
+/// staff-placed holds alone. Used when the case is dismissed (D-328). Returns how many holds were released.
+pub async fn release_system_holds_in(
+    conn: &mut PgConnection,
+    ids: &IdSource,
+    case_id: i64,
+    actor: Option<i64>,
+    reason: &str,
+    limits: &Limits,
+) -> ModResult<usize> {
+    let holds: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM moderation_holds WHERE case_id = $1 AND created_by IS NULL AND released_at IS NULL ORDER BY id",
+    )
+    .bind(case_id)
+    .fetch_all(&mut *conn)
+    .await?;
+    for h in &holds {
+        release_hold_in(conn, ids, *h, actor, reason, limits).await?;
+    }
+    Ok(holds.len())
+}
+
+/// Put the report hold back on a reopened case (D-328): the reported message, when it still exists and no
+/// system hold of this case is in force. `None` when nothing was left to freeze.
+pub async fn replace_system_hold_in(
+    conn: &mut PgConnection,
+    ids: &IdSource,
+    case_id: i64,
+) -> ModResult<Option<HoldOutcome>> {
+    let row = sqlx::query(
+        "SELECT target_kind, target_id, opened_by_kind FROM moderation_cases WHERE id = $1",
+    )
+    .bind(case_id)
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(ModError::NotFound("case"))?;
+    let kind: String = row.try_get("target_kind")?;
+    let target: Option<i64> = row.try_get("target_id")?;
+    let by: String = row.try_get("opened_by_kind")?;
+    let (true, Some(msg), "report") = (kind == "message", target, by.as_str()) else {
+        return Ok(None);
+    };
+    let active: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM moderation_holds WHERE case_id = $1 AND created_by IS NULL AND released_at IS NULL)",
+    )
+    .bind(case_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM messages WHERE id = $1)")
+        .bind(msg)
+        .fetch_one(&mut *conn)
+        .await?;
+    if active || !exists {
+        return Ok(None);
+    }
+    let out = place_hold_in(
+        conn,
+        ids,
+        &HoldRequest {
+            case_id,
+            scope: HoldScope::Message(msg),
+            reason: "Reported by a member".to_owned(),
+            actor: None,
+        },
+    )
+    .await?;
+    Ok(out.hold_id.map(|_| out))
+}

@@ -8,7 +8,7 @@ use sr_admin::AccessKind;
 use sr_core::PlatformPermissions as P;
 
 use crate::error::{ModError, ModResult, conflict, invalid};
-use crate::holds::holds_of_case;
+use crate::holds::{holds_of_case, release_system_holds_in, replace_system_hold_in};
 use crate::model::{
     Access, AppealView, CaseDetail, CaseEvent, CaseEvidence, CaseFilter, CaseNote, CasePage,
     CaseReport, CaseSeverity, CaseState, CaseSummary, NewCase, ReportCategory, ReporterView,
@@ -493,6 +493,7 @@ impl Moderation {
             }
             _ => "The moderators reviewed your report.".to_owned(),
         };
+        let limits = self.limits().await?;
         let mut tx = self.pool.begin().await?;
         let cur = load(&mut tx, who, id, Access::Work, true).await?;
         let from = cur.summary.state;
@@ -535,7 +536,26 @@ impl Moderation {
             }
             _ => {}
         }
-        let holds = cur.summary.active_holds;
+        // D-328: dismissal releases the report hold (the evidence freeze), staff holds stay; moving a dismissed
+        // case back to work puts the report hold back.
+        let mut released = 0;
+        if t.to == CaseState::Dismissed {
+            let why = match outcome.as_deref() {
+                Some(o) => format!("case dismissed: {o}"),
+                None => "case dismissed".to_owned(),
+            };
+            released =
+                release_system_holds_in(&mut tx, &self.ids, id, Some(who.user_id()), &why, &limits)
+                    .await?;
+        } else if from == CaseState::Dismissed {
+            replace_system_hold_in(&mut tx, &self.ids, id).await?;
+        }
+        let holds: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM moderation_holds WHERE case_id = $1 AND released_at IS NULL",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
         push_event(
             &mut tx,
             self.next_id(),
@@ -543,7 +563,7 @@ impl Moderation {
             Some(who.user_id()),
             "state_changed",
             json!({ "from": from.as_str(), "to": t.to.as_str(), "outcome": outcome,
-                    "holds_in_force": holds }),
+                    "holds_in_force": holds, "holds_released": released }),
         )
         .await?;
         log_staff(
@@ -590,6 +610,7 @@ impl Moderation {
             .bind(id)
             .execute(&mut *tx)
             .await?;
+            replace_system_hold_in(&mut tx, &self.ids, id).await?;
             push_event(
                 &mut tx,
                 self.next_id(),
