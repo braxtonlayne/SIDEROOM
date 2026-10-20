@@ -207,7 +207,7 @@ Two platform bits are added (D-210, doc 07 section 3): `MANAGE_CASES` (bit 22: o
 
 ## 13. Delivery plan
 
-1. **Built (P18).** Cases, reports (guild-scoped), hold UI and release, appeals; turn `moderation.reports` on for a pilot guild. The web client reads the flag from `GET /sr/features/flags` (D-216), so it can be turned on per environment without a rebuild.
+1. **Built (P18).** Cases, reports (guild-scoped), hold UI and release, appeals; turn `moderation.reports` on (a platform-wide flag, D-329; there is no per-server pilot switch). The web client reads the flag from `GET /sr/features/flags` (D-216), so it can be turned on per environment without a rebuild.
 2. Takedown register and library/cinema integration.
 3. Data-request queue.
 4. Dashboards and metrics.

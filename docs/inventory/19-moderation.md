@@ -2,7 +2,7 @@
 
 Phase 7. Spec: [moderation-compliance.md](../specs/moderation-compliance.md). Decisions: D-122, D-125, D-209 to D-216, D-293 to D-295, D-315. Owner round: M-25 in [answers-followups-p16.md](../dev/answers-followups-p16.md). Reserved hooks that already exist are `XC-MOD-001` to `XC-MOD-003` in [18-cross-cutting.md](18-cross-cutting.md).
 
-Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HOLD`, `MOD-APL`, `MOD-PERM`; step 2 = `MOD-TKD`; step 3 = `MOD-DSR`; step 4 = `MOD-DASH` (later); step 5 = `MOD-SUS` (later). `MOD-AGE` and `MOD-BAN` are spec sections 7 and 8, listed so nothing in the spec is missing; they have no step yet. Each step has its own branch and flag.
+Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HOLD`, `MOD-APL`, `MOD-PERM`; step 2 = `MOD-TKD`; step 3 = `MOD-DSR`; step 4 = `MOD-DASH` (later); step 5 = `MOD-SUS` (later). `MOD-AGE` and `MOD-BAN` are spec sections 7 and 8, listed so nothing in the spec is missing; they have no step yet. Each step has its own branch and flag; `moderation.reports` is a platform-wide flag (D-329).
 
 ## MOD-PERM — Permissions (spec section 11)
 - [x] **MOD-PERM-001** [DB][BE] Platform bits `MANAGE_CASES` (22) and `MANAGE_TAKEDOWNS` (23); Moderator gains `MANAGE_CASES`, Senior Staff both (D-210) _(migration 0793, `sr-core` platform_permissions, `sr-admin` rules; built before this inventory.)_

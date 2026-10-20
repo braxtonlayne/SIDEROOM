@@ -1,11 +1,9 @@
 //! The `moderation.reports` flag (XC-MOD-002; D-126, docs/09 section 5,
 //! docs/specs/moderation-compliance.md).
 //!
-//! Reporting is a Phase 7 feature. Only the flag exists now: it is **off** by
-//! default, and the Report entries in the web client render only when it is on.
-//! There is no submit endpoint yet, so with the flag on the client shows a
-//! dialog saying reporting is not available. The flag is platform-wide; the
-//! operator turns it on once the Phase 7 backend ships.
+//! Reporting is a Phase 7 feature (step 1 is built, `sr-moderation`). The flag is **off** by default; the
+//! Report entries in the web client render only when it is on, and `POST /moderation/reports` answers 403
+//! while it is off. Reports are routed per D-209. The flag is platform-wide, with no per-server switch (D-329).
 
 use crate::feature::{Feature, FeatureMeta, Scope};
 use crate::schema::SettingsSchema;
@@ -23,8 +21,7 @@ impl Feature for ModerationReportsFeature {
     fn meta(&self) -> FeatureMeta {
         FeatureMeta {
             name: "Reports".into(),
-            description: "Show Report in the message, user, channel, library and cinema menus. \
-                          Reports cannot be submitted until the Phase 7 moderation backend ships."
+ description: "Members can report messages, people, channels, servers, library items and cinema titles. Reports go to the server's moderators or to platform staff (D-209). The setting is platform-wide, not per server (D-329)."
                 .into(),
             section: "Moderation".into(),
             phase: 7,
