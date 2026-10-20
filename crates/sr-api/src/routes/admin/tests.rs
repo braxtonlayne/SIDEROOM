@@ -195,6 +195,7 @@ async fn env_with(reauth: bool) -> Env {
     let notes = Arc::new(Notes::default());
     let svc = AdminService::new(repo.clone())
         .with_extras(repo.clone())
+        .with_data_requests(Arc::new(sr_admin::MemoryDataRequests::new(repo.clone())))
         .with_notifier(notes.clone())
         .with_clock(clock.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
@@ -765,6 +766,48 @@ fn endpoints() -> Vec<(Method, String, Option<&'static str>, Option<Value>)> {
         ),
         (Method::GET, "/admin/alerts".into(), None, None),
         (Method::POST, "/admin/alerts/999/ack".into(), None, None),
+        (
+            Method::GET,
+            "/admin/data-requests".into(),
+            Some("MANAGE_TAKEDOWNS"),
+            None,
+        ),
+        (
+            Method::POST,
+            "/admin/data-requests".into(),
+            Some("MANAGE_TAKEDOWNS"),
+            Some(json!({ "kind": "export", "account_id": ALICE.to_string() })),
+        ),
+        (
+            Method::GET,
+            "/admin/data-requests/999".into(),
+            Some("MANAGE_TAKEDOWNS"),
+            None,
+        ),
+        (
+            Method::POST,
+            "/admin/data-requests/999/verify".into(),
+            Some("MANAGE_TAKEDOWNS"),
+            reason(),
+        ),
+        (
+            Method::POST,
+            "/admin/data-requests/999/decline".into(),
+            Some("MANAGE_TAKEDOWNS"),
+            reason(),
+        ),
+        (
+            Method::POST,
+            "/admin/data-requests/999/extend".into(),
+            Some("MANAGE_TAKEDOWNS"),
+            Some(json!({ "days": 10, "reason": "because" })),
+        ),
+        (
+            Method::POST,
+            "/admin/data-requests/999/run".into(),
+            Some("MANAGE_TAKEDOWNS"),
+            None,
+        ),
     ]
 }
 
@@ -2855,4 +2898,115 @@ async fn moving_a_discord_identity_needs_the_second_factor_a_reason_and_tells_th
             .iter()
             .any(|i| i["unlinked_at_ms"].is_number() && i["moved_to_account_id"] == bob.as_str())
     );
+}
+
+// ---- M-25 step c: the data-request queue ----------------------------------------------
+
+#[tokio::test]
+async fn the_data_request_queue_runs_from_entry_to_completion() {
+    let e = env().await;
+    let (s, q) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/data-requests",
+            Some(json!({ "kind": "erasure", "account_id": ALICE.to_string(), "note": "email of 3 Oct" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{q}");
+    assert_eq!(q["state"], "open");
+    assert_eq!(q["username"], "alice");
+    // The default 30-day deadline (no compliance setting saved in this environment).
+    let day = 86_400_000_i64;
+    assert_eq!(
+        q["due_at_ms"].as_i64().unwrap() - q["received_at_ms"].as_i64().unwrap(),
+        30 * day
+    );
+    assert_eq!(q["overdue"], false);
+    let rid = q["id"].as_str().unwrap().to_owned();
+    let path = |tail: &str| format!("/admin/data-requests/{rid}{tail}");
+
+    // Nothing runs before verification.
+    let (s, _) = e.call(Some(OWNER), Method::POST, &path("/run"), None).await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    // Verifying needs a reason.
+    let (s, b) = e
+        .call(Some(OWNER), Method::POST, &path("/verify"), Some(json!({})))
+        .await;
+    assert_eq!(
+        (s, b["code"].as_u64()),
+        (StatusCode::BAD_REQUEST, Some(900_003))
+    );
+    let (s, v) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &path("/verify"),
+            Some(json!({ "reason": "replied from the account email" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["state"], "verified");
+
+    // One extension, with a reason, bounded to 60 days.
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &path("/extend"),
+            Some(json!({ "days": 61, "reason": "x" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, x) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &path("/extend"),
+            Some(json!({ "days": 30, "reason": "complex request" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{x}");
+    assert_eq!(
+        x["effective_due_ms"].as_i64().unwrap(),
+        x["due_at_ms"].as_i64().unwrap() + 30 * day
+    );
+    assert_eq!(x["extension_reason"], "complex request");
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &path("/extend"),
+            Some(json!({ "days": 5, "reason": "again" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+
+    // The queue shows it, with the setting and the retained-record catalogue.
+    let (s, l) = e
+        .call(Some(OWNER), Method::GET, "/admin/data-requests", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{l}");
+    assert_eq!(l["items"].as_array().unwrap().len(), 1);
+    assert_eq!(l["deadline_days"], 30);
+    assert_eq!(l["retained_catalog"].as_array().unwrap().len(), 7);
+
+    // The erasure completes and names what stays.
+    let (s, done) = e.call(Some(OWNER), Method::POST, &path("/run"), None).await;
+    assert_eq!(s, StatusCode::OK, "{done}");
+    assert_eq!(done["state"], "completed");
+    assert!(done["outcome"].as_str().unwrap().contains("Person record"));
+    assert_eq!(done["retained"].as_array().unwrap().len(), 7);
+
+    // Every step is in the access log, with the extension reason.
+    let (s, log) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            "/admin/access-log?action=data_request.extend",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{log}");
+    assert_eq!(log["items"][0]["reason"], "complex request");
 }

@@ -247,7 +247,10 @@ pub fn router() -> Router<AppState> {
             "/admin/data-requests",
             get(data_requests::list).post(data_requests::create),
         )
-        .route("/admin/data-requests/{request_id}", get(data_requests::get_one))
+        .route(
+            "/admin/data-requests/{request_id}",
+            get(data_requests::get_one),
+        )
         .route(
             "/admin/data-requests/{request_id}/verify",
             post(data_requests::verify),

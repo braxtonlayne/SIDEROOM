@@ -133,7 +133,10 @@ pub async fn create(
               (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
-pub async fn get_one(ctx: StaffCtx, Path(request_id): Path<String>) -> ApiResult<Json<DataRequest>> {
+pub async fn get_one(
+    ctx: StaffCtx,
+    Path(request_id): Path<String>,
+) -> ApiResult<Json<DataRequest>> {
     ctx.svc()
         .get_data_request(&ctx.caller, id(&request_id)?)
         .await
