@@ -803,6 +803,12 @@ fn endpoints() -> Vec<(Method, String, Option<&'static str>, Option<Value>)> {
             Some(json!({ "days": 10, "reason": "because" })),
         ),
         (
+            Method::GET,
+            "/admin/accounts/999/deleted-archive".into(),
+            Some("MANAGE_ACCOUNTS"),
+            None,
+        ),
+        (
             Method::POST,
             "/admin/data-requests/999/run".into(),
             Some("MANAGE_TAKEDOWNS"),
@@ -3009,4 +3015,41 @@ async fn the_data_request_queue_runs_from_entry_to_completion() {
         .await;
     assert_eq!(s, StatusCode::OK, "{log}");
     assert_eq!(log["items"][0]["reason"], "complex request");
+}
+
+#[tokio::test]
+async fn an_erasure_run_can_queue_the_members_message_delete() {
+    let e = env().await;
+    let (_, q) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/data-requests",
+            Some(json!({ "kind": "erasure", "account_id": ALICE.to_string() })),
+        )
+        .await;
+    let rid = q["id"].as_str().unwrap().to_owned();
+    let path = |tail: &str| format!("/admin/data-requests/{rid}{tail}");
+    e.call(
+        Some(OWNER),
+        Method::POST,
+        &path("/verify"),
+        Some(json!({ "reason": "signed form" })),
+    )
+    .await;
+    let (s, done) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &path("/run"),
+            Some(json!({ "delete_messages": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{done}");
+    assert!(
+        done["outcome"]
+            .as_str()
+            .unwrap()
+            .contains("Messages deleted at the member's request")
+    );
 }

@@ -128,6 +128,7 @@ GET	/admin/access-log/verify	authenticated	staff	deny	-
 GET	/admin/accounts	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
+GET	/admin/accounts/{account_id}/deleted-archive	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/guilds	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-descendants	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-
@@ -425,6 +426,7 @@ GET	/sr/entrance/hero	public	none	deny	-
 GET	/sr/features/flags	authenticated	user	deny	-
 GET	/sr/invites	authenticated	self	deny	-
 GET	/sr/profile-catalog	authenticated	user	deny	-
+GET	/sr/users/@me/messages/delete-all	authenticated	self	deny	-
 GET	/sr/voice/turn	authenticated	user	allow	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
 GET	/sticker-packs	authenticated	user	allow	-
@@ -763,6 +765,7 @@ POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
 POST	/sr/auth/password	authenticated	self	deny	-
 POST	/sr/auth/reauth	authenticated	self	deny	-
 POST	/sr/invites	authenticated	self	deny	-
+POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-

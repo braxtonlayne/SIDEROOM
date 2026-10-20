@@ -1143,6 +1143,73 @@
         ]
       }
     },
+    "/admin/accounts/{account_id}/deleted-archive": {
+      "get": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "The original username, email and display name of a deleted account, from the staff-only archive\n(`MANAGE_ACCOUNTS`, D-326). Each view is written to the access log.",
+        "operationId": "deleted_archive",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedArchive"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/accounts/{account_id}/force-logout": {
       "post": {
         "tags": [
@@ -6863,6 +6930,17 @@
             }
           }
         ],
+        "requestBody": {
+          "description": "Optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRunDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "",
@@ -51320,6 +51398,132 @@
         ]
       }
     },
+    "/sr/users/@me/messages/delete-all": {
+      "get": {
+        "tags": [],
+        "summary": "How many messages a run would hide, and the last run.",
+        "operationId": "preview",
+        "parameters": [
+          {
+            "name": "servers",
+            "in": "query",
+            "description": "Count messages in servers (default true)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "dms",
+            "in": "query",
+            "description": "Count messages in direct messages (default true)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "before_ms",
+            "in": "query",
+            "description": "Only messages older than this",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesSelfDeletePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Hide every message and upload of yours in the chosen places. Runs in the background.",
+        "operationId": "delete_all",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessagesSelfDeleteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesSelfDeleteRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A run is open, or one ran in the last 24 hours",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/voice/turn": {
       "get": {
         "tags": [],
@@ -61725,6 +61929,16 @@
           }
         }
       },
+      "AdminRunDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/run` (optional).",
+        "properties": {
+          "delete_messages": {
+            "type": "boolean",
+            "description": "Erasure only: the member also asked for their messages to be deleted (N-06, D-324). The\nmember's message self-delete is queued with servers and direct messages, no cut-off."
+          }
+        }
+      },
       "AdminSession": {
         "type": "object",
         "description": "An open session of an account, as the staff drawer lists it. No token material.",
@@ -68491,7 +68705,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Ids of the [`RETAINED`] records an erasure named."
+            "description": "Ids of the [`retained`] records an erasure named."
           },
           "state": {
             "$ref": "#/components/schemas/DataRequestState"
@@ -68739,6 +68953,53 @@
           },
           "state": {
             "type": "string"
+          }
+        }
+      },
+      "DeletedArchive": {
+        "type": "object",
+        "description": "The staff-only archive of a deleted account's original identifiers (D-326).",
+        "required": [
+          "account_id",
+          "username",
+          "email",
+          "deleted_at_ms",
+          "username_release_at_ms",
+          "credits_forfeited",
+          "invites_revoked"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "credits_forfeited": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deleted_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "invites_revoked": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "username": {
+            "type": "string"
+          },
+          "username_release_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the username can be taken again."
           }
         }
       },
@@ -75827,6 +76088,127 @@
           }
         }
       },
+      "MessagesSelfDeleteBody": {
+        "type": "object",
+        "description": "Body of `POST /sr/users/@me/messages/delete-all`.",
+        "required": [
+          "confirm_username",
+          "password",
+          "servers",
+          "dms"
+        ],
+        "properties": {
+          "before_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Only messages older than this (Unix milliseconds)."
+          },
+          "confirm_username": {
+            "type": "string",
+            "description": "The account's username, typed to confirm (case-insensitive)."
+          },
+          "dms": {
+            "type": "boolean",
+            "description": "Hide messages in direct messages and group DMs."
+          },
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor, when the account has one and this session has not passed a check in the last 15 minutes."
+              }
+            ]
+          },
+          "password": {
+            "type": "string",
+            "description": "Current password."
+          },
+          "servers": {
+            "type": "boolean",
+            "description": "Hide messages in servers (including servers you left)."
+          }
+        }
+      },
+      "MessagesSelfDeletePreview": {
+        "type": "object",
+        "description": "What a run would hide, and the last run.",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Visible messages inside the scope right now (messages under a hold are included: they are\nhidden from everyone but never purged)."
+          },
+          "last": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MessagesSelfDeleteRun"
+              }
+            ]
+          }
+        }
+      },
+      "MessagesSelfDeleteRun": {
+        "type": "object",
+        "description": "A run.",
+        "required": [
+          "id",
+          "state",
+          "servers",
+          "dms",
+          "requested_at"
+        ],
+        "properties": {
+          "before_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "dms": {
+            "type": "boolean"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Messages hidden, once done."
+          },
+          "id": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string"
+          },
+          "servers": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "description": "`queued`, `running`, `done` or `failed`."
+          }
+        }
+      },
       "MfaLevelBody": {
         "type": "object",
         "description": "Body of `POST /guilds/{id}/mfa`.",
@@ -80327,9 +80709,16 @@
         "type": "object",
         "description": "What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).",
         "required": [
-          "minimum_age"
+          "minimum_age",
+          "invoice_retention_years"
         ],
         "properties": {
+          "invoice_retention_years": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Years invoices stay linked to a member after the year of payment (D-325).",
+            "minimum": 0
+          },
           "minimum_age": {
             "type": "integer",
             "format": "int32",

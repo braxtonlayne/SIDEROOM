@@ -19,12 +19,24 @@ Base: integration/phase18 (= main). Migration used: `1100_data_requests.sql` (ra
 - **Finding, `delete_account` and the account row:** it already scrubs username, display name, email (archived for staff in `deleted_accounts`), password hash, avatar, banner, bio, pronouns, colours and profile document, and deletes credentials, devices, settings and relations. It left: (a) `sessions.ip`, `user_agent`, `device_label` on the revoked rows and (b) `login_events.ip`: both are now set to NULL in the same transaction. Still on the row, not identifying on their own and kept as part of the Person record/accounting trail: `locale`, `timezone`, `flags`, `age_declared`/`age_confirmed*`, `created_at`, `invited_by_invite_id`. The staff-only `deleted_accounts` archive (original username, email, display name) is not named in the retained list (owner question 3).
 - **No member bulk self-delete exists**, so the deletion screen has the sentence but no link; open item **N-04** added to answers-followups-p16.md.
 
+## Follow-ups N-05 to N-09 and N-13 (D-324 to D-327)
+- **N-05** member bulk self-delete: migration 1102, `sr_db::self_delete`, job `user.messages_self_delete` (sr-server `userset_jobs.rs`), `GET`/`POST /sr/users/@me/messages/delete-all`, Settings, Privacy card, link from the deletion screen. Limits are tested (one run at a time, once per 24 h for members, held rows keep `purge_after` null). Not done: the case note on an open moderation case (the cases tables are on another branch; the `messages.self_delete` access-log row is written) and the sr-chat repo upper bound (done in `sr_db::self_delete::hide` instead).
+- **N-06** erasure run option `delete_messages`; queued after the account is erased (a deviation from "before": a blocked erasure then leaves nothing half done).
+- **N-07** `compliance.invoice_retention_years` (default 10), `retained(years)`, README and deletion screen carry the number.
+- **N-08** migration 1103 and monthly job `payments.detach_expired_invoices` (job id 1105); a detached invoice reads as user 0 in Rust and "Detached" in Admin. A late payment to a detached invoice's address would try to credit user 0: detach only happens for final states, so the watcher no longer polls them.
+- **N-09** nine retained records; `GET /admin/accounts/{id}/deleted-archive` with a logged read; account drawer block.
+- **N-13** two-row extension log documented and tested (D-327).
+- Migrations used: 1100, 1101, 1102, 1103. New job ids: 1105. New routes (matrix rows added): the two `/sr/users/@me/messages/delete-all` and the deleted-archive read.
+
 ## Still open / not done
 - Doc 13 Phase 7 "in progress" line and `docs/inventory/19-moderation.md` ticks: left to the integrator (the other agent owns the inventory file, and doc 13 is touched by both). The MOD-DSR ids to tick are the six bullets above.
 - Placing the page under Admin > Moderation (see above).
 - Restriction/objection staff tool (spec section 6 row 4) and the rectification staff correction are not part of the queue (not requested in step c).
 - Requests are entered by staff; there is no member-facing "ask staff" form (the self-service export and deletion remain). Entering requests via email/form is the documented intake.
 - Playwright was not run (forbidden this wave).
+
+## Tests run (N-05 to N-13)
+- sr-admin 60, sr-features 109, Postgres `self_delete` 3, `invoice_retention` 1, `data_requests` 9, `data_export` 3, sr-api `routes::admin` 27 plus the self-delete route test, route matrix and openapi_names; web p18 tests. Full gates in the final report.
 
 ## Tests run
 - `cargo test -p sr-admin` (6 new `tests_dsr`: due date from deadline, permission and denial log, extend once and bounds and log reason, overdue follows the effective date, run needs verification and one active per kind, erasure names retained records and a blocked account stays verified).
@@ -41,6 +53,10 @@ Base: integration/phase18 (= main). Migration used: `1100_data_requests.sql` (ra
 - The erasure of an account that was already deleted by its owner completes the request with a note instead of failing.
 - The i18n group string "Moderation" is repeated from a key of mine so the page lands in the same nav group as the other agent's pages when they use the same label.
 
+- Extension log: two rows (`data_request.extend`, then `data_request.extend_notice`), accepted by D-327; the notice row is written also when the DM fails.
+- Self-delete runs in sr-server over Postgres (not through the chat service), so it does not touch the sr-chat repo trait.
+
 ## Owner questions (updated)
+- Answered by D-324 to D-327 (member self-delete, invoice years, archive, two-row log). New: (1) should the self-delete also remove the member's reactions and poll votes? (not touched today); (2) should the case note on an open moderation case be added by the integrator when the cases branch lands (needs `moderation_cases` from the other branch)?
 - Answered 2026-10-20 by D-324 (member bulk self-delete, DMs included, N-05 and N-06), D-325 (invoice retention in years, `compliance.invoice_retention_years`, N-07 and N-08), D-326 (`deleted_accounts` archive named, N-09) and D-327 (the two-row extension log is accepted, N-13). Earlier: - Answered by D-316 (60 days, counted in days), D-317 (DM on extension), D-318 (retained list). New: (1) should the member bulk self-delete (N-04) be built, and across DMs too? (2) should the invoice retention period be a stated number of years in the README? (3) should the staff-only `deleted_accounts` archive (original username, email, display name) be named in the retained list? Still: is 60 days the right ceiling for the single extension, and should the extension be disclosed to the member by system DM automatically? (Not done: no member notice on extend.)
 - The retained-record reasons in `RETAINED` restate D-124/D-295 defaults; D-295's lawyer review still applies.

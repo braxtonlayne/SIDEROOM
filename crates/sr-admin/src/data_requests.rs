@@ -555,6 +555,14 @@ impl AdminService {
     }
 
     /// Add `days` to the deadline, once, with a reason (`POST /admin/data-requests/{id}/extend`).
+    ///
+    /// The access log holds **two rows** for an extension (D-327): `data_request.extend`, committed
+    /// with the row update, and `data_request.extend_notice`, written after the member DM was tried,
+    /// carrying `member_notified` and `late`. The log is a hash chain and append-only, so the outcome of
+    /// the DM cannot be added to the first row, and the DM must not run inside the extension's
+    /// transaction (it would hold the transaction open across a network call, or announce an extension
+    /// that then rolled back). The notice row is written also when the DM fails, so a missing notice
+    /// row means a crash between the two writes, never a failed DM.
     pub async fn extend_data_request(
         &self,
         c: &Caller,

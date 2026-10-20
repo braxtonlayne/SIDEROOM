@@ -12,18 +12,18 @@ Decisions: D-029, D-043, D-053, D-120–D-126.
 | Message edit history | Kept while the message exists. Purged with the message | High-level staff only |
 | Attachments ≤ 30 MB (images, files, voice messages) | Same as the parent message: "part of the message" | Same as the message |
 | Attachments > 30 MB ("large", donor/level perk) | **Expire 7 days after upload**. The message shows an "This file has expired" chip. The object is purged | Nobody after expiry, unless held |
-| Account (deleted/deactivated/banned) | Forever (D-124). After erasure the member is told what stays: the Person record, invite graph, invoices, staff-side moderation history, messages and uploads they did not delete (shown as Deleted User, D-029, D-123), content under a hold, the linked Discord identity (D-030) and the request log (D-318); session and sign-in addresses are blanked. Profile scrubbed to "Deleted User" for deleted accounts; the avatar, the banner and the profile page pictures (`profile_media`, D-260) are deleted with it and the data export lists the pictures | Staff see the full record and the Person link |
+| Account (deleted/deactivated/banned) | Forever (D-124). After erasure the member is told what stays: the Person record, invite graph, invoices, staff-side moderation history, messages and uploads they did not delete (shown as Deleted User, D-029, D-123), content under a hold, the linked Discord identity (D-030), a staff-only archive of the original username, email address and display name that staff may view only through a logged read (D-326), and the request log (D-318); an erasure run may also delete the member's messages when the member asked for it (N-06); session and sign-in addresses are blanked. Profile scrubbed to "Deleted User" for deleted accounts; the avatar, the banner and the profile page pictures (`profile_media`, D-260) are deleted with it and the data export lists the pictures | Staff see the full record and the Person link |
 | Sessions, login IPs | Sessions until expiry. Login IP history 180 days (security) | Staff with `MANAGE_ACCOUNTS` |
 | Voice/video media | Never recorded or stored. E2EE | Nobody |
 | Watch/read history | Until the user clears it | Per privacy settings |
-| Invoices / donations | Forever (accounting) | Staff with `MANAGE_DONATIONS` |
+| Invoices / donations | `compliance.invoice_retention_years` (default 10, N-07, D-325) after the end of the year of payment, then detached from the member by the monthly job `payments.detach_expired_invoices` (N-08): the row, amounts, dates and chain address stay for the books, the account link is set to null | Staff with `MANAGE_DONATIONS` |
 | Invite graph | Forever | Staff with `MANAGE_INVITES` |
 | Staff access log | Forever, hash-chained | Owner and `VIEW_ACCESS_LOG` |
 | Library submissions that were rejected | Files purged 14 days after rejection. Metadata kept | Reviewers |
 
-Jobs (doc 02 §6) enforce purges: `purge_deleted_messages` (hourly), `expire_large_attachments` (hourly), `purge_rejected_submissions` (daily).
+Jobs (doc 02 §6) enforce purges (and `payments.detach_expired_invoices`, monthly, N-08): `purge_deleted_messages` (hourly), `expire_large_attachments` (hourly), `purge_rejected_submissions` (daily).
 
-**Bulk-delete and channel/server deletion:** messages move to `user_deleted` with the same 30-day window. Deleting a server marks all its channels deleted. Server metadata is kept for staff.
+**Member self-delete (N-05, D-324):** Settings, Privacy, "Delete all my messages" hides every message and upload the member wrote, in servers (including ones they left) and in direct messages, with an optional cut-off date, as a job (one run at a time, once per 24 hours). Same window: `user_deleted`, purged 30 days later, never while under a hold; the run is written to the access log as `messages.self_delete`, and staff can ask for the same run on an erasure request (N-06). **Bulk-delete and channel/server deletion:** messages move to `user_deleted` with the same 30-day window. Deleting a server marks all its channels deleted. Server metadata is kept for staff.
 
 ## 2. Encryption
 

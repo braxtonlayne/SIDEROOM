@@ -200,6 +200,8 @@ pub struct SelfDeleteEnv {
     pub bus: Arc<dyn sr_events::EventBus>,
     pub notifier: Option<Arc<dyn sr_admin::StaffNotifier>>,
     pub ids: sr_db::auth_repo::IdSource,
+    /// For the export README (invoice retention years).
+    pub features: sr_features::FeatureService,
 }
 
 /// The self-delete job (N-05). Hides the rows, tells the open clients, writes the access-log row
@@ -429,8 +431,8 @@ pub fn register(
     client: SafeClient,
     packages: sr_packages::service::PackageService,
     self_delete: SelfDeleteEnv,
-    features: sr_features::FeatureService,
 ) -> JobRunner {
+    let features = self_delete.features.clone();
     let (export_pool, export_storage, export_features) =
         (pool.clone(), storage.clone(), features.clone());
     let runner = runner.register(db::JOB_KIND, 1, move |job: Job| {

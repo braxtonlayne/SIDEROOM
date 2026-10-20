@@ -233,6 +233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/accounts/{account_id}/deleted-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The original username, email and display name of a deleted account, from the staff-only archive
+         *     (`MANAGE_ACCOUNTS`, D-326). Each view is written to the access log.
+         */
+        get: operations["deleted_archive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts/{account_id}/force-logout": {
         parameters: {
             query?: never;
@@ -10195,6 +10215,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/users/@me/messages/delete-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many messages a run would hide, and the last run. */
+        get: operations["preview"];
+        put?: never;
+        /** Hide every message and upload of yours in the chosen places. Runs in the background. */
+        post: operations["delete_all"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/voice/turn": {
         parameters: {
             query?: never;
@@ -12625,6 +12663,14 @@ export interface components {
             /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
             username?: string | null;
         };
+        /** @description Body of `POST /admin/data-requests/{id}/run` (optional). */
+        AdminRunDataRequestBody: {
+            /**
+             * @description Erasure only: the member also asked for their messages to be deleted (N-06, D-324). The
+             *     member's message self-delete is queued with servers and direct messages, no cut-off.
+             */
+            delete_messages?: boolean;
+        };
         /** @description An open session of an account, as the staff drawer lists it. No token material. */
         AdminSession: {
             /** Format: int64 */
@@ -14771,7 +14817,7 @@ export interface components {
             person_id: string;
             /** Format: int64 */
             received_at_ms: number;
-            /** @description Ids of the [`RETAINED`] records an erasure named. */
+            /** @description Ids of the [`retained`] records an erasure named. */
             retained: string[];
             state: components["schemas"]["DataRequestState"];
             username: string;
@@ -14856,6 +14902,24 @@ export interface components {
             created_at_ms: number;
             id: string;
             state: string;
+        };
+        /** @description The staff-only archive of a deleted account's original identifiers (D-326). */
+        DeletedArchive: {
+            account_id: string;
+            /** Format: int32 */
+            credits_forfeited: number;
+            /** Format: int64 */
+            deleted_at_ms: number;
+            display_name?: string | null;
+            email: string;
+            /** Format: int32 */
+            invites_revoked: number;
+            username: string;
+            /**
+             * Format: int64
+             * @description When the username can be taken again.
+             */
+            username_release_at_ms: number;
         };
         /** @description An application. The client secret is never part of it. */
         DeveloperApplicationObject: {
@@ -17052,6 +17116,50 @@ export interface components {
             /** Format: int64 */
             upload_url_expires_in: number;
         };
+        /** @description Body of `POST /sr/users/@me/messages/delete-all`. */
+        MessagesSelfDeleteBody: {
+            /**
+             * Format: int64
+             * @description Only messages older than this (Unix milliseconds).
+             */
+            before_ms?: number | null;
+            /** @description The account's username, typed to confirm (case-insensitive). */
+            confirm_username: string;
+            /** @description Hide messages in direct messages and group DMs. */
+            dms: boolean;
+            mfa?: null | components["schemas"]["MfaProof"];
+            /** @description Current password. */
+            password: string;
+            /** @description Hide messages in servers (including servers you left). */
+            servers: boolean;
+        };
+        /** @description What a run would hide, and the last run. */
+        MessagesSelfDeletePreview: {
+            /**
+             * Format: int64
+             * @description Visible messages inside the scope right now (messages under a hold are included: they are
+             *     hidden from everyone but never purged).
+             */
+            count: number;
+            last?: null | components["schemas"]["MessagesSelfDeleteRun"];
+        };
+        /** @description A run. */
+        MessagesSelfDeleteRun: {
+            /** Format: int64 */
+            before_ms?: number | null;
+            dms: boolean;
+            finished_at?: string | null;
+            /**
+             * Format: int64
+             * @description Messages hidden, once done.
+             */
+            hidden_count?: number | null;
+            id: string;
+            requested_at: string;
+            servers: boolean;
+            /** @description `queued`, `running`, `done` or `failed`. */
+            state: string;
+        };
         /** @description Body of `POST /guilds/{id}/mfa`. */
         MfaLevelBody: {
             /**
@@ -18447,6 +18555,11 @@ export interface components {
         };
         /** @description What visitors may know about the instance's compliance settings (M-06, D-293 to D-295). */
         PublicComplianceObject: {
+            /**
+             * Format: int32
+             * @description Years invoices stay linked to a member after the year of payment (D-325).
+             */
+            invoice_retention_years: number;
             /**
              * Format: int32
              * @description The age a person must be to register (13 unless the operator raised it).
@@ -22065,6 +22178,52 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    deleted_archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedArchive"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -25947,7 +26106,12 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRunDataRequestBody"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -54302,6 +54466,88 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query?: {
+                /** @description Count messages in servers (default true) */
+                servers?: boolean;
+                /** @description Count messages in direct messages (default true) */
+                dms?: boolean;
+                /** @description Only messages older than this */
+                before_ms?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesSelfDeletePreview"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessagesSelfDeleteBody"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesSelfDeleteRun"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description A run is open, or one ran in the last 24 hours */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

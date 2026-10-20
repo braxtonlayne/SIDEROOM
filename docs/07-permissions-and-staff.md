@@ -45,7 +45,7 @@ Stored as a separate bitfield on Staff Server roles (`roles.platform_permissions
 | 8 | `REVIEW_APPS` | Approve developer applications, app versions, privileged intents |
 | 9 | `REVIEW_PACKAGES` | Approve themes, extensions, profile layouts, activities |
 | 10 | `MANAGE_DIRECTORY` | Approve servers for the Server Directory |
-| 11 | `MANAGE_ACCOUNTS` | Deactivate, reactivate, rename, reset 2FA, link Persons |
+| 11 | `MANAGE_ACCOUNTS` | Deactivate, reactivate, rename, reset 2FA, link Persons; read the staff-only archive of a deleted account's original identifiers (each view is logged, D-326) |
 | 12 | `PLATFORM_BAN` | Platform-ban and unban |
 | 13 | `MANAGE_INVITES` | View the invite graph, grant or revoke credits, clear suspicion |
 | 14 | `MANAGE_DONATIONS` | View invoices, manual adjustments, leaderboard moderation |
