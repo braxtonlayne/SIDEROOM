@@ -106,15 +106,25 @@ describe('Admin data requests', () => {
     );
     openAdmin('data-requests');
     await userEvent.click(
-      await screen.findByRole('button', { name: /Verify the identity behind the request of alice/ }),
+      await screen.findByRole('button', {
+        name: /Verify the identity behind the request of alice/,
+      }),
     );
     await userEvent.type(screen.getByLabelText('How it was verified'), 'reply from account email');
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Verify identity' }));
-    expect(await screen.findByRole('button', { name: /Run the request of alice/ })).toBeInTheDocument();
+    const vd = await screen.findByRole('dialog', { name: 'Record identity check' });
+    await userEvent.click(within(vd).getByRole('button', { name: 'Verify identity' }));
+    expect(
+      await screen.findByRole('button', { name: /Run the request of alice/ }),
+    ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: /Extend the deadline of the request of alice/ }));
-    const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText('Why it needs more time'), 'many systems involved');
+    await userEvent.click(
+      screen.getByRole('button', { name: /Extend the deadline of the request of alice/ }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Extend the deadline' });
+    await userEvent.type(
+      within(dialog).getByLabelText('Why it needs more time'),
+      'many systems involved',
+    );
     await userEvent.click(within(dialog).getByRole('button', { name: 'Extend deadline' }));
     expect(await screen.findByText(/Extended to .*many systems involved/)).toBeInTheDocument();
     expect(
@@ -146,7 +156,7 @@ describe('Admin data requests', () => {
     );
     openAdmin('data-requests');
     await userEvent.click(await screen.findByRole('button', { name: /Run the request of alice/ }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: 'Erase the account' });
     expect(within(dialog).getByText(/These records stay/)).toBeInTheDocument();
     expect(within(dialog).getByText('Person record.')).toBeInTheDocument();
     expect(within(dialog).getByText('Invoices.')).toBeInTheDocument();
@@ -168,7 +178,7 @@ describe('Admin data requests', () => {
     );
     openAdmin('data-requests');
     await userEvent.click(await screen.findByRole('button', { name: 'Enter a request' }));
-    const dialog = screen.getByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: 'Enter a data request' });
     const confirm = within(dialog).getByRole('button', { name: 'Enter request' });
     expect(confirm).toBeDisabled();
     await userEvent.type(within(dialog).getByLabelText('Account id'), '100');

@@ -36,9 +36,7 @@ const isActive = (r: api.DataRequest) =>
 const daysUntil = (ms: number, now: number) => Math.trunc((ms - now) / DAY_MS);
 
 type Dialog =
-  | { kind: 'verify' | 'decline' | 'extend' | 'run'; req: api.DataRequest }
-  | { kind: 'new' }
-  | null;
+  { kind: 'verify' | 'decline' | 'extend' | 'run'; req: api.DataRequest } | { kind: 'new' } | null;
 
 export function DataRequestsSection() {
   const t = useT();
