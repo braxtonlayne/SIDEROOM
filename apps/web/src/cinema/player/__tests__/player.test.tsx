@@ -167,6 +167,27 @@ describe('watch page', () => {
     expect(screen.queryByRole('group', { name: 'Resume playback' })).not.toBeInTheDocument();
   });
 
+  it('says a title was removed after a notice (MOD-TKD-011)', async () => {
+    useCinemaApi({
+      playback: () => HttpResponse.json({ message: 'Not found' }, { status: 404 }),
+    });
+    server.use(
+      http.get('*/api/v1/moderation/item-status', () => HttpResponse.json({ state: 'taken_down' })),
+    );
+    renderApp('/cinema/watch/nope');
+    expect(await screen.findByText('Removed after a notice')).toBeInTheDocument();
+  });
+
+  it('shows a banner while the title is held', async () => {
+    useCinemaApi();
+    server.use(
+      http.get('*/api/v1/moderation/item-status', () => HttpResponse.json({ state: 'held' })),
+    );
+    renderApp('/cinema/watch/t1');
+    await player();
+    expect(await screen.findByText('Under review')).toBeInTheDocument();
+  });
+
   it('shows an error page for a missing title', async () => {
     useCinemaApi({
       playback: () => HttpResponse.json({ message: 'Not found' }, { status: 404 }),

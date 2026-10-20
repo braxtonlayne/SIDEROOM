@@ -64,6 +64,8 @@ export const server = setupServer(
     HttpResponse.json({ message: 'Unknown profile' }, { status: 404 }),
   ),
   http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'test' })),
+  // Reader and player pages ask whether the item is held by a takedown notice (MOD-TKD-011): not by default.
+  http.get('*/api/v1/moderation/item-status', () => HttpResponse.json({ state: 'none' })),
   // The Lounge loads notification settings for every server; default to "nothing muted".
   http.get('*/api/v1/users/@me/guilds/:id/settings', () =>
     HttpResponse.json({

@@ -147,6 +147,8 @@ export interface HoldView {
   messages: number;
   attachments: number;
   submissions: number;
+  /** Library and cinema rows (series, chapters, titles, episodes) the hold freezes. */
+  catalog_rows?: number;
   review_due: boolean;
 }
 export interface AppealView {
@@ -253,3 +255,118 @@ export const decideAppeal = (id: string, decision: 'upheld' | 'overturned', reas
 /** The ban screen: the credentials prove the (session-less) banned account. */
 export const fileAppeal = (body: { login: string; password: string; message: string }) =>
   send<void>('/moderation/appeals', 'POST', body);
+
+// ---- the takedown register (step 2; MOD-TKD-*) ----
+
+export type TakedownKind = 'copyright' | 'illegal_content';
+export type NoticeState =
+  'received' | 'triage' | 'rejected' | 'removed' | 'counter_noticed' | 'restored' | 'withdrawn';
+export type TakedownItemKind =
+  | 'message'
+  | 'attachment'
+  | 'library_series'
+  | 'library_chapter'
+  | 'cinema_title'
+  | 'cinema_episode';
+export type TakedownItemState = 'identified' | 'held' | 'disabled' | 'restored';
+
+export interface NoticeSummary {
+  id: string;
+  kind: TakedownKind;
+  state: NoticeState;
+  notifier_name: string;
+  received_at_ms: number;
+  triage_due_at_ms: number;
+  triage_overdue: boolean;
+  case_id: string | null;
+  items: number;
+  removed_at_ms: number | null;
+  restore_after_ms: number | null;
+  court_filing_noted: boolean;
+}
+export interface TakedownItem {
+  id: string;
+  kind: TakedownItemKind;
+  target_id: string;
+  label: string;
+  subject_account_id: string | null;
+  state: TakedownItemState;
+  hold_id: string | null;
+  disabled_at_ms: number | null;
+  restored_at_ms: number | null;
+}
+export interface NoticeEvent {
+  id: string;
+  actor_id: string | null;
+  kind: string;
+  detail: Record<string, unknown>;
+  created_at_ms: number;
+}
+export interface StrikeCount {
+  person_id: string;
+  strikes: number;
+  window_months: number;
+  threshold: number;
+  review_case_id: string | null;
+}
+export interface NoticeDetail extends Omit<NoticeSummary, 'items'> {
+  notifier_contact: string;
+  legal_basis: string;
+  locations: string[];
+  original_text: string;
+  entered_by: string;
+  rejection_reason: string;
+  counter_notice_text: string;
+  counter_noticed_at_ms: number | null;
+  restored_at_ms: number | null;
+  restore_reason: string;
+  items: TakedownItem[];
+  events: NoticeEvent[];
+  strikes: StrikeCount[];
+}
+export interface NewNotice {
+  kind: TakedownKind;
+  notifier_name: string;
+  notifier_contact: string;
+  legal_basis: string;
+  locations: string[];
+  original_text: string;
+  received_at_ms?: number;
+}
+
+const tk = '/moderation/takedowns';
+export const listNotices = (p: { state?: NoticeState | ''; limit?: number } = {}) =>
+  get<NoticeSummary[]>(`${tk}${qs({ ...p })}`);
+export const createNotice = (body: NewNotice) => send<NoticeDetail>(tk, 'POST', body);
+export const getNotice = (id: string) => get<NoticeDetail>(`${tk}/${id}`);
+export const addNoticeItem = (id: string, kind: TakedownItemKind, target: string) =>
+  send<NoticeDetail>(`${tk}/${id}/items`, 'POST', { kind, id: target });
+export const removeNoticeItem = (id: string, itemId: string) =>
+  send<NoticeDetail>(`${tk}/${id}/items/${itemId}`, 'DELETE');
+export const holdNotice = (id: string, reason: string) =>
+  send<NoticeDetail>(`${tk}/${id}/hold`, 'POST', { reason });
+export const rejectNotice = (id: string, reason: string) =>
+  send<{ reply: string }>(`${tk}/${id}/reject`, 'POST', { reason });
+export const upholdNotice = (id: string, reason: string) =>
+  send<{ items_disabled: number; notified: number; review_case_id: string | null }>(
+    `${tk}/${id}/uphold`,
+    'POST',
+    { reason },
+  );
+export const counterNotice = (id: string, text: string) =>
+  send<NoticeDetail>(`${tk}/${id}/counter-notice`, 'POST', { text });
+export const courtFiling = (id: string, noted: boolean, reason: string) =>
+  send<NoticeDetail>(`${tk}/${id}/court-filing`, 'POST', { noted, reason });
+export const restoreNotice = (id: string, reason: string) =>
+  send<NoticeDetail>(`${tk}/${id}/restore`, 'POST', { reason });
+export const withdrawNotice = (id: string, reason: string) =>
+  send<NoticeDetail>(`${tk}/${id}/withdraw`, 'POST', { reason });
+/** Where the register download lives (a plain navigation; the session cookie authorises it). */
+export const registerExportUrl = (format: 'csv' | 'json') => `/api/v1${tk}/export?format=${format}`;
+
+// ---- what the Library reader and the Cinema player show about a held item (MOD-TKD-011) ----
+
+export type ItemHoldKind = 'library_series' | 'library_chapter' | 'cinema_title' | 'cinema_episode';
+export type ItemHoldState = 'none' | 'held' | 'taken_down';
+export const itemStatus = (kind: ItemHoldKind, id: string) =>
+  get<{ state: ItemHoldState }>(`/moderation/item-status${qs({ kind, id })}`);

@@ -83,7 +83,7 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     id: 'moderation',
     label: 'admin.moderation.navLabel',
     group: 'admin.adminApp.group.people',
-    visible: (v) => v.can('MANAGE_CASES'),
+    visible: (v) => v.can('MANAGE_CASES') || v.can('MANAGE_TAKEDOWNS'),
     component: ModerationSection,
   },
   {
