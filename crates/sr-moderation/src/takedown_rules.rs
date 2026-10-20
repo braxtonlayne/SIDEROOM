@@ -125,6 +125,14 @@ pub fn strikes_in_window(upheld_at_ms: &[i64], now_ms: i64, months: u32) -> usiz
         .count()
 }
 
+/// Strikes and contested strikes in the window. Each entry is `(upheld_at_ms, counter_noticed)`; a contested
+/// strike is one whose content is still down while a counter-notice is pending (D-333).
+pub fn strikes_and_contested(entries: &[(i64, bool)], now_ms: i64, months: u32) -> (usize, usize) {
+    let start = months_before(now_ms, months);
+    let inside = entries.iter().filter(|(t, _)| *t >= start && *t <= now_ms);
+    (inside.clone().count(), inside.filter(|(_, c)| *c).count())
+}
+
 /// Whether a count of strikes reaches the review threshold. Reaching it opens a review case; it never
 /// suspends anyone (D-293).
 pub fn review_due(strikes: usize, threshold: u32) -> bool {
@@ -353,6 +361,18 @@ mod tests {
         // A shorter window drops the older ones.
         assert_eq!(strikes_in_window(&times, now, 6), 1);
         assert_eq!(strikes_in_window(&[], now, 12), 0);
+    }
+
+    #[test]
+    fn contested_strikes_are_the_counter_noticed_ones_inside_the_window() {
+        let now = ms(2026, 10, 19);
+        let e = [
+            (ms(2026, 9, 1), true),
+            (ms(2026, 8, 1), false),
+            (ms(2024, 1, 1), true), // outside the window
+        ];
+        assert_eq!(strikes_and_contested(&e, now, 12), (2, 1));
+        assert_eq!(strikes_and_contested(&[], now, 12), (0, 0));
     }
 
     #[test]

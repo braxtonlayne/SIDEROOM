@@ -1,6 +1,7 @@
-import { screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
+import { ApiProblem } from '../ui';
 import { HttpResponse, asStaff, http, openAdmin, readJson, server } from './helpers';
 
 const SUMMARY = {
@@ -138,6 +139,23 @@ describe('Admin > Moderation > Takedowns', () => {
             {
               person_id: '72',
               strikes: 3,
+              contested: 1,
+              counted: [
+                {
+                  id: '5001',
+                  kind: 'copyright',
+                  state: 'counter_noticed',
+                  removed_at_ms: 1_700_000_100_000,
+                  contested: true,
+                },
+                {
+                  id: '4000',
+                  kind: 'illegal_content',
+                  state: 'removed',
+                  removed_at_ms: 1_699_000_000_000,
+                  contested: false,
+                },
+              ],
               window_months: 12,
               threshold: 3,
               review_case_id: '9200',
@@ -175,6 +193,14 @@ describe('Admin > Moderation > Takedowns', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Record counter-notice' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Restore now' })).toBeInTheDocument();
+    // D-333: the contested count and the notices counted, with the counter-notice marker.
+    expect(screen.getByText('1 contested by a counter-notice')).toBeInTheDocument();
+    const counted = screen.getByRole('list', { name: 'Takedowns counted' });
+    expect(within(counted).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(counted).getByText('Counter-notice pending')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Leave a review open while a counter-notice is pending/),
+    ).toBeInTheDocument();
     // A viewer without MANAGE_CASES gets no link into the case.
     expect(screen.queryByRole('button', { name: 'Open review case' })).toBeNull();
   });
@@ -264,5 +290,76 @@ describe('Admin > Moderation > Takedowns', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Reject as incomplete' }));
     const reply = await screen.findByLabelText('Reply text');
     expect((reply as HTMLTextAreaElement).value).toContain('Which chapter?');
+  });
+});
+
+describe('takedown cases (D-334) and held deletes (D-335)', () => {
+  const CASE_BASE = {
+    id: '9100',
+    state: 'open',
+    category: 'illegal_content',
+    severity: 'serious',
+    routing: 'platform',
+    escalated: false,
+    summary: 'Copyright takedown notice from Rights Holder Ltd',
+    target_kind: 'library',
+    target_id: '700',
+    guild_id: null,
+    assignee_id: null,
+    report_count: 0,
+    active_holds: 1,
+    opened_at_ms: 1_700_000_000_000,
+    updated_at_ms: 1_700_000_000_000,
+    closed_at_ms: null,
+  };
+
+  it('badges a takedown case with its notice, opens the notice, and filters by source', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES', 'MANAGE_TAKEDOWNS'] });
+    const queries: string[] = [];
+    server.use(
+      http.get('*/api/v1/moderation/cases', ({ request }) => {
+        queries.push(new URL(request.url).search);
+        return HttpResponse.json({
+          items: [{ ...CASE_BASE, takedown: { notice_id: '5001', kind: 'copyright' } }],
+          next_cursor: null,
+        });
+      }),
+      http.get('*/api/v1/moderation/takedowns/5001', () => HttpResponse.json(DETAIL)),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    const badge = await screen.findByRole('button', { name: 'Open takedown notice 5001' });
+    expect(badge).toHaveTextContent('Copyright notice TK-5001');
+    await user.click(screen.getByRole('combobox', { name: 'Source' }));
+    await user.click(await screen.findByRole('option', { name: 'Takedown notices' }));
+    await screen.findByRole('button', { name: 'Open takedown notice 5001' });
+    expect(queries.some((q) => q.includes('source=takedown'))).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Open takedown notice 5001' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Takedown notice TK-5001' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a plain badge for staff without MANAGE_TAKEDOWNS', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES'] });
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({
+          items: [{ ...CASE_BASE, takedown: { notice_id: '5001', kind: 'illegal_content' } }],
+          next_cursor: null,
+        }),
+      ),
+    );
+    openAdmin('moderation');
+    expect(await screen.findByText('Illegal-content notice TK-5001')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open takedown notice 5001' })).toBeNull();
+  });
+
+  it('links a refused delete to the takedown register', async () => {
+    render(
+      <ApiProblem error="This item is under a moderation hold (notice TK-77). Release the hold first." />,
+    );
+    const link = await screen.findByRole('link', { name: 'Open the takedown register' });
+    expect(link).toHaveAttribute('href', '/admin/moderation');
   });
 });

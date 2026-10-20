@@ -4094,6 +4094,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5343,6 +5353,16 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -10150,6 +10170,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -11707,6 +11737,16 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -48023,6 +48063,15 @@
             }
           },
           {
+            "name": "source",
+            "in": "query",
+            "description": "`takedown`: only cases opened for a takedown notice.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "description": "`next_cursor` of the previous page.",
@@ -49218,6 +49267,15 @@
             "name": "guild_id",
             "in": "query",
             "description": "Platform staff only: cases of this server.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "`takedown`: only cases opened for a takedown notice.",
             "required": false,
             "schema": {
               "type": "string"
@@ -67236,6 +67294,17 @@
           "summary": {
             "type": "string"
           },
+          "takedown": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CaseTakedown",
+                "description": "The takedown notice this case was opened for (D-334), when there is one."
+              }
+            ]
+          },
           "target_id": {
             "type": [
               "string",
@@ -67248,6 +67317,22 @@
           "updated_at_ms": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "CaseTakedown": {
+        "type": "object",
+        "description": "The notice behind a takedown case: its reference and kind, for the badge on the case list and page.",
+        "required": [
+          "notice_id",
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "notice_id": {
+            "type": "string"
           }
         }
       },
@@ -70252,6 +70337,36 @@
           "count": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "CountedNotice": {
+        "type": "object",
+        "description": "One notice that counts as a strike.",
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "removed_at_ms",
+          "contested"
+        ],
+        "properties": {
+          "contested": {
+            "type": "boolean",
+            "description": "A counter-notice is pending."
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "removed_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/NoticeState"
           }
         }
       },
@@ -87697,10 +87812,24 @@
         "required": [
           "person_id",
           "strikes",
+          "contested",
+          "counted",
           "window_months",
           "threshold"
         ],
         "properties": {
+          "contested": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, the notices whose content is down while a counter-notice is pending."
+          },
+          "counted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountedNotice"
+            },
+            "description": "The notices counted, newest first."
+          },
           "person_id": {
             "type": "string"
           },

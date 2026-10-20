@@ -14024,10 +14024,16 @@ export interface components {
             severity: components["schemas"]["CaseSeverity"];
             state: components["schemas"]["CaseState"];
             summary: string;
+            takedown?: null | components["schemas"]["CaseTakedown"];
             target_id?: string | null;
             target_kind: components["schemas"]["TargetKind"];
             /** Format: int64 */
             updated_at_ms: number;
+        };
+        /** @description The notice behind a takedown case: its reference and kind, for the badge on the case list and page. */
+        CaseTakedown: {
+            kind: components["schemas"]["TakedownKind"];
+            notice_id: string;
         };
         /** @description One approved effect or decoration. */
         CatalogEntryObject: {
@@ -14947,6 +14953,16 @@ export interface components {
         CountBody: {
             /** Format: int32 */
             count: number;
+        };
+        /** @description One notice that counts as a strike. */
+        CountedNotice: {
+            /** @description A counter-notice is pending. */
+            contested: boolean;
+            id: string;
+            kind: components["schemas"]["TakedownKind"];
+            /** Format: int64 */
+            removed_at_ms: number;
+            state: components["schemas"]["NoticeState"];
         };
         /** @description Body of a counter-notice. */
         CounterNoticeBody: {
@@ -20421,6 +20437,13 @@ export interface components {
         };
         /** @description The strikes of one Person named by a notice. */
         StrikeCount: {
+            /**
+             * Format: int64
+             * @description Of those, the notices whose content is down while a counter-notice is pending.
+             */
+            contested: number;
+            /** @description The notices counted, newest first. */
+            counted: components["schemas"]["CountedNotice"][];
             person_id: string;
             /** @description The review case the counter opened for this Person, when it did. */
             review_case_id?: string | null;
@@ -24948,6 +24971,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     admin_cinema_link_episode_asset: {
@@ -25769,6 +25800,14 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -28939,6 +28978,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     admin_library_pages: {
@@ -29958,6 +30005,14 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -52827,6 +52882,8 @@ export interface operations {
                 assignee?: string;
                 /** @description Platform staff only: cases of this server. */
                 guild_id?: string;
+                /** @description `takedown`: only cases opened for a takedown notice. */
+                source?: string;
                 /** @description `next_cursor` of the previous page. */
                 cursor?: string;
                 /** @description Oldest first (the work queue); default newest first. */
@@ -53600,6 +53657,8 @@ export interface operations {
                 assignee?: string;
                 /** @description Platform staff only: cases of this server. */
                 guild_id?: string;
+                /** @description `takedown`: only cases opened for a takedown notice. */
+                source?: string;
                 /** @description `next_cursor` of the previous page. */
                 cursor?: string;
                 /** @description Oldest first (the work queue); default newest first. */

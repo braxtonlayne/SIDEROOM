@@ -27,5 +27,5 @@ mod takedowns;
 pub use cases::{RECORDABLE_ACTIONS, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
-pub use service::{IdSource, Moderation, PolicySource, SubjectNotifier};
+pub use service::{IdSource, Moderation, PolicySource, RemovalSink, SubjectNotifier};
 pub use takedowns::register_csv;

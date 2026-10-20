@@ -199,6 +199,18 @@ pub struct CaseSummary {
     pub opened_at_ms: i64,
     pub updated_at_ms: i64,
     pub closed_at_ms: Option<i64>,
+    /// The takedown notice this case was opened for (D-334), when there is one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takedown: Option<CaseTakedown>,
+}
+
+/// The notice behind a takedown case: its reference and kind, for the badge on the case list and page.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct CaseTakedown {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub notice_id: i64,
+    pub kind: TakedownKind,
 }
 
 /// The reporter of a report, shown only to who may see it (spec 3.3).
@@ -367,6 +379,8 @@ pub struct CasePage {
 /// Filters of the case queue.
 #[derive(Debug, Clone, Default)]
 pub struct CaseFilter {
+    /// Only cases opened for a takedown notice (a source, not a category).
+    pub takedown_only: bool,
     pub state: Option<CaseState>,
     /// Only cases that are not closed, dismissed or actioned.
     pub open_only: bool,
@@ -600,6 +614,19 @@ pub struct NoticeEvent {
     pub created_at_ms: i64,
 }
 
+/// One notice that counts as a strike.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct CountedNotice {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub kind: TakedownKind,
+    pub state: NoticeState,
+    pub removed_at_ms: i64,
+    /// A counter-notice is pending.
+    pub contested: bool,
+}
+
 /// The strikes of one Person named by a notice.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct StrikeCount {
@@ -608,6 +635,10 @@ pub struct StrikeCount {
     pub person_id: i64,
     /// Upheld takedowns inside the window, this one included once it is upheld.
     pub strikes: i64,
+    /// Of those, the notices whose content is down while a counter-notice is pending.
+    pub contested: i64,
+    /// The notices counted, newest first.
+    pub counted: Vec<CountedNotice>,
     pub window_months: i64,
     pub threshold: i64,
     /// The review case the counter opened for this Person, when it did.

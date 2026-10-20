@@ -382,6 +382,8 @@ pub fn router() -> Router<AppState> {
         sr_moderation::model::UpholdOutcome,
         sr_moderation::model::RejectOutcome,
         sr_moderation::model::TakedownKind,
+        sr_moderation::model::CaseTakedown,
+        sr_moderation::model::CountedNotice,
         sr_moderation::model::NoticeState,
         sr_moderation::model::ItemKind,
         sr_moderation::model::ItemState,

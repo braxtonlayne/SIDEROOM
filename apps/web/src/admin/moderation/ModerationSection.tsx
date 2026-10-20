@@ -15,11 +15,21 @@ export function ModerationSection() {
   const viewer = useAdminViewer();
   const [tab, setTab] = useState(viewer.can('MANAGE_CASES') ? 'cases' : 'takedowns');
   const [caseId, setCaseId] = useState<string | null>(null);
+  const [noticeId, setNoticeId] = useState<string | null>(null);
 
   const open = (id: string) => {
     setTab('cases');
     setCaseId(id);
   };
+
+  // The badge on a case opens its notice in the Takedowns tab (MANAGE_TAKEDOWNS).
+  const openNotice = viewer.can('MANAGE_TAKEDOWNS')
+    ? (id: string) => {
+        setCaseId(null);
+        setNoticeId(id);
+        setTab('takedowns');
+      }
+    : undefined;
 
   const items = [
     ...(viewer.can('MANAGE_CASES')
@@ -27,7 +37,7 @@ export function ModerationSection() {
           {
             id: 'cases',
             label: t('admin.moderation.tabCases'),
-            content: <CaseQueue onOpen={open} />,
+            content: <CaseQueue onOpen={open} onOpenNotice={openNotice} />,
           },
           {
             id: 'holds',
@@ -46,7 +56,7 @@ export function ModerationSection() {
           {
             id: 'takedowns',
             label: t('admin.moderation.tabTakedowns'),
-            content: <TakedownsTab onOpenCase={open} />,
+            content: <TakedownsTab onOpenCase={open} noticeId={noticeId} />,
           },
         ]
       : []),
@@ -59,7 +69,7 @@ export function ModerationSection() {
         description={t('admin.moderation.description')}
       />
       {caseId && viewer.can('MANAGE_CASES') ? (
-        <CasePage id={caseId} onBack={() => setCaseId(null)} />
+        <CasePage id={caseId} onBack={() => setCaseId(null)} onOpenNotice={openNotice} />
       ) : (
         <Tabs
           label={t('admin.moderation.tabsLabel')}

@@ -1016,3 +1016,246 @@ async fn unknown_content_is_not_found() {
         Err(ModError::Conflict(_))
     ));
 }
+
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn contested_strikes_show_and_a_restore_that_drops_the_count_closes_the_review() {
+    let w = world_with(TakedownPolicy {
+        strike_review_threshold: 2,
+        strike_window_months: 12,
+        operator_country: None,
+        operator_contact: None,
+    })
+    .await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let (s1, _) = w.series(w.uploader).await;
+    let first = w.triaged(&[(ItemKind::LibrarySeries, s1)]).await;
+    w.m.uphold_notice(&who, first, Some("valid")).await.unwrap();
+    let (s2, _) = w.series(w.uploader).await;
+    let second = w.triaged(&[(ItemKind::LibrarySeries, s2)]).await;
+    // The first notice is counter-noticed before the second is upheld: the review lists it as contested.
+    w.m.record_counter_notice(&who, first, "mine")
+        .await
+        .unwrap();
+    let out =
+        w.m.uphold_notice(&who, second, Some("valid"))
+            .await
+            .unwrap();
+    let review = out.review_case_id.expect("review at the threshold");
+    let d = w.m.get_notice(&who, second).await.unwrap();
+    assert_eq!(d.strikes[0].strikes, 2);
+    assert_eq!(d.strikes[0].contested, 1);
+    assert_eq!(d.strikes[0].counted.len(), 2);
+    assert!(
+        d.strikes[0]
+            .counted
+            .iter()
+            .any(|n| n.contested && n.id == first)
+    );
+    let note: String =
+        sqlx::query_scalar("SELECT body FROM moderation_case_notes WHERE case_id = $1")
+            .bind(review)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+    assert!(note.contains(&format!("TK-{first}")) && note.contains("counter-notice pending"));
+    assert!(note.contains(&format!("TK-{second}")));
+    let ev: serde_json::Value = sqlx::query_scalar(
+        "SELECT detail FROM moderation_case_events WHERE case_id = $1 AND kind = 'strike_review_opened'",
+    )
+    .bind(review)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(ev["counted"].as_array().unwrap().len(), 2);
+    // The counter-noticed notice is restored: the count falls to 1 and the open review closes as no_action.
+    w.m.restore_notice(&who, first, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    let (state, outcome): (String, String) =
+        sqlx::query_as("SELECT state, outcome FROM moderation_cases WHERE id = $1")
+            .bind(review)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+    assert_eq!(state, "closed");
+    assert!(outcome.starts_with("no_action"));
+    assert_eq!(
+        count(w.pool(), "SELECT count(*) FROM moderation_case_events WHERE case_id = $1 AND kind = 'state_changed'", review).await,
+        1
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn the_case_list_names_the_notice_and_filters_by_takedown_source() {
+    use sr_moderation::model::CaseFilter;
+    let w = world().await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let d =
+        w.m.create_notice(&who, &w.notice(TakedownKind::IllegalContent))
+            .await
+            .unwrap();
+    // An unrelated case opened by staff, which has no notice.
+    let cs = staff(w.staff_id, P::MANAGE_CASES | P::MANAGE_TAKEDOWNS);
+    let cases = Who::Staff(&cs);
+    w.m.open_case(
+        &cases,
+        &sr_moderation::model::NewCase {
+            category: sr_moderation::model::ReportCategory::Spam,
+            target_kind: sr_moderation::model::TargetKind::Other,
+            target_id: None,
+            subject_account_id: None,
+            summary: "other".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let all =
+        w.m.list_cases(
+            &cases,
+            &CaseFilter {
+                limit: 50,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(all.items.len(), 2);
+    let only =
+        w.m.list_cases(
+            &cases,
+            &CaseFilter {
+                limit: 50,
+                takedown_only: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(only.items.len(), 1);
+    let t = only.items[0].takedown.as_ref().expect("badge data");
+    assert_eq!(
+        (t.notice_id, t.kind),
+        (d.summary.id, TakedownKind::IllegalContent)
+    );
+    assert!(all.items.iter().any(|i| i.takedown.is_none()));
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn uphold_blocks_transcode_and_original_objects_and_restore_lifts_them() {
+    let w = world().await;
+    let (title, asset) = w.film(w.uploader).await;
+    sqlx::query(
+        "INSERT INTO video_assets (id, filename, original_key, original_ext, original_size) \
+         VALUES ($1, 'film.mkv', $2, 'mkv', 10)",
+    )
+    .bind(asset)
+    .bind(format!("originals/{asset}/source.mkv"))
+    .execute(w.pool())
+    .await
+    .unwrap();
+    let jobs = [uid(), uid()];
+    for j in jobs {
+        sqlx::query(
+            "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext) \
+             VALUES ($1, $2, 'remux', '{}'::jsonb, 'k', 1, 'mkv')",
+        )
+        .bind(j)
+        .bind(asset)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    }
+    let id = w.triaged(&[(ItemKind::CinemaTitle, title)]).await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let list = MediaBlocklist::new(w.pool().clone());
+    for j in jobs {
+        assert!(
+            list.is_blocked_key(&format!("transcode/{j}/1/remux/video.mp4"))
+                .await
+        );
+        assert!(
+            list.is_blocked_key(&format!("transcode/{j}/2/v/seg.m4s"))
+                .await,
+            "every attempt"
+        );
+    }
+    assert!(
+        list.is_blocked_key(&format!("originals/{asset}/source.mkv"))
+            .await
+    );
+    assert!(list.is_blocked_asset(asset).await);
+    w.m.restore_notice(&who, id, Some("mistake")).await.unwrap();
+    assert_eq!(
+        count(
+            w.pool(),
+            "SELECT count(*) FROM blocked_objects WHERE notice_id = $1",
+            id
+        )
+        .await,
+        0
+    );
+    let fresh = MediaBlocklist::new(w.pool().clone());
+    assert!(
+        !fresh
+            .is_blocked_key(&format!("transcode/{}/1/remux/video.mp4", jobs[0]))
+            .await
+    );
+}
+
+#[derive(Default)]
+struct Removed(Mutex<Vec<(Option<i64>, i64, i64)>>);
+
+#[async_trait]
+impl sr_moderation::RemovalSink for Removed {
+    async fn message_removed(&self, guild: Option<i64>, channel: i64, message_id: i64) {
+        self.0.lock().unwrap().push((guild, channel, message_id));
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn uphold_announces_each_removed_message_once_and_restore_sends_nothing() {
+    let mut w = world().await;
+    let sink = Arc::new(Removed::default());
+    w.m = w.m.clone().with_removals(sink.clone());
+    let m1 = w.message(10, w.uploader).await;
+    let m2 = w.message(11, w.uploader).await;
+    // Already hidden by its author: nothing to announce.
+    let gone = w.message(12, w.uploader).await;
+    exec(
+        w.pool(),
+        "UPDATE messages SET visibility = 'user_deleted', deleted_at = now() WHERE id = $1",
+        &[gone],
+    )
+    .await;
+    let (series, _) = w.series(w.uploader).await;
+    let id = w
+        .triaged(&[
+            (ItemKind::Message, m1),
+            (ItemKind::Message, m2),
+            (ItemKind::Message, gone),
+            (ItemKind::LibrarySeries, series),
+        ])
+        .await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let mut got = sink.0.lock().unwrap().clone();
+    got.sort_by_key(|g| g.2);
+    assert_eq!(
+        got.len(),
+        2,
+        "one event per message removed from view: {got:?}"
+    );
+    assert_eq!(got.iter().map(|g| g.2).collect::<Vec<_>>(), vec![m1, m2]);
+    assert!(got.iter().all(|g| g.1 == w.channel));
+    w.m.restore_notice(&who, id, Some("mistake")).await.unwrap();
+    assert_eq!(sink.0.lock().unwrap().len(), 2, "a restore sends no event");
+}

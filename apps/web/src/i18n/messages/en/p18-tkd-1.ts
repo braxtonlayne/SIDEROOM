@@ -150,6 +150,20 @@ export default {
   // ---- the Library reader and the Cinema player (MOD-TKD-011) ----
   'admin.moderation.event.strikeReview': 'Repeat takedowns: a review was opened',
   'admin.moderation.event.takedownCounterNotice': 'A counter-notice was recorded',
+  'admin.moderation.queue.sourceLabel': 'Source',
+  'admin.moderation.queue.sourceAny': 'Every source',
+  'admin.moderation.queue.sourceTakedown': 'Takedown notices',
+  'admin.moderation.takedownBadge.copyright': 'Copyright notice TK-{id}',
+  'admin.moderation.takedownBadge.illegal': 'Illegal-content notice TK-{id}',
+  'admin.moderation.takedownBadge.open': 'Open takedown notice {id}',
+  'admin.ui.heldLink': 'Open the takedown register',
+  'admin.takedowns.contested':
+    '{n, plural, one {# contested by a counter-notice} other {# contested by counter-notices}}',
+  'admin.takedowns.countedList': 'Takedowns counted',
+  'admin.takedowns.countedLine': 'TK-{ref}: {kind}, {state}, removed {when}',
+  'admin.takedowns.counterPending': 'Counter-notice pending',
+  'admin.takedowns.strikeHelp':
+    'Leave a review open while a counter-notice is pending. It closes by itself if a restore takes the count under the threshold.',
   'moderation.itemHold.heldTitle': 'Under review',
   'moderation.itemHold.heldBody':
     'A notice about this item is under review, so it is frozen. It may be removed once staff decide.',

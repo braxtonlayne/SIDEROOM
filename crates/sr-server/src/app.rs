@@ -1185,7 +1185,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_policy(Arc::new(crate::takedown_jobs::TakedownPolicySource::new(
             features.clone(),
         )))
-        .with_blocklist(media_blocklist.clone());
+        .with_blocklist(media_blocklist.clone())
+        .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
+            bus.clone(),
+        )));
     let moderation_deps = Arc::new(
         routes::moderation::ModerationDeps::new(moderation.clone()).with_features(features.clone()),
     );

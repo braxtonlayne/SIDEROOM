@@ -73,8 +73,16 @@ type Dialog =
 const stateBadge = (s: api.NoticeState) =>
   s === 'removed' || s === 'counter_noticed' ? 'danger' : s === 'triage' ? 'accent' : 'neutral';
 
-export function TakedownsTab({ onOpenCase }: { onOpenCase: (id: string) => void }) {
-  const [noticeId, setNoticeId] = useState<string | null>(null);
+export function TakedownsTab({
+  onOpenCase,
+  noticeId: openNoticeId = null,
+}: {
+  onOpenCase: (id: string) => void;
+  /** A notice to open straight away (from the badge on a case). */
+  noticeId?: string | null;
+}) {
+  const [chosen, setNoticeId] = useState<string | null>(null);
+  const noticeId = chosen ?? openNoticeId;
   return noticeId ? (
     <NoticePage id={noticeId} onBack={() => setNoticeId(null)} onOpenCase={onOpenCase} />
   ) : (
@@ -530,7 +538,35 @@ function NoticePage({
                               months: s.window_months,
                             })}
                           </div>
+                          {s.contested > 0 && (
+                            <div className="ss-meta">
+                              <Badge variant="warning">
+                                {t('admin.takedowns.contested', { n: s.contested })}
+                              </Badge>
+                            </div>
+                          )}
+                          <ul aria-label={t('admin.takedowns.countedList')}>
+                            {s.counted.map((c) => (
+                              <li key={c.id} className="ss-meta">
+                                {t('admin.takedowns.countedLine', {
+                                  ref: c.id,
+                                  kind: t(KIND_KEYS[c.kind]),
+                                  state: t(NOTICE_STATE_KEYS[c.state]),
+                                  when: fmtMs(c.removed_at_ms),
+                                })}
+                                {c.contested && (
+                                  <>
+                                    {' '}
+                                    <Badge variant="warning">
+                                      {t('admin.takedowns.counterPending')}
+                                    </Badge>
+                                  </>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
                           <div className="ss-meta">{t('admin.takedowns.strikeNote')}</div>
+                          <div className="ss-meta">{t('admin.takedowns.strikeHelp')}</div>
                         </div>
                         {s.review_case_id && canCases && (
                           <Button

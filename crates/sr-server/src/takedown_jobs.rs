@@ -96,6 +96,39 @@ impl PolicySource for TakedownPolicySource {
     }
 }
 
+/// Announces a message a takedown removed as a `MESSAGE_DELETE` on the event bus (D-335 item 3), so the gateway
+/// tells connected clients to drop it. Restoring sends nothing: the fetch path shows the message again.
+pub struct BusRemovalSink {
+    bus: std::sync::Arc<dyn sr_events::EventBus>,
+}
+
+impl BusRemovalSink {
+    pub fn new(bus: std::sync::Arc<dyn sr_events::EventBus>) -> Self {
+        Self { bus }
+    }
+}
+
+#[async_trait]
+impl sr_moderation::RemovalSink for BusRemovalSink {
+    async fn message_removed(&self, guild: Option<i64>, channel: i64, message_id: i64) {
+        let (Ok(channel), Ok(message_id)) = (u64::try_from(channel), u64::try_from(message_id))
+        else {
+            return;
+        };
+        let ev = sr_events::DomainEvent::MessageDeleted {
+            guild: guild
+                .and_then(|g| u64::try_from(g).ok())
+                .map(sr_core::GuildId::new),
+            channel: sr_core::ChannelId::new(channel),
+            message_id,
+        };
+        for topic in ev.topics() {
+            if let Err(e) = self.bus.publish(topic, ev.clone()).await {
+                tracing::warn!(error = %e, "publishing a takedown removal failed");
+            }
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,5 +266,31 @@ mod retention_tests {
             "released: purged at the next run"
         );
         db.cleanup().await.expect("cleanup");
+    }
+}
+
+#[cfg(test)]
+mod sink_tests {
+    use super::*;
+    use futures::StreamExt;
+    use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
+    use sr_moderation::RemovalSink;
+
+    #[tokio::test]
+    async fn a_removed_message_reaches_a_bus_subscriber_as_message_delete() {
+        let bus: std::sync::Arc<dyn EventBus> = std::sync::Arc::new(InProcessBus::new());
+        let mut events = bus.subscribe(Topic::Firehose);
+        BusRemovalSink::new(bus.clone())
+            .message_removed(Some(11), 22, 33)
+            .await;
+        let ev = tokio::time::timeout(Duration::from_secs(2), events.next())
+            .await
+            .expect("an event")
+            .expect("open stream");
+        assert!(matches!(
+            ev,
+            DomainEvent::MessageDeleted { guild: Some(g), channel, message_id: 33 }
+                if g.get() == 11 && channel.get() == 22
+        ));
     }
 }

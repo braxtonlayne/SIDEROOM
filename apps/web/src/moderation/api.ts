@@ -79,6 +79,8 @@ export interface CaseSummary {
   opened_at_ms: number;
   updated_at_ms: number;
   closed_at_ms: number | null;
+  /** The takedown notice this case was opened for (D-334). */
+  takedown?: { notice_id: string; kind: TakedownKind };
 }
 export interface CasePage {
   items: CaseSummary[];
@@ -200,6 +202,8 @@ export interface CaseQuery {
   guild_id?: string;
   cursor?: string | null;
   oldest_first?: boolean;
+  /** `takedown`: only cases opened for a takedown notice. */
+  source?: 'takedown' | '';
   limit?: number;
 }
 export const listCases = (p: CaseQuery = {}) => get<CasePage>(`/moderation/cases${qs({ ...p })}`);
@@ -302,9 +306,19 @@ export interface NoticeEvent {
   detail: Record<string, unknown>;
   created_at_ms: number;
 }
+export interface CountedNotice {
+  id: string;
+  kind: TakedownKind;
+  state: NoticeState;
+  removed_at_ms: number;
+  /** A counter-notice is pending. */
+  contested: boolean;
+}
 export interface StrikeCount {
   person_id: string;
   strikes: number;
+  contested: number;
+  counted: CountedNotice[];
   window_months: number;
   threshold: number;
   review_case_id: string | null;

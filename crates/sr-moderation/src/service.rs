@@ -22,6 +22,14 @@ pub trait SubjectNotifier: Send + Sync {
     async fn system_dm(&self, to: i64, text: &str) -> bool;
 }
 
+/// Tells the live clients that a message a takedown removed is gone (D-335 item 3). The server implements it
+/// over the event bus (a `MESSAGE_DELETE`); without one nothing is sent and clients see it gone on their next
+/// fetch. Restoring sends nothing: no "message restored" event exists and the fetch path shows it again.
+#[async_trait]
+pub trait RemovalSink: Send + Sync {
+    async fn message_removed(&self, guild: Option<i64>, channel: i64, message_id: i64);
+}
+
 /// Where the strike policy and the operator details come from (the `compliance` feature module, D-293). The
 /// server implements it over the feature settings; without one the defaults apply.
 #[async_trait]
@@ -36,6 +44,7 @@ pub struct Moderation {
     pub(crate) ids: IdSource,
     pub(crate) notifier: Option<Arc<dyn SubjectNotifier>>,
     pub(crate) policy: Option<Arc<dyn PolicySource>>,
+    pub(crate) removals: Option<Arc<dyn RemovalSink>>,
     pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
 }
 
@@ -46,6 +55,7 @@ impl Moderation {
             ids,
             notifier: None,
             policy: None,
+            removals: None,
             blocklist: None,
         }
     }
@@ -59,6 +69,12 @@ impl Moderation {
     /// The strike policy and operator details the takedown register reads.
     pub fn with_policy(mut self, p: Arc<dyn PolicySource>) -> Self {
         self.policy = Some(p);
+        self
+    }
+
+    /// Where removed messages are announced to live clients.
+    pub fn with_removals(mut self, r: Arc<dyn RemovalSink>) -> Self {
+        self.removals = Some(r);
         self
     }
 

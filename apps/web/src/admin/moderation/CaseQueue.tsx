@@ -6,8 +6,15 @@ import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
 import { ApiProblem, LoadMore, fmtMs, usePaged, useAdminViewer } from '../ui';
 import { ROUTING_KEYS, SEVERITY_KEYS, STATE_KEYS, TARGET_KEYS } from './labels';
+import { TakedownBadge } from './TakedownBadge';
 
-export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
+export function CaseQueue({
+  onOpen,
+  onOpenNotice,
+}: {
+  onOpen: (id: string) => void;
+  onOpenNotice?: ((noticeId: string) => void) | undefined;
+}) {
   const t = useT();
   const viewer = useAdminViewer();
   const [view, setView] = useState<'work' | 'all'>('work');
@@ -15,7 +22,8 @@ export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
   const [severity, setSeverity] = useState<api.Severity | 'any'>('any');
   const [mine, setMine] = useState(false);
   const [oldestFirst, setOldestFirst] = useState(true);
-  const key = `cases:${view}:${category}:${severity}:${mine}:${oldestFirst}`;
+  const [source, setSource] = useState<'any' | 'takedown'>('any');
+  const key = `cases:${view}:${category}:${severity}:${mine}:${oldestFirst}:${source}`;
   const paged = usePaged<api.CaseSummary>(key, async (cursor) => {
     const page = await api.listCases({
       open_only: view === 'work',
@@ -23,6 +31,7 @@ export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
       severity: severity === 'any' ? '' : severity,
       ...(mine ? { assignee: viewer.userId } : {}),
       oldest_first: oldestFirst,
+      source: source === 'takedown' ? 'takedown' : '',
       cursor,
       limit: 25,
     });
@@ -60,6 +69,15 @@ export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
           value={severity}
           onValueChange={(v) => setSeverity(v as api.Severity | 'any')}
         />
+        <Select
+          aria-label={t('admin.moderation.queue.sourceLabel')}
+          options={[
+            { value: 'any', label: t('admin.moderation.queue.sourceAny') },
+            { value: 'takedown', label: t('admin.moderation.queue.sourceTakedown') },
+          ]}
+          value={source}
+          onValueChange={(v) => setSource(v as 'any' | 'takedown')}
+        />
         <Switch
           label={t('admin.moderation.queue.mine')}
           checked={mine}
@@ -91,6 +109,12 @@ export function CaseQueue({ onOpen }: { onOpen: (id: string) => void }) {
                   <Badge variant={c.state === 'open' ? 'accent' : 'neutral'}>
                     {t(STATE_KEYS[c.state])}
                   </Badge>
+                  {c.takedown && (
+                    <>
+                      {' '}
+                      <TakedownBadge takedown={c.takedown} onOpen={onOpenNotice} />
+                    </>
+                  )}
                   {c.escalated && (
                     <>
                       {' '}

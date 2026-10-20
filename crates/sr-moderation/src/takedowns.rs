@@ -16,15 +16,15 @@ use sr_core::PlatformPermissions as P;
 use crate::error::{ModError, ModResult, conflict, invalid};
 use crate::holds::{HoldRequest, HoldScope, place_hold_in, release_hold_in};
 use crate::model::{
-    ItemKind, ItemState, ItemStatus, NewItem, NewNotice, NoticeDetail, NoticeEvent, NoticeState,
-    NoticeSummary, RejectOutcome, StrikeCount, TakedownItem, TakedownKind, TakedownPolicy,
-    UpholdOutcome, Who,
+    CountedNotice, ItemKind, ItemState, ItemStatus, NewItem, NewNotice, NoticeDetail, NoticeEvent,
+    NoticeState, NoticeSummary, RejectOutcome, StrikeCount, TakedownItem, TakedownKind,
+    TakedownPolicy, UpholdOutcome, Who,
 };
 use crate::rules;
 use crate::service::{IdSource, Moderation, limits_in, log_staff, push_event, require_staff};
 use crate::takedown_rules::{
     RESTORE_BUSINESS_DAYS, TRIAGE_BUSINESS_DAYS, Weekend, add_business_days, can_move,
-    incomplete_reply, missing_parts, restore_due, review_due, strikes_in_window,
+    incomplete_reply, missing_parts, restore_due, review_due, strikes_and_contested,
 };
 
 const MAX_FIELD: usize = 4000;
@@ -476,7 +476,17 @@ async fn block_asset(
         "prefix",
         &format!("originals/{asset}/"),
     )
-    .await
+    .await?;
+    // Every transcode output of the asset, every attempt (D-335 item 2): the Patron download links and the
+    // stored renditions live under `transcode/{job}/`.
+    let jobs: Vec<i64> = sqlx::query_scalar("SELECT id FROM transcode_jobs WHERE asset_id = $1")
+        .bind(asset)
+        .fetch_all(&mut *conn)
+        .await?;
+    for job in jobs {
+        block(conn, ids, notice_id, "prefix", &format!("transcode/{job}/")).await?;
+    }
+    Ok(())
 }
 
 async fn refresh_series(conn: &mut PgConnection, series: i64) -> ModResult<()> {
@@ -797,14 +807,38 @@ async fn strike_counts(
     .await?;
     let mut out = Vec::new();
     for p in persons {
-        let times: Vec<i64> = sqlx::query_scalar(
-            "SELECT (extract(epoch FROM n.removed_at) * 1000)::bigint FROM takedown_notices n \
+        let rows = sqlx::query(
+            "SELECT n.id, n.kind, n.state, (extract(epoch FROM n.removed_at) * 1000)::bigint AS at_ms \
+             FROM takedown_notices n \
              WHERE n.state IN ('removed', 'counter_noticed') AND n.removed_at IS NOT NULL \
-               AND EXISTS (SELECT 1 FROM takedown_items i WHERE i.notice_id = n.id AND i.subject_person_id = $1)",
+               AND EXISTS (SELECT 1 FROM takedown_items i WHERE i.notice_id = n.id AND i.subject_person_id = $1) \
+             ORDER BY n.removed_at DESC",
         )
         .bind(p)
         .fetch_all(&mut *conn)
         .await?;
+        let start = crate::takedown_rules::months_before(now, policy.strike_window_months);
+        let mut counted = Vec::new();
+        let mut entries = Vec::new();
+        for r in &rows {
+            let (kind, state): (String, String) = (r.try_get("kind")?, r.try_get("state")?);
+            let at: i64 = r.try_get("at_ms")?;
+            let contested = state == "counter_noticed";
+            entries.push((at, contested));
+            if at >= start && at <= now {
+                counted.push(CountedNotice {
+                    id: r.try_get("id")?,
+                    kind: TakedownKind::parse(&kind)
+                        .ok_or_else(|| ModError::Storage("notice kind".into()))?,
+                    state: NoticeState::parse(&state)
+                        .ok_or_else(|| ModError::Storage("notice state".into()))?,
+                    removed_at_ms: at,
+                    contested,
+                });
+            }
+        }
+        let (strikes, contested) =
+            strikes_and_contested(&entries, now, policy.strike_window_months);
         let review: Option<i64> = sqlx::query_scalar(
             "SELECT r.case_id FROM takedown_strike_reviews r WHERE r.person_id = $1 ORDER BY r.id DESC LIMIT 1",
         )
@@ -813,8 +847,9 @@ async fn strike_counts(
         .await?;
         out.push(StrikeCount {
             person_id: p,
-            strikes: i64::try_from(strikes_in_window(&times, now, policy.strike_window_months))
-                .unwrap_or(0),
+            strikes: i64::try_from(strikes).unwrap_or(0),
+            contested: i64::try_from(contested).unwrap_or(0),
+            counted,
             window_months: i64::from(policy.strike_window_months),
             threshold: i64::from(policy.strike_review_threshold),
             review_case_id: review,
@@ -884,9 +919,39 @@ async fn open_reviews(
             case_id,
             None,
             "strike_review_opened",
-            json!({ "strikes": c.strikes, "window_months": c.window_months, "threshold": c.threshold,
-                    "notice_id": notice.summary.id.to_string() }),
+            json!({ "strikes": c.strikes, "contested": c.contested, "window_months": c.window_months,
+                    "threshold": c.threshold, "notice_id": notice.summary.id.to_string(),
+                    "counted": c.counted.iter().map(|n| json!({
+                        "reference": notice_ref(n.id), "kind": n.kind.as_str(), "state": n.state.as_str(),
+                        "removed_at_ms": n.removed_at_ms, "contested": n.contested })).collect::<Vec<_>>() }),
         )
+        .await?;
+        let mut note = format!(
+            "Opened at {} of {} upheld takedowns in {} months ({} contested by a counter-notice). Counted:\n",
+            c.strikes, c.threshold, c.window_months, c.contested
+        );
+        for n in &c.counted {
+            note.push_str(&format!(
+                "- {} ({}, {}, removed {}){}\n",
+                notice_ref(n.id),
+                kind_word(n.kind),
+                n.state.as_str(),
+                crate::takedown_rules::iso_utc(n.removed_at_ms),
+                if n.contested {
+                    " - counter-notice pending"
+                } else {
+                    ""
+                }
+            ));
+        }
+        sqlx::query(
+            "INSERT INTO moderation_case_notes (id, case_id, author_id, body) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(ids())
+        .bind(case_id)
+        .bind(actor)
+        .bind(note)
+        .execute(&mut *conn)
         .await?;
         sqlx::query(
             "INSERT INTO takedown_strike_reviews (id, person_id, case_id, strikes) VALUES ($1, $2, $3, $4)",
@@ -1500,6 +1565,7 @@ impl Moderation {
         .await?;
         let items = items_of(&mut tx, id).await?;
         tx.commit().await?;
+        self.announce_removed_messages(id).await;
         self.reload_blocklist().await;
         let notified = self
             .notify_subjects(&items, |labels| {
@@ -1517,6 +1583,27 @@ impl Moderation {
             notified,
             review_case_id: review,
         })
+    }
+
+    /// Tell live clients about every message the notice removed from view (once per message, after the commit).
+    async fn announce_removed_messages(&self, notice_id: i64) {
+        let Some(sink) = &self.removals else { return };
+        let rows = sqlx::query(
+            "SELECT m.id, m.channel_id, m.guild_id FROM takedown_items i JOIN messages m ON m.id = i.target_id \n             WHERE i.notice_id = $1 AND i.kind = 'message' AND (i.prior->>'was_visible')::boolean",
+        )
+        .bind(notice_id)
+        .fetch_all(&self.pool)
+        .await;
+        let Ok(rows) = rows else { return };
+        for r in rows {
+            if let (Ok(id), Ok(channel), Ok(guild)) = (
+                r.try_get::<i64, _>("id"),
+                r.try_get::<i64, _>("channel_id"),
+                r.try_get::<Option<i64>, _>("guild_id"),
+            ) {
+                sink.message_removed(guild, channel, id).await;
+            }
+        }
     }
 
     /// DM each uploader or author once with the labels of their own items. Returns how many were delivered.
@@ -1664,6 +1751,37 @@ impl Moderation {
         Ok(d)
     }
 
+    /// A restore or withdrawal can take a Person under the review threshold: a review that is still open then
+    /// closes as `no_action` (D-333), with one timeline event.
+    async fn close_reviews_if_under(
+        &self,
+        conn: &mut PgConnection,
+        notice_id: i64,
+        actor: Option<i64>,
+    ) -> ModResult<()> {
+        let policy = self.policy().await;
+        for c in strike_counts(conn, notice_id, &policy, now_ms()).await? {
+            let Some(case) = c.review_case_id else {
+                continue;
+            };
+            if !review_due(
+                usize::try_from(c.strikes).unwrap_or(0),
+                policy.strike_review_threshold,
+            ) {
+                case_to(
+                    conn,
+                    &self.ids,
+                    Some(case),
+                    actor,
+                    "closed",
+                    "no_action: count fell under the threshold",
+                )
+                .await?;
+            }
+        }
+        Ok(())
+    }
+
     /// Put every item of a notice back, lift the blocks and holds, and end the notice in `to` (`Restored` or
     /// `Withdrawn`). Writes the notice event and closes the case; the caller logs the access row.
     /// `actor` is who the notice records (none for the job); `release_as` is the staff account the holds are
@@ -1686,6 +1804,7 @@ impl Moderation {
             }
         }
         unblock(conn, id).await?;
+        self.close_reviews_if_under(conn, id, actor).await?;
         sqlx::query(
             "UPDATE takedown_notices SET \
              restored_at = CASE WHEN $2 = 'restored' THEN now() ELSE restored_at END, \
