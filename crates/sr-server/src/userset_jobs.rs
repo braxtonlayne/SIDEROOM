@@ -4,6 +4,8 @@
 //!   a temporary file, stores the zip under `exports/<user>/<id>.zip` and offers it for
 //!   7 days. Retried with backoff; after the last attempt the request is marked failed so the
 //!   member can ask again at once.
+//! * `user.messages_self_delete` hides a member's own messages (N-05, D-324): `sr_db::self_delete`,
+//!   then one `MESSAGE_DELETE_BULK` per channel, an access-log row and a system DM with the count.
 //! * `user.data_export.sweep` (hourly singleton) deletes packages whose link lapsed.
 //! * `user.connections.refresh` (hourly singleton) re-reads the public stats of GitHub and
 //!   Reddit connections older than a day (LNG-USET-024); no token is stored, so other
@@ -18,6 +20,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde_json::json;
+use sr_api::routes::auth::{SelfDeleteRefusal, SelfDeleteRun, SelfDeleteScope, SelfDeleteStore};
 use sr_api::routes::social::SocialDeps;
 use sr_api::routes::userset::connections::{REFRESHABLE, refresh_stats};
 use sr_api::routes::userset::data_export::{DataExportStore, ExportRecord, Refusal};
@@ -113,6 +116,175 @@ impl DataExportStore for PgExportStore {
                 Err(Refusal::TooSoon { retry_after_secs })
             }
         })
+    }
+}
+
+fn scope_in(s: SelfDeleteScope) -> sr_db::self_delete::Scope {
+    sr_db::self_delete::Scope {
+        servers: s.servers,
+        dms: s.dms,
+        before_ms: s.before_ms,
+    }
+}
+
+fn run_out(r: sr_db::self_delete::Run) -> SelfDeleteRun {
+    SelfDeleteRun {
+        id: r.id,
+        state: r.state,
+        scope: SelfDeleteScope {
+            servers: r.scope.servers,
+            dms: r.scope.dms,
+            before_ms: r.scope.before_ms,
+        },
+        requested_ms: r.requested_ms,
+        finished_ms: r.finished_ms,
+        hidden_count: r.hidden_count,
+    }
+}
+
+/// Postgres behind the self-delete routes.
+pub struct PgSelfDeleteStore {
+    pool: PgPool,
+    ids: sr_db::auth_repo::IdSource,
+}
+
+impl PgSelfDeleteStore {
+    pub fn new(pool: PgPool, ids: sr_db::auth_repo::IdSource) -> Self {
+        Self { pool, ids }
+    }
+}
+
+#[async_trait]
+impl SelfDeleteStore for PgSelfDeleteStore {
+    async fn count(&self, user: i64, scope: SelfDeleteScope) -> Result<i64, String> {
+        sr_db::self_delete::count_visible(&self.pool, user, scope_in(scope))
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    async fn latest(&self, user: i64) -> Result<Option<SelfDeleteRun>, String> {
+        sr_db::self_delete::latest(&self.pool, user)
+            .await
+            .map(|r| r.map(run_out))
+            .map_err(|e| e.to_string())
+    }
+
+    async fn request(
+        &self,
+        user: i64,
+        scope: SelfDeleteScope,
+    ) -> Result<Result<SelfDeleteRun, SelfDeleteRefusal>, String> {
+        let done = sr_db::self_delete::request(
+            &self.pool,
+            (self.ids)(),
+            (self.ids)(),
+            user,
+            scope_in(scope),
+            sr_db::self_delete::Via::Member,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(match done {
+            Ok(r) => Ok(run_out(r)),
+            Err(sr_db::self_delete::Refusal::InProgress(_)) => Err(SelfDeleteRefusal::InProgress),
+            Err(sr_db::self_delete::Refusal::TooSoon { retry_after_secs }) => {
+                Err(SelfDeleteRefusal::TooSoon { retry_after_secs })
+            }
+        })
+    }
+}
+
+/// What the self-delete job needs besides the pool.
+#[derive(Clone)]
+pub struct SelfDeleteEnv {
+    pub bus: Arc<dyn sr_events::EventBus>,
+    pub notifier: Option<Arc<dyn sr_admin::StaffNotifier>>,
+    pub ids: sr_db::auth_repo::IdSource,
+}
+
+/// The self-delete job (N-05). Hides the rows, tells the open clients, writes the access-log row
+/// `messages.self_delete` on the account and DMs the count to a member who asked themselves.
+pub(crate) async fn run_self_delete(
+    pool: &PgPool,
+    env: &SelfDeleteEnv,
+    job: &Job,
+) -> Result<(), HandlerError> {
+    use sr_core::{ChannelId, GuildId};
+    use sr_events::DomainEvent;
+    let id: i64 = job.payload["run_id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .ok_or("self-delete job without a run id")?;
+    let Some(run) = sr_db::self_delete::begin(pool, id).await? else {
+        return Ok(());
+    };
+    match sr_db::self_delete::hide(pool, run.account_id, run.scope, now_ms()).await {
+        Ok(hidden) => {
+            let mut total = 0_i64;
+            for h in &hidden {
+                total += i64::try_from(h.message_ids.len()).unwrap_or(0);
+                let ev = DomainEvent::MessagesBulkDeleted {
+                    guild: h
+                        .guild_id
+                        .and_then(|g| u64::try_from(g).ok())
+                        .map(GuildId::new),
+                    channel: ChannelId::new(u64::try_from(h.channel_id).unwrap_or(0)),
+                    message_ids: h
+                        .message_ids
+                        .iter()
+                        .filter_map(|m| u64::try_from(*m).ok())
+                        .collect(),
+                };
+                for topic in ev.topics() {
+                    if let Err(e) = env.bus.publish(topic, ev.clone()).await {
+                        tracing::warn!(error = %e, "failed to publish a bulk delete");
+                    }
+                }
+            }
+            sr_db::self_delete::finish(pool, id, total).await?;
+            let repo = sr_db::admin_repo::PgAdminRepo::new(pool.clone(), env.ids.clone());
+            let entry = sr_admin::AuditEntry {
+                actor_id: run.account_id,
+                kind: sr_admin::AccessKind::AdminAction,
+                action: "messages.self_delete".into(),
+                target_kind: Some("account".into()),
+                target_id: Some(run.account_id),
+                reason: String::new(),
+                ip: None,
+                detail: json!({
+                    "count": total,
+                    "servers": run.scope.servers,
+                    "dms": run.scope.dms,
+                    "before_ms": run.scope.before_ms,
+                    "via": run.via,
+                })
+                .to_string(),
+            };
+            if let Err(e) = sr_admin::AdminRepository::append_log(&repo, &entry).await {
+                tracing::warn!(error = %e, "could not log a message self-delete");
+            }
+            if run.via == "member"
+                && let Some(n) = &env.notifier
+            {
+                n.system_dm(
+                    run.account_id,
+                    &format!(
+                        "Your messages were deleted: {total} hidden from everyone now and purged in 30 days. Messages under a moderation hold are kept for staff."
+                    ),
+                )
+                .await;
+            }
+            tracing::info!(run = id, hidden = total, "member messages deleted");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::warn!(run = id, error = %e, "message self-delete failed");
+            if job.attempts >= job.max_attempts {
+                sr_db::self_delete::fail(pool, id, &e.to_string()).await?;
+                return Ok(());
+            }
+            Err(e.into())
+        }
     }
 }
 
@@ -249,11 +421,17 @@ pub fn register(
     social: Arc<SocialDeps>,
     client: SafeClient,
     packages: sr_packages::service::PackageService,
+    self_delete: SelfDeleteEnv,
 ) -> JobRunner {
     let (export_pool, export_storage) = (pool.clone(), storage.clone());
     let runner = runner.register(db::JOB_KIND, 1, move |job: Job| {
         let (pool, storage) = (export_pool.clone(), export_storage.clone());
         Box::pin(async move { run_export(&pool, storage.as_ref(), &job).await })
+    });
+    let sd_pool = pool.clone();
+    let runner = runner.register(sr_db::self_delete::JOB_KIND, 1, move |job: Job| {
+        let (pool, env) = (sd_pool.clone(), self_delete.clone());
+        Box::pin(async move { run_self_delete(&pool, &env, &job).await })
     });
     let (sweep_pool, sweep_storage) = (pool.clone(), storage);
     let runner = runner.register(EXPORT_SWEEP_KIND, 1, move |job: Job| {

@@ -2616,3 +2616,149 @@ async fn discord_link_routes_are_404_when_not_configured() {
         .await;
     assert_eq!(start.status, StatusCode::NOT_FOUND);
 }
+
+// ---- N-05: member bulk self-delete (D-324) ----------------------------------------------
+
+struct MemSelfDelete {
+    runs: std::sync::Mutex<Vec<super::SelfDeleteRun>>,
+    visible: i64,
+}
+
+#[async_trait::async_trait]
+impl super::SelfDeleteStore for MemSelfDelete {
+    async fn count(&self, _u: i64, s: super::SelfDeleteScope) -> Result<i64, String> {
+        Ok(if s.servers && s.dms {
+            self.visible
+        } else {
+            self.visible - 1
+        })
+    }
+    async fn latest(&self, _u: i64) -> Result<Option<super::SelfDeleteRun>, String> {
+        Ok(self.runs.lock().unwrap().last().cloned())
+    }
+    async fn request(
+        &self,
+        _u: i64,
+        scope: super::SelfDeleteScope,
+    ) -> Result<Result<super::SelfDeleteRun, super::SelfDeleteRefusal>, String> {
+        let mut runs = self.runs.lock().unwrap();
+        if let Some(last) = runs.last() {
+            return Ok(Err(if last.state == "queued" {
+                super::SelfDeleteRefusal::InProgress
+            } else {
+                super::SelfDeleteRefusal::TooSoon {
+                    retry_after_secs: 7200,
+                }
+            }));
+        }
+        let run = super::SelfDeleteRun {
+            id: 77,
+            state: "queued".into(),
+            scope,
+            requested_ms: NOW_MS,
+            finished_ms: None,
+            hidden_count: None,
+        };
+        runs.push(run.clone());
+        Ok(Ok(run))
+    }
+}
+
+fn harness_sd() -> (H, Arc<MemSelfDelete>) {
+    let sd = Arc::new(MemSelfDelete {
+        runs: std::sync::Mutex::new(Vec::new()),
+        visible: 12,
+    });
+    let sessions = Arc::new(MemorySessions::new());
+    let clock = Arc::new(ManualClock::new(NOW_MS));
+    let mut settings = ApiSettings::default();
+    settings.rate_limit.enabled = false;
+    let store = Arc::new(MemoryAuthStore::new(sessions.clone()));
+    let mailer = Arc::new(MemoryMailer::new());
+    let next = Arc::new(AtomicI64::new(10_000));
+    let ids: super::IdSource = Arc::new(move || next.fetch_add(1, Ordering::SeqCst));
+    let bus = Arc::new(sr_events::InProcessBus::new());
+    let svc = Arc::new(
+        AuthService::new(store.clone(), mailer.clone(), ids)
+            .with_bus(bus.clone())
+            .with_hasher(cheap_hasher())
+            .with_config(AuthConfig::default()),
+    );
+    let state = AppState::builder()
+        .sessions(sessions)
+        .clock(clock.clone())
+        .settings(settings)
+        .extension(svc)
+        .extension(Arc::new(super::SelfDeleteDeps { store: sd.clone() }))
+        .build();
+    let app = build_router(state.clone(), super::router());
+    (
+        H {
+            app,
+            state,
+            store,
+            mailer,
+            clock,
+            hasher: cheap_hasher(),
+            bus,
+        },
+        sd,
+    )
+}
+
+#[tokio::test]
+async fn message_self_delete_counts_confirms_and_limits_runs() {
+    let (h, sd) = harness_sd();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let path = "/api/v1/sr/users/@me/messages/delete-all";
+    // Anonymous: 401.
+    let anon = h.get(path).send().await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+    // The count for the confirm dialog, narrower with one place off.
+    let all = h.get(path).session(&s).send().await;
+    assert_eq!(all.status, StatusCode::OK, "{:?}", all.body);
+    assert_eq!(all.body["count"], 12);
+    let part = h.get(&format!("{path}?dms=false")).session(&s).send().await;
+    assert_eq!(part.body["count"], 11);
+    let body = |user: &str, pw: &str| json!({"confirm_username": user, "password": pw, "servers": true, "dms": true});
+    // Typed username, password and at least one place are required; nothing is queued by a refusal.
+    assert_eq!(
+        h.post(path, body("someone", PW))
+            .session(&s)
+            .send()
+            .await
+            .status,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        h.post(path, body("alice", "wrong password"))
+            .session(&s)
+            .send()
+            .await
+            .status,
+        StatusCode::FORBIDDEN
+    );
+    let none = h
+        .post(
+            path,
+            json!({"confirm_username": "alice", "password": PW, "servers": false, "dms": false}),
+        )
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(none.status, StatusCode::BAD_REQUEST);
+    assert!(sd.runs.lock().unwrap().is_empty());
+    // The run is accepted; a second one while it is open, and one after it ran, are 409.
+    let ok = h.post(path, body("ALICE", PW)).session(&s).send().await;
+    assert_eq!(ok.status, StatusCode::ACCEPTED, "{:?}", ok.body);
+    assert_eq!(ok.body["state"], "queued");
+    let open = h.post(path, body("alice", PW)).session(&s).send().await;
+    assert_eq!(open.status, StatusCode::CONFLICT);
+    sd.runs.lock().unwrap()[0].state = "done".into();
+    let soon = h.post(path, body("alice", PW)).session(&s).send().await;
+    assert_eq!(soon.status, StatusCode::CONFLICT);
+    assert!(soon.body["message"].as_str().unwrap().contains("24 hours"));
+    let last = h.get(path).session(&s).send().await;
+    assert_eq!(last.body["last"]["id"], "77");
+}

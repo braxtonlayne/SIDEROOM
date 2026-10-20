@@ -244,7 +244,7 @@ const MFA_FRESH_SECS: i64 = 15 * 60;
 /// (TOTP or passkeys). A check on this session within
 /// [`MFA_FRESH_SECS`] counts; otherwise `proof` must be valid, and then the session
 /// is marked verified.
-async fn require_second_factor(
+pub(super) async fn require_second_factor(
     svc: &AuthService,
     now: i64,
     account: &AccountRecord,
