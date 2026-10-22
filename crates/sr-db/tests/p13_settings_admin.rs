@@ -530,7 +530,6 @@ async fn age_confirmation_has_a_time_and_can_be_reset() {
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_person_link_carries_the_evasion_signals_and_automatic_cases() {
-    use sr_admin::AdminRepository;
     let pool = pool().await;
     let repo = admin_repo(&pool);
     let staff = account(&pool).await;
