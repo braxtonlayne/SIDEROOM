@@ -298,6 +298,21 @@ async fn the_appointment_offer_arrives_as_a_system_dm_with_buttons() {
     f.db.cleanup().await.unwrap();
 }
 
+/// A mail server that takes its time: the mail lands well after the card (the order a real SMTP relay gives),
+/// so the test cannot pass by reading the mailer the moment the card appears.
+struct SlowMailer(Arc<MemoryMailer>);
+
+#[async_trait::async_trait]
+impl Mailer for SlowMailer {
+    async fn send(
+        &self,
+        mail: sr_api::routes::auth::mail::OutgoingMail,
+    ) -> Result<(), sr_api::routes::auth::mail::MailError> {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        self.0.send(mail).await
+    }
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn platform_events_become_cards_mail_and_revocation_pushes() {
@@ -306,7 +321,7 @@ async fn platform_events_become_cards_mail_and_revocation_pushes() {
     let feed = Arc::new(StaffFeed {
         voice: f.voice.clone(),
         admin: f.admin.clone(),
-        mailer: mailer.clone() as Arc<dyn Mailer>,
+        mailer: Arc::new(SlowMailer(mailer.clone())) as Arc<dyn Mailer>,
         bus: f.bus.clone(),
         throttle: MailThrottle::default(),
     });
@@ -338,6 +353,8 @@ async fn platform_events_become_cards_mail_and_revocation_pushes() {
         comps[0]["components"][0]["custom_id"],
         format!("sr:ack:{}", stored[0].id)
     );
+    // The card is up, so the mail decision for this alert is taken (Owner email off): nothing is mailed, and
+    // turning the email on below cannot reach back to it.
     assert!(mailer.sent().is_empty());
 
     // Turn on the Owner email: the next alert is mailed, a repeat of the same kind is not.
@@ -363,6 +380,12 @@ async fn platform_events_become_cards_mail_and_revocation_pushes() {
             .unwrap();
     }
     assert!(wait_for(|| async { messages_in(&f.pool, alerts).await.len() == 3 }).await);
+    // Both cards are up, so both mail decisions are taken (`on_alert` decides before it posts); the one mail
+    // that passed the throttle is sent after its card, so wait for it rather than read the mailer at once.
+    assert!(
+        wait_for(|| async { !mailer.sent().is_empty() }).await,
+        "the Owner was mailed"
+    );
     let sent = mailer.sent();
     assert_eq!(sent.len(), 1, "throttled to one mail per kind");
     assert_eq!(sent[0].to, "owner@example.test");
