@@ -1,5 +1,5 @@
 # cargo-deny configuration of the serenity sample bot (M-20, D-310): the root deny.toml's policy (graph,
-# licences, bans, sources) with the six RUSTSEC ignores and the serenity reqwest wrapper only this project needs.
+# licences, bans, sources) with the seven RUSTSEC ignores and the serenity reqwest wrapper only this project needs.
 # Run: cargo deny check --manifest-path e2e/sdk-compat/serenity-bot/Cargo.toml
 [graph]
 all-features = true
@@ -14,6 +14,7 @@ ignore = [
   { id = "RUSTSEC-2026-0104", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
   { id = "RUSTSEC-2026-0346", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
   { id = "RUSTSEC-2026-0349", reason = "serenity 0.12 (sdk-compat feature, M-16) pins rustls 0.22 / rustls-webpki 0.102; test-only sample bot talking to a local test server, never in a shipped binary; revisit with serenity 0.13" },
+  { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.102.8 (pinned by serenity 0.12 via rustls 0.22) has no fixed 0.102 release; the 0.103 copy is updated to 0.103.16. Test-only sample bot talking to a local test server, never shipped (D-310); revisit with serenity 0.13" },
 ]
 
 [licenses]
