@@ -8,10 +8,10 @@ use crate::{
     ext::Delegation,
     model::{
         AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountState, AccountSummary,
-        AuditEntry, BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger, DeleteRequest,
-        FormerStaff, InviteDescendants, InviteQuery, InviteRow, InviteTree, JobRow, PersonDetail,
-        Reset2faReport, StaffMember, StaffRole, Standing, StoredSetting, SuspectPerson,
-        SystemCounts, UnbanOutcome,
+        AuditEntry, BanCategory, BanFilter, BanOutcome, BanRecord, ChainReport, CreditLedger,
+        DeleteRequest, FormerStaff, InviteDescendants, InviteQuery, InviteRow, InviteTree, JobRow,
+        PersonDetail, Reset2faReport, StaffMember, StaffRole, Standing, StoredSetting,
+        SuspectPerson, SystemCounts, UnbanOutcome,
     },
 };
 use async_trait::async_trait;
@@ -152,7 +152,7 @@ pub trait AdminRepository: Send + Sync {
     ) -> AdminResult<UnbanOutcome>;
     async fn list_bans(
         &self,
-        active_only: bool,
+        filter: &BanFilter,
         after: Option<i64>,
         limit: i64,
     ) -> AdminResult<Vec<BanRecord>>;

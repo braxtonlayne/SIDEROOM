@@ -13,6 +13,7 @@
 //! permissions to what a report points at, and maps errors.
 
 mod cases;
+mod dashboard;
 mod holds;
 mod reports;
 mod takedowns;
@@ -290,6 +291,12 @@ pub fn router() -> Router<AppState> {
             post(takedowns::withdraw),
         )
         .route("/moderation/item-status", get(takedowns::item_status))
+        .route("/moderation/dashboard", get(dashboard::get))
+        .route("/moderation/dashboard/inbox", get(dashboard::inbox))
+        .route(
+            "/moderation/dashboard/inbox/dismiss",
+            post(dashboard::dismiss),
+        )
         .route(
             "/moderation/appeals/{appeal_id}/decision",
             post(holds::decide_appeal),
@@ -336,6 +343,9 @@ pub fn router() -> Router<AppState> {
         takedowns::withdraw,
         takedowns::export,
         takedowns::item_status,
+        dashboard::get,
+        dashboard::inbox,
+        dashboard::dismiss,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
@@ -392,6 +402,22 @@ pub fn router() -> Router<AppState> {
         takedowns::CounterNoticeBody,
         takedowns::CourtFilingBody,
         takedowns::TakedownItemStatus,
+        sr_moderation::dashboard::DashboardView,
+        sr_moderation::dashboard::DashInbox,
+        sr_moderation::dashboard::DashHealth,
+        sr_moderation::dashboard::DashDay,
+        sr_moderation::dashboard::DashCount,
+        sr_moderation::dashboard::DashRetention,
+        sr_moderation::dashboard::DashRetentionRow,
+        sr_moderation::dashboard::DashAge,
+        sr_moderation::dashboard::DashBans,
+        sr_moderation::dashboard::DashTakedowns,
+        sr_moderation::dashboard::DashDataRequests,
+        sr_moderation::dashboard::InboxGroup,
+        sr_moderation::dashboard::InboxPage,
+        sr_moderation::dashboard::InboxSkipped,
+        sr_moderation::dashboard::InboxDismissOutcome,
+        dashboard::InboxDismissBody,
         Delivered,
         ErrorBody,
     ))

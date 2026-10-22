@@ -431,3 +431,107 @@ export type ItemHoldKind = 'library_series' | 'library_chapter' | 'cinema_title'
 export type ItemHoldState = 'none' | 'held' | 'taken_down';
 export const itemStatus = (kind: ItemHoldKind, id: string) =>
   get<{ state: ItemHoldState }>(`/moderation/item-status${qs({ kind, id })}`);
+
+// ---- dashboards (MOD-DASH-002, -005 to -010; spec section 9) ----
+
+export interface DashCount {
+  key: string;
+  count: number;
+}
+export interface DashInbox {
+  groups: number;
+  reports: number;
+  oldest_seconds?: number | null;
+}
+export interface DashHealth {
+  window_days: number;
+  reports_per_day: { day: string; reports: number }[];
+  reports: number;
+  cases_opened: number;
+  median_first_action_seconds?: number | null;
+  cases_with_first_action: number;
+  cases_waiting: number;
+  closed: number;
+  reopened: number;
+  reopen_rate?: number | null;
+  appeal_outcomes: DashCount[];
+  appeals_open: number;
+}
+export interface DashRetention {
+  rows: { key: string; count: number; capped: boolean }[];
+  holds_active: number;
+  holds_review_due: number;
+}
+export interface DashAge {
+  window_days: number;
+  restricted_channels: number;
+  restricted_series: number;
+  restricted_titles: number;
+  age_gate_resets: number;
+  child_safety_open_cases: number;
+  child_safety_reports: number;
+  child_safety_active_bans: number;
+}
+export interface DashBans {
+  active: number;
+  by_reason: DashCount[];
+  by_severity: DashCount[];
+  by_age: DashCount[];
+  lifted_in_window: number;
+}
+export interface DashTakedowns {
+  window_days: number;
+  undecided: number;
+  triage_overdue: number;
+  counter_noticed: number;
+  restore_due: number;
+  removed_in_window: number;
+  received_in_window: number;
+}
+export interface DashDataRequests {
+  window_days: number;
+  open_exports: number;
+  open_erasures: number;
+  overdue: number;
+  due_soon: number;
+  completed_in_window: number;
+}
+/** Each section is absent when the viewer lacks the bit that reads it. */
+export interface Dashboard {
+  generated_at_ms: number;
+  window_days: number;
+  inbox?: DashInbox | null;
+  health?: DashHealth | null;
+  retention?: DashRetention | null;
+  age?: DashAge | null;
+  bans?: DashBans | null;
+  takedowns?: DashTakedowns | null;
+  data_requests?: DashDataRequests | null;
+}
+export const getDashboard = (days = 30) => get<Dashboard>(`/moderation/dashboard${qs({ days })}`);
+
+export interface InboxGroup {
+  case_id: string;
+  summary: string;
+  target_kind: TargetKind;
+  severity: Severity;
+  categories: ReportCategory[];
+  reports: number;
+  first_report_at_ms: number;
+  last_report_at_ms: number;
+}
+export interface InboxPage {
+  items: InboxGroup[];
+  next_cursor?: string | null;
+}
+export interface InboxDismissOutcome {
+  dismissed: string[];
+  skipped: { case_id: string; reason: string }[];
+}
+export const listInbox = (p: { cursor?: string | null; limit?: number } = {}) =>
+  get<InboxPage>(`/moderation/dashboard/inbox${qs(p)}`);
+export const dismissInbox = (caseIds: string[], reason: string) =>
+  send<InboxDismissOutcome>('/moderation/dashboard/inbox/dismiss', 'POST', {
+    case_ids: caseIds,
+    reason,
+  });

@@ -652,7 +652,11 @@ async fn serious_ban_blocks_registration_raises_inviter_suspicion_and_unban_rest
     );
 
     // Unban: both accounts return while under the cap; a tiny cap leaves them deactivated.
-    let list = r.list_bans(true, None, 500).await.unwrap();
+    let active = sr_admin::BanFilter {
+        active_only: true,
+        ..Default::default()
+    };
+    let list = r.list_bans(&active, None, 500).await.unwrap();
     assert!(list.iter().any(|b| b.person_id == target_person));
     let u = r
         .unban_person(

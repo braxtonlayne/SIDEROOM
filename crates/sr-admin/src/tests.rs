@@ -526,7 +526,15 @@ async fn serious_ban_raises_inviter_suspicion_and_standard_does_not() {
     ));
     assert_eq!(
         e.svc
-            .list_bans(&m, true, None, None)
+            .list_bans(
+                &m,
+                &BanFilter {
+                    active_only: true,
+                    ..Default::default()
+                },
+                None,
+                None
+            )
             .await
             .unwrap()
             .items
@@ -995,5 +1003,58 @@ async fn cli_appointment_is_audited_and_idempotent() {
             .appoint_cli(&op, ALICE, &[R_OWNER], OWNER, Some("ops"))
             .await,
         Err(AdminError::Forbidden(_))
+    ));
+}
+
+#[tokio::test]
+async fn the_bans_list_filters_by_severity_reason_and_age() {
+    let e = env();
+    let m = appointed(&e, MOD, R_MOD).await;
+    for (acct, cat) in [(BOB, BanCategory::Standard), (CAROL, BanCategory::Serious)] {
+        e.svc
+            .ban_person(&m, acct + 500_000, Some(acct), cat, Some("x"))
+            .await
+            .unwrap();
+    }
+    let list = |f: BanFilter| {
+        let svc = &e.svc;
+        let m = &m;
+        async move { svc.list_bans(m, &f, None, None).await.unwrap().items }
+    };
+    assert_eq!(list(BanFilter::default()).await.len(), 2);
+    let serious = list(BanFilter {
+        category: Some(BanCategory::Serious),
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(serious.len(), 1);
+    assert_eq!(serious[0].person_id, CAROL + 500_000);
+    // Bans made without a reason category are listed under "none"; no other reason matches them.
+    for (reason, n) in [("none", 2), ("fraud", 0)] {
+        let f = BanFilter {
+            reason_category: Some(reason.into()),
+            ..Default::default()
+        };
+        assert_eq!(list(f).await.len(), n, "{reason}");
+    }
+    // Just banned: not old, but new.
+    let old = BanFilter {
+        older_than_days: Some(1),
+        ..Default::default()
+    };
+    assert!(list(old).await.is_empty());
+    let new = BanFilter {
+        newer_than_days: Some(1),
+        ..Default::default()
+    };
+    assert_eq!(list(new).await.len(), 2);
+    // An unknown reason is refused, not silently ignored.
+    let bad = BanFilter {
+        reason_category: Some("nonsense".into()),
+        ..Default::default()
+    };
+    assert!(matches!(
+        e.svc.list_bans(&m, &bad, None, None).await,
+        Err(AdminError::Invalid(_))
     ));
 }
