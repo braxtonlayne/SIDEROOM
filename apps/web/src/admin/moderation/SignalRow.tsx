@@ -5,12 +5,19 @@ import { Badge, Button, Notice } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import * as api from '../../moderation/api';
-import { ApiProblem, ReasonDialog, errorText, fmtMs } from '../ui';
+import { NewCaseDialog } from './NewCaseDialog';
+import { ApiProblem, ReasonDialog, errorText, fmtMs, useAdminViewer } from '../ui';
 
 const KIND_KEYS = {
   shared_login_ip: 'admin.suspicion.signalSharedIp',
   shared_invite_lineage: 'admin.suspicion.signalLineage',
   new_account_after_ban: 'admin.suspicion.signalNewAfterBan',
+} as const;
+
+const KIND_WORD_KEYS = {
+  shared_login_ip: 'admin.suspicion.kindWordIp',
+  shared_invite_lineage: 'admin.suspicion.kindWordLineage',
+  new_account_after_ban: 'admin.suspicion.kindWordNew',
 } as const;
 
 const who = (a: api.AccountRef | null, fallback: string) => (a ? `@${a.username}` : fallback);
@@ -28,6 +35,10 @@ export function SignalRow({
   const [detail, setDetail] = useState<api.SignalDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<'dismissed' | 'confirmed' | null>(null);
+  const viewer = useAdminViewer();
+  const [opening, setOpening] = useState(false);
+  const canOpenCase = canReview && viewer.can('MANAGE_CASES') && !signal.case_id;
+  const kindText = t(KIND_WORD_KEYS[signal.kind]);
 
   const showAddresses = async () => {
     setError(null);
@@ -117,6 +128,33 @@ export function SignalRow({
           <Button size="sm" variant="secondary" onClick={() => setPending('confirmed')}>
             {t('admin.suspicion.confirm')}
           </Button>
+        </>
+      )}
+      {signal.case_id && (
+        <Badge>{t('admin.suspicion.linkedCaseBadge', { id: signal.case_id })}</Badge>
+      )}
+      {canOpenCase && (
+        <>
+          <Button size="sm" variant="secondary" onClick={() => setOpening(true)}>
+            {t('admin.suspicion.openCase')}
+          </Button>
+          {signal.account && (
+            <NewCaseDialog
+              key={signal.id}
+              open={opening}
+              onClose={() => setOpening(false)}
+              onCreated={() => onChanged()}
+              prefill={{
+                account: signal.account.id,
+                category: 'ban_evasion',
+                // Counts and words only: never an address.
+                note: t('admin.suspicion.caseNote', { id: signal.id, kinds: kindText }),
+              }}
+              afterCreate={async (caseId) => {
+                await api.linkSignalCase(signal.id, caseId);
+              }}
+            />
+          )}
         </>
       )}
       <ReasonDialog

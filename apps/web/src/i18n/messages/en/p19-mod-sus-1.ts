@@ -57,6 +57,16 @@ export default {
   'admin.suspicion.snapshotKept':
     'Kept from the review: {n, plural, one {# shared address} other {# shared addresses}} in the last {days} days. The addresses themselves are gone.',
   'admin.moderation.event.evasionConfirmed': 'Evasion signal confirmed',
+  'admin.suspicion.hubTile':
+    '{n, plural, one {# open evasion signal} other {# open evasion signals}} to review in Admin > Moderation > Signals',
+  'admin.suspicion.refused': 'A registration by this banned person was refused',
+  'admin.suspicion.kindWordIp': 'shared sign-in address',
+  'admin.suspicion.kindWordLineage': 'invite lineage',
+  'admin.suspicion.kindWordNew': 'new account soon after a ban',
+  'admin.suspicion.openCase': 'Open case',
+  'admin.suspicion.linkedCaseBadge': 'Case {id}',
+  'admin.suspicion.caseNote': 'Evasion signal {id}: {kinds}',
+  'admin.moderation.event.evasionLinked': 'Opened from an evasion signal',
   'admin.suspicion.dismiss': 'Dismiss',
   'admin.suspicion.confirm': 'Confirm',
   'admin.suspicion.dismissTitle': 'Dismiss this signal',

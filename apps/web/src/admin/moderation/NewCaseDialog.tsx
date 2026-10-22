@@ -13,17 +13,25 @@ export function NewCaseDialog({
   open,
   onClose,
   onCreated,
+  prefill,
+  afterCreate,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: (id: string) => void;
+  /** Start from these values (the evasion signal's Person, P-14). */
+  prefill?: { account: string; category: api.ReportCategory; note: string };
+  /** Runs after the case and its first note exist, before the dialog closes (link a signal to it). */
+  afterCreate?: (caseId: string) => Promise<void>;
 }) {
   const t = useT();
-  const [account, setAccount] = useState('');
+  const [account, setAccount] = useState(prefill?.account ?? '');
   const [guild, setGuild] = useState('');
-  const [category, setCategory] = useState<api.ReportCategory>('other');
-  const [severity, setSeverity] = useState<api.Severity>('standard');
-  const [note, setNote] = useState('');
+  const [category, setCategory] = useState<api.ReportCategory>(prefill?.category ?? 'other');
+  const [severity, setSeverity] = useState<api.Severity>(
+    prefill ? presetSeverity(prefill.category) : 'standard',
+  );
+  const [note, setNote] = useState(prefill?.note ?? '');
   const idOk = (s: string) => /^\d+$/.test(s.trim());
   const valid = idOk(account) && (guild.trim() === '' || idOk(guild)) && note.trim().length > 0;
   return (
@@ -44,6 +52,7 @@ export function NewCaseDialog({
           ...(guild.trim() ? { guild_id: guild.trim() } : {}),
         });
         await api.addCaseNote(made.id, note.trim());
+        if (afterCreate) await afterCreate(made.id);
         setAccount('');
         setGuild('');
         setNote('');

@@ -234,3 +234,134 @@ describe('Signals tab (MOD-SUS-003)', () => {
     expect(screen.queryByRole('tab', { name: 'Signals' })).not.toBeInTheDocument();
   });
 });
+
+describe('follow-ups P-13 to P-16', () => {
+  it('P-16: a MANAGE_ACCOUNTS-only viewer reaches Moderation and sees only the signals', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ACCOUNTS'] });
+    server.use(
+      http.get('*/api/v1/moderation/evasion-signals', () => HttpResponse.json([signal()])),
+    );
+    openAdmin('moderation');
+    await screen.findByRole('list', { name: 'Evasion signals' }, SLOW);
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('P-14: opens a case prefilled from the signal, with no address in the note, then links it', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES', 'MANAGE_ACCOUNTS'] });
+    const calls: string[] = [];
+    let note: unknown;
+    let link: unknown;
+    let opened: Record<string, unknown> = {};
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/holds', () => HttpResponse.json([])),
+      http.get('*/api/v1/moderation/appeals', () => HttpResponse.json([])),
+      http.get('*/api/v1/moderation/evasion-signals', () => HttpResponse.json([signal()])),
+      http.post('*/api/v1/moderation/cases', async ({ request }) => {
+        calls.push('open');
+        opened = (await readJson(request)) as Record<string, unknown>;
+        return HttpResponse.json({ id: '9300' }, { status: 201 });
+      }),
+      http.post('*/api/v1/moderation/cases/9300/notes', async ({ request }) => {
+        calls.push('note');
+        note = await readJson(request);
+        return HttpResponse.json({ id: '1' }, { status: 201 });
+      }),
+      http.post('*/api/v1/moderation/evasion-signals/800/link-case', async ({ request }) => {
+        calls.push('link');
+        link = await readJson(request);
+        return HttpResponse.json(signal({ case_id: '9300' }));
+      }),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: 'Signals' }, SLOW));
+    await user.click(await screen.findByRole('button', { name: 'Open case' }, SLOW));
+    const dialog = await screen.findByRole('dialog', { name: 'Open a case' });
+    expect(within(dialog).getByLabelText('Account id of the person')).toHaveValue('100');
+    const first = within(dialog).getByLabelText('First note') as HTMLTextAreaElement;
+    expect(first.value).toBe('Evasion signal 800: shared sign-in address');
+    expect(first.value).not.toMatch(/\d+\.\d+\.\d+\.\d+/);
+    await user.click(within(dialog).getByRole('button', { name: 'Open case' }));
+    await waitFor(() => expect(calls).toEqual(['open', 'note', 'link']));
+    expect(opened).toMatchObject({ category: 'ban_evasion', subject_account_id: '100' });
+    expect(note).toEqual({ body: 'Evasion signal 800: shared sign-in address' });
+    expect(link).toEqual({ case_id: '9300' });
+  });
+
+  it('P-14: a signal that already has a case shows it instead of the button', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES', 'MANAGE_ACCOUNTS'] });
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/holds', () => HttpResponse.json([])),
+      http.get('*/api/v1/moderation/appeals', () => HttpResponse.json([])),
+      http.get('*/api/v1/moderation/evasion-signals', () =>
+        HttpResponse.json([signal({ case_id: '9300' })]),
+      ),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: 'Signals' }, SLOW));
+    expect(await screen.findByText('Case 9300', {}, SLOW)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open case' })).not.toBeInTheDocument();
+  });
+
+  it('P-15: the Review hub shows open signals to MANAGE_ACCOUNTS holders only', async () => {
+    let asked = 0;
+    server.use(
+      http.get('*/api/v1/admin/developers/packages', () => HttpResponse.json([])),
+      http.get('*/api/v1/moderation/evasion-signals/count', () => {
+        asked += 1;
+        return HttpResponse.json({ open: 3 });
+      }),
+    );
+    asStaff({ perms: ['STAFF_BASIC', 'REVIEW_PACKAGES', 'MANAGE_ACCOUNTS'] });
+    openAdmin('review');
+    const link = await screen.findByRole('link', { name: /3 open evasion signals/ }, SLOW);
+    expect(link).toHaveAttribute('href', '/admin/moderation?tab=signals');
+    expect(asked).toBe(1);
+  });
+
+  it('P-15: without MANAGE_ACCOUNTS the hub never asks', async () => {
+    let asked = 0;
+    server.use(
+      http.get('*/api/v1/admin/developers/packages', () => HttpResponse.json([])),
+      http.get('*/api/v1/moderation/evasion-signals/count', () => {
+        asked += 1;
+        return HttpResponse.json({ open: 3 });
+      }),
+    );
+    asStaff({ perms: ['STAFF_BASIC', 'REVIEW_PACKAGES'] });
+    openAdmin('review');
+    await screen.findByRole('tab', { name: 'Packages' }, SLOW);
+    expect(asked).toBe(0);
+    expect(screen.queryByText(/open evasion signal/)).not.toBeInTheDocument();
+  });
+
+  it('P-13: the panel lists a refused re-registration under the banned person', async () => {
+    await openPerson(['STAFF_BASIC', 'MANAGE_ACCOUNTS', 'MANAGE_INVITES'], {
+      signals: null,
+      events: [
+        {
+          id: '3',
+          delta: 0,
+          level_after: 0,
+          kind: 'reregistration_refused',
+          reason: 'registration refused: matched by discord; invite from person 9',
+          source_account: null,
+          actor_id: null,
+          case_id: null,
+          created_at_ms: 1_700_000_300_000,
+        },
+      ],
+    });
+    expect(
+      await screen.findByText('A registration by this banned person was refused'),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/matched by discord/)).toBeInTheDocument();
+  });
+});

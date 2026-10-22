@@ -625,7 +625,7 @@ async fn serious_ban_blocks_registration_raises_inviter_suspicion_and_unban_rest
             display_name: None,
             email: format!("fresh{}@example.test", uid()),
             password_hash: "x".into(),
-            discord_id: Some(discord),
+            discord_id: Some(discord.clone()),
             identity_id: uid(),
             account_cap: i64::MAX,
             initial_credits: 0,

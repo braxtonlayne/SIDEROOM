@@ -443,7 +443,7 @@ export interface SuspicionPanelEvent {
   delta: number;
   level_after: number;
   /** `raised`, or `cleared` (a clear keeps the events and carries the reason). */
-  kind: 'raised' | 'cleared';
+  kind: 'raised' | 'cleared' | 'reregistration_refused';
   reason: string;
   source_account: AccountRef | null;
   actor_id: string | null;
@@ -518,6 +518,9 @@ export interface SuspicionPanel {
 }
 export const getSuspicionPanel = (personId: string) =>
   get<SuspicionPanel>(`/moderation/persons/${personId}/suspicion`);
+export const countEvasionSignals = () => get<{ open: number }>('/moderation/evasion-signals/count');
+export const linkSignalCase = (id: string, caseId: string) =>
+  send<EvasionSignal>(`/moderation/evasion-signals/${id}/link-case`, 'POST', { case_id: caseId });
 export const scanEvasion = (personId: string) =>
   send<{ raised: number }>(`/moderation/persons/${personId}/evasion-scan`, 'POST');
 export const listEvasionSignals = (p: { state?: SignalState | 'all'; limit?: number } = {}) =>

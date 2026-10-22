@@ -2,6 +2,7 @@
 // section 9). The queue, one case at a time, the holds list, the appeals list and the takedown register. The API
 // decides what each viewer may see; the tabs follow the two platform bits (cases, takedowns).
 import { Tabs } from '@sideroom/ui';
+import { useLocation } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import { SectionHeader, useAdminViewer } from '../ui';
@@ -20,7 +21,13 @@ export function ModerationSection() {
   const cases =
     manage ||
     (['REVIEW_READING', 'REVIEW_MEDIA', 'DELETE_CONTENT'] as const).some((p) => viewer.can(p));
-  const [tab, setTab] = useState(cases ? 'cases' : 'takedowns');
+  // Signals are IP-derived: MANAGE_ACCOUNTS (P-16). A deep link `?tab=signals` opens them (the Review hub tile).
+  const signals = viewer.can('MANAGE_ACCOUNTS');
+  const search = useLocation({ select: (l) => l.searchStr });
+  const wantSignals = signals && /(^|[?&])tab=signals/.test(search);
+  const [tab, setTab] = useState(
+    wantSignals ? 'signals' : cases ? 'cases' : takedowns ? 'takedowns' : 'signals',
+  );
   const [caseId, setCaseId] = useState<string | null>(null);
   const [noticeId, setNoticeId] = useState<string | null>(null);
 
@@ -62,7 +69,7 @@ export function ModerationSection() {
           },
         ]
       : []),
-    ...(viewer.can('MANAGE_ACCOUNTS')
+    ...(signals
       ? [
           {
             id: 'signals',
@@ -90,9 +97,12 @@ export function ModerationSection() {
       />
       {caseId && cases ? (
         <CasePage id={caseId} onBack={() => setCaseId(null)} onOpenNotice={openNotice} />
-      ) : !manage && !takedowns ? (
+      ) : !manage && !takedowns && !signals ? (
         // Reviewers work the cases routed to them; holds and appeals are platform staff's (D-213, D-215).
         <CaseQueue onOpen={open} />
+      ) : !manage && !takedowns && !cases ? (
+        // MANAGE_ACCOUNTS alone: the Signals tab is all there is (P-16).
+        <SignalsTab />
       ) : (
         <Tabs
           label={t('admin.moderation.tabsLabel')}

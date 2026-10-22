@@ -17,6 +17,18 @@ Base `integration/phase19` (= main). Migration range used: **1150** only (`1150_
 - Addresses used by more than four Persons count as shared networks and raise nothing (conservative default, `MAX_PERSONS_PER_SHARED_IP`).
 - Never auto-ban: tests assert no `person_bans` row, no state change on the newcomer after a scan; review (`dismissed`/`confirmed`) changes only the signal.
 
+## Follow-ups P-10 to P-16 (D-344 to D-348), done in the same branch
+
+- **P-10** the clear sends "Invite creation is available again." once, only when it ends the pause and no hand freeze remains (`SuspicionObserver::cleared` gained `was_paused`).
+- **P-11** `moderation.shared_ip_max_persons` (4, 2 to 50) and `moderation.new_account_after_ban_days` (14, 1 to 90) are platform settings read by the scan and the detail; Admin > Limits renders them from the catalog (the page is generic, so its existing bounds tests cover them).
+- **P-12** migration **1151** (`detail_snapshot`, `case_id`, evidence kind `evasion_signal`, `suspicion_events.kind`); a confirmed review snapshots and writes case evidence; the detail route returns the snapshot after the 180-day purge; the purge runs in 20,000-row slices, 25 per run, and the job comes back after five minutes while a backlog remains. Doc 09 and spec section 2 updated.
+- **P-13** refused re-registration writes a `reregistration_refused` event on the banned Person and the existing alert names the inviter's Person.
+- **P-14** link-case route, "Open case" button (prefilled dialog), case link shown on the signal row and on the case timeline. The case page lists no signal (that would show IP-derived data to `MANAGE_CASES` holders).
+- **P-15** `GET /moderation/evasion-signals/count` and the Review hub tile. The Reports count was not added.
+- **P-16** Moderation visible to `MANAGE_ACCOUNTS`; accounts-only viewers see the Signals tab alone.
+
+Decision 3 below is superseded by D-346 (settings). Migration range used: 1150 and 1151.
+
 ## Still open / not done
 
 - **Matching Discord identity** as a signal: D-030 makes the id unique across all accounts including deleted ones, so a reused id is refused when linked; there is no second stored account to compare. Not built; item 003 ticked for the other three kinds.

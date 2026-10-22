@@ -90,10 +90,12 @@ export function SuspicionPanel({ personId, version }: { personId: string; versio
                     <div className="ss-name">
                       {e.kind === 'cleared'
                         ? t('admin.suspicion.cleared', { level: e.level_after })
-                        : t('admin.suspicion.raised', {
-                            delta: `+${e.delta}`,
-                            level: e.level_after,
-                          })}
+                        : e.kind === 'reregistration_refused'
+                          ? t('admin.suspicion.refused')
+                          : t('admin.suspicion.raised', {
+                              delta: `+${e.delta}`,
+                              level: e.level_after,
+                            })}
                       {e.source_account ? ` · @${e.source_account.username}` : ''}
                     </div>
                     <div className="ss-meta">
