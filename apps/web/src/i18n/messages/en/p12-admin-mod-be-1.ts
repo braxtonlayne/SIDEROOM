@@ -32,7 +32,7 @@ export default {
   'settings.userInvites.blockedAtCap': 'SIDE ROOM is full right now, so invites are paused.',
   'settings.userInvites.blockedNoCredits':
     'Every credit you have is on an open code. Revoke one, or buy more credits in Support.',
-  'settings.userInvites.blockedFrozen': 'Invites are unavailable for this account right now.',
+  'settings.userInvites.blockedFrozen': 'Invite creation is paused for review.',
   'settings.userInvites.createTitle': 'Create an invite',
   'settings.userInvites.createDesc':
     'Each code works once. Credits are used only when someone joins with it.',

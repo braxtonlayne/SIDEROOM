@@ -18,8 +18,8 @@ pub mod repo;
 pub mod rules;
 pub mod service;
 mod service_ext;
-pub mod suspicion_hook;
 pub mod settings;
+pub mod suspicion_hook;
 
 #[cfg(test)]
 mod tests;

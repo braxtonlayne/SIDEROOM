@@ -213,7 +213,10 @@ mod tests {
         let kinds: Vec<_> = signals_for(&both).iter().map(|r| r.kind).collect();
         assert_eq!(
             kinds,
-            vec![SignalKind::SharedInviteLineage, SignalKind::NewAccountAfterBan]
+            vec![
+                SignalKind::SharedInviteLineage,
+                SignalKind::NewAccountAfterBan
+            ]
         );
     }
 

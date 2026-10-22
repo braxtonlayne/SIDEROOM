@@ -1204,6 +1204,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),
         )));
+    // Serious bans that push an inviter over a threshold open a case for senior staff (MOD-SUS-002).
+    admin_service.set_suspicion_observer(Arc::new(moderation.clone()));
     let moderation_deps = Arc::new(
         routes::moderation::ModerationDeps::new(moderation.clone()).with_features(features.clone()),
     );
@@ -1472,6 +1474,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
+    let runner = crate::suspicion_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     // The event clock is a leased singleton job: one node advances events (G-92).
@@ -1520,6 +1523,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::cinema_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
     crate::takedown_jobs::schedule(&pool).await?;
+    crate::suspicion_jobs::schedule(&pool).await?;
     crate::apps_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::events_jobs::schedule(&pool).await?;

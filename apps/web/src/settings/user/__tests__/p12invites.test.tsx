@@ -53,7 +53,7 @@ describe('Invites (G-57)', () => {
     );
     openSettings('invites');
     expect(
-      await screen.findByText('Invites are unavailable for this account right now.'),
+      await screen.findByText('Invite creation is paused for review.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create invite' })).toBeDisabled();
   });

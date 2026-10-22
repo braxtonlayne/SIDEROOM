@@ -226,7 +226,7 @@ fn refusal_text(b: InviteBlock) -> String {
         }
         InviteBlock::AtCap => "SIDE ROOM is full right now, so invites are paused.".into(),
         InviteBlock::NoCredits => "You have no spare invite credits.".into(),
-        InviteBlock::Frozen => "Invites are unavailable for this account right now.".into(),
+        InviteBlock::Frozen => "Invite creation is paused for review.".into(),
     }
 }
 

@@ -838,10 +838,11 @@ impl Moderation {
         .await?
         .rows_affected();
         if n == 0 {
-            let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM evasion_signals WHERE id = $1")
-                .bind(id)
-                .fetch_optional(&mut *tx)
-                .await?;
+            let exists: Option<i64> =
+                sqlx::query_scalar("SELECT id FROM evasion_signals WHERE id = $1")
+                    .bind(id)
+                    .fetch_optional(&mut *tx)
+                    .await?;
             return Err(if exists.is_some() {
                 conflict("The signal was already reviewed")
             } else {

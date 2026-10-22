@@ -22,9 +22,9 @@ mod reports;
 pub mod rules;
 pub mod service;
 pub mod snapshot;
-pub mod takedown_rules;
 mod suspicion;
 pub mod suspicion_rules;
+pub mod takedown_rules;
 mod takedowns;
 
 pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};

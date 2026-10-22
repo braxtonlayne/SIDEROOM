@@ -15,6 +15,7 @@
 mod cases;
 mod holds;
 mod reports;
+mod suspicion;
 mod takedowns;
 #[cfg(test)]
 mod tests;
@@ -291,6 +292,23 @@ pub fn router() -> Router<AppState> {
         )
         .route("/moderation/item-status", get(takedowns::item_status))
         .route(
+            "/moderation/persons/{person_id}/suspicion",
+            get(suspicion::panel),
+        )
+        .route(
+            "/moderation/persons/{person_id}/evasion-scan",
+            post(suspicion::scan),
+        )
+        .route("/moderation/evasion-signals", get(suspicion::list))
+        .route(
+            "/moderation/evasion-signals/{signal_id}",
+            get(suspicion::detail),
+        )
+        .route(
+            "/moderation/evasion-signals/{signal_id}/review",
+            post(suspicion::review),
+        )
+        .route(
             "/moderation/appeals/{appeal_id}/decision",
             post(holds::decide_appeal),
         )
@@ -336,6 +354,11 @@ pub fn router() -> Router<AppState> {
         takedowns::withdraw,
         takedowns::export,
         takedowns::item_status,
+        suspicion::panel,
+        suspicion::scan,
+        suspicion::list,
+        suspicion::detail,
+        suspicion::review,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
@@ -392,6 +415,19 @@ pub fn router() -> Router<AppState> {
         takedowns::CounterNoticeBody,
         takedowns::CourtFilingBody,
         takedowns::TakedownItemStatus,
+        suspicion::SignalReviewBody,
+        sr_moderation::model::SuspicionPanel,
+        sr_moderation::model::PanelEvent,
+        sr_moderation::model::AccountRef,
+        sr_moderation::model::BannedDescendant,
+        sr_moderation::model::InvitePath,
+        sr_moderation::model::SuspicionCaseRef,
+        sr_moderation::model::SignalView,
+        sr_moderation::model::SignalDetail,
+        sr_moderation::model::SharedAddress,
+        sr_moderation::model::ScanOutcome,
+        sr_moderation::model::SignalKind,
+        sr_moderation::model::SignalState,
         Delivered,
         ErrorBody,
     ))
