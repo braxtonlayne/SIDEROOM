@@ -10,6 +10,7 @@ const DAY_MS: i64 = 86_400_000;
 pub const IP_WINDOW_DAYS: i64 = 180;
 /// A new account counts as "shortly after a ban" when it was created within this many days of it.
 pub const NEW_ACCOUNT_AFTER_BAN_DAYS: i64 = 14;
+// (both defaults; the live values are the `moderation.*` settings, D-346)
 /// An address that more Persons than this signed in from is a shared network (a campus, a mobile carrier, a
 /// VPN exit) and says nothing about two of them being the same human, so it raises no signal.
 pub const MAX_PERSONS_PER_SHARED_IP: i64 = 4;
@@ -68,15 +69,19 @@ pub fn case_summary(kind: AutoKind, level: i32) -> String {
 pub const INVITER_NOTICE: &str = "Invite creation on your account is paused while staff review it. \
 You do not need to do anything.";
 
+/// What the inviter reads when staff clear the suspicion and invite creation is open again (D-345). Like the
+/// pause notice, it names no cause.
+pub const INVITER_CLEARED_NOTICE: &str = "Invite creation is available again.";
+
 /// Whether sharing an address between `persons` Persons in the window is worth a review item.
-pub fn ip_is_signal(persons_on_ip: i64) -> bool {
-    (2..=MAX_PERSONS_PER_SHARED_IP).contains(&persons_on_ip)
+pub fn ip_is_signal(persons_on_ip: i64, max_persons: i64) -> bool {
+    (2..=max_persons).contains(&persons_on_ip)
 }
 
 /// Whether an account created at `created_ms` came shortly after a ban made at `banned_ms`.
-pub fn created_shortly_after_ban(created_ms: i64, banned_ms: i64) -> bool {
+pub fn created_shortly_after_ban(created_ms: i64, banned_ms: i64, window_days: i64) -> bool {
     let d = created_ms - banned_ms;
-    (0..=NEW_ACCOUNT_AFTER_BAN_DAYS * DAY_MS).contains(&d)
+    (0..=window_days * DAY_MS).contains(&d)
 }
 
 /// How an account is tied to a banned Person's invites.
@@ -116,7 +121,7 @@ pub struct Raise {
 
 /// Which signals a pair's findings justify. The corroborated ones need a second kind of evidence, because
 /// "has the same inviter as someone banned" and "signed up after a ban" are true of many innocent people.
-pub fn signals_for(f: &PairFindings) -> Vec<Raise> {
+pub fn signals_for(f: &PairFindings, new_account_days: i64) -> Vec<Raise> {
     let mut out = Vec::new();
     let ip = f.shared_ips > 0;
     if ip {
@@ -136,7 +141,7 @@ pub fn signals_for(f: &PairFindings) -> Vec<Raise> {
     if f.new_after_ban && (ip || f.lineage.is_some()) {
         out.push(Raise {
             kind: SignalKind::NewAccountAfterBan,
-            detail: serde_json::json!({ "within_days": NEW_ACCOUNT_AFTER_BAN_DAYS }),
+            detail: serde_json::json!({ "within_days": new_account_days }),
         });
     }
     out
@@ -163,31 +168,56 @@ mod tests {
         for word in ["ban", "invitee", "suspic", "serious", "level"] {
             assert!(!n.contains(word), "notice mentions {word}");
         }
+        let c = INVITER_CLEARED_NOTICE.to_lowercase();
+        assert!(c.contains("available again"));
+        for word in ["ban", "invitee", "suspic", "serious", "level", "clear"] {
+            assert!(!c.contains(word), "cleared notice mentions {word}");
+        }
     }
 
     #[test]
     fn shared_networks_are_not_a_signal() {
-        assert!(!ip_is_signal(1));
-        assert!(ip_is_signal(2));
-        assert!(ip_is_signal(MAX_PERSONS_PER_SHARED_IP));
-        assert!(!ip_is_signal(MAX_PERSONS_PER_SHARED_IP + 1));
+        let d = MAX_PERSONS_PER_SHARED_IP;
+        assert!(!ip_is_signal(1, d));
+        assert!(ip_is_signal(2, d));
+        assert!(ip_is_signal(d, d));
+        assert!(!ip_is_signal(d + 1, d));
+        // A raised cut-off (D-346) accepts busier addresses; a lowered one rejects them.
+        assert!(ip_is_signal(d + 1, d + 1));
+        assert!(!ip_is_signal(3, 2));
     }
 
     #[test]
     fn shortly_after_a_ban_is_one_sided() {
         let ban = 10 * DAY_MS;
-        assert!(created_shortly_after_ban(ban, ban));
-        assert!(created_shortly_after_ban(ban + 14 * DAY_MS, ban));
-        assert!(!created_shortly_after_ban(ban + 14 * DAY_MS + 1, ban));
-        assert!(!created_shortly_after_ban(ban - 1, ban));
+        assert!(created_shortly_after_ban(ban, ban, 14));
+        assert!(created_shortly_after_ban(ban + 14 * DAY_MS, ban, 14));
+        assert!(!created_shortly_after_ban(ban + 14 * DAY_MS + 1, ban, 14));
+        assert!(!created_shortly_after_ban(ban - 1, ban, 14));
+        assert!(created_shortly_after_ban(ban + 30 * DAY_MS, ban, 30));
     }
 
     #[test]
     fn a_shared_address_alone_raises_one_signal() {
-        let r = signals_for(&PairFindings {
-            shared_ips: 2,
-            ..PairFindings::default()
-        });
+        let r = signals_for(
+            &PairFindings {
+                shared_ips: 2,
+                ..PairFindings::default()
+            },
+            14,
+        );
+        assert_eq!(
+            signals_for(
+                &PairFindings {
+                    shared_ips: 2,
+                    new_after_ban: true,
+                    lineage: Some(Lineage::SameInviter)
+                },
+                30
+            )[2]
+            .detail["within_days"],
+            30
+        );
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].kind, SignalKind::SharedLoginIp);
         assert_eq!(r[0].detail["shared_ips"], 2);
@@ -199,18 +229,18 @@ mod tests {
             lineage: Some(Lineage::SameInviter),
             ..PairFindings::default()
         };
-        assert!(signals_for(&sibling).is_empty());
+        assert!(signals_for(&sibling, 14).is_empty());
         let new_only = PairFindings {
             new_after_ban: true,
             ..PairFindings::default()
         };
-        assert!(signals_for(&new_only).is_empty());
+        assert!(signals_for(&new_only, 14).is_empty());
         let both = PairFindings {
             lineage: Some(Lineage::SameInviter),
             new_after_ban: true,
             ..PairFindings::default()
         };
-        let kinds: Vec<_> = signals_for(&both).iter().map(|r| r.kind).collect();
+        let kinds: Vec<_> = signals_for(&both, 14).iter().map(|r| r.kind).collect();
         assert_eq!(
             kinds,
             vec![
@@ -222,10 +252,13 @@ mod tests {
 
     #[test]
     fn an_invite_from_the_banned_person_stands_alone() {
-        let r = signals_for(&PairFindings {
-            lineage: Some(Lineage::InvitedByBanned),
-            ..PairFindings::default()
-        });
+        let r = signals_for(
+            &PairFindings {
+                lineage: Some(Lineage::InvitedByBanned),
+                ..PairFindings::default()
+            },
+            14,
+        );
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].kind, SignalKind::SharedInviteLineage);
         assert_eq!(r[0].detail["relation"], "invited_by_banned");

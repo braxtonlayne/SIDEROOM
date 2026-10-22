@@ -60,6 +60,7 @@ export const EVENT_KEYS: Record<string, MessageKey> = {
   suspicion_raised: 'admin.moderation.event.suspicionRaised',
   suspicion_escalated: 'admin.moderation.event.suspicionEscalated',
   suspicion_cleared: 'admin.moderation.event.suspicionCleared',
+  evasion_signal_confirmed: 'admin.moderation.event.evasionConfirmed',
 };
 
 /** The actions a moderator can record as taken with the server's own tools. */

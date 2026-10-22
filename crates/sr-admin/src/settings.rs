@@ -263,6 +263,22 @@ pub const CATALOG: &[SettingDef] = &[
         "Days after which a moderation hold is flagged for review. Holds never expire by themselves (D-212).",
     ),
     int(
+        "moderation.shared_ip_max_persons",
+        "retention",
+        2,
+        50,
+        4,
+        "Most people who may share a sign-in address before it counts as a shared network and raises no evasion signal (D-346).",
+    ),
+    int(
+        "moderation.new_account_after_ban_days",
+        "retention",
+        1,
+        90,
+        14,
+        "Days after a ban within which a new account counts as \"soon after a ban\" for evasion signals (D-346).",
+    ),
+    int(
         "moderation.case_reopen_days",
         "retention",
         0,

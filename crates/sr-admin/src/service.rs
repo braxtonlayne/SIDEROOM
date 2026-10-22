@@ -1098,11 +1098,17 @@ impl AdminService {
             &reason,
             json!({}),
         );
+        let freeze = self.setting_i64(settings::SUSPICION_FREEZE).await?;
+        let was_paused = self
+            .repo
+            .person_detail(person_id)
+            .await?
+            .is_some_and(|p| i64::from(p.suspicion_level) >= freeze);
         self.repo
             .clear_suspicion(person_id, c.user_id, &audit)
             .await?;
         if let Some(o) = self.suspicion.get() {
-            o.cleared(person_id, c.user_id, &reason).await;
+            o.cleared(person_id, c.user_id, &reason, was_paused).await;
         }
         Ok(())
     }

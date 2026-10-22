@@ -345,7 +345,7 @@ async fn a_crossing_opens_one_case_for_senior_staff_linked_to_the_banning_case()
     assert_eq!(banned, 0);
 
     // A clear lands on the timeline and the case stays open.
-    w.m.cleared(inviter.person, senior.account, "reviewed, fine")
+    w.m.cleared(inviter.person, senior.account, "reviewed, fine", false)
         .await;
     let events: Vec<String> = sqlx::query_scalar(
         "SELECT kind FROM moderation_case_events WHERE case_id = $1 ORDER BY id",
@@ -634,7 +634,7 @@ async fn shared_networks_old_history_and_scrubbed_addresses_raise_nothing() {
     login(pool, &banned, "192.0.2.80", 5).await;
     login(pool, &old, "192.0.2.80", 181).await;
     assert_eq!(w.m.scan_person(old.person).await.unwrap(), 0);
-    assert_eq!(w.m.purge_login_events().await.unwrap(), 1);
+    assert_eq!(w.m.purge_login_events().await.unwrap(), (1, false));
     let left: i64 = sqlx::query_scalar("SELECT count(*) FROM login_events WHERE account_id = $1")
         .bind(old.account)
         .fetch_one(pool)
@@ -799,6 +799,7 @@ async fn serious_bans_through_the_admin_service_open_and_upgrade_the_case() {
     assert_eq!(kind, "suspicion_escalation");
     assert_eq!(w.dms.0.lock().unwrap().len(), 1);
 
+    assert_eq!(w.dms.0.lock().unwrap().len(), 1, "none at the escalation");
     // Clear with a reason: the level is 0, the events stay and carry the reason, the case hears of it.
     assert!(
         svc.clear_suspicion(&op, inviter.person, None)
@@ -835,6 +836,16 @@ async fn serious_bans_through_the_admin_service_open_and_upgrade_the_case() {
     .await
     .unwrap();
     assert_eq!(noted, 1);
+    // The mirror notice: the clear took the Person out of the pause, so one DM says invites are back (D-345).
+    {
+        let dms = w.dms.0.lock().unwrap();
+        assert_eq!(dms.len(), 2);
+        assert_eq!(dms[1].0, inviter.account);
+        assert_eq!(
+            dms[1].1,
+            sr_moderation::suspicion_rules::INVITER_CLEARED_NOTICE
+        );
+    }
     // The panel shows the clear.
     let reader = staff(senior.account, P::MANAGE_INVITES);
     let panel =
@@ -847,5 +858,183 @@ async fn serious_bans_through_the_admin_service_open_and_upgrade_the_case() {
     );
     assert!(panel.events[0].reason.contains("spoke to the member"));
     assert_eq!(panel.banned_descendants.len(), 3);
+    w.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_clear_that_leaves_the_pause_in_place_sends_nothing() {
+    let w = world().await;
+    let pool = w.pool();
+    let inviter = person(pool, "inviter").await;
+    // Not paused before the clear: no mirror notice.
+    w.m.cleared(inviter.person, inviter.account, "tidy", false)
+        .await;
+    assert!(w.dms.0.lock().unwrap().is_empty());
+    // Paused, but the account is also frozen by hand: still paused afterwards, so nothing is sent.
+    exec(
+        pool,
+        "UPDATE accounts SET invites_frozen_at = now() WHERE id = $1",
+        &[inviter.account],
+    )
+    .await;
+    w.m.cleared(inviter.person, inviter.account, "tidy", true)
+        .await;
+    assert!(w.dms.0.lock().unwrap().is_empty());
+    exec(
+        pool,
+        "UPDATE accounts SET invites_frozen_at = NULL WHERE id = $1",
+        &[inviter.account],
+    )
+    .await;
+    w.m.cleared(inviter.person, inviter.account, "tidy", true)
+        .await;
+    assert_eq!(w.dms.0.lock().unwrap().len(), 1);
+    w.db.cleanup().await.unwrap();
+}
+
+async fn set_setting(pool: &PgPool, key: &str, value: i64) {
+    sqlx::query(
+        "INSERT INTO platform_settings (key, value) VALUES ($1, to_jsonb($2::bigint)) \
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_shared_network_cut_off_and_the_ban_window_are_settings() {
+    let w = world().await;
+    let pool = w.pool();
+    let banned = person(pool, "banned").await;
+    let a = person(pool, "alpha").await;
+    let b = person(pool, "bravo").await;
+    let senior = person(pool, "senior").await;
+    ban(pool, &banned, senior.account, "serious", "spam").await;
+    // Three people used the address: banned, a and b.
+    for p in [&banned, &a, &b] {
+        login(pool, p, "198.51.100.5", 3).await;
+    }
+    // Default cut-off is four people: the pair is a signal.
+    assert_eq!(w.m.scan_person(a.person).await.unwrap(), 1);
+    // Lowered to two, a three-person address is a shared network.
+    set_setting(pool, "moderation.shared_ip_max_persons", 2).await;
+    assert_eq!(w.m.scan_person(b.person).await.unwrap(), 0);
+    // The ban window: a new account 20 days after the ban corroborates only when the window is long enough.
+    let c = person(pool, "charlie").await;
+    invite(pool, &banned, &c).await;
+    exec(
+        pool,
+        "UPDATE person_bans SET created_at = now() - interval '25 days' WHERE person_id = $1",
+        &[banned.person],
+    )
+    .await;
+    exec(
+        pool,
+        "UPDATE accounts SET created_at = now() - interval '5 days' WHERE id = $1",
+        &[c.account],
+    )
+    .await;
+    assert_eq!(w.m.scan_person(c.person).await.unwrap(), 1, "lineage alone");
+    exec(
+        pool,
+        "DELETE FROM evasion_signals WHERE person_id = $1",
+        &[c.person],
+    )
+    .await;
+    set_setting(pool, "moderation.new_account_after_ban_days", 30).await;
+    assert_eq!(
+        w.m.scan_person(c.person).await.unwrap(),
+        2,
+        "lineage plus new account within 30 days"
+    );
+    w.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_confirmed_signal_keeps_its_finding_after_the_sign_in_rows_are_purged() {
+    let w = world().await;
+    let pool = w.pool();
+    let inviter = person(pool, "inviter").await;
+    let banned = person(pool, "banned").await;
+    let newcomer = person(pool, "newcomer").await;
+    let senior = person(pool, "senior").await;
+    ban(pool, &banned, senior.account, "serious", "ban_evasion").await;
+    login(pool, &banned, "203.0.113.77", 175).await;
+    login(pool, &newcomer, "203.0.113.77", 170).await;
+    assert_eq!(w.m.scan_person(newcomer.person).await.unwrap(), 1);
+    // The newcomer has an open automatic case, so the finding also lands there as evidence.
+    w.m.threshold_crossed(SuspicionCrossing {
+        person_id: newcomer.person,
+        inviter_account_id: newcomer.account,
+        banned_person_id: banned.person,
+        level: 2,
+        freeze_crossed: true,
+        escalate_crossed: false,
+        actor_id: senior.account,
+    })
+    .await;
+    let _ = inviter;
+    let admin = staff(senior.account, P::MANAGE_ACCOUNTS);
+    let who = Who::Staff(&admin);
+    let list =
+        w.m.list_signals(
+            &who,
+            &SignalFilter {
+                limit: 5,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let sid = list[0].id;
+    // A dismissal keeps no snapshot.
+    w.m.resolve_signal(
+        &who,
+        sid,
+        SignalState::Confirmed,
+        "same person, same address",
+    )
+    .await
+    .unwrap();
+
+    let snap: serde_json::Value =
+        sqlx::query_scalar("SELECT detail_snapshot FROM evasion_signals WHERE id = $1")
+            .bind(sid)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!(snap["shared_addresses"], 1);
+    assert_eq!(snap["window_days"], 180);
+    assert!(
+        !snap.to_string().contains("203.0.113"),
+        "the snapshot holds no address"
+    );
+    let ev: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM moderation_case_evidence e JOIN moderation_cases c ON c.id = e.case_id \
+         WHERE e.kind = 'evasion_signal' AND c.subject_person_id = $1",
+    )
+    .bind(newcomer.person)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(ev, 1);
+
+    // The 180-day purge removes the rows; the detail still shows what the reviewer saw.
+    exec(
+        pool,
+        "UPDATE login_events SET created_at = now() - interval '200 days'",
+        &[],
+    )
+    .await;
+    assert_eq!(w.m.purge_login_events().await.unwrap(), (2, false));
+    let d = w.m.signal_detail(&who, sid).await.unwrap();
+    assert!(d.shared_addresses.is_empty());
+    assert_eq!(d.snapshot.unwrap()["shared_addresses"], 1);
     w.db.cleanup().await.unwrap();
 }

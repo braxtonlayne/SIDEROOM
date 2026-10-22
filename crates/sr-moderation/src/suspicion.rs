@@ -38,6 +38,8 @@ const SCAN_ROW_CAP: i64 = 2000;
 pub const SCAN_BATCH: i64 = 500;
 /// The most rows one purge statement removes.
 const PURGE_BATCH: i64 = 20_000;
+/// Batches one purge run removes before it hands the queue back (500,000 rows).
+const PURGE_BATCHES_PER_RUN: u32 = 25;
 
 fn ms(col: &str) -> String {
     format!("(extract(epoch FROM {col}) * 1000)::bigint")
@@ -54,7 +56,7 @@ fn signal_select() -> String {
     format!(
         "SELECT s.id, s.person_id, pa.id AS acc_id, pa.username::text AS acc_name, s.related_person_id, \
          ra.id AS racc_id, ra.username::text AS racc_name, s.kind, s.detail, s.state, {created} AS created_ms, \
-         s.reviewed_by, {reviewed} AS reviewed_ms, s.review_reason \
+         s.reviewed_by, {reviewed} AS reviewed_ms, s.review_reason, s.case_id \
          FROM evasion_signals s \
          LEFT JOIN LATERAL (SELECT id, username FROM accounts WHERE person_id = s.person_id AND id <> 1 \
                             ORDER BY id LIMIT 1) pa ON true \
@@ -80,6 +82,7 @@ fn signal_from(r: &PgRow) -> ModResult<SignalView> {
         reviewed_by: r.try_get("reviewed_by")?,
         reviewed_at_ms: r.try_get("reviewed_ms")?,
         review_reason: r.try_get("review_reason")?,
+        case_id: r.try_get("case_id")?,
     })
 }
 
@@ -499,6 +502,28 @@ impl Moderation {
         Ok(cases.len() as u64)
     }
 
+    /// The mirror of the freeze notice (D-345): when a clear takes the Person out of the pause and no hand freeze
+    /// remains on the account, one system DM says invite creation is available again. It names no cause.
+    async fn tell_invites_available(&self, person_id: i64) {
+        let target: Result<Option<i64>, sqlx::Error> = sqlx::query_scalar(
+            "SELECT COALESCE((SELECT subject_account_id FROM moderation_cases WHERE subject_person_id = $1 \n                              AND auto_kind IS NOT NULL AND subject_account_id IS NOT NULL ORDER BY id DESC LIMIT 1), \n                             (SELECT min(id) FROM accounts WHERE person_id = $1 AND id <> 1))",
+        )
+        .bind(person_id)
+        .fetch_one(&self.pool)
+        .await;
+        let Ok(Some(account)) = target else { return };
+        let hand_frozen: Result<bool, sqlx::Error> =
+            sqlx::query_scalar("SELECT invites_frozen_at IS NOT NULL FROM accounts WHERE id = $1")
+                .bind(account)
+                .fetch_one(&self.pool)
+                .await;
+        if matches!(hand_frozen, Ok(false)) {
+            let _ = self
+                .dm_subject(account, rules::INVITER_CLEARED_NOTICE)
+                .await;
+        }
+    }
+
     // ---- evasion signals (MOD-SUS-003) ------------------------------------------------------------------------
 
     /// Compare one Person with the banned Persons and raise the signals the findings justify (system, no
@@ -537,6 +562,7 @@ impl Moderation {
     }
 
     async fn scan_person_in(&self, conn: &mut PgConnection, person_id: i64) -> ModResult<i64> {
+        let lim = crate::service::limits_in(&mut *conn).await?;
         let mut found: BTreeMap<i64, PairFindings> = BTreeMap::new();
 
         // Addresses both Persons signed in from inside the window, where the address is not a shared network.
@@ -562,7 +588,7 @@ impl Moderation {
         let mut credible: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
         for r in &ips {
             let persons: i64 = r.try_get("persons")?;
-            if rules::ip_is_signal(persons) {
+            if rules::ip_is_signal(persons, lim.shared_ip_max_persons) {
                 credible
                     .entry(r.try_get("related")?)
                     .or_default()
@@ -628,7 +654,7 @@ impl Moderation {
                 for b in &bans {
                     let p: i64 = b.try_get("person_id")?;
                     let at: i64 = b.try_get("banned_ms")?;
-                    if rules::created_shortly_after_ban(created, at)
+                    if rules::created_shortly_after_ban(created, at, lim.new_account_after_ban_days)
                         && let Some(f) = found.get_mut(&p)
                     {
                         f.new_after_ban = true;
@@ -640,7 +666,7 @@ impl Moderation {
         let mut raised = 0;
         let mut budget = MAX_SIGNALS_PER_SCAN;
         for (related, f) in &found {
-            for s in rules::signals_for(f) {
+            for s in rules::signals_for(f, lim.new_account_after_ban_days) {
                 if budget == 0 {
                     return Ok(raised);
                 }
@@ -684,10 +710,12 @@ impl Moderation {
         Ok(raised)
     }
 
-    /// Housekeeping: sign-in history older than the 180-day window is deleted (doc 09). Returns the rows removed.
-    pub async fn purge_login_events(&self) -> ModResult<u64> {
+    /// Housekeeping: sign-in history older than the 180-day window is deleted (doc 09, D-347), no hold exception.
+    /// Batches of [`PURGE_BATCH`], at most [`PURGE_BATCHES_PER_RUN`] per run so the first run on an old
+    /// installation cannot hold the job queue; `more` says the job should run again soon. Returns (rows, more).
+    pub async fn purge_login_events(&self) -> ModResult<(u64, bool)> {
         let mut total = 0;
-        loop {
+        for _ in 0..PURGE_BATCHES_PER_RUN {
             let n = sqlx::query(
                 "DELETE FROM login_events WHERE id IN (SELECT id FROM login_events \
                  WHERE created_at < now() - make_interval(days => $1::int) LIMIT $2)",
@@ -699,9 +727,11 @@ impl Moderation {
             .rows_affected();
             total += n;
             if n < PURGE_BATCH as u64 {
-                return Ok(total);
+                return Ok((total, false));
             }
+            tokio::task::yield_now().await;
         }
+        Ok((total, true))
     }
 
     /// The signal list (`MANAGE_ACCOUNTS`; the read is logged), newest first.
@@ -754,39 +784,23 @@ impl Moderation {
             .await?
             .ok_or(ModError::NotFound("signal"))?;
         let signal = signal_from(&row)?;
-        let mut shared_addresses = Vec::new();
-        if signal.kind == SignalKind::SharedLoginIp {
-            let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-                "SELECT host(le.ip) AS ip, {mine} AS mine_ms, {theirs} AS theirs_ms, \
-                        (SELECT count(DISTINCT a2.person_id) FROM login_events x \
-                         JOIN accounts a2 ON a2.id = x.account_id \
-                         WHERE x.ip = le.ip AND x.success AND x.created_at > now() - make_interval(days => $3::int)) AS persons \
-                 FROM login_events le JOIN accounts me ON me.id = le.account_id AND me.person_id = $1 \
-                 JOIN login_events ob ON ob.ip = le.ip AND ob.success \
-                      AND ob.created_at > now() - make_interval(days => $3::int) \
-                 JOIN accounts ba ON ba.id = ob.account_id AND ba.person_id = $2 \
-                 WHERE le.success AND le.ip IS NOT NULL AND le.created_at > now() - make_interval(days => $3::int) \
-                 GROUP BY le.ip ORDER BY max(le.created_at) DESC LIMIT 50",
-                mine = ms("max(le.created_at)"),
-                theirs = ms("max(ob.created_at)"),
-            )))
-            .bind(signal.person_id)
-            .bind(signal.related_person_id)
-            .bind(IP_WINDOW_DAYS as i32)
-            .fetch_all(&mut *tx)
-            .await?;
-            for r in &rows {
-                let persons: i64 = r.try_get("persons")?;
-                if rules::ip_is_signal(persons) {
-                    shared_addresses.push(SharedAddress {
-                        ip: r.try_get("ip")?,
-                        person_last_seen_ms: r.try_get("mine_ms")?,
-                        related_last_seen_ms: r.try_get("theirs_ms")?,
-                        persons,
-                    });
-                }
-            }
-        }
+        let lim = crate::service::limits_in(&mut *tx).await?;
+        let shared_addresses = if signal.kind == SignalKind::SharedLoginIp {
+            shared_addresses_in(
+                &mut tx,
+                signal.person_id,
+                signal.related_person_id,
+                lim.shared_ip_max_persons,
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
+        let snapshot: Option<Value> =
+            sqlx::query_scalar("SELECT detail_snapshot FROM evasion_signals WHERE id = $1")
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await?;
         log_staff(
             &mut tx,
             who,
@@ -802,6 +816,7 @@ impl Moderation {
             signal,
             window_days: IP_WINDOW_DAYS,
             shared_addresses,
+            snapshot,
         })
     }
 
@@ -865,8 +880,65 @@ impl Moderation {
             .fetch_one(&mut *tx)
             .await?;
         let out = signal_from(&row)?;
+        if decision == SignalState::Confirmed {
+            self.keep_finding(&mut tx, id, who.user_id()).await?;
+        }
         tx.commit().await?;
         Ok(out)
+    }
+
+    /// The reviewer's finding outlives the sign-in rows (D-347): a snapshot onto the signal and, when the Person
+    /// has an open automatic case (or the signal is linked to one), onto that case as immutable evidence.
+    async fn keep_finding(&self, conn: &mut PgConnection, id: i64, actor: i64) -> ModResult<()> {
+        let lim = crate::service::limits_in(&mut *conn).await?;
+        let sql = format!("{} WHERE s.id = $1", signal_select());
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .fetch_one(&mut *conn)
+            .await?;
+        let signal = signal_from(&row)?;
+        let now_ms: i64 = sqlx::query_scalar("SELECT (extract(epoch FROM now()) * 1000)::bigint")
+            .fetch_one(&mut *conn)
+            .await?;
+        let snap = snapshot_in(conn, &signal, lim.shared_ip_max_persons, now_ms).await?;
+        sqlx::query("UPDATE evasion_signals SET detail_snapshot = $2 WHERE id = $1")
+            .bind(id)
+            .bind(&snap)
+            .execute(&mut *conn)
+            .await?;
+        let case: Option<i64> = match signal.case_id {
+            Some(c) => Some(c),
+            None => {
+                sqlx::query_scalar(
+                    "SELECT id FROM moderation_cases WHERE subject_person_id = $1 AND auto_kind IS NOT NULL \
+                     AND state NOT IN ('dismissed', 'closed') ORDER BY id DESC LIMIT 1",
+                )
+                .bind(signal.person_id)
+                .fetch_optional(&mut *conn)
+                .await?
+            }
+        };
+        if let Some(case) = case {
+            sqlx::query(
+                "INSERT INTO moderation_case_evidence (id, case_id, kind, private, payload) \
+                 VALUES ($1, $2, 'evasion_signal', false, $3)",
+            )
+            .bind(self.next_id())
+            .bind(case)
+            .bind(&snap)
+            .execute(&mut *conn)
+            .await?;
+            push_event(
+                conn,
+                self.next_id(),
+                case,
+                Some(actor),
+                "evasion_signal_confirmed",
+                json!({ "signal_id": id.to_string(), "kind": signal.kind.as_str() }),
+            )
+            .await?;
+        }
+        Ok(())
     }
 }
 
@@ -878,12 +950,97 @@ impl SuspicionObserver for Moderation {
         }
     }
 
-    async fn cleared(&self, person_id: i64, actor_id: i64, reason: &str) {
+    async fn cleared(&self, person_id: i64, actor_id: i64, reason: &str, was_paused: bool) {
         if let Err(e) = self
             .note_suspicion_cleared(person_id, actor_id, reason)
             .await
         {
             tracing::error!(error = %e, person = person_id, "could not note the cleared suspicion on the case");
         }
+        if was_paused {
+            self.tell_invites_available(person_id).await;
+        }
     }
+}
+
+/// The addresses both Persons signed in from inside the window, shared networks left out. Read live; never stored.
+async fn shared_addresses_in(
+    conn: &mut PgConnection,
+    person: i64,
+    related: i64,
+    max_persons: i64,
+) -> ModResult<Vec<SharedAddress>> {
+    let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "SELECT host(le.ip) AS ip, {mine} AS mine_ms, {theirs} AS theirs_ms, \
+                (SELECT count(DISTINCT a2.person_id) FROM login_events x \
+                 JOIN accounts a2 ON a2.id = x.account_id \
+                 WHERE x.ip = le.ip AND x.success AND x.created_at > now() - make_interval(days => $3::int)) AS persons \
+         FROM login_events le JOIN accounts me ON me.id = le.account_id AND me.person_id = $1 \
+         JOIN login_events ob ON ob.ip = le.ip AND ob.success \
+              AND ob.created_at > now() - make_interval(days => $3::int) \
+         JOIN accounts ba ON ba.id = ob.account_id AND ba.person_id = $2 \
+         WHERE le.success AND le.ip IS NOT NULL AND le.created_at > now() - make_interval(days => $3::int) \
+         GROUP BY le.ip ORDER BY max(le.created_at) DESC LIMIT 50",
+        mine = ms("max(le.created_at)"),
+        theirs = ms("max(ob.created_at)"),
+    )))
+    .bind(person)
+    .bind(related)
+    .bind(IP_WINDOW_DAYS as i32)
+    .fetch_all(&mut *conn)
+    .await?;
+    let mut out = Vec::new();
+    for r in &rows {
+        let persons: i64 = r.try_get("persons")?;
+        if rules::ip_is_signal(persons, max_persons) {
+            out.push(SharedAddress {
+                ip: r.try_get("ip")?,
+                person_last_seen_ms: r.try_get("mine_ms")?,
+                related_last_seen_ms: r.try_get("theirs_ms")?,
+                persons,
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// What a reviewer looked at, without any address: the kinds raised for the pair, their counts and words, the
+/// number of shared addresses, the dates the sign-ins overlapped and the window (D-347).
+async fn snapshot_in(
+    conn: &mut PgConnection,
+    signal: &SignalView,
+    max_persons: i64,
+    confirmed_ms: i64,
+) -> ModResult<Value> {
+    let kinds: Vec<(String, Value)> = sqlx::query_as(
+        "SELECT kind, detail FROM evasion_signals \
+         WHERE person_id = $1 AND related_person_id = $2 ORDER BY id",
+    )
+    .bind(signal.person_id)
+    .bind(signal.related_person_id)
+    .fetch_all(&mut *conn)
+    .await?;
+    let addresses = shared_addresses_in(
+        conn,
+        signal.person_id,
+        signal.related_person_id,
+        max_persons,
+    )
+    .await?;
+    let seen: Vec<i64> = addresses
+        .iter()
+        .flat_map(|a| [a.person_last_seen_ms, a.related_last_seen_ms])
+        .collect();
+    Ok(json!({
+        "signal_id": signal.id.to_string(),
+        "person_id": signal.person_id.to_string(),
+        "related_person_id": signal.related_person_id.to_string(),
+        "kind": signal.kind.as_str(),
+        "kinds": kinds.iter().map(|(k, d)| json!({ "kind": k, "detail": d })).collect::<Vec<_>>(),
+        "shared_addresses": addresses.len(),
+        "overlap_first_ms": seen.iter().min(),
+        "overlap_last_ms": seen.iter().max(),
+        "window_days": IP_WINDOW_DAYS,
+        "confirmed_at_ms": confirmed_ms,
+    }))
 }

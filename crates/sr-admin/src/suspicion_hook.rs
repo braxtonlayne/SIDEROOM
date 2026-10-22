@@ -31,7 +31,7 @@ pub trait SuspicionObserver: Send + Sync {
     /// A threshold was crossed.
     async fn threshold_crossed(&self, crossing: SuspicionCrossing);
     /// Staff cleared the Person's suspicion with a reason. Events stay.
-    async fn cleared(&self, person_id: i64, actor_id: i64, reason: &str);
+    async fn cleared(&self, person_id: i64, actor_id: i64, reason: &str, was_paused: bool);
 }
 
 /// A slot shared by every clone of the admin service, filled once at start-up (the observer needs the

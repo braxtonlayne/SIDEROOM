@@ -487,6 +487,7 @@ export interface EvasionSignal {
   reviewed_by: string | null;
   reviewed_at_ms: number | null;
   review_reason: string | null;
+  case_id: string | null;
 }
 export interface SharedAddress {
   ip: string;
@@ -498,6 +499,8 @@ export interface SignalDetail {
   signal: EvasionSignal;
   window_days: number;
   shared_addresses: SharedAddress[];
+  /** What the reviewer looked at when confirming; stays after the sign-in rows are deleted. */
+  snapshot: Record<string, unknown> | null;
 }
 export interface SuspicionPanel {
   person_id: string;

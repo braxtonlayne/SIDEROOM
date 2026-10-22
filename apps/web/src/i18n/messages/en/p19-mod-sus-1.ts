@@ -52,6 +52,11 @@ export default {
   'admin.suspicion.addressPersons': '{n, plural, one {# person} other {# people}} used it',
   'admin.suspicion.noAddresses':
     'No address is left to show. Sign-in history is kept for {days} days and is blanked when an account is deleted.',
+  'admin.suspicion.evidence':
+    'Evasion signal confirmed ({kind}): {n, plural, one {# shared address} other {# shared addresses}} in the last {days} days when it was reviewed. No address is kept.',
+  'admin.suspicion.snapshotKept':
+    'Kept from the review: {n, plural, one {# shared address} other {# shared addresses}} in the last {days} days. The addresses themselves are gone.',
+  'admin.moderation.event.evasionConfirmed': 'Evasion signal confirmed',
   'admin.suspicion.dismiss': 'Dismiss',
   'admin.suspicion.confirm': 'Confirm',
   'admin.suspicion.dismissTitle': 'Dismiss this signal',

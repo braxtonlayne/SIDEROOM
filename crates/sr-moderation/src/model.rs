@@ -468,6 +468,10 @@ pub struct Limits {
     pub hold_review_days: i64,
     pub case_reopen_days: i64,
     pub deleted_message_days: i64,
+    /// Most Persons that may share a sign-in address before it counts as a shared network (D-346).
+    pub shared_ip_max_persons: i64,
+    /// A new account counts as "shortly after a ban" within this many days (D-346).
+    pub new_account_after_ban_days: i64,
 }
 
 impl Default for Limits {
@@ -477,6 +481,8 @@ impl Default for Limits {
             hold_review_days: 90,
             case_reopen_days: 30,
             deleted_message_days: 30,
+            shared_ip_max_persons: 4,
+            new_account_after_ban_days: 14,
         }
     }
 }
@@ -487,6 +493,8 @@ pub mod keys {
     pub const HOLD_REVIEW_DAYS: &str = "moderation.hold_review_days";
     pub const CASE_REOPEN_DAYS: &str = "moderation.case_reopen_days";
     pub const DELETED_MESSAGE_DAYS: &str = "retention.deleted_message_days";
+    pub const SHARED_IP_MAX_PERSONS: &str = "moderation.shared_ip_max_persons";
+    pub const NEW_ACCOUNT_AFTER_BAN_DAYS: &str = "moderation.new_account_after_ban_days";
 }
 
 fn is_zero(n: &i64) -> bool {
@@ -853,6 +861,10 @@ pub struct SignalView {
     pub reviewed_by: Option<i64>,
     pub reviewed_at_ms: Option<i64>,
     pub review_reason: Option<String>,
+    /// The case opened from this signal.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub case_id: Option<i64>,
 }
 
 /// One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged).
@@ -872,6 +884,9 @@ pub struct SignalDetail {
     pub signal: SignalView,
     pub window_days: i64,
     pub shared_addresses: Vec<SharedAddress>,
+    /// What the reviewer looked at when they confirmed the signal (never an address); stays when the rows are gone.
+    #[schema(value_type = Option<Object>)]
+    pub snapshot: Option<Value>,
 }
 
 /// The suspicion panel of a Person page (MOD-SUS-001).

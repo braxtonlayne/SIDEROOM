@@ -121,6 +121,16 @@ function EventLine({ e }: { e: api.CaseEvent }) {
 function Evidence({ ev }: { ev: api.CaseEvidence }) {
   const t = useT();
   const msgs = ev.payload.messages;
+  if (ev.kind === 'evasion_signal')
+    return (
+      <p>
+        {t('admin.suspicion.evidence', {
+          kind: String(ev.payload.kind ?? ''),
+          n: Number(ev.payload.shared_addresses ?? 0),
+          days: Number(ev.payload.window_days ?? 0),
+        })}
+      </p>
+    );
   if (!msgs)
     return (
       <p>

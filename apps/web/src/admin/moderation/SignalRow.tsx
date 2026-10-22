@@ -72,11 +72,20 @@ export function SignalRow({
         <ApiProblem error={error} />
         {detail && (
           <div className="ss-meta">
-            {detail.shared_addresses.length === 0 ? (
+            {detail.shared_addresses.length === 0 && !detail.snapshot ? (
               <Notice variant="info">
                 {t('admin.suspicion.noAddresses', { days: detail.window_days })}
               </Notice>
-            ) : (
+            ) : null}
+            {detail.snapshot && detail.shared_addresses.length === 0 ? (
+              <Notice variant="info">
+                {t('admin.suspicion.snapshotKept', {
+                  n: Number(detail.snapshot.shared_addresses ?? 0),
+                  days: Number(detail.snapshot.window_days ?? detail.window_days),
+                })}
+              </Notice>
+            ) : null}
+            {detail.shared_addresses.length > 0 && (
               <ul className="ss-list" aria-label={t('admin.suspicion.addressesLabel')}>
                 {detail.shared_addresses.map((a) => (
                   <li key={a.ip} className="ss-row">
