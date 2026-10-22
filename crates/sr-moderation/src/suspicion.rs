@@ -541,7 +541,7 @@ impl Moderation {
 
         // Addresses both Persons signed in from inside the window, where the address is not a shared network.
         let ips = sqlx::query(
-            "SELECT ba.person_id AS related, le.ip::text AS ip, \
+            "SELECT ba.person_id AS related, host(le.ip) AS ip, \
                     (SELECT count(DISTINCT a2.person_id) FROM login_events x \
                      JOIN accounts a2 ON a2.id = x.account_id \
                      WHERE x.ip = le.ip AND x.success AND x.created_at > now() - make_interval(days => $2::int)) AS persons \
@@ -757,7 +757,7 @@ impl Moderation {
         let mut shared_addresses = Vec::new();
         if signal.kind == SignalKind::SharedLoginIp {
             let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-                "SELECT le.ip::text AS ip, {mine} AS mine_ms, {theirs} AS theirs_ms, \
+                "SELECT host(le.ip) AS ip, {mine} AS mine_ms, {theirs} AS theirs_ms, \
                         (SELECT count(DISTINCT a2.person_id) FROM login_events x \
                          JOIN accounts a2 ON a2.id = x.account_id \
                          WHERE x.ip = le.ip AND x.success AND x.created_at > now() - make_interval(days => $3::int)) AS persons \
