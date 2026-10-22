@@ -15886,6 +15886,13 @@ export interface components {
             person_id: string;
             /** Format: int64 */
             received_at_ms: number;
+            /** @description The last restriction notice could not be delivered: tell the member through the intake channel. */
+            restriction_notice_failed?: boolean;
+            /**
+             * Format: int64
+             * @description When the member last received a restriction notice by system DM (D-343); `None` when none reached them.
+             */
+            restriction_notified_at_ms?: number | null;
             /** @description Ids of the [`retained`] records an erasure named. */
             retained: string[];
             state: components["schemas"]["DataRequestState"];
@@ -22168,6 +22175,8 @@ export interface components {
         UnderageOutcome: {
             account_id: string;
             band: components["schemas"]["AgeBand"];
+            /** @description The erasure request opened (or already open) for the account below the minimum age (D-341); nothing runs it. */
+            erasure_request_id?: string | null;
             /** @description The inviter was told the invitee did not meet the entry rules (under 13). */
             inviter_notified: boolean;
             /** @description The account was told its age confirmation was reset (under 18, when a DM could be sent). */

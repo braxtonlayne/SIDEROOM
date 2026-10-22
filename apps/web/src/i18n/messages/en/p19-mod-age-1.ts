@@ -8,7 +8,7 @@ export default {
   'admin.moderation.age.descriptionUnder18':
     "Reset this account's age confirmation and lock it, so the age gate asks again and the account cannot answer 18+ itself until you lift the lock. The account stays active and is told.",
   'admin.moderation.age.descriptionUnder13':
-    "Reset and lock this account's age confirmation and suspend the account (needs the account permission). Its inviter is told only that the invitee did not meet the entry rules.",
+    "Reset and lock this account's age confirmation and suspend the account (needs the account permission). Its inviter is told only that the invitee did not meet the entry rules. An erasure request is opened in the data-request queue; nothing is deleted until staff run it.",
   'admin.moderation.age.confirm': 'Apply',
   'admin.moderation.age.reason': 'Reason (kept in the staff log)',
   'admin.moderation.age.kind': 'What to do',
@@ -25,6 +25,9 @@ export default {
     '{restricted, select, true {Marked {label} age-restricted: {reason}} other {Removed the age restriction from {label}: {reason}}}',
   'admin.moderation.event.underageHandled':
     'Underage handling ({band, select, under_13 {below the minimum age, suspended} other {under 18, age confirmation reset and locked}}): {note}',
+  'admin.moderation.event.erasureRequestLink': 'Erasure request {id} opened in the queue',
+  'admin.dataRequests.restrictionNotNotified':
+    'The member could not be told in-app: tell them through the intake channel.',
   'admin.moderation.event.erasureHoldFlagged':
     'A deletion request met a hold on this case; the held rows stay. Decide: release the hold, or retain with a legal basis.',
   'admin.moderation.event.erasureHoldRetained':

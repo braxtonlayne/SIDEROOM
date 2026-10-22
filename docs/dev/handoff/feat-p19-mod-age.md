@@ -32,6 +32,13 @@ Base: integration/phase19 (= main). Migration used: `1160_mod_age_dsr.sql` (rang
 - Postgres (scratch DBs via `TestDb`, dropped by the harness): `cargo test -p sr-moderation --test age`, `-p sr-db --test data_requests` (new: hold flag, restriction, rectification, age lock), `-p sr-api moderation::tests` (new: staff-only matrix rows, age tools over HTTP). See the final report for results.
 - Unit: `embeds_stay_behind`. Web: `admin/__tests__/p19modage.test.tsx`.
 
+## Round 2 (D-341 to D-343, follow-ups P-03 to P-06)
+- **P-03** under-18 DM and the age-gate 403 name the reason and point at the Help-page staff contact.
+- **P-04** below the minimum age opens a verified erasure request (due by the configured deadline, never run automatically), linked on the case and in the outcome; one active request per account, so an open one is reported. Web: the case page links it for `MANAGE_TAKEDOWNS`.
+- **P-05** restriction notices by system DM on hide, lift, decline and finished export; `data_request.restriction_notice` access-log row with `member_notified`; migration 1161 (`restriction_notified_at`, `restriction_notice_failed`); the queue shows the intake-channel hint when a DM failed. An erasure completion sends none (the account is deleted).
+- **P-06** spec sections 6, 7, 14 (items 5 and 6) and 17, inventory lines and the follow-up list updated.
+- Migrations used: 1160 and 1161. Questions below are answered by D-341 to D-343; the directory and message-search bullet under "Still open" is closed by D-343.
+
 ## Open owner questions
 - Is "suspend, reset and lock" the right handling below the minimum age, and should an under-18 account be told by DM (D-294 lawyer note)?
 - Should rectification of a Person link also be open to `MANAGE_ACCOUNTS` alone (it already is, on the Persons page)?

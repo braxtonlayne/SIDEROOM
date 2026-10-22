@@ -458,6 +458,7 @@ export interface UnderageOutcome {
   suspended: boolean;
   member_notified: boolean;
   inviter_notified: boolean;
+  erasure_request_id?: string | null;
 }
 /** Mark or unmark a channel, series or title as age-restricted (MOD-AGE-001). */
 export const setAgeRestricted = (body: {

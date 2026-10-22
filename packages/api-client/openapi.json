@@ -73650,6 +73650,18 @@
             "type": "integer",
             "format": "int64"
           },
+          "restriction_notice_failed": {
+            "type": "boolean",
+            "description": "The last restriction notice could not be delivered: tell the member through the intake channel."
+          },
+          "restriction_notified_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the member last received a restriction notice by system DM (D-343); `None` when none reached them."
+          },
           "retained": {
             "type": "array",
             "items": {
@@ -93742,6 +93754,13 @@
           },
           "band": {
             "$ref": "#/components/schemas/AgeBand"
+          },
+          "erasure_request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The erasure request opened (or already open) for the account below the minimum age (D-341); nothing runs it."
           },
           "inviter_notified": {
             "type": "boolean",

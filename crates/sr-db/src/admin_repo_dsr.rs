@@ -27,7 +27,7 @@ fn cols() -> String {
         "r.id, r.kind, r.person_id, r.account_id, a.username::text AS username, r.state, r.note, \
          {} AS received_ms, {} AS due_ms, {} AS ext_ms, r.extension_reason, r.verified_by, \
          {} AS verified_ms, r.export_id, r.outcome, r.retained, {} AS completed_ms, r.created_by, \
-         {} AS extended_ms, {} AS notified_ms, {} AS hidden_ms, r.activity_hidden_reason",
+         {} AS extended_ms, {} AS notified_ms, {} AS hidden_ms, r.activity_hidden_reason, {} AS rnotified_ms, r.restriction_notice_failed",
         ms("r.received_at"),
         ms("r.due_at"),
         ms("r.extended_until"),
@@ -36,6 +36,7 @@ fn cols() -> String {
         ms("r.extended_at"),
         ms("r.member_notified_at"),
         ms("r.activity_hidden_at"),
+        ms("r.restriction_notified_at"),
     )
 }
 
@@ -79,6 +80,8 @@ fn row(r: &PgRow) -> Result<DataRequest, sqlx::Error> {
         activity_hidden: r.try_get::<Option<i64>, _>("hidden_ms")?.is_some(),
         activity_hidden_at_ms: r.try_get("hidden_ms")?,
         activity_hidden_reason: r.try_get("activity_hidden_reason")?,
+        restriction_notified_at_ms: r.try_get("rnotified_ms")?,
+        restriction_notice_failed: r.try_get("restriction_notice_failed")?,
         created_by: r.try_get("created_by")?,
     })
 }
@@ -442,6 +445,18 @@ impl DataRequestRepository for PgAdminRepo {
         let out = load(&mut tx, id, false).await?;
         tx.commit().await.map_err(db)?;
         Ok(out)
+    }
+
+    async fn restriction_notice(
+        &self,
+        id: i64,
+        delivered: bool,
+        _now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest> {
+        data_export::record_restriction_notice(self.pool(), id, delivered, audit).await?;
+        let mut c = self.pool().acquire().await.map_err(db)?;
+        load(&mut c, id, false).await
     }
 
     async fn run_export(

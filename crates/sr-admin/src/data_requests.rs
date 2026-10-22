@@ -220,6 +220,12 @@ pub struct DataRequest {
     pub activity_hidden: bool,
     pub activity_hidden_at_ms: Option<i64>,
     pub activity_hidden_reason: Option<String>,
+    /// When the member last received a restriction notice by system DM (D-343); `None` when none reached them.
+    #[serde(default)]
+    pub restriction_notified_at_ms: Option<i64>,
+    /// The last restriction notice could not be delivered: tell the member through the intake channel.
+    #[serde(default)]
+    pub restriction_notice_failed: bool,
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub created_by: i64,
@@ -361,6 +367,15 @@ pub trait DataRequestRepository: Send + Sync {
         now_ms: i64,
         audit: &AuditEntry,
     ) -> AdminResult<DataRequest>;
+    /// Record the outcome of a restriction notice (D-343): delivered sets `restriction_notified_at`, a failure sets
+    /// `restriction_notice_failed`. Writes the access-log entry `audit`.
+    async fn restriction_notice(
+        &self,
+        id: i64,
+        delivered: bool,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest>;
     /// Queue the export build for a `verified` export request (no 24-hour cooldown: staff act on
     /// the subject's behalf). Moves it to `running`.
     async fn run_export(
@@ -432,6 +447,11 @@ pub fn erasure_outcome(report: &ErasureReport, invoice_years: u8) -> String {
 pub fn retained_ids() -> Vec<String> {
     retained(10).into_iter().map(|r| r.id).collect()
 }
+
+/// The system DM when staff hide a requester's shared activity (D-343, GDPR article 18(3)).
+pub const RESTRICTION_HIDDEN_DM: &str = "While your request is reviewed, your shared cinema and library activity, watching presence and recommendations are hidden from other members. Nothing is deleted.";
+/// The system DM when the restriction ends, by staff or because the request closed.
+pub const RESTRICTION_ENDED_DM: &str = "The restriction on your shared activity has ended; it is visible again as your privacy settings allow.";
 
 /// Outcome text of a finished export (set by the export job when the package is ready).
 pub const EXPORT_DONE: &str =
@@ -587,11 +607,17 @@ impl AdminService {
         );
         let now = self.now_ms();
         let outcome = format!("Declined: {reason}");
-        Ok(self
+        let was_hidden = self.loaded_request(req_id).await?.activity_hidden;
+        let r = self
             .requests()?
             .decline(req_id, &outcome, now, &audit)
-            .await?
-            .with_clock(now))
+            .await?;
+        // The restriction ends with the request (D-343): say so, once.
+        if was_hidden {
+            let text = format!("Your data request was declined. {RESTRICTION_ENDED_DM}");
+            return Ok(self.restriction_notice(c, r, &text).await.with_clock(now));
+        }
+        Ok(r.with_clock(now))
     }
 
     /// Add `days` to the deadline, once, with a reason (`POST /admin/data-requests/{id}/extend`).
@@ -679,11 +705,39 @@ impl AdminService {
             json!({}),
         );
         let now = self.now_ms();
-        Ok(self
+        let r = self
             .requests()?
             .set_activity_hidden(req_id, hide, &reason, c.user_id, now, &audit)
-            .await?
-            .with_clock(now))
+            .await?;
+        let text = if hide {
+            RESTRICTION_HIDDEN_DM
+        } else {
+            RESTRICTION_ENDED_DM
+        };
+        Ok(self.restriction_notice(c, r, text).await.with_clock(now))
+    }
+
+    /// Tell the requester by system DM (best effort, after the change committed) and record the outcome as the
+    /// extension notice does (D-327): a second access-log row `data_request.restriction_notice` carrying
+    /// `member_notified`, and the request's notice columns.
+    async fn restriction_notice(&self, c: &Caller, r: DataRequest, text: &str) -> DataRequest {
+        let delivered = self.system_dm(r.account_id, text).await;
+        let now = self.now_ms();
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "data_request.restriction_notice",
+            Some(("data_request", r.id)),
+            "",
+            json!({ "member_notified": delivered }),
+        );
+        match self
+            .requests()
+            .map(|q| q.restriction_notice(r.id, delivered, now, &audit))
+        {
+            Ok(f) => f.await.unwrap_or(r),
+            Err(_) => r,
+        }
     }
 
     /// MOD-DSR-007: rectification of a Person link, from the request of the person it concerns. `to_person`
@@ -924,6 +978,8 @@ impl DataRequestRepository for MemoryDataRequests {
                 activity_hidden: false,
                 activity_hidden_at_ms: None,
                 activity_hidden_reason: None,
+                restriction_notified_at_ms: None,
+                restriction_notice_failed: false,
                 created_by: n.created_by,
             };
             rows.push(row.clone());
@@ -1030,6 +1086,26 @@ impl DataRequestRepository for MemoryDataRequests {
             r.extension_reason = Some(reason.to_owned());
             r.extended_at_ms = Some(now_ms);
             let _ = by;
+            r.clone()
+        };
+        self.log(audit).await?;
+        Ok(row)
+    }
+
+    async fn restriction_notice(
+        &self,
+        id: i64,
+        delivered: bool,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest> {
+        let row = {
+            let mut rows = self.rows();
+            let r = rows.iter_mut().find(|r| r.id == id).ok_or_else(not_found)?;
+            if delivered {
+                r.restriction_notified_at_ms = Some(now_ms);
+            }
+            r.restriction_notice_failed = !delivered;
             r.clone()
         };
         self.log(audit).await?;

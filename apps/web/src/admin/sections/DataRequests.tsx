@@ -196,6 +196,9 @@ export function DataRequestsSection() {
                               when: fmtMs(r.activity_hidden_at_ms ?? 0),
                               reason: r.activity_hidden_reason ?? '',
                             })}
+                            {r.restriction_notice_failed && (
+                              <> {t('admin.dataRequests.restrictionNotNotified')}</>
+                            )}
                           </>
                         )}
                         {r.outcome && (

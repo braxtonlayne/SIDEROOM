@@ -398,10 +398,22 @@ async fn build_and_store(
 }
 
 /// The build job.
+#[cfg(test)]
 pub(crate) async fn run_export(
     pool: &PgPool,
     storage: &dyn ObjectStorage,
     features: &sr_features::FeatureService,
+    job: &Job,
+) -> Result<(), HandlerError> {
+    run_export_notifying(pool, storage, features, None, job).await
+}
+
+/// [`run_export`], telling the requester when the finished export ended a restriction of their activity (D-343).
+pub(crate) async fn run_export_notifying(
+    pool: &PgPool,
+    storage: &dyn ObjectStorage,
+    features: &sr_features::FeatureService,
+    notifier: Option<&Arc<dyn sr_admin::StaffNotifier>>,
     job: &Job,
 ) -> Result<(), HandlerError> {
     let id: i64 = job.payload["export_id"]
@@ -419,7 +431,38 @@ pub(crate) async fn run_export(
     let years = sr_features::ComplianceSettings::from_values(&values).invoice_retention_years;
     match build_and_store(pool, storage, id, user, years).await {
         Ok((key, size)) => {
-            db::finish(pool, id, &key, size).await?;
+            let ended = db::finish(pool, id, &key, size).await?;
+            if let Some(ended) = ended {
+                let delivered = match notifier {
+                    Some(n) => {
+                        n.system_dm(
+                            ended.account_id,
+                            &format!(
+                                "Your data request was completed. {}",
+                                sr_admin::data_requests::RESTRICTION_ENDED_DM
+                            ),
+                        )
+                        .await
+                    }
+                    None => false,
+                };
+                let audit = sr_admin::AuditEntry {
+                    actor_id: ended.hidden_by,
+                    kind: sr_admin::AccessKind::AdminAction,
+                    action: "data_request.restriction_notice".into(),
+                    target_kind: Some("data_request".into()),
+                    target_id: Some(ended.request_id),
+                    reason: String::new(),
+                    ip: None,
+                    detail: serde_json::json!({ "member_notified": delivered, "completed": true })
+                        .to_string(),
+                };
+                if let Err(e) =
+                    db::record_restriction_notice(pool, ended.request_id, delivered, &audit).await
+                {
+                    tracing::warn!(error = %e, "could not record a restriction notice");
+                }
+            }
             tracing::info!(export = id, bytes = size, "data package built");
             Ok(())
         }
@@ -492,15 +535,22 @@ pub fn register(
     self_delete: SelfDeleteEnv,
 ) -> JobRunner {
     let features = self_delete.features.clone();
-    let (export_pool, export_storage, export_features) =
-        (pool.clone(), storage.clone(), features.clone());
+    let (export_pool, export_storage, export_features, export_notifier) = (
+        pool.clone(),
+        storage.clone(),
+        features.clone(),
+        self_delete.notifier.clone(),
+    );
     let runner = runner.register(db::JOB_KIND, 1, move |job: Job| {
-        let (pool, storage, features) = (
+        let (pool, storage, features, notifier) = (
             export_pool.clone(),
             export_storage.clone(),
             export_features.clone(),
+            export_notifier.clone(),
         );
-        Box::pin(async move { run_export(&pool, storage.as_ref(), &features, &job).await })
+        Box::pin(async move {
+            run_export_notifying(&pool, storage.as_ref(), &features, notifier.as_ref(), &job).await
+        })
     });
     let sd_pool = pool.clone();
     let runner = runner.register(sr_db::self_delete::JOB_KIND, 1, move |job: Job| {

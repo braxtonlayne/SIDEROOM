@@ -539,6 +539,23 @@ async fn underage_handling_resets_and_locks_and_under_thirteen_also_suspends() {
         .await
         .unwrap();
     assert!(!out.suspended && out.member_notified && !out.inviter_notified);
+    assert_eq!(
+        out.erasure_request_id, None,
+        "under 18 opens no erasure request"
+    );
+    {
+        let sent = dms.0.lock().unwrap();
+        let dm = sent
+            .iter()
+            .find(|(to, _)| *to == teen)
+            .expect("the account is told");
+        assert_eq!(dm.1, sr_moderation::UNDER18_DM);
+        assert!(
+            dm.1.contains("under 18")
+                && dm.1.contains("Help page")
+                && !dm.1.contains("reply to the staff")
+        );
+    }
     assert_eq!(state(teen).await, ("active".into(), None, true));
     assert_eq!(
         m.get_case(&who, case.id).await.unwrap().case.state,
@@ -568,6 +585,36 @@ async fn underage_handling_resets_and_locks_and_under_thirteen_also_suspends() {
         .await
         .unwrap();
     assert!(out.suspended && !out.member_notified && out.inviter_notified);
+    let rid = out
+        .erasure_request_id
+        .expect("an erasure request is opened");
+    let row: (String, String, i64, i64, bool, bool) = sqlx::query_as(
+        "SELECT kind, state, verified_by, account_id, due_at > received_at + interval '29 days 23 hours', note LIKE '%D-341%' \n         FROM data_requests WHERE id = $1",
+    )
+    .bind(rid)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        row,
+        ("erasure".into(), "verified".into(), boss, kid, true, true)
+    );
+    // Nothing runs it: the account is only suspended, not erased.
+    let again = m
+        .handle_underage(&who, kid, AgeBand::Under13, Some("again"), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        again.erasure_request_id,
+        Some(rid),
+        "the open request is reported, not duplicated"
+    );
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM data_requests WHERE account_id = $1")
+        .bind(kid)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 1);
     assert_eq!(state(kid).await, ("deactivated".into(), None, true));
     assert!(
         sus.reasons.lock().unwrap()[0].starts_with("other: below the minimum registration age")

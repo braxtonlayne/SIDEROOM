@@ -1158,3 +1158,164 @@ async fn a_locked_age_confirmation_ignores_yes_until_the_lock_is_lifted() {
         .unwrap();
     assert_eq!(state().await, (Some(true), true));
 }
+
+/// Captures the system DMs of the staff service.
+#[derive(Default)]
+struct Dms(std::sync::Mutex<Vec<(i64, String)>>);
+
+#[async_trait::async_trait]
+impl sr_admin::StaffNotifier for Dms {
+    async fn appointment_offer(&self, _: &sr_admin::StaffOffer) -> Option<(i64, i64)> {
+        None
+    }
+    async fn staff_notice(&self, _: &str) {}
+    fn broadcast_announcement(&self, _: &sr_admin::Announcement) {}
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.0.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
+}
+
+/// D-343: the requester is told when their activity is hidden, when it is shown again, and when the request
+/// closes (decline here, the finished export below) while it was hidden; never when it was not hidden. Each notice
+/// is an access-log row with `member_notified`.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_requester_is_told_when_the_restriction_starts_and_ends() {
+    use sr_admin::{AdminService, Caller};
+    use sr_core::PlatformPermissions as P;
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    let repo = Arc::new(repo(pool));
+    let dms = Arc::new(Dms::default());
+    let svc = AdminService::new(repo.clone())
+        .with_extras(repo.clone())
+        .with_data_requests(repo.clone())
+        .with_notifier(dms.clone());
+    let c = Caller {
+        user_id: STAFF,
+        permissions: P::MANAGE_TAKEDOWNS,
+        is_owner: false,
+        ip: None,
+    };
+    let q = repo
+        .create(
+            &new(DataRequestKind::Export, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    let r = svc
+        .set_data_request_restriction(&c, q.id, true, Some("objects"))
+        .await
+        .unwrap();
+    assert!(
+        r.activity_hidden && r.restriction_notified_at_ms.is_some() && !r.restriction_notice_failed
+    );
+    let r = svc
+        .set_data_request_restriction(&c, q.id, false, Some("resolved"))
+        .await
+        .unwrap();
+    assert!(!r.activity_hidden);
+    {
+        let sent = dms.0.lock().unwrap();
+        assert_eq!(sent.len(), 2);
+        assert!(
+            sent[0].1.contains("hidden from other members")
+                && sent[0].1.contains("Nothing is deleted")
+        );
+        assert!(sent[1].1.contains("has ended"));
+        assert!(sent.iter().all(|(to, _)| *to == 100));
+    }
+    // Hidden again, then declined: the ending is told once, with the decline.
+    svc.set_data_request_restriction(&c, q.id, true, Some("again"))
+        .await
+        .unwrap();
+    svc.decline_data_request(&c, q.id, Some("not the account holder"))
+        .await
+        .unwrap();
+    {
+        let sent = dms.0.lock().unwrap();
+        assert_eq!(sent.len(), 4);
+        assert!(sent[3].1.contains("declined") && sent[3].1.contains("has ended"));
+    }
+    let rows: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'data_request.restriction_notice' \
+         AND detail LIKE '%\"member_notified\":true%'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(rows, 4);
+
+    // A decline while not hidden sends nothing.
+    account(pool, 101, "other").await;
+    let q2 = repo
+        .create(
+            &new(DataRequestKind::Export, 101),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    svc.decline_data_request(&c, q2.id, Some("no"))
+        .await
+        .unwrap();
+    assert_eq!(dms.0.lock().unwrap().len(), 4);
+
+    // A finished export ends the restriction and says so (the job path).
+    account(pool, 102, "third").await;
+    let q3 = repo
+        .create(
+            &new(DataRequestKind::Export, 102),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    repo.verify(q3.id, STAFF, T0, &entry("data_request.verify", q3.id))
+        .await
+        .unwrap();
+    let ran = repo
+        .run_export(q3.id, T0, &entry("data_request.run", q3.id))
+        .await
+        .unwrap();
+    repo.set_activity_hidden(
+        q3.id,
+        true,
+        "objects",
+        STAFF,
+        T0,
+        &entry("data_request.restrict", q3.id),
+    )
+    .await
+    .unwrap();
+    let ended = data_export::finish(pool, ran.export_id.unwrap(), "exports/z.zip", 1)
+        .await
+        .unwrap()
+        .expect("the restriction ended with the export");
+    assert_eq!(
+        (ended.request_id, ended.account_id, ended.hidden_by),
+        (q3.id, 102, STAFF)
+    );
+    // An export that completes while not hidden reports nothing.
+    let q4 = repo
+        .create(
+            &new(DataRequestKind::Export, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    repo.verify(q4.id, STAFF, T0, &entry("data_request.verify", q4.id))
+        .await
+        .unwrap();
+    let ran = repo
+        .run_export(q4.id, T0, &entry("data_request.run", q4.id))
+        .await
+        .unwrap();
+    assert!(
+        data_export::finish(pool, ran.export_id.unwrap(), "exports/y.zip", 1)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}

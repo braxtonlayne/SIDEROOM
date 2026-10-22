@@ -53,6 +53,13 @@ const DETAIL = {
       detail: {},
       created_at_ms: 1_700_000_005_000,
     },
+    {
+      id: '12',
+      actor_id: '1',
+      kind: 'underage_handled',
+      detail: { band: 'under_13', note: 'says 11', erasure_request_id: '777' },
+      created_at_ms: 1_700_000_006_000,
+    },
   ],
   holds: [],
   appeal: null,
@@ -155,6 +162,38 @@ describe('Case page age tools (MOD-AGE-001, -003)', () => {
     ]);
   });
 
+  it('links the erasure request opened below the minimum age only for MANAGE_TAKEDOWNS', async () => {
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [CASE], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/cases/9001', () => HttpResponse.json(DETAIL)),
+    );
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES', 'MANAGE_TAKEDOWNS'] });
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Open case 9001' }));
+    await screen.findByRole('heading', { name: 'Case 9001' });
+    expect(
+      await screen.findByRole('link', { name: 'Erasure request 777 opened in the queue' }),
+    ).toHaveAttribute('href', '/admin/data-requests');
+  });
+
+  it('shows no erasure request link without MANAGE_TAKEDOWNS', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES'] });
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [CASE], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/cases/9001', () => HttpResponse.json(DETAIL)),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Open case 9001' }));
+    await screen.findByRole('heading', { name: 'Case 9001' });
+    expect(screen.queryByRole('link', { name: /Erasure request 777/ })).toBeNull();
+  });
+
   it('offers no age tools on a case the server moderators still work', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES'] });
     server.use(
@@ -252,6 +291,30 @@ const request = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('Data requests: restriction and rectification (MOD-DSR-006, -007)', () => {
+  it('asks staff to use the intake channel when the restriction notice failed', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TAKEDOWNS'] });
+    server.use(
+      http.get('*/api/v1/admin/data-requests', () =>
+        HttpResponse.json({
+          items: [
+            request({
+              activity_hidden: true,
+              activity_hidden_at_ms: NOW,
+              activity_hidden_reason: 'objects',
+              restriction_notice_failed: true,
+            }),
+          ],
+          deadline_days: 30,
+          retained_catalog: [],
+        }),
+      ),
+    );
+    openAdmin('data-requests');
+    expect(
+      await screen.findByText(/could not be told in-app: tell them through the intake channel/),
+    ).toBeInTheDocument();
+  });
+
   it('hides the requester activity with a reason, shows the badge, and shows it again', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TAKEDOWNS'] });
     let current = request();

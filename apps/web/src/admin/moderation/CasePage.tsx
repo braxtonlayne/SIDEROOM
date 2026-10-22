@@ -8,7 +8,8 @@ import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
 import { BanReasonFields } from './BanReasonFields';
 import { TakedownBadge } from './TakedownBadge';
-import { Async, FormDialog, ReasonDialog, fmtMs, useResource } from '../ui';
+import { Link } from '@tanstack/react-router';
+import { Async, FormDialog, ReasonDialog, fmtMs, useAdminViewer, useResource } from '../ui';
 import {
   EVENT_KEYS,
   MOVES,
@@ -116,6 +117,7 @@ const HOLD_KINDS: { id: api.HoldKind; key: MessageKey }[] = [
 
 function EventLine({ e }: { e: api.CaseEvent }) {
   const t = useT();
+  const viewer = useAdminViewer();
   const d = (k: string) => {
     const v = e.detail[k];
     return v === undefined || v === null ? '' : String(v);
@@ -145,7 +147,21 @@ function EventLine({ e }: { e: api.CaseEvent }) {
   return (
     <li className="ss-row">
       <div className="ss-grow">
-        <div className="ss-name">{text}</div>
+        <div className="ss-name">
+          {text}
+          {e.kind === 'underage_handled' &&
+            Boolean(e.detail['erasure_request_id']) &&
+            viewer.can('MANAGE_TAKEDOWNS') && (
+              <>
+                {' '}
+                <Link to="/admin/$section" params={{ section: 'data-requests' }}>
+                  {t('admin.moderation.event.erasureRequestLink', {
+                    id: String(e.detail['erasure_request_id']),
+                  })}
+                </Link>
+              </>
+            )}
+        </div>
         <div className="ss-meta">
           {fmtMs(e.created_at_ms)} ·{' '}
           {e.actor_id

@@ -102,7 +102,14 @@ pub struct UnderageOutcome {
     pub member_notified: bool,
     /// The inviter was told the invitee did not meet the entry rules (under 13).
     pub inviter_notified: bool,
+    /// The erasure request opened (or already open) for the account below the minimum age (D-341); nothing runs it.
+    #[serde(default, with = "sr_admin::model::opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub erasure_request_id: Option<i64>,
 }
+
+/// The system DM of an under-18 reset (D-341): the reason, what is closed, and where to write.
+pub const UNDER18_DM: &str = "Staff have reset your age confirmation because they have reason to believe you are under 18. Content marked 18+ stays closed until staff lift this. If that is wrong, write to the staff at the contact shown on the Help page.";
 
 fn may_mark(c: &Caller, kind: AgeTargetKind) -> bool {
     if c.permissions.has(P::MANAGE_CASES) || c.permissions.has(P::DELETE_CONTENT) {
@@ -331,6 +338,7 @@ impl Moderation {
                 })?;
             suspended = true;
         }
+        let deadline_days = i64::from(self.deadline_days().await);
         let mut tx = self.pool.begin().await?;
         let case = match case_id {
             Some(c) => Some(load(&mut tx, who, c, Access::Work, true).await?),
@@ -344,6 +352,31 @@ impl Moderation {
         .bind(by.user_id)
         .execute(&mut *tx)
         .await?;
+        // Below the minimum age: an erasure request is opened and verified by the acting staff member; nothing runs
+        // it (D-341). One active erasure request per account, so an existing one is reported instead.
+        let mut erasure_request_id: Option<i64> = None;
+        if band == AgeBand::Under13 {
+            erasure_request_id = sqlx::query_scalar(
+                "SELECT id FROM data_requests WHERE account_id = $1 AND kind = 'erasure' \n                 AND state IN ('open', 'verified', 'running')",
+            )
+            .bind(account_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            if erasure_request_id.is_none() {
+                let rid = self.next_id();
+                sqlx::query(
+                    "INSERT INTO data_requests (id, kind, person_id, account_id, state, note, received_at, due_at, \n                     verified_by, verified_at, created_by) \n                     SELECT $1, 'erasure', person_id, id, 'verified', $3, now(), now() + make_interval(days => $4), \n                     $2, now(), $2 FROM accounts WHERE id = $5",
+                )
+                .bind(rid)
+                .bind(by.user_id)
+                .bind("below the minimum registration age (D-341)")
+                .bind(i32::try_from(deadline_days).unwrap_or(30))
+                .bind(account_id)
+                .execute(&mut *tx)
+                .await?;
+                erasure_request_id = Some(rid);
+            }
+        }
         if let Some(case) = &case {
             push_event(
                 &mut tx,
@@ -352,7 +385,8 @@ impl Moderation {
                 Some(who.user_id()),
                 "underage_handled",
                 json!({ "account": account_id.to_string(), "band": band.as_str(),
-                        "suspended": suspended, "note": note }),
+                        "suspended": suspended, "note": note,
+                        "erasure_request_id": erasure_request_id.map(|r| r.to_string()) }),
             )
             .await?;
             self.move_to_actioned(&mut tx, who, case.summary.id, case.summary.state)
@@ -366,6 +400,7 @@ impl Moderation {
             ("account", account_id),
             &note,
             json!({ "band": band.as_str(), "suspended": suspended,
+                    "erasure_request_id": erasure_request_id.map(|r| r.to_string()),
                     "case_id": case_id.map(|c| c.to_string()) }),
         )
         .await?;
@@ -373,13 +408,7 @@ impl Moderation {
         let mut member_notified = false;
         let mut inviter_notified = false;
         if band == AgeBand::Under18 {
-            member_notified = self
-                .dm_subject(
-                    account_id,
-                    "A staff member reset your age confirmation. Content marked 18+ stays closed until staff \
-                     allow you to confirm again. If you think this is a mistake, reply to the staff.",
-                )
-                .await;
+            member_notified = self.dm_subject(account_id, UNDER18_DM).await;
         } else if let Some(inviter) = inviter {
             // Only that the invitee did not meet the entry rules (spec 7); never the age or the reason.
             inviter_notified = self
@@ -397,6 +426,7 @@ impl Moderation {
             suspended,
             member_notified,
             inviter_notified,
+            erasure_request_id,
         })
     }
 

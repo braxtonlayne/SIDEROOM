@@ -956,6 +956,9 @@ export interface DataRequest {
   activity_hidden?: boolean;
   activity_hidden_at_ms?: number | null;
   activity_hidden_reason?: string | null;
+  /** The last restriction notice could not be delivered by DM (D-343). */
+  restriction_notice_failed?: boolean;
+  restriction_notified_at_ms?: number | null;
   created_by: string;
 }
 export interface RetainedRecord {

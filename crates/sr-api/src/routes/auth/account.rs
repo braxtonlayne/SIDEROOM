@@ -264,7 +264,7 @@ pub async fn age_gate(
         if account.age_confirmed != Some(true) {
             return Err(ApiError::with_message(
                 sr_core::ErrorCode::MissingPermissions,
-                "Staff reset your age confirmation. It cannot be given again until they lift the restriction.",
+                "Staff have reset your age confirmation because they have reason to believe you are under 18. Content marked 18+ stays closed until staff lift this. If that is wrong, write to the staff at the contact shown on the Help page.",
             )
             .into());
         }
