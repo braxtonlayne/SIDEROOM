@@ -13,10 +13,10 @@ use sqlx::{PgConnection, PgPool, Row, postgres::PgRow};
 use sr_admin::{
     AccessKind, AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountRef,
     AccountState, AccountSummary, AdminError, AdminRepository, AdminResult, AuditEntry,
-    BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger, Delegation, DeleteRequest,
-    FormerStaff, InviteDescendants, InviteNode, InviteQuery, InviteRow, InviteStats, InviteTree,
-    JobRow, LedgerEntry, LoginEvent, PersonDetail, Reset2faReport, StaffMember, StaffRole,
-    Standing, StoredSetting, SuspectPerson, SuspicionChange, SystemCounts, UnbanOutcome,
+    BanCategory, BanFilter, BanOutcome, BanRecord, ChainReport, CreditLedger, Delegation,
+    DeleteRequest, FormerStaff, InviteDescendants, InviteNode, InviteQuery, InviteRow, InviteStats,
+    InviteTree, JobRow, LedgerEntry, LoginEvent, PersonDetail, Reset2faReport, StaffMember,
+    StaffRole, Standing, StoredSetting, SuspectPerson, SuspicionChange, SystemCounts, UnbanOutcome,
     chain::{self, ChainVerifier},
 };
 use sr_core::PlatformPermissions as P;
@@ -400,12 +400,13 @@ fn ban_from(r: &PgRow) -> Result<BanRecord, sqlx::Error> {
         banned_by: r.try_get("banned_by")?,
         created_at_ms: r.try_get("created_ms")?,
         lifted_at_ms: r.try_get("lifted_ms")?,
+        reason_category: r.try_get("reason_category")?,
     })
 }
 
 fn ban_cols() -> String {
     format!(
-        "id, person_id, category::text AS category, note, banned_by, {} AS created_ms, {} AS lifted_ms",
+        "id, person_id, category::text AS category, reason_category::text AS reason_category, note, banned_by, {} AS created_ms, {} AS lifted_ms",
         ms("created_at"),
         ms("lifted_at")
     )
@@ -1186,6 +1187,7 @@ impl AdminRepository for PgAdminRepo {
                 banned_by: by,
                 created_at_ms: created,
                 lifted_at_ms: None,
+                reason_category: None,
             },
             accounts_banned: banned,
             sessions_revoked: sessions,
@@ -1261,18 +1263,30 @@ impl AdminRepository for PgAdminRepo {
 
     async fn list_bans(
         &self,
-        active_only: bool,
+        f: &BanFilter,
         after: Option<i64>,
         limit: i64,
     ) -> AdminResult<Vec<BanRecord>> {
+        // Every filter is a bound parameter. The age filters run on `created_at` (indexed) and the reason
+        // filter on the partial `reason_category` index or, for `none`, on IS NULL.
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM person_bans WHERE ($1 = false OR lifted_at IS NULL) \
-               AND ($2::bigint IS NULL OR id < $2) ORDER BY id DESC LIMIT $3",
+               AND ($2::bigint IS NULL OR id < $2) \
+               AND ($4::text IS NULL OR category::text = $4) \
+               AND ($5::text IS NULL OR ($5 = 'none' AND reason_category IS NULL) \
+                    OR reason_category::text = $5) \
+               AND ($6::int IS NULL OR created_at <= now() - make_interval(days => $6)) \
+               AND ($7::int IS NULL OR created_at >= now() - make_interval(days => $7)) \
+             ORDER BY id DESC LIMIT $3",
             ban_cols()
         )))
-        .bind(active_only)
+        .bind(f.active_only)
         .bind(after)
         .bind(limit)
+        .bind(f.category.map(BanCategory::as_str))
+        .bind(f.reason_category.as_deref())
+        .bind(f.older_than_days)
+        .bind(f.newer_than_days)
         .fetch_all(&self.pool)
         .await
         .map_err(db)?;

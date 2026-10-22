@@ -7,10 +7,10 @@ use crate::{
     ext::{StaffExtrasRepository, StaffNotifier},
     model::{
         AccessKind, AccessLogFilter, AccessLogPage, AccountDetail, AccountPage, AccountQuery,
-        AccountState, AccountSummary, AuditEntry, BanCategory, BanOutcome, BanPage, Caller,
-        ChainReport, CreditLedger, DeleteRequest, FormerStaff, InviteDescendants, InvitePage,
-        InviteQuery, InviteTree, JobPage, PersonDetail, Reset2faReport, StaffMember, StaffRole,
-        SuspectPerson, SystemCounts, UnbanOutcome,
+        AccountState, AccountSummary, AuditEntry, BanCategory, BanFilter, BanOutcome, BanPage,
+        Caller, ChainReport, CreditLedger, DeleteRequest, FormerStaff, InviteDescendants,
+        InvitePage, InviteQuery, InviteTree, JobPage, PersonDetail, Reset2faReport, StaffMember,
+        StaffRole, SuspectPerson, SystemCounts, UnbanOutcome,
     },
     repo::AdminRepository,
     rules,
@@ -883,13 +883,18 @@ impl AdminService {
     pub async fn list_bans(
         &self,
         c: &Caller,
-        active_only: bool,
+        filter: &BanFilter,
         after: Option<i64>,
         limit: Option<i64>,
     ) -> AdminResult<BanPage> {
         self.require(c, P::PLATFORM_BAN, "bans.list").await?;
+        if let Some(r) = &filter.reason_category
+            && !crate::model::BAN_REASON_FILTERS.contains(&r.as_str())
+        {
+            return Err(AdminError::Invalid("unknown reason_category".into()));
+        }
         let limit = page_limit(limit);
-        let mut rows = self.repo.list_bans(active_only, after, limit + 1).await?;
+        let mut rows = self.repo.list_bans(filter, after, limit + 1).await?;
         let more = rows.len() as i64 > limit;
         rows.truncate(limit as usize);
         let next_after = more

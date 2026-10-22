@@ -15,6 +15,7 @@ mod actions;
 mod appeals;
 pub mod blocklist;
 mod cases;
+pub mod dashboard;
 pub mod error;
 pub mod holds;
 pub mod model;

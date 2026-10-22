@@ -13,10 +13,10 @@ use crate::{
     },
     model::{
         AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountRef, AccountState,
-        AccountSummary, AuditEntry, BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger,
-        DeleteRequest, InviteDescendants, InviteNode, InviteQuery, InviteRow, InviteStats,
-        InviteTree, JobRow, LedgerEntry, PersonDetail, Reset2faReport, StaffMember, StaffRole,
-        Standing, StoredSetting, SuspectPerson, SystemCounts, UnbanOutcome,
+        AccountSummary, AuditEntry, BanCategory, BanFilter, BanOutcome, BanRecord, ChainReport,
+        CreditLedger, DeleteRequest, InviteDescendants, InviteNode, InviteQuery, InviteRow,
+        InviteStats, InviteTree, JobRow, LedgerEntry, PersonDetail, Reset2faReport, StaffMember,
+        StaffRole, Standing, StoredSetting, SuspectPerson, SystemCounts, UnbanOutcome,
     },
     repo::AdminRepository,
 };
@@ -792,6 +792,7 @@ impl AdminRepository for MemoryAdminRepo {
             banned_by: by,
             created_at_ms: now,
             lifted_at_ms: None,
+            reason_category: None,
         };
         s.bans.push(ban.clone());
         let mut inviter_suspicion = None;
@@ -863,15 +864,31 @@ impl AdminRepository for MemoryAdminRepo {
 
     async fn list_bans(
         &self,
-        active_only: bool,
+        f: &BanFilter,
         after: Option<i64>,
         limit: i64,
     ) -> AdminResult<Vec<BanRecord>> {
+        let now = self.now();
+        let day = 86_400_000_i64;
         let s = self.s();
         let mut v: Vec<_> = s
             .bans
             .iter()
-            .filter(|b| !active_only || b.lifted_at_ms.is_none())
+            .filter(|b| !f.active_only || b.lifted_at_ms.is_none())
+            .filter(|b| f.category.is_none_or(|c| b.category == c))
+            .filter(|b| match f.reason_category.as_deref() {
+                None => true,
+                Some("none") => b.reason_category.is_none(),
+                Some(r) => b.reason_category.as_deref() == Some(r),
+            })
+            .filter(|b| {
+                f.older_than_days
+                    .is_none_or(|d| b.created_at_ms <= now - i64::from(d) * day)
+            })
+            .filter(|b| {
+                f.newer_than_days
+                    .is_none_or(|d| b.created_at_ms >= now - i64::from(d) * day)
+            })
             .filter(|b| after.is_none_or(|x| b.id < x))
             .cloned()
             .collect();

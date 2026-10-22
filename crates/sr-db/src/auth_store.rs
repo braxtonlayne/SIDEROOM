@@ -393,9 +393,11 @@ impl AuthStore for PgAuthStore {
     }
 
     async fn reset_age_confirmed(&self, id: i64) -> StoreResult<()> {
+        // The reset is counted in the same statement, without the account (staff dashboard, spec 7).
         sqlx::query(
-            "UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, \
-             updated_at = now() WHERE id = $1",
+            "WITH u AS (UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, \
+             updated_at = now() WHERE id = $1 RETURNING 1) \
+             INSERT INTO age_gate_resets (source) SELECT 'self' FROM u",
         )
         .bind(id)
         .execute(&self.pool)

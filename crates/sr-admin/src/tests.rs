@@ -526,7 +526,15 @@ async fn serious_ban_raises_inviter_suspicion_and_standard_does_not() {
     ));
     assert_eq!(
         e.svc
-            .list_bans(&m, true, None, None)
+            .list_bans(
+                &m,
+                &BanFilter {
+                    active_only: true,
+                    ..Default::default()
+                },
+                None,
+                None
+            )
             .await
             .unwrap()
             .items
