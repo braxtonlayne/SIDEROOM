@@ -411,9 +411,13 @@ GET	/moderation/cases	authenticated	staff	deny	-
 GET	/moderation/cases/{case_id}	authenticated	membership	deny	-
 GET	/moderation/dashboard	authenticated	staff	deny	-
 GET	/moderation/dashboard/inbox	authenticated	staff	deny	-
+GET	/moderation/evasion-signals	authenticated	staff	deny	-
+GET	/moderation/evasion-signals/count	authenticated	staff	deny	-
+GET	/moderation/evasion-signals/{signal_id}	authenticated	staff	deny	-
 GET	/moderation/guilds/{guild_id}/cases	authenticated	membership	deny	-
 GET	/moderation/holds	authenticated	staff	deny	-
 GET	/moderation/item-status	authenticated	user	deny	-
+GET	/moderation/persons/{person_id}/suspicion	authenticated	staff	deny	-
 GET	/moderation/reports/mine	authenticated	self	deny	-
 GET	/moderation/takedowns	authenticated	staff	deny	-
 GET	/moderation/takedowns/export	authenticated	staff	deny	-
@@ -774,8 +778,11 @@ POST	/moderation/cases/{case_id}/reopen	authenticated	membership	deny	-
 POST	/moderation/cases/{case_id}/state	authenticated	membership	deny	-
 POST	/moderation/cases/{case_id}/warn	authenticated	staff	deny	-
 POST	/moderation/dashboard/inbox/dismiss	authenticated	staff	deny	-
+POST	/moderation/evasion-signals/{signal_id}/link-case	authenticated	staff	deny	-
+POST	/moderation/evasion-signals/{signal_id}/review	authenticated	staff	deny	-
 POST	/moderation/holds/{hold_id}/release	authenticated	staff	deny	-
 POST	/moderation/holds/{hold_id}/reviewed	authenticated	staff	deny	-
+POST	/moderation/persons/{person_id}/evasion-scan	authenticated	staff	deny	-
 POST	/moderation/reports	authenticated	visibility	deny	-
 POST	/moderation/takedowns	authenticated	staff	deny	-
 POST	/moderation/takedowns/{notice_id}/counter-notice	authenticated	staff	deny	-

@@ -810,6 +810,10 @@ impl AdminRepository for MemoryAdminRepo {
                 level,
                 frozen: i64::from(level) >= freeze_at,
                 escalated: i64::from(level) >= escalate_at,
+                freeze_crossed: i64::from(level) >= freeze_at && i64::from(level - 1) < freeze_at,
+                escalate_crossed: i64::from(level) >= escalate_at
+                    && i64::from(level - 1) < escalate_at,
+                banned_person_id: person_id,
             });
         }
         audit_in(&mut s, now, audit);

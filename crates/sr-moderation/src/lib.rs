@@ -23,6 +23,8 @@ mod reports;
 pub mod rules;
 pub mod service;
 pub mod snapshot;
+mod suspicion;
+pub mod suspicion_rules;
 pub mod takedown_rules;
 mod takedowns;
 
@@ -34,4 +36,5 @@ pub use service::{
     GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, PolicySource, RemovalSink,
     SubjectNotifier,
 };
+pub use suspicion::SCAN_BATCH;
 pub use takedowns::register_csv;

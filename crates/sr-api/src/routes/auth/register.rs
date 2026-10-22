@@ -141,6 +141,7 @@ pub async fn register(
     let link = link_token
         .as_deref()
         .and_then(|t| svc.discord_links.get(t, now));
+    let code_for_alert = code.clone();
     let outcome = svc
         .store
         .register(RegisterTx {
@@ -164,9 +165,21 @@ pub async fn register(
         Err(RegisterRejection::AtCap) => return Err(closed()),
         Err(RegisterRejection::PersonBanned) => {
             // Generic to the client; staff are alerted (ENT-INV-008).
+            // The alert names the inviter's Person (D-348); nothing is raised against the inviter.
+            let inviter = svc
+                .store
+                .invite_issuer_person(&code_for_alert)
+                .await
+                .ok()
+                .flatten();
             svc.staff_alert(
                 sr_events::StaffAlertKind::BannedPersonAttempt,
-                "registration refused: banned Person",
+                &match inviter {
+                    Some(p) => {
+                        format!("registration refused: banned Person; invite from person {p}")
+                    }
+                    None => "registration refused: banned Person".to_owned(),
+                },
             )
             .await;
             return Err(unusable());

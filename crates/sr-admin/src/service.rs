@@ -64,6 +64,7 @@ pub struct AdminService {
     pub(crate) data_requests: Option<Arc<dyn crate::data_requests::DataRequestRepository>>,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) stats_cache: Arc<Mutex<Option<(i64, SystemCounts)>>>,
+    suspicion: Arc<crate::suspicion_hook::ObserverSlot>,
 }
 
 impl AdminService {
@@ -76,7 +77,13 @@ impl AdminService {
             data_requests: None,
             clock: Arc::new(SystemClock),
             stats_cache: Arc::new(Mutex::new(None)),
+            suspicion: Arc::default(),
         }
+    }
+
+    /// Where threshold crossings and clears are reported (MOD-SUS-002). Shared by every clone.
+    pub fn set_suspicion_observer(&self, o: Arc<dyn crate::suspicion_hook::SuspicionObserver>) {
+        self.suspicion.set(o);
     }
 
     /// Storage of offers, announcements, alerts and private reads (phase 10).
@@ -842,6 +849,20 @@ impl AdminService {
                 )
                 .await;
             }
+            if (s.freeze_crossed || s.escalate_crossed)
+                && let Some(o) = self.suspicion.get()
+            {
+                o.threshold_crossed(crate::suspicion_hook::SuspicionCrossing {
+                    person_id: s.person_id,
+                    inviter_account_id: s.inviter_account_id,
+                    banned_person_id: s.banned_person_id,
+                    level: s.level,
+                    freeze_crossed: s.freeze_crossed,
+                    escalate_crossed: s.escalate_crossed,
+                    actor_id: c.user_id,
+                })
+                .await;
+            }
         }
         Ok(out)
     }
@@ -1082,9 +1103,19 @@ impl AdminService {
             &reason,
             json!({}),
         );
+        let freeze = self.setting_i64(settings::SUSPICION_FREEZE).await?;
+        let was_paused = self
+            .repo
+            .person_detail(person_id)
+            .await?
+            .is_some_and(|p| i64::from(p.suspicion_level) >= freeze);
         self.repo
             .clear_suspicion(person_id, c.user_id, &audit)
-            .await
+            .await?;
+        if let Some(o) = self.suspicion.get() {
+            o.cleared(person_id, c.user_id, &reason, was_paused).await;
+        }
+        Ok(())
     }
 
     // ===== platform settings ==============================================

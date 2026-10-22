@@ -535,3 +535,103 @@ export const dismissInbox = (caseIds: string[], reason: string) =>
     case_ids: caseIds,
     reason,
   });
+// ---- inviter suspicion and evasion signals (MOD-SUS-001 to -004; spec section 10) ----
+
+export interface AccountRef {
+  id: string;
+  username: string;
+}
+export interface SuspicionPanelEvent {
+  id: string;
+  delta: number;
+  level_after: number;
+  /** `raised`, or `cleared` (a clear keeps the events and carries the reason). */
+  kind: 'raised' | 'cleared' | 'reregistration_refused';
+  reason: string;
+  source_account: AccountRef | null;
+  actor_id: string | null;
+  case_id: string | null;
+  created_at_ms: number;
+}
+export interface BannedDescendant {
+  account: AccountRef;
+  person_id: string;
+  depth: number;
+  ban_category: 'serious' | 'standard';
+  reason_category: ReportCategory | null;
+  banned_at_ms: number;
+  lifted: boolean;
+  case_id: string | null;
+}
+export interface InvitePath {
+  account_id: string;
+  nodes: AccountRef[];
+}
+export interface SuspicionCaseRef {
+  id: string;
+  state: CaseState;
+  auto_kind: 'suspicion_freeze' | 'suspicion_escalation';
+  assignee_id: string | null;
+  linked_case_id: string | null;
+  opened_at_ms: number;
+}
+export type SignalKind = 'shared_login_ip' | 'shared_invite_lineage' | 'new_account_after_ban';
+export type SignalState = 'open' | 'dismissed' | 'confirmed';
+export interface EvasionSignal {
+  id: string;
+  person_id: string;
+  account: AccountRef | null;
+  related_person_id: string;
+  related_account: AccountRef | null;
+  kind: SignalKind;
+  detail: Record<string, unknown>;
+  state: SignalState;
+  created_at_ms: number;
+  reviewed_by: string | null;
+  reviewed_at_ms: number | null;
+  review_reason: string | null;
+  case_id: string | null;
+}
+export interface SharedAddress {
+  ip: string;
+  person_last_seen_ms: number;
+  related_last_seen_ms: number;
+  persons: number;
+}
+export interface SignalDetail {
+  signal: EvasionSignal;
+  window_days: number;
+  shared_addresses: SharedAddress[];
+  /** What the reviewer looked at when confirming; stays after the sign-in rows are deleted. */
+  snapshot: Record<string, unknown> | null;
+}
+export interface SuspicionPanel {
+  person_id: string;
+  level: number;
+  freeze_threshold: number;
+  escalate_threshold: number;
+  invites_paused: boolean;
+  accounts: AccountRef[];
+  events: SuspicionPanelEvent[];
+  banned_descendants: BannedDescendant[];
+  invite_paths: InvitePath[];
+  cases: SuspicionCaseRef[];
+  /** Absent for staff without `MANAGE_ACCOUNTS`: the signals are IP-derived. */
+  signals: EvasionSignal[] | null;
+}
+export const getSuspicionPanel = (personId: string) =>
+  get<SuspicionPanel>(`/moderation/persons/${personId}/suspicion`);
+export const countEvasionSignals = () => get<{ open: number }>('/moderation/evasion-signals/count');
+export const linkSignalCase = (id: string, caseId: string) =>
+  send<EvasionSignal>(`/moderation/evasion-signals/${id}/link-case`, 'POST', { case_id: caseId });
+export const scanEvasion = (personId: string) =>
+  send<{ raised: number }>(`/moderation/persons/${personId}/evasion-scan`, 'POST');
+export const listEvasionSignals = (p: { state?: SignalState | 'all'; limit?: number } = {}) =>
+  get<EvasionSignal[]>(`/moderation/evasion-signals${qs(p)}`);
+export const getEvasionSignal = (id: string) =>
+  get<SignalDetail>(`/moderation/evasion-signals/${id}`);
+export const reviewEvasionSignal = (
+  id: string,
+  decision: 'dismissed' | 'confirmed',
+  reason: string,
+) => send<EvasionSignal>(`/moderation/evasion-signals/${id}/review`, 'POST', { decision, reason });

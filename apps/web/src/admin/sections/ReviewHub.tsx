@@ -1,10 +1,11 @@
 // Review Queues hub (ADM-CNT-001): one tab per queue the staff member may work. Library submissions are the
 // full reviewer workspace; Cinema is the report queue; Apps is developer applications and versions.
 // Directory is the Server Directory queue; Packages is the declarative package queue (EXT-PKG-003).
-import { Tabs, type TabItem } from '@sideroom/ui';
+import { Notice, Tabs, type TabItem } from '@sideroom/ui';
 import { useLocation } from '@tanstack/react-router';
 import { useT } from '../../i18n';
-import { SectionHeader, useAdminViewer } from '../ui';
+import * as moderation from '../../moderation/api';
+import { SectionHeader, useAdminViewer, useResource } from '../ui';
 import { AppsReview } from './AppsReview';
 import { DirectoryQueue } from './DirectoryQueue';
 import { CinemaReports } from './CinemaReports';
@@ -14,6 +15,10 @@ import { PackagesReview } from './PackagesReview';
 export function ReviewHubSection() {
   const t = useT();
   const viewer = useAdminViewer();
+  // Open evasion signals (P-15), for staff who may see sign-in data; a failed count just hides the tile.
+  const signalCount = useResource(`review-signals:${viewer.can('MANAGE_ACCOUNTS')}`, async () =>
+    viewer.can('MANAGE_ACCOUNTS') ? (await moderation.countEvasionSignals()).open : null,
+  );
   // A `#review-queue` card links to `?submission=<id>` (G-68): that is a Library submission, so open its tab.
   const search = useLocation({ select: (l) => l.searchStr }).replace(/^\?/, '');
   const linked = /(^|&)submission=\d+/.test(search);
@@ -45,6 +50,13 @@ export function ReviewHubSection() {
   return (
     <>
       <SectionHeader title={t('admin.review.title')} description={t('admin.review.description')} />
+      {signalCount.data != null && signalCount.data > 0 && (
+        <Notice variant="info" role="status">
+          <a href="/admin/moderation?tab=signals">
+            {t('admin.suspicion.hubTile', { n: signalCount.data })}
+          </a>
+        </Notice>
+      )}
       <Tabs
         label={t('admin.reviewHub.tabsLabel')}
         items={items}

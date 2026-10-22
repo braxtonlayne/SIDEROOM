@@ -127,6 +127,16 @@ fn passkey_from_row(r: &sqlx::postgres::PgRow) -> StoreResult<PasskeyRecord> {
 
 #[async_trait]
 impl AuthStore for PgAuthStore {
+    async fn invite_issuer_person(&self, code: &InviteCode) -> StoreResult<Option<i64>> {
+        sqlx::query_scalar(
+            "SELECT a.person_id FROM platform_invites pi JOIN accounts a ON a.id = pi.issuer_account_id \n             WHERE pi.code = $1",
+        )
+        .bind(code.canonical())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_err)
+    }
+
     async fn invite_state(&self, code: &InviteCode) -> StoreResult<Option<InviteState>> {
         let state: Option<String> =
             sqlx::query_scalar("SELECT state::text FROM platform_invites WHERE code = $1")

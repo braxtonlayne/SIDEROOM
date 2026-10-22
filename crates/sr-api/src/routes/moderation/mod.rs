@@ -16,6 +16,7 @@ mod cases;
 mod dashboard;
 mod holds;
 mod reports;
+mod suspicion;
 mod takedowns;
 #[cfg(test)]
 mod tests;
@@ -298,6 +299,28 @@ pub fn router() -> Router<AppState> {
             post(dashboard::dismiss),
         )
         .route(
+            "/moderation/persons/{person_id}/suspicion",
+            get(suspicion::panel),
+        )
+        .route(
+            "/moderation/persons/{person_id}/evasion-scan",
+            post(suspicion::scan),
+        )
+        .route("/moderation/evasion-signals", get(suspicion::list))
+        .route("/moderation/evasion-signals/count", get(suspicion::count))
+        .route(
+            "/moderation/evasion-signals/{signal_id}",
+            get(suspicion::detail),
+        )
+        .route(
+            "/moderation/evasion-signals/{signal_id}/link-case",
+            post(suspicion::link_case),
+        )
+        .route(
+            "/moderation/evasion-signals/{signal_id}/review",
+            post(suspicion::review),
+        )
+        .route(
             "/moderation/appeals/{appeal_id}/decision",
             post(holds::decide_appeal),
         )
@@ -346,6 +369,13 @@ pub fn router() -> Router<AppState> {
         dashboard::get,
         dashboard::inbox,
         dashboard::dismiss,
+        suspicion::panel,
+        suspicion::scan,
+        suspicion::list,
+        suspicion::detail,
+        suspicion::review,
+        suspicion::link_case,
+        suspicion::count,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
@@ -418,6 +448,21 @@ pub fn router() -> Router<AppState> {
         sr_moderation::dashboard::InboxSkipped,
         sr_moderation::dashboard::InboxDismissOutcome,
         dashboard::InboxDismissBody,
+        suspicion::SignalReviewBody,
+        suspicion::LinkCaseBody,
+        suspicion::SignalCount,
+        sr_moderation::model::SuspicionPanel,
+        sr_moderation::model::PanelEvent,
+        sr_moderation::model::PersonAccountRef,
+        sr_moderation::model::BannedDescendant,
+        sr_moderation::model::InvitePath,
+        sr_moderation::model::SuspicionCaseRef,
+        sr_moderation::model::SignalView,
+        sr_moderation::model::SignalDetail,
+        sr_moderation::model::SharedAddress,
+        sr_moderation::model::ScanOutcome,
+        sr_moderation::model::SignalKind,
+        sr_moderation::model::SignalState,
         Delivered,
         ErrorBody,
     ))

@@ -1173,6 +1173,11 @@ impl AdminRepository for PgAdminRepo {
                     level,
                     frozen: i64::from(level) >= freeze_at,
                     escalated: i64::from(level) >= escalate_at,
+                    freeze_crossed: i64::from(level) >= freeze_at
+                        && i64::from(level - 1) < freeze_at,
+                    escalate_crossed: i64::from(level) >= escalate_at
+                        && i64::from(level - 1) < escalate_at,
+                    banned_person_id: person_id,
                 });
             }
         }
@@ -1350,12 +1355,13 @@ impl AdminRepository for PgAdminRepo {
         if old > 0 {
             sqlx::query(
                 "INSERT INTO suspicion_events (id, person_id, delta, level_after, reason, actor_id) \
-                 VALUES ($1,$2,$3,0,'cleared by staff',$4)",
+                 VALUES ($1,$2,$3,0,$5,$4)",
             )
             .bind((self.ids)())
             .bind(person_id)
             .bind(-(old.min(i32::from(i16::MAX)) as i16))
             .bind(by)
+            .bind(format!("cleared by staff: {}", audit.reason))
             .execute(&mut *tx)
             .await
             .map_err(db)?;

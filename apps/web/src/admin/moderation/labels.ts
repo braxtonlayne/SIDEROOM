@@ -56,6 +56,12 @@ export const EVENT_KEYS: Record<string, MessageKey> = {
   member_self_delete: 'admin.moderation.event.memberSelfDelete',
   strike_review_opened: 'admin.moderation.event.strikeReview',
   counter_notice: 'admin.moderation.event.takedownCounterNotice',
+  assigned: 'admin.moderation.event.assigned',
+  suspicion_raised: 'admin.moderation.event.suspicionRaised',
+  suspicion_escalated: 'admin.moderation.event.suspicionEscalated',
+  suspicion_cleared: 'admin.moderation.event.suspicionCleared',
+  evasion_signal_confirmed: 'admin.moderation.event.evasionConfirmed',
+  evasion_signal_linked: 'admin.moderation.event.evasionLinked',
 };
 
 /** The actions a moderator can record as taken with the server's own tools. */

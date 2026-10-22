@@ -1,8 +1,11 @@
-// Admin > Moderation (MOD-CASE-011/012, MOD-HOLD-006, MOD-APL-005, MOD-TKD-010, MOD-DASH-*; docs/specs/
+// Admin > Moderation (MOD-CASE-011/012, MOD-HOLD-006, MOD-APL-005, MOD-TKD-010, MOD-DASH-*, MOD-SUS-003; docs/specs/
 // moderation-compliance.md section 9). The queue, one case at a time, the holds list, the appeals list, the takedown
-// register and the dashboard. The API decides what each viewer may see; the tabs follow the platform bits (cases,
-// takedowns; PLATFORM_BAN adds the ban figures to the dashboard).
+// register, the dashboard and the evasion signals. The API decides what each viewer may see; every tab follows one
+// platform bit: Dashboard MANAGE_CASES or MANAGE_TAKEDOWNS (PLATFORM_BAN adds the ban figures), Cases MANAGE_CASES and
+// the reviewer bits, Holds and Appeals MANAGE_CASES, Signals MANAGE_ACCOUNTS, Takedowns MANAGE_TAKEDOWNS. A viewer
+// with a single tab gets its content without a tab bar.
 import { Tabs } from '@sideroom/ui';
+import { useLocation } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import { SectionHeader, useAdminViewer } from '../ui';
@@ -10,6 +13,7 @@ import { CasePage } from './CasePage';
 import { CaseQueue } from './CaseQueue';
 import { DashboardTab } from './DashboardTab';
 import { AppealsTab, HoldsTab } from './HoldsAndAppeals';
+import { SignalsTab } from './SignalsTab';
 import { TakedownsTab } from './TakedownsTab';
 
 export function ModerationSection() {
@@ -24,7 +28,21 @@ export function ModerationSection() {
   // The Dashboard tab shows whatever the viewer's bits allow: MANAGE_CASES, MANAGE_TAKEDOWNS and, for the ban
   // figures, PLATFORM_BAN on top of one of them (the section itself stays hidden from PLATFORM_BAN alone).
   const dashboard = manage || takedowns;
-  const [tab, setTab] = useState(cases ? 'cases' : takedowns ? 'takedowns' : 'dashboard');
+  // Signals are IP-derived: MANAGE_ACCOUNTS (P-16). A deep link `?tab=signals` opens them (the Review hub tile).
+  const signals = viewer.can('MANAGE_ACCOUNTS');
+  const search = useLocation({ select: (l) => l.searchStr });
+  const wantSignals = signals && /(^|[?&])tab=signals/.test(search);
+  const [tab, setTab] = useState(
+    wantSignals
+      ? 'signals'
+      : cases
+        ? 'cases'
+        : takedowns
+          ? 'takedowns'
+          : signals
+            ? 'signals'
+            : 'dashboard',
+  );
   const [caseId, setCaseId] = useState<string | null>(null);
   const [noticeId, setNoticeId] = useState<string | null>(null);
 
@@ -80,6 +98,15 @@ export function ModerationSection() {
           },
         ]
       : []),
+    ...(signals
+      ? [
+          {
+            id: 'signals',
+            label: t('admin.suspicion.tabSignals'),
+            content: <SignalsTab />,
+          },
+        ]
+      : []),
     ...(takedowns
       ? [
           {
@@ -99,10 +126,10 @@ export function ModerationSection() {
       />
       {caseId && cases ? (
         <CasePage id={caseId} onBack={() => setCaseId(null)} onOpenNotice={openNotice} />
-      ) : !dashboard ? (
-        // Reviewers work the cases routed to them; holds and appeals are platform staff's (D-213, D-215).
-        <CaseQueue onOpen={open} />
-      ) : (
+      ) : items.length === 1 ? (
+        // One tab only (a reviewer's queue, D-331; MANAGE_ACCOUNTS alone sees the signals, P-16): no tab bar.
+        items[0].content
+) : (
         <Tabs
           label={t('admin.moderation.tabsLabel')}
           value={tab}

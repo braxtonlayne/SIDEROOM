@@ -89,6 +89,7 @@ export const ADMIN_SECTIONS: SectionDef[] = [
         v.perms,
         'MANAGE_CASES',
         'MANAGE_TAKEDOWNS',
+        'MANAGE_ACCOUNTS',
         'REVIEW_READING',
         'REVIEW_MEDIA',
         'DELETE_CONTENT',
