@@ -1298,6 +1298,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/data-requests/{request_id}/rectify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rectification of a Person link (MOD-DSR-007, spec section 6): correct which Person the requester's account is
+         *     linked to, with a logged reason. Needs `MANAGE_TAKEDOWNS` and `MANAGE_ACCOUNTS`; refused while a ban involves
+         *     either Person.
+         */
+        post: operations["rectify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/restriction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restriction or objection (GDPR articles 18 and 21, MOD-DSR-006): hide the requester's shared activity (cinema,
+         *     library sharing, watching presence, recommendations) from discovery while the request is reviewed, or
+         *     show it again. Nothing is deleted. It also ends when the request is completed or declined. 409 when the request
+         *     is closed or already in that state.
+         */
+        post: operations["restriction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/data-requests/{request_id}/run": {
         parameters: {
             query?: never;
@@ -9312,6 +9355,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/age/restrictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark or unmark a channel, library series or cinema title as age-restricted (`MANAGE_CASES`, or the review bit of
+         *     the kind). The change applies on the next request; open clients are told when a channel changes. Marking a
+         *     channel needs a server channel that is not a category or a thread.
+         */
+        post: operations["restrict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/age/underage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Underage handling (D-294, spec 7): reset the age confirmation so the gate asks again, and lock it so the account
+         *     cannot answer "yes" itself until staff lift the lock. An account under 13 is also suspended (needs
+         *     `MANAGE_ACCOUNTS`), and its inviter is told only that the invitee did not meet the entry rules. `MANAGE_CASES`.
+         */
+        post: operations["underage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/age/underage/{account_id}/lift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lift the lock on an account's age confirmation, so it may answer the age gate again (`MANAGE_CASES`). A suspension
+         *     is lifted separately, on the account.
+         */
+        post: operations["lift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/appeals": {
         parameters: {
             query?: never;
@@ -9606,6 +9711,27 @@ export interface paths {
         put?: never;
         /** Release a hold (`MANAGE_CASES`, a reason). Deleted rows become purgeable at the next job run. */
         post: operations["release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/holds/{hold_id}/retain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide a hold a deletion request met: keep the held rows with a stated legal basis (`MANAGE_CASES`,
+         *     MOD-DSR-005). The other decision is releasing the hold. 409 when no deletion request met the hold, or it was
+         *     decided or released already.
+         */
+        post: operations["retain"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13340,12 +13466,36 @@ export interface components {
             /** @description `totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion). */
             method: string;
         };
+        /** @description Body of `POST /admin/data-requests/{id}/rectify`. */
+        AdminRectifyDataRequestBody: {
+            /**
+             * @description Put the requester's account under this Person (decimal snowflake); absent splits the account off into a
+             *     Person of its own.
+             */
+            person_id?: string | null;
+            /** @description Why the link was wrong (required, kept in the access log). */
+            reason?: string | null;
+        };
+        /** @description The Person the account is under after a rectification. */
+        AdminRectifyDataRequestResult: {
+            person_id: string;
+        };
         AdminRenameBody: {
             /** @description New display name; `null` or empty clears it. Leave out to keep it. */
             display_name?: string | null;
             reason?: string | null;
             /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
             username?: string | null;
+        };
+        /** @description Body of `POST /admin/data-requests/{id}/restriction`. */
+        AdminRestrictDataRequestBody: {
+            /**
+             * @description `true` hides the account's shared activity from discovery while the request is reviewed; `false` shows it
+             *     again.
+             */
+            hide: boolean;
+            /** @description Why (required, kept in the access log). */
+            reason?: string | null;
         };
         /** @description Body of `POST /admin/data-requests/{id}/run` (optional). */
         AdminRunDataRequestBody: {
@@ -13377,6 +13527,21 @@ export interface components {
             trailers: components["schemas"]["Trailer"][];
             variants: components["schemas"]["Variant"][];
         };
+        /**
+         * @description How young the account was found to be (D-294).
+         * @enum {string}
+         */
+        AgeBand: "under_18" | "under_13";
+        /** @description The result of marking or unmarking. */
+        AgeChange: {
+            /** @description `false` when the item already was in that state (nothing was written except the log row). */
+            changed: boolean;
+            id: string;
+            kind: components["schemas"]["AgeTargetKind"];
+            /** @description The channel name or the series or title name. */
+            label: string;
+            restricted: boolean;
+        };
         /** @description The stored "18 or older" confirmation (D-230). */
         AgeConfirmationObject: {
             /**
@@ -13393,6 +13558,11 @@ export interface components {
          * @enum {string}
          */
         AgeFilter: "hide" | "include" | "only";
+        /**
+         * @description What can be marked age-restricted.
+         * @enum {string}
+         */
+        AgeTargetKind: "channel" | "library_series" | "cinema_title";
         AlertActionBody: {
             channel_id: string;
             /** @description The `custom_id` of the pressed button or select (`sr:automod:...`, `sr:incident:...`). */
@@ -14307,6 +14477,8 @@ export interface components {
             state: components["schemas"]["CaseState"];
             summary: string;
             takedown?: null | components["schemas"]["CaseTakedown"];
+            /** @description The channel a message case is about (the channel to mark age-restricted for misplaced adult content). */
+            target_channel_id?: string | null;
             target_id?: string | null;
             target_kind: components["schemas"]["TargetKind"];
             /** Format: int64 */
@@ -15664,6 +15836,14 @@ export interface components {
         /** @description A queue row. */
         DataRequest: {
             account_id: string;
+            /**
+             * @description MOD-DSR-006: staff hid the account's shared activity from discovery while this request is reviewed.
+             *     Nothing is deleted; it ends with the request or when staff lift it.
+             */
+            activity_hidden?: boolean;
+            /** Format: int64 */
+            activity_hidden_at_ms?: number | null;
+            activity_hidden_reason?: string | null;
             /** Format: int64 */
             completed_at_ms?: number | null;
             created_by: string;
@@ -16944,6 +17124,14 @@ export interface components {
             /** Format: int64 */
             submissions: number;
         };
+        /** @description Body of a retain decision. */
+        HoldRetainBody: {
+            /**
+             * @description The stated legal basis for keeping the held rows after the deletion request (required, up to 500
+             *     characters; kept on the hold, the case timeline and the access log).
+             */
+            basis?: string | null;
+        };
         /** @description A hold, in force or released. */
         HoldView: {
             /** Format: int64 */
@@ -16958,6 +17146,14 @@ export interface components {
             created_at_ms: number;
             /** @description `None` when the system placed it (a report on a message). */
             created_by?: string | null;
+            /**
+             * @description A deletion request met this hold (MOD-DSR-005): the hold is flagged for a staff decision, release or retain
+             *     with a stated legal basis. Cleared by either.
+             */
+            erasure_flagged?: boolean;
+            erasure_request_id?: string | null;
+            /** @description Staff decided to retain the held rows after the request, with this basis. */
+            erasure_retained_basis?: string | null;
             id: string;
             /**
              * Format: int64
@@ -17721,6 +17917,11 @@ export interface components {
         };
         /** @enum {string} */
         LibraryVisibility: "private" | "friends" | "public";
+        /** @description Body of `POST /moderation/age/underage/{account_id}/lift`. */
+        LiftBody: {
+            /** @description Why the lock goes (required). */
+            reason?: string | null;
+        };
         /** @description Body of `POST /admin/persons/{person_id}/link`. */
         LinkAccountBody: {
             /** @description The account to move under this Person. */
@@ -20162,6 +20363,18 @@ export interface components {
             /** @description `true` to accept (and join the staff), `false` to decline. */
             accept: boolean;
         };
+        /** @description Body of `POST /moderation/age/restrictions`. */
+        RestrictionBody: {
+            /** @description The case this belongs to; its timeline gets the entry and a case being worked moves to `actioned`. */
+            case_id?: string | null;
+            /** @description The channel, series or title (decimal snowflake). */
+            id: string;
+            kind: components["schemas"]["AgeTargetKind"];
+            /** @description Why (required, up to 500 characters; goes to the access log and the case timeline). */
+            reason?: string | null;
+            /** @description `true` marks it age-restricted, `false` removes the mark. */
+            restricted: boolean;
+        };
         /** @description One record kept after an erasure, with the reason (G-66, D-124, D-295). */
         RetainedRecord: {
             id: string;
@@ -21937,6 +22150,30 @@ export interface components {
             accounts_left_deactivated: number;
             /** Format: int64 */
             accounts_reactivated: number;
+        };
+        /** @description Body of `POST /moderation/age/underage`. */
+        UnderageBody: {
+            /** @description The account found to be younger than allowed (decimal snowflake). */
+            account_id: string;
+            /**
+             * @description `under_18`: reset and lock the age confirmation. `under_13` (below the minimum registration age): the same,
+             *     and the account is suspended.
+             */
+            band: components["schemas"]["AgeBand"];
+            case_id?: string | null;
+            /** @description Why (required, up to 500 characters; kept in the access log and, for a suspension, the audit reason). */
+            note?: string | null;
+        };
+        /** @description The result of underage handling. */
+        UnderageOutcome: {
+            account_id: string;
+            band: components["schemas"]["AgeBand"];
+            /** @description The inviter was told the invitee did not meet the entry rules (under 13). */
+            inviter_notified: boolean;
+            /** @description The account was told its age confirmation was reset (under 18, when a DM could be sent). */
+            member_notified: boolean;
+            /** @description The account was suspended (under 13 and still active). */
+            suspended: boolean;
         };
         /** @description Body of the unlink call. */
         UnlinkBody: {
@@ -27308,6 +27545,138 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AdminExtendDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rectify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRectifyDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRectifyDataRequestResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restriction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRestrictDataRequestBody"];
             };
         };
         responses: {
@@ -53773,6 +54142,188 @@ export interface operations {
             };
         };
     };
+    restrict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestrictionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeChange"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    underage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnderageBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnderageOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    lift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LiftBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_appeals: {
         parameters: {
             query?: {
@@ -54839,6 +55390,70 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HoldReleased"];
                 };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    retain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hold snowflake */
+                hold_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldRetainBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: {
                 headers: {

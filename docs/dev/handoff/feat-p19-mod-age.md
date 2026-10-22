@@ -36,3 +36,12 @@ Base: integration/phase19 (= main). Migration used: `1160_mod_age_dsr.sql` (rang
 - Is "suspend, reset and lock" the right handling below the minimum age, and should an under-18 account be told by DM (D-294 lawyer note)?
 - Should rectification of a Person link also be open to `MANAGE_ACCOUNTS` alone (it already is, on the Persons page)?
 - Is hiding shared activity enough for GDPR articles 18 and 21, or must the account also leave the member directory and message search?
+
+## Found and fixed
+- `link_in` (Person linking, `admin_repo_ext.rs`) deleted an emptied Person and failed with a foreign-key error once moderation cases, data requests or takedown rows pointed at it (since P18). It now re-points those rows to the target Person first.
+
+## Gate results
+fmt and clippy -D warnings clean on sr-moderation, sr-admin, sr-db, sr-api, sr-chat, sr-server (all targets); tests pass for those crates incl. the full sr-db suite with Postgres; web tsc, eslint, prettier, full vitest (274 files, 2469 tests), build and bundle budget pass. OpenAPI, api-client types and MSW mocks regenerated; route matrix rows added (`staff`); `KNOWN_CLASHES` empty. The forward path of MOD-AGE-004 has only the unit test of the rule (the crosspost path has a route test).
+
+## Database note
+Test runs used the maintenance database `postgres` as the `SR_TEST_DATABASE_URL` connection database; the coordinator was told what was left behind (migrated `postgres` database, template `sr_tpl_152_1160_e670414a`). Nothing was dropped.

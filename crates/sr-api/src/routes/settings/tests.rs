@@ -3879,4 +3879,62 @@ async fn a_blocked_message_still_gets_an_alert_card_without_a_delete_button() {
     );
 }
 
+/// MOD-AGE-004: the embeds of a message published from an age-restricted announcement channel do not reach a
+/// follower channel without the gate; an ordinary announcement channel still passes them on.
+#[tokio::test]
+async fn previews_of_an_age_restricted_announcement_channel_do_not_reach_followers() {
+    let e = env().await;
+    let adult = add_channel(&e, 7_101, sr_chat::ChannelType::Announcement, "adult-news", 0);
+    e.backend.data().channels.get_mut(&adult).unwrap().nsfw = true;
+    let plain = add_channel(&e, 7_102, sr_chat::ChannelType::Announcement, "news", 0);
+    let target = json!({ "webhook_channel_id": e.ch.to_string() });
+    for news in [adult, plain] {
+        let (s, v) = e
+            .post(&format!("/channels/{news}/followers"), "owner", target.clone())
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        let (s, m) = e
+            .post(
+                &format!("/channels/{news}/messages"),
+                "owner",
+                json!({ "content": "look", "embeds": [{ "title": "A preview" }] }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{m}");
+        let src = m["id"].as_str().unwrap().to_owned();
+        let (s, v) = e
+            .post(
+                &format!("/channels/{news}/messages/{src}/crosspost"),
+                "owner",
+                json!({}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+    }
+    let copies: Vec<Value> = history(&e, e.ch)
+        .await
+        .into_iter()
+        .filter(|m| m["flags"].as_u64().unwrap_or(0) & 2 != 0)
+        .collect();
+    assert_eq!(copies.len(), 2);
+    let of = |channel: ChannelId| {
+        copies
+            .iter()
+            .find(|m| m["message_reference"]["channel_id"] == channel.to_string())
+            .expect("a copy from that channel")
+    };
+    let from_adult = of(adult);
+    assert_eq!(from_adult["content"], "look", "the text still travels");
+    assert!(
+        from_adult["embeds"].as_array().unwrap().is_empty(),
+        "{from_adult}"
+    );
+    assert_eq!(
+        from_adult["flags"].as_u64().unwrap() & 4,
+        4,
+        "SUPPRESS_EMBEDS"
+    );
+    assert_eq!(of(plain)["embeds"].as_array().unwrap().len(), 1);
+}
+
 mod packages_pg;

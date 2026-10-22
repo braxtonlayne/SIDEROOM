@@ -6932,6 +6932,200 @@
         ]
       }
     },
+    "/admin/data-requests/{request_id}/rectify": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Rectification of a Person link (MOD-DSR-007, spec section 6): correct which Person the requester's account is\nlinked to, with a logged reason. Needs `MANAGE_TAKEDOWNS` and `MANAGE_ACCOUNTS`; refused while a ban involves\neither Person.",
+        "operationId": "rectify",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRectifyDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRectifyDataRequestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/restriction": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Restriction or objection (GDPR articles 18 and 21, MOD-DSR-006): hide the requester's shared activity (cinema,\nlibrary sharing, watching presence, recommendations) from discovery while the request is reviewed, or\nshow it again. Nothing is deleted. It also ends when the request is completed or declined. 409 when the request\nis closed or already in that state.",
+        "operationId": "restriction",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRestrictDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/data-requests/{request_id}/run": {
       "post": {
         "tags": [
@@ -48647,6 +48841,258 @@
         ]
       }
     },
+    "/moderation/age/restrictions": {
+      "post": {
+        "tags": [
+          "age"
+        ],
+        "summary": "Mark or unmark a channel, library series or cinema title as age-restricted (`MANAGE_CASES`, or the review bit of\nthe kind). The change applies on the next request; open clients are told when a channel changes. Marking a\nchannel needs a server channel that is not a category or a thread.",
+        "operationId": "restrict",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgeChange"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/age/underage": {
+      "post": {
+        "tags": [
+          "age"
+        ],
+        "summary": "Underage handling (D-294, spec 7): reset the age confirmation so the gate asks again, and lock it so the account\ncannot answer \"yes\" itself until staff lift the lock. An account under 13 is also suspended (needs\n`MANAGE_ACCOUNTS`), and its inviter is told only that the invitee did not meet the entry rules. `MANAGE_CASES`.",
+        "operationId": "underage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnderageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnderageOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/age/underage/{account_id}/lift": {
+      "post": {
+        "tags": [
+          "age"
+        ],
+        "summary": "Lift the lock on an account's age confirmation, so it may answer the age gate again (`MANAGE_CASES`). A suspension\nis lifted separately, on the account.",
+        "operationId": "lift",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/appeals": {
       "get": {
         "tags": [
@@ -50373,6 +50819,96 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/holds/{hold_id}/retain": {
+      "post": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Decide a hold a deletion request met: keep the held rows with a stated legal basis (`MANAGE_CASES`,\nMOD-DSR-005). The other decision is releasing the hold. 409 when no deletion request met the hold, or it was\ndecided or released already.",
+        "operationId": "retain",
+        "parameters": [
+          {
+            "name": "hold_id",
+            "in": "path",
+            "description": "Hold snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldRetainBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
           },
           "400": {
             "description": "",
@@ -65523,6 +66059,38 @@
           }
         }
       },
+      "AdminRectifyDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/rectify`.",
+        "properties": {
+          "person_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Put the requester's account under this Person (decimal snowflake); absent splits the account off into a\nPerson of its own."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the link was wrong (required, kept in the access log)."
+          }
+        }
+      },
+      "AdminRectifyDataRequestResult": {
+        "type": "object",
+        "description": "The Person the account is under after a rectification.",
+        "required": [
+          "person_id"
+        ],
+        "properties": {
+          "person_id": {
+            "type": "string"
+          }
+        }
+      },
       "AdminRenameBody": {
         "type": "object",
         "properties": {
@@ -65545,6 +66113,26 @@
               "null"
             ],
             "description": "New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it."
+          }
+        }
+      },
+      "AdminRestrictDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/restriction`.",
+        "required": [
+          "hide"
+        ],
+        "properties": {
+          "hide": {
+            "type": "boolean",
+            "description": "`true` hides the account's shared activity from discovery while the request is reviewed; `false` shows it\nagain."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (required, kept in the access log)."
           }
         }
       },
@@ -65650,6 +66238,44 @@
           }
         }
       },
+      "AgeBand": {
+        "type": "string",
+        "description": "How young the account was found to be (D-294).",
+        "enum": [
+          "under_18",
+          "under_13"
+        ]
+      },
+      "AgeChange": {
+        "type": "object",
+        "description": "The result of marking or unmarking.",
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "restricted",
+          "changed"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean",
+            "description": "`false` when the item already was in that state (nothing was written except the log row)."
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AgeTargetKind"
+          },
+          "label": {
+            "type": "string",
+            "description": "The channel name or the series or title name."
+          },
+          "restricted": {
+            "type": "boolean"
+          }
+        }
+      },
       "AgeConfirmationObject": {
         "type": "object",
         "description": "The stored \"18 or older\" confirmation (D-230).",
@@ -65677,6 +66303,15 @@
           "hide",
           "include",
           "only"
+        ]
+      },
+      "AgeTargetKind": {
+        "type": "string",
+        "description": "What can be marked age-restricted.",
+        "enum": [
+          "channel",
+          "library_series",
+          "cinema_title"
         ]
       },
       "AlertActionBody": {
@@ -68580,6 +69215,13 @@
                 "description": "The takedown notice this case was opened for (D-334), when there is one."
               }
             ]
+          },
+          "target_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The channel a message case is about (the channel to mark age-restricted for misplaced adult content)."
           },
           "target_id": {
             "type": [
@@ -72904,6 +73546,23 @@
           "account_id": {
             "type": "string"
           },
+          "activity_hidden": {
+            "type": "boolean",
+            "description": "MOD-DSR-006: staff hid the account's shared activity from discovery while this request is reviewed.\nNothing is deleted; it ends with the request or when staff lift it."
+          },
+          "activity_hidden_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "activity_hidden_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "completed_at_ms": {
             "type": [
               "integer",
@@ -76902,6 +77561,19 @@
           }
         }
       },
+      "HoldRetainBody": {
+        "type": "object",
+        "description": "Body of a retain decision.",
+        "properties": {
+          "basis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The stated legal basis for keeping the held rows after the deletion request (required, up to 500\ncharacters; kept on the hold, the case timeline and the access log)."
+          }
+        }
+      },
       "HoldView": {
         "type": "object",
         "description": "A hold, in force or released.",
@@ -76940,6 +77612,23 @@
               "null"
             ],
             "description": "`None` when the system placed it (a report on a message)."
+          },
+          "erasure_flagged": {
+            "type": "boolean",
+            "description": "A deletion request met this hold (MOD-DSR-005): the hold is flagged for a staff decision, release or retain\nwith a stated legal basis. Cleared by either."
+          },
+          "erasure_request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "erasure_retained_basis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff decided to retain the held rows after the request, with this basis."
           },
           "id": {
             "type": "string"
@@ -79396,6 +80085,19 @@
           "friends",
           "public"
         ]
+      },
+      "LiftBody": {
+        "type": "object",
+        "description": "Body of `POST /moderation/age/underage/{account_id}/lift`.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the lock goes (required)."
+          }
+        }
       },
       "LinkAccountBody": {
         "type": "object",
@@ -87089,6 +87791,42 @@
           }
         }
       },
+      "RestrictionBody": {
+        "type": "object",
+        "description": "Body of `POST /moderation/age/restrictions`.",
+        "required": [
+          "kind",
+          "id",
+          "restricted"
+        ],
+        "properties": {
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The case this belongs to; its timeline gets the entry and a case being worked moves to `actioned`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The channel, series or title (decimal snowflake)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AgeTargetKind"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (required, up to 500 characters; goes to the access log and the case timeline)."
+          },
+          "restricted": {
+            "type": "boolean",
+            "description": "`true` marks it age-restricted, `false` removes the mark."
+          }
+        }
+      },
       "RetainedRecord": {
         "type": "object",
         "description": "One record kept after an erasure, with the reason (G-66, D-124, D-295).",
@@ -92954,6 +93692,68 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "UnderageBody": {
+        "type": "object",
+        "description": "Body of `POST /moderation/age/underage`.",
+        "required": [
+          "account_id",
+          "band"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "The account found to be younger than allowed (decimal snowflake)."
+          },
+          "band": {
+            "$ref": "#/components/schemas/AgeBand",
+            "description": "`under_18`: reset and lock the age confirmation. `under_13` (below the minimum registration age): the same,\nand the account is suspended."
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (required, up to 500 characters; kept in the access log and, for a suspension, the audit reason)."
+          }
+        }
+      },
+      "UnderageOutcome": {
+        "type": "object",
+        "description": "The result of underage handling.",
+        "required": [
+          "account_id",
+          "band",
+          "suspended",
+          "member_notified",
+          "inviter_notified"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "band": {
+            "$ref": "#/components/schemas/AgeBand"
+          },
+          "inviter_notified": {
+            "type": "boolean",
+            "description": "The inviter was told the invitee did not meet the entry rules (under 13)."
+          },
+          "member_notified": {
+            "type": "boolean",
+            "description": "The account was told its age confirmation was reset (under 18, when a DM could be sent)."
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "The account was suspended (under 13 and still active)."
           }
         }
       },
