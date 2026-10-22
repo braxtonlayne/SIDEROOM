@@ -100,6 +100,7 @@ function EventLine({ e }: { e: api.CaseEvent }) {
         submissions: d('submissions'),
         reactions: d('reactions'),
         votes: d('poll_votes'),
+        level: d('level'),
       })
     : e.kind;
   return (

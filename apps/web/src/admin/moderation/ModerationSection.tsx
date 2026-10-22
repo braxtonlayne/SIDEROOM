@@ -8,6 +8,7 @@ import { SectionHeader, useAdminViewer } from '../ui';
 import { CasePage } from './CasePage';
 import { CaseQueue } from './CaseQueue';
 import { AppealsTab, HoldsTab } from './HoldsAndAppeals';
+import { SignalsTab } from './SignalsTab';
 import { TakedownsTab } from './TakedownsTab';
 
 export function ModerationSection() {
@@ -58,6 +59,15 @@ export function ModerationSection() {
             id: 'appeals',
             label: t('admin.moderation.tabAppeals'),
             content: <AppealsTab onOpenCase={open} />,
+          },
+        ]
+      : []),
+    ...(viewer.can('MANAGE_ACCOUNTS')
+      ? [
+          {
+            id: 'signals',
+            label: t('admin.suspicion.tabSignals'),
+            content: <SignalsTab />,
           },
         ]
       : []),

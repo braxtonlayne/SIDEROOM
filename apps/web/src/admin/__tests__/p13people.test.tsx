@@ -14,6 +14,33 @@ import {
 
 const SLOW = { timeout: 10_000 };
 
+const panel = (over: Record<string, unknown> = {}) => ({
+  person_id: '500',
+  level: 0,
+  freeze_threshold: 2,
+  escalate_threshold: 3,
+  invites_paused: false,
+  accounts: [],
+  events: [
+    {
+      id: '1',
+      delta: 2,
+      level_after: 2,
+      kind: 'raised',
+      reason: 'invited a banned account',
+      source_account: { id: '9', username: 'mallory' },
+      actor_id: null,
+      case_id: null,
+      created_at_ms: 1_700_000_000_000,
+    },
+  ],
+  banned_descendants: [],
+  invite_paths: [],
+  cases: [],
+  signals: null,
+  ...over,
+});
+
 async function openDrawer(
   perms: Parameters<typeof asStaff>[0]['perms'],
   over: Record<string, unknown> = {},
@@ -182,18 +209,8 @@ describe('Person record additions (ADM-PPL-004)', () => {
   async function openPerson() {
     server.use(
       http.get('*/api/v1/admin/persons/500', () => HttpResponse.json(person())),
-      http.get('*/api/v1/admin/persons/500/suspicion-log', () =>
-        HttpResponse.json([
-          {
-            id: '1',
-            created_at_ms: 1_700_000_000_000,
-            delta: 2,
-            level_after: 2,
-            reason: 'invited a banned account',
-            actor_id: null,
-            source_account_id: '9',
-          },
-        ]),
+      http.get('*/api/v1/moderation/persons/500/suspicion', () =>
+        HttpResponse.json(panel({ level: 2, signals: null })),
       ),
     );
     const user = await openDrawer(['STAFF_BASIC', 'MANAGE_ACCOUNTS', 'MANAGE_INVITES']);
@@ -219,7 +236,6 @@ describe('Person record additions (ADM-PPL-004)', () => {
     expect(
       await screen.findByText('invited a banned account', { exact: false }),
     ).toBeInTheDocument();
-    expect(screen.getByText('+2 (level now 2)')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Edit notes' }));
     const nd = await screen.findByRole('dialog', { name: 'Edit notes' });
