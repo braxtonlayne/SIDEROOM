@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { HttpResponse, asStaff, http, openAdmin, readJson, server } from './helpers';
 
 const HEALTH = {
@@ -288,5 +288,75 @@ describe('Admin > Bans filters', () => {
     expect(last.get('older_than_days')).toBe('7');
     expect(last.get('newer_than_days')).toBe('30');
     expect(last.get('active_only')).toBe('true');
+  });
+});
+
+describe('Admin > Bans figures (D-340)', () => {
+  const BANS = {
+    generated_at_ms: 1_700_000_000_000,
+    window_days: 30,
+    bans: {
+      active: 4,
+      by_reason: [
+        { key: 'fraud', count: 2 },
+        { key: 'none', count: 2 },
+      ],
+      by_severity: [{ key: 'serious', count: 2 }],
+      by_age: [
+        { key: 'under_7d', count: 1 },
+        { key: '7_to_30d', count: 0 },
+        { key: '30_to_90d', count: 1 },
+        { key: 'over_90d', count: 2 },
+      ],
+      lifted_in_window: 1,
+    },
+  };
+
+  it('shows the figures to PLATFORM_BAN alone and a click sets the filter', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'PLATFORM_BAN'] });
+    const urls: string[] = [];
+    server.use(
+      http.get('*/api/v1/moderation/dashboard', () => HttpResponse.json(BANS)),
+      http.get('*/api/v1/admin/bans', ({ request }) => {
+        urls.push(new URL(request.url).search);
+        return HttpResponse.json({ items: [], next_after: null });
+      }),
+    );
+    openAdmin('bans');
+    const user = userEvent.setup();
+    const reasons = await screen.findByRole(
+      'group',
+      { name: 'In force by reason' },
+      { timeout: 15000 },
+    );
+    expect(within(reasons).getByText('No reason recorded: 2')).toBeInTheDocument();
+    expect(screen.getByText('4 bans in force; 1 lifted in this window.')).toBeInTheDocument();
+    await user.click(
+      within(reasons).getByRole('button', { name: 'Show Fraud or impersonation bans (2)' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Show Over 90 days bans (2)' }));
+    await user.click(screen.getByRole('button', { name: 'Show Serious bans (2)' }));
+    await vi.waitFor(() => {
+      const q = new URLSearchParams(urls[urls.length - 1]);
+      expect(q.get('reason_category')).toBe('fraud');
+      expect(q.get('older_than_days')).toBe('90');
+      expect(q.get('category')).toBe('serious');
+    });
+  });
+
+  it('a caller without the bit never reaches the page and makes no dashboard call', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES'] });
+    let calls = 0;
+    server.use(
+      http.get('*/api/v1/moderation/dashboard', () => {
+        calls += 1;
+        return HttpResponse.json(BANS);
+      }),
+      http.get('*/api/v1/admin/stats', () => HttpResponse.json({})),
+    );
+    openAdmin('bans');
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(screen.queryByRole('group', { name: 'In force by reason' })).toBeNull();
+    expect(calls).toBe(0);
   });
 });

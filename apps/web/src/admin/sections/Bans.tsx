@@ -2,10 +2,15 @@ import { Badge, Button, EmptyState, Notice, Select, Switch } from '@sideroom/ui'
 import { useState } from 'react';
 import * as api from '../api';
 import { useT, type MessageKey } from '../../i18n';
-import { REPORT_CATEGORIES, type ReportCategory } from '../../moderation/api';
+import {
+  REPORT_CATEGORIES,
+  getDashboard,
+  type DashBans,
+  type ReportCategory,
+} from '../../moderation/api';
 import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import { PersonDrawer } from './PersonDrawer';
-import { LoadMore, ReasonDialog, SectionHeader, fmtMs, usePaged } from '../ui';
+import { LoadMore, ReasonDialog, SectionHeader, fmtMs, usePaged, useResource } from '../ui';
 
 /** The age filter (MOD-BAN-003): the same buckets the dashboard counts (MOD-DASH-007). */
 type AgeFilter = 'any' | 'under7' | 'd7to30' | 'd30to90' | 'over90';
@@ -23,6 +28,100 @@ const AGE_RANGE: Record<AgeFilter, Pick<api.BanQuery, 'older_than_days' | 'newer
   d30to90: { older_than_days: 30, newer_than_days: 90 },
   over90: { older_than_days: 90 },
 };
+
+/** The dashboard's age buckets as the list's age filter. */
+const BUCKET_FILTER: Record<string, AgeFilter> = {
+  under_7d: 'under7',
+  '7_to_30d': 'd7to30',
+  '30_to_90d': 'd30to90',
+  over_90d: 'over90',
+};
+
+/**
+ * The ban figures above the list (MOD-DASH-007, D-340): one dashboard read, which answers only the `bans` section to
+ * a PLATFORM_BAN holder. A refusal or a missing section draws nothing. A count is a button that sets the list filter.
+ */
+function BanFigures({
+  onSeverity,
+  onReason,
+  onAge,
+}: {
+  onSeverity: (v: api.BanCategory) => void;
+  onReason: (v: ReportCategory | 'none') => void;
+  onAge: (v: AgeFilter) => void;
+}) {
+  const t = useT();
+  const [days, setDays] = useState(30);
+  const res = useResource<DashBans | null>(`ban-figures:${days}`, async () => {
+    try {
+      return (await getDashboard(days)).bans ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const b = res.data;
+  if (!b) return null;
+  const reasonLabel = (k: string) =>
+    k === 'none'
+      ? t('admin.bans.reasonNone')
+      : CATEGORY_KEYS[k as ReportCategory]
+        ? t(CATEGORY_KEYS[k as ReportCategory])
+        : k;
+  const chip = (key: string, label: string, count: number, onClick: () => void) => (
+    <Button
+      key={key}
+      size="sm"
+      variant="secondary"
+      aria-label={t('admin.bans.figures.chipAria', { label, count })}
+      onClick={onClick}
+    >
+      {label}: {count}
+    </Button>
+  );
+  return (
+    <section className="adm-dash-section" aria-label={t('admin.bans.figures.label')}>
+      <div className="ss-toolbar">
+        <Select
+          aria-label={t('admin.moderation.dash.window')}
+          options={[7, 30, 90].map((w) => ({
+            value: String(w),
+            label: t('admin.moderation.dash.windowDays', { n: w }),
+          }))}
+          value={String(days)}
+          onValueChange={(v) => setDays(Number(v))}
+        />
+        <span className="ss-sub">
+          {t('admin.bans.figures.summary', { active: b.active, lifted: b.lifted_in_window })}
+        </span>
+      </div>
+      <div className="adm-actions" role="group" aria-label={t('admin.bans.figures.byReason')}>
+        {b.by_reason.map((r) =>
+          chip(r.key, reasonLabel(r.key), r.count, () =>
+            onReason(r.key as ReportCategory | 'none'),
+          ),
+        )}
+      </div>
+      <div className="adm-actions" role="group" aria-label={t('admin.bans.figures.bySeverity')}>
+        {b.by_severity.map((r) =>
+          chip(
+            r.key,
+            r.key === 'serious'
+              ? t('admin.bans.severitySerious')
+              : t('admin.bans.severityStandard'),
+            r.count,
+            () => onSeverity(r.key as api.BanCategory),
+          ),
+        )}
+      </div>
+      <div className="adm-actions" role="group" aria-label={t('admin.bans.figures.byAge')}>
+        {b.by_age.map((r) => {
+          const f = BUCKET_FILTER[r.key];
+          return f ? chip(r.key, t(AGE_KEYS[f]), r.count, () => onAge(f)) : null;
+        })}
+      </div>
+    </section>
+  );
+}
 
 export function BansSection() {
   const t = useT();
@@ -51,6 +150,20 @@ export function BansSection() {
   return (
     <>
       <SectionHeader title={t('admin.bans.title')} description={t('admin.bans.description')} />
+      <BanFigures
+        onSeverity={(v) => {
+          setActiveOnly(true);
+          setSeverity(v);
+        }}
+        onReason={(v) => {
+          setActiveOnly(true);
+          setReason(v);
+        }}
+        onAge={(v) => {
+          setActiveOnly(true);
+          setAge(v);
+        }}
+      />
       <div className="ss-toolbar" role="group" aria-label={t('admin.bans.filters')}>
         <Switch
           label={t('admin.bans.onlyActive')}

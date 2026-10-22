@@ -108,6 +108,13 @@ export default {
 
   // ---- Admin > Bans filters (MOD-BAN-003) ----
   'admin.bans.filters': 'Filter bans',
+  // ---- ban figures above the list (MOD-DASH-007, D-340) ----
+  'admin.bans.figures.label': 'Ban figures',
+  'admin.bans.figures.summary': '{active} bans in force; {lifted} lifted in this window.',
+  'admin.bans.figures.byReason': 'In force by reason',
+  'admin.bans.figures.bySeverity': 'In force by severity',
+  'admin.bans.figures.byAge': 'In force by age',
+  'admin.bans.figures.chipAria': 'Show {label} bans ({count})',
   'admin.bans.severityFilter': 'Severity',
   'admin.bans.severityAny': 'Any severity',
   'admin.bans.severitySerious': 'Serious',
