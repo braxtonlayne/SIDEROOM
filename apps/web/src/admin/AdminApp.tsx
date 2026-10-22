@@ -85,8 +85,23 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     label: 'admin.moderation.navLabel',
     group: 'admin.adminApp.group.people',
     visible: (v) =>
-      hasAny(v.perms, 'MANAGE_CASES', 'REVIEW_READING', 'REVIEW_MEDIA', 'DELETE_CONTENT'),
+      hasAny(
+        v.perms,
+        'MANAGE_CASES',
+        'MANAGE_TAKEDOWNS',
+        'REVIEW_READING',
+        'REVIEW_MEDIA',
+        'DELETE_CONTENT',
+      ),
     component: ModerationSection,
+  },
+  {
+    // M-25 step c: the data-subject request queue, next to Moderation in the People group.
+    id: 'data-requests',
+    label: 'admin.adminApp.section.dataRequests',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_TAKEDOWNS'),
+    component: DataRequestsSection,
   },
   {
     id: 'invites',
@@ -272,14 +287,6 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     visible: (v) =>
       hasAny(v.perms, 'MANAGE_INVITES', 'APPOINT_STAFF', 'OPERATOR', 'VIEW_ACCESS_LOG'),
     component: CliParitySection,
-  },
-  {
-    // M-25 step c: its own page until the integrator places it under Admin > Moderation.
-    id: 'data-requests',
-    label: 'admin.adminApp.section.dataRequests',
-    group: 'admin.dataRequests.group',
-    visible: (v) => v.can('MANAGE_TAKEDOWNS'),
-    component: DataRequestsSection,
   },
 ];
 

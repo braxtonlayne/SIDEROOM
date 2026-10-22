@@ -41,6 +41,8 @@ pub struct CaseParams {
     pub guild_id: Option<String>,
     /// Cases about this account.
     pub subject_account_id: Option<String>,
+    /// `takedown`: only cases opened for a takedown notice.
+    pub source: Option<String>,
     /// `next_cursor` of the previous page.
     pub cursor: Option<String>,
     /// Oldest first (the work queue); default newest first.
@@ -58,6 +60,11 @@ fn filter(p: &CaseParams) -> ApiResult<CaseFilter> {
             .map(|s| CaseState::parse(s).ok_or_else(|| bad("unknown state")))
             .transpose()?,
         open_only: p.open_only.unwrap_or(false),
+        takedown_only: match p.source.as_deref() {
+            None | Some("") => false,
+            Some("takedown") => true,
+            Some(_) => return Err(bad("unknown source")),
+        },
         category: p
             .category
             .as_deref()

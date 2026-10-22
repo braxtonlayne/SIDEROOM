@@ -92,6 +92,7 @@ DELETE	/library/series/{series_id}/follow	authenticated	self	allow	-
 DELETE	/library/series/{series_id}/rating	authenticated	self	allow	-
 DELETE	/library/series/{series_id}/review	authenticated	self	allow	-
 DELETE	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-
+DELETE	/moderation/takedowns/{notice_id}/items/{item_id}	authenticated	staff	deny	-
 DELETE	/oauth2/tokens/{grant_id}	authenticated	self	deny	-
 DELETE	/packages/{package_id}	authenticated	author	deny	-
 DELETE	/requests/{request_id}/claim	authenticated	author_or_staff	allow	-
@@ -410,7 +411,11 @@ GET	/moderation/cases	authenticated	staff	deny	-
 GET	/moderation/cases/{case_id}	authenticated	membership	deny	-
 GET	/moderation/guilds/{guild_id}/cases	authenticated	membership	deny	-
 GET	/moderation/holds	authenticated	staff	deny	-
+GET	/moderation/item-status	authenticated	user	deny	-
 GET	/moderation/reports/mine	authenticated	self	deny	-
+GET	/moderation/takedowns	authenticated	staff	deny	-
+GET	/moderation/takedowns/export	authenticated	staff	deny	-
+GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-
 GET	/oauth2/@me	authenticated	self	allow	any
 GET	/oauth2/authorize	authenticated	self	deny	-
 GET	/oauth2/tokens	authenticated	self	deny	-
@@ -769,6 +774,15 @@ POST	/moderation/cases/{case_id}/warn	authenticated	staff	deny	-
 POST	/moderation/holds/{hold_id}/release	authenticated	staff	deny	-
 POST	/moderation/holds/{hold_id}/reviewed	authenticated	staff	deny	-
 POST	/moderation/reports	authenticated	visibility	deny	-
+POST	/moderation/takedowns	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/counter-notice	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/court-filing	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/hold	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/items	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/reject	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/restore	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/uphold	authenticated	staff	deny	-
+POST	/moderation/takedowns/{notice_id}/withdraw	authenticated	staff	deny	-
 POST	/oauth2/authorize	authenticated	self	deny	-
 POST	/oauth2/introspect	public	none	allow	-
 POST	/oauth2/token	public	none	allow	-

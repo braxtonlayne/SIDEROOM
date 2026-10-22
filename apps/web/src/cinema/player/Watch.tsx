@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
+import { ItemHoldBanner, useItemHoldState } from '../../moderation/ItemHold';
 import { getPlayback } from './api';
 import { resumeOffer } from './model';
 import { PlayerView } from './Player';
@@ -24,12 +25,22 @@ export interface WatchPageProps {
 }
 
 export function WatchPage(props: WatchPageProps) {
+  // An item a takedown notice touches says so (MOD-TKD-011): a banner while it is held, its own message once gone.
+  // Trailers are not part of a notice.
+  const hold = useItemHoldState(
+    props.episodeId ? 'cinema_episode' : 'cinema_title',
+    props.trailer ? null : (props.episodeId ?? props.titleId),
+  );
   // A different title or episode is a different playback: all state starts over.
   return (
-    <WatchLoader
-      key={`${props.titleId}:${props.episodeId ?? ''}:${props.variantId ?? ''}:${props.trailer ? 't' : ''}`}
-      {...props}
-    />
+    <>
+      <WatchLoader
+        key={`${props.titleId}:${props.episodeId ?? ''}:${props.variantId ?? ''}:${props.trailer ? 't' : ''}`}
+        {...props}
+        takenDown={hold === 'taken_down'}
+      />
+      <ItemHoldBanner state={hold} />
+    </>
   );
 }
 
@@ -39,7 +50,14 @@ const hasActivation = () =>
   (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation
     ?.hasBeenActive === true;
 
-function WatchLoader({ titleId, episodeId, variantId, trailer, startAt }: WatchPageProps) {
+function WatchLoader({
+  titleId,
+  episodeId,
+  variantId,
+  trailer,
+  startAt,
+  takenDown,
+}: WatchPageProps & { takenDown: boolean }) {
   const tr = useT();
   const router = useRouter();
   const { ensureAdult } = useAgeGate();
@@ -100,8 +118,20 @@ function WatchLoader({ titleId, episodeId, variantId, trailer, startAt }: WatchP
     return (
       <div className="cpl-player cpl-player-msg">
         <EmptyState
-          title={gone ? tr('cinema.watch.goneTitle') : tr('cinema.watch.errorTitle')}
-          description={gone ? tr('cinema.watch.goneBody') : tr('cinema.watch.errorBody')}
+          title={
+            takenDown
+              ? tr('cinema.watch.takenDownTitle')
+              : gone
+                ? tr('cinema.watch.goneTitle')
+                : tr('cinema.watch.errorTitle')
+          }
+          description={
+            takenDown
+              ? tr('cinema.watch.takenDownBody')
+              : gone
+                ? tr('cinema.watch.goneBody')
+                : tr('cinema.watch.errorBody')
+          }
           action={
             <a className="cpl-primary" href="/cinema">
               {tr('cinema.watch.backToCinema')}

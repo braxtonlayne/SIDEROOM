@@ -1185,20 +1185,27 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_bus(bus.clone());
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
     // Actions from a case run through the guild, message and account services (N-21).
+    // The takedown register (step 2) reads the strike policy from the compliance module and blocks media.
+    let media_blocklist = Arc::new(sr_moderation::blocklist::MediaBlocklist::new(pool.clone()));
+    let moderation = sr_moderation::Moderation::new(pool.clone(), id_src.clone())
+        .with_notifier(staff_voice.clone())
+        .with_guild_audit(Arc::new(crate::moderation_audit::GuildAuditAdapter(
+            audit_sink.clone(),
+        )))
+        .with_case_actions(Arc::new(crate::moderation_actions::ChatCaseActions {
+            guilds: guilds.0.clone(),
+            messages: messages.clone(),
+            admin: admin_service.clone(),
+        }))
+        .with_policy(Arc::new(crate::takedown_jobs::TakedownPolicySource::new(
+            features.clone(),
+        )))
+        .with_blocklist(media_blocklist.clone())
+        .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
+            bus.clone(),
+        )));
     let moderation_deps = Arc::new(
-        routes::moderation::ModerationDeps::new(
-            sr_moderation::Moderation::new(pool.clone(), id_src.clone())
-                .with_notifier(staff_voice.clone())
-                .with_guild_audit(Arc::new(crate::moderation_audit::GuildAuditAdapter(
-                    audit_sink.clone(),
-                )))
-                .with_case_actions(Arc::new(crate::moderation_actions::ChatCaseActions {
-                    guilds: guilds.0.clone(),
-                    messages: messages.clone(),
-                    admin: admin_service.clone(),
-                })),
-        )
-        .with_features(features.clone()),
+        routes::moderation::ModerationDeps::new(moderation.clone()).with_features(features.clone()),
     );
     // Incident "Resume invites" cards close once the pause is over, whoever ended it (D-253).
     let resume_voice = staff_voice.clone();
@@ -1362,7 +1369,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(review_deps.clone())
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
-            routes::cdn::CdnDeps::new(storage.clone(), cdn_signer).with_playlists(playback_deps),
+            routes::cdn::CdnDeps::new(storage.clone(), cdn_signer)
+                .with_playlists(playback_deps)
+                .with_blocklist(media_blocklist.clone()),
         ))
         .extension(external_images)
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
@@ -1462,6 +1471,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
+    let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     // The event clock is a leased singleton job: one node advances events (G-92).
@@ -1509,6 +1519,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
+    crate::takedown_jobs::schedule(&pool).await?;
     crate::apps_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::events_jobs::schedule(&pool).await?;

@@ -15,6 +15,7 @@
 mod cases;
 mod holds;
 mod reports;
+mod takedowns;
 #[cfg(test)]
 mod tests;
 
@@ -247,6 +248,49 @@ pub fn router() -> Router<AppState> {
             get(holds::list_appeals).post(holds::file_appeal),
         )
         .route(
+            "/moderation/takedowns",
+            get(takedowns::list).post(takedowns::create),
+        )
+        .route("/moderation/takedowns/export", get(takedowns::export))
+        .route("/moderation/takedowns/{notice_id}", get(takedowns::get))
+        .route(
+            "/moderation/takedowns/{notice_id}/items",
+            post(takedowns::add_item),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/items/{item_id}",
+            axum::routing::delete(takedowns::remove_item),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/hold",
+            post(takedowns::hold),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/reject",
+            post(takedowns::reject),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/uphold",
+            post(takedowns::uphold),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/counter-notice",
+            post(takedowns::counter_notice),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/court-filing",
+            post(takedowns::court_filing),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/restore",
+            post(takedowns::restore),
+        )
+        .route(
+            "/moderation/takedowns/{notice_id}/withdraw",
+            post(takedowns::withdraw),
+        )
+        .route("/moderation/item-status", get(takedowns::item_status))
+        .route(
             "/moderation/appeals/{appeal_id}/decision",
             post(holds::decide_appeal),
         )
@@ -278,6 +322,20 @@ pub fn router() -> Router<AppState> {
         holds::list_appeals,
         holds::file_appeal,
         holds::decide_appeal,
+        takedowns::list,
+        takedowns::create,
+        takedowns::get,
+        takedowns::add_item,
+        takedowns::remove_item,
+        takedowns::hold,
+        takedowns::reject,
+        takedowns::uphold,
+        takedowns::counter_notice,
+        takedowns::court_filing,
+        takedowns::restore,
+        takedowns::withdraw,
+        takedowns::export,
+        takedowns::item_status,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
@@ -315,6 +373,25 @@ pub fn router() -> Router<AppState> {
         holds::HoldReleased,
         holds::AppealBody,
         holds::AppealDecisionBody,
+        sr_moderation::model::NewNotice,
+        sr_moderation::model::NewItem,
+        sr_moderation::model::NoticeSummary,
+        sr_moderation::model::NoticeDetail,
+        sr_moderation::model::NoticeEvent,
+        sr_moderation::model::TakedownItem,
+        sr_moderation::model::StrikeCount,
+        sr_moderation::model::UpholdOutcome,
+        sr_moderation::model::RejectOutcome,
+        sr_moderation::model::TakedownKind,
+        sr_moderation::model::CaseTakedown,
+        sr_moderation::model::CountedNotice,
+        sr_moderation::model::NoticeState,
+        sr_moderation::model::ItemKind,
+        sr_moderation::model::ItemState,
+        takedowns::TakedownReasonBody,
+        takedowns::CounterNoticeBody,
+        takedowns::CourtFilingBody,
+        takedowns::TakedownItemStatus,
         Delivered,
         ErrorBody,
     ))

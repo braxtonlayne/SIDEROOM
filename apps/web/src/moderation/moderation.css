@@ -3,3 +3,17 @@
   flex-direction: column;
   gap: 12px;
 }
+
+/* A held item's reader or player page (MOD-TKD-011): a notice pinned above the page chrome. */
+.mod-hold-banner {
+  position: fixed;
+  inset-block-start: 0.75rem;
+  inset-inline: 0.75rem;
+  z-index: 60;
+  max-inline-size: 36rem;
+  margin-inline: auto;
+  pointer-events: none;
+}
+.mod-hold-banner > * {
+  pointer-events: auto;
+}

@@ -54,17 +54,17 @@ Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HO
 - [x] **MOD-APL-005** [FE] Appeal panel in the case page _(appeal panel in the case page and the Appeals tab.)_
 
 ## MOD-TKD — Takedown register (spec section 5; D-293; step 2)
-- [ ] **MOD-TKD-001** [DB] `takedown_notices` with notifier name and contact, claimed work or legal basis, exact URLs or ids, date received, original text, who entered it, state, due date, kind (`copyright` or `illegal_content`)
-- [ ] **MOD-TKD-002** [BE] Intake in Admin > Moderation > Takedowns (staff-entered only, `MANAGE_TAKEDOWNS`); a case opens with `illegal_content` or a copyright category
-- [ ] **MOD-TKD-003** [BE] Triage: identify the content, reject an incomplete notice with a templated reply
-- [ ] **MOD-TKD-004** [BE] Hold, then disable: hold through the `MOD-HOLD` API, unpublish a library or cinema item, set a message to `staff_removed`, block the stored object on the media path
-- [ ] **MOD-TKD-005** [BE] Notify the uploader or author by system DM with the notice summary and the counter-notice path
-- [ ] **MOD-TKD-006** [BE] Counter-notice recorded by staff with `restore_after` = 10 business days (operator country's weekdays, no holiday calendar); the housekeeping job restores unless `court_filing_noted` is set; restore is a logged action
-- [ ] **MOD-TKD-007** [BE] Strike counter: upheld takedowns per Person within `moderation.strike_window_months`; a review case opens at `moderation.strike_review_threshold`, never a suspension (D-293)
-- [ ] **MOD-TKD-008** [BE] Access-log row for every state change of a notice; closed notices kept forever (D-212)
-- [ ] **MOD-TKD-009** [BE] Register export (CSV and JSON)
-- [ ] **MOD-TKD-010** [FE] Admin > Moderation > Takedowns: register, intake form, notice page with counter-notice and restore
-- [ ] **MOD-TKD-011** [FE] Library reader and cinema player pages show that the item is held or taken down
+- [x] **MOD-TKD-001** [DB] `takedown_notices` with notifier name and contact, claimed work or legal basis, exact URLs or ids, date received, original text, who entered it, state, due date, kind (`copyright` or `illegal_content`) _(Migration 1120 `takedown_notices` (+ `takedown_items`, `takedown_events`, `takedown_strike_reviews`, `blocked_objects`); rows are never deleted (trigger).)_
+- [x] **MOD-TKD-002** [BE] Intake in Admin > Moderation > Takedowns (staff-entered only, `MANAGE_TAKEDOWNS`); a case opens with `illegal_content` or a copyright category _(`POST /moderation/takedowns` in `routes/moderation/takedowns.rs`; opens a platform case with category `illegal_content` for both kinds (the notice `kind` carries copyright); `MANAGE_TAKEDOWNS` only, a case moderator is refused by name (route test).)_
+- [x] **MOD-TKD-003** [BE] Triage: identify the content, reject an incomplete notice with a templated reply _(`Moderation::add_item` / `reject_notice` with `takedown_rules::incomplete_reply`; triage target one business day (`triage_overdue`).)_
+- [x] **MOD-TKD-004** [BE] Hold, then disable: hold through the `MOD-HOLD` API, unpublish a library or cinema item, set a message to `staff_removed`, block the stored object on the media path _(`uphold_notice`: `place_hold_in` (new library and cinema hold scopes), unpublish, message to `staff_removed`, `blocked_objects` read by the CDN route (451); test `upholding_holds_disables_blocks_and_tells_the_uploader`.)_
+- [x] **MOD-TKD-005** [BE] Notify the uploader or author by system DM with the notice summary and the counter-notice path _(`notify_subjects` DMs each uploader once with the notice reference, the claimed basis and the counter-notice path, never the notifier's contact.)_
+- [x] **MOD-TKD-006** [BE] Counter-notice recorded by staff with `restore_after` = 10 business days (operator country's weekdays, no holiday calendar); the housekeeping job restores unless `court_filing_noted` is set; restore is a logged action _(`record_counter_notice` + `takedown_rules::add_business_days` + job `moderation.takedown_restore` (id 1120, `takedown_jobs.rs`); `court_filing_noted` stops it; tests in `crates/sr-moderation/tests/takedowns.rs`.)_
+- [x] **MOD-TKD-007** [BE] Strike counter: upheld takedowns per Person within `moderation.strike_window_months`; a review case opens at `moderation.strike_review_threshold`, never a suspension (D-293) _(`takedown_rules::strikes_in_window` / `review_due` (unit tests) and `open_reviews`; tests `the_strike_counter_opens_a_review_at_the_threshold_and_never_suspends`, `takedowns_outside_the_window_do_not_count`.)_
+- [x] **MOD-TKD-008** [BE] Access-log row for every state change of a notice; closed notices kept forever (D-212) _(Every transition calls `log_staff` in its transaction (`moderation.takedown.*`; the job writes `auto_restore`); notices and events are undeletable by trigger.)_
+- [x] **MOD-TKD-009** [BE] Register export (CSV and JSON) _(`GET /moderation/takedowns/export?format=csv|json` (`register_csv`, access-logged read).)_
+- [x] **MOD-TKD-010** [FE] Admin > Moderation > Takedowns: register, intake form, notice page with counter-notice and restore _(`admin/moderation/TakedownsTab.tsx`; test `admin/__tests__/takedowns.test.tsx`.)_
+- [x] **MOD-TKD-011** [FE] Library reader and cinema player pages show that the item is held or taken down _(`GET /moderation/item-status` + `moderation/ItemHold.tsx`, used by `library/reader/Reader.tsx` and `cinema/player/Watch.tsx` (banner while held, own message once taken down); tests in the reader and player suites.)_
 
 ## MOD-DSR — Data-subject requests (spec section 6; D-295, D-124; step 3)
 - [ ] **MOD-DSR-001** [DB] `data_requests` (kind, requester, subject Person, verified by, state, `received_at`, `due_at`, `extended_until`, outcome)

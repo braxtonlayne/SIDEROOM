@@ -2987,3 +2987,35 @@ Status: `ADOPTED` (D-330, D-331). Follow-ups: N-21 to N-26.
 ### Still with the owner
 
 Nothing new from this round. Operator action when ready: turn `moderation.reports` on in Admin > Features after appointing a `MANAGE_CASES` holder (D-329).
+
+## Phase 18 takedown round (answered 2026-10-20, delegated)
+
+The questions the takedown branch left in `docs/dev/handoff/feat-p18-mod-tkd.md` (M-25 (b), D-293, D-315), answered by the owner's proxy under the same delegation and limits as the earlier delegated rounds: decide and document only (no code, build, download or push), legal items get a reasoned project default that is plainly not legal advice. Decisions are D-333 to D-336 in [01-decisions-log.md](01-decisions-log.md) (D-328 to D-332 belong to other branches); follow-ups are N-30 to N-35 under "Phase 18 takedown round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 4 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Takedowns (P18-TKD, branch `feat/p18-mod-tkd`)
+
+**P18-TKD-1 (handoff question 1, D-293). Should a counter-noticed takedown, content still down and the counter-notice pending, count as a strike?**
+Decision: yes, as built, until the content is restored or the notice is withdrawn. A strike is an upheld takedown still in force and a counter-notice is an assertion, not a finding; the platform does not judge notices, so it cannot un-count one on the uploader's word. Fairness comes from the process: the content returns by itself after 10 business days unless a court filing is noted, so a contested strike counts for at most that wait, and the threshold opens a review case, never a suspension. What changes is visibility: `strike_counts` also reports a `contested` count, the review case's opening note lists each counted notice with its state, staff are told to leave a review open while a counter-notice is pending, and a review whose count drops under the threshold on restore closes as "no action". A notice with a court filing keeps counting.
+Status: `ADOPTED` (D-333). Follow-up: N-30.
+
+**P18-TKD-2 (handoff question 2). Is `illegal_content` the right case category for a copyright notice, or should the case vocabulary get a hidden `copyright` value?**
+Decision: no new value. The case vocabulary is the ban-reason enum (severity preset, report dialog, dashboards, invite graph), a hidden value is a trap for every list that enumerates it, and a copyright notice is a register entry, not a ban reason. The notice `kind` is the source of truth; the case list and case page show the linked notice as a badge ("Copyright notice TKD-n"), and the dashboard step counts by notice kind from the register. Reopen only if the dashboard step needs a split the register cannot give.
+Status: `ADOPTED` (D-334). Follow-up: N-31.
+
+**P18-TKD-3 (handoff "still open"). Which of the four unbuilt items is built next, and how?**
+Decision: in this order: the clear message on deleting a held series or title (map the hold trigger's `restrict_violation` to a 409 `errors.held` and a page message naming the notice; XS), blocking the Cinema `transcode/` and Patron download objects at uphold so links signed inside the 6-hour grant TTL stop at the blocklist (write the asset's job prefixes and originals key to `blocked_objects` at uphold, remove at restore; S), the gateway event for a removed message through a `RemovalSink` trait that `app.rs` implements over the event bus with `MessageDeleted` (restore sends nothing, documented; S), and last, after M-25 (c), mailing the templated reply and forwarding a counter-notice through the existing `Mailer` with confirmation, an access-log row and the copy box as the fallback when SMTP is not configured (S), because it is the only item that opens a channel to third parties and it depends on a lawyer's answer (D-336 item e). The first three land before the data-request queue merges.
+Status: `ADOPTED` (D-335). Follow-ups: N-32, N-33, N-34, N-35.
+
+**P18-TKD-4 (handoff question 3, D-293). Restate the legal checks for the owner's lawyer list and add what the built register raises.**
+Decision: one list, recorded in D-336, not legal advice: (a) DMCA designated-agent registration matching the `/help` contact; (b) DSA article 16: a mailbox without a public form, acknowledgement of receipt and a decision sent to the notifier, and whether SIDE ROOM is a hosting service or an online platform (transparency database, articles 19, 20, 23); (c) DSA article 17: the uploader DM against the statement-of-reasons contents; (d) the 10 business days against section 512(g)(2)(C)'s 10-to-14 window, computed in UTC without holidays, and whether a non-US jurisdiction wants the wait at all. New: (e) forwarding the counter-notice to the notifier (512(g)(2)(B)) and what the staff counter-notice form must capture; (f) publishing the repeat-infringer policy, including the contested-strike rule, where members can read it (512(i)); (g) the GDPR basis and retention for notifier contact details kept forever and exported in CSV; (h) mandatory reporting or preservation duties for what an illegal-content hold may contain (for a US operator 18 U.S.C. 2258A), since the register has no reporting step. The project defaults stand until the lawyer answers.
+Status: `ADOPTED` (D-336). No code follow-up beyond N-35's dependency on item (e). Owner action: hand the list to the lawyer with D-287, D-293 to D-295, D-297, D-309, D-311 and D-314.
+
+### Still with the owner
+
+Actions only: the lawyer's review of D-336 (which now carries the D-293 items), and the actions already listed in the earlier rounds.

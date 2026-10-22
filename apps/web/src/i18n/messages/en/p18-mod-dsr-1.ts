@@ -1,6 +1,5 @@
 export default {
   'admin.adminApp.section.dataRequests': 'Data requests',
-  'admin.dataRequests.group': 'Moderation',
   'admin.dataRequests.title': 'Data requests',
   'admin.dataRequests.description':
     'Export and erasure requests from members. A due date is set when a request is entered ({days} days today); it can be extended once.',

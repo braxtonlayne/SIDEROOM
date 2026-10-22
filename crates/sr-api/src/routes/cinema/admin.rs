@@ -140,7 +140,7 @@ pub async fn update_title(
     delete, path = "/admin/cinema/titles/{title_id}", operation_id = "admin_cinema_delete_title",
     params(("title_id" = String, Path, description = "Title snowflake")),
     responses((status = 204), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
-              (status = 404, body = ErrorBody)),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn delete_title(
@@ -418,7 +418,7 @@ pub async fn update_episode(
     delete, path = "/admin/cinema/episodes/{episode_id}", operation_id = "admin_cinema_delete_episode",
     params(("episode_id" = String, Path, description = "Episode snowflake")),
     responses((status = 204), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
-              (status = 404, body = ErrorBody)),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn delete_episode(

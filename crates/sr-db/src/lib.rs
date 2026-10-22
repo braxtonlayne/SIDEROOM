@@ -19,6 +19,7 @@ pub mod data_export;
 pub mod directory_repo;
 mod error;
 mod guild_admin_repo;
+pub mod hold_guard;
 pub mod ingest_sources_repo;
 pub mod invite_join;
 pub mod invoice_retention;

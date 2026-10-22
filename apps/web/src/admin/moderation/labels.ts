@@ -53,6 +53,8 @@ export const EVENT_KEYS: Record<string, MessageKey> = {
   reopened: 'admin.moderation.event.reopened',
   continued_in: 'admin.moderation.event.continuedIn',
   action_performed: 'admin.moderation.event.actionPerformed',
+  strike_review_opened: 'admin.moderation.event.strikeReview',
+  counter_notice: 'admin.moderation.event.takedownCounterNotice',
 };
 
 /** The actions a moderator can record as taken with the server's own tools. */

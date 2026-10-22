@@ -93,10 +93,19 @@ export function Stat({
 
 /** An API failure as a banner; 403s get dedicated copy so staff know it is a permission, not an outage. */
 export function ApiProblem({ error }: { error: string | null }) {
+  const t = useT();
   if (!error) return null;
+  // A delete the database refused because a takedown holds the row (D-335): point at the register.
+  const held = /moderation hold \(notice TK-\d+\)/.test(error);
   return (
     <Notice variant="danger" className="ss-status" role="alert">
       {error}
+      {held && (
+        <>
+          {' '}
+          <a href="/admin/moderation">{t('admin.ui.heldLink')}</a>
+        </>
+      )}
     </Notice>
   );
 }

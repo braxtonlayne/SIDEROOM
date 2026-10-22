@@ -13,6 +13,7 @@
 
 mod actions;
 mod appeals;
+pub mod blocklist;
 mod cases;
 pub mod error;
 pub mod holds;
@@ -21,11 +22,15 @@ mod reports;
 pub mod rules;
 pub mod service;
 pub mod snapshot;
+pub mod takedown_rules;
+mod takedowns;
 
 pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
 pub use cases::{RECORDABLE_ACTIONS, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
 pub use service::{
-    GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, SubjectNotifier,
+    GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, PolicySource, RemovalSink,
+    SubjectNotifier,
 };
+pub use takedowns::register_csv;

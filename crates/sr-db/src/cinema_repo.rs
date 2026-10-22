@@ -1045,11 +1045,20 @@ impl CinemaRepository for PgCinemaRepo {
             .await
             .map_err(db)?;
         // Titles merged into this one keep no dangling pointer: the column is SET NULL on delete.
-        let res = sqlx::query("DELETE FROM video_titles WHERE id = $1")
+        let res = match sqlx::query("DELETE FROM video_titles WHERE id = $1")
             .bind(id)
             .execute(&mut *tx)
             .await
-            .map_err(db)?;
+        {
+            Ok(r) => r,
+            Err(e) if crate::hold_guard::is_hold_refusal(&e) => {
+                drop(tx);
+                return Err(CinemaError::Conflict(
+                    crate::hold_guard::hold_message(&self.pool, "video_titles", id).await,
+                ));
+            }
+            Err(e) => return Err(db(e)),
+        };
         if res.rows_affected() == 0 {
             return Ok(None);
         }
@@ -1524,11 +1533,20 @@ impl CinemaRepository for PgCinemaRepo {
     async fn delete_episode(&self, id: i64) -> CinemaResult<Option<i64>> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         let title: Option<i64> =
-            sqlx::query_scalar("DELETE FROM video_episodes WHERE id = $1 RETURNING title_id")
+            match sqlx::query_scalar("DELETE FROM video_episodes WHERE id = $1 RETURNING title_id")
                 .bind(id)
                 .fetch_optional(&mut *tx)
                 .await
-                .map_err(db)?;
+            {
+                Ok(t) => t,
+                Err(e) if crate::hold_guard::is_hold_refusal(&e) => {
+                    drop(tx);
+                    return Err(CinemaError::Conflict(
+                        crate::hold_guard::hold_message(&self.pool, "video_episodes", id).await,
+                    ));
+                }
+                Err(e) => return Err(db(e)),
+            };
         let Some(title) = title else { return Ok(None) };
         refresh_title(&mut tx, title).await?;
         tx.commit().await.map_err(db)?;

@@ -7,6 +7,7 @@ import { useT, type MessageKey } from '../../i18n';
 import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
 import { BanReasonFields } from './BanReasonFields';
+import { TakedownBadge } from './TakedownBadge';
 import { Async, FormDialog, ReasonDialog, fmtMs, useResource } from '../ui';
 import {
   EVENT_KEYS,
@@ -138,7 +139,15 @@ function Evidence({ ev }: { ev: api.CaseEvidence }) {
   );
 }
 
-export function CasePage({ id, onBack }: { id: string; onBack: () => void }) {
+export function CasePage({
+  id,
+  onBack,
+  onOpenNotice,
+}: {
+  id: string;
+  onBack: () => void;
+  onOpenNotice?: ((noticeId: string) => void) | undefined;
+}) {
   const t = useT();
   const res = useResource(`case:${id}`, () => api.getCase(id));
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -183,6 +192,11 @@ export function CasePage({ id, onBack }: { id: string; onBack: () => void }) {
           return (
             <>
               <h2 className="ss-title">{t('admin.moderation.case.title', { id: c.id })}</h2>
+              {c.takedown && (
+                <p>
+                  <TakedownBadge takedown={c.takedown} onOpen={onOpenNotice} />
+                </p>
+              )}
               <p className="ss-meta">
                 <Badge variant={c.severity === 'serious' ? 'danger' : 'neutral'}>
                   {t(SEVERITY_KEYS[c.severity])}

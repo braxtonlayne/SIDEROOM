@@ -26,7 +26,9 @@ const CASE_COLS: &str = "c.id, c.state, c.category, c.severity, c.routing, \
     (SELECT count(*) FROM moderation_holds h WHERE h.case_id = c.id AND h.released_at IS NULL) AS active_holds, \
     (extract(epoch FROM c.opened_at) * 1000)::bigint AS opened_ms, \
     (extract(epoch FROM c.updated_at) * 1000)::bigint AS updated_ms, \
-    (extract(epoch FROM c.closed_at) * 1000)::bigint AS closed_ms";
+    (extract(epoch FROM c.closed_at) * 1000)::bigint AS closed_ms, \
+    (SELECT n.id FROM takedown_notices n WHERE n.case_id = c.id LIMIT 1) AS takedown_id, \
+    (SELECT n.kind FROM takedown_notices n WHERE n.case_id = c.id LIMIT 1) AS takedown_kind";
 
 fn summary_from(r: &PgRow) -> ModResult<CaseSummary> {
     Ok(CaseSummary {
@@ -49,6 +51,14 @@ fn summary_from(r: &PgRow) -> ModResult<CaseSummary> {
         opened_at_ms: r.try_get("opened_ms")?,
         updated_at_ms: r.try_get("updated_ms")?,
         closed_at_ms: r.try_get("closed_ms")?,
+        takedown: match (
+            r.try_get::<Option<i64>, _>("takedown_id")?,
+            r.try_get::<Option<String>, _>("takedown_kind")?
+                .and_then(|k| crate::model::TakedownKind::parse(&k)),
+        ) {
+            (Some(notice_id), Some(kind)) => Some(crate::model::CaseTakedown { notice_id, kind }),
+            _ => None,
+        },
     })
 }
 
@@ -211,6 +221,9 @@ impl Moderation {
         }
         if f.open_only {
             q.push(" AND c.state IN ('open', 'triage', 'investigating')");
+        }
+        if f.takedown_only {
+            q.push(" AND EXISTS (SELECT 1 FROM takedown_notices n WHERE n.case_id = c.id)");
         }
         if let Some(c) = f.category {
             q.push(" AND c.category = ").push_bind(c.as_str());

@@ -7,8 +7,9 @@ use serde_json::Value;
 use sqlx::{PgConnection, PgPool, Row};
 use sr_admin::{AccessKind, AuditEntry};
 
+use crate::blocklist::MediaBlocklist;
 use crate::error::{ModError, ModResult};
-use crate::model::{Limits, Who, keys};
+use crate::model::{Limits, TakedownPolicy, Who, keys};
 
 /// Source of snowflake ids.
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -53,6 +54,21 @@ pub trait GuildAudit: Send + Sync {
     async fn record(&self, row: GuildAuditRow);
 }
 
+/// Tells the live clients that a message a takedown removed is gone (D-335 item 3). The server implements it
+/// over the event bus (a `MESSAGE_DELETE`); without one nothing is sent and clients see it gone on their next
+/// fetch. Restoring sends nothing: no "message restored" event exists and the fetch path shows it again.
+#[async_trait]
+pub trait RemovalSink: Send + Sync {
+    async fn message_removed(&self, guild: Option<i64>, channel: i64, message_id: i64);
+}
+
+/// Where the strike policy and the operator details come from (the `compliance` feature module, D-293). The
+/// server implements it over the feature settings; without one the defaults apply.
+#[async_trait]
+pub trait PolicySource: Send + Sync {
+    async fn takedown_policy(&self) -> TakedownPolicy;
+}
+
 /// The moderation backend over one database. Cheap to clone.
 #[derive(Clone)]
 pub struct Moderation {
@@ -61,6 +77,9 @@ pub struct Moderation {
     pub(crate) notifier: Option<Arc<dyn SubjectNotifier>>,
     pub(crate) guild_audit: Option<Arc<dyn GuildAudit>>,
     pub(crate) case_actions: Option<Arc<dyn crate::actions::CaseActions>>,
+    pub(crate) policy: Option<Arc<dyn PolicySource>>,
+    pub(crate) removals: Option<Arc<dyn RemovalSink>>,
+    pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
 }
 
 impl Moderation {
@@ -71,6 +90,9 @@ impl Moderation {
             notifier: None,
             guild_audit: None,
             case_actions: None,
+            policy: None,
+            removals: None,
+            blocklist: None,
         }
     }
 
@@ -109,6 +131,31 @@ impl Moderation {
             detail: detail.to_owned(),
         })
         .await;
+    }
+
+    /// The strike policy and operator details the takedown register reads.
+    pub fn with_policy(mut self, p: Arc<dyn PolicySource>) -> Self {
+        self.policy = Some(p);
+        self
+    }
+
+    /// Where removed messages are announced to live clients.
+    pub fn with_removals(mut self, r: Arc<dyn RemovalSink>) -> Self {
+        self.removals = Some(r);
+        self
+    }
+
+    /// The media blocklist a takedown reloads after it changes `blocked_objects`.
+    pub fn with_blocklist(mut self, b: Arc<MediaBlocklist>) -> Self {
+        self.blocklist = Some(b);
+        self
+    }
+
+    pub(crate) async fn policy(&self) -> TakedownPolicy {
+        match &self.policy {
+            Some(p) => p.takedown_policy().await,
+            None => TakedownPolicy::default(),
+        }
     }
 
     pub fn pool(&self) -> &PgPool {

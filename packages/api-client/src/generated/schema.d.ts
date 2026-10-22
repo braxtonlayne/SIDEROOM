@@ -9629,6 +9629,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/item-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Is this library or cinema item held or taken down? (Any signed-in person; reveals nothing but the state.) */
+        get: operations["item_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/reports": {
         parameters: {
             query?: never;
@@ -9661,6 +9678,217 @@ export interface paths {
         get: operations["my_reports"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The register, newest first (`MANAGE_TAKEDOWNS`). */
+        get: operations["list"];
+        put?: never;
+        /** Enter a notice (staff only; there is no public form, D-293). Opens its case. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export the whole register as CSV or JSON (`MANAGE_TAKEDOWNS`; the read is access-logged). */
+        get: operations["export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One notice with its items, timeline and strike counts (`MANAGE_TAKEDOWNS`). */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/counter-notice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a counter-notice (staff record it). The content returns after ten business days unless a court
+         *     filing is noted.
+         */
+        post: operations["counter_notice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/court-filing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Note or clear a court filing on a notice that is in force. */
+        post: operations["court_filing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze the identified items for evidence without removing anything yet (hold, then disable). */
+        post: operations["hold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Name a piece of content the notice covers (triage). 409 when it is already on the notice. */
+        post: operations["add_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Take back an item named by mistake, while it is only identified (not yet held). */
+        delete: operations["remove_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject an incomplete notice. Returns the templated reply staff send to the notifier. */
+        post: operations["reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore the content now (a logged action). */
+        post: operations["restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/uphold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Uphold a notice: hold and disable every item, block the stored objects, tell the uploaders, count the
+         *     strike (a review case opens at the threshold, never a suspension).
+         */
+        post: operations["uphold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The notifier withdrew the notice: the content returns and no strike stands. */
+        post: operations["withdraw"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14076,10 +14304,16 @@ export interface components {
             severity: components["schemas"]["CaseSeverity"];
             state: components["schemas"]["CaseState"];
             summary: string;
+            takedown?: null | components["schemas"]["CaseTakedown"];
             target_id?: string | null;
             target_kind: components["schemas"]["TargetKind"];
             /** Format: int64 */
             updated_at_ms: number;
+        };
+        /** @description The notice behind a takedown case: its reference and kind, for the badge on the case list and page. */
+        CaseTakedown: {
+            kind: components["schemas"]["TakedownKind"];
+            notice_id: string;
         };
         /** @description One approved effect or decoration. */
         CatalogEntryObject: {
@@ -15025,6 +15259,28 @@ export interface components {
         CountBody: {
             /** Format: int32 */
             count: number;
+        };
+        /** @description One notice that counts as a strike. */
+        CountedNotice: {
+            /** @description A counter-notice is pending. */
+            contested: boolean;
+            id: string;
+            kind: components["schemas"]["TakedownKind"];
+            /** Format: int64 */
+            removed_at_ms: number;
+            state: components["schemas"]["NoticeState"];
+        };
+        /** @description Body of a counter-notice. */
+        CounterNoticeBody: {
+            /** @description The counter-notice as received, kept verbatim. */
+            text: string;
+        };
+        /** @description Body of a court-filing note. */
+        CourtFilingBody: {
+            /** @description `true` to note that the notifier went to court (the job will not restore); `false` to clear it. */
+            noted: boolean;
+            /** @description Why. Required. */
+            reason?: string | null;
         };
         /** @description Body of `POST /library/submissions/{id}/cover`. */
         CoverBody: {
@@ -16686,6 +16942,11 @@ export interface components {
             /** Format: int64 */
             attachments: number;
             case_id?: string | null;
+            /**
+             * Format: int64
+             * @description Library and cinema rows (series, chapters, titles, episodes) it freezes.
+             */
+            catalog_rows?: number;
             /** Format: int64 */
             created_at_ms: number;
             /** @description `None` when the system placed it (a report on a message). */
@@ -17085,6 +17346,11 @@ export interface components {
             /** @description `approved`, `rejected` or `pending` (undo). */
             state: components["schemas"]["ItemState"];
         };
+        /**
+         * @description What a notice item points at.
+         * @enum {string}
+         */
+        ItemKind: "message" | "attachment" | "library_series" | "library_chapter" | "cinema_title" | "cinema_episode";
         /**
          * @description Decision state of one item (a chapter, an episode).
          * @enum {string}
@@ -18266,6 +18532,29 @@ export interface components {
             target_id?: string | null;
             target_kind: components["schemas"]["TargetKind"];
         };
+        /** @description A piece of content found for a notice. */
+        NewItem: {
+            id: string;
+            kind: components["schemas"]["ItemKind"];
+        };
+        /** @description What staff enter for a notice (spec 5, step 1). */
+        NewNotice: {
+            kind: components["schemas"]["TakedownKind"];
+            /** @description The work claimed (copyright) or the legal basis (illegal content). */
+            legal_basis: string;
+            /** @description The exact URLs or ids the notifier named. */
+            locations?: string[];
+            /** @description Email, postal address or phone, as the notifier gave it. */
+            notifier_contact: string;
+            notifier_name: string;
+            /** @description The notice as received, kept verbatim. */
+            original_text: string;
+            /**
+             * Format: int64
+             * @description When it arrived (Unix ms); now when absent.
+             */
+            received_at_ms?: number | null;
+        };
         /** @description What a member sends to report something. The client sends ids and the note; the server snapshots the evidence. */
         NewReport: {
             category: components["schemas"]["ReportCategory"];
@@ -18293,6 +18582,59 @@ export interface components {
             note: string;
             note_user_id: string;
             user_id: string;
+        };
+        /** @description A notice with everything staff need on its page. */
+        NoticeDetail: components["schemas"]["NoticeSummary"] & {
+            counter_notice_text: string;
+            /** Format: int64 */
+            counter_noticed_at_ms?: number | null;
+            entered_by: string;
+            events: components["schemas"]["NoticeEvent"][];
+            items: components["schemas"]["TakedownItem"][];
+            legal_basis: string;
+            locations: string[];
+            notifier_contact: string;
+            original_text: string;
+            rejection_reason: string;
+            restore_reason: string;
+            /** Format: int64 */
+            restored_at_ms?: number | null;
+            strikes: components["schemas"]["StrikeCount"][];
+        };
+        /** @description One entry of a notice's timeline. */
+        NoticeEvent: {
+            actor_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            detail: Record<string, never>;
+            id: string;
+            kind: string;
+        };
+        /**
+         * @description Where a notice is in its life.
+         * @enum {string}
+         */
+        NoticeState: "received" | "triage" | "rejected" | "removed" | "counter_noticed" | "restored" | "withdrawn";
+        /** @description A row of the register. */
+        NoticeSummary: {
+            case_id?: string | null;
+            court_filing_noted: boolean;
+            id: string;
+            /** Format: int64 */
+            items: number;
+            kind: components["schemas"]["TakedownKind"];
+            notifier_name: string;
+            /** Format: int64 */
+            received_at_ms: number;
+            /** Format: int64 */
+            removed_at_ms?: number | null;
+            /** Format: int64 */
+            restore_after_ms?: number | null;
+            state: components["schemas"]["NoticeState"];
+            /** Format: int64 */
+            triage_due_at_ms: number;
+            /** @description Received or in triage and past the one-business-day target. */
+            triage_overdue: boolean;
         };
         /** @description The caller's own default notification level. */
         NotificationDefaultsObject: {
@@ -19666,6 +20008,11 @@ export interface components {
             /** @description `clientDataJSON`. */
             clientDataJSON: string;
         };
+        /** @description The reply text for an incomplete notice. */
+        RejectOutcome: {
+            /** @description The templated reply staff send to the notifier. */
+            reply: string;
+        };
         RelationshipObject: {
             /** @description The other user's id. */
             id: string;
@@ -20551,6 +20898,28 @@ export interface components {
             /** @description `data:image/jpeg;base64,...`, at most 256 KiB once decoded. */
             thumbnail: string;
         };
+        /** @description The strikes of one Person named by a notice. */
+        StrikeCount: {
+            /**
+             * Format: int64
+             * @description Of those, the notices whose content is down while a counter-notice is pending.
+             */
+            contested: number;
+            /** @description The notices counted, newest first. */
+            counted: components["schemas"]["CountedNotice"][];
+            person_id: string;
+            /** @description The review case the counter opened for this Person, when it did. */
+            review_case_id?: string | null;
+            /**
+             * Format: int64
+             * @description Upheld takedowns inside the window, this one included once it is upheld.
+             */
+            strikes: number;
+            /** Format: int64 */
+            threshold: number;
+            /** Format: int64 */
+            window_months: number;
+        };
         /** @description A submission as stored. */
         Submission: {
             /**
@@ -20791,6 +21160,38 @@ export interface components {
             id?: string | null;
             moderated?: boolean;
             name: string;
+        };
+        /** @description One content item of a notice. */
+        TakedownItem: {
+            /** Format: int64 */
+            disabled_at_ms?: number | null;
+            hold_id?: string | null;
+            id: string;
+            kind: components["schemas"]["ItemKind"];
+            label: string;
+            /** Format: int64 */
+            restored_at_ms?: number | null;
+            state: components["schemas"]["ItemState"];
+            subject_account_id?: string | null;
+            target_id: string;
+        };
+        /**
+         * @description Whether a library or cinema item is held or taken down: `none`, `held` or `taken_down`. For the reader and
+         *     player pages; the answer is only the state.
+         */
+        TakedownItemStatus: {
+            /** @description `none`, `held` or `taken_down`. */
+            state: string;
+        };
+        /**
+         * @description The two kinds of notice (spec 5).
+         * @enum {string}
+         */
+        TakedownKind: "copyright" | "illegal_content";
+        /** @description A body that carries a reason. */
+        TakedownReasonBody: {
+            /** @description Why. Required. */
+            reason?: string | null;
         };
         /**
          * @description What a report or a case is about.
@@ -21591,6 +21992,18 @@ export interface components {
             items: components["schemas"]["UpdateItem"][];
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
+        };
+        /** @description What upholding a notice did. */
+        UpholdOutcome: {
+            /** Format: int64 */
+            items_disabled: number;
+            /**
+             * Format: int64
+             * @description Uploaders or authors who got the system DM.
+             */
+            notified: number;
+            /** @description The review case opened because a Person reached the threshold. */
+            review_case_id?: string | null;
         };
         /** @description An upload as the API shows it (the status the client polls). */
         Upload: {
@@ -25080,6 +25493,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     admin_cinema_link_episode_asset: {
@@ -25901,6 +26322,14 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -29477,6 +29906,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     admin_library_pages: {
@@ -30496,6 +30933,14 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -54470,6 +54915,46 @@ export interface operations {
             };
         };
     };
+    item_status: {
+        parameters: {
+            query: {
+                /** @description `library_series`, `library_chapter`, `cinema_title` or `cinema_episode`. */
+                kind: string;
+                /** @description The series, chapter, title or episode. */
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakedownItemStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     file_report: {
         parameters: {
             query?: never;
@@ -54559,6 +55044,776 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only one state: `received`, `triage`, `rejected`, `removed`, `counter_noticed`, `restored`, `withdrawn`. */
+                state?: string;
+                /** @description 1 to 500, default 200. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeSummary"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewNotice"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    export: {
+        parameters: {
+            query?: {
+                /** @description `csv` (default) or `json`. */
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/csv, or a JSON array of notices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    counter_notice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterNoticeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    court_filing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourtFilingBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewItem"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+                /** @description Item snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    uphold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpholdOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

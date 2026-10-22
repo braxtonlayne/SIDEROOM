@@ -33,6 +33,7 @@ import {
   tapStep,
 } from './model';
 import { ChapterRate } from '../SeriesSocial';
+import { ItemHoldBanner, useItemHoldState } from '../../moderation/ItemHold';
 import { cacheChapter, readCachedManifest } from './offlineCache';
 import { PageImage } from './PageImage';
 import { EpubReader } from '../epub/EpubReader';
@@ -57,11 +58,18 @@ export interface ReaderProps {
 }
 
 export function Reader(props: ReaderProps) {
-  // A new chapter is a new reader: all page state starts over.
-  return <ReaderLoader key={props.chapterId} {...props} />;
+  // A chapter a takedown notice touches says so (MOD-TKD-011): a banner while it is held, its own message once gone.
+  const hold = useItemHoldState('library_chapter', props.chapterId);
+  return (
+    <>
+      {/* A new chapter is a new reader: all page state starts over. */}
+      <ReaderLoader key={props.chapterId} {...props} takenDown={hold === 'taken_down'} />
+      <ItemHoldBanner state={hold} />
+    </>
+  );
 }
 
-function ReaderLoader({ chapterId, page }: ReaderProps) {
+function ReaderLoader({ chapterId, page, takenDown }: ReaderProps & { takenDown: boolean }) {
   const t = useT();
   const navigate = useNavigate();
   const router = useRouter();
@@ -112,9 +120,19 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
     return (
       <div className="lib-reader lib-reader-msg" data-bg="black">
         <EmptyState
-          title={gone ? t('library.reader.goneTitle') : t('library.reader.errorTitle')}
+          title={
+            takenDown
+              ? t('library.reader.takenDownTitle')
+              : gone
+                ? t('library.reader.goneTitle')
+                : t('library.reader.errorTitle')
+          }
           description={
-            gone ? t('library.reader.goneDescription') : t('library.reader.errorDescription')
+            takenDown
+              ? t('library.reader.takenDownDescription')
+              : gone
+                ? t('library.reader.goneDescription')
+                : t('library.reader.errorDescription')
           }
           action={
             <Link to="/library" className="lib-btn">
