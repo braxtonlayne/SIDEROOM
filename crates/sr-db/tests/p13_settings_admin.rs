@@ -488,9 +488,32 @@ async fn age_confirmation_has_a_time_and_can_be_reset() {
         (Some(true), Some(1_800_000_000))
     );
 
+    let before: i64 = sqlx::query_scalar("SELECT count(*) FROM age_gate_resets")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     store.reset_age_confirmed(id).await.unwrap();
     let a = store.find_by_id(id).await.unwrap().unwrap();
     assert_eq!((a.age_confirmed, a.age_confirmed_at), (None, None));
+    // The reset is counted for the staff dashboard (MOD-DASH-010), without the account.
+    let after: Vec<(String,)> =
+        sqlx::query_as("SELECT source FROM age_gate_resets ORDER BY id DESC LIMIT 1")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(after, vec![("self".to_owned(),)]);
+    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM age_gate_resets")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(total, before + 1);
+    // A reset of an account that does not exist counts nothing.
+    store.reset_age_confirmed(uid()).await.unwrap();
+    let total2: i64 = sqlx::query_scalar("SELECT count(*) FROM age_gate_resets")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(total2, total);
 
     store
         .set_age_confirmed(id, false, 1_800_000_000)
