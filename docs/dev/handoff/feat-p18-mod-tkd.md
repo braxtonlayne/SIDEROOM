@@ -21,13 +21,11 @@ Base `feat/p18-mod-cases` (step 1: cases, reports, holds). Migration range used:
 - **A notice can be withdrawn at any point** (triage included); it then lifts holds and ends the case.
 - **No holiday calendar, weekend by country** (Saturday and Sunday by default; Friday and Saturday for SA, KW, QA, BH, OM, EG, JO, IQ, YE, SY, LY, DZ, BD, MV, IL, SD; Friday for IR and AF; Friday and Sunday for BN). Times are UTC.
 - **Library and cinema "reader and player pages show the hold"** is a separate small endpoint instead of a field on every catalogue record, so no existing DTO changed; the cost is one cached request per reader or player open.
-- **Held catalogue rows refuse deletion at the database** (trigger). An admin who tries to delete a held series gets a storage error, not a polished message.
+- **Held catalogue rows refuse deletion at the database** (trigger). Since N-32 the repository deletes turn the refusal into a 409 that names the notice, and the admin error banner links to the register.
 - The Admin Moderation section is now visible to `MANAGE_TAKEDOWNS` alone. `ModerationSection.tsx` and `AdminApp.tsx` (one line) are the shared files the data-request branch will also touch.
 
 ## Still open (with reasons)
 
-- No gateway event for a message removed by a takedown (clients see it gone on the next fetch); the chat services are not reachable from `sr-moderation`.
-- Cinema `transcode/` outputs and the Patron download paths are not blocked by asset (the item is unpublished, so no new links are minted; links already signed stay valid until they expire).
 - The templated reply to an incomplete notice is shown to staff to copy; nothing is mailed to the notifier (no mail path to third parties exists).
 - `MOD-DASH-005` (the register on the dashboard) and a Setup Wizard clause (dropped by D-315).
 - Not exercised in a browser: no server on 8080/5173 and no Playwright in this wave. The HTTP flow is tested over the router with Postgres, the pages with Vitest.
@@ -39,6 +37,10 @@ Base `feat/p18-mod-cases` (step 1: cases, reports, holds). Migration range used:
 - `cargo test -p sr-api -- --include-ignored --test-threads=1` (633 lib including the takedown HTTP flow, the CDN 451 test and the permission tests; route_matrix 5; openapi_names 2), `-p sr-db` (all suites), `-p sr-server` (118, including `retention_tests::a_takedown_hold_blocks_the_purge_until_the_notice_ends`, the retention guard: the purge skips a message the takedown holds and takes it at the next run once the notice is withdrawn).
 - Web: `typecheck`, `eslint .`, `prettier --check src`, full `vitest run --maxWorkers=2` (266 files, 2426 tests, after `pnpm --filter @sideroom/wasm build`), `vite build` and `check-bundle-budget.mjs` (admin 352 KB gzip of 600).
 - Scratch Postgres: a private database `sr_p18_tkd` (dropped at the end) and the `sr_tpl_*` template databases `TestDb` leaves behind (dropped).
+
+## Follow-up round (N-30 to N-34, D-333 to D-336)
+
+Done in the same branch, each ticked in `docs/dev/answers-followups-p16.md`: contested strikes shown and an open review closed as `no_action` when a restore takes the count under the threshold (N-30); the notice badge and the takedown source filter on cases (N-31, no migration); a clear 409 for deleting a held series, chapter, title or episode, with a link to the register (N-32); transcode and original objects blocked at uphold (N-33); a `MESSAGE_DELETE` for every message a takedown removes from view (N-34). N-32 returns the notice reference in the 409 message text ("... (notice TK-n). Release the hold first."), not as a separate `errors.held` code. Tests: `cargo test -p sr-moderation --test takedowns` (16), `-p sr-db --test hold_guard` (2), the CDN 451 tests, `sr-server` `takedown_jobs` (3), `takedowns.test.tsx` (12). N-35 (mailing the reply, forwarding counter-notices) waits for the owner's lawyer (D-336 (e)).
 
 ## Owner questions
 
