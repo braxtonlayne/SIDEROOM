@@ -2709,7 +2709,7 @@
         "tags": [
           "accounts"
         ],
-        "summary": "List platform bans, newest first (`PLATFORM_BAN`).",
+        "summary": "List platform bans, newest first (`PLATFORM_BAN`). The filters narrow by severity (`category`), by why\n(`reason_category`, or `none` for bans made without one) and by age (MOD-BAN-003).",
         "operationId": "bans",
         "parameters": [
           {
@@ -2719,6 +2719,44 @@
             "required": false,
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Severity: serious or standard",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BanCategory"
+            }
+          },
+          {
+            "name": "reason_category",
+            "in": "query",
+            "description": "A ban reason category (spec 8), or none",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "older_than_days",
+            "in": "query",
+            "description": "Bans made at least this many days ago",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "newer_than_days",
+            "in": "query",
+            "description": "Bans made at most this many days ago",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
             }
           },
           {
@@ -50097,6 +50135,207 @@
         ]
       }
     },
+    "/moderation/dashboard": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "The dashboard (Admin > Moderation > Dashboard). A section is present only when the caller holds the bit\nthat reads it: `MANAGE_CASES` (inbox counts, health, retention check, age and child-safety metrics),\n`PLATFORM_BAN` (bans by reason, severity and age), `MANAGE_TAKEDOWNS` (the register and the data requests).\n403 when the caller holds none of them.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "The window of the figures in days, 1 to 90, default 30.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/dashboard/inbox": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "The reports inbox: cases still `open` with nobody assigned, each with the number of reports nobody has\nlooked at (several means duplicates of one target), oldest first (`MANAGE_CASES`). The reporter is never\npart of the answer.",
+        "operationId": "inbox",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 25.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/dashboard/inbox/dismiss": {
+      "post": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Dismiss several inbox cases with one reason (`MANAGE_CASES`). Each case goes through the normal state change,\nwith its own timeline event and access-log row; one that is no longer waiting is reported back as skipped.",
+        "operationId": "dismiss",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxDismissBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxDismissOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/guilds/{guild_id}/cases": {
       "get": {
         "tags": [
@@ -67563,6 +67802,13 @@
           },
           "person_id": {
             "type": "string"
+          },
+          "reason_category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (spec 8, `ban_reason_category`), stamped when the ban was made through a case; `None` for older bans."
           }
         }
       },
@@ -72881,6 +73127,475 @@
           }
         }
       },
+      "DashAge": {
+        "type": "object",
+        "description": "Age and child-safety metrics (MOD-DASH-010, spec 7).",
+        "required": [
+          "window_days",
+          "restricted_channels",
+          "restricted_series",
+          "restricted_titles",
+          "age_gate_resets",
+          "child_safety_open_cases",
+          "child_safety_reports",
+          "child_safety_active_bans"
+        ],
+        "properties": {
+          "age_gate_resets": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Resets of the age confirmation in the window. Counts only, never whose."
+          },
+          "child_safety_active_bans": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Platform bans in force with the reason `child_safety`."
+          },
+          "child_safety_open_cases": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open cases in the `child_safety` category."
+          },
+          "child_safety_reports": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Child-safety reports filed in the window."
+          },
+          "restricted_channels": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restricted_series": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restricted_titles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashBans": {
+        "type": "object",
+        "description": "Platform bans in force (MOD-DASH-007).",
+        "required": [
+          "active",
+          "by_reason",
+          "by_severity",
+          "by_age",
+          "lifted_in_window"
+        ],
+        "properties": {
+          "active": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by_age": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "By age: `under_7d`, `7_to_30d`, `30_to_90d`, `over_90d`."
+          },
+          "by_reason": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "By `reason_category`; `none` for bans made without one."
+          },
+          "by_severity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "By severity (`serious`, `standard`)."
+          },
+          "lifted_in_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bans lifted in the window."
+          }
+        }
+      },
+      "DashCount": {
+        "type": "object",
+        "description": "A label and a count.",
+        "required": [
+          "key",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key": {
+            "type": "string"
+          }
+        }
+      },
+      "DashDataRequests": {
+        "type": "object",
+        "description": "The data-request queue at a glance (MOD-DASH-006).",
+        "required": [
+          "window_days",
+          "open_exports",
+          "open_erasures",
+          "overdue",
+          "due_soon",
+          "completed_in_window"
+        ],
+        "properties": {
+          "completed_in_window": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "due_soon": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open requests due within seven days."
+          },
+          "open_erasures": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "open_exports": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "overdue": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open requests past their deadline (the extended one when there is one)."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashDay": {
+        "type": "object",
+        "description": "Reports filed on one day (UTC).",
+        "required": [
+          "day",
+          "reports"
+        ],
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "`YYYY-MM-DD`."
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "DashHealth": {
+        "type": "object",
+        "description": "Health of the process (MOD-DASH-008). Totals only; there is no per-staff figure.",
+        "required": [
+          "window_days",
+          "reports_per_day",
+          "reports",
+          "cases_opened",
+          "cases_with_first_action",
+          "cases_waiting",
+          "closed",
+          "reopened",
+          "appeal_outcomes",
+          "appeals_open"
+        ],
+        "properties": {
+          "appeal_outcomes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "Appeals decided in the window by outcome (`upheld`, `overturned`)."
+          },
+          "appeals_open": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Appeals waiting for a decision, whatever their age."
+          },
+          "cases_opened": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cases_waiting": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cases still waiting for a first action, whatever their age."
+          },
+          "cases_with_first_action": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "closed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cases closed in the window."
+          },
+          "median_first_action_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Median seconds from the opening of a case to the first action on it; `None` when no case in the window\nhas had one."
+          },
+          "reopen_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`reopened / closed` as a fraction between 0 and 1; `None` when nothing was closed."
+          },
+          "reopened": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, how many were reopened (or continued in a new case) afterwards."
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reports_per_day": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashDay"
+            },
+            "description": "One entry per day of the window, oldest first, zero days included."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashInbox": {
+        "type": "object",
+        "description": "Reports waiting for someone to pick them up (MOD-DASH-002).",
+        "required": [
+          "groups",
+          "reports"
+        ],
+        "properties": {
+          "groups": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cases that are still `open` with nobody assigned, and have a report that nobody has looked at."
+          },
+          "oldest_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Age of the oldest waiting report, in seconds."
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Reports in those cases."
+          }
+        }
+      },
+      "DashRetention": {
+        "type": "object",
+        "description": "What the purge jobs are leaving behind (MOD-DASH-009).",
+        "required": [
+          "rows",
+          "holds_active",
+          "holds_review_due"
+        ],
+        "properties": {
+          "holds_active": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Holds in force."
+          },
+          "holds_review_due": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Holds that nobody has looked at for longer than `moderation.hold_review_days`."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashRetentionRow"
+            }
+          }
+        }
+      },
+      "DashRetentionRow": {
+        "type": "object",
+        "description": "One kind of row a purge job skipped because of a hold (MOD-DASH-009).",
+        "required": [
+          "key",
+          "count",
+          "capped"
+        ],
+        "properties": {
+          "capped": {
+            "type": "boolean",
+            "description": "The count stopped at the cap: there are at least this many."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key": {
+            "type": "string",
+            "description": "`messages_held`, `messages_held_attachment`, `attachments_removed_held`, `attachments_expiry_held`,\n`submissions_held`."
+          }
+        }
+      },
+      "DashTakedowns": {
+        "type": "object",
+        "description": "The takedown register at a glance (MOD-DASH-005).",
+        "required": [
+          "window_days",
+          "undecided",
+          "triage_overdue",
+          "counter_noticed",
+          "restore_due",
+          "removed_in_window",
+          "received_in_window"
+        ],
+        "properties": {
+          "counter_noticed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices in `counter_noticed`."
+          },
+          "received_in_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices received in the window."
+          },
+          "removed_in_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices whose content was removed in the window."
+          },
+          "restore_due": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, restorable now (the wait is over) and no court filing noted."
+          },
+          "triage_overdue": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, past the triage target (one business day)."
+          },
+          "undecided": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices not decided yet (`received`, `triage`)."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashboardView": {
+        "type": "object",
+        "description": "The dashboard. A section is absent when the caller lacks the bit that reads it.",
+        "required": [
+          "generated_at_ms",
+          "window_days"
+        ],
+        "properties": {
+          "age": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashAge"
+              }
+            ]
+          },
+          "bans": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashBans"
+              }
+            ]
+          },
+          "data_requests": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashDataRequests"
+              }
+            ]
+          },
+          "generated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "health": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashHealth"
+              }
+            ]
+          },
+          "inbox": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashInbox"
+              }
+            ]
+          },
+          "retention": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashRetention"
+              }
+            ]
+          },
+          "takedowns": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashTakedowns"
+              }
+            ]
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "DataRequest": {
         "type": "object",
         "description": "A queue row.",
@@ -77049,6 +77764,136 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "InboxDismissBody": {
+        "type": "object",
+        "description": "Body of a bulk dismissal.",
+        "required": [
+          "case_ids"
+        ],
+        "properties": {
+          "case_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The cases to dismiss, at most 100."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why they are dismissed. Required; it becomes the outcome of every case."
+          }
+        }
+      },
+      "InboxDismissOutcome": {
+        "type": "object",
+        "description": "Result of a bulk dismissal.",
+        "required": [
+          "dismissed",
+          "skipped"
+        ],
+        "properties": {
+          "dismissed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxSkipped"
+            }
+          }
+        }
+      },
+      "InboxGroup": {
+        "type": "object",
+        "description": "One case in the reports inbox: a target and the reports that arrived for it (MOD-DASH-002).",
+        "required": [
+          "case_id",
+          "summary",
+          "target_kind",
+          "severity",
+          "categories",
+          "reports",
+          "first_report_at_ms",
+          "last_report_at_ms"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The report categories in the group, so a mixed group shows."
+          },
+          "first_report_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_report_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Reports in the group that nobody has looked at; more than one means duplicates."
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "target_kind": {
+            "type": "string"
+          }
+        }
+      },
+      "InboxPage": {
+        "type": "object",
+        "description": "A page of the inbox, oldest first.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxGroup"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "InboxSkipped": {
+        "type": "object",
+        "description": "A case the bulk dismissal left alone, and why.",
+        "required": [
+          "case_id",
+          "reason"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },

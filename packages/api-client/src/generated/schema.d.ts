@@ -577,7 +577,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List platform bans, newest first (`PLATFORM_BAN`). */
+        /**
+         * List platform bans, newest first (`PLATFORM_BAN`). The filters narrow by severity (`category`), by why
+         *     (`reason_category`, or `none` for bans made without one) and by age (MOD-BAN-003).
+         */
         get: operations["bans"];
         put?: never;
         post?: never;
@@ -9558,6 +9561,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The dashboard (Admin > Moderation > Dashboard). A section is present only when the caller holds the bit
+         *     that reads it: `MANAGE_CASES` (inbox counts, health, retention check, age and child-safety metrics),
+         *     `PLATFORM_BAN` (bans by reason, severity and age), `MANAGE_TAKEDOWNS` (the register and the data requests).
+         *     403 when the caller holds none of them.
+         */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/dashboard/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The reports inbox: cases still `open` with nobody assigned, each with the number of reports nobody has
+         *     looked at (several means duplicates of one target), oldest first (`MANAGE_CASES`). The reporter is never
+         *     part of the answer.
+         */
+        get: operations["inbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/dashboard/inbox/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss several inbox cases with one reason (`MANAGE_CASES`). Each case goes through the normal state change,
+         *     with its own timeline event and access-log row; one that is no longer waiting is reported back as skipped.
+         */
+        post: operations["dismiss"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/guilds/{guild_id}/cases": {
         parameters: {
             query?: never;
@@ -13992,6 +14058,8 @@ export interface components {
             lifted_at_ms?: number | null;
             note: string;
             person_id: string;
+            /** @description Why (spec 8, `ban_reason_category`), stamped when the ban was made through a case; `None` for older bans. */
+            reason_category?: string | null;
         };
         /** @description Response of every `.../begin` route. */
         BeginResponse: {
@@ -15661,6 +15729,226 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        /** @description Age and child-safety metrics (MOD-DASH-010, spec 7). */
+        DashAge: {
+            /**
+             * Format: int64
+             * @description Resets of the age confirmation in the window. Counts only, never whose.
+             */
+            age_gate_resets: number;
+            /**
+             * Format: int64
+             * @description Platform bans in force with the reason `child_safety`.
+             */
+            child_safety_active_bans: number;
+            /**
+             * Format: int64
+             * @description Open cases in the `child_safety` category.
+             */
+            child_safety_open_cases: number;
+            /**
+             * Format: int64
+             * @description Child-safety reports filed in the window.
+             */
+            child_safety_reports: number;
+            /** Format: int64 */
+            restricted_channels: number;
+            /** Format: int64 */
+            restricted_series: number;
+            /** Format: int64 */
+            restricted_titles: number;
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description Platform bans in force (MOD-DASH-007). */
+        DashBans: {
+            /** Format: int64 */
+            active: number;
+            /** @description By age: `under_7d`, `7_to_30d`, `30_to_90d`, `over_90d`. */
+            by_age: components["schemas"]["DashCount"][];
+            /** @description By `reason_category`; `none` for bans made without one. */
+            by_reason: components["schemas"]["DashCount"][];
+            /** @description By severity (`serious`, `standard`). */
+            by_severity: components["schemas"]["DashCount"][];
+            /**
+             * Format: int64
+             * @description Bans lifted in the window.
+             */
+            lifted_in_window: number;
+        };
+        /** @description A label and a count. */
+        DashCount: {
+            /** Format: int64 */
+            count: number;
+            key: string;
+        };
+        /** @description The data-request queue at a glance (MOD-DASH-006). */
+        DashDataRequests: {
+            /** Format: int64 */
+            completed_in_window: number;
+            /**
+             * Format: int64
+             * @description Open requests due within seven days.
+             */
+            due_soon: number;
+            /** Format: int64 */
+            open_erasures: number;
+            /** Format: int64 */
+            open_exports: number;
+            /**
+             * Format: int64
+             * @description Open requests past their deadline (the extended one when there is one).
+             */
+            overdue: number;
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description Reports filed on one day (UTC). */
+        DashDay: {
+            /** @description `YYYY-MM-DD`. */
+            day: string;
+            /** Format: int64 */
+            reports: number;
+        };
+        /** @description Health of the process (MOD-DASH-008). Totals only; there is no per-staff figure. */
+        DashHealth: {
+            /** @description Appeals decided in the window by outcome (`upheld`, `overturned`). */
+            appeal_outcomes: components["schemas"]["DashCount"][];
+            /**
+             * Format: int64
+             * @description Appeals waiting for a decision, whatever their age.
+             */
+            appeals_open: number;
+            /** Format: int64 */
+            cases_opened: number;
+            /**
+             * Format: int64
+             * @description Cases still waiting for a first action, whatever their age.
+             */
+            cases_waiting: number;
+            /** Format: int64 */
+            cases_with_first_action: number;
+            /**
+             * Format: int64
+             * @description Cases closed in the window.
+             */
+            closed: number;
+            /**
+             * Format: int64
+             * @description Median seconds from the opening of a case to the first action on it; `None` when no case in the window
+             *     has had one.
+             */
+            median_first_action_seconds?: number | null;
+            /**
+             * Format: double
+             * @description `reopened / closed` as a fraction between 0 and 1; `None` when nothing was closed.
+             */
+            reopen_rate?: number | null;
+            /**
+             * Format: int64
+             * @description Of those, how many were reopened (or continued in a new case) afterwards.
+             */
+            reopened: number;
+            /** Format: int64 */
+            reports: number;
+            /** @description One entry per day of the window, oldest first, zero days included. */
+            reports_per_day: components["schemas"]["DashDay"][];
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description Reports waiting for someone to pick them up (MOD-DASH-002). */
+        DashInbox: {
+            /**
+             * Format: int64
+             * @description Cases that are still `open` with nobody assigned, and have a report that nobody has looked at.
+             */
+            groups: number;
+            /**
+             * Format: int64
+             * @description Age of the oldest waiting report, in seconds.
+             */
+            oldest_seconds?: number | null;
+            /**
+             * Format: int64
+             * @description Reports in those cases.
+             */
+            reports: number;
+        };
+        /** @description What the purge jobs are leaving behind (MOD-DASH-009). */
+        DashRetention: {
+            /**
+             * Format: int64
+             * @description Holds in force.
+             */
+            holds_active: number;
+            /**
+             * Format: int64
+             * @description Holds that nobody has looked at for longer than `moderation.hold_review_days`.
+             */
+            holds_review_due: number;
+            rows: components["schemas"]["DashRetentionRow"][];
+        };
+        /** @description One kind of row a purge job skipped because of a hold (MOD-DASH-009). */
+        DashRetentionRow: {
+            /** @description The count stopped at the cap: there are at least this many. */
+            capped: boolean;
+            /** Format: int64 */
+            count: number;
+            /**
+             * @description `messages_held`, `messages_held_attachment`, `attachments_removed_held`, `attachments_expiry_held`,
+             *     `submissions_held`.
+             */
+            key: string;
+        };
+        /** @description The takedown register at a glance (MOD-DASH-005). */
+        DashTakedowns: {
+            /**
+             * Format: int64
+             * @description Notices in `counter_noticed`.
+             */
+            counter_noticed: number;
+            /**
+             * Format: int64
+             * @description Notices received in the window.
+             */
+            received_in_window: number;
+            /**
+             * Format: int64
+             * @description Notices whose content was removed in the window.
+             */
+            removed_in_window: number;
+            /**
+             * Format: int64
+             * @description Of those, restorable now (the wait is over) and no court filing noted.
+             */
+            restore_due: number;
+            /**
+             * Format: int64
+             * @description Of those, past the triage target (one business day).
+             */
+            triage_overdue: number;
+            /**
+             * Format: int64
+             * @description Notices not decided yet (`received`, `triage`).
+             */
+            undecided: number;
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description The dashboard. A section is absent when the caller lacks the bit that reads it. */
+        DashboardView: {
+            age?: null | components["schemas"]["DashAge"];
+            bans?: null | components["schemas"]["DashBans"];
+            data_requests?: null | components["schemas"]["DashDataRequests"];
+            /** Format: int64 */
+            generated_at_ms: number;
+            health?: null | components["schemas"]["DashHealth"];
+            inbox?: null | components["schemas"]["DashInbox"];
+            retention?: null | components["schemas"]["DashRetention"];
+            takedowns?: null | components["schemas"]["DashTakedowns"];
+            /** Format: int32 */
+            window_days: number;
+        };
         /** @description A queue row. */
         DataRequest: {
             account_id: string;
@@ -16997,6 +17285,46 @@ export interface components {
             provider_user_id: string;
             /** Format: int64 */
             unlinked_at_ms?: number | null;
+        };
+        /** @description Body of a bulk dismissal. */
+        InboxDismissBody: {
+            /** @description The cases to dismiss, at most 100. */
+            case_ids: string[];
+            /** @description Why they are dismissed. Required; it becomes the outcome of every case. */
+            reason?: string | null;
+        };
+        /** @description Result of a bulk dismissal. */
+        InboxDismissOutcome: {
+            dismissed: string[];
+            skipped: components["schemas"]["InboxSkipped"][];
+        };
+        /** @description One case in the reports inbox: a target and the reports that arrived for it (MOD-DASH-002). */
+        InboxGroup: {
+            case_id: string;
+            /** @description The report categories in the group, so a mixed group shows. */
+            categories: string[];
+            /** Format: int64 */
+            first_report_at_ms: number;
+            /** Format: int64 */
+            last_report_at_ms: number;
+            /**
+             * Format: int64
+             * @description Reports in the group that nobody has looked at; more than one means duplicates.
+             */
+            reports: number;
+            severity: string;
+            summary: string;
+            target_kind: string;
+        };
+        /** @description A page of the inbox, oldest first. */
+        InboxPage: {
+            items: components["schemas"]["InboxGroup"][];
+            next_cursor?: string | null;
+        };
+        /** @description A case the bulk dismissal left alone, and why. */
+        InboxSkipped: {
+            case_id: string;
+            reason: string;
         };
         /**
          * @description Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`
@@ -24502,6 +24830,14 @@ export interface operations {
             query?: {
                 /** @description Only bans not lifted */
                 active_only?: boolean;
+                /** @description Severity: serious or standard */
+                category?: components["schemas"]["BanCategory"];
+                /** @description A ban reason category (spec 8), or none */
+                reason_category?: string;
+                /** @description Bans made at least this many days ago */
+                older_than_days?: number;
+                /** @description Bans made at most this many days ago */
+                newer_than_days?: number;
                 /** @description Cursor */
                 after?: string;
                 /** @description 1-100, default 50 */
@@ -54700,6 +55036,139 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: {
+                /** @description The window of the figures in days, 1 to 90, default 30. */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inbox: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` of the previous page. */
+                cursor?: string;
+                /** @description 1 to 100, default 25. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InboxDismissBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxDismissOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

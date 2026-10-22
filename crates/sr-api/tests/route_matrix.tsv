@@ -409,6 +409,8 @@ GET	/library/users/{user_id}/lists	authenticated	visibility	allow	-
 GET	/moderation/appeals	authenticated	staff	deny	-
 GET	/moderation/cases	authenticated	staff	deny	-
 GET	/moderation/cases/{case_id}	authenticated	membership	deny	-
+GET	/moderation/dashboard	authenticated	staff	deny	-
+GET	/moderation/dashboard/inbox	authenticated	staff	deny	-
 GET	/moderation/guilds/{guild_id}/cases	authenticated	membership	deny	-
 GET	/moderation/holds	authenticated	staff	deny	-
 GET	/moderation/item-status	authenticated	user	deny	-
@@ -771,6 +773,7 @@ POST	/moderation/cases/{case_id}/notes	authenticated	membership	deny	-
 POST	/moderation/cases/{case_id}/reopen	authenticated	membership	deny	-
 POST	/moderation/cases/{case_id}/state	authenticated	membership	deny	-
 POST	/moderation/cases/{case_id}/warn	authenticated	staff	deny	-
+POST	/moderation/dashboard/inbox/dismiss	authenticated	staff	deny	-
 POST	/moderation/holds/{hold_id}/release	authenticated	staff	deny	-
 POST	/moderation/holds/{hold_id}/reviewed	authenticated	staff	deny	-
 POST	/moderation/reports	authenticated	visibility	deny	-
