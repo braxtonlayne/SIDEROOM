@@ -105,12 +105,17 @@ impl Feature for MessageQuotes {
                     max: Some(5),
                 },
             )
+            .at(&[Scope::Platform, Scope::Guild, Scope::Channel])
+            .help("A channel can turn previews off, or show fewer or more than the server.")
             .default_value(json!(2)),
         ])
     }
 
+    /// Channel scope (LNG-CHN-017): a busy channel can switch the previews off or cap them
+    /// lower, and a channel inherits everything it does not set from the server. A channel
+    /// can only narrow a server that has the module on; it cannot switch it on by itself.
     fn scopes(&self) -> &[Scope] {
-        &[Scope::Platform, Scope::Guild]
+        &[Scope::Platform, Scope::Guild, Scope::Channel]
     }
 
     fn on_event<'a>(
@@ -139,7 +144,10 @@ impl Feature for MessageQuotes {
             if links.is_empty() {
                 return Ok(());
             }
-            let cfg: Config = ctx.guild_config(QUOTES_ID, *g).await?;
+            if !ctx.channel_enabled(QUOTES_ID, *g, *channel).await? {
+                return Ok(());
+            }
+            let cfg: Config = ctx.channel_config(QUOTES_ID, *g, *channel).await?;
             let here = ctx.actions.get_channel(*channel).await?;
             let here_nsfw = here.as_ref().is_some_and(|c| c.nsfw);
             let mut posted = 0;
@@ -342,5 +350,92 @@ mod tests {
     fn schema_defaults_validate() {
         let s = MessageQuotes.settings_schema();
         s.validate(&s.defaults(Scope::Guild)).unwrap();
+    }
+
+    fn channel_scope() -> crate::ScopeRef {
+        crate::ScopeRef::Channel {
+            guild: G,
+            channel: HERE,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_channel_can_switch_previews_off_and_back_to_the_server() {
+        let h = harness().await;
+        let guild = crate::ScopeRef::Guild { guild: G };
+        h.ctx
+            .settings
+            .set_enabled(QUOTES_ID, &guild, Some(true))
+            .await
+            .unwrap();
+        h.ctx
+            .settings
+            .set_enabled(QUOTES_ID, &channel_scope(), Some(false))
+            .await
+            .unwrap();
+        MessageQuotes
+            .on_event(&said("look /channels/1/20/300"), &h.ctx)
+            .await
+            .unwrap();
+        assert!(h.actions.posts().is_empty(), "the channel is off");
+        h.ctx
+            .settings
+            .clear(QUOTES_ID, &channel_scope())
+            .await
+            .unwrap();
+        MessageQuotes
+            .on_event(&said("look /channels/1/20/300"), &h.ctx)
+            .await
+            .unwrap();
+        assert_eq!(h.actions.posts().len(), 1, "inherits the server again");
+    }
+
+    #[tokio::test]
+    async fn a_channel_cap_beats_the_server_cap_and_inherits_otherwise() {
+        let h = harness().await;
+        let guild = crate::ScopeRef::Guild { guild: G };
+        let set = |n: u32| json!({ "max_quotes": n }).as_object().cloned().unwrap();
+        h.ctx
+            .settings
+            .set_settings(QUOTES_ID, &guild, set(3))
+            .await
+            .unwrap();
+        let links = "/channels/1/20/300 /channels/1/10/303 /channels/1/22/302";
+        // The server allows 3 but only two links are quotable here (the third is age-restricted).
+        MessageQuotes.on_event(&said(links), &h.ctx).await.unwrap();
+        assert_eq!(h.actions.posts().len(), 2);
+        h.actions.clear_calls();
+        h.ctx
+            .settings
+            .set_settings(QUOTES_ID, &channel_scope(), set(1))
+            .await
+            .unwrap();
+        MessageQuotes.on_event(&said(links), &h.ctx).await.unwrap();
+        assert_eq!(h.actions.posts().len(), 1, "the channel caps at one");
+        let eff = h
+            .ctx
+            .settings
+            .effective_settings(QUOTES_ID, &channel_scope())
+            .await
+            .unwrap();
+        assert_eq!(eff["max_quotes"], json!(1));
+    }
+
+    #[tokio::test]
+    async fn deleting_a_channel_forgets_its_overrides() {
+        let h = harness().await;
+        h.ctx
+            .settings
+            .set_enabled(QUOTES_ID, &channel_scope(), Some(false))
+            .await
+            .unwrap();
+        h.ctx.settings.forget_channel(G, HERE).await.unwrap();
+        let rec = h
+            .ctx
+            .settings
+            .overrides(QUOTES_ID, &channel_scope())
+            .await
+            .unwrap();
+        assert_eq!(rec, crate::SettingsRecord::default());
     }
 }

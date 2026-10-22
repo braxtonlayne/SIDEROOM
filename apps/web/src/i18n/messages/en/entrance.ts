@@ -340,4 +340,15 @@ export default {
   'entrance.support.copyright.title': 'Copyright notices',
   'entrance.support.copyright.body':
     'If something here infringes your copyright, send the notice to this address. A person on the staff reads every one:',
+  // The ban screen's appeal form (MOD-APL-004, D-215). Entrance strings live in this core fragment because the sign-in
+  // page paints before the rest of the catalog loads.
+  'entrance.appeal.banned': 'This account is banned from SIDE ROOM.',
+  'entrance.appeal.intro':
+    'You can appeal the decision. A staff member who did not make it will read what you write. There is no second appeal.',
+  'entrance.appeal.label': 'Why should this be looked at again?',
+  'entrance.appeal.send': 'Send appeal',
+  'entrance.appeal.sent':
+    'Your appeal was sent. A staff member who did not make the decision will read it.',
+  'entrance.appeal.already': 'This decision was already appealed.',
+  'entrance.appeal.failed': 'The appeal could not be sent. Try again.',
 } satisfies Record<string, string>;

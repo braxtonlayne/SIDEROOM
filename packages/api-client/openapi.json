@@ -1143,6 +1143,73 @@
         ]
       }
     },
+    "/admin/accounts/{account_id}/deleted-archive": {
+      "get": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "The original username, email and display name of a deleted account, from the staff-only archive\n(`MANAGE_ACCOUNTS`, D-326). Each view is written to the access log.",
+        "operationId": "deleted_archive",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedArchive"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/accounts/{account_id}/force-logout": {
       "post": {
         "tags": [
@@ -4094,6 +4161,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5351,6 +5428,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6416,6 +6503,603 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests": {
+      "get": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "The queue, active requests by due date first (`MANAGE_TAKEDOWNS`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "active_only",
+            "in": "query",
+            "description": "Only requests that still need staff (default true)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most 200",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDataRequestList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Enter a request that arrived by email or form; the due date is computed now.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}": {
+      "get": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "One request (the read is logged).",
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/decline": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Refuse a request with a stated reason.",
+        "operationId": "decline",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/extend": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Extend the deadline by `days`, once, with a reason (GDPR article 12(3)).",
+        "operationId": "extend",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminExtendDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/run": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Run a verified request. An export queues the self-service data package for the person (they\ndownload it from Settings for 7 days); an erasure deletes the account through account\ndeletion and completes with an outcome that names the records that stay (D-124, G-66).",
+        "operationId": "run",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRunDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/verify": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Record that staff checked who is asking; the reason says how.",
+        "operationId": "verify",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -10150,6 +10834,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -11707,6 +12401,16 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -25510,6 +26214,218 @@
           },
           "429": {
             "description": "Another sound was just played (900012)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/sr/features": {
+      "get": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "The modules with a channel scope, with this channel's state (`MANAGE_CHANNELS`).",
+        "operationId": "list_channel_features",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChannelFeatureObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/sr/features/{feature_id}": {
+      "delete": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Remove this channel's switch and overrides, so it follows the server again\n(`MANAGE_CHANNELS`).",
+        "operationId": "reset_channel_feature",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. lounge.message_quotes",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Switch a module on or off in this channel, or change its settings here\n(`MANAGE_CHANNELS`).",
+        "operationId": "patch_channel_feature",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. lounge.message_quotes",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchChannelFeatureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelFeatureObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -47731,6 +48647,3191 @@
         ]
       }
     },
+    "/moderation/appeals": {
+      "get": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Appeals, newest first (`MANAGE_CASES`).",
+        "operationId": "list_appeals",
+        "parameters": [
+          {
+            "name": "open_only",
+            "in": "query",
+            "description": "Only appeals not decided yet (default true).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppealView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Appeal a platform ban (public). A banned account has no session, so the account proves itself with its\ncredentials, throttled like sign-in. One appeal per decision; there is no second appeal (D-215).\nThe answer says nothing about the ban beyond what the person already knows.",
+        "operationId": "file_appeal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppealBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "The appeal was filed"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/moderation/appeals/{appeal_id}/decision": {
+      "post": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Decide an appeal (`MANAGE_CASES`). Not the staff member who made the ban, unless they are the Owner and nobody\nelse can review (D-215). Overturning lifts the ban through the admin service (`PLATFORM_BAN`).",
+        "operationId": "decide_appeal",
+        "parameters": [
+          {
+            "name": "appeal_id",
+            "in": "path",
+            "description": "Appeal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppealDecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppealView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases": {
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "The case queue of platform staff: what is routed to platform staff or to reviewers (`MANAGE_CASES`, or a\nreview bit for the cases of that kind). Server cases appear once their moderators escalate (D-209).",
+        "operationId": "list_cases",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "`open`, `triage`, `investigating`, `actioned`, `dismissed` or `closed`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "open_only",
+            "in": "query",
+            "description": "Only cases still being worked (open, triage, investigating).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignee",
+            "in": "query",
+            "description": "Assigned to this account.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "query",
+            "description": "Platform staff only: cases of this server.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject_account_id",
+            "in": "query",
+            "description": "Cases about this account.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "`takedown`: only cases opened for a takedown notice.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "oldest_first",
+            "in": "query",
+            "description": "Oldest first (the work queue); default newest first.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 25.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Open a case without a report (`MANAGE_CASES`).",
+        "operationId": "open_case",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenCaseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}": {
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "One case as far as the caller may see it. Reading the reporters as platform staff and opening a DM\nsnapshot are written to the access log first (D-125, D-214).",
+        "operationId": "get_case",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/actions": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Record that an action was taken with the server's own tools, or (`perform`) do it through the server's services\non the case's own target; either way the case moves to `actioned`.",
+        "operationId": "record_action",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/assignee": {
+      "put": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Claim a case.",
+        "operationId": "claim",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Release a case (the assignee, or somebody with `MANAGE_CASES`).",
+        "operationId": "release",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/ban": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Platform-ban the Person a case is about (`MANAGE_CASES` and `PLATFORM_BAN`). The ban goes through the admin\nservice (suspicion, sessions, its own log row); the case records it with the `reason_category`.",
+        "operationId": "ban",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseBanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BanDone"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/escalate": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Hand a server's case to platform staff (the server's moderators only).",
+        "operationId": "escalate",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EscalateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/holds": {
+      "post": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Freeze content for a case (platform staff, `MANAGE_CASES`; D-213). A hold overrides the author's deletion\nrights (D-122) and never expires by itself. 409 when everything in scope is already held.",
+        "operationId": "place",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldPlaced"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/notes": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Add an internal note (append-only).",
+        "operationId": "add_note",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseNoteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseNote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/reopen": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Reopen a closed case inside the reopen window; later, a new case links back to it. Answers the case to work on.",
+        "operationId": "reopen",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonOnly"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/state": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Move a case along its lifecycle.",
+        "operationId": "set_state",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/cases/{case_id}/warn": {
+      "post": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Warn the person a case is about (`MANAGE_CASES`).",
+        "operationId": "warn",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WarnBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Delivered"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/guilds/{guild_id}/cases": {
+      "get": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "The cases of one server for its moderators (`MANAGE_MESSAGES`): the ones routed to the server, and rows\nfor those they escalated.",
+        "operationId": "guild_cases",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "`open`, `triage`, `investigating`, `actioned`, `dismissed` or `closed`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "open_only",
+            "in": "query",
+            "description": "Only cases still being worked (open, triage, investigating).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignee",
+            "in": "query",
+            "description": "Assigned to this account.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "query",
+            "description": "Platform staff only: cases of this server.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject_account_id",
+            "in": "query",
+            "description": "Cases about this account.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "`takedown`: only cases opened for a takedown notice.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "oldest_first",
+            "in": "query",
+            "description": "Oldest first (the work queue); default newest first.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 25.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/holds": {
+      "get": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Every hold, newest first, with what it freezes and whether it is due for review (`MANAGE_CASES`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "active_only",
+            "in": "query",
+            "description": "Only holds still in force (default true).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HoldView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/holds/{hold_id}/release": {
+      "post": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Release a hold (`MANAGE_CASES`, a reason). Deleted rows become purgeable at the next job run.",
+        "operationId": "release",
+        "parameters": [
+          {
+            "name": "hold_id",
+            "in": "path",
+            "description": "Hold snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldReleaseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldReleased"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/holds/{hold_id}/reviewed": {
+      "post": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Mark a hold as reviewed and kept: it leaves the review list until the next window (D-212).",
+        "operationId": "reviewed",
+        "parameters": [
+          {
+            "name": "hold_id",
+            "in": "path",
+            "description": "Hold snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/item-status": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Is this library or cinema item held or taken down? (Any signed-in person; reveals nothing but the state.)",
+        "operationId": "item_status",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`library_series`, `library_chapter`, `cinema_title` or `cinema_episode`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The series, chapter, title or episode.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakedownItemStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/reports": {
+      "post": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "File a report (any signed-in member that can see the target). The server snapshots the evidence, routes\nthe case (D-209), freezes a reported message, and never shows the reporter to the reported person.\n403 `SrFeatureDisabled` while the `moderation.reports` flag is off.",
+        "operationId": "file_report",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/reports/mine": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "The caller's own reports with their status and outcome line (never the other party), newest first.",
+        "operationId": "my_reports",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyReport"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "The register, newest first (`MANAGE_TAKEDOWNS`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only one state: `received`, `triage`, `rejected`, `removed`, `counter_noticed`, `restored`, `withdrawn`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 500, default 200.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoticeSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Enter a notice (staff only; there is no public form, D-293). Opens its case.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewNotice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/export": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Export the whole register as CSV or JSON (`MANAGE_TAKEDOWNS`; the read is access-logged).",
+        "operationId": "export",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "`csv` (default) or `json`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/csv, or a JSON array of notices"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}": {
+      "get": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "One notice with its items, timeline and strike counts (`MANAGE_TAKEDOWNS`).",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/counter-notice": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Record a counter-notice (staff record it). The content returns after ten business days unless a court\nfiling is noted.",
+        "operationId": "counter_notice",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterNoticeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/court-filing": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Note or clear a court filing on a notice that is in force.",
+        "operationId": "court_filing",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourtFilingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/hold": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Freeze the identified items for evidence without removing anything yet (hold, then disable).",
+        "operationId": "hold",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/items": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Name a piece of content the notice covers (triage). 409 when it is already on the notice.",
+        "operationId": "add_item",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/items/{item_id}": {
+      "delete": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Take back an item named by mistake, while it is only identified (not yet held).",
+        "operationId": "remove_item",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/reject": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Reject an incomplete notice. Returns the templated reply staff send to the notifier.",
+        "operationId": "reject",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RejectOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/restore": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Restore the content now (a logged action).",
+        "operationId": "restore",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/uphold": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "Uphold a notice: hold and disable every item, block the stored objects, tell the uploaders, count the\nstrike (a review case opens at the threshold, never a suspension).",
+        "operationId": "uphold",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpholdOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/takedowns/{notice_id}/withdraw": {
+      "post": {
+        "tags": [
+          "takedowns"
+        ],
+        "summary": "The notifier withdrew the notice: the content returns and no strike stands.",
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "name": "notice_id",
+            "in": "path",
+            "description": "Notice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakedownReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/oauth2/@me": {
       "get": {
         "tags": [
@@ -50728,6 +54829,132 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/users/@me/messages/delete-all": {
+      "get": {
+        "tags": [],
+        "summary": "How many messages a run would hide, and the last run.",
+        "operationId": "preview",
+        "parameters": [
+          {
+            "name": "servers",
+            "in": "query",
+            "description": "Count messages in servers (default true)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "dms",
+            "in": "query",
+            "description": "Count messages in direct messages (default true)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "before_ms",
+            "in": "query",
+            "description": "Only messages older than this",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesSelfDeletePreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Hide every message and upload of yours in the chosen places. Runs in the background.",
+        "operationId": "delete_all",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessagesSelfDeleteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesSelfDeleteRun"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A run is open, or one ran in the last 24 hours",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -57888,6 +62115,150 @@
         ]
       }
     },
+    "/users/@me/sr/features": {
+      "get": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "The modules with personal settings, with the caller's own preferences. Only the\ncaller can read them.",
+        "operationId": "list_user_features",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserFeatureObject"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/sr/features/{feature_id}": {
+      "delete": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Forget the caller's preferences for one module, so the defaults apply again.",
+        "operationId": "reset_user_feature",
+        "parameters": [
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. community.leveling",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "features_scopes"
+        ],
+        "summary": "Change the caller's own preferences for one module.",
+        "operationId": "patch_user_feature",
+        "parameters": [
+          {
+            "name": "feature_id",
+            "in": "path",
+            "description": "Feature id, e.g. community.leveling",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchUserFeatureBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserFeatureObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/{user_id}/guestbook": {
       "get": {
         "tags": [
@@ -60631,6 +65002,44 @@
           }
         }
       },
+      "ActionBody": {
+        "type": "object",
+        "description": "Body of a recorded action.",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`delete_message`, `restore_message`, `remove_attachment`, `timeout`, `kick`, `guild_ban`, `mark_nsfw`\nor `other`. Recording does not perform it."
+          },
+          "attachment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`remove_attachment` when performing: the attachment snowflake (one of the case's message)."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "perform": {
+            "type": "boolean",
+            "description": "`true` performs the action through the server's services (`delete_message`, `restore_message`,\n`remove_attachment`, `timeout`, `kick`, `guild_ban`, `suspend_account`) on the case's own target;\notherwise it only records work done elsewhere."
+          },
+          "timeout_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "`timeout` when performing: minutes, 1 to 40320."
+          }
+        }
+      },
       "ActionMetadata": {
         "type": "object",
         "properties": {
@@ -60801,6 +65210,89 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "AdminCreateDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests`.",
+        "required": [
+          "kind",
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "The account the request is about (decimal snowflake)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DataRequestKind"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Free text: how it arrived, what was asked (at most 1000 characters)."
+          },
+          "received_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When it arrived, Unix milliseconds; defaults to now."
+          }
+        }
+      },
+      "AdminDataRequestList": {
+        "type": "object",
+        "description": "The queue with the settings the page needs.",
+        "required": [
+          "items",
+          "deadline_days",
+          "retained_catalog"
+        ],
+        "properties": {
+          "deadline_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "`compliance.data_request_deadline_days` today (new requests use it).",
+            "minimum": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataRequest"
+            }
+          },
+          "retained_catalog": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetainedRecord"
+            },
+            "description": "The records an erasure keeps, so the page can name them (G-66, D-295)."
+          }
+        }
+      },
+      "AdminExtendDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/extend`.",
+        "required": [
+          "days"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "1 to 60 days added to the original due date. Allowed once."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the request is complex or numerous (required, kept in the access log)."
           }
         }
       },
@@ -61053,6 +65545,16 @@
               "null"
             ],
             "description": "New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it."
+          }
+        }
+      },
+      "AdminRunDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/run` (optional).",
+        "properties": {
+          "delete_messages": {
+            "type": "boolean",
+            "description": "Erasure only: the member also asked for their messages to be deleted (N-06, D-324). The\nmember's message self-delete is queued with servers and direct messages, no cut-off."
           }
         }
       },
@@ -61591,6 +66093,123 @@
           "version": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "AppealBody": {
+        "type": "object",
+        "description": "Body of an appeal from the ban screen.",
+        "required": [
+          "login",
+          "password",
+          "message"
+        ],
+        "properties": {
+          "login": {
+            "type": "string",
+            "description": "Username or email of the banned account."
+          },
+          "message": {
+            "type": "string",
+            "description": "Up to 2000 characters."
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "AppealDecision": {
+        "type": "string",
+        "description": "How a staff member decided an appeal.",
+        "enum": [
+          "upheld",
+          "overturned"
+        ]
+      },
+      "AppealDecisionBody": {
+        "type": "object",
+        "description": "Body of an appeal decision.",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/AppealDecision"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          }
+        }
+      },
+      "AppealView": {
+        "type": "object",
+        "required": [
+          "id",
+          "ban_id",
+          "appellant_account_id",
+          "message",
+          "state",
+          "person_id",
+          "decision_reason",
+          "created_at_ms"
+        ],
+        "properties": {
+          "appellant_account_id": {
+            "type": "string"
+          },
+          "ban_id": {
+            "type": "string"
+          },
+          "banned_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The staff member who made the ban, who may not review its appeal (D-215)."
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "decided_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "decided_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision_reason": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "person_id": {
+            "type": "string",
+            "description": "The Person the ban is on."
+          },
+          "state": {
+            "type": "string",
+            "description": "`open`, `upheld` or `overturned`."
           }
         }
       },
@@ -62812,6 +67431,18 @@
           "standard"
         ]
       },
+      "BanDone": {
+        "type": "object",
+        "description": "What a ban from a case did.",
+        "required": [
+          "ban_id"
+        ],
+        "properties": {
+          "ban_id": {
+            "type": "string"
+          }
+        }
+      },
       "BanObject": {
         "type": "object",
         "required": [
@@ -63567,6 +68198,420 @@
           }
         }
       },
+      "CaseBanBody": {
+        "type": "object",
+        "description": "Body of a ban from a case.",
+        "required": [
+          "reason_category"
+        ],
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why, for the audit log and the case. Required."
+          },
+          "reason_category": {
+            "$ref": "#/components/schemas/ReportCategory",
+            "description": "The why, from the section 8 vocabulary."
+          },
+          "severity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CaseSeverity",
+                "description": "Omit it to take the default of `reason_category` (D-211); staff can raise or lower it."
+              }
+            ]
+          }
+        }
+      },
+      "CaseDetail": {
+        "type": "object",
+        "description": "Everything about one case, as far as the viewer may see it.",
+        "required": [
+          "case",
+          "outcome",
+          "reports",
+          "evidence",
+          "notes",
+          "events",
+          "holds",
+          "access"
+        ],
+        "properties": {
+          "access": {
+            "type": "string",
+            "description": "What this viewer may do: `read`, `work` or `manage`."
+          },
+          "appeal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AppealView"
+              }
+            ]
+          },
+          "case": {
+            "$ref": "#/components/schemas/CaseSummary"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseEvent"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseEvidence"
+            }
+          },
+          "holds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HoldView"
+            }
+          },
+          "linked_case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseNote"
+            }
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseReport"
+            }
+          },
+          "subject_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject_person_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CaseEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "detail",
+          "created_at_ms"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`None` for the system."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
+      "CaseEvidence": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "payload",
+          "created_at_ms"
+        ],
+        "properties": {
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`message_snapshot` or `target_summary`."
+          },
+          "payload": {
+            "type": "object",
+            "description": "The immutable snapshot taken at report time."
+          },
+          "report_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CaseNote": {
+        "type": "object",
+        "required": [
+          "id",
+          "author_id",
+          "body",
+          "created_at_ms"
+        ],
+        "properties": {
+          "author_id": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "CaseNoteBody": {
+        "type": "object",
+        "description": "Body of an internal note.",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Up to 4000 characters."
+          }
+        }
+      },
+      "CasePage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `cursor` for the next page."
+          }
+        }
+      },
+      "CaseReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "note",
+          "state",
+          "moderators_may_see_name",
+          "created_at_ms"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ReportCategory"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "moderators_may_see_name": {
+            "type": "boolean",
+            "description": "Whether the reporter allowed server moderators to see their name."
+          },
+          "note": {
+            "type": "string"
+          },
+          "reporter": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReporterView",
+                "description": "`None` when the viewer may not see who reported."
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReportState"
+          }
+        }
+      },
+      "CaseSeverity": {
+        "type": "string",
+        "description": "`standard` or `serious` (what drives the preset of a ban, D-211).",
+        "enum": [
+          "standard",
+          "serious"
+        ]
+      },
+      "CaseState": {
+        "type": "string",
+        "description": "The lifecycle of a case (spec 4.2).",
+        "enum": [
+          "open",
+          "triage",
+          "investigating",
+          "actioned",
+          "dismissed",
+          "closed"
+        ]
+      },
+      "CaseSummary": {
+        "type": "object",
+        "description": "One row of a case list.",
+        "required": [
+          "id",
+          "state",
+          "category",
+          "severity",
+          "routing",
+          "escalated",
+          "summary",
+          "target_kind",
+          "report_count",
+          "active_holds",
+          "opened_at_ms",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "active_holds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Holds on this case that are still in force."
+          },
+          "assignee_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/ReportCategory"
+          },
+          "closed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "escalated": {
+            "type": "boolean",
+            "description": "Handed over from the server's moderators to platform staff."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "opened_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "report_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "routing": {
+            "$ref": "#/components/schemas/Routing"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/CaseSeverity"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CaseState"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "takedown": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CaseTakedown",
+                "description": "The takedown notice this case was opened for (D-334), when there is one."
+              }
+            ]
+          },
+          "target_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_kind": {
+            "$ref": "#/components/schemas/TargetKind"
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CaseTakedown": {
+        "type": "object",
+        "description": "The notice behind a takedown case: its reference and kind, for the badge on the case list and page.",
+        "required": [
+          "notice_id",
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "notice_id": {
+            "type": "string"
+          }
+        }
+      },
       "CatalogEntryObject": {
         "type": "object",
         "description": "One approved effect or decoration.",
@@ -63715,6 +68760,72 @@
                 "$ref": "#/components/schemas/InstanceView"
               }
             ]
+          }
+        }
+      },
+      "ChannelFeatureObject": {
+        "type": "object",
+        "description": "One module as a channel sees it.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "section",
+          "guild_enabled",
+          "enabled",
+          "platform_disabled",
+          "settings",
+          "inherited",
+          "overrides",
+          "schema"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the module is on in this channel (the server's switch narrowed by the channel's)."
+          },
+          "guild_enabled": {
+            "type": "boolean",
+            "description": "Whether the module is on in the server. A channel cannot switch it on by itself."
+          },
+          "id": {
+            "type": "string"
+          },
+          "inherited": {
+            "type": "object",
+            "description": "What the channel would use with no overrides of its own: the defaults and the server's\nsettings, for the fields that belong to the channel level."
+          },
+          "name": {
+            "type": "string"
+          },
+          "override_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The channel's own switch: `true` or `false`, or `null` when it follows the server."
+          },
+          "overrides": {
+            "type": "object",
+            "description": "Only what this channel overrides."
+          },
+          "platform_disabled": {
+            "type": "boolean",
+            "description": "The platform operator switched the module off everywhere."
+          },
+          "schema": {
+            "type": "object",
+            "description": "The settings schema of the channel level, for the auto-rendered form."
+          },
+          "section": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Effective settings in this channel (defaults, the server's, then the channel's)."
           }
         }
       },
@@ -66571,6 +71682,69 @@
           }
         }
       },
+      "CountedNotice": {
+        "type": "object",
+        "description": "One notice that counts as a strike.",
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "removed_at_ms",
+          "contested"
+        ],
+        "properties": {
+          "contested": {
+            "type": "boolean",
+            "description": "A counter-notice is pending."
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "removed_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/NoticeState"
+          }
+        }
+      },
+      "CounterNoticeBody": {
+        "type": "object",
+        "description": "Body of a counter-notice.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The counter-notice as received, kept verbatim."
+          }
+        }
+      },
+      "CourtFilingBody": {
+        "type": "object",
+        "description": "Body of a court-filing note.",
+        "required": [
+          "noted"
+        ],
+        "properties": {
+          "noted": {
+            "type": "boolean",
+            "description": "`true` to note that the notifier went to court (the job will not restore); `false` to clear it."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          }
+        }
+      },
       "CoverBody": {
         "type": "object",
         "description": "Body of `POST /library/submissions/{id}/cover`.",
@@ -67707,6 +72881,163 @@
           }
         }
       },
+      "DataRequest": {
+        "type": "object",
+        "description": "A queue row.",
+        "required": [
+          "id",
+          "kind",
+          "person_id",
+          "account_id",
+          "username",
+          "state",
+          "note",
+          "received_at_ms",
+          "due_at_ms",
+          "effective_due_ms",
+          "overdue",
+          "retained",
+          "extended_late",
+          "created_by"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "completed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "due_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The deadline computed when the request was entered."
+          },
+          "effective_due_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`extended_until_ms` when extended, else `due_at_ms`."
+          },
+          "export_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `data_exports` row an export run queued."
+          },
+          "extended_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the extension was recorded."
+          },
+          "extended_late": {
+            "type": "boolean",
+            "description": "The extension was granted after the original `due_at` (it does not cure a missed deadline)."
+          },
+          "extended_until_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The new deadline once the one extension was recorded."
+          },
+          "extension_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DataRequestKind"
+          },
+          "member_notified_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the member was told of the extension by system DM; `None` when no DM could be sent."
+          },
+          "note": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Active and past the effective deadline."
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "received_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "retained": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the [`retained`] records an erasure named."
+          },
+          "state": {
+            "$ref": "#/components/schemas/DataRequestState"
+          },
+          "username": {
+            "type": "string"
+          },
+          "verified_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "verified_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DataRequestKind": {
+        "type": "string",
+        "description": "What the request asks for.",
+        "enum": [
+          "export",
+          "erasure"
+        ]
+      },
+      "DataRequestState": {
+        "type": "string",
+        "description": "Where the request stands.",
+        "enum": [
+          "open",
+          "verified",
+          "running",
+          "completed",
+          "declined"
+        ]
+      },
       "DecideRequestBody": {
         "type": "object",
         "required": [
@@ -67913,6 +73244,66 @@
           },
           "state": {
             "type": "string"
+          }
+        }
+      },
+      "DeletedArchive": {
+        "type": "object",
+        "description": "The staff-only archive of a deleted account's original identifiers (D-326).",
+        "required": [
+          "account_id",
+          "username",
+          "email",
+          "deleted_at_ms",
+          "username_release_at_ms",
+          "credits_forfeited",
+          "invites_revoked"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "credits_forfeited": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deleted_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "invites_revoked": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "username": {
+            "type": "string"
+          },
+          "username_release_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the username can be taken again."
+          }
+        }
+      },
+      "Delivered": {
+        "type": "object",
+        "description": "`{ \"delivered\": bool }`.",
+        "required": [
+          "delivered"
+        ],
+        "properties": {
+          "delivered": {
+            "type": "boolean",
+            "description": "Whether the system DM went out."
           }
         }
       },
@@ -69557,6 +74948,19 @@
           "message": {
             "type": "string",
             "description": "Human-readable message."
+          }
+        }
+      },
+      "EscalateBody": {
+        "type": "object",
+        "description": "Body of an escalation.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the server's moderators hand this over."
           }
         }
       },
@@ -71389,6 +76793,200 @@
           }
         }
       },
+      "HoldBody": {
+        "type": "object",
+        "description": "Body of a hold.",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The message, attachment or submission; for `user_messages` the account."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`message` (with its attachments), `attachment`, `submission` or `user_messages`."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          },
+          "since_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "`user_messages` only: the window, Unix milliseconds (`since_ms` inclusive, `until_ms` exclusive)."
+          },
+          "until_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "HoldPlaced": {
+        "type": "object",
+        "description": "What a placed hold froze.",
+        "required": [
+          "hold_id",
+          "messages",
+          "attachments",
+          "submissions"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hold_id": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "submissions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "HoldReleaseBody": {
+        "type": "object",
+        "description": "Body of a release.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          }
+        }
+      },
+      "HoldReleased": {
+        "type": "object",
+        "description": "What a release did.",
+        "required": [
+          "messages",
+          "attachments",
+          "submissions",
+          "purgeable_messages"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "purgeable_messages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Deleted messages that the next purge run takes."
+          },
+          "submissions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "HoldView": {
+        "type": "object",
+        "description": "A hold, in force or released.",
+        "required": [
+          "id",
+          "reason",
+          "created_at_ms",
+          "messages",
+          "attachments",
+          "submissions",
+          "review_due"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "catalog_rows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Library and cinema rows (series, chapters, titles, episodes) it freezes."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`None` when the system placed it (a report on a message)."
+          },
+          "id": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Messages, attachments and submissions the hold freezes right now."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "release_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "released_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "review_due": {
+            "type": "boolean",
+            "description": "Older than `moderation.hold_review_days`, so it is flagged for review (D-212)."
+          },
+          "scope_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope_kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submissions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "HostingView": {
         "type": "object",
         "required": [
@@ -72576,6 +78174,18 @@
             "description": "`approved`, `rejected` or `pending` (undo)."
           }
         }
+      },
+      "ItemKind": {
+        "type": "string",
+        "description": "What a notice item points at.",
+        "enum": [
+          "message",
+          "attachment",
+          "library_series",
+          "library_chapter",
+          "cinema_title",
+          "cinema_episode"
+        ]
       },
       "ItemState": {
         "type": "string",
@@ -75001,6 +80611,139 @@
           }
         }
       },
+      "MessagesSelfDeleteBody": {
+        "type": "object",
+        "description": "Body of `POST /sr/users/@me/messages/delete-all`.",
+        "required": [
+          "confirm_username",
+          "password",
+          "servers",
+          "dms"
+        ],
+        "properties": {
+          "before_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Only messages older than this (Unix milliseconds)."
+          },
+          "confirm_username": {
+            "type": "string",
+            "description": "The account's username, typed to confirm (case-insensitive)."
+          },
+          "dms": {
+            "type": "boolean",
+            "description": "Hide messages in direct messages and group DMs."
+          },
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor, when the account has one and this session has not passed a check in the last 15 minutes."
+              }
+            ]
+          },
+          "password": {
+            "type": "string",
+            "description": "Current password."
+          },
+          "servers": {
+            "type": "boolean",
+            "description": "Hide messages in servers (including servers you left)."
+          }
+        }
+      },
+      "MessagesSelfDeletePreview": {
+        "type": "object",
+        "description": "What a run would hide, and the last run.",
+        "required": [
+          "count",
+          "reactions",
+          "poll_votes"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Visible messages inside the scope right now (messages under a hold are included: they are\nhidden from everyone but never purged)."
+          },
+          "last": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MessagesSelfDeleteRun"
+              }
+            ]
+          },
+          "poll_votes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Your poll votes a run would remove; votes in closed polls stay as anonymous counts."
+          },
+          "reactions": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Your reactions inside the scope that a run would remove (not those on held messages)."
+          }
+        }
+      },
+      "MessagesSelfDeleteRun": {
+        "type": "object",
+        "description": "A run.",
+        "required": [
+          "id",
+          "state",
+          "servers",
+          "dms",
+          "requested_at"
+        ],
+        "properties": {
+          "before_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "dms": {
+            "type": "boolean"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Messages hidden, once done."
+          },
+          "id": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string"
+          },
+          "servers": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "description": "`queued`, `running`, `done` or `failed`."
+          }
+        }
+      },
       "MfaLevelBody": {
         "type": "object",
         "description": "Body of `POST /guilds/{id}/mfa`.",
@@ -76143,6 +81886,43 @@
           }
         }
       },
+      "MyReport": {
+        "type": "object",
+        "description": "A report as its own author reads it: a status and a short outcome line, never the other party.",
+        "required": [
+          "id",
+          "target_kind",
+          "target_id",
+          "category",
+          "state",
+          "outcome_line",
+          "created_at_ms"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ReportCategory"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "outcome_line": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReportState"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "target_kind": {
+            "$ref": "#/components/schemas/TargetKind"
+          }
+        }
+      },
       "NamingParseBody": {
         "type": "object",
         "description": "Body of `POST /submissions/naming/parse`.",
@@ -76210,6 +81990,143 @@
           }
         }
       },
+      "NewCase": {
+        "type": "object",
+        "description": "A case opened by staff (no report).",
+        "required": [
+          "category",
+          "target_kind"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ReportCategory"
+          },
+          "subject_account_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account the case is about, when there is one; its Person becomes the subject."
+          },
+          "summary": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_kind": {
+            "$ref": "#/components/schemas/TargetKind"
+          }
+        }
+      },
+      "NewItem": {
+        "type": "object",
+        "description": "A piece of content found for a notice.",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          }
+        }
+      },
+      "NewNotice": {
+        "type": "object",
+        "description": "What staff enter for a notice (spec 5, step 1).",
+        "required": [
+          "kind",
+          "notifier_name",
+          "notifier_contact",
+          "legal_basis",
+          "original_text"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "legal_basis": {
+            "type": "string",
+            "description": "The work claimed (copyright) or the legal basis (illegal content)."
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The exact URLs or ids the notifier named."
+          },
+          "notifier_contact": {
+            "type": "string",
+            "description": "Email, postal address or phone, as the notifier gave it."
+          },
+          "notifier_name": {
+            "type": "string"
+          },
+          "original_text": {
+            "type": "string",
+            "description": "The notice as received, kept verbatim."
+          },
+          "received_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When it arrived (Unix ms); now when absent."
+          }
+        }
+      },
+      "NewReport": {
+        "type": "object",
+        "description": "What a member sends to report something. The client sends ids and the note; the server snapshots the evidence.",
+        "required": [
+          "target_kind",
+          "target_id",
+          "category"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ReportCategory"
+          },
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A message report names the channel the message is in."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A user report may name the server it was filed from, so that server's moderators get it."
+          },
+          "moderators_may_see_name": {
+            "type": "boolean",
+            "description": "\"Moderators may see my name\" (off by default)."
+          },
+          "note": {
+            "type": "string",
+            "description": "Up to 2000 characters."
+          },
+          "target_id": {
+            "type": "string",
+            "description": "Snowflake of the message, account, channel, server, series or title."
+          },
+          "target_kind": {
+            "$ref": "#/components/schemas/TargetKind"
+          }
+        }
+      },
       "NicknameBody": {
         "type": "object",
         "properties": {
@@ -76250,6 +82167,203 @@
           },
           "user_id": {
             "type": "string"
+          }
+        }
+      },
+      "NoticeDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NoticeSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "notifier_contact",
+              "legal_basis",
+              "locations",
+              "original_text",
+              "entered_by",
+              "rejection_reason",
+              "counter_notice_text",
+              "restore_reason",
+              "items",
+              "events",
+              "strikes"
+            ],
+            "properties": {
+              "counter_notice_text": {
+                "type": "string"
+              },
+              "counter_noticed_at_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "entered_by": {
+                "type": "string"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/NoticeEvent"
+                }
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TakedownItem"
+                }
+              },
+              "legal_basis": {
+                "type": "string"
+              },
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "notifier_contact": {
+                "type": "string"
+              },
+              "original_text": {
+                "type": "string"
+              },
+              "rejection_reason": {
+                "type": "string"
+              },
+              "restore_reason": {
+                "type": "string"
+              },
+              "restored_at_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "strikes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StrikeCount"
+                }
+              }
+            }
+          }
+        ],
+        "description": "A notice with everything staff need on its page."
+      },
+      "NoticeEvent": {
+        "type": "object",
+        "description": "One entry of a notice's timeline.",
+        "required": [
+          "id",
+          "kind",
+          "detail",
+          "created_at_ms"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
+      "NoticeState": {
+        "type": "string",
+        "description": "Where a notice is in its life.",
+        "enum": [
+          "received",
+          "triage",
+          "rejected",
+          "removed",
+          "counter_noticed",
+          "restored",
+          "withdrawn"
+        ]
+      },
+      "NoticeSummary": {
+        "type": "object",
+        "description": "A row of the register.",
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "notifier_name",
+          "received_at_ms",
+          "triage_due_at_ms",
+          "triage_overdue",
+          "items",
+          "court_filing_noted"
+        ],
+        "properties": {
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "court_filing_noted": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TakedownKind"
+          },
+          "notifier_name": {
+            "type": "string"
+          },
+          "received_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "removed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "restore_after_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/NoticeState"
+          },
+          "triage_due_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "triage_overdue": {
+            "type": "boolean",
+            "description": "Received or in triage and past the one-business-day target."
           }
         }
       },
@@ -76453,6 +82567,37 @@
             "description": "Roles newly granted by the answers (roles with moderation power are never granted)."
           }
         }
+      },
+      "OpenCaseBody": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NewCase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "guild_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The server the case is about."
+              },
+              "severity": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CaseSeverity",
+                    "description": "Defaults to the preset of the category."
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Body of a staff-opened case: the case plus an optional server and severity."
       },
       "OptionDto": {
         "type": "object",
@@ -77604,6 +83749,25 @@
           }
         }
       },
+      "PatchChannelFeatureBody": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "This channel's own switch for the module."
+          },
+          "settings": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Replace the channel's setting overrides (validated against the channel schema)."
+          }
+        }
+      },
       "PatchConfigBody": {
         "type": "object",
         "required": [
@@ -77793,6 +83957,18 @@
           "values": {
             "type": "object",
             "description": "Setting key to new value; unknown keys or out-of-range values reject the whole patch."
+          }
+        }
+      },
+      "PatchUserFeatureBody": {
+        "type": "object",
+        "required": [
+          "settings"
+        ],
+        "properties": {
+          "settings": {
+            "type": "object",
+            "description": "Replace the person's preferences for the module (validated against the personal schema)."
           }
         }
       },
@@ -79501,9 +85677,16 @@
         "type": "object",
         "description": "What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).",
         "required": [
-          "minimum_age"
+          "minimum_age",
+          "invoice_retention_years"
         ],
         "properties": {
+          "invoice_retention_years": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Years invoices stay linked to a member after the year of payment (D-325).",
+            "minimum": 0
+          },
           "minimum_age": {
             "type": "integer",
             "format": "int32",
@@ -80272,6 +86455,18 @@
           }
         }
       },
+      "ReasonOnly": {
+        "type": "object",
+        "description": "Body of actions that only need a reason.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ReauthBody": {
         "type": "object",
         "description": "Body of `POST /sr/auth/reauth`.",
@@ -80435,6 +86630,19 @@
           "clientDataJSON": {
             "type": "string",
             "description": "`clientDataJSON`."
+          }
+        }
+      },
+      "RejectOutcome": {
+        "type": "object",
+        "description": "The reply text for an incomplete notice.",
+        "required": [
+          "reply"
+        ],
+        "properties": {
+          "reply": {
+            "type": "string",
+            "description": "The templated reply staff send to the notifier."
           }
         }
       },
@@ -80637,6 +86845,46 @@
           }
         }
       },
+      "ReportCategory": {
+        "type": "string",
+        "description": "Why something is reported or why a case exists: the ban reason vocabulary of spec section 8\n(`ban_reason_category`), which already includes \"something else\" as `other`.",
+        "enum": [
+          "spam",
+          "harassment",
+          "illegal_content",
+          "child_safety",
+          "ban_evasion",
+          "fraud",
+          "platform_abuse",
+          "nsfw_policy",
+          "other"
+        ]
+      },
+      "ReportReceipt": {
+        "type": "object",
+        "description": "What the reporter gets back.",
+        "required": [
+          "id",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ReportState"
+          }
+        }
+      },
+      "ReportState": {
+        "type": "string",
+        "description": "What the reporter can read about their report.",
+        "enum": [
+          "received",
+          "under_review",
+          "closed"
+        ]
+      },
       "ReportView": {
         "type": "object",
         "required": [
@@ -80675,6 +86923,22 @@
           "to_ms": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "ReporterView": {
+        "type": "object",
+        "description": "The reporter of a report, shown only to who may see it (spec 3.3).",
+        "required": [
+          "account_id",
+          "username"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
           }
         }
       },
@@ -80822,6 +87086,26 @@
           "accept": {
             "type": "boolean",
             "description": "`true` to accept (and join the staff), `false` to decline."
+          }
+        }
+      },
+      "RetainedRecord": {
+        "type": "object",
+        "description": "One record kept after an erasure, with the reason (G-66, D-124, D-295).",
+        "required": [
+          "id",
+          "label",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -81120,6 +87404,15 @@
             }
           }
         }
+      },
+      "Routing": {
+        "type": "string",
+        "description": "Who works a case (D-209).",
+        "enum": [
+          "guild",
+          "platform",
+          "reviewers"
+        ]
       },
       "Row": {
         "type": "object",
@@ -83060,6 +89353,32 @@
           }
         }
       },
+      "StateBody": {
+        "type": "object",
+        "description": "Body of a state change.",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What was decided, in a few words. Required when closing."
+          },
+          "reporter_line": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The line reporters read when the case closes. Never names the other party."
+          },
+          "to": {
+            "$ref": "#/components/schemas/CaseState"
+          }
+        }
+      },
       "StatsView": {
         "allOf": [
           {
@@ -83252,6 +89571,55 @@
           "thumbnail": {
             "type": "string",
             "description": "`data:image/jpeg;base64,...`, at most 256 KiB once decoded."
+          }
+        }
+      },
+      "StrikeCount": {
+        "type": "object",
+        "description": "The strikes of one Person named by a notice.",
+        "required": [
+          "person_id",
+          "strikes",
+          "contested",
+          "counted",
+          "window_months",
+          "threshold"
+        ],
+        "properties": {
+          "contested": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, the notices whose content is down while a counter-notice is pending."
+          },
+          "counted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountedNotice"
+            },
+            "description": "The notices counted, newest first."
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "review_case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The review case the counter opened for this Person, when it did."
+          },
+          "strikes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Upheld takedowns inside the window, this one included once it is upheld."
+          },
+          "threshold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "window_months": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -83975,6 +90343,108 @@
             "type": "string"
           }
         }
+      },
+      "TakedownItem": {
+        "type": "object",
+        "description": "One content item of a notice.",
+        "required": [
+          "id",
+          "kind",
+          "target_id",
+          "label",
+          "state"
+        ],
+        "properties": {
+          "disabled_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "hold_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "restored_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ItemState"
+          },
+          "subject_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TakedownItemStatus": {
+        "type": "object",
+        "description": "Whether a library or cinema item is held or taken down: `none`, `held` or `taken_down`. For the reader and\nplayer pages; the answer is only the state.",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "`none`, `held` or `taken_down`."
+          }
+        }
+      },
+      "TakedownKind": {
+        "type": "string",
+        "description": "The two kinds of notice (spec 5).",
+        "enum": [
+          "copyright",
+          "illegal_content"
+        ]
+      },
+      "TakedownReasonBody": {
+        "type": "object",
+        "description": "A body that carries a reason.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          }
+        }
+      },
+      "TargetKind": {
+        "type": "string",
+        "description": "What a report or a case is about.",
+        "enum": [
+          "message",
+          "user",
+          "channel",
+          "guild",
+          "library",
+          "cinema",
+          "person",
+          "other"
+        ]
       },
       "TempRoleObject": {
         "type": "object",
@@ -86678,6 +93148,32 @@
           }
         }
       },
+      "UpholdOutcome": {
+        "type": "object",
+        "description": "What upholding a notice did.",
+        "required": [
+          "items_disabled",
+          "notified"
+        ],
+        "properties": {
+          "items_disabled": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "notified": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Uploaders or authors who got the system DM."
+          },
+          "review_case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The review case opened because a Person reached the threshold."
+          }
+        }
+      },
       "Upload": {
         "type": "object",
         "description": "An upload as the API shows it (the status the client polls).",
@@ -86982,6 +93478,45 @@
           "target": {
             "type": "string",
             "description": "`https://api.example.com/v1`: https, no query."
+          }
+        }
+      },
+      "UserFeatureObject": {
+        "type": "object",
+        "description": "One module as a person sees it.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "section",
+          "settings",
+          "overrides",
+          "schema"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "overrides": {
+            "type": "object",
+            "description": "Only what the person changed."
+          },
+          "schema": {
+            "type": "object",
+            "description": "The settings schema of the personal level, for the auto-rendered form."
+          },
+          "section": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "description": "The person's effective preferences (defaults plus what they chose)."
           }
         }
       },
@@ -87652,6 +94187,19 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "WarnBody": {
+        "type": "object",
+        "description": "Body of a warning.",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Up to 1000 characters; sent to the person as a system DM that never names a reporter."
           }
         }
       },

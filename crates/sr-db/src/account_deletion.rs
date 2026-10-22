@@ -5,7 +5,8 @@
 //!
 //! * the row is scrubbed to "Deleted User" (username `deleted.<id>`, placeholder email, no
 //!   avatar, banner, bio, pronouns or colours, unusable password) and set to `deleted`;
-//! * sessions, trusted devices, second factors, passkeys, e-mail tokens and bot tokens go;
+//! * sessions (their addresses, browser strings and device names are blanked), sign-in attempt
+//!   addresses, trusted devices, second factors, passkeys, e-mail tokens and bot tokens go;
 //! * friendships, blocks, ignores, notes, server and group-DM memberships go;
 //! * open platform invites are revoked and the unspent invite credits are forfeited (a
 //!   negative row in the append-only ledger);
@@ -178,6 +179,18 @@ pub async fn delete_account(
         .bind(id)
         .execute(&mut *tx)
         .await?;
+    // The revoked session rows stay for the session history, but not the network address, browser
+    // string or device name; sign-in attempts lose their address too (N-03, D-318).
+    sqlx::query(
+        "UPDATE sessions SET ip = NULL, user_agent = NULL, device_label = NULL WHERE account_id = $1",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("UPDATE login_events SET ip = NULL WHERE account_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     for table in [
         "trusted_devices",
         "mfa_totp",
@@ -222,6 +235,11 @@ pub async fn delete_account(
             .fetch_all(&mut *tx)
             .await?;
     sqlx::query("DELETE FROM package_enablements WHERE scope = 'user' AND scope_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    // Personal module preferences (user-scope feature settings, LNG-USET-036).
+    sqlx::query("DELETE FROM feature_enablements WHERE scope = 'user' AND scope_id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;

@@ -99,6 +99,12 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
     keywords: 'status history pause',
   },
   { section: 'apps', label: 'Authorized apps', keywords: 'oauth deauthorize bots' },
+  {
+    section: 'modules',
+    card: 'us-module-community-leveling',
+    label: 'Modules',
+    keywords: 'personal preferences leveling level-up announcements feature module',
+  },
   { section: 'devices', label: 'Devices and sessions', keywords: 'log out sign out trusted' },
   {
     section: 'support',

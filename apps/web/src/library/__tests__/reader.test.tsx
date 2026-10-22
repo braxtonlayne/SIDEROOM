@@ -206,6 +206,36 @@ describe('reader', () => {
     await waitFor(() => expect(document.querySelectorAll('.lib-strip-item')).toHaveLength(3));
   });
 
+  it('says a chapter was removed after a notice, and shows a banner while it is held (MOD-TKD-011)', async () => {
+    useLibraryApi();
+    server.use(
+      http.get('*/api/v1/library/chapters/:id/pages', () =>
+        HttpResponse.json({ message: 'Not found' }, { status: 404 }),
+      ),
+      http.get('*/api/v1/moderation/item-status', ({ request }) => {
+        const q = new URL(request.url).searchParams;
+        return HttpResponse.json({
+          state:
+            q.get('kind') === 'library_chapter' && q.get('id') === 'c9' ? 'taken_down' : 'none',
+        });
+      }),
+    );
+    renderAt('/library/r/c9');
+    expect(await screen.findByText('Removed after a notice')).toBeInTheDocument();
+    expect(screen.queryByText('This chapter is not available')).not.toBeInTheDocument();
+  });
+
+  it('shows a banner on a readable chapter that is under a hold', async () => {
+    useLibraryApi();
+    serveChapter(manifest(1));
+    server.use(
+      http.get('*/api/v1/moderation/item-status', () => HttpResponse.json({ state: 'held' })),
+    );
+    renderAt('/library/r/c1');
+    await screen.findByTestId('reader-status');
+    expect(await screen.findByText('Under review')).toBeInTheDocument();
+  });
+
   it('shows a message for a chapter that is gone', async () => {
     useLibraryApi();
     server.use(

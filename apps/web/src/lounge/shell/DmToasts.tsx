@@ -24,7 +24,8 @@ export function DmToasts(): null {
     return onDispatch((event, data) => {
       if (event !== 'MESSAGE_CREATE') return;
       const msg = data as Message;
-      if (msg.guild_id) return;
+      // Server messages and restored ones (D-338, not new) raise no toast.
+      if (msg.guild_id || msg.restored) return;
       void (async () => {
         const st = useStore.getState();
         const me = st.currentUserId;

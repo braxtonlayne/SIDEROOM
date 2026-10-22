@@ -427,6 +427,37 @@ async fn fan_out_is_permission_filtered_per_recipient() {
     a.silent().await;
 }
 
+/// N-41, D-338: a restored message is a `MESSAGE_CREATE` with the full object and `restored: true`; a plain
+/// send has no such field.
+#[tokio::test]
+async fn a_restored_message_is_marked_on_its_message_create() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", GUILDS_MSGS, 1).await;
+    emit(&e.bus, msg(G1, OPEN, 300)).await;
+    let sent = a.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(sent["d"]["id"], "300");
+    assert!(sent["d"].get("restored").is_none(), "{sent}");
+
+    let DomainEvent::MessageSent { data, .. } = msg(G1, OPEN, 301) else {
+        unreachable!()
+    };
+    emit(
+        &e.bus,
+        DomainEvent::MessageRestored {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 301,
+            data,
+        },
+    )
+    .await;
+    let back = a.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(back["d"]["id"], "301");
+    assert_eq!(back["d"]["content"], "hello");
+    assert_eq!(back["d"]["restored"], true);
+}
+
 #[tokio::test]
 async fn sensitive_media_is_filtered_per_session() {
     use sr_chat::social::safety::{MediaFilter, SensitiveMedia};

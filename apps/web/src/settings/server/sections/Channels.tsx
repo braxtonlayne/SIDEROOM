@@ -26,6 +26,7 @@ import {
 } from '../permissions';
 import type { SectionProps } from '../ServerSettings';
 import { ChannelFeatures, ChannelIntegrations, ChannelInvites, ChannelVoice } from './ChannelTabs';
+import { ChannelModules } from './ChannelModules';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 
 const GROUPS = permissionGroups();
@@ -358,6 +359,11 @@ export function ChannelEditor({
             id: 'features',
             label: t('settings.channels.tabFeatures'),
             content: <ChannelFeatures channel={channel} onChanged={onChanged} />,
+          },
+          {
+            id: 'modules',
+            label: t('settings.channels.tabModules'),
+            content: <ChannelModules guildId={guildId} channelId={channel.id} />,
           },
         ]),
   ];

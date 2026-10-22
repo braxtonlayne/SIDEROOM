@@ -62,6 +62,7 @@ fn poll(multi: bool, expiry_ms: i64) -> Poll {
         layout_type: Some(1),
         expiry_ms: Some(expiry_ms),
         finalized: false,
+        anonymous_counts: Default::default(),
     }
 }
 

@@ -12,18 +12,18 @@ Decisions: D-029, D-043, D-053, D-120–D-126.
 | Message edit history | Kept while the message exists. Purged with the message | High-level staff only |
 | Attachments ≤ 30 MB (images, files, voice messages) | Same as the parent message: "part of the message" | Same as the message |
 | Attachments > 30 MB ("large", donor/level perk) | **Expire 7 days after upload**. The message shows an "This file has expired" chip. The object is purged | Nobody after expiry, unless held |
-| Account (deleted/deactivated/banned) | Forever (D-124). Profile scrubbed to "Deleted User" for deleted accounts; the avatar, the banner and the profile page pictures (`profile_media`, D-260) are deleted with it and the data export lists the pictures | Staff see the full record and the Person link |
+| Account (deleted/deactivated/banned) | Forever (D-124). After erasure the member is told what stays: the Person record, invite graph, invoices, staff-side moderation history, messages, uploads, reactions and poll votes they did not delete (shown as Deleted User, D-029, D-123, D-332), content under a hold, the linked Discord identity (D-030), a staff-only archive of the original username, email address and display name that staff may view only through a logged read (D-326), and the request log (D-318); an erasure run may also delete the member's messages when the member asked for it (N-06); session and sign-in addresses are blanked. Profile scrubbed to "Deleted User" for deleted accounts; the avatar, the banner and the profile page pictures (`profile_media`, D-260) are deleted with it and the data export lists the pictures | Staff see the full record and the Person link |
 | Sessions, login IPs | Sessions until expiry. Login IP history 180 days (security) | Staff with `MANAGE_ACCOUNTS` |
 | Voice/video media | Never recorded or stored. E2EE | Nobody |
 | Watch/read history | Until the user clears it | Per privacy settings |
-| Invoices / donations | Forever (accounting) | Staff with `MANAGE_DONATIONS` |
+| Invoices / donations | `compliance.invoice_retention_years` (default 10, N-07, D-325) after the end of the year of payment, then detached from the member by the monthly job `payments.detach_expired_invoices` (N-08): the row, amounts, dates and chain address stay for the books, the account link is set to null | Staff with `MANAGE_DONATIONS` |
 | Invite graph | Forever | Staff with `MANAGE_INVITES` |
 | Staff access log | Forever, hash-chained | Owner and `VIEW_ACCESS_LOG` |
 | Library submissions that were rejected | Files purged 14 days after rejection. Metadata kept | Reviewers |
 
-Jobs (doc 02 §6) enforce purges: `purge_deleted_messages` (hourly), `expire_large_attachments` (hourly), `purge_rejected_submissions` (daily).
+Jobs (doc 02 §6) enforce purges (and `payments.detach_expired_invoices`, monthly, N-08): `purge_deleted_messages` (hourly), `expire_large_attachments` (hourly), `purge_rejected_submissions` (daily).
 
-**Bulk-delete and channel/server deletion:** messages move to `user_deleted` with the same 30-day window. Deleting a server marks all its channels deleted. Server metadata is kept for staff.
+**Member self-delete (N-05, D-324):** Settings, Privacy, "Delete all my messages" hides every message and upload the member wrote and removes their reactions and poll votes (a closed poll keeps its totals as anonymous counts, rows under a hold stay, D-332), in servers (including ones they left) and in direct messages, with an optional cut-off date, as a job (one run at a time, once per 24 hours). Same window: `user_deleted`, purged 30 days later, never while under a hold; the run is written to the access log as `messages.self_delete`, and staff can ask for the same run on an erasure request (N-06). **Bulk-delete and channel/server deletion:** messages move to `user_deleted` with the same 30-day window. Deleting a server marks all its channels deleted. Server metadata is kept for staff.
 
 ## 2. Encryption
 
@@ -50,14 +50,15 @@ Settings → Activity Privacy:
 
 ## 4. Data export
 
-Settings → Data & Privacy → **Request my data**. A Discord-style package (JSON + attachments index) is built by a job and offered as a download link for 7 days. It includes the user's messages, servers, settings, history, ratings, reviews, invites issued, and invoices.
+Settings → Data & Privacy → **Request my data**. A Discord-style package (JSON, an attachments index, and the member's own reactions and poll votes, N-15) is built by a job and offered as a download link for 7 days. It includes the user's messages, servers, settings, history, ratings, reviews, invites issued, and invoices.
 
-The due date of a data-subject request is computed from the `compliance.data_request_deadline_days` setting (default 30, `platform.compliance`, M-06, D-295) when the request is created; the operator's country and contact address, when set there, appear on the privacy summary (`/house-notes#privacy`) and on `/help`.
+The due date of a data-subject request is computed from the `compliance.data_request_deadline_days` setting (default 30, `platform.compliance`, M-06, D-295) when the request is created (Admin, Data requests, M-25 step c; one documented extension of up to 60 days (days, not calendar months, D-316) may be added once, with a reason that the member is sent by system DM when reachable (`member_notified_at`; an extension granted after the original due date is marked late, D-317), and the queue marks requests past their date as overdue; `data_requests` rows are kept forever like the Person record, D-124); the operator's country and contact address, when set there, appear on the privacy summary (`/house-notes#privacy`) and on `/help`.
 
 ## 5. Future: moderation & compliance (Phase 7)
 
 Not built now (D-126); the full Phase 7 design is `docs/specs/moderation-compliance.md`. Reserved now so nothing needs a painful migration later:
-- `moderation_holds` + `messages.hold_id` + `attachments.hold_id` + `submissions.hold_id` (migrations 0011, 0012, 0580). Purge jobs skip held rows.
+- `moderation_holds` + `messages.hold_id` + `attachments.hold_id` + `submissions.hold_id` (migrations 0011, 0012, 0580). Purge jobs skip held rows, including the review housekeeping of held submissions (P18). Holds are placed and released through `sr-moderation` (migration 1090 adds the case link and the release fields); releasing a hold on a message deleted while held gives it a `purge_after`, so it is purgeable at the next run.
+- Takedown register (step 2, P18; migration 1120): `takedown_notices`, their items and events, and the strike reviews are kept forever and cannot be deleted (trigger). A takedown holds the content through the same hold API (`reading_series`, `reading_chapters`, `video_titles`, `video_episodes` gained `hold_id`; a held catalogue row cannot be deleted, so its stored files cannot be queued for collection), makes it unavailable and blocks its stored objects on the media path until the notice ends. The strike window is `moderation.strike_window_months`; the content returns 10 business days after a counter-notice unless a court filing is noted.
 - `reason_category` on platform bans (migration 0580; taxonomy in `docs/specs/moderation-compliance.md` section 8), alongside the `serious`/`standard` severity needed for D-031.
 - Report buttons are designed into the message and profile menus but disabled behind feature flag `moderation.reports`.
 - An operator-facing note in `12-deployment-and-operations.md` lists jurisdiction-dependent obligations (copyright takedown handling, illegal-content reporting, data-subject rights) to address before Phase 7.

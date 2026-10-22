@@ -146,7 +146,7 @@ pub async fn update_series(
     delete, path = "/admin/library/series/{series_id}", operation_id = "admin_library_delete_series",
     params(("series_id" = String, Path, description = "Series snowflake")),
     responses((status = 204), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
-              (status = 404, body = ErrorBody)),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn delete_series(
@@ -443,7 +443,7 @@ pub async fn update_chapter(
     delete, path = "/admin/library/chapters/{chapter_id}", operation_id = "admin_library_delete_chapter",
     params(("chapter_id" = String, Path, description = "Chapter snowflake")),
     responses((status = 204), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
-              (status = 404, body = ErrorBody)),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn delete_chapter(

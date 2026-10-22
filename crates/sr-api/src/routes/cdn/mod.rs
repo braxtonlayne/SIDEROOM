@@ -103,6 +103,8 @@ pub struct CdnDeps {
     pub render_permits: Arc<tokio::sync::Semaphore>,
     /// Renders the playlists of the `hls` kind; without it they are read from storage.
     pub playlists: Option<Arc<dyn PlaylistRenderer>>,
+    /// Objects a takedown blocked (MOD-TKD-004): answered with 451 instead of being served.
+    pub blocklist: Option<Arc<sr_moderation::blocklist::MediaBlocklist>>,
 }
 
 /// Resize jobs allowed at once.
@@ -117,12 +119,19 @@ impl CdnDeps {
             limits: sr_storage::img::Limits::default(),
             render_permits: Arc::new(tokio::sync::Semaphore::new(RENDER_CONCURRENCY)),
             playlists: None,
+            blocklist: None,
         }
     }
 
     /// Render the `hls` playlists on request.
     pub fn with_playlists(mut self, playlists: Arc<dyn PlaylistRenderer>) -> Self {
         self.playlists = Some(playlists);
+        self
+    }
+
+    /// Refuse the objects the takedown register blocked.
+    pub fn with_blocklist(mut self, b: Arc<sr_moderation::blocklist::MediaBlocklist>) -> Self {
+        self.blocklist = Some(b);
         self
     }
 

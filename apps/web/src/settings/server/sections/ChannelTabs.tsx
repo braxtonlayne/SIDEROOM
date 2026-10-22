@@ -1,8 +1,7 @@
 /**
  * The Invites, Integrations and Features tabs of the channel editor (LNG-CHN-017). Invites and webhooks are the
- * channel's own; Features holds the per-channel settings the server accepts for threads. Per-channel switches
- * for feature modules (docs/11) have no endpoint yet: the registry only has `/admin/features`, so this tab does
- * not pretend to offer them.
+ * channel's own; Features holds the per-channel settings the server accepts for threads. The per-channel switches
+ * of feature modules (docs/11) are the separate Modules tab (`ChannelModules.tsx`).
  */
 import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
@@ -480,7 +479,6 @@ export function ChannelFeatures({
           ))}
         </select>
       </div>
-      <p className="ss-na">{t('settings.channelTabs.featuresNote')}</p>
     </div>
   );
 }

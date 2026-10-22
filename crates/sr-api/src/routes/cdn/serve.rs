@@ -125,6 +125,26 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
             }
         };
     }
+    // A takedown blocked this object (spec 5, step 3). The signature was checked first, so only a holder of a
+    // valid link learns that it is gone for legal reasons.
+    if let Some(list) = deps.blocklist.as_ref() {
+        let asset = parsed
+            .canonical
+            .strip_prefix("/cdn/hls/")
+            .and_then(|r| r.split('/').next())
+            .and_then(|a| a.parse::<i64>().ok());
+        let blocked = list.is_blocked_key(&parsed.key).await
+            || match asset {
+                Some(a) => list.is_blocked_asset(a).await,
+                None => false,
+            };
+        if blocked {
+            return plain(
+                StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
+                "removed after a legal notice",
+            );
+        }
+    }
     let params = match variant::Params::parse(query) {
         Ok(p) => p,
         Err(m) => return plain(StatusCode::BAD_REQUEST, m),

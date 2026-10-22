@@ -123,10 +123,59 @@ impl FeatureService {
         scope: &ScopeRef,
         enabled: Option<bool>,
     ) -> Result<(), FeatureError> {
-        self.feature(id)?;
+        let feature = self.feature(id)?;
+        // Platform and server flags have always been settable for any module; the narrower
+        // levels exist only where a module declares them.
+        if matches!(scope.kind(), Scope::Channel | Scope::User)
+            && !feature.scopes().contains(&scope.kind())
+        {
+            return Err(FeatureError::UnsupportedScope {
+                feature: id.to_owned(),
+                scope: scope.kind(),
+            });
+        }
         let mut rec = self.inner.store.get(id, scope).await?.unwrap_or_default();
         rec.enabled = enabled;
         self.write(id, scope, rec).await
+    }
+
+    /// What `scope` itself stores for `id`, without inheritance: the explicit flag
+    /// (`None` inherits) and the override values.
+    pub async fn overrides(
+        &self,
+        id: &str,
+        scope: &ScopeRef,
+    ) -> Result<SettingsRecord, FeatureError> {
+        self.feature(id)?;
+        Ok(self.inner.store.get(id, scope).await?.unwrap_or_default())
+    }
+
+    /// Remove everything `scope` stores for `id`, so it follows its parent again.
+    pub async fn clear(&self, id: &str, scope: &ScopeRef) -> Result<(), FeatureError> {
+        self.feature(id)?;
+        self.write(id, scope, SettingsRecord::default()).await
+    }
+
+    /// Forget the channel-scope rows of a deleted channel, for every module that has them.
+    pub async fn forget_channel(
+        &self,
+        guild: sr_events::GuildId,
+        channel: sr_events::ChannelId,
+    ) -> Result<(), FeatureError> {
+        let scope = ScopeRef::Channel { guild, channel };
+        let ids: Vec<&'static str> = self
+            .inner
+            .registry
+            .iter()
+            .filter(|f| f.scopes().contains(&Scope::Channel))
+            .map(|f| f.id())
+            .collect();
+        for id in ids {
+            if self.inner.store.get(id, &scope).await?.is_some() {
+                self.write(id, &scope, SettingsRecord::default()).await?;
+            }
+        }
+        Ok(())
     }
 
     /// Replace the explicit setting overrides at `scope` after validating them
@@ -144,7 +193,9 @@ impl FeatureService {
                 scope: scope.kind(),
             });
         }
-        feature.settings_schema().validate(&values)?;
+        feature
+            .settings_schema()
+            .validate_at(scope.kind(), &values)?;
         let mut rec = self.inner.store.get(id, scope).await?.unwrap_or_default();
         rec.values = values;
         self.write(id, scope, rec).await
@@ -157,12 +208,16 @@ impl FeatureService {
         scope: &ScopeRef,
     ) -> Result<Map<String, Value>, FeatureError> {
         let feature = self.feature(id)?;
-        let mut out = feature.settings_schema().defaults(scope.kind());
+        let schema = feature.settings_schema();
+        let mut out = schema.defaults(scope.kind());
         for s in scope.chain().iter().rev() {
             if let Some(rec) = self.inner.store.get(id, s).await? {
                 merge(&mut out, &rec.values);
             }
         }
+        // A key that belongs to another level (a server-only field seen from a channel)
+        // is not part of this level's settings.
+        schema.retain_scope(scope.kind(), &mut out);
         Ok(out)
     }
 
@@ -286,6 +341,7 @@ mod tests {
                         max: Some(100),
                     },
                 )
+                .at(&[Scope::Platform, Scope::Guild, Scope::Channel])
                 .default_value(json!(10)),
             ])
         }
@@ -355,6 +411,48 @@ mod tests {
             .await
             .unwrap();
         assert!(!s.is_enabled("demo.thing", &guild()).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn clear_overrides_and_forgetting_a_channel() {
+        let s = service();
+        let c = json!({"limit": 30}).as_object().cloned().unwrap();
+        s.set_settings("demo.thing", &channel(), c).await.unwrap();
+        s.set_enabled("demo.thing", &channel(), Some(false))
+            .await
+            .unwrap();
+        let own = s.overrides("demo.thing", &channel()).await.unwrap();
+        assert_eq!(own.enabled, Some(false));
+        assert_eq!(own.values["limit"], json!(30));
+        s.clear("demo.thing", &channel()).await.unwrap();
+        assert_eq!(
+            s.overrides("demo.thing", &channel()).await.unwrap(),
+            SettingsRecord::default()
+        );
+        s.set_enabled("demo.thing", &channel(), Some(true))
+            .await
+            .unwrap();
+        s.forget_channel(G, C).await.unwrap();
+        assert_eq!(
+            s.overrides("demo.thing", &channel()).await.unwrap(),
+            SettingsRecord::default()
+        );
+    }
+
+    #[tokio::test]
+    async fn narrow_levels_exist_only_where_declared() {
+        let s = service();
+        let user = ScopeRef::User {
+            user: sr_events::UserId::new(1),
+        };
+        assert!(matches!(
+            s.set_enabled("demo.thing", &user, Some(true)).await,
+            Err(FeatureError::UnsupportedScope { .. })
+        ));
+        // Server and platform flags stay settable for every module.
+        s.set_enabled("demo.thing", &guild(), Some(true))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

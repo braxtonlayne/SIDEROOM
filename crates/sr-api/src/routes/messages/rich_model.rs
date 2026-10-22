@@ -254,6 +254,7 @@ mod tests {
             layout_type: Some(1),
             expiry_ms: Some(0),
             finalized: true,
+            anonymous_counts: Default::default(),
         };
         let mut t = PollTally::default();
         t.counts.insert(1, 3);

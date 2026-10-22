@@ -78,6 +78,7 @@ describe('Cinema admin navigation', () => {
     await screen.findByRole('heading', { name: 'Cinema catalog' });
     expect(navNames()).toEqual([
       'Dashboard',
+      'Moderation',
       'Review queues',
       'Cinema catalog',
       'Cinema collections',
@@ -169,8 +170,14 @@ describe('Cinema catalog list', () => {
     await user.type(within(dlg).getByRole('textbox'), 'Ghost');
     await user.click(confirm);
     await waitFor(() => expect(calls).toContain('delete 12'));
+    // The request reaching the mock is not the end of the delete: when the response lands the dialog closes
+    // and the list reloads, and `usePaged` empties its rows until the reload answers. The old synchronous
+    // lookup clicked a Merge button that the reload then unmounted, so under load the merge dialog never
+    // opened. Wait for what the person sees after the delete (the notice, the dialog gone, the rows back).
+    expect(await screen.findByText('Ghost deleted.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete Ghost' })).toBeNull());
 
-    await user.click(screen.getByRole('button', { name: 'Merge Akira into another title' }));
+    await user.click(await screen.findByRole('button', { name: 'Merge Akira into another title' }));
     const merge = await screen.findByRole('dialog', { name: /Merge Akira/ });
     await user.type(within(merge).getByRole('searchbox'), 'ak');
     await user.click(await within(merge).findByRole('button', { name: 'Keep Akira (2019)' }));

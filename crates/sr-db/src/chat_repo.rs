@@ -13,11 +13,11 @@ use sr_chat::domain::{
 };
 use sr_chat::error::RepoError;
 use sr_chat::guild_rules::GuildBlueprint;
-use sr_chat::message_rules::{DeletePlan, EditPlan};
+use sr_chat::message_rules::{DeletePlan, EditPlan, RestorePlan};
 use sr_chat::repo::{
-    Attachment, ChannelRepository, EmojiKey, GuildRepository, MessageRepository, MessageStore,
-    Page, ReactionSummary, RepoResult, StoreError, StoreResult, UploadState, UserLookup,
-    UserSummary,
+    Attachment, ChannelRepository, DetachedAttachment, EmojiKey, GuildRepository,
+    MessageRepository, MessageStore, Page, ReactionSummary, RepoResult, StoreError, StoreResult,
+    UploadState, UserLookup, UserSummary,
 };
 use sr_chat::settings::tags::PrimaryGuild;
 use sr_chat::threads::model::{ForumConfig, ThreadInfo};
@@ -1153,6 +1153,30 @@ impl MessageRepository for PgChatRepo {
         tx.commit().await.map_err(db)
     }
 
+    async fn apply_restore(&self, plan: &RestorePlan) -> RepoResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        // Only a hidden message comes back; `hold_id` is left alone, so a hold on it stays (D-122).
+        let res = sqlx::query(
+            "UPDATE messages SET visibility = 'visible', deleted_at = NULL, purge_after = NULL \
+             WHERE id = $1 AND visibility <> 'visible'",
+        )
+        .bind(i(plan.message_id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        if res.rows_affected() > 0 {
+            sqlx::query(
+                "UPDATE thread_metadata SET message_count = message_count + 1 \
+                 WHERE channel_id = $1",
+            )
+            .bind(i(plan.channel_id.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
+        tx.commit().await.map_err(db)
+    }
+
     async fn last_sent_ms(&self, channel: ChannelId, user: UserId) -> RepoResult<Option<i64>> {
         // Snowflake ids sort by time, so the newest id carries the send time.
         let id: Option<i64> = sqlx::query_scalar(
@@ -1687,6 +1711,63 @@ impl MessageStore for PgMessageStore {
             .execute(&self.pool)
             .await
             .map_err(sdb)?;
+        Ok(())
+    }
+
+    async fn detach_attachment(
+        &self,
+        id: AttachmentId,
+        message: MessageId,
+        case: i64,
+        by: UserId,
+        now_ms: i64,
+    ) -> StoreResult<Option<DetachedAttachment>> {
+        let mut tx = self.pool.begin().await.map_err(sdb)?;
+        let row: Option<(String, String, Option<i64>, Option<i64>)> = sqlx::query_as(
+            "SELECT a.storage_key, a.filename, a.hold_id, m.hold_id \
+             FROM attachments a JOIN messages m ON m.id = a.message_id \
+             WHERE a.id = $1 AND a.message_id = $2 FOR UPDATE OF a",
+        )
+        .bind(i(id.get()))
+        .bind(i(message.get()))
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sdb)?;
+        let Some((key, filename, own_hold, message_hold)) = row else {
+            return Ok(None);
+        };
+        // An attachment of a held message joins the message's hold, so releasing it frees this one too.
+        let hold = own_hold.or(message_hold);
+        sqlx::query(
+            "UPDATE attachments SET message_id = NULL, hold_id = COALESCE(hold_id, $2), \
+             removed_at = to_timestamp($3::double precision / 1000.0), removed_by = $4, \
+             removed_case_id = $5, removed_from_message_id = $6, updated_at = now() WHERE id = $1",
+        )
+        .bind(i(id.get()))
+        .bind(hold)
+        .bind(now_ms)
+        .bind(i(by.get()))
+        .bind(case)
+        .bind(i(message.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(sdb)?;
+        tx.commit().await.map_err(sdb)?;
+        Ok(Some(DetachedAttachment {
+            key,
+            filename,
+            held: hold.is_some(),
+        }))
+    }
+
+    async fn forget_removed_attachment(&self, id: AttachmentId) -> StoreResult<()> {
+        sqlx::query(
+            "DELETE FROM attachments WHERE id = $1 AND removed_at IS NOT NULL AND hold_id IS NULL",
+        )
+        .bind(i(id.get()))
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
         Ok(())
     }
 

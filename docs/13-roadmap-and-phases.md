@@ -42,6 +42,8 @@ Video ingest (browser, batch, watched folder, storage import), probe, transcode 
 Developer applications, developer portal, bot gateway/intents/interactions/commands, OAuth2, test-server restriction, release review, `sr-sdk` + JS SDK, Discord compatibility suite, activities + Embedded App SDK, theme store, profile layouts ("MySpace mode"), packages and recipes.
 
 ## Phase 7 — Moderation & compliance `[MOD-*]`
+Inventory: [19-moderation.md](inventory/19-moderation.md). In progress (D-315): step 1 (cases and reports), step 2 (the takedown register) and step 3 (the data-request queue) are built (P18); step 4 (the dashboards) and step 5 (suspicion review) are next, and mailing the templated takedown reply waits on the lawyer (D-336).
+
 Reports, cases, holds UI, the full ban-reason taxonomy, inviter-suspicion review tooling, takedown workflow, data-subject request tooling, NSFW/age policy enforcement, staff dashboards.
 
 ## Later / ideas

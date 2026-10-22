@@ -2,7 +2,9 @@ import { Button, Modal, Notice, PasswordInput, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { withReauth } from '../../../admin/reauth';
 import { ApiError } from '../../../api/client';
+import { Link } from '@tanstack/react-router';
 import { useT } from '../../../i18n';
+import { useCompliancePublic } from '../../../lib/compliancePublic';
 import { deleteAccount, errorText } from '../api';
 
 /** First error message of one field in a Discord-style error tree. */
@@ -31,6 +33,7 @@ export function DeleteAccountDialog({
   onDeleted: () => void;
 }) {
   const t = useT();
+  const compliance = useCompliancePublic();
   const [typed, setTyped] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -116,7 +119,23 @@ export function DeleteAccountDialog({
         }}
         noValidate
       >
-        <p>{t('settings.account.removalRetained')}</p>
+        <p>
+          {t('settings.account.removalRetained', {
+            years: compliance.invoice_retention_years ?? 10,
+          })}
+        </p>
+        <p>
+          {t('settings.account.removalMessages')}{' '}
+          <Link
+            className="us-link"
+            to="/settings/user/$section"
+            params={{ section: 'privacy' }}
+            hash="us-messages"
+            onClick={onClose}
+          >
+            {t('settings.account.removalMessagesLink')}
+          </Link>
+        </p>
         {errors.blocked && (
           <Notice variant="danger" role="alert">
             {errors.blocked}

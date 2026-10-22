@@ -72,6 +72,18 @@ impl RichStore for MemoryBackend {
                 }
             }
         }
+        for m in messages {
+            if let Some(poll) = d
+                .messages
+                .iter()
+                .find(|x| x.id == *m)
+                .and_then(|x| x.poll.as_ref())
+            {
+                for (a, n) in &poll.anonymous_counts {
+                    *out.entry(*m).or_default().counts.entry(*a).or_default() += *n;
+                }
+            }
+        }
         Ok(out)
     }
 

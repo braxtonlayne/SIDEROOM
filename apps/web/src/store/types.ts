@@ -133,6 +133,8 @@ export interface Message {
   mentions?: User[];
   mention_everyone?: boolean;
   mention_roles?: string[];
+  /** `MESSAGE_CREATE` of a message a moderator restored from a case (D-338): not new, no badge or alert. */
+  restored?: boolean;
   message_reference?: {
     message_id: string;
     channel_id?: string;

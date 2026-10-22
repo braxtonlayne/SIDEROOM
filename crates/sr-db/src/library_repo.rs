@@ -896,12 +896,20 @@ impl LibraryRepository for PgLibraryRepo {
     async fn delete_series(&self, id: i64) -> LibraryResult<bool> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         queue_objects(&mut tx, Doomed::Series(id)).await?;
-        let n = sqlx::query("DELETE FROM reading_series WHERE id = $1")
+        let n = match sqlx::query("DELETE FROM reading_series WHERE id = $1")
             .bind(id)
             .execute(&mut *tx)
             .await
-            .map_err(db)?
-            .rows_affected();
+        {
+            Ok(r) => r.rows_affected(),
+            Err(e) if crate::hold_guard::is_hold_refusal(&e) => {
+                drop(tx);
+                return Err(LibraryError::Conflict(
+                    crate::hold_guard::hold_message(&self.pool, "reading_series", id).await,
+                ));
+            }
+            Err(e) => return Err(db(e)),
+        };
         tx.commit().await.map_err(db)?;
         Ok(n > 0)
     }
@@ -1291,12 +1299,22 @@ impl LibraryRepository for PgLibraryRepo {
     async fn delete_chapter(&self, id: i64) -> LibraryResult<bool> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         queue_objects(&mut tx, Doomed::Chapter(id)).await?;
-        let series: Option<i64> =
-            sqlx::query_scalar("DELETE FROM reading_chapters WHERE id = $1 RETURNING series_id")
-                .bind(id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(db)?;
+        let series: Option<i64> = match sqlx::query_scalar(
+            "DELETE FROM reading_chapters WHERE id = $1 RETURNING series_id",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        {
+            Ok(s) => s,
+            Err(e) if crate::hold_guard::is_hold_refusal(&e) => {
+                drop(tx);
+                return Err(LibraryError::Conflict(
+                    crate::hold_guard::hold_message(&self.pool, "reading_chapters", id).await,
+                ));
+            }
+            Err(e) => return Err(db(e)),
+        };
         let Some(series) = series else {
             return Ok(false);
         };

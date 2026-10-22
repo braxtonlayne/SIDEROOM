@@ -116,10 +116,50 @@ impl FeatureCtx {
         feature: &str,
         guild: GuildId,
     ) -> Result<T, FeatureError> {
-        let values = self
-            .settings
-            .effective_settings(feature, &ScopeRef::Guild { guild })
-            .await?;
+        self.config_at(feature, &ScopeRef::Guild { guild }).await
+    }
+
+    /// The effective settings of `feature` in one channel: the channel's own overrides
+    /// over the server's settings over the defaults (guild -> channel inheritance).
+    pub async fn channel_config<T: serde::de::DeserializeOwned>(
+        &self,
+        feature: &str,
+        guild: GuildId,
+        channel: ChannelId,
+    ) -> Result<T, FeatureError> {
+        self.config_at(feature, &ScopeRef::Channel { guild, channel })
+            .await
+    }
+
+    /// Whether `feature` is on in one channel: a channel's own switch wins, otherwise the
+    /// server's. (The runtime only delivers events of servers that have it on, so a channel
+    /// can narrow a module but not switch it on in a server that has it off.)
+    pub async fn channel_enabled(
+        &self,
+        feature: &str,
+        guild: GuildId,
+        channel: ChannelId,
+    ) -> Result<bool, FeatureError> {
+        self.settings
+            .is_enabled(feature, &ScopeRef::Channel { guild, channel })
+            .await
+    }
+
+    /// The effective settings of `feature` for one person (their own preferences).
+    pub async fn user_config<T: serde::de::DeserializeOwned>(
+        &self,
+        feature: &str,
+        user: UserId,
+    ) -> Result<T, FeatureError> {
+        self.config_at(feature, &ScopeRef::User { user }).await
+    }
+
+    async fn config_at<T: serde::de::DeserializeOwned>(
+        &self,
+        feature: &str,
+        scope: &ScopeRef,
+    ) -> Result<T, FeatureError> {
+        let values = self.settings.effective_settings(feature, scope).await?;
         serde_json::from_value(serde_json::Value::Object(values)).map_err(|e| {
             FeatureError::Validation(ValidationError {
                 path: feature.to_owned(),

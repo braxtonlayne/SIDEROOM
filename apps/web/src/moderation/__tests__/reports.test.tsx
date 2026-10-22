@@ -1,12 +1,12 @@
-import { act, render, renderHook, screen } from '@testing-library/react';
+import { act, render, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   closeReport,
   entryList,
   ReportButton,
-  ReportUnavailableDialog,
   setReportsEnabled,
   useReportEntry,
+  useReports,
 } from '../reports';
 
 afterEach(() => {
@@ -23,18 +23,17 @@ describe('moderation.reports flag (XC-MOD-002)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('when on, the entry opens a dialog that says reporting is unavailable', () => {
+  it('when on, the entry carries its target to the dialog store', () => {
     setReportsEnabled(true);
     const { result } = renderHook(() => useReportEntry());
-    const entry = result.current({ kind: 'message', id: '1' });
+    const entry = result.current({ kind: 'message', id: '1', channelId: '9' });
     expect(entry).toMatchObject({ label: 'Report Message', danger: true });
-    render(<ReportUnavailableDialog />);
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(useReports.getState().target).toBeNull();
     act(() => {
       (entry as { onSelect: () => void }).onSelect();
     });
-    expect(screen.getByRole('dialog')).toHaveTextContent('Reporting is not available yet');
-    expect(screen.getByRole('dialog')).toHaveTextContent('report a message');
+    expect(useReports.getState().target).toEqual({ kind: 'message', id: '1', channelId: '9' });
+    expect(result.current({ kind: 'guild', id: '7' })).toMatchObject({ label: 'Report Server' });
   });
 });
 

@@ -36,6 +36,7 @@ import { AccountsSection } from './sections/Accounts';
 import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
 import { DashboardSection } from './sections/Dashboard';
+import { DataRequestsSection } from './sections/DataRequests';
 import { EntranceSection } from './sections/Entrance';
 import { FeaturesSection } from './sections/Features';
 import { InviteGraphSection } from './sections/InviteGraph';
@@ -45,6 +46,7 @@ import { ServersSection } from './sections/Servers';
 import { StaffSection } from './sections/Staff';
 import { ReviewHubSection } from './sections/ReviewHub';
 import { PrivateContentSection } from './sections/PrivateContent';
+import { ModerationSection } from './moderation/ModerationSection';
 import { JobsSection, SystemSection } from './sections/System';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
 
@@ -77,6 +79,29 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.people',
     visible: (v) => v.can('PLATFORM_BAN'),
     component: BansSection,
+  },
+  {
+    id: 'moderation',
+    label: 'admin.moderation.navLabel',
+    group: 'admin.adminApp.group.people',
+    visible: (v) =>
+      hasAny(
+        v.perms,
+        'MANAGE_CASES',
+        'MANAGE_TAKEDOWNS',
+        'REVIEW_READING',
+        'REVIEW_MEDIA',
+        'DELETE_CONTENT',
+      ),
+    component: ModerationSection,
+  },
+  {
+    // M-25 step c: the data-subject request queue, next to Moderation in the People group.
+    id: 'data-requests',
+    label: 'admin.adminApp.section.dataRequests',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_TAKEDOWNS'),
+    component: DataRequestsSection,
   },
   {
     id: 'invites',

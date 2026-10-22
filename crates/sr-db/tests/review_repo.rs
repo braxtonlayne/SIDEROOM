@@ -1115,6 +1115,69 @@ async fn credits_quota_and_sweep_queries() {
             .iter()
             .any(|x| x.id == rej.id)
     );
+    let idle_held = repo
+        .create(&mk("Held draft"), &ev("created"))
+        .await
+        .unwrap();
+    sqlx::query("UPDATE submissions SET updated_at = now() - interval '40 days', created_at = now() - interval '40 days' WHERE id = $1")
+        .bind(idle_held.id)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE submission_events SET created_at = now() - interval '40 days' WHERE submission_id = $1")
+        .bind(idle_held.id)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    assert!(
+        repo.idle_drafts(cutoff, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == idle_held.id)
+    );
+    // A moderation hold keeps the files (XC-MOD-001, MOD-HOLD-005): neither the purge nor the draft sweep takes
+    // a held submission, and releasing the hold makes it eligible again.
+    sqlx::query("INSERT INTO moderation_holds (id, reason) VALUES (990001, 'case') ON CONFLICT (id) DO NOTHING")
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE submissions SET hold_id = 990001 WHERE id = ANY($1)")
+        .bind(vec![rej.id, idle_held.id])
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    assert!(
+        !repo
+            .rejected_unpurged(before, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == rej.id),
+        "a held rejected submission is not purged"
+    );
+    assert!(
+        !repo
+            .idle_drafts(cutoff, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == idle_held.id),
+        "a held draft is not abandoned"
+    );
+    sqlx::query("UPDATE submissions SET hold_id = NULL WHERE id = ANY($1)")
+        .bind(vec![rej.id])
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    assert!(
+        repo.rejected_unpurged(before, 500)
+            .await
+            .unwrap()
+            .iter()
+            .any(|x| x.id == rej.id),
+        "released, it is due again"
+    );
     repo.add_event(rej.id, &ev("purged")).await.unwrap();
     assert!(
         !repo

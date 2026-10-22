@@ -536,3 +536,90 @@ async fn originals_and_transcode_outputs_are_signed_only_and_hls_assets_map_to_t
         StatusCode::NOT_FOUND
     );
 }
+
+/// A takedown blocks the stored object on the media path (MOD-TKD-004): a valid link answers 451, a bad
+/// signature still 403 (nothing is revealed to a stranger), and other objects are untouched.
+#[tokio::test]
+async fn blocked_objects_answer_451_after_the_signature_check() {
+    use sr_moderation::blocklist::{BlockSet, MediaBlocklist};
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    storage
+        .put("chat/1/2/a.png", Bytes::from(png()))
+        .await
+        .unwrap();
+    storage
+        .put("chat/1/2/b.png", Bytes::from(png()))
+        .await
+        .unwrap();
+    storage
+        .put("library/7/9/001.webp", Bytes::from(png()))
+        .await
+        .unwrap();
+    let signer = CdnSigner::new(SECRET);
+    let list = BlockSet::from_rows([
+        ("key".to_owned(), "chat/1/2/a.png".to_owned()),
+        ("prefix".to_owned(), "library/7/".to_owned()),
+    ]);
+    let state = AppState::builder()
+        .extension(Arc::new(
+            CdnDeps::new(storage, signer.clone())
+                .with_blocklist(Arc::new(MediaBlocklist::fixed(list))),
+        ))
+        .build();
+    let f = Fx {
+        app: layered(state),
+        signer,
+    };
+    let blocked = f.get(&f.url("/cdn/attachments/1/2/a.png")).await;
+    assert_eq!(blocked.status(), StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
+    let by_prefix = f.get(&f.url("/cdn/library/7/9/001.webp")).await;
+    assert_eq!(
+        by_prefix.status(),
+        StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS
+    );
+    let other = f.get(&f.url("/cdn/attachments/1/2/b.png")).await;
+    assert_eq!(other.status(), StatusCode::OK);
+    let unsigned = f.get("/cdn/attachments/1/2/a.png?ex=1&sig=bad").await;
+    assert_eq!(unsigned.status(), StatusCode::FORBIDDEN);
+}
+
+/// D-335 item 2: a takedown also blocks the transcode outputs and the originals of an asset, so a link signed
+/// before the takedown answers 451 from the next blocklist refresh.
+#[tokio::test]
+async fn blocked_transcode_outputs_and_originals_answer_451() {
+    use sr_moderation::blocklist::{BlockSet, MediaBlocklist};
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    for k in [
+        "transcode/9/1/remux/video.mp4",
+        "transcode/9/2/v/seg.m4s",
+        "transcode/10/1/remux/video.mp4",
+        "originals/5/source.mkv",
+    ] {
+        storage.put(k, Bytes::from(png())).await.unwrap();
+    }
+    let signer = CdnSigner::new(SECRET);
+    let list = BlockSet::from_rows([
+        ("prefix".to_owned(), "transcode/9/".to_owned()),
+        ("prefix".to_owned(), "originals/5/".to_owned()),
+    ]);
+    let state = AppState::builder()
+        .extension(Arc::new(
+            CdnDeps::new(storage, signer.clone())
+                .with_blocklist(Arc::new(MediaBlocklist::fixed(list))),
+        ))
+        .build();
+    let f = Fx {
+        app: layered(state),
+        signer,
+    };
+    for p in [
+        "/cdn/transcode/9/1/remux/video.mp4",
+        "/cdn/transcode/9/2/v/seg.m4s",
+        "/cdn/originals/5/source.mkv",
+    ] {
+        let r = f.get(&f.url(p)).await;
+        assert_eq!(r.status(), StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS, "{p}");
+    }
+    let other = f.get(&f.url("/cdn/transcode/10/1/remux/video.mp4")).await;
+    assert_eq!(other.status(), StatusCode::OK);
+}

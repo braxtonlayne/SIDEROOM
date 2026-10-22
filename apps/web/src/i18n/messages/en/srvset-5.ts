@@ -55,8 +55,6 @@ export default {
   'settings.channelTabs.hideAfter': 'Hide threads after inactivity',
   'settings.channelTabs.saved': 'Saved.',
   'settings.channelTabs.slowmodeNew': 'Slowmode for new threads',
-  'settings.channelTabs.featuresNote':
-    'Switching a channel between text and announcement, and per-channel feature modules, are not available yet.',
   'settings.channels.title': 'Channels & Categories',
   'settings.channels.description':
     'Organize channels into categories and control who can see and use them.',

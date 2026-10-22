@@ -19,6 +19,8 @@ import {
 } from '../../../lounge/msg/remoteImages';
 import { useT, type MessageKey } from '../../../i18n';
 import { DataExportCard } from './DataExport';
+import { DeleteMessagesCard } from './DeleteMessages';
+import { YourReportsCard } from './YourReports';
 import { Card, displayOf, Loaded, SectionTitle } from '../parts';
 import { AgeConfirmationCard, applyPatch, DmSafetyCard, SensitiveMediaCard } from './SafetyCards';
 
@@ -247,7 +249,9 @@ export function PrivacySection() {
       <RemoteImagesCard />
       <BlockedCard />
       <IgnoredCard />
+      <YourReportsCard />
       <DataExportCard />
+      <DeleteMessagesCard />
     </>
   );
 }

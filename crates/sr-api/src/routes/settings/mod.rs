@@ -32,6 +32,7 @@ pub mod event_world;
 pub mod events;
 pub mod expressions;
 pub mod features;
+pub mod features_scopes;
 pub mod follow;
 pub mod guide;
 pub mod insights;
@@ -83,6 +84,7 @@ pub fn router() -> Router<AppState> {
         .merge(insights::routes())
         .merge(guide::routes())
         .merge(features::routes())
+        .merge(features_scopes::routes())
         .merge(applications::routes())
         .merge(scheduled_events::routes())
 }
@@ -175,6 +177,12 @@ pub fn router() -> Router<AppState> {
         features::slowmode_presets,
         features::apply_slowmode,
         features::revoke_temp_role,
+        features_scopes::list_channel_features,
+        features_scopes::patch_channel_feature,
+        features_scopes::reset_channel_feature,
+        features_scopes::list_user_features,
+        features_scopes::patch_user_feature,
+        features_scopes::reset_user_feature,
         applications::get_form,
         applications::put_form,
         applications::submit_application,
@@ -262,6 +270,10 @@ pub fn router() -> Router<AppState> {
         features::SlowmodePresetObject,
         features::SlowmodePresetsObject,
         features::ApplySlowmodeBody,
+        features_scopes::ChannelFeatureObject,
+        features_scopes::PatchChannelFeatureBody,
+        features_scopes::UserFeatureObject,
+        features_scopes::PatchUserFeatureBody,
         features::AppliedSlowmodeObject,
         features::ApplySlowmodeResult,
         applications::QuestionDto,

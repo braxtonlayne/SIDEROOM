@@ -110,6 +110,14 @@ audit_actions! {
     OnboardingUpdate = 167,
     ApplicationCommandPermissionUpdate = 121,
     ApplicationDecision = 200,
+    // A server moderator's moderation-case outcomes (N-26, D-331): never the reporter, never note text.
+    ModerationCaseEscalated = 210,
+    ModerationCaseDismissed = 211,
+    ModerationCaseActioned = 212,
+    ModerationCaseActionRecorded = 213,
+    // A moderator restored a deleted message, or removed one attachment, from a case (N-21).
+    ModerationMessageRestored = 214,
+    ModerationAttachmentRemoved = 215,
 }
 
 /// One changed key, Discord shape: `{key, old_value, new_value}`.

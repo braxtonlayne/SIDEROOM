@@ -233,6 +233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/accounts/{account_id}/deleted-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The original username, email and display name of a deleted account, from the staff-only archive
+         *     (`MANAGE_ACCOUNTS`, D-326). Each view is written to the access log.
+         */
+        get: operations["deleted_archive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts/{account_id}/force-logout": {
         parameters: {
             query?: never;
@@ -1204,6 +1224,113 @@ export interface paths {
         post?: never;
         /** Delete a variant (`PUBLISH_MEDIA`). */
         delete: operations["admin_cinema_delete_variant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The queue, active requests by due date first (`MANAGE_TAKEDOWNS`). */
+        get: operations["list"];
+        put?: never;
+        /** Enter a request that arrived by email or form; the due date is computed now. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One request (the read is logged). */
+        get: operations["get_one"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refuse a request with a stated reason. */
+        post: operations["decline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extend the deadline by `days`, once, with a reason (GDPR article 12(3)). */
+        post: operations["extend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a verified request. An export queues the self-service data package for the person (they
+         *     download it from Settings for 7 days); an erasure deletes the account through account
+         *     deletion and completes with an outcome that names the records that stay (D-124, G-66).
+         */
+        post: operations["run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record that staff checked who is asking; the reason says how. */
+        post: operations["verify"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5027,6 +5154,47 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/sr/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The modules with a channel scope, with this channel's state (`MANAGE_CHANNELS`). */
+        get: operations["list_channel_features"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/sr/features/{feature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove this channel's switch and overrides, so it follows the server again
+         *     (`MANAGE_CHANNELS`).
+         */
+        delete: operations["reset_channel_feature"];
+        options?: never;
+        head?: never;
+        /**
+         * Switch a module on or off in this channel, or change its settings here
+         *     (`MANAGE_CHANNELS`).
+         */
+        patch: operations["patch_channel_feature"];
         trace?: never;
     };
     "/channels/{channel_id}/thread-members": {
@@ -9144,6 +9312,589 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Appeals, newest first (`MANAGE_CASES`). */
+        get: operations["list_appeals"];
+        put?: never;
+        /**
+         * Appeal a platform ban (public). A banned account has no session, so the account proves itself with its
+         *     credentials, throttled like sign-in. One appeal per decision; there is no second appeal (D-215).
+         *     The answer says nothing about the ban beyond what the person already knows.
+         */
+        post: operations["file_appeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/appeals/{appeal_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide an appeal (`MANAGE_CASES`). Not the staff member who made the ban, unless they are the Owner and nobody
+         *     else can review (D-215). Overturning lifts the ban through the admin service (`PLATFORM_BAN`).
+         */
+        post: operations["decide_appeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The case queue of platform staff: what is routed to platform staff or to reviewers (`MANAGE_CASES`, or a
+         *     review bit for the cases of that kind). Server cases appear once their moderators escalate (D-209).
+         */
+        get: operations["list_cases"];
+        put?: never;
+        /** Open a case without a report (`MANAGE_CASES`). */
+        post: operations["open_case"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One case as far as the caller may see it. Reading the reporters as platform staff and opening a DM
+         *     snapshot are written to the access log first (D-125, D-214).
+         */
+        get: operations["get_case"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record that an action was taken with the server's own tools, or (`perform`) do it through the server's services
+         *     on the case's own target; either way the case moves to `actioned`.
+         */
+        post: operations["record_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/assignee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Claim a case. */
+        put: operations["claim"];
+        post?: never;
+        /** Release a case (the assignee, or somebody with `MANAGE_CASES`). */
+        delete: operations["release"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Platform-ban the Person a case is about (`MANAGE_CASES` and `PLATFORM_BAN`). The ban goes through the admin
+         *     service (suspicion, sessions, its own log row); the case records it with the `reason_category`.
+         */
+        post: operations["ban"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/escalate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hand a server's case to platform staff (the server's moderators only). */
+        post: operations["escalate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Freeze content for a case (platform staff, `MANAGE_CASES`; D-213). A hold overrides the author's deletion
+         *     rights (D-122) and never expires by itself. 409 when everything in scope is already held.
+         */
+        post: operations["place"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an internal note (append-only). */
+        post: operations["add_note"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen a closed case inside the reopen window; later, a new case links back to it. Answers the case to work on. */
+        post: operations["reopen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move a case along its lifecycle. */
+        post: operations["set_state"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/cases/{case_id}/warn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Warn the person a case is about (`MANAGE_CASES`). */
+        post: operations["warn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/guilds/{guild_id}/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The cases of one server for its moderators (`MANAGE_MESSAGES`): the ones routed to the server, and rows
+         *     for those they escalated.
+         */
+        get: operations["guild_cases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every hold, newest first, with what it freezes and whether it is due for review (`MANAGE_CASES`). */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/holds/{hold_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release a hold (`MANAGE_CASES`, a reason). Deleted rows become purgeable at the next job run. */
+        post: operations["release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/holds/{hold_id}/reviewed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a hold as reviewed and kept: it leaves the review list until the next window (D-212). */
+        post: operations["reviewed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/item-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Is this library or cinema item held or taken down? (Any signed-in person; reveals nothing but the state.) */
+        get: operations["item_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * File a report (any signed-in member that can see the target). The server snapshots the evidence, routes
+         *     the case (D-209), freezes a reported message, and never shows the reporter to the reported person.
+         *     403 `SrFeatureDisabled` while the `moderation.reports` flag is off.
+         */
+        post: operations["file_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/reports/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own reports with their status and outcome line (never the other party), newest first. */
+        get: operations["my_reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The register, newest first (`MANAGE_TAKEDOWNS`). */
+        get: operations["list"];
+        put?: never;
+        /** Enter a notice (staff only; there is no public form, D-293). Opens its case. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export the whole register as CSV or JSON (`MANAGE_TAKEDOWNS`; the read is access-logged). */
+        get: operations["export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One notice with its items, timeline and strike counts (`MANAGE_TAKEDOWNS`). */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/counter-notice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a counter-notice (staff record it). The content returns after ten business days unless a court
+         *     filing is noted.
+         */
+        post: operations["counter_notice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/court-filing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Note or clear a court filing on a notice that is in force. */
+        post: operations["court_filing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze the identified items for evidence without removing anything yet (hold, then disable). */
+        post: operations["hold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Name a piece of content the notice covers (triage). 409 when it is already on the notice. */
+        post: operations["add_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Take back an item named by mistake, while it is only identified (not yet held). */
+        delete: operations["remove_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject an incomplete notice. Returns the templated reply staff send to the notifier. */
+        post: operations["reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore the content now (a logged action). */
+        post: operations["restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/uphold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Uphold a notice: hold and disable every item, block the stored objects, tell the uploaders, count the
+         *     strike (a review case opens at the threshold, never a suspension).
+         */
+        post: operations["uphold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/takedowns/{notice_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The notifier withdrew the notice: the content returns and no strike stands. */
+        post: operations["withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/oauth2/@me": {
         parameters: {
             query?: never;
@@ -10082,6 +10833,24 @@ export interface paths {
         get: operations["get_catalog"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/users/@me/messages/delete-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many messages a run would hide, and the last run. */
+        get: operations["preview"];
+        put?: never;
+        /** Hide every message and upload of yours in the chosen places. Runs in the background. */
+        post: operations["delete_all"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11761,6 +12530,44 @@ export interface paths {
         patch: operations["patch_settings"];
         trace?: never;
     };
+    "/users/@me/sr/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The modules with personal settings, with the caller's own preferences. Only the
+         *     caller can read them.
+         */
+        get: operations["list_user_features"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/sr/features/{feature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget the caller's preferences for one module, so the defaults apply again. */
+        delete: operations["reset_user_feature"];
+        options?: never;
+        head?: never;
+        /** Change the caller's own preferences for one module. */
+        patch: operations["patch_user_feature"];
+        trace?: never;
+    };
     "/users/{user_id}/guestbook": {
         parameters: {
             query?: never;
@@ -12361,6 +13168,28 @@ export interface components {
         AckResponse: {
             token?: string | null;
         };
+        /** @description Body of a recorded action. */
+        ActionBody: {
+            /**
+             * @description `delete_message`, `restore_message`, `remove_attachment`, `timeout`, `kick`, `guild_ban`, `mark_nsfw`
+             *     or `other`. Recording does not perform it.
+             */
+            action: string;
+            /** @description `remove_attachment` when performing: the attachment snowflake (one of the case's message). */
+            attachment_id?: string | null;
+            note?: string | null;
+            /**
+             * @description `true` performs the action through the server's services (`delete_message`, `restore_message`,
+             *     `remove_attachment`, `timeout`, `kick`, `guild_ban`, `suspend_account`) on the case's own target;
+             *     otherwise it only records work done elsewhere.
+             */
+            perform?: boolean;
+            /**
+             * Format: int64
+             * @description `timeout` when performing: minutes, 1 to 40320.
+             */
+            timeout_minutes?: number | null;
+        };
         ActionMetadata: {
             channel_id?: string | null;
             custom_message?: string | null;
@@ -12415,6 +13244,40 @@ export interface components {
         };
         AdminChangeEmailBody: {
             email: string;
+            reason?: string | null;
+        };
+        /** @description Body of `POST /admin/data-requests`. */
+        AdminCreateDataRequestBody: {
+            /** @description The account the request is about (decimal snowflake). */
+            account_id: string;
+            kind: components["schemas"]["DataRequestKind"];
+            /** @description Free text: how it arrived, what was asked (at most 1000 characters). */
+            note?: string | null;
+            /**
+             * Format: int64
+             * @description When it arrived, Unix milliseconds; defaults to now.
+             */
+            received_at_ms?: number | null;
+        };
+        /** @description The queue with the settings the page needs. */
+        AdminDataRequestList: {
+            /**
+             * Format: int32
+             * @description `compliance.data_request_deadline_days` today (new requests use it).
+             */
+            deadline_days: number;
+            items: components["schemas"]["DataRequest"][];
+            /** @description The records an erasure keeps, so the page can name them (G-66, D-295). */
+            retained_catalog: components["schemas"]["RetainedRecord"][];
+        };
+        /** @description Body of `POST /admin/data-requests/{id}/extend`. */
+        AdminExtendDataRequestBody: {
+            /**
+             * Format: int64
+             * @description 1 to 60 days added to the original due date. Allowed once.
+             */
+            days: number;
+            /** @description Why the request is complex or numerous (required, kept in the access log). */
             reason?: string | null;
         };
         /** @description A server in the platform-wide list (staff only). */
@@ -12483,6 +13346,14 @@ export interface components {
             reason?: string | null;
             /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
             username?: string | null;
+        };
+        /** @description Body of `POST /admin/data-requests/{id}/run` (optional). */
+        AdminRunDataRequestBody: {
+            /**
+             * @description Erasure only: the member also asked for their messages to be deleted (N-06, D-324). The
+             *     member's message self-delete is queued with servers and direct messages, no cut-off.
+             */
+            delete_messages?: boolean;
         };
         /** @description An open session of an account, as the staff drawer lists it. No token material. */
         AdminSession: {
@@ -12660,6 +13531,44 @@ export interface components {
             state: string;
             /** Format: int32 */
             version: number;
+        };
+        /** @description Body of an appeal from the ban screen. */
+        AppealBody: {
+            /** @description Username or email of the banned account. */
+            login: string;
+            /** @description Up to 2000 characters. */
+            message: string;
+            password: string;
+        };
+        /**
+         * @description How a staff member decided an appeal.
+         * @enum {string}
+         */
+        AppealDecision: "upheld" | "overturned";
+        /** @description Body of an appeal decision. */
+        AppealDecisionBody: {
+            decision: components["schemas"]["AppealDecision"];
+            /** @description Why. Required. */
+            reason?: string | null;
+        };
+        AppealView: {
+            appellant_account_id: string;
+            ban_id: string;
+            /** @description The staff member who made the ban, who may not review its appeal (D-215). */
+            banned_by?: string | null;
+            case_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            decided_at_ms?: number | null;
+            decided_by?: string | null;
+            decision_reason: string;
+            id: string;
+            message: string;
+            /** @description The Person the ban is on. */
+            person_id: string;
+            /** @description `open`, `upheld` or `overturned`. */
+            state: string;
         };
         /** @description The platform's default themes (ADM-PLT-004). */
         AppearanceDefaultsObject: {
@@ -13045,6 +13954,10 @@ export interface components {
          * @enum {string}
          */
         BanCategory: "serious" | "standard";
+        /** @description What a ban from a case did. */
+        BanDone: {
+            ban_id: string;
+        };
         BanObject: {
             reason?: string | null;
             user: components["schemas"]["GuildUserRef"];
@@ -13289,6 +14202,121 @@ export interface components {
             message: string;
             ok: boolean;
         };
+        /** @description Body of a ban from a case. */
+        CaseBanBody: {
+            /** @description Why, for the audit log and the case. Required. */
+            note?: string | null;
+            /** @description The why, from the section 8 vocabulary. */
+            reason_category: components["schemas"]["ReportCategory"];
+            severity?: null | components["schemas"]["CaseSeverity"];
+        };
+        /** @description Everything about one case, as far as the viewer may see it. */
+        CaseDetail: {
+            /** @description What this viewer may do: `read`, `work` or `manage`. */
+            access: string;
+            appeal?: null | components["schemas"]["AppealView"];
+            case: components["schemas"]["CaseSummary"];
+            events: components["schemas"]["CaseEvent"][];
+            evidence: components["schemas"]["CaseEvidence"][];
+            holds: components["schemas"]["HoldView"][];
+            linked_case_id?: string | null;
+            notes: components["schemas"]["CaseNote"][];
+            outcome: string;
+            reports: components["schemas"]["CaseReport"][];
+            subject_account_id?: string | null;
+            subject_person_id?: string | null;
+        };
+        CaseEvent: {
+            /** @description `None` for the system. */
+            actor_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            detail: Record<string, never>;
+            id: string;
+            kind: string;
+        };
+        CaseEvidence: {
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            /** @description `message_snapshot` or `target_summary`. */
+            kind: string;
+            /** @description The immutable snapshot taken at report time. */
+            payload: Record<string, never>;
+            report_id?: string | null;
+        };
+        CaseNote: {
+            author_id: string;
+            body: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+        };
+        /** @description Body of an internal note. */
+        CaseNoteBody: {
+            /** @description Up to 4000 characters. */
+            body: string;
+        };
+        CasePage: {
+            items: components["schemas"]["CaseSummary"][];
+            /** @description Pass as `cursor` for the next page. */
+            next_cursor?: string | null;
+        };
+        CaseReport: {
+            category: components["schemas"]["ReportCategory"];
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            /** @description Whether the reporter allowed server moderators to see their name. */
+            moderators_may_see_name: boolean;
+            note: string;
+            reporter?: null | components["schemas"]["ReporterView"];
+            state: components["schemas"]["ReportState"];
+        };
+        /**
+         * @description `standard` or `serious` (what drives the preset of a ban, D-211).
+         * @enum {string}
+         */
+        CaseSeverity: "standard" | "serious";
+        /**
+         * @description The lifecycle of a case (spec 4.2).
+         * @enum {string}
+         */
+        CaseState: "open" | "triage" | "investigating" | "actioned" | "dismissed" | "closed";
+        /** @description One row of a case list. */
+        CaseSummary: {
+            /**
+             * Format: int64
+             * @description Holds on this case that are still in force.
+             */
+            active_holds: number;
+            assignee_id?: string | null;
+            category: components["schemas"]["ReportCategory"];
+            /** Format: int64 */
+            closed_at_ms?: number | null;
+            /** @description Handed over from the server's moderators to platform staff. */
+            escalated: boolean;
+            guild_id?: string | null;
+            id: string;
+            /** Format: int64 */
+            opened_at_ms: number;
+            /** Format: int64 */
+            report_count: number;
+            routing: components["schemas"]["Routing"];
+            severity: components["schemas"]["CaseSeverity"];
+            state: components["schemas"]["CaseState"];
+            summary: string;
+            takedown?: null | components["schemas"]["CaseTakedown"];
+            target_id?: string | null;
+            target_kind: components["schemas"]["TargetKind"];
+            /** Format: int64 */
+            updated_at_ms: number;
+        };
+        /** @description The notice behind a takedown case: its reference and kind, for the badge on the case list and page. */
+        CaseTakedown: {
+            kind: components["schemas"]["TakedownKind"];
+            notice_id: string;
+        };
         /** @description One approved effect or decoration. */
         CatalogEntryObject: {
             /** @description Image file stem under `/cdn/avatar-decorations/` (decorations only). */
@@ -13340,6 +14368,32 @@ export interface components {
         ChannelActivity: {
             enabled: boolean;
             instance?: null | components["schemas"]["InstanceView"];
+        };
+        /** @description One module as a channel sees it. */
+        ChannelFeatureObject: {
+            description: string;
+            /** @description Whether the module is on in this channel (the server's switch narrowed by the channel's). */
+            enabled: boolean;
+            /** @description Whether the module is on in the server. A channel cannot switch it on by itself. */
+            guild_enabled: boolean;
+            id: string;
+            /**
+             * @description What the channel would use with no overrides of its own: the defaults and the server's
+             *     settings, for the fields that belong to the channel level.
+             */
+            inherited: Record<string, never>;
+            name: string;
+            /** @description The channel's own switch: `true` or `false`, or `null` when it follows the server. */
+            override_enabled?: boolean | null;
+            /** @description Only what this channel overrides. */
+            overrides: Record<string, never>;
+            /** @description The platform operator switched the module off everywhere. */
+            platform_disabled: boolean;
+            /** @description The settings schema of the channel level, for the auto-rendered form. */
+            schema: Record<string, never>;
+            section: string;
+            /** @description Effective settings in this channel (defaults, the server's, then the channel's). */
+            settings: Record<string, never>;
         };
         ChannelObject: {
             /** @description Forum tag ids applied to a post. */
@@ -14208,6 +15262,28 @@ export interface components {
             /** Format: int32 */
             count: number;
         };
+        /** @description One notice that counts as a strike. */
+        CountedNotice: {
+            /** @description A counter-notice is pending. */
+            contested: boolean;
+            id: string;
+            kind: components["schemas"]["TakedownKind"];
+            /** Format: int64 */
+            removed_at_ms: number;
+            state: components["schemas"]["NoticeState"];
+        };
+        /** @description Body of a counter-notice. */
+        CounterNoticeBody: {
+            /** @description The counter-notice as received, kept verbatim. */
+            text: string;
+        };
+        /** @description Body of a court-filing note. */
+        CourtFilingBody: {
+            /** @description `true` to note that the notifier went to court (the job will not restore); `false` to clear it. */
+            noted: boolean;
+            /** @description Why. Required. */
+            reason?: string | null;
+        };
         /** @description Body of `POST /library/submissions/{id}/cover`. */
         CoverBody: {
             /** @description `data:image/jpeg;base64,...` or `data:image/png;base64,...`: one image of at most 2 MiB. */
@@ -14585,6 +15661,69 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        /** @description A queue row. */
+        DataRequest: {
+            account_id: string;
+            /** Format: int64 */
+            completed_at_ms?: number | null;
+            created_by: string;
+            /**
+             * Format: int64
+             * @description The deadline computed when the request was entered.
+             */
+            due_at_ms: number;
+            /**
+             * Format: int64
+             * @description `extended_until_ms` when extended, else `due_at_ms`.
+             */
+            effective_due_ms: number;
+            /** @description The `data_exports` row an export run queued. */
+            export_id?: string | null;
+            /**
+             * Format: int64
+             * @description When the extension was recorded.
+             */
+            extended_at_ms?: number | null;
+            /** @description The extension was granted after the original `due_at` (it does not cure a missed deadline). */
+            extended_late: boolean;
+            /**
+             * Format: int64
+             * @description The new deadline once the one extension was recorded.
+             */
+            extended_until_ms?: number | null;
+            extension_reason?: string | null;
+            id: string;
+            kind: components["schemas"]["DataRequestKind"];
+            /**
+             * Format: int64
+             * @description When the member was told of the extension by system DM; `None` when no DM could be sent.
+             */
+            member_notified_at_ms?: number | null;
+            note: string;
+            outcome?: string | null;
+            /** @description Active and past the effective deadline. */
+            overdue: boolean;
+            person_id: string;
+            /** Format: int64 */
+            received_at_ms: number;
+            /** @description Ids of the [`retained`] records an erasure named. */
+            retained: string[];
+            state: components["schemas"]["DataRequestState"];
+            username: string;
+            /** Format: int64 */
+            verified_at_ms?: number | null;
+            verified_by?: string | null;
+        };
+        /**
+         * @description What the request asks for.
+         * @enum {string}
+         */
+        DataRequestKind: "export" | "erasure";
+        /**
+         * @description Where the request stands.
+         * @enum {string}
+         */
+        DataRequestState: "open" | "verified" | "running" | "completed" | "declined";
         DecideRequestBody: {
             approve: boolean;
             note?: string | null;
@@ -14652,6 +15791,29 @@ export interface components {
             created_at_ms: number;
             id: string;
             state: string;
+        };
+        /** @description The staff-only archive of a deleted account's original identifiers (D-326). */
+        DeletedArchive: {
+            account_id: string;
+            /** Format: int32 */
+            credits_forfeited: number;
+            /** Format: int64 */
+            deleted_at_ms: number;
+            display_name?: string | null;
+            email: string;
+            /** Format: int32 */
+            invites_revoked: number;
+            username: string;
+            /**
+             * Format: int64
+             * @description When the username can be taken again.
+             */
+            username_release_at_ms: number;
+        };
+        /** @description `{ "delivered": bool }`. */
+        Delivered: {
+            /** @description Whether the system DM went out. */
+            delivered: boolean;
         };
         /** @description An application. The client secret is never part of it. */
         DeveloperApplicationObject: {
@@ -15162,6 +16324,11 @@ export interface components {
             errors?: unknown;
             /** @description Human-readable message. */
             message: string;
+        };
+        /** @description Body of an escalation. */
+        EscalateBody: {
+            /** @description Why the server's moderators hand this over. */
+            reason?: string | null;
         };
         /** @description `entity_metadata` of an event. */
         EventMetadata: {
@@ -15732,6 +16899,82 @@ export interface components {
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
+        /** @description Body of a hold. */
+        HoldBody: {
+            /** @description The message, attachment or submission; for `user_messages` the account. */
+            id: string;
+            /** @description `message` (with its attachments), `attachment`, `submission` or `user_messages`. */
+            kind: string;
+            /** @description Why. Required. */
+            reason?: string | null;
+            /**
+             * Format: int64
+             * @description `user_messages` only: the window, Unix milliseconds (`since_ms` inclusive, `until_ms` exclusive).
+             */
+            since_ms?: number | null;
+            /** Format: int64 */
+            until_ms?: number | null;
+        };
+        /** @description What a placed hold froze. */
+        HoldPlaced: {
+            /** Format: int64 */
+            attachments: number;
+            hold_id: string;
+            /** Format: int64 */
+            messages: number;
+            /** Format: int64 */
+            submissions: number;
+        };
+        /** @description Body of a release. */
+        HoldReleaseBody: {
+            /** @description Why. Required. */
+            reason?: string | null;
+        };
+        /** @description What a release did. */
+        HoldReleased: {
+            /** Format: int64 */
+            attachments: number;
+            /** Format: int64 */
+            messages: number;
+            /**
+             * Format: int64
+             * @description Deleted messages that the next purge run takes.
+             */
+            purgeable_messages: number;
+            /** Format: int64 */
+            submissions: number;
+        };
+        /** @description A hold, in force or released. */
+        HoldView: {
+            /** Format: int64 */
+            attachments: number;
+            case_id?: string | null;
+            /**
+             * Format: int64
+             * @description Library and cinema rows (series, chapters, titles, episodes) it freezes.
+             */
+            catalog_rows?: number;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description `None` when the system placed it (a report on a message). */
+            created_by?: string | null;
+            id: string;
+            /**
+             * Format: int64
+             * @description Messages, attachments and submissions the hold freezes right now.
+             */
+            messages: number;
+            reason: string;
+            release_reason?: string | null;
+            /** Format: int64 */
+            released_at_ms?: number | null;
+            /** @description Older than `moderation.hold_review_days`, so it is flagged for review (D-212). */
+            review_due: boolean;
+            scope_id?: string | null;
+            scope_kind?: string | null;
+            /** Format: int64 */
+            submissions: number;
+        };
         HostingView: {
             /** Format: int32 */
             cost_cents: number;
@@ -16110,6 +17353,11 @@ export interface components {
             /** @description `approved`, `rejected` or `pending` (undo). */
             state: components["schemas"]["ItemState"];
         };
+        /**
+         * @description What a notice item points at.
+         * @enum {string}
+         */
+        ItemKind: "message" | "attachment" | "library_series" | "library_chapter" | "cinema_title" | "cinema_episode";
         /**
          * @description Decision state of one item (a chapter, an episode).
          * @enum {string}
@@ -16848,6 +18096,60 @@ export interface components {
             /** Format: int64 */
             upload_url_expires_in: number;
         };
+        /** @description Body of `POST /sr/users/@me/messages/delete-all`. */
+        MessagesSelfDeleteBody: {
+            /**
+             * Format: int64
+             * @description Only messages older than this (Unix milliseconds).
+             */
+            before_ms?: number | null;
+            /** @description The account's username, typed to confirm (case-insensitive). */
+            confirm_username: string;
+            /** @description Hide messages in direct messages and group DMs. */
+            dms: boolean;
+            mfa?: null | components["schemas"]["MfaProof"];
+            /** @description Current password. */
+            password: string;
+            /** @description Hide messages in servers (including servers you left). */
+            servers: boolean;
+        };
+        /** @description What a run would hide, and the last run. */
+        MessagesSelfDeletePreview: {
+            /**
+             * Format: int64
+             * @description Visible messages inside the scope right now (messages under a hold are included: they are
+             *     hidden from everyone but never purged).
+             */
+            count: number;
+            last?: null | components["schemas"]["MessagesSelfDeleteRun"];
+            /**
+             * Format: int64
+             * @description Your poll votes a run would remove; votes in closed polls stay as anonymous counts.
+             */
+            poll_votes: number;
+            /**
+             * Format: int64
+             * @description Your reactions inside the scope that a run would remove (not those on held messages).
+             */
+            reactions: number;
+        };
+        /** @description A run. */
+        MessagesSelfDeleteRun: {
+            /** Format: int64 */
+            before_ms?: number | null;
+            dms: boolean;
+            finished_at?: string | null;
+            /**
+             * Format: int64
+             * @description Messages hidden, once done.
+             */
+            hidden_count?: number | null;
+            id: string;
+            requested_at: string;
+            servers: boolean;
+            /** @description `queued`, `running`, `done` or `failed`. */
+            state: string;
+        };
         /** @description Body of `POST /guilds/{id}/mfa`. */
         MfaLevelBody: {
             /**
@@ -17201,6 +18503,17 @@ export interface components {
             /** Format: int32 */
             rank: number;
         };
+        /** @description A report as its own author reads it: a status and a short outcome line, never the other party. */
+        MyReport: {
+            category: components["schemas"]["ReportCategory"];
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            outcome_line: string;
+            state: components["schemas"]["ReportState"];
+            target_id: string;
+            target_kind: components["schemas"]["TargetKind"];
+        };
         /** @description Body of `POST /submissions/naming/parse`. */
         NamingParseBody: {
             /** @description Up to 200 file names or relative paths. */
@@ -17217,6 +18530,53 @@ export interface components {
         NamingParseResult: {
             items: components["schemas"]["NamingParseItem"][];
         };
+        /** @description A case opened by staff (no report). */
+        NewCase: {
+            category: components["schemas"]["ReportCategory"];
+            /** @description The account the case is about, when there is one; its Person becomes the subject. */
+            subject_account_id?: string | null;
+            summary?: string;
+            target_id?: string | null;
+            target_kind: components["schemas"]["TargetKind"];
+        };
+        /** @description A piece of content found for a notice. */
+        NewItem: {
+            id: string;
+            kind: components["schemas"]["ItemKind"];
+        };
+        /** @description What staff enter for a notice (spec 5, step 1). */
+        NewNotice: {
+            kind: components["schemas"]["TakedownKind"];
+            /** @description The work claimed (copyright) or the legal basis (illegal content). */
+            legal_basis: string;
+            /** @description The exact URLs or ids the notifier named. */
+            locations?: string[];
+            /** @description Email, postal address or phone, as the notifier gave it. */
+            notifier_contact: string;
+            notifier_name: string;
+            /** @description The notice as received, kept verbatim. */
+            original_text: string;
+            /**
+             * Format: int64
+             * @description When it arrived (Unix ms); now when absent.
+             */
+            received_at_ms?: number | null;
+        };
+        /** @description What a member sends to report something. The client sends ids and the note; the server snapshots the evidence. */
+        NewReport: {
+            category: components["schemas"]["ReportCategory"];
+            /** @description A message report names the channel the message is in. */
+            channel_id?: string | null;
+            /** @description A user report may name the server it was filed from, so that server's moderators get it. */
+            guild_id?: string | null;
+            /** @description "Moderators may see my name" (off by default). */
+            moderators_may_see_name?: boolean;
+            /** @description Up to 2000 characters. */
+            note?: string;
+            /** @description Snowflake of the message, account, channel, server, series or title. */
+            target_id: string;
+            target_kind: components["schemas"]["TargetKind"];
+        };
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
@@ -17229,6 +18589,59 @@ export interface components {
             note: string;
             note_user_id: string;
             user_id: string;
+        };
+        /** @description A notice with everything staff need on its page. */
+        NoticeDetail: components["schemas"]["NoticeSummary"] & {
+            counter_notice_text: string;
+            /** Format: int64 */
+            counter_noticed_at_ms?: number | null;
+            entered_by: string;
+            events: components["schemas"]["NoticeEvent"][];
+            items: components["schemas"]["TakedownItem"][];
+            legal_basis: string;
+            locations: string[];
+            notifier_contact: string;
+            original_text: string;
+            rejection_reason: string;
+            restore_reason: string;
+            /** Format: int64 */
+            restored_at_ms?: number | null;
+            strikes: components["schemas"]["StrikeCount"][];
+        };
+        /** @description One entry of a notice's timeline. */
+        NoticeEvent: {
+            actor_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            detail: Record<string, never>;
+            id: string;
+            kind: string;
+        };
+        /**
+         * @description Where a notice is in its life.
+         * @enum {string}
+         */
+        NoticeState: "received" | "triage" | "rejected" | "removed" | "counter_noticed" | "restored" | "withdrawn";
+        /** @description A row of the register. */
+        NoticeSummary: {
+            case_id?: string | null;
+            court_filing_noted: boolean;
+            id: string;
+            /** Format: int64 */
+            items: number;
+            kind: components["schemas"]["TakedownKind"];
+            notifier_name: string;
+            /** Format: int64 */
+            received_at_ms: number;
+            /** Format: int64 */
+            removed_at_ms?: number | null;
+            /** Format: int64 */
+            restore_after_ms?: number | null;
+            state: components["schemas"]["NoticeState"];
+            /** Format: int64 */
+            triage_due_at_ms: number;
+            /** @description Received or in triage and past the one-business-day target. */
+            triage_overdue: boolean;
         };
         /** @description The caller's own default notification level. */
         NotificationDefaultsObject: {
@@ -17291,6 +18704,12 @@ export interface components {
             channel_ids: string[];
             /** @description Roles newly granted by the answers (roles with moderation power are never granted). */
             role_ids: string[];
+        };
+        /** @description Body of a staff-opened case: the case plus an optional server and severity. */
+        OpenCaseBody: components["schemas"]["NewCase"] & {
+            /** @description The server the case is about. */
+            guild_id?: string | null;
+            severity?: null | components["schemas"]["CaseSeverity"];
         };
         OptionDto: {
             channel_ids?: string[];
@@ -17632,6 +19051,12 @@ export interface components {
         PatchBotBody: {
             username: string;
         };
+        PatchChannelFeatureBody: {
+            /** @description This channel's own switch for the module. */
+            enabled?: boolean | null;
+            /** @description Replace the channel's setting overrides (validated against the channel schema). */
+            settings?: Record<string, never> | null;
+        };
         PatchConfigBody: {
             /** @description A JSON merge patch over the configuration (`DonationConfig` fields). */
             changes: Record<string, never>;
@@ -17684,6 +19109,10 @@ export interface components {
             reason?: string | null;
             /** @description Setting key to new value; unknown keys or out-of-range values reject the whole patch. */
             values: Record<string, never>;
+        };
+        PatchUserFeatureBody: {
+            /** @description Replace the person's preferences for the module (validated against the personal schema). */
+            settings: Record<string, never>;
         };
         /** @description Body of `PATCH /users/@me/settings`. */
         PatchUserSettingsBody: {
@@ -18245,6 +19674,11 @@ export interface components {
         PublicComplianceObject: {
             /**
              * Format: int32
+             * @description Years invoices stay linked to a member after the year of payment (D-325).
+             */
+            invoice_retention_years: number;
+            /**
+             * Format: int32
              * @description The age a person must be to register (13 unless the operator raised it).
              */
             minimum_age: number;
@@ -18505,6 +19939,10 @@ export interface components {
              */
             reason?: string | null;
         };
+        /** @description Body of actions that only need a reason. */
+        ReasonOnly: {
+            reason?: string | null;
+        };
         /** @description Body of `POST /sr/auth/reauth`. */
         ReauthBody: {
             code: string;
@@ -18577,6 +20015,11 @@ export interface components {
             /** @description `clientDataJSON`. */
             clientDataJSON: string;
         };
+        /** @description The reply text for an incomplete notice. */
+        RejectOutcome: {
+            /** @description The templated reply staff send to the notifier. */
+            reply: string;
+        };
         RelationshipObject: {
             /** @description The other user's id. */
             id: string;
@@ -18640,6 +20083,22 @@ export interface components {
             /** @description `data:image/<type>;base64,...`: one PNG, JPEG, WebP, GIF or AVIF image of at most 16 MiB. */
             image: string;
         };
+        /**
+         * @description Why something is reported or why a case exists: the ban reason vocabulary of spec section 8
+         *     (`ban_reason_category`), which already includes "something else" as `other`.
+         * @enum {string}
+         */
+        ReportCategory: "spam" | "harassment" | "illegal_content" | "child_safety" | "ban_evasion" | "fraud" | "platform_abuse" | "nsfw_policy" | "other";
+        /** @description What the reporter gets back. */
+        ReportReceipt: {
+            id: string;
+            state: components["schemas"]["ReportState"];
+        };
+        /**
+         * @description What the reporter can read about their report.
+         * @enum {string}
+         */
+        ReportState: "received" | "under_review" | "closed";
         ReportView: {
             by_day: Record<string, never>[];
             /** @description `[purpose, cents, count]`. */
@@ -18651,6 +20110,11 @@ export interface components {
             from_ms: number;
             /** Format: int64 */
             to_ms: number;
+        };
+        /** @description The reporter of a report, shown only to who may see it (spec 3.3). */
+        ReporterView: {
+            account_id: string;
+            username: string;
         };
         RequestPage: {
             items: components["schemas"]["ContentRequest"][];
@@ -18697,6 +20161,12 @@ export interface components {
         RespondBody: {
             /** @description `true` to accept (and join the staff), `false` to decline. */
             accept: boolean;
+        };
+        /** @description One record kept after an erasure, with the reason (G-66, D-124, D-295). */
+        RetainedRecord: {
+            id: string;
+            label: string;
+            reason: string;
         };
         RetranscodeBody: {
             /** @description The asset or title id; required unless the scope is `all`. */
@@ -18789,6 +20259,11 @@ export interface components {
             reason?: string | null;
             role_ids: string[];
         };
+        /**
+         * @description Who works a case (D-209).
+         * @enum {string}
+         */
+        Routing: "guild" | "platform" | "reviewers";
         Row: {
             collection_id?: string | null;
             display: components["schemas"]["CollectionDisplay"];
@@ -19363,6 +20838,14 @@ export interface components {
              */
             type?: number | null;
         };
+        /** @description Body of a state change. */
+        StateBody: {
+            /** @description What was decided, in a few words. Required when closing. */
+            outcome?: string | null;
+            /** @description The line reporters read when the case closes. Never names the other party. */
+            reporter_line?: string | null;
+            to: components["schemas"]["CaseState"];
+        };
         /** @description The dashboard counts, plus the voice figures when the SFU runs in this process. */
         StatsView: components["schemas"]["SystemCounts"] & {
             /**
@@ -19421,6 +20904,28 @@ export interface components {
         StreamPreviewBody: {
             /** @description `data:image/jpeg;base64,...`, at most 256 KiB once decoded. */
             thumbnail: string;
+        };
+        /** @description The strikes of one Person named by a notice. */
+        StrikeCount: {
+            /**
+             * Format: int64
+             * @description Of those, the notices whose content is down while a counter-notice is pending.
+             */
+            contested: number;
+            /** @description The notices counted, newest first. */
+            counted: components["schemas"]["CountedNotice"][];
+            person_id: string;
+            /** @description The review case the counter opened for this Person, when it did. */
+            review_case_id?: string | null;
+            /**
+             * Format: int64
+             * @description Upheld takedowns inside the window, this one included once it is upheld.
+             */
+            strikes: number;
+            /** Format: int64 */
+            threshold: number;
+            /** Format: int64 */
+            window_months: number;
         };
         /** @description A submission as stored. */
         Submission: {
@@ -19663,6 +21168,43 @@ export interface components {
             moderated?: boolean;
             name: string;
         };
+        /** @description One content item of a notice. */
+        TakedownItem: {
+            /** Format: int64 */
+            disabled_at_ms?: number | null;
+            hold_id?: string | null;
+            id: string;
+            kind: components["schemas"]["ItemKind"];
+            label: string;
+            /** Format: int64 */
+            restored_at_ms?: number | null;
+            state: components["schemas"]["ItemState"];
+            subject_account_id?: string | null;
+            target_id: string;
+        };
+        /**
+         * @description Whether a library or cinema item is held or taken down: `none`, `held` or `taken_down`. For the reader and
+         *     player pages; the answer is only the state.
+         */
+        TakedownItemStatus: {
+            /** @description `none`, `held` or `taken_down`. */
+            state: string;
+        };
+        /**
+         * @description The two kinds of notice (spec 5).
+         * @enum {string}
+         */
+        TakedownKind: "copyright" | "illegal_content";
+        /** @description A body that carries a reason. */
+        TakedownReasonBody: {
+            /** @description Why. Required. */
+            reason?: string | null;
+        };
+        /**
+         * @description What a report or a case is about.
+         * @enum {string}
+         */
+        TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "other";
         TempRoleObject: {
             /**
              * Format: int64
@@ -20458,6 +22000,18 @@ export interface components {
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
+        /** @description What upholding a notice did. */
+        UpholdOutcome: {
+            /** Format: int64 */
+            items_disabled: number;
+            /**
+             * Format: int64
+             * @description Uploaders or authors who got the system DM.
+             */
+            notified: number;
+            /** @description The review case opened because a Person reached the threshold. */
+            review_case_id?: string | null;
+        };
         /** @description An upload as the API shows it (the status the client polls). */
         Upload: {
             chapter_id: string;
@@ -20557,6 +22111,19 @@ export interface components {
             prefix: string;
             /** @description `https://api.example.com/v1`: https, no query. */
             target: string;
+        };
+        /** @description One module as a person sees it. */
+        UserFeatureObject: {
+            description: string;
+            id: string;
+            name: string;
+            /** @description Only what the person changed. */
+            overrides: Record<string, never>;
+            /** @description The settings schema of the personal level, for the auto-rendered form. */
+            schema: Record<string, never>;
+            section: string;
+            /** @description The person's effective preferences (defaults plus what they chose). */
+            settings: Record<string, never>;
         };
         UserGuildSettingsObject: {
             channel_overrides: components["schemas"]["ChannelOverrideObject"][];
@@ -20761,6 +22328,11 @@ export interface components {
             network: string;
             /** Format: int32 */
             next_index: number;
+        };
+        /** @description Body of a warning. */
+        WarnBody: {
+            /** @description Up to 1000 characters; sent to the person as a system DM that never names a reporter. */
+            text: string;
         };
         /** @description A watch party, as returned by the API and carried by `WATCH_PARTY_UPDATE`. */
         WatchParty: {
@@ -21855,6 +23427,52 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    deleted_archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedArchive"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -23882,6 +25500,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     admin_cinema_link_episode_asset: {
@@ -24710,6 +26336,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     admin_cinema_artwork_upload: {
@@ -25437,6 +27071,412 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only requests that still need staff (default true) */
+                active_only?: boolean;
+                /** @description At most 200 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDataRequestList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateDataRequestBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_one: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    decline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    extend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminExtendDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRunDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -27873,6 +29913,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
         };
     };
     admin_library_pages: {
@@ -28892,6 +30940,14 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -37737,6 +39793,134 @@ export interface operations {
             };
             /** @description Another sound was just played (900012) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_channel_features: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelFeatureObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_channel_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Feature id, e.g. lounge.message_quotes */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_channel_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Feature id, e.g. lounge.message_quotes */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchChannelFeatureBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelFeatureObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -51589,6 +53773,2067 @@ export interface operations {
             };
         };
     };
+    list_appeals: {
+        parameters: {
+            query?: {
+                /** @description Only appeals not decided yet (default true). */
+                open_only?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppealView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    file_appeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppealBody"];
+            };
+        };
+        responses: {
+            /** @description The appeal was filed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    decide_appeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Appeal snowflake */
+                appeal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppealDecisionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppealView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_cases: {
+        parameters: {
+            query?: {
+                /** @description `open`, `triage`, `investigating`, `actioned`, `dismissed` or `closed`. */
+                state?: string;
+                /** @description Only cases still being worked (open, triage, investigating). */
+                open_only?: boolean;
+                category?: string;
+                severity?: string;
+                /** @description Assigned to this account. */
+                assignee?: string;
+                /** @description Platform staff only: cases of this server. */
+                guild_id?: string;
+                /** @description Cases about this account. */
+                subject_account_id?: string;
+                /** @description `takedown`: only cases opened for a takedown notice. */
+                source?: string;
+                /** @description `next_cursor` of the previous page. */
+                cursor?: string;
+                /** @description Oldest first (the work queue); default newest first. */
+                oldest_first?: boolean;
+                /** @description 1 to 100, default 25. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CasePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    open_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenCaseBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    record_action: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    claim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    release: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ban: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaseBanBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanDone"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    escalate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EscalateBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    place: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldPlaced"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaseNoteBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseNote"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reopen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonOnly"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StateBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    warn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WarnBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Delivered"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    guild_cases: {
+        parameters: {
+            query?: {
+                /** @description `open`, `triage`, `investigating`, `actioned`, `dismissed` or `closed`. */
+                state?: string;
+                /** @description Only cases still being worked (open, triage, investigating). */
+                open_only?: boolean;
+                category?: string;
+                severity?: string;
+                /** @description Assigned to this account. */
+                assignee?: string;
+                /** @description Platform staff only: cases of this server. */
+                guild_id?: string;
+                /** @description Cases about this account. */
+                subject_account_id?: string;
+                /** @description `takedown`: only cases opened for a takedown notice. */
+                source?: string;
+                /** @description `next_cursor` of the previous page. */
+                cursor?: string;
+                /** @description Oldest first (the work queue); default newest first. */
+                oldest_first?: boolean;
+                /** @description 1 to 100, default 25. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Server snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CasePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only holds still in force (default true). */
+                active_only?: boolean;
+                /** @description 1 to 200, default 100. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    release: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hold snowflake */
+                hold_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldReleaseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HoldReleased"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reviewed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hold snowflake */
+                hold_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    item_status: {
+        parameters: {
+            query: {
+                /** @description `library_series`, `library_chapter`, `cinema_title` or `cinema_episode`. */
+                kind: string;
+                /** @description The series, chapter, title or episode. */
+                id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TakedownItemStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    file_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewReport"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportReceipt"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    my_reports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyReport"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only one state: `received`, `triage`, `rejected`, `removed`, `counter_noticed`, `restored`, `withdrawn`. */
+                state?: string;
+                /** @description 1 to 500, default 200. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeSummary"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewNotice"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    export: {
+        parameters: {
+            query?: {
+                /** @description `csv` (default) or `json`. */
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/csv, or a JSON array of notices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    counter_notice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterNoticeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    court_filing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CourtFilingBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    hold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewItem"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+                /** @description Item snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RejectOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    uphold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpholdOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Notice snowflake */
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakedownReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -53691,6 +57936,88 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query?: {
+                /** @description Count messages in servers (default true) */
+                servers?: boolean;
+                /** @description Count messages in direct messages (default true) */
+                dms?: boolean;
+                /** @description Only messages older than this */
+                before_ms?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesSelfDeletePreview"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessagesSelfDeleteBody"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesSelfDeleteRun"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description A run is open, or one ran in the last 24 hours */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -58393,6 +62720,103 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_user_features: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserFeatureObject"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_user_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Feature id, e.g. community.leveling */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_user_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Feature id, e.g. community.leveling */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchUserFeatureBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserFeatureObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

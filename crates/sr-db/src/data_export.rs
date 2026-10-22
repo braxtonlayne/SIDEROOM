@@ -7,7 +7,7 @@
 //! The package contains: `README.txt`, `account.json`, `settings.json`, `relationships.json`,
 //! `servers.json`, `connections.json`, `invites.json`, `invoices.json`, `activity.json`
 //! (ratings, reviews, watch and read history, lists), `security.json` (sessions and sign-in
-//! history, never password hashes or tokens), `attachments.json` (an index of uploads, not the
+//! history, never password hashes or tokens), `reactions.json` and `poll_votes.json` (the member's own reactions and votes, with the message and channel ids but not the message text, N-15), `attachments.json` (an index of uploads, not the
 //! files) and `messages/<channel id>.json` (the account's own undeleted messages).
 
 use std::io::{Seek, Write};
@@ -134,6 +134,23 @@ pub async fn request(
             retry_after_secs: w.ceil() as i64,
         }));
     }
+    queue_in(&mut tx, id, job_id, user).await?;
+    let row = query(format!("SELECT {COLS} FROM data_exports WHERE id = $1"))
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Ok(record(&row)?))
+}
+
+/// Insert the request row and its build job inside `tx` (shared by the self-service route and the staff
+/// data-request queue, which skips the 24-hour cooldown but not the one-open-request rule).
+pub(crate) async fn queue_in(
+    tx: &mut sqlx::PgConnection,
+    id: i64,
+    job_id: i64,
+    user: i64,
+) -> DbResult<()> {
     sqlx::query("INSERT INTO data_exports (id, user_id) VALUES ($1, $2)")
         .bind(id)
         .bind(user)
@@ -148,12 +165,7 @@ pub async fn request(
         ),
     )
     .await?;
-    let row = query(format!("SELECT {COLS} FROM data_exports WHERE id = $1"))
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(Ok(record(&row)?))
+    Ok(())
 }
 
 /// Claim a pending request for building. `None` when it is gone or already taken.
@@ -180,6 +192,14 @@ pub async fn finish(pool: &PgPool, id: i64, key: &str, size: i64) -> DbResult<()
     .bind(i32::try_from(KEEP_DAYS).unwrap_or(7))
     .execute(pool)
     .await?;
+    // A staff data-request export (M-25 step c) completes with its package.
+    sqlx::query(
+        "UPDATE data_requests SET state = 'completed', completed_at = now(), outcome = $2 WHERE export_id = $1 AND state = 'running'",
+    )
+    .bind(id)
+    .bind(sr_admin::data_requests::EXPORT_DONE)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -190,6 +210,13 @@ pub async fn fail(pool: &PgPool, id: i64, error: &str) -> DbResult<()> {
         .bind(error.chars().take(500).collect::<String>())
         .execute(pool)
         .await?;
+    // The queue entry goes back to verified so staff can run the export again.
+    sqlx::query(
+        "UPDATE data_requests SET state = 'verified', export_id = NULL WHERE export_id = $1 AND state = 'running'",
+    )
+    .bind(id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -240,7 +267,7 @@ const README: &str = "SIDE ROOM data package\n\
 This archive holds the data tied to your account, as JSON files.\n\
 \n\
   account.json        your profile and account details\n\
-  settings.json       your settings, privacy and notification choices, chosen status\n\
+  settings.json       your settings, privacy and notification choices, chosen status, personal module settings\n\
   relationships.json  friends, requests, blocks, ignores and your private notes\n\
   servers.json        servers you belong to or own, with your nickname there\n\
   connections.json    linked accounts\n\
@@ -248,6 +275,8 @@ This archive holds the data tied to your account, as JSON files.\n\
   invoices.json       your donations and purchases\n\
   activity.json       ratings, reviews, lists, watch and read history, your profile page and packages\n\
   security.json       signed-in sessions and recent sign-in attempts\n\
+  reactions.json      the reactions you added (message, channel, emoji, time)\n\
+  poll_votes.json     the poll votes you cast (message, channel, answer, time)\n\
   attachments.json    an index of files you uploaded (the files themselves are not included)\n\
   messages/           the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
@@ -255,12 +284,24 @@ This archive holds the data tied to your account, as JSON files.\n\
 Passwords, tokens and keys are never part of this package.\n\
 Messages you deleted are hidden from everyone and are not listed.\n\
 \n\
-What stays after you delete your account\n\
-Some records are kept after erasure so that bans, invoices and moderation decisions keep\n\
-their history: your Person record (the link between your accounts), the invite graph,\n\
-your invoices and the staff-side moderation history. They are kept to stop banned people\n\
-from returning, to meet accounting duties and to keep staff decisions accountable.\n\
-Your profile and your sign-in data are removed.\n";
+";
+
+/// The README: the fixed text, then what stays after erasure. The eight records come from
+/// [`sr_admin::retained`], the same list the staff data-request queue writes into an erasure outcome
+/// (D-318), so the package, the deletion screen and the outcome cannot drift apart.
+pub fn readme(invoice_years: u8) -> String {
+    let mut out = String::from(README);
+    out.push_str("What stays after you delete your account\n");
+    out.push_str(
+        "Your profile, password, passkeys, sessions and email address are removed from your account;\n\
+         the linked Discord identity is kept only to recognise you if you return. These records stay:\n",
+    );
+    for r in sr_admin::retained(invoice_years) {
+        out.push_str(&format!("  - {}: {}\n", r.label, r.reason));
+    }
+    out.push_str("Messages you leave in place stay. Delete them first if you want them gone.\n");
+    out
+}
 
 /// Write the package for `user` into `out` (a zip). Returns the number of messages written.
 pub async fn build_package<W: Write + Seek>(
@@ -268,11 +309,13 @@ pub async fn build_package<W: Write + Seek>(
     user: i64,
     out: W,
     now_ms: i64,
+    invoice_years: u8,
 ) -> DbResult<u64> {
     let mut zip = ZipWriter::new(out);
     zip.start_file("README.txt", SimpleFileOptions::default())
         .map_err(zip_err)?;
-    zip.write_all(README.as_bytes()).map_err(zip_err)?;
+    zip.write_all(readme(invoice_years).as_bytes())
+        .map_err(zip_err)?;
 
     let account = rows(
         pool,
@@ -292,6 +335,7 @@ pub async fn build_package<W: Write + Seek>(
 
     let settings = json!({
         "user_settings": rows(pool, "SELECT settings, version, default_notification_level, updated_at FROM user_settings WHERE user_id = $1", user).await?,
+        "module_settings": rows(pool, "SELECT feature, COALESCE(config -> 'values', '{}'::jsonb) AS settings, updated_at FROM feature_enablements WHERE scope = 'user' AND scope_id = $1 ORDER BY feature", user).await?,
         "privacy": rows(pool, "SELECT fr_everyone, fr_friends_of_friends, fr_server_members, dm_server_members, dm_message_requests FROM user_privacy WHERE user_id = $1", user).await?,
         "notification_settings": rows(pool, "SELECT guild_id::text AS guild_id, level, suppress_everyone, suppress_roles, suppress_highlights, mute_scheduled_events, mobile_push, muted, mute_end_at FROM notification_settings WHERE user_id = $1", user).await?,
         "presence": rows(pool, "SELECT status, status_expires_at, custom_text, custom_emoji_name, custom_expires_at FROM user_presence_prefs WHERE user_id = $1", user).await?,
@@ -364,6 +408,19 @@ pub async fn build_package<W: Write + Seek>(
         &mut zip,
         "attachments.json",
         &rows(pool, "SELECT id::text AS id, message_id::text AS message_id, filename, content_type, size_bytes, width, height, description, is_large, expires_at, state::text AS state, created_at FROM attachments WHERE uploader_id = $1 ORDER BY id", user).await?,
+    )?;
+
+    // N-15 (Art. 15): the member's own reactions and poll votes. They name the message and channel but
+    // not its text, which belongs to the author.
+    put(
+        &mut zip,
+        "reactions.json",
+        &rows(pool, "SELECT r.message_id::text AS message_id, m.channel_id::text AS channel_id, r.emoji_key, r.burst, r.created_at FROM reactions r JOIN messages m ON m.id = r.message_id WHERE r.user_id = $1 ORDER BY r.created_at, r.message_id", user).await?,
+    )?;
+    put(
+        &mut zip,
+        "poll_votes.json",
+        &rows(pool, "SELECT v.message_id::text AS message_id, m.channel_id::text AS channel_id, v.answer_id, v.created_at FROM poll_votes v JOIN messages m ON m.id = v.message_id WHERE v.user_id = $1 ORDER BY v.created_at, v.message_id", user).await?,
     )?;
 
     // Messages: one file per channel, paged so a long history never sits in memory twice.

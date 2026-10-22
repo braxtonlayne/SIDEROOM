@@ -4,6 +4,9 @@
 //!   a temporary file, stores the zip under `exports/<user>/<id>.zip` and offers it for
 //!   7 days. Retried with backoff; after the last attempt the request is marked failed so the
 //!   member can ask again at once.
+//! * `user.messages_self_delete` hides a member's own messages (N-05, D-324): `sr_db::self_delete`,
+//!   then one `MESSAGE_DELETE_BULK` per channel, an access-log row, a `member_self_delete` event on the
+//!   member's open moderation cases (D-324) and a system DM with the count.
 //! * `user.data_export.sweep` (hourly singleton) deletes packages whose link lapsed.
 //! * `user.connections.refresh` (hourly singleton) re-reads the public stats of GitHub and
 //!   Reddit connections older than a day (LNG-USET-024); no token is stored, so other
@@ -18,6 +21,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use bytes::Bytes;
 use serde_json::json;
+use sr_api::routes::auth::{
+    SelfDeleteCounts, SelfDeleteRefusal, SelfDeleteRun, SelfDeleteScope, SelfDeleteStore,
+};
 use sr_api::routes::social::SocialDeps;
 use sr_api::routes::userset::connections::{REFRESHABLE, refresh_stats};
 use sr_api::routes::userset::data_export::{DataExportStore, ExportRecord, Refusal};
@@ -116,15 +122,243 @@ impl DataExportStore for PgExportStore {
     }
 }
 
+fn scope_in(s: SelfDeleteScope) -> sr_db::self_delete::Scope {
+    sr_db::self_delete::Scope {
+        servers: s.servers,
+        dms: s.dms,
+        before_ms: s.before_ms,
+    }
+}
+
+fn run_out(r: sr_db::self_delete::Run) -> SelfDeleteRun {
+    SelfDeleteRun {
+        id: r.id,
+        state: r.state,
+        scope: SelfDeleteScope {
+            servers: r.scope.servers,
+            dms: r.scope.dms,
+            before_ms: r.scope.before_ms,
+        },
+        requested_ms: r.requested_ms,
+        finished_ms: r.finished_ms,
+        hidden_count: r.hidden_count,
+    }
+}
+
+/// Postgres behind the self-delete routes.
+pub struct PgSelfDeleteStore {
+    pool: PgPool,
+    ids: sr_db::auth_repo::IdSource,
+}
+
+impl PgSelfDeleteStore {
+    pub fn new(pool: PgPool, ids: sr_db::auth_repo::IdSource) -> Self {
+        Self { pool, ids }
+    }
+}
+
+#[async_trait]
+impl SelfDeleteStore for PgSelfDeleteStore {
+    async fn count(&self, user: i64, scope: SelfDeleteScope) -> Result<SelfDeleteCounts, String> {
+        sr_db::self_delete::counts(&self.pool, user, scope_in(scope))
+            .await
+            .map(|c| SelfDeleteCounts {
+                messages: c.messages,
+                reactions: c.reactions,
+                poll_votes: c.poll_votes,
+            })
+            .map_err(|e| e.to_string())
+    }
+
+    async fn latest(&self, user: i64) -> Result<Option<SelfDeleteRun>, String> {
+        sr_db::self_delete::latest(&self.pool, user)
+            .await
+            .map(|r| r.map(run_out))
+            .map_err(|e| e.to_string())
+    }
+
+    async fn request(
+        &self,
+        user: i64,
+        scope: SelfDeleteScope,
+    ) -> Result<Result<SelfDeleteRun, SelfDeleteRefusal>, String> {
+        let done = sr_db::self_delete::request(
+            &self.pool,
+            (self.ids)(),
+            (self.ids)(),
+            user,
+            scope_in(scope),
+            sr_db::self_delete::Via::Member,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(match done {
+            Ok(r) => Ok(run_out(r)),
+            Err(sr_db::self_delete::Refusal::InProgress(_)) => Err(SelfDeleteRefusal::InProgress),
+            Err(sr_db::self_delete::Refusal::TooSoon { retry_after_secs }) => {
+                Err(SelfDeleteRefusal::TooSoon { retry_after_secs })
+            }
+        })
+    }
+}
+
+/// What the self-delete job needs besides the pool.
+#[derive(Clone)]
+pub struct SelfDeleteEnv {
+    pub bus: Arc<dyn sr_events::EventBus>,
+    pub notifier: Option<Arc<dyn sr_admin::StaffNotifier>>,
+    pub ids: sr_db::auth_repo::IdSource,
+    /// For the export README (invoice retention years).
+    pub features: sr_features::FeatureService,
+}
+
+/// The self-delete job (N-05). Hides the rows, tells the open clients, writes the access-log row
+/// `messages.self_delete` on the account and DMs the count to a member who asked themselves.
+pub(crate) async fn run_self_delete(
+    pool: &PgPool,
+    env: &SelfDeleteEnv,
+    job: &Job,
+) -> Result<(), HandlerError> {
+    use sr_core::{ChannelId, GuildId};
+    use sr_events::DomainEvent;
+    let id: i64 = job.payload["run_id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .ok_or("self-delete job without a run id")?;
+    let Some(run) = sr_db::self_delete::begin(pool, id).await? else {
+        return Ok(());
+    };
+    match sr_db::self_delete::hide(pool, run.account_id, run.scope, now_ms()).await {
+        Ok(out) => {
+            let mut total = 0_i64;
+            for h in &out.hidden {
+                total += i64::try_from(h.message_ids.len()).unwrap_or(0);
+                let ev = DomainEvent::MessagesBulkDeleted {
+                    guild: h
+                        .guild_id
+                        .and_then(|g| u64::try_from(g).ok())
+                        .map(GuildId::new),
+                    channel: ChannelId::new(u64::try_from(h.channel_id).unwrap_or(0)),
+                    message_ids: h
+                        .message_ids
+                        .iter()
+                        .filter_map(|m| u64::try_from(*m).ok())
+                        .collect(),
+                };
+                for topic in ev.topics() {
+                    if let Err(e) = env.bus.publish(topic, ev.clone()).await {
+                        tracing::warn!(error = %e, "failed to publish a bulk delete");
+                    }
+                }
+            }
+            // The usual MESSAGE_REACTION_REMOVE per reaction, after the bulk delete, so clients and the
+            // starboard module see what a manual un-react produces (D-332). Votes have no live event.
+            for r in &out.reactions {
+                let (Ok(channel), Ok(message), Ok(account)) = (
+                    u64::try_from(r.channel_id),
+                    u64::try_from(r.message_id),
+                    u64::try_from(run.account_id),
+                ) else {
+                    continue;
+                };
+                let emoji = sr_chat::repo::EmojiKey::parse(&r.emoji_key)
+                    .map_or_else(|| json!({ "id": null, "name": r.emoji_key }), |k| k.json());
+                let ev = DomainEvent::ReactionRemoved {
+                    guild: r
+                        .guild_id
+                        .and_then(|g| u64::try_from(g).ok())
+                        .map(GuildId::new),
+                    channel: ChannelId::new(channel),
+                    message_id: message,
+                    user: sr_core::UserId::new(account),
+                    emoji,
+                };
+                for topic in ev.topics() {
+                    if let Err(e) = env.bus.publish(topic, ev.clone()).await {
+                        tracing::warn!(error = %e, "failed to publish a reaction removal");
+                    }
+                }
+            }
+            let (reactions, votes) = (
+                i64::try_from(out.reactions.len()).unwrap_or(0),
+                out.poll_votes,
+            );
+            sr_db::self_delete::finish(pool, id, total).await?;
+            let repo = sr_db::admin_repo::PgAdminRepo::new(pool.clone(), env.ids.clone());
+            let entry = sr_admin::AuditEntry {
+                actor_id: run.account_id,
+                kind: sr_admin::AccessKind::AdminAction,
+                action: "messages.self_delete".into(),
+                target_kind: Some("account".into()),
+                target_id: Some(run.account_id),
+                reason: String::new(),
+                ip: None,
+                detail: json!({
+                    "count": total,
+                    "reactions": reactions,
+                    "poll_votes": votes,
+                    "servers": run.scope.servers,
+                    "dms": run.scope.dms,
+                    "before_ms": run.scope.before_ms,
+                    "via": run.via,
+                })
+                .to_string(),
+            };
+            if let Err(e) = sr_admin::AdminRepository::append_log(&repo, &entry).await {
+                tracing::warn!(error = %e, "could not log a message self-delete");
+            }
+            // D-324: a note on any open case about the member (and on their active ban's case), so staff can
+            // place a hold while the rows are still visible to them. Best effort, like the access-log row.
+            let cases = sr_moderation::Moderation::new(pool.clone(), env.ids.clone())
+                .note_member_self_delete(
+                    run.account_id,
+                    sr_moderation::SelfDeleteNote {
+                        run_id: id,
+                        messages: total,
+                        reactions,
+                        poll_votes: votes,
+                        by_staff: run.via != "member",
+                    },
+                )
+                .await;
+            if let Err(e) = cases {
+                tracing::warn!(error = %e, "could not note a message self-delete on the member's cases");
+            }
+            if run.via == "member"
+                && let Some(n) = &env.notifier
+            {
+                n.system_dm(
+                    run.account_id,
+                    &format!(
+                        "Your messages were deleted: {total} messages, {reactions} reactions and {votes} poll votes are gone for everyone now, and the messages are purged in 30 days. Messages, reactions and votes under a moderation hold are kept for staff."
+                    ),
+                )
+                .await;
+            }
+            tracing::info!(run = id, hidden = total, "member messages deleted");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::warn!(run = id, error = %e, "message self-delete failed");
+            if job.attempts >= job.max_attempts {
+                sr_db::self_delete::fail(pool, id, &e.to_string()).await?;
+                return Ok(());
+            }
+            Err(e.into())
+        }
+    }
+}
+
 /// Build the package for `export` and store it; returns the object key and size.
 async fn build_and_store(
     pool: &PgPool,
     storage: &dyn ObjectStorage,
     export: i64,
     user: i64,
+    invoice_years: u8,
 ) -> Result<(String, i64), HandlerError> {
     let mut file = tempfile::tempfile()?;
-    db::build_package(pool, user, &mut file, now_ms()).await?;
+    db::build_package(pool, user, &mut file, now_ms(), invoice_years).await?;
     let size = file.seek(SeekFrom::End(0))?;
     file.seek(SeekFrom::Start(0))?;
     let key = format!("exports/{user}/{export}.zip");
@@ -167,6 +401,7 @@ async fn build_and_store(
 pub(crate) async fn run_export(
     pool: &PgPool,
     storage: &dyn ObjectStorage,
+    features: &sr_features::FeatureService,
     job: &Job,
 ) -> Result<(), HandlerError> {
     let id: i64 = job.payload["export_id"]
@@ -177,7 +412,12 @@ pub(crate) async fn run_export(
     let Some(user) = db::begin(pool, id).await? else {
         return Ok(());
     };
-    match build_and_store(pool, storage, id, user).await {
+    let values = features
+        .effective_settings(sr_features::COMPLIANCE_ID, &sr_features::ScopeRef::Platform)
+        .await
+        .unwrap_or_default();
+    let years = sr_features::ComplianceSettings::from_values(&values).invoice_retention_years;
+    match build_and_store(pool, storage, id, user, years).await {
         Ok((key, size)) => {
             db::finish(pool, id, &key, size).await?;
             tracing::info!(export = id, bytes = size, "data package built");
@@ -249,11 +489,23 @@ pub fn register(
     social: Arc<SocialDeps>,
     client: SafeClient,
     packages: sr_packages::service::PackageService,
+    self_delete: SelfDeleteEnv,
 ) -> JobRunner {
-    let (export_pool, export_storage) = (pool.clone(), storage.clone());
+    let features = self_delete.features.clone();
+    let (export_pool, export_storage, export_features) =
+        (pool.clone(), storage.clone(), features.clone());
     let runner = runner.register(db::JOB_KIND, 1, move |job: Job| {
-        let (pool, storage) = (export_pool.clone(), export_storage.clone());
-        Box::pin(async move { run_export(&pool, storage.as_ref(), &job).await })
+        let (pool, storage, features) = (
+            export_pool.clone(),
+            export_storage.clone(),
+            export_features.clone(),
+        );
+        Box::pin(async move { run_export(&pool, storage.as_ref(), &features, &job).await })
+    });
+    let sd_pool = pool.clone();
+    let runner = runner.register(sr_db::self_delete::JOB_KIND, 1, move |job: Job| {
+        let (pool, env) = (sd_pool.clone(), self_delete.clone());
+        Box::pin(async move { run_self_delete(&pool, &env, &job).await })
     });
     let (sweep_pool, sweep_storage) = (pool.clone(), storage);
     let runner = runner.register(EXPORT_SWEEP_KIND, 1, move |job: Job| {

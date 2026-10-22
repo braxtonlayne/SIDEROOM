@@ -107,7 +107,35 @@ async fn deletion_scrubs_the_account_and_removes_ties() {
     .await
     .unwrap();
 
+    // Personal module preferences (user-scope feature settings): mine go, a friend's stay.
+    sqlx::query(
+        "INSERT INTO feature_enablements (id, feature, scope, scope_id, enabled, config) \n         VALUES (7001, 'community.leveling', 'user', $1, NULL, '{\"values\":{\"announce_mine\":false}}'), \n                (7002, 'community.leveling', 'user', $2, NULL, '{}')",
+    )
+    .bind(me)
+    .bind(friend)
+    .execute(pool)
+    .await
+    .unwrap();
+
     let report = delete_account(pool, me, 5002).await.unwrap().unwrap();
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM feature_enablements WHERE scope = 'user' AND scope_id = $1",
+            me
+        )
+        .await,
+        0
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM feature_enablements WHERE scope = 'user' AND scope_id = $1",
+            friend
+        )
+        .await,
+        1
+    );
     assert_eq!(report.profile_media_keys, vec!["avatars/9/abc".to_owned()]);
     assert_eq!(
         count(

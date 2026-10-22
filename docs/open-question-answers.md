@@ -2861,3 +2861,185 @@ Status: `ADOPTED` (D-315). Follow-up: M-25 (the backend, with the M-06 remainder
 ### Still with the owner
 
 Actions only, no decisions: pin the `electrs` image digest (a pull), the lawyer's review named in D-287, D-293 to D-295, D-297, D-309, D-311 and D-314, and the downloads and dispatches already listed in [open-questions.md](open-questions.md).
+
+## Phase 18 round (answered 2026-10-20, delegated)
+
+The questions the data-request branch left in its handoff (`docs/dev/handoff/feat-p18-mod-dsr.md`, M-25 step c), answered by the owner's proxy under the same delegation and limits as the owner and Phase 17 rounds above: decide and document only (no code, build, download or push), legal items get a reasoned project default that is plainly not legal advice, with what a lawyer should check. Decisions are D-316 to D-318 and D-324 to D-327 (D-319 to D-323 belong to another branch) in [01-decisions-log.md](01-decisions-log.md); follow-ups are N-01 to N-13 under "Phase 18 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 7 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Data requests (P18-DSR, branch `feat/p18-mod-dsr`)
+
+**P18-1 (M-25 c, D-295). The single extension allows 1 to 60 days on the reading that GDPR 12(3) allows two further months. Is 60 days the right ceiling, or should it be "two months" counted in calendar months?**
+Decision: 60 days, counted in days, stays. Two calendar months are 59 to 62 days depending on the start date, so a 60-day cap is never longer than the statutory period and at most two days shorter: the conservative side. Days are the unit the whole queue uses (the deadline setting, `due_at`, the CHECKs, the overdue badge), and a month-based limit would vary with the month a request arrived in. 60 also covers CCPA's 45-day extension. The ceiling stays the constant `MAX_EXTENSION_DAYS`, not a setting. Not legal advice; a lawyer should confirm that counting two months as 60 days is acceptable where the instance runs and that 30 plus 60 days satisfies the combined "three months" reading.
+Status: `ADOPTED` (D-316). Follow-up: N-01 (copy only: say "days, not months" where the cap is shown).
+
+**P18-2 (M-25 c). Should granting an extension automatically DM the member? Article 12(3) requires informing the data subject of any extension, with reasons, within one month of receipt.**
+Decision: yes, automatically and best effort, reusing the system DM the export run already sends. The notice carries the new due date and the reason staff wrote; the extend dialog says the member will see the reason. The row records `member_notified_at` (null when no DM could go out: the subject's account may already be gone or may never sign in), the queue shows whether the member was told and prompts "reply by email" when not, and the access-log entry names the outcome. An extension after the original due date is still recorded but marked "extended late" in the queue, since it does not cure a missed deadline. Not legal advice; a lawyer should confirm an in-app DM counts as informing the data subject when the request came in by email (the "reply by email" prompt is the safer practice the queue asks for anyway).
+Status: `ADOPTED` (D-317). Follow-up: N-02.
+
+**P18-3 (D-124, D-295). Are the retained-record reasons in the erasure outcome correct? They restate D-124 and D-295: Person record, invite graph, invoices, staff-side moderation history, held content, linked Discord identity and the request log.**
+Decision: right in substance, four changes. (1) The Discord-identity reason is wrong as written: D-030 keeps it so a returning person is linked to the same Person record automatically, not to stop them registering (a new invite is all they need); reword. (2) Invoices: "for as long as accounting law requires", not an implied forever. (3) Add the entry the list omits and that matters most under article 17: messages and uploads the member did not delete stay, shown as "Deleted User" (D-029, D-123); the member is told before deleting that they can delete them first. (4) The deletion screen and the export README say "your sign-in data are removed", which the retained Discord link contradicts, and neither mentions messages; align both with the list. The Person record, invite graph (also the inviter's record), moderation history, held content (kept while the hold lasts, then the normal purge; case flagged for a decision) and request-log reasons stand. Also check what the account row keeps after `delete_account` (email, last sign-in addresses) and scrub or name it. Not legal advice; a lawyer should check, beyond D-295: the basis for keeping undeleted messages after an erasure request (article 17(3)(a), or 17(1)(c) with an overriding ground), whether the Discord identifier should be kept only as a keyed hash (article 25), the statutory invoice retention period in the operator's country, and whether held-content retention needs a stated basis per hold.
+Status: `ADOPTED` (D-318). Follow-up: N-03.
+
+### Data requests, second batch (P18-DSR, branch `feat/p18-mod-dsr`, after N-01 to N-03)
+
+The four questions the branch left after N-01 to N-03 landed. Another branch holds D-319 to D-323, so these are D-324 to D-327.
+
+**P18-4 (N-04, D-029, D-318). Should a member-facing bulk self-delete of one's own messages and uploads be built, and should it cover DMs? Weigh Discord parity, the erasure-request path, abuse (deleting evidence during a case or hold), the cost to other people's conversations, and size.**
+Decision: build it, and yes to DMs. Discord has no such thing (one message at a time; bulk delete is a moderator action; data requests go to support), so parity does not require it, but D-029 and D-318 promise the member they can delete their messages before the account goes, and one-at-a-time over years of history is no path. It lives in Settings, Privacy: typed confirmation, the row count shown first, two ticked boxes (servers, direct messages), an optional "only before this date" cutoff, one run at a time and once per 24 hours, as a job that reuses `hide_user_messages` over every channel the member authored in (including servers they left). Rows go to `user_deleted` with the 30-day purge (D-121) and a held row is never purged (D-122), so nothing a case needs is destroyed, only hidden from members; the run is access-logged with the count and noted on any open case or active ban so staff can hold within the window. No block during a case: the member's right does not pause for a report, and the hold exists for that. DMs are not special: the other participant keeps no copy today either (D-121 hides from all user views), and a hollowed-out thread is what the slow path produces too. Staff side: the erasure run gains `delete_messages` (default false, stated in the outcome) for the person who writes "and my messages" to the intake address and cannot be told to sign in first. Not legal advice; a lawyer should confirm this satisfies article 17 for authored content and that 30 days of staff visibility after self-deletion is proportionate.
+Status: `ADOPTED` (D-324). Follow-ups: N-05 (member self-delete, M), N-06 (erasure-run option, S); N-04 resolved into them.
+
+**P18-5 (D-318, D-124). Should the export README and the deletion screen state the invoice retention period in years? Which period, and is it per-operator configurable?**
+Decision: yes, in years, and per operator. "As long as accounting law requires" tells the member nothing, and a retention statement without a period or criterion fails articles 5(1)(e) and 13(2)(a). The law differs by country (about ten years in Germany, France and Italy; six in the UK and Spain; seven by US practice), and the operator's country is already a setting, so the period is `compliance.invoice_retention_years`, default 10 (the longest common figure, so an untouched setting never under-retains), range 3 to 15, counted from the end of the year of payment. Doc 09's "forever (accounting)" cannot stand next to a stated period: after it, a monthly job detaches the invoice from the member (`payment_invoices.user_id` becomes nullable and is set null; amounts, dates, state and chain address stay, which identify nobody on their own). Nothing is detached early. The copy becomes "Invoices: kept for {years} years after the year of payment, as accounting law requires, then no longer linked to you", and the `RETAINED` reason takes the number at run time. Not legal advice; a lawyer should confirm the period and its start for the operator's country and that a detached invoice satisfies the books after the period.
+Status: `ADOPTED` (D-325). Follow-ups: N-07 (setting, copy, Features card, S), N-08 (detachment job, S).
+
+**P18-6 (D-124, D-318). Should the staff-only `deleted_accounts` archive (original username, email, display name) be named in the retained list, and with what reason and retention?**
+Decision: yes, as a ninth entry: "Your original username, email address and display name, in a staff-only archive", reason "so staff can recognise the account if you write in later and link a returning person (D-030)", kept as long as the Person record (D-124). The archive is the only place the pre-deletion email survives; a data request, dispute or appeal sent from that address after deletion is matched to the right account by it, and a returning person is linked by it. Nothing reads it today except the username reservation, so "staff see it" gets a screen: Admin, Accounts shows the archived identifiers to `MANAGE_ACCOUNTS`, each view access-logged. The deletion copy's "email address are removed" becomes "removed from your account". Not legal advice; a lawyer should confirm the basis for keeping the email in clear after erasure (articles 17(3)(e), 6(1)(f)), whether a keyed hash after a grace period should replace it (the D-318 question about the Discord id, again), and whether the archive belongs in the records of processing (D-295).
+Status: `ADOPTED` (D-326). Follow-up: N-09 (S).
+
+**P18-7 (D-317). The extension's DM outcome is a second access-log row, `data_request.extend_notice`, because the DM can only be sent after the extension commits; D-317 asked for it on the extension entry. Accept the deviation?**
+Decision: accepted. The access log is hash-chained and append-only, so a committed row cannot be amended once the DM result is known, and sending the DM inside the transaction would hold a transaction across a network call or record a notice for an extension that rolled back. Two adjacent rows against the same target, the second carrying `member_notified` and `late`, are the log telling it in order. The request row's `member_notified_at` is what the queue reads, so staff never consult the log for it. Conditions: the notice row is written even when the DM fails (an absent row then means a crash between the writes), and the log viewer shows the two rows together (the target filter does). D-317's text is amended.
+Status: `ADOPTED` (D-327). Follow-up: N-13 (docs and a test that the notice row is written on DM failure, XS).
+
+### Data requests, third batch (P18-DSR, branch `feat/p18-mod-dsr`, after N-05 to N-13)
+
+The question the branch left after the self-delete landed. Other branches hold D-328 to D-331, so this is D-332.
+
+**P18-8 (D-324, N-05, N-06). Should the member bulk self-delete ("Delete all my messages") also remove the member's reactions and poll votes? Today it does not. Weigh Discord's behaviour, whether reactions and votes are personal data under article 17, what account deletion already does with them, what other members would see (counts changing, closed polls), and size. Should erasure runs with `delete_messages` follow the same rule?**
+Decision: yes to both, in the same run and under the same scope (servers, DMs, the optional cut-off), with no extra box. Discord has nothing comparable (no bulk un-react or vote retraction; a deleted account's reactions and votes stay as a deleted user), so parity does not ask for it, but a reaction row is (message, emoji, account, time) and a vote row is (poll, answer, account, time), both shown to every member of the channel through the reactor and voter lists: "X cheered this" and "X voted for Y" are X's personal data and article 17 reaches them. Nothing removes them today: `delete_account` leaves both tables alone (members see "Deleted User", staff can still follow the account id), the export omits them, and un-reacting one by one is the sentence D-324 refused for messages. Rules: a reaction is deleted (the count drops, as one un-react does; the job sends the usual `MESSAGE_REACTION_REMOVE` events per channel so clients and the starboard see what a manual removal produces); a vote in an open poll is deleted as a retraction; a vote in a closed poll is detached into an `anonymous_counts` entry on the poll object in `messages.poll`, which `poll_tallies` adds in, because the room acted on the closed result as a number and the tally is computed live from `poll_votes` even after `finalized` (no snapshot exists, so this is the only way to keep it), the same content-stays-attribution-goes split as "Deleted User" messages; reactions on held messages and votes on held polls stay (D-122: a reaction can be the evidence). Account deletion is unchanged; the retained-record label becomes "Messages, uploads, reactions and poll votes you did not delete". The erasure run with `delete_messages` queues the same job, so it gets the same rule and its outcome counts them. Size S. Noted, not decided: the export's omission of reactions and votes is an article 15 gap for a later item. Not legal advice; a lawyer should confirm that an anonymous count on a closed poll counts as anonymised data (one vote on an answer is the edge case) and that keeping reactions and votes on held content is covered by the hold's basis.
+Status: `ADOPTED` (D-332). Follow-up: N-14 (S).
+
+### Still with the owner
+
+Actions only, no decisions: the lawyer's review named in D-295, now extended by D-316 to D-318 (the two-months-as-60-days count, DM as notice, the messages and Discord-identity bases), by D-324 to D-327 (article 17 for authored content, the invoice period and its start per country, the archived email in clear, the records of processing) and by D-332 (the anonymous count on a closed poll, reactions and votes under a hold), plus the actions already listed in [open-questions.md](open-questions.md).
+
+## Phase 18 modules round (answered 2026-10-20, delegated)
+
+The questions `feat/p18-modules` left in its handoff (`docs/dev/handoff/feat-p18-modules.md`: channel and user scope for feature modules, LNG-CHN-017 and LNG-USET-036), answered by the owner's proxy under the same delegation and limits as the owner round above: decide and document only (no code, build, download or push). Decisions are D-319 to D-323 in [01-decisions-log.md](01-decisions-log.md) (D-316 to D-318 belong to the other Phase 18 branch); follow-ups are N-10 to N-12 under "Phase 18 modules round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md). Discord has no module system, so there is no parity to follow; the branch's conservative defaults are confirmed on all four points, with one addition (auto-thread).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 5 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Channel scope (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M1. A channel can only narrow a module the server has on; it cannot switch on a module the server has off. Confirm, or let a channel opt in on its own?**
+Decision: confirmed, narrowing only. The server switch is the one fact everything else relies on (event delivery, `channel_enabled` = server AND channel, audit, what members are told), and a channel opt-in would make it a suggestion. "Off by default, channels opt in" is, if ever wanted, a server-level setting of a module, not a reversal of the chain. As built: the channel form shows "the server has this module off" and disables the switch; a stored channel `true` under a server `false` is inert.
+Status: `ADOPTED` (D-319). Follow-up: none (built as decided).
+
+**P18-M4. `MANAGE_CHANNELS` is checked in the channel with overwrites applied, so a manager who cannot see the channel cannot configure it. Confirm?**
+Decision: confirmed. Same gate as every other Edit Channel route (`VIEW_CHANNEL` first, then the permission with the channel's overwrites) and Discord's rule for Manage Channel. The GET is gated the same way because the list of modules a private channel runs is itself private. Staff who need in grant themselves access, which the audit log shows.
+Status: `ADOPTED` (D-322). Follow-up: none (built as decided).
+
+### User scope (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M2. User scope has no on/off and applies globally across servers, not per server; the server still decides whether a module runs. Confirm?**
+Decision: confirmed. User scope is preference, not consent: a server decides what runs, the person shapes how it treats them, and that wish ("announce my level-ups") is the same everywhere, like a notification preference. A user-level switch would be a veto or a no-op, neither of which the form needs. Per-server personal settings would be a `Member` scope (guild and user), added only when a module needs one; the existing per-server leveling opt-out stays the escape hatch. One consequence: user-scope rows are the person's data, so the data export has to carry them (account deletion already drops them).
+Status: `ADOPTED` (D-320). Follow-up: N-12 (export).
+
+### Which modules (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M3. Message quotes (channel) and leveling announcements (user) as the first scoped modules: confirm, and should `lounge.auto_thread`, `chat.reminders` or `chat.scheduled_messages` gain scopes now?**
+Decision: the two stand. Auto-thread gains channel scope now: `channels` stays server-level (which channels get threads is the server's), `name_template` and `ignore_bots` go to channel scope (a channel names its own threads and can quiet it), and the per-channel switch narrows it as D-319 says. Reminders and scheduled messages do not: their only fields are per-person caps, which are abuse limits the server sets, must not be user-settable, and have no per-channel meaning (reminders arrive as DMs). A channel-level "no scheduled messages here" waits for a request.
+Status: `ADOPTED` (D-321). Follow-up: N-11 (auto-thread channel scope).
+
+### Stale catalog key (P18-MOD, branch `feat/p18-modules`)
+
+**P18-M5. The `settings.channelTabs.featuresNote` key ("per-channel feature modules are not available yet") in `srvset-5.ts` is no longer rendered. Remove it?**
+Decision: remove it, on the integration branch. Nothing references it and both halves of the sentence are stale (per-channel modules since P18, the text-to-announcement switch since P14). The fragment rule (edit only your own fragment) is why the branch left it, and the rule stands; the integrator deletes the line when the branch lands. Unused keys are not kept for later.
+Status: `ADOPTED` (D-323). Follow-up: N-10.
+
+### Still with the owner
+
+Nothing from this round. The actions already listed in [open-questions.md](open-questions.md) stand.
+
+## Phase 18 moderation round (answered 2026-10-20, delegated)
+
+The questions `feat/p18-mod-cases` (M-25 steps 0 and a, D-315) left in `docs/dev/handoff/feat-p18-mod-cases.md`, answered by the owner's proxy under the same delegation and limits as the Phase 17 round: decide and document only (no code, build or push). Decisions are D-328 to D-331 in [01-decisions-log.md](01-decisions-log.md) (D-316 to D-327 belong to other Phase 18 branches); follow-ups are N-20 to N-27 under "Phase 18 moderation round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 3 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Cases and reports (P18-MOD, branch `feat/p18-mod-cases`)
+
+**P18-MOD-1 (spec 3.2, D-213). Should the automatic hold on a reported message stay a system action, or wait for a staff member? A flood of false reports could freeze messages. Should the system hold freeze evidence without hiding the message, or hide it?**
+Decision: it stays a system action, and it is an evidence freeze, never a hide. D-213 guards the manual hold because that hold overrides the author's deletion (D-122); the report hold only keeps a deleted-after-report message out of the purge, which is the evidence spec 3.2 exists to keep, and waiting for staff would lose it in the window before triage. As built the hold already changes nothing a member sees (`hold_id` blocks the purge jobs only), which is spec 3.3's "nothing is hidden until a human acts"; the spec now says so explicitly. The flood is bounded by `moderation.reports_per_day`, one open report per (reporter, target), and a cost that is storage only. The gap was the exit: a dismissed case left its hold in force and a server moderator cannot release one, so dismissal now releases the system-placed holds of that case in the same transaction with the dismissal's reason and a case event; staff-placed holds stay manual; actioned cases keep theirs.
+Status: `ADOPTED` (D-328). Follow-up: N-20.
+
+**P18-MOD-2 (D-216). `moderation.reports` is platform-wide with no per-guild pilot switch. Acceptable?**
+Decision: yes. Routing sends most report targets (DMs, users, servers, library and cinema items) to platform staff or reviewers, so there is no guild to key a switch on, and a member of two servers would get two answers to "can I report". The instance is one friend group; the pilot is the operator turning the flag on once someone holds `MANAGE_CASES`. A `Scope::Guild` opt-out can come later as a server preference if asked for. The flag's description text is stale and gets corrected.
+Status: `ADOPTED` (D-329). Follow-up: N-27 (docs and the flag description only).
+
+**P18-MOD-3 (handoff "still open"). Case actions through the chat services (`MOD-CASE-009`), a staff-opened case form, a reviewers' queue UI, the reporter status page (`MOD-RPT-013`), the case-aware ban dialog (`MOD-BAN-002`), guild audit-log rows for moderators' case actions: which are next wave, which closed or changed?**
+Decision: next wave, scope fixed: `MOD-CASE-009` through a `CaseActions` trait in `sr-moderation` implemented in `sr-server` over the existing chat and guild services (one call writes the case event and the guild audit row; `record_action` stays for work done elsewhere); the staff-opened case form over the existing `POST /moderation/cases`; the reporter's status list in Settings > Privacy over `GET /moderation/reports/mine`; `MOD-BAN-002` by reusing the case page's reason picker on Accounts and Bans, with such bans joining or opening the person's case so the appeal lands somewhere. Changed: no separate reviewers' queue; Admin > Moderation becomes visible to `REVIEW_READING`, `REVIEW_MEDIA` and `DELETE_CONTENT` holders and lists what their hat can work (the API already filters). Changed: guild audit-log rows for outcomes only (escalate, dismiss, actioned, recorded and wired actions, with category and outcome line, never the reporter or note text), not for claims and notes. Nothing closed. The configured report channel of spec 3.4 was not asked and stays open.
+Status: `ADOPTED` (D-330, D-331). Follow-ups: N-21 to N-26.
+
+### Still with the owner
+
+Nothing new from this round. Operator action when ready: turn `moderation.reports` on in Admin > Features after appointing a `MANAGE_CASES` holder (D-329).
+
+## Phase 18 takedown round (answered 2026-10-20, delegated)
+
+The questions the takedown branch left in `docs/dev/handoff/feat-p18-mod-tkd.md` (M-25 (b), D-293, D-315), answered by the owner's proxy under the same delegation and limits as the earlier delegated rounds: decide and document only (no code, build, download or push), legal items get a reasoned project default that is plainly not legal advice. Decisions are D-333 to D-336 in [01-decisions-log.md](01-decisions-log.md) (D-328 to D-332 belong to other branches); follow-ups are N-30 to N-35 under "Phase 18 takedown round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 4 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Takedowns (P18-TKD, branch `feat/p18-mod-tkd`)
+
+**P18-TKD-1 (handoff question 1, D-293). Should a counter-noticed takedown, content still down and the counter-notice pending, count as a strike?**
+Decision: yes, as built, until the content is restored or the notice is withdrawn. A strike is an upheld takedown still in force and a counter-notice is an assertion, not a finding; the platform does not judge notices, so it cannot un-count one on the uploader's word. Fairness comes from the process: the content returns by itself after 10 business days unless a court filing is noted, so a contested strike counts for at most that wait, and the threshold opens a review case, never a suspension. What changes is visibility: `strike_counts` also reports a `contested` count, the review case's opening note lists each counted notice with its state, staff are told to leave a review open while a counter-notice is pending, and a review whose count drops under the threshold on restore closes as "no action". A notice with a court filing keeps counting.
+Status: `ADOPTED` (D-333). Follow-up: N-30.
+
+**P18-TKD-2 (handoff question 2). Is `illegal_content` the right case category for a copyright notice, or should the case vocabulary get a hidden `copyright` value?**
+Decision: no new value. The case vocabulary is the ban-reason enum (severity preset, report dialog, dashboards, invite graph), a hidden value is a trap for every list that enumerates it, and a copyright notice is a register entry, not a ban reason. The notice `kind` is the source of truth; the case list and case page show the linked notice as a badge ("Copyright notice TKD-n"), and the dashboard step counts by notice kind from the register. Reopen only if the dashboard step needs a split the register cannot give.
+Status: `ADOPTED` (D-334). Follow-up: N-31.
+
+**P18-TKD-3 (handoff "still open"). Which of the four unbuilt items is built next, and how?**
+Decision: in this order: the clear message on deleting a held series or title (map the hold trigger's `restrict_violation` to a 409 `errors.held` and a page message naming the notice; XS), blocking the Cinema `transcode/` and Patron download objects at uphold so links signed inside the 6-hour grant TTL stop at the blocklist (write the asset's job prefixes and originals key to `blocked_objects` at uphold, remove at restore; S), the gateway event for a removed message through a `RemovalSink` trait that `app.rs` implements over the event bus with `MessageDeleted` (restore sends nothing, documented; S), and last, after M-25 (c), mailing the templated reply and forwarding a counter-notice through the existing `Mailer` with confirmation, an access-log row and the copy box as the fallback when SMTP is not configured (S), because it is the only item that opens a channel to third parties and it depends on a lawyer's answer (D-336 item e). The first three land before the data-request queue merges.
+Status: `ADOPTED` (D-335). Follow-ups: N-32, N-33, N-34, N-35.
+
+**P18-TKD-4 (handoff question 3, D-293). Restate the legal checks for the owner's lawyer list and add what the built register raises.**
+Decision: one list, recorded in D-336, not legal advice: (a) DMCA designated-agent registration matching the `/help` contact; (b) DSA article 16: a mailbox without a public form, acknowledgement of receipt and a decision sent to the notifier, and whether SIDE ROOM is a hosting service or an online platform (transparency database, articles 19, 20, 23); (c) DSA article 17: the uploader DM against the statement-of-reasons contents; (d) the 10 business days against section 512(g)(2)(C)'s 10-to-14 window, computed in UTC without holidays, and whether a non-US jurisdiction wants the wait at all. New: (e) forwarding the counter-notice to the notifier (512(g)(2)(B)) and what the staff counter-notice form must capture; (f) publishing the repeat-infringer policy, including the contested-strike rule, where members can read it (512(i)); (g) the GDPR basis and retention for notifier contact details kept forever and exported in CSV; (h) mandatory reporting or preservation duties for what an illegal-content hold may contain (for a US operator 18 U.S.C. 2258A), since the register has no reporting step. The project defaults stand until the lawyer answers.
+Status: `ADOPTED` (D-336). No code follow-up beyond N-35's dependency on item (e). Owner action: hand the list to the lawyer with D-287, D-293 to D-295, D-297, D-309, D-311 and D-314.
+
+### Still with the owner
+
+Actions only: the lawyer's review of D-336 (which now carries the D-293 items), and the actions already listed in the earlier rounds.
+
+## Phase 18 restore round (answered 2026-10-22, delegated)
+
+The questions `feat/p18-mod-restore` (MOD-CASE-009 remainder, N-21) left in `docs/dev/handoff/feat-p18-mod-restore.md`, answered by the owner's proxy under the same delegation and limits as the earlier Phase 18 rounds: decide and document only (no code, build or push). Decisions are D-337 and D-338 in [01-decisions-log.md](01-decisions-log.md) (D-332 to D-336 belong to other Phase 18 branches); follow-ups are N-40 and N-41 under "Phase 18 restore round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 2 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Restoring messages from a case (P18-RST, branch `feat/p18-mod-restore`)
+
+**P18-RST-1 (handoff question 1; D-121, D-213). Should a server moderator be able to restore a message that a platform staff member removed (`staff_removed`), or only platform staff? The branch defaults to platform staff only; the takedown register's uphold sets `staff_removed`.**
+Decision: platform staff only, as built, and one step further: a message that a takedown item still holds (notice in `removed` or `counter_noticed` state, item `held` or `disabled`) is not restorable from a case by anyone; it returns only through the register's restore or withdraw. The restore right follows the removal right: `user_deleted` belongs to the author and the server's `MANAGE_MESSAGES` holders, `staff_removed` is set only by platform processes (today the takedown uphold), and D-213 already keeps platform holds out of a server moderator's hands. The extra clause exists because a `MANAGE_CASES` holder without `MANAGE_TAKEDOWNS` could otherwise undo a legal takedown from the case page: the restore keeps the hold (D-122) and knows nothing of the notice, so the content would be visible while the strike still counts (D-333), the ten-business-day counter-notice wait would be moot, and the register's later restore (which keys on `visibility = 'staff_removed'`) would find nothing to put back. The case action answers a 409 naming the notice and pointing at the register, the shape N-32 chose for held catalogue rows. No new permission: `by_platform` stays "any platform permission on the caller", and `rules::access` already gates platform-routed cases to `MANAGE_CASES`.
+Status: `ADOPTED` (D-337). Follow-up: N-40.
+
+**P18-RST-2 (handoff "still open"). A restored message raises the mention badge of anyone it mentions again, because clients treat `MESSAGE_CREATE` as new. Accept this, or send something else (a `MESSAGE_UPDATE`-style restore event, or suppress mentions on restore)?**
+Decision: keep `MESSAGE_CREATE` with the full object and add `restored: true` to the dispatched payload (set by the hub when it dispatches `DomainEvent::MessageRestored`; never stored). The web reducer then inserts the message without bumping `mention_count`, and the desktop alert, PWA alert and DM toast hooks skip it. `MESSAGE_CREATE` is the only event every client, bot and SDK will act on (they dropped the message on `MESSAGE_DELETE`; the web reducer ignores a `MESSAGE_UPDATE` for a message it does not hold; a new event name would leave the message invisible until reload wherever it is unknown). The badge is a client-only artefact: the server never calls `record_mentions` on restore, so `read_states` is untouched and client and server disagree until the next reload; the field makes them agree. The `SUPPRESS_NOTIFICATIONS` flag was rejected because it is lossy (a restore and an `@silent` message would look the same to a bot) and would have to be scrubbed from the stored object. Consumers that ignore the field keep today's behaviour, which is acceptable.
+Status: `ADOPTED` (D-338). Follow-up: N-41.
+
+### Still with the owner
+
+Nothing new from this round.

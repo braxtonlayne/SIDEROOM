@@ -518,6 +518,36 @@ impl<R: ChatRepository> ChatService<R> {
         Ok(plan)
     }
 
+    /// Restore a deleted message (N-21): the acting moderator needs `MANAGE_MESSAGES` in the channel. See
+    /// [`message_rules::validate_restore`] for what may come back (D-121, D-122).
+    pub async fn restore_message(
+        &self,
+        restorer: UserId,
+        channel_id: ChannelId,
+        message_id: MessageId,
+        by_platform: bool,
+    ) -> ChatResult<message_rules::RestorePlan> {
+        let acc = self.access(restorer, channel_id).await?;
+        let message = self.load_message(channel_id, message_id).await?;
+        let plan = message_rules::validate_restore(&message, acc.perms, by_platform, self.now())?;
+        self.repo.apply_restore(&plan).await?;
+        Ok(plan)
+    }
+
+    /// Whether `actor` may moderate other people's messages in the channel (`MANAGE_MESSAGES`), and the message
+    /// exists there, hidden or not.
+    pub async fn authorize_moderation(
+        &self,
+        actor: UserId,
+        channel_id: ChannelId,
+        message_id: MessageId,
+    ) -> ChatResult<Message> {
+        let acc = self.access(actor, channel_id).await?;
+        let message = self.load_message(channel_id, message_id).await?;
+        message_rules::validate_moderate(acc.perms)?;
+        Ok(message)
+    }
+
     pub async fn bulk_delete(
         &self,
         actor: UserId,

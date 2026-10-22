@@ -775,3 +775,723 @@ async fn join_to_create_makes_and_removes_rooms_through_the_real_services() {
     .unwrap();
     assert_eq!(left, 0, "no bookkeeping left behind");
 }
+
+/// N-21: a timeout, a kick and a delete done from a case run through the real guild and message services as the
+/// acting person, write the guild audit rows those tools write, and land on the case timeline.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn actions_from_a_case_use_the_real_services_and_write_the_guild_audit() {
+    use sr_api::routes::guilds::backend::backend_with_audit;
+    use sr_chat::settings::{
+        SettingsService,
+        audit::{AuditAction, AuditQuery},
+    };
+    use sr_core::{PlatformPermissions as P, permissions::Permissions};
+    use sr_db::settings_repo::PgSettingsRepo;
+    use sr_moderation::{
+        Moderation, PerformRequest, PerformedAction,
+        model::{NewCase, ReportCategory, TargetKind, Who},
+    };
+    let f = fx().await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let settings = Arc::new(SettingsService::new(
+        PgSettingsRepo::new(f.pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(clock.clone(), 27, 27).unwrap(),
+        Arc::new(|| 7),
+    ));
+    let dynbus: Arc<dyn EventBus> = f.bus.clone();
+    let guilds = backend_with_audit(
+        ChatService::new(
+            PgChatRepo::new(f.pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), 26, 26).unwrap(),
+            ChatLimits::default(),
+        ),
+        dynbus,
+        settings.clone(),
+    );
+    let ids = Arc::new(std::sync::atomic::AtomicI64::new(9_000_000));
+    let admin = sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+        f.pool.clone(),
+        {
+            let ids = ids.clone();
+            Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        },
+    )));
+    let moderation = Moderation::new(f.pool.clone(), {
+        let ids = ids.clone();
+        Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    })
+    .with_case_actions(Arc::new(crate::moderation_actions::ChatCaseActions {
+        guilds,
+        messages: f.messages.clone(),
+        admin,
+    }));
+
+    let owner = f.owner.get() as i64;
+    let staff = sr_admin::Caller {
+        user_id: owner,
+        permissions: P::MANAGE_CASES,
+        is_owner: false,
+        ip: None,
+    };
+    let who = Who::Staff(&staff);
+    let case = moderation
+        .open_case_with(
+            &who,
+            &NewCase {
+                category: ReportCategory::Harassment,
+                target_kind: TargetKind::User,
+                target_id: Some(5),
+                subject_account_id: Some(5),
+                summary: String::new(),
+            },
+            sr_moderation::model::CaseExtras {
+                guild_id: Some(f.guild.get() as i64),
+                severity: None,
+            },
+        )
+        .await
+        .unwrap();
+    moderation
+        .perform_action(
+            &who,
+            case.id,
+            &PerformRequest {
+                action: PerformedAction::Timeout,
+                note: "cool off".into(),
+                timeout_minutes: Some(10),
+                attachment_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    let until: Option<i64> = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM communication_disabled_until) * 1000)::bigint FROM guild_members WHERE guild_id = $1 AND user_id = 5",
+    )
+    .bind(f.guild.get() as i64)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert!(until.is_some(), "the member is timed out");
+    let log = settings
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(f.guild))
+        .await
+        .unwrap();
+    assert!(
+        log.iter().any(|e| e.action == AuditAction::MemberUpdate
+            && e.target_id == Some(5)
+            && e.reason
+                .as_deref()
+                .is_some_and(|r| r.starts_with(&format!("case:{}", case.id)))),
+        "{log:?}"
+    );
+    let detail = moderation.get_case(&who, case.id).await.unwrap();
+    assert!(detail.events.iter().any(|e| e.kind == "action_performed"));
+
+    // A kick goes through the same way, with the case in the reason; the guild's own rules apply
+    // (a member cannot kick the owner).
+    moderation
+        .perform_action(
+            &who,
+            case.id,
+            &PerformRequest {
+                action: PerformedAction::Kick,
+                note: String::new(),
+                timeout_minutes: None,
+                attachment_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    let log = settings
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(f.guild))
+        .await
+        .unwrap();
+    assert!(log.iter().any(|e| e.action == AuditAction::MemberKick));
+}
+
+/// Everything a case-action test needs: the real services over one database, a message service that writes the
+/// guild audit log, and the in-memory object store to look into.
+struct CaseEnv {
+    moderation: sr_moderation::Moderation,
+    settings: Arc<sr_chat::settings::SettingsService<sr_db::settings_repo::PgSettingsRepo>>,
+    messages: Arc<MessagesDeps>,
+    storage: Arc<ObjectStoreStorage>,
+}
+
+async fn case_env(f: &Fx) -> CaseEnv {
+    use sr_api::routes::guilds::backend::backend_with_audit;
+    use sr_chat::settings::SettingsService;
+    use sr_db::settings_repo::PgSettingsRepo;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let settings = Arc::new(SettingsService::new(
+        PgSettingsRepo::new(f.pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(clock.clone(), 27, 27).unwrap(),
+        Arc::new(|| 7),
+    ));
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    let bus: Arc<dyn EventBus> = f.bus.clone();
+    let messages = Arc::new(
+        MessagesDeps::new(
+            PgChatRepo::new(f.pool.clone()),
+            Arc::new(sr_db::chat_repo::PgMessageStore::new(f.pool.clone())),
+            storage.clone(),
+            f.bus.clone(),
+            Arc::new(FixedEntitlements(30 * 1024 * 1024)),
+            Arc::new(PgChatRepo::new(f.pool.clone())),
+            None,
+            clock.clone(),
+            31,
+            31,
+        )
+        .unwrap()
+        .with_audit(settings.clone()),
+    );
+    let guilds = backend_with_audit(
+        ChatService::new(
+            PgChatRepo::new(f.pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), 28, 28).unwrap(),
+            ChatLimits::default(),
+        ),
+        bus,
+        settings.clone(),
+    );
+    let ids = Arc::new(std::sync::atomic::AtomicI64::new(9_000_000));
+    let admin = sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+        f.pool.clone(),
+        {
+            let ids = ids.clone();
+            Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        },
+    )));
+    let moderation = sr_moderation::Moderation::new(f.pool.clone(), {
+        let ids = ids.clone();
+        Arc::new(move || ids.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    })
+    .with_case_actions(Arc::new(crate::moderation_actions::ChatCaseActions {
+        guilds,
+        messages: messages.clone(),
+        admin,
+    }));
+    CaseEnv {
+        moderation,
+        settings,
+        messages,
+        storage,
+    }
+}
+
+/// A case about `message` in the fixture's general channel.
+async fn message_case(f: &Fx, env: &CaseEnv, staff: &sr_admin::Caller, message: MessageId) -> i64 {
+    use sr_moderation::model::{CaseExtras, NewCase, ReportCategory, TargetKind, Who};
+    let case = env
+        .moderation
+        .open_case_with(
+            &Who::Staff(staff),
+            &NewCase {
+                category: ReportCategory::Spam,
+                target_kind: TargetKind::Message,
+                target_id: Some(message.get() as i64),
+                subject_account_id: Some(5),
+                summary: String::new(),
+            },
+            CaseExtras {
+                guild_id: Some(f.guild.get() as i64),
+                severity: None,
+            },
+        )
+        .await
+        .unwrap();
+    // Reports fill the channel in; a case opened by hand does not.
+    sqlx::query("UPDATE moderation_cases SET target_channel_id = $2 WHERE id = $1")
+        .bind(case.id)
+        .bind(f.general.get() as i64)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    case.id
+}
+
+fn perform(action: sr_moderation::PerformedAction) -> sr_moderation::PerformRequest {
+    sr_moderation::PerformRequest {
+        action,
+        note: "spam".into(),
+        timeout_minutes: None,
+        attachment_id: None,
+    }
+}
+
+async fn audit_of(
+    env: &CaseEnv,
+    f: &Fx,
+    action: sr_chat::settings::audit::AuditAction,
+) -> Vec<sr_chat::settings::audit::AuditEntry> {
+    use sr_chat::settings::audit::AuditQuery;
+    env.settings
+        .list_audit(
+            sr_core::permissions::Permissions::VIEW_AUDIT_LOG,
+            &AuditQuery::new(f.guild),
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|e| e.action == action)
+        .collect()
+}
+
+/// N-21, D-121 to D-123: a deleted message comes back from a case with its content, clients get it again as
+/// `MESSAGE_CREATE`, a hold on it stays, and the guild audit row carries the case.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_deleted_message_is_restored_from_a_case() {
+    use futures::StreamExt;
+    use sr_chat::settings::audit::AuditAction;
+    use sr_core::PlatformPermissions as P;
+    use sr_events::Topic;
+    use sr_moderation::{ModError, PerformedAction, holds::HoldScope, model::Who};
+    let f = fx().await;
+    let env = case_env(&f).await;
+    let owner = f.owner.get() as i64;
+    let staff = sr_admin::Caller {
+        user_id: owner,
+        permissions: P::MANAGE_CASES,
+        is_owner: false,
+        ip: None,
+    };
+    let who = Who::Staff(&staff);
+    let msg = insert_user_message(&f, 5, "buy my coins").await;
+    let case = message_case(&f, &env, &staff, msg).await;
+    let state = |pool: PgPool| async move {
+        sqlx::query_as::<_, (String, bool, bool, Option<i64>)>(
+            "SELECT visibility::text, deleted_at IS NULL, purge_after IS NULL, hold_id FROM messages WHERE id = $1",
+        )
+        .bind(msg.get() as i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    };
+
+    // A message that is not deleted cannot be restored.
+    let err = env
+        .moderation
+        .perform_action(&who, case, &perform(PerformedAction::RestoreMessage))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ModError::Conflict(_)), "{err:?}");
+
+    // Delete it from the case, with a hold on the message (D-122: the hold keeps purge_after empty).
+    let hold = env
+        .moderation
+        .place_hold(
+            &who,
+            case,
+            HoldScope::Message(msg.get() as i64),
+            Some("evidence"),
+        )
+        .await
+        .unwrap();
+    env.moderation
+        .perform_action(&who, case, &perform(PerformedAction::DeleteMessage))
+        .await
+        .unwrap();
+    assert_eq!(state(f.pool.clone()).await.0, "user_deleted");
+
+    let mut events = f.bus.subscribe(Topic::Channel(f.general));
+    env.moderation
+        .perform_action(&who, case, &perform(PerformedAction::RestoreMessage))
+        .await
+        .unwrap();
+    let (vis, no_deleted_at, no_purge, hold_id) = state(f.pool.clone()).await;
+    assert_eq!(vis, "visible");
+    assert!(no_deleted_at && no_purge);
+    assert_eq!(
+        hold_id, hold.hold_id,
+        "the hold stays on a restored message"
+    );
+    let ev = tokio::time::timeout(std::time::Duration::from_secs(2), events.next())
+        .await
+        .expect("an event")
+        .expect("open stream");
+    match ev {
+        DomainEvent::MessageRestored {
+            message_id, data, ..
+        } => {
+            assert_eq!(message_id, msg.get());
+            assert_eq!(data["content"], "buy my coins");
+        }
+        other => panic!("expected MessageRestored, got {other:?}"),
+    }
+    let rows = audit_of(&env, &f, AuditAction::ModerationMessageRestored).await;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(
+        rows[0].reason.as_deref(),
+        Some(format!("case:{case}").as_str())
+    );
+    assert_eq!(rows[0].target_id, Some(5));
+    let detail = env.moderation.get_case(&who, case).await.unwrap();
+    assert!(
+        detail
+            .events
+            .iter()
+            .filter(|e| e.kind == "action_performed")
+            .count()
+            >= 2
+    );
+
+    // A message due for purge is refused (its files are about to go); one still inside its 30 days is restorable
+    // even though the author deleted it; a person without MANAGE_MESSAGES is refused.
+    let msg2 = insert_user_message(&f, 5, "second").await;
+    let case2 = message_case(&f, &env, &staff, msg2).await;
+    env.moderation
+        .perform_action(&who, case2, &perform(PerformedAction::DeleteMessage))
+        .await
+        .unwrap();
+    let weak = sr_admin::Caller {
+        user_id: 6,
+        ..staff.clone()
+    };
+    let err = env
+        .moderation
+        .perform_action(
+            &Who::Staff(&weak),
+            case2,
+            &perform(PerformedAction::RestoreMessage),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(err, ModError::Forbidden);
+    sqlx::query("UPDATE messages SET purge_after = now() - interval '1 hour' WHERE id = $1")
+        .bind(msg2.get() as i64)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let err = env
+        .moderation
+        .perform_action(&who, case2, &perform(PerformedAction::RestoreMessage))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ModError::Conflict(_)), "{err:?}");
+    sqlx::query("UPDATE messages SET purge_after = now() + interval '5 days' WHERE id = $1")
+        .bind(msg2.get() as i64)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    env.moderation
+        .perform_action(&who, case2, &perform(PerformedAction::RestoreMessage))
+        .await
+        .unwrap();
+
+    // A platform removal comes back only through platform staff: a server moderator's caller has no platform bit.
+    let msg3 = insert_user_message(&f, 5, "third").await;
+    let case3 = message_case(&f, &env, &staff, msg3).await;
+    sqlx::query(
+        "UPDATE messages SET visibility = 'staff_removed', deleted_at = now() WHERE id = $1",
+    )
+    .bind(msg3.get() as i64)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let guild_mod = sr_admin::Caller {
+        user_id: owner,
+        permissions: P::empty(),
+        is_owner: false,
+        ip: None,
+    };
+    let actions = crate::moderation_actions::ChatCaseActions {
+        guilds: f.guilds.clone(),
+        messages: env.messages.clone(),
+        admin: sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+            f.pool.clone(),
+            Arc::new(|| 1),
+        ))),
+    };
+    use sr_moderation::CaseActions;
+    let refused = actions
+        .restore_message(&guild_mod, case3, f.general.get() as i64, msg3.get() as i64)
+        .await;
+    assert!(
+        matches!(refused, Err(sr_moderation::ActionError::Refused(_))),
+        "{refused:?}"
+    );
+    env.moderation
+        .perform_action(&who, case3, &perform(PerformedAction::RestoreMessage))
+        .await
+        .unwrap();
+    assert_eq!(
+        sqlx::query_scalar::<_, String>("SELECT visibility::text FROM messages WHERE id = $1")
+            .bind(msg3.get() as i64)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap(),
+        "visible"
+    );
+}
+
+/// N-40, D-337: a message a takedown notice holds or removed is not restored from a case; the 409 names the
+/// notice and nothing changes. The register's own restore still brings it back.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_case_restore_refuses_a_message_a_takedown_holds() {
+    use sr_core::PlatformPermissions as P;
+    use sr_moderation::{
+        ModError, PerformedAction,
+        model::{ItemKind, NewItem, NewNotice, TakedownKind, Who},
+    };
+    let f = fx().await;
+    let env = case_env(&f).await;
+    let owner = f.owner.get() as i64;
+    let staff = sr_admin::Caller {
+        user_id: owner,
+        permissions: P::MANAGE_CASES | P::MANAGE_TAKEDOWNS,
+        is_owner: false,
+        ip: None,
+    };
+    let who = Who::Staff(&staff);
+    let msg = insert_user_message(&f, 5, "a pirated chapter").await;
+    let case = message_case(&f, &env, &staff, msg).await;
+    let notice = env
+        .moderation
+        .create_notice(
+            &who,
+            &NewNotice {
+                kind: TakedownKind::Copyright,
+                notifier_name: "Rights Holder Ltd".into(),
+                notifier_contact: "legal@rights.example".into(),
+                legal_basis: "Copyright in the work".into(),
+                locations: vec![],
+                original_text: "Please remove it.".into(),
+                received_at_ms: None,
+            },
+        )
+        .await
+        .unwrap()
+        .summary
+        .id;
+    env.moderation
+        .add_item(
+            &who,
+            notice,
+            &NewItem {
+                kind: ItemKind::Message,
+                id: msg.get() as i64,
+            },
+        )
+        .await
+        .unwrap();
+    env.moderation
+        .uphold_notice(&who, notice, Some("valid claim"))
+        .await
+        .unwrap();
+    let vis = |pool: PgPool| async move {
+        sqlx::query_scalar::<_, String>("SELECT visibility::text FROM messages WHERE id = $1")
+            .bind(msg.get() as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    };
+    assert_eq!(vis(f.pool.clone()).await, "staff_removed");
+
+    let err = env
+        .moderation
+        .perform_action(&who, case, &perform(PerformedAction::RestoreMessage))
+        .await
+        .unwrap_err();
+    match &err {
+        ModError::Conflict(m) => assert!(
+            m.contains(&format!("TK-{notice}")) && m.contains("register"),
+            "{m}"
+        ),
+        other => panic!("expected a conflict, got {other:?}"),
+    }
+    assert_eq!(
+        vis(f.pool.clone()).await,
+        "staff_removed",
+        "nothing changed"
+    );
+    let detail = env.moderation.get_case(&who, case).await.unwrap();
+    assert!(
+        !detail.events.iter().any(|e| e.kind == "action_performed"),
+        "a refused action writes no event"
+    );
+
+    // The register puts it back; after that the notice no longer blocks anything.
+    env.moderation
+        .restore_notice(&who, notice, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    assert_eq!(vis(f.pool.clone()).await, "visible");
+    assert_eq!(
+        env.moderation
+            .message_takedown(msg.get() as i64)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
+async fn attach(f: &Fx, env: &CaseEnv, message: MessageId, name: &str) -> i64 {
+    use sr_storage::ObjectStorage;
+    let id = f.messages.next_id().get() as i64;
+    let key = format!("att/{id}/{name}");
+    env.storage
+        .put(&key, bytes::Bytes::from_static(b"payload"))
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO attachments (id, channel_id, message_id, uploader_id, filename, size_bytes, storage_key, state) \
+         VALUES ($1, $2, $3, 5, $4, 7, $5, 'ready')",
+    )
+    .bind(id)
+    .bind(f.general.get() as i64)
+    .bind(message.get() as i64)
+    .bind(name)
+    .bind(key)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    id
+}
+
+/// N-21, D-122: one attachment comes off a message from a case. Unheld: the object and row are deleted and the
+/// message updated; held: the message stops showing it but the object and row stay until the hold is released and
+/// the purge sweep runs. The guild audit row carries the case.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn one_attachment_is_removed_from_a_case() {
+    use futures::StreamExt;
+    use sr_chat::settings::audit::AuditAction;
+    use sr_core::PlatformPermissions as P;
+    use sr_events::Topic;
+    use sr_moderation::{ModError, PerformedAction, holds::HoldScope, model::Who};
+    use sr_storage::ObjectStorage;
+    let f = fx().await;
+    let env = case_env(&f).await;
+    let staff = sr_admin::Caller {
+        user_id: f.owner.get() as i64,
+        permissions: P::MANAGE_CASES,
+        is_owner: false,
+        ip: None,
+    };
+    let who = Who::Staff(&staff);
+    let msg = insert_user_message(&f, 5, "files").await;
+    let other = insert_user_message(&f, 6, "elsewhere").await;
+    let a1 = attach(&f, &env, msg, "one.png").await;
+    let a2 = attach(&f, &env, msg, "two.png").await;
+    let a3 = attach(&f, &env, other, "foreign.png").await;
+    let case = message_case(&f, &env, &staff, msg).await;
+    let req = |a: Option<i64>| sr_moderation::PerformRequest {
+        attachment_id: a,
+        ..perform(PerformedAction::RemoveAttachment)
+    };
+
+    // An attachment id is required, and it must be on the case's own message.
+    let err = env
+        .moderation
+        .perform_action(&who, case, &req(None))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ModError::Invalid(_)), "{err:?}");
+    let err = env
+        .moderation
+        .perform_action(&who, case, &req(Some(a3)))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ModError::Conflict(_)), "{err:?}");
+    assert!(
+        env.storage
+            .head(&format!("att/{a3}/foreign.png"))
+            .await
+            .is_ok()
+    );
+
+    // Not held: object and row go, the message is updated.
+    let mut events = f.bus.subscribe(Topic::Channel(f.general));
+    env.moderation
+        .perform_action(&who, case, &req(Some(a1)))
+        .await
+        .unwrap();
+    assert!(
+        env.storage
+            .head(&format!("att/{a1}/one.png"))
+            .await
+            .is_err(),
+        "object deleted"
+    );
+    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM attachments WHERE id = $1")
+        .bind(a1)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(rows, 0);
+    let ev = tokio::time::timeout(std::time::Duration::from_secs(2), events.next())
+        .await
+        .expect("an event")
+        .expect("open stream");
+    match ev {
+        DomainEvent::MessageEdited { data, .. } => {
+            let names: Vec<_> = data["attachments"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|a| a["filename"].as_str().unwrap().to_owned())
+                .collect();
+            assert_eq!(names, vec!["two.png"]);
+        }
+        other => panic!("expected MessageEdited, got {other:?}"),
+    }
+    let rows = audit_of(&env, &f, AuditAction::ModerationAttachmentRemoved).await;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(
+        rows[0].reason.as_deref(),
+        Some(format!("case:{case}").as_str())
+    );
+
+    // Held: hidden, but kept for the evidence until the hold is released and the sweep runs.
+    let hold = env
+        .moderation
+        .place_hold(&who, case, HoldScope::Attachment(a2), Some("evidence"))
+        .await
+        .unwrap();
+    env.moderation
+        .perform_action(&who, case, &req(Some(a2)))
+        .await
+        .unwrap();
+    let key2 = format!("att/{a2}/two.png");
+    assert!(
+        env.storage.head(&key2).await.is_ok(),
+        "the held object stays"
+    );
+    let (mid, from, by_case): (Option<i64>, Option<i64>, Option<i64>) = sqlx::query_as(
+        "SELECT message_id, removed_from_message_id, removed_case_id FROM attachments WHERE id = $1",
+    )
+    .bind(a2)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        (mid, from, by_case),
+        (None, Some(msg.get() as i64), Some(case))
+    );
+    assert_eq!(
+        crate::jobs::purge_removed_attachments(&f.pool, env.storage.as_ref())
+            .await
+            .unwrap(),
+        0,
+        "a held attachment is not swept"
+    );
+    env.moderation
+        .release_hold(&who, hold.hold_id.unwrap(), Some("done"))
+        .await
+        .unwrap();
+    assert_eq!(
+        crate::jobs::purge_removed_attachments(&f.pool, env.storage.as_ref())
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(env.storage.head(&key2).await.is_err());
+}

@@ -37,6 +37,48 @@ export function SessionsCard({ accountId }: { accountId: string }) {
   );
 }
 
+/** The staff-only archive of a deleted account's original identifiers (D-326), read on request. */
+export function DeletedArchiveCard({ accountId }: { accountId: string }) {
+  const t = useT();
+  const [show, setShow] = useState(false);
+  return (
+    <section className="ss-card" aria-labelledby="adm-archive-h">
+      <h2 id="adm-archive-h">{t('admin.accountExtras.archiveTitle')}</h2>
+      <p className="ss-sub">{t('admin.accountExtras.archiveHint')}</p>
+      {show ? (
+        <ArchiveBody accountId={accountId} />
+      ) : (
+        <Button variant="secondary" onClick={() => setShow(true)}>
+          {t('admin.accountExtras.archiveShow')}
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function ArchiveBody({ accountId }: { accountId: string }) {
+  const t = useT();
+  const res = useResource(`acct-archive:${accountId}`, () => api.getDeletedArchive(accountId));
+  return (
+    <Async res={res} label={t('admin.accountExtras.archiveLoading')}>
+      {(a) => (
+        <dl className="ss-meta">
+          <dt>{t('admin.accountExtras.archiveUsername')}</dt>
+          <dd>{a.username}</dd>
+          <dt>{t('admin.accountExtras.archiveEmail')}</dt>
+          <dd>{a.email}</dd>
+          <dt>{t('admin.accountExtras.archiveDisplayName')}</dt>
+          <dd>{a.display_name ?? ''}</dd>
+          <dd>
+            {t('admin.accountExtras.archiveDeleted', { when: fmtMs(a.deleted_at_ms) })} ·{' '}
+            {t('admin.accountExtras.archiveRelease', { when: fmtMs(a.username_release_at_ms) })}
+          </dd>
+        </dl>
+      )}
+    </Async>
+  );
+}
+
 export function ServersCard({ accountId }: { accountId: string }) {
   const t = useT();
   const res = useResource(`acct-guilds:${accountId}`, () => api.listAccountGuilds(accountId));
@@ -90,6 +132,7 @@ export function AccountExtras({
   const frozen = det.invites_frozen === true;
   return (
     <>
+      {canAccounts && account.state === 'deleted' && <DeletedArchiveCard accountId={account.id} />}
       {canInvites && (
         <section className="ss-card" aria-labelledby="adm-freeze-h">
           <h2 id="adm-freeze-h">{t('admin.accountExtras.freezeTitle')}</h2>

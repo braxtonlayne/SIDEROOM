@@ -29,6 +29,7 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     // Platform staff, developer portal and OAuth consent: human sessions only. So are the
     // staff appointment answer and the platform announcement banner.
     if p.starts_with("/admin")
+        || p.starts_with("/moderation")
         || p.starts_with("/staff/")
         || p.starts_with("/announcements")
         || p.starts_with("/developers")
@@ -67,6 +68,7 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/users/@me/scheduled-messages")
         || p.starts_with("/users/@me/bookmarks")
         || p.starts_with("/users/@me/birthday")
+        || p.starts_with("/users/@me/sr/features")
         || p.starts_with("/users/@me/primary-guild")
         || p.starts_with("/tv/reminders")
     {

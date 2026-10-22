@@ -256,8 +256,9 @@ export function putServerMessage(s: StoreData, msg: Message): Partial<StoreData>
   }
   messages[msg.id] = { ...messages[msg.id], ...msg };
   const ch = s.channels[msg.channel_id];
+  // A restored message (D-338) is not new: it never moves the channel's unread marker.
   const bumpChannel =
-    ch && (!ch.last_message_id || cmpId(msg.id, ch.last_message_id) > 0)
+    ch && !msg.restored && (!ch.last_message_id || cmpId(msg.id, ch.last_message_id) > 0)
       ? { channels: { ...s.channels, [ch.id]: { ...ch, last_message_id: msg.id } } }
       : {};
   return {
@@ -666,7 +667,9 @@ export function reduceDispatch(
             },
           }
         : {};
+      // A message a moderator restored (`restored: true`, D-338) is inserted again but raises no mention badge.
       const mentioned =
+        !msg.restored &&
         s.currentUserId !== null &&
         msg.author.id !== s.currentUserId &&
         ((msg.mentions ?? []).some((u) => u.id === s.currentUserId) || msg.mention_everyone);

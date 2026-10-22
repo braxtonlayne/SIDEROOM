@@ -54,6 +54,15 @@ impl UserFeatures {
             Err(UfError::Disabled(feature))
         }
     }
+    /// One person's own preferences for a module (user scope), as a typed reader.
+    pub async fn user_settings(&self, feature: &str, user: i64) -> UfResult<Settings> {
+        let user = sr_core::UserId::new(u64::try_from(user).unwrap_or_default());
+        Ok(Settings(
+            self.features
+                .effective_settings(feature, &ScopeRef::User { user })
+                .await?,
+        ))
+    }
 
     /// The effective settings of a module at a server (or the platform), as a typed reader.
     pub async fn settings(&self, feature: &str, guild: Option<i64>) -> UfResult<Settings> {
