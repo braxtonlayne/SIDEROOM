@@ -224,7 +224,13 @@ impl World {
     }
 }
 
-fn crossing(inviter: &Person, banned: &Person, level: i32, freeze: bool, escalate: bool) -> SuspicionCrossing {
+fn crossing(
+    inviter: &Person,
+    banned: &Person,
+    level: i32,
+    freeze: bool,
+    escalate: bool,
+) -> SuspicionCrossing {
     SuspicionCrossing {
         person_id: inviter.person,
         inviter_account_id: inviter.account,
@@ -253,9 +259,8 @@ async fn a_crossing_opens_one_case_for_senior_staff_linked_to_the_banning_case()
 
     // The staff member opened a case about invitee A, then banned them.
     let admin = staff(senior.account, P::MANAGE_CASES | P::MANAGE_TAKEDOWNS);
-    let banning = w
-        .m
-        .open_case(
+    let banning =
+        w.m.open_case(
             &Who::Staff(&admin),
             &NewCase {
                 category: ReportCategory::Fraud,
@@ -268,14 +273,26 @@ async fn a_crossing_opens_one_case_for_senior_staff_linked_to_the_banning_case()
         .await
         .unwrap();
 
-    w.m.threshold_crossed(crossing(&inviter, &a, 2, true, false)).await;
-    let cases = w.m.list_cases(&Who::Staff(&admin), &CaseFilter { limit: 50, ..Default::default() })
+    w.m.threshold_crossed(crossing(&inviter, &a, 2, true, false))
+        .await;
+    let cases =
+        w.m.list_cases(
+            &Who::Staff(&admin),
+            &CaseFilter {
+                limit: 50,
+                ..Default::default()
+            },
+        )
         .await
         .unwrap();
     let auto: Vec<_> = cases.items.iter().filter(|c| c.id != banning.id).collect();
     assert_eq!(auto.len(), 1, "one automatic case");
     let case = auto[0];
-    assert_eq!(case.assignee_id, Some(senior.account), "assigned to senior staff, not the moderator");
+    assert_eq!(
+        case.assignee_id,
+        Some(senior.account),
+        "assigned to senior staff, not the moderator"
+    );
     assert_eq!(case.state, CaseState::Open);
 
     let (kind, linked, subject): (String, Option<i64>, Option<i64>) = sqlx::query_as(
@@ -299,7 +316,8 @@ async fn a_crossing_opens_one_case_for_senior_staff_linked_to_the_banning_case()
     }
 
     // A second crossing (the escalation) upgrades the same case and sends no second notice.
-    w.m.threshold_crossed(crossing(&inviter, &b, 3, false, true)).await;
+    w.m.threshold_crossed(crossing(&inviter, &b, 3, false, true))
+        .await;
     let open: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM moderation_cases WHERE subject_person_id = $1 AND auto_kind IS NOT NULL",
     )
@@ -327,7 +345,8 @@ async fn a_crossing_opens_one_case_for_senior_staff_linked_to_the_banning_case()
     assert_eq!(banned, 0);
 
     // A clear lands on the timeline and the case stays open.
-    w.m.cleared(inviter.person, senior.account, "reviewed, fine").await;
+    w.m.cleared(inviter.person, senior.account, "reviewed, fine")
+        .await;
     let events: Vec<String> = sqlx::query_scalar(
         "SELECT kind FROM moderation_case_events WHERE case_id = $1 ORDER BY id",
     )
@@ -349,14 +368,14 @@ async fn with_no_senior_staff_the_case_waits_unassigned() {
     let pool = w.pool();
     let inviter = person(pool, "inviter").await;
     let a = person(pool, "invitee_a").await;
-    w.m.threshold_crossed(crossing(&inviter, &a, 2, true, false)).await;
-    let assignee: Option<i64> = sqlx::query_scalar(
-        "SELECT assignee_id FROM moderation_cases WHERE subject_person_id = $1",
-    )
-    .bind(inviter.person)
-    .fetch_one(pool)
-    .await
-    .unwrap();
+    w.m.threshold_crossed(crossing(&inviter, &a, 2, true, false))
+        .await;
+    let assignee: Option<i64> =
+        sqlx::query_scalar("SELECT assignee_id FROM moderation_cases WHERE subject_person_id = $1")
+            .bind(inviter.person)
+            .fetch_one(pool)
+            .await
+            .unwrap();
     assert_eq!(assignee, None);
     w.db.cleanup().await.unwrap();
 }
@@ -378,7 +397,12 @@ async fn the_panel_shows_history_banned_descendants_and_the_path_to_the_root() {
     invite(pool, &a, &deep).await;
     ban(pool, &a, senior.account, "serious", "fraud").await;
     ban(pool, &deep, senior.account, "standard", "spam").await;
-    exec(pool, "UPDATE persons SET suspicion_level = 1 WHERE id = $1", &[inviter.person]).await;
+    exec(
+        pool,
+        "UPDATE persons SET suspicion_level = 1 WHERE id = $1",
+        &[inviter.person],
+    )
+    .await;
     sqlx::query(
         "INSERT INTO suspicion_events (id, person_id, delta, level_after, reason, source_account_id, actor_id) \
          VALUES ($1, $2, 1, 1, 'serious ban of an invitee', $3, $4)",
@@ -392,32 +416,53 @@ async fn the_panel_shows_history_banned_descendants_and_the_path_to_the_root() {
     .unwrap();
 
     let admin = staff(senior.account, P::MANAGE_INVITES);
-    let panel = w.m.suspicion_panel(&Who::Staff(&admin), inviter.person).await.unwrap();
+    let panel =
+        w.m.suspicion_panel(&Who::Staff(&admin), inviter.person)
+            .await
+            .unwrap();
     assert_eq!(panel.level, 1);
     assert_eq!(panel.freeze_threshold, 2);
     assert!(!panel.invites_paused);
     assert_eq!(panel.events.len(), 1);
     assert_eq!(panel.events[0].kind, "raised");
-    assert_eq!(panel.events[0].source_account.as_ref().unwrap().username, "invitee_a");
-    let names: Vec<_> = panel.banned_descendants.iter().map(|d| (d.account.username.as_str(), d.depth)).collect();
+    assert_eq!(
+        panel.events[0].source_account.as_ref().unwrap().username,
+        "invitee_a"
+    );
+    let names: Vec<_> = panel
+        .banned_descendants
+        .iter()
+        .map(|d| (d.account.username.as_str(), d.depth))
+        .collect();
     assert_eq!(names, vec![("invitee_a", 1), ("grandchild", 2)]);
-    assert_eq!(panel.banned_descendants[0].reason_category.as_deref(), Some("fraud"));
+    assert_eq!(
+        panel.banned_descendants[0].reason_category.as_deref(),
+        Some("fraud")
+    );
     assert_eq!(panel.banned_descendants[0].ban_category, "serious");
     assert_eq!(panel.banned_descendants[1].ban_category, "standard");
-    let path: Vec<_> = panel.invite_paths[0].nodes.iter().map(|n| n.username.as_str()).collect();
+    let path: Vec<_> = panel.invite_paths[0]
+        .nodes
+        .iter()
+        .map(|n| n.username.as_str())
+        .collect();
     assert_eq!(path, vec!["root", "inviter"]);
     // Signals are IP-derived: hidden without MANAGE_ACCOUNTS.
     assert!(panel.signals.is_none());
     assert_eq!(log_count(pool, "moderation.suspicion.view").await, 1);
 
     let both = staff(senior.account, P::MANAGE_INVITES | P::MANAGE_ACCOUNTS);
-    let panel = w.m.suspicion_panel(&Who::Staff(&both), inviter.person).await.unwrap();
+    let panel =
+        w.m.suspicion_panel(&Who::Staff(&both), inviter.person)
+            .await
+            .unwrap();
     assert_eq!(panel.signals.as_ref().map(Vec::len), Some(0));
 
     // Without MANAGE_INVITES there is no panel at all.
     let nobody = staff(senior.account, P::MANAGE_ACCOUNTS);
     assert!(matches!(
-        w.m.suspicion_panel(&Who::Staff(&nobody), inviter.person).await,
+        w.m.suspicion_panel(&Who::Staff(&nobody), inviter.person)
+            .await,
         Err(ModError::MissingPermission(_))
     ));
     assert!(matches!(
@@ -442,11 +487,22 @@ async fn a_shared_address_raises_a_review_item_and_nothing_else() {
     login(pool, &stranger, "198.51.100.9", 1).await;
 
     assert_eq!(w.m.scan_person(newcomer.person).await.unwrap(), 1);
-    assert_eq!(w.m.scan_person(newcomer.person).await.unwrap(), 0, "idempotent");
+    assert_eq!(
+        w.m.scan_person(newcomer.person).await.unwrap(),
+        0,
+        "idempotent"
+    );
     assert_eq!(w.m.scan_person(stranger.person).await.unwrap(), 0);
 
     let admin = staff(senior.account, P::MANAGE_ACCOUNTS);
-    let list = w.m.list_signals(&Who::Staff(&admin), &SignalFilter { limit: 50, ..Default::default() })
+    let list =
+        w.m.list_signals(
+            &Who::Staff(&admin),
+            &SignalFilter {
+                limit: 50,
+                ..Default::default()
+            },
+        )
         .await
         .unwrap();
     assert_eq!(list.len(), 1);
@@ -457,11 +513,12 @@ async fn a_shared_address_raises_a_review_item_and_nothing_else() {
     assert_eq!(s.detail["shared_ips"], 1);
     // The stored item names no address.
     assert!(!s.detail.to_string().contains("203.0.113"));
-    let stored: String = sqlx::query_scalar("SELECT detail::text FROM evasion_signals WHERE id = $1")
-        .bind(s.id)
-        .fetch_one(pool)
-        .await
-        .unwrap();
+    let stored: String =
+        sqlx::query_scalar("SELECT detail::text FROM evasion_signals WHERE id = $1")
+            .bind(s.id)
+            .fetch_one(pool)
+            .await
+            .unwrap();
     assert!(!stored.contains("203.0.113"));
 
     // The address appears only on the logged detail read.
@@ -470,7 +527,10 @@ async fn a_shared_address_raises_a_review_item_and_nothing_else() {
     assert_eq!(d.shared_addresses.len(), 1);
     assert_eq!(d.shared_addresses[0].ip, "203.0.113.7");
     assert_eq!(d.shared_addresses[0].persons, 2);
-    assert_eq!(log_count(pool, "moderation.evasion.detail").await, before + 1);
+    assert_eq!(
+        log_count(pool, "moderation.evasion.detail").await,
+        before + 1
+    );
     assert!(log_count(pool, "moderation.evasion.list").await >= 1);
 
     // Never auto-acted: nobody was banned, suspended or frozen.
@@ -490,21 +550,35 @@ async fn a_shared_address_raises_a_review_item_and_nothing_else() {
     // Reviewing needs a reason, is logged, and happens once.
     let who = Who::Staff(&admin);
     assert_eq!(
-        w.m.resolve_signal(&who, s.id, SignalState::Dismissed, "  ").await.unwrap_err(),
+        w.m.resolve_signal(&who, s.id, SignalState::Dismissed, "  ")
+            .await
+            .unwrap_err(),
         ModError::ReasonRequired
     );
-    let done = w.m.resolve_signal(&who, s.id, SignalState::Dismissed, "roommates").await.unwrap();
+    let done =
+        w.m.resolve_signal(&who, s.id, SignalState::Dismissed, "roommates")
+            .await
+            .unwrap();
     assert_eq!(done.state, SignalState::Dismissed);
     assert_eq!(done.review_reason.as_deref(), Some("roommates"));
     assert_eq!(done.reviewed_by, Some(senior.account));
     assert_eq!(log_count(pool, "moderation.evasion.resolve").await, 1);
     assert!(matches!(
-        w.m.resolve_signal(&who, s.id, SignalState::Confirmed, "x").await,
+        w.m.resolve_signal(&who, s.id, SignalState::Confirmed, "x")
+            .await,
         Err(ModError::Conflict(_))
     ));
     // A dismissed pair is not raised again.
     assert_eq!(w.m.scan_person(newcomer.person).await.unwrap(), 0);
-    let open = w.m.list_signals(&who, &SignalFilter { state: Some(SignalState::Open), limit: 50, ..Default::default() })
+    let open =
+        w.m.list_signals(
+            &who,
+            &SignalFilter {
+                state: Some(SignalState::Open),
+                limit: 50,
+                ..Default::default()
+            },
+        )
         .await
         .unwrap();
     assert!(open.is_empty());
@@ -512,9 +586,18 @@ async fn a_shared_address_raises_a_review_item_and_nothing_else() {
     // IP-derived data is for MANAGE_ACCOUNTS only.
     let invites_only = staff(senior.account, P::MANAGE_INVITES | P::MANAGE_CASES);
     let who = Who::Staff(&invites_only);
-    assert!(matches!(w.m.list_signals(&who, &SignalFilter::default()).await, Err(ModError::MissingPermission(_))));
-    assert!(matches!(w.m.signal_detail(&who, s.id).await, Err(ModError::MissingPermission(_))));
-    assert!(matches!(w.m.scan_person_as(&who, newcomer.person).await, Err(ModError::MissingPermission(_))));
+    assert!(matches!(
+        w.m.list_signals(&who, &SignalFilter::default()).await,
+        Err(ModError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        w.m.signal_detail(&who, s.id).await,
+        Err(ModError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        w.m.scan_person_as(&who, newcomer.person).await,
+        Err(ModError::MissingPermission(_))
+    ));
     w.db.cleanup().await.unwrap();
 }
 
@@ -539,7 +622,11 @@ async fn shared_networks_old_history_and_scrubbed_addresses_raise_nothing() {
         login(pool, c, "192.0.2.50", 2).await;
     }
     for c in &crowd {
-        assert_eq!(w.m.scan_person(c.person).await.unwrap(), 0, "shared network");
+        assert_eq!(
+            w.m.scan_person(c.person).await.unwrap(),
+            0,
+            "shared network"
+        );
     }
 
     // History outside the 180-day window does not count, and the purge removes it.
@@ -559,7 +646,12 @@ async fn shared_networks_old_history_and_scrubbed_addresses_raise_nothing() {
     let gone = person(pool, "gone").await;
     login(pool, &banned, "192.0.2.90", 5).await;
     login(pool, &gone, "192.0.2.90", 1).await;
-    exec(pool, "UPDATE login_events SET ip = NULL WHERE account_id = $1", &[gone.account]).await;
+    exec(
+        pool,
+        "UPDATE login_events SET ip = NULL WHERE account_id = $1",
+        &[gone.account],
+    )
+    .await;
     assert_eq!(w.m.scan_person(gone.person).await.unwrap(), 0);
     w.db.cleanup().await.unwrap();
 }
@@ -584,16 +676,176 @@ async fn lineage_signals_need_corroboration_unless_invited_by_the_banned() {
     assert_eq!(w.m.scan_person(child.person).await.unwrap(), 1);
 
     // The sibling made their account right after the ban: the pair now has two kinds of evidence.
-    exec(pool, "UPDATE accounts SET created_at = now() + interval '1 day' WHERE id = $1", &[sibling.account]).await;
-    exec(pool, "UPDATE person_bans SET created_at = now() WHERE person_id = $1", &[banned.person]).await;
-    assert_eq!(w.m.scan_person(sibling.person).await.unwrap(), 2);
-    let kinds: Vec<String> = sqlx::query_scalar(
-        "SELECT kind FROM evasion_signals WHERE person_id = $1 ORDER BY kind",
+    exec(
+        pool,
+        "UPDATE accounts SET created_at = now() + interval '1 day' WHERE id = $1",
+        &[sibling.account],
     )
-    .bind(sibling.person)
-    .fetch_all(pool)
+    .await;
+    exec(
+        pool,
+        "UPDATE person_bans SET created_at = now() WHERE person_id = $1",
+        &[banned.person],
+    )
+    .await;
+    assert_eq!(w.m.scan_person(sibling.person).await.unwrap(), 2);
+    let kinds: Vec<String> =
+        sqlx::query_scalar("SELECT kind FROM evasion_signals WHERE person_id = $1 ORDER BY kind")
+            .bind(sibling.person)
+            .fetch_all(pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        kinds,
+        vec!["new_account_after_ban", "shared_invite_lineage"]
+    );
+    w.db.cleanup().await.unwrap();
+}
+
+/// The whole chain with the real admin service: serious bans of invitees raise the inviter's suspicion, the
+/// crossings open and upgrade one case, the clear keeps the events and lands on the case timeline.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn serious_bans_through_the_admin_service_open_and_upgrade_the_case() {
+    use sr_admin::{AdminService, BanCategory};
+    let w = world().await;
+    let pool = w.pool();
+    let inviter = person(pool, "inviter").await;
+    let invitees = [
+        person(pool, "inv1").await,
+        person(pool, "inv2").await,
+        person(pool, "inv3").await,
+    ];
+    let senior = person(pool, "senior").await;
+    for i in &invitees {
+        invite(pool, &inviter, i).await;
+    }
+    let repo = sr_db::admin_repo::PgAdminRepo::new(pool.clone(), Arc::new(uid));
+    let svc = AdminService::new(Arc::new(repo));
+    svc.set_suspicion_observer(Arc::new(w.m.clone()));
+    let op = Caller {
+        user_id: senior.account,
+        permissions: P::PLATFORM_BAN | P::MANAGE_INVITES,
+        is_owner: false,
+        ip: None,
+    };
+
+    let case_count = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM moderation_cases WHERE subject_person_id = $1 AND auto_kind IS NOT NULL",
+        )
+        .bind(inviter.person)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    };
+
+    // Level 1: below the freeze threshold (2), no case, no notice.
+    svc.ban_account(
+        &op,
+        invitees[0].account,
+        BanCategory::Serious,
+        Some("fraud"),
+    )
     .await
     .unwrap();
-    assert_eq!(kinds, vec!["new_account_after_ban", "shared_invite_lineage"]);
+    assert_eq!(case_count().await, 0);
+    assert!(w.dms.0.lock().unwrap().is_empty());
+
+    // A standard ban does not count.
+    // Level 2: the freeze threshold. One case, one notice to the inviter.
+    svc.ban_account(
+        &op,
+        invitees[1].account,
+        BanCategory::Serious,
+        Some("fraud"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(case_count().await, 1);
+    assert_eq!(w.dms.0.lock().unwrap().len(), 1);
+    assert_eq!(w.dms.0.lock().unwrap()[0].1, INVITER_NOTICE);
+    let (kind, linked_event): (String, i64) = sqlx::query_as(
+        "SELECT c.auto_kind, (SELECT count(*) FROM suspicion_events e WHERE e.case_id = c.id) \
+         FROM moderation_cases c WHERE c.subject_person_id = $1 AND c.auto_kind IS NOT NULL",
+    )
+    .bind(inviter.person)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(kind, "suspicion_freeze");
+    assert_eq!(
+        linked_event, 1,
+        "the event that crossed the line points at the case"
+    );
+
+    // Level 3: the escalation upgrades the same case.
+    svc.ban_account(
+        &op,
+        invitees[2].account,
+        BanCategory::Serious,
+        Some("fraud"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(case_count().await, 1);
+    let kind: String = sqlx::query_scalar(
+        "SELECT auto_kind FROM moderation_cases WHERE subject_person_id = $1 AND auto_kind IS NOT NULL",
+    )
+    .bind(inviter.person)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(kind, "suspicion_escalation");
+    assert_eq!(w.dms.0.lock().unwrap().len(), 1);
+
+    // Clear with a reason: the level is 0, the events stay and carry the reason, the case hears of it.
+    assert!(
+        svc.clear_suspicion(&op, inviter.person, None)
+            .await
+            .is_err()
+    );
+    svc.clear_suspicion(&op, inviter.person, Some("spoke to the member"))
+        .await
+        .unwrap();
+    let level: i32 = sqlx::query_scalar("SELECT suspicion_level::int FROM persons WHERE id = $1")
+        .bind(inviter.person)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(level, 0);
+    let reasons: Vec<String> =
+        sqlx::query_scalar("SELECT reason FROM suspicion_events WHERE person_id = $1 ORDER BY id")
+            .bind(inviter.person)
+            .fetch_all(pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        reasons.len(),
+        4,
+        "three raises and the clear; nothing deleted"
+    );
+    assert_eq!(reasons[3], "cleared by staff: spoke to the member");
+    let noted: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM moderation_case_events e JOIN moderation_cases c ON c.id = e.case_id \
+         WHERE c.subject_person_id = $1 AND e.kind = 'suspicion_cleared'",
+    )
+    .bind(inviter.person)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(noted, 1);
+    // The panel shows the clear.
+    let reader = staff(senior.account, P::MANAGE_INVITES);
+    let panel =
+        w.m.suspicion_panel(&Who::Staff(&reader), inviter.person)
+            .await
+            .unwrap();
+    assert_eq!(
+        panel.events.iter().filter(|e| e.kind == "cleared").count(),
+        1
+    );
+    assert!(panel.events[0].reason.contains("spoke to the member"));
+    assert_eq!(panel.banned_descendants.len(), 3);
     w.db.cleanup().await.unwrap();
 }
