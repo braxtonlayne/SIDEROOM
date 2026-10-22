@@ -168,7 +168,7 @@ impl Moderation {
         .collect::<ModResult<_>>()?;
 
         let events = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT e.id, e.delta::int AS delta, e.level_after, e.reason, e.source_account_id, \
+            "SELECT e.id, e.delta::int AS delta, e.level_after, e.reason, e.kind AS ekind, e.source_account_id, \
              sa.username::text AS source_name, e.actor_id, e.case_id, {} AS created_ms \
              FROM suspicion_events e LEFT JOIN accounts sa ON sa.id = e.source_account_id \
              WHERE e.person_id = $1 ORDER BY e.id DESC LIMIT 100",
@@ -184,7 +184,11 @@ impl Moderation {
                 id: r.try_get("id")?,
                 delta,
                 level_after: r.try_get("level_after")?,
-                kind: if delta < 0 { "cleared" } else { "raised" }.to_owned(),
+                kind: match r.try_get::<Option<String>, _>("ekind")? {
+                    Some(k) => k,
+                    None if delta < 0 => "cleared".to_owned(),
+                    None => "raised".to_owned(),
+                },
                 reason: r.try_get("reason")?,
                 source_account: account_ref(
                     r.try_get("source_account_id")?,
@@ -885,6 +889,94 @@ impl Moderation {
         }
         tx.commit().await?;
         Ok(out)
+    }
+
+    /// Link a signal to the case staff opened from it (`MANAGE_CASES`; logged as `moderation.evasion.link_case`).
+    /// One link per signal; the case gets a timeline entry that names the kind, never an address (D-348).
+    pub async fn link_signal_case(
+        &self,
+        who: &Who<'_>,
+        signal_id: i64,
+        case_id: i64,
+    ) -> ModResult<SignalView> {
+        require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
+        let mut tx = self.pool.begin().await?;
+        let case: Option<i64> = sqlx::query_scalar("SELECT id FROM moderation_cases WHERE id = $1")
+            .bind(case_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        if case.is_none() {
+            return Err(ModError::NotFound("case"));
+        }
+        let n = sqlx::query(
+            "UPDATE evasion_signals SET case_id = $2 WHERE id = $1 AND case_id IS NULL",
+        )
+        .bind(signal_id)
+        .bind(case_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        if n == 0 {
+            let exists: Option<i64> =
+                sqlx::query_scalar("SELECT id FROM evasion_signals WHERE id = $1")
+                    .bind(signal_id)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+            return Err(if exists.is_some() {
+                conflict("The signal is already linked to a case")
+            } else {
+                ModError::NotFound("signal")
+            });
+        }
+        let sql = format!("{} WHERE s.id = $1", signal_select());
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(signal_id)
+            .fetch_one(&mut *tx)
+            .await?;
+        let out = signal_from(&row)?;
+        push_event(
+            &mut tx,
+            self.next_id(),
+            case_id,
+            Some(who.user_id()),
+            "evasion_signal_linked",
+            json!({ "signal_id": signal_id.to_string(), "kind": out.kind.as_str() }),
+        )
+        .await?;
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::AdminAction,
+            "moderation.evasion.link_case",
+            ("signal", signal_id),
+            "",
+            json!({ "case_id": case_id.to_string() }),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(out)
+    }
+
+    /// Open signals, for the Review hub tile (`MANAGE_ACCOUNTS`; logged like the list).
+    pub async fn count_open_signals(&self, who: &Who<'_>) -> ModResult<i64> {
+        require_staff(who, P::MANAGE_ACCOUNTS, "MANAGE_ACCOUNTS")?;
+        let mut tx = self.pool.begin().await?;
+        let n: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM evasion_signals WHERE state = 'open'")
+                .fetch_one(&mut *tx)
+                .await?;
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::Read,
+            "moderation.evasion.count",
+            ("signals", 0),
+            "",
+            json!({ "open": n }),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(n)
     }
 
     /// The reviewer's finding outlives the sign-in rows (D-347): a snapshot onto the signal and, when the Person

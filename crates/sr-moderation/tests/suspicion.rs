@@ -1038,3 +1038,76 @@ async fn a_confirmed_signal_keeps_its_finding_after_the_sign_in_rows_are_purged(
     assert_eq!(d.snapshot.unwrap()["shared_addresses"], 1);
     w.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_panel_lists_a_refused_re_registration_and_linking_a_signal_works_once() {
+    let w = world().await;
+    let pool = w.pool();
+    let banned = person(pool, "banned").await;
+    let newcomer = person(pool, "newcomer").await;
+    let senior = person(pool, "senior").await;
+    ban(pool, &banned, senior.account, "serious", "ban_evasion").await;
+    sqlx::query(
+        "INSERT INTO suspicion_events (id, person_id, delta, level_after, reason, kind) \
+         VALUES ($1, $2, 0, 0, 'registration refused: matched by discord; invite from person 9', 'reregistration_refused')",
+    )
+    .bind(uid())
+    .bind(banned.person)
+    .execute(pool)
+    .await
+    .unwrap();
+    let both = staff(
+        senior.account,
+        P::MANAGE_INVITES | P::MANAGE_ACCOUNTS | P::MANAGE_CASES,
+    );
+    let who = Who::Staff(&both);
+    let panel = w.m.suspicion_panel(&who, banned.person).await.unwrap();
+    assert_eq!(panel.events.len(), 1);
+    assert_eq!(panel.events[0].kind, "reregistration_refused");
+    assert_eq!(panel.level, 0, "no level change");
+
+    // Link a signal to a case, once.
+    login(pool, &banned, "192.0.2.9", 2).await;
+    login(pool, &newcomer, "192.0.2.9", 1).await;
+    assert_eq!(w.m.scan_person(newcomer.person).await.unwrap(), 1);
+    let sid =
+        w.m.list_signals(
+            &who,
+            &SignalFilter {
+                limit: 5,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap()[0]
+            .id;
+    let case =
+        w.m.open_case(
+            &who,
+            &NewCase {
+                category: ReportCategory::BanEvasion,
+                target_kind: TargetKind::User,
+                target_id: Some(newcomer.account),
+                subject_account_id: Some(newcomer.account),
+                summary: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+    let linked = w.m.link_signal_case(&who, sid, case.id).await.unwrap();
+    assert_eq!(linked.case_id, Some(case.id));
+    assert!(matches!(
+        w.m.link_signal_case(&who, sid, case.id).await,
+        Err(ModError::Conflict(_))
+    ));
+    assert_eq!(log_count(pool, "moderation.evasion.link_case").await, 1);
+    let only_accounts = staff(senior.account, P::MANAGE_ACCOUNTS);
+    assert!(matches!(
+        w.m.link_signal_case(&Who::Staff(&only_accounts), sid, case.id)
+            .await,
+        Err(ModError::MissingPermission(_))
+    ));
+    assert_eq!(w.m.count_open_signals(&who).await.unwrap(), 1);
+    w.db.cleanup().await.unwrap();
+}

@@ -277,6 +277,10 @@ pub struct MemberInvites {
 #[async_trait]
 pub trait AuthStore: Send + Sync {
     // ---- invites and registration -------------------------------------
+    /// The Person that issued the invite (staff context for a refused registration), if the code exists.
+    async fn invite_issuer_person(&self, _code: &InviteCode) -> StoreResult<Option<i64>> {
+        Ok(None)
+    }
     /// State of an invite, `None` if the code does not exist.
     async fn invite_state(&self, code: &InviteCode) -> StoreResult<Option<InviteState>>;
     /// Number of counted (`active`) accounts.

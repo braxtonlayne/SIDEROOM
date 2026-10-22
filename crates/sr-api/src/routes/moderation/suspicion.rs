@@ -183,3 +183,61 @@ pub async fn review(
         .await
         .map(Json)
 }
+
+/// Body of a case link.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LinkCaseBody {
+    /// The case staff opened from the signal.
+    pub case_id: String,
+}
+
+/// Link a signal to the case opened from it (`MANAGE_CASES`; access-logged). 409 when it is already linked.
+#[utoipa::path(
+    post, path = "/moderation/evasion-signals/{signal_id}/link-case", request_body = LinkCaseBody,
+    params(("signal_id" = String, Path, description = "Signal snowflake")),
+    responses((status = 200, body = SignalView), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn link_case(
+    ctx: StaffCtx,
+    Ext(deps): Ext<ModerationDeps>,
+    Path(signal_id): Path<String>,
+    Json(b): Json<LinkCaseBody>,
+) -> ApiResult<Json<SignalView>> {
+    let sid = id(&signal_id, "signal")?;
+    let cid = id(&b.case_id, "case")?;
+    let r = deps
+        .svc
+        .link_signal_case(&Who::Staff(&ctx.caller), sid, cid)
+        .await;
+    staff_result(
+        &ctx,
+        "moderation.evasion.link_case",
+        Some(("signal", sid)),
+        r,
+    )
+    .await
+    .map(Json)
+}
+
+/// How many signals are open (`MANAGE_ACCOUNTS`; access-logged), for the Review hub.
+#[utoipa::path(
+    get, path = "/moderation/evasion-signals/count",
+    responses((status = 200, body = SignalCount), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn count(ctx: StaffCtx, Ext(deps): Ext<ModerationDeps>) -> ApiResult<Json<SignalCount>> {
+    let r = deps.svc.count_open_signals(&Who::Staff(&ctx.caller)).await;
+    staff_result(&ctx, "moderation.evasion.count", None, r)
+        .await
+        .map(|open| Json(SignalCount { open }))
+}
+
+/// Open evasion signals.
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct SignalCount {
+    pub open: i64,
+}

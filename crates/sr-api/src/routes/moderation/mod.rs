@@ -300,9 +300,14 @@ pub fn router() -> Router<AppState> {
             post(suspicion::scan),
         )
         .route("/moderation/evasion-signals", get(suspicion::list))
+        .route("/moderation/evasion-signals/count", get(suspicion::count))
         .route(
             "/moderation/evasion-signals/{signal_id}",
             get(suspicion::detail),
+        )
+        .route(
+            "/moderation/evasion-signals/{signal_id}/link-case",
+            post(suspicion::link_case),
         )
         .route(
             "/moderation/evasion-signals/{signal_id}/review",
@@ -359,6 +364,8 @@ pub fn router() -> Router<AppState> {
         suspicion::list,
         suspicion::detail,
         suspicion::review,
+        suspicion::link_case,
+        suspicion::count,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
@@ -416,6 +423,8 @@ pub fn router() -> Router<AppState> {
         takedowns::CourtFilingBody,
         takedowns::TakedownItemStatus,
         suspicion::SignalReviewBody,
+        suspicion::LinkCaseBody,
+        suspicion::SignalCount,
         sr_moderation::model::SuspicionPanel,
         sr_moderation::model::PanelEvent,
         sr_moderation::model::PersonAccountRef,

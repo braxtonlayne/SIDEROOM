@@ -772,7 +772,7 @@ pub struct PanelEvent {
     pub id: i64,
     pub delta: i32,
     pub level_after: i32,
-    /// `raised` or `cleared`.
+    /// `raised`, `cleared` or `reregistration_refused` (a banned Person's registration was refused).
     pub kind: String,
     pub reason: String,
     /// The banned account that raised it.

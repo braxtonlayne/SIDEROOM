@@ -220,6 +220,12 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
         (Method::GET, "/moderation/persons/5/suspicion", None),
         (Method::POST, "/moderation/persons/5/evasion-scan", None),
         (Method::GET, "/moderation/evasion-signals", None),
+        (Method::GET, "/moderation/evasion-signals/count", None),
+        (
+            Method::POST,
+            "/moderation/evasion-signals/5/link-case",
+            Some(json!({"case_id": "7"})),
+        ),
         (Method::GET, "/moderation/evasion-signals/5", None),
         (
             Method::POST,
@@ -1268,6 +1274,41 @@ async fn the_suspicion_routes_name_the_missing_bit_and_log_the_denial() {
 }
 
 #[tokio::test]
+async fn linking_and_counting_name_their_bits() {
+    let e = env(lazy()).await;
+    let (s, body) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            "/moderation/evasion-signals/5/link-case",
+            Some(json!({"case_id": "7"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_CASES")
+    );
+    let (s, body) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals/count",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_ACCOUNTS")
+    );
+}
+
+#[tokio::test]
 async fn suspicion_inputs_that_name_nothing_are_client_errors() {
     let e = env(lazy()).await;
     let (s, _) = e
@@ -1318,6 +1359,7 @@ async fn evasion_signals_and_the_panel_over_http() {
     let pool = db.pool().clone();
     for (id, name) in [
         (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
         (ACCOUNTS_STAFF, "accounts"),
         (MEMBER, "banned"),
         (TARGET, "newcomer"),
@@ -1434,6 +1476,52 @@ async fn evasion_signals_and_the_panel_over_http() {
         )
         .await;
     assert_eq!(s, StatusCode::CONFLICT);
+
+    // A case opened from the signal is linked once, by someone who holds MANAGE_CASES.
+    let (s, case) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/cases",
+            Some(json!({"category": "ban_evasion", "target_kind": "user",
+                        "target_id": TARGET.to_string(), "subject_account_id": TARGET.to_string()})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{case}");
+    let link = format!("/moderation/evasion-signals/{sid}/link-case");
+    let body = json!({"case_id": case["id"]});
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &link,
+            Some(body.clone()),
+        )
+        .await;
+    assert_eq!(
+        s,
+        StatusCode::FORBIDDEN,
+        "MANAGE_ACCOUNTS alone cannot link"
+    );
+    let (s, linked) = e
+        .call(Some(CASE_STAFF), Method::POST, &link, Some(body.clone()))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{linked}");
+    assert_eq!(linked["case_id"], case["id"]);
+    let (s, _) = e
+        .call(Some(CASE_STAFF), Method::POST, &link, Some(body))
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (s, count) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals/count",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{count}");
+    assert_eq!(count["open"], 0, "the only signal was reviewed");
 
     // Nobody was banned or suspended by any of this.
     let bans: i64 = sqlx::query_scalar("SELECT count(*) FROM person_bans WHERE person_id = $1")
