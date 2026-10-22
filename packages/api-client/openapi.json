@@ -50186,6 +50186,52 @@
         ]
       }
     },
+    "/moderation/evasion-signals/count": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "How many signals are open (`MANAGE_ACCOUNTS`; access-logged), for the Review hub.",
+        "operationId": "count",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalCount"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/evasion-signals/{signal_id}": {
       "get": {
         "tags": [
@@ -50236,6 +50282,103 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals/{signal_id}/link-case": {
+      "post": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Link a signal to the case opened from it (`MANAGE_CASES`; access-logged). 409 when it is already linked.",
+        "operationId": "link_case",
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "description": "Signal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCaseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -79900,6 +80043,19 @@
           }
         }
       },
+      "LinkCaseBody": {
+        "type": "object",
+        "description": "Body of a case link.",
+        "required": [
+          "case_id"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "description": "The case staff opened from the signal."
+          }
+        }
+      },
       "ListCard": {
         "allOf": [
           {
@@ -83811,7 +83967,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`raised` or `cleared`."
+            "description": "`raised`, `cleared` or `reregistration_refused` (a banned Person's registration was refused)."
           },
           "level_after": {
             "type": "integer",
@@ -89405,6 +89561,19 @@
           }
         }
       },
+      "SignalCount": {
+        "type": "object",
+        "description": "Open evasion signals.",
+        "required": [
+          "open"
+        ],
+        "properties": {
+          "open": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "SignalDetail": {
         "type": "object",
         "description": "A signal with the addresses behind it, read live: nothing is stored, so what retention or an account deletion\nremoved is gone from here too.",
@@ -89422,6 +89591,13 @@
           },
           "signal": {
             "$ref": "#/components/schemas/SignalView"
+          },
+          "snapshot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the reviewer looked at when they confirmed the signal (never an address); stays when the rows are gone."
           },
           "window_days": {
             "type": "integer",
@@ -89489,6 +89665,13 @@
                 "$ref": "#/components/schemas/PersonAccountRef"
               }
             ]
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The case opened from this signal."
           },
           "created_at_ms": {
             "type": "integer",

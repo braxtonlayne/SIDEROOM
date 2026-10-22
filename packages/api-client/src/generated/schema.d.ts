@@ -9578,6 +9578,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/evasion-signals/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many signals are open (`MANAGE_ACCOUNTS`; access-logged), for the Review hub. */
+        get: operations["count"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/evasion-signals/{signal_id}": {
         parameters: {
             query?: never;
@@ -9592,6 +9609,23 @@ export interface paths {
         get: operations["detail"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/evasion-signals/{signal_id}/link-case": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Link a signal to the case opened from it (`MANAGE_CASES`; access-logged). 409 when it is already linked. */
+        post: operations["link_case"];
         delete?: never;
         options?: never;
         head?: never;
@@ -17865,6 +17899,11 @@ export interface components {
             /** @description The title the asset belongs to (a film, or the series for bookkeeping). */
             title_id?: string | null;
         };
+        /** @description Body of a case link. */
+        LinkCaseBody: {
+            /** @description The case staff opened from the signal. */
+            case_id: string;
+        };
         /** @description A reading list with signed cover URLs for its first series (the fanned stack). */
         ListCard: components["schemas"]["ReadingList"] & {
             /** @description Cover URLs of the `preview` series, same order; series without a cover are skipped. */
@@ -19074,7 +19113,7 @@ export interface components {
             /** Format: int32 */
             delta: number;
             id: string;
-            /** @description `raised` or `cleared`. */
+            /** @description `raised`, `cleared` or `reregistration_refused` (a banned Person's registration was refused). */
             kind: string;
             /** Format: int32 */
             level_after: number;
@@ -20845,6 +20884,11 @@ export interface components {
             /** @description 1 to 500 characters. */
             body: string;
         };
+        /** @description Open evasion signals. */
+        SignalCount: {
+            /** Format: int64 */
+            open: number;
+        };
         /**
          * @description A signal with the addresses behind it, read live: nothing is stored, so what retention or an account deletion
          *     removed is gone from here too.
@@ -20852,6 +20896,8 @@ export interface components {
         SignalDetail: {
             shared_addresses: components["schemas"]["SharedAddress"][];
             signal: components["schemas"]["SignalView"];
+            /** @description What the reviewer looked at when they confirmed the signal (never an address); stays when the rows are gone. */
+            snapshot?: Record<string, never> | null;
             /** Format: int64 */
             window_days: number;
         };
@@ -20875,6 +20921,8 @@ export interface components {
         /** @description An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address. */
         SignalView: {
             account?: null | components["schemas"]["PersonAccountRef"];
+            /** @description The case opened from this signal. */
+            case_id?: string | null;
             /** Format: int64 */
             created_at_ms: number;
             detail: Record<string, never>;
@@ -55012,6 +55060,41 @@ export interface operations {
             };
         };
     };
+    count: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalCount"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     detail: {
         parameters: {
             query?: never;
@@ -55049,6 +55132,72 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    link_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Signal snowflake */
+                signal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkCaseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
