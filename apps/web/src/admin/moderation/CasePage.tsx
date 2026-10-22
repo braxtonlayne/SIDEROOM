@@ -494,7 +494,7 @@ async function takedownAware(
     await fn();
   } catch (e) {
     const text = e instanceof Error ? e.message : '';
-    const m = /takedown notice TK-(d+)/.exec(text);
+    const m = /takedown notice TK-(\d+)/.exec(text);
     if (!m?.[1]) throw e;
     onRefusal(text, m[1]);
   }

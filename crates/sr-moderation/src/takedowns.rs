@@ -2010,7 +2010,10 @@ impl Moderation {
     /// refuses such a message, because only the register puts it back (its restore or withdrawal).
     pub async fn message_takedown(&self, message_id: i64) -> ModResult<Option<i64>> {
         Ok(sqlx::query_scalar(
-            "SELECT n.id FROM takedown_items i JOIN takedown_notices n ON n.id = i.notice_id              WHERE i.kind = 'message' AND i.target_id = $1 AND i.state IN ('held', 'disabled')                AND n.state IN ('triage', 'removed', 'counter_noticed')              ORDER BY n.id LIMIT 1",
+            "SELECT n.id FROM takedown_items i JOIN takedown_notices n ON n.id = i.notice_id \
+             WHERE i.kind = 'message' AND i.target_id = $1 AND i.state IN ('held', 'disabled') \
+               AND n.state IN ('triage', 'removed', 'counter_noticed') \
+             ORDER BY n.id LIMIT 1",
         )
         .bind(message_id)
         .fetch_optional(&self.pool)
