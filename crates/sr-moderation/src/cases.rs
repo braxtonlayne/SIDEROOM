@@ -20,7 +20,7 @@ use crate::service::{GuildAuditKind, Moderation, log_staff, push_event, require_
 /// The columns of a case row (aliased `c`) that [`summary_from`] and [`head_from`] read.
 const CASE_COLS: &str = "c.id, c.state, c.category, c.severity, c.routing, \
     (c.escalated_at IS NOT NULL) AS escalated, (c.escalated_by IS NOT NULL) AS escalated_by_guild, \
-    c.summary, c.target_kind, c.target_id, c.guild_id, c.assignee_id, \
+    c.summary, c.target_kind, c.target_id, c.target_channel_id, c.guild_id, c.assignee_id, \
     c.subject_person_id, c.subject_account_id, c.linked_case_id, c.outcome, \
     (SELECT count(*) FROM moderation_reports r WHERE r.case_id = c.id) AS report_count, \
     (SELECT count(*) FROM moderation_holds h WHERE h.case_id = c.id AND h.released_at IS NULL) AS active_holds, \
@@ -44,6 +44,7 @@ fn summary_from(r: &PgRow) -> ModResult<CaseSummary> {
         target_kind: TargetKind::parse(&r.try_get::<String, _>("target_kind")?)
             .unwrap_or(TargetKind::Other),
         target_id: r.try_get("target_id")?,
+        target_channel_id: r.try_get("target_channel_id")?,
         guild_id: r.try_get("guild_id")?,
         assignee_id: r.try_get("assignee_id")?,
         report_count: r.try_get("report_count")?,
@@ -71,16 +72,16 @@ fn head_of(s: &CaseSummary) -> CaseHead {
 }
 
 /// A case as loaded for an action: the summary, the columns the detail adds, and what `who` may do.
-struct Loaded {
-    summary: CaseSummary,
-    subject_person_id: Option<i64>,
-    subject_account_id: Option<i64>,
+pub(crate) struct Loaded {
+    pub(crate) summary: CaseSummary,
+    pub(crate) subject_person_id: Option<i64>,
+    pub(crate) subject_account_id: Option<i64>,
     linked_case_id: Option<i64>,
     outcome: String,
     access: Access,
 }
 
-async fn load(
+pub(crate) async fn load(
     conn: &mut PgConnection,
     who: &Who<'_>,
     id: i64,

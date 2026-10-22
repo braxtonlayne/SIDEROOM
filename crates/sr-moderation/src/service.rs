@@ -67,6 +67,10 @@ pub trait RemovalSink: Send + Sync {
 #[async_trait]
 pub trait PolicySource: Send + Sync {
     async fn takedown_policy(&self) -> TakedownPolicy;
+    /// `compliance.data_request_deadline_days`, for the erasure request opened below the minimum age (D-341).
+    async fn data_request_deadline_days(&self) -> u32 {
+        30
+    }
 }
 
 /// The moderation backend over one database. Cheap to clone.
@@ -80,6 +84,7 @@ pub struct Moderation {
     pub(crate) policy: Option<Arc<dyn PolicySource>>,
     pub(crate) removals: Option<Arc<dyn RemovalSink>>,
     pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
+    pub(crate) channel_sink: Option<Arc<dyn crate::age::ChannelSink>>,
 }
 
 impl Moderation {
@@ -93,6 +98,7 @@ impl Moderation {
             policy: None,
             removals: None,
             blocklist: None,
+            channel_sink: None,
         }
     }
 
@@ -149,6 +155,13 @@ impl Moderation {
     pub fn with_blocklist(mut self, b: Arc<MediaBlocklist>) -> Self {
         self.blocklist = Some(b);
         self
+    }
+
+    pub(crate) async fn deadline_days(&self) -> u32 {
+        match &self.policy {
+            Some(p) => p.data_request_deadline_days().await,
+            None => 30,
+        }
     }
 
     pub(crate) async fn policy(&self) -> TakedownPolicy {

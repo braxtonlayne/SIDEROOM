@@ -9,6 +9,7 @@ export function HoldsTab({ onOpenCase }: { onOpenCase: (id: string) => void }) {
   const t = useT();
   const [activeOnly, setActiveOnly] = useState(true);
   const [target, setTarget] = useState<api.HoldView | null>(null);
+  const [retain, setRetain] = useState<api.HoldView | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const res = useResource(`holds:${activeOnly}`, () =>
@@ -57,6 +58,12 @@ export function HoldsTab({ onOpenCase }: { onOpenCase: (id: string) => void }) {
                     <Badge variant="warning">{t('admin.moderation.hold.inForce')}</Badge>
                   )}{' '}
                   {h.scope_kind ?? ''} {h.scope_id ?? ''}
+                  {h.erasure_flagged && (
+                    <>
+                      {' '}
+                      <Badge variant="danger">{t('admin.moderation.hold.erasureFlagged')}</Badge>
+                    </>
+                  )}
                   {h.review_due && (
                     <>
                       {' '}
@@ -72,6 +79,22 @@ export function HoldsTab({ onOpenCase }: { onOpenCase: (id: string) => void }) {
                     submissions: h.submissions,
                   })}{' '}
                   · {t('admin.moderation.holds.placed', { when: fmtMs(h.created_at_ms) })}
+                  {h.erasure_flagged && (
+                    <>
+                      <br />
+                      {t('admin.moderation.hold.erasureNote', {
+                        id: h.erasure_request_id ?? '',
+                      })}
+                    </>
+                  )}
+                  {h.erasure_retained_basis && (
+                    <>
+                      <br />
+                      {t('admin.moderation.hold.erasureRetained', {
+                        basis: h.erasure_retained_basis,
+                      })}
+                    </>
+                  )}
                 </div>
               </div>
               {h.case_id && (
@@ -94,6 +117,16 @@ export function HoldsTab({ onOpenCase }: { onOpenCase: (id: string) => void }) {
                       onClick={() => void keep(h)}
                     >
                       {t('admin.moderation.holds.keep')}
+                    </Button>
+                  )}
+                  {h.erasure_flagged && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={t('admin.moderation.hold.retainAria', { id: h.id })}
+                      onClick={() => setRetain(h)}
+                    >
+                      {t('admin.moderation.hold.retain')}
                     </Button>
                   )}
                   <Button
@@ -121,6 +154,21 @@ export function HoldsTab({ onOpenCase }: { onOpenCase: (id: string) => void }) {
           await api.releaseHold(target.id, reason);
           setTarget(null);
           setNotice(t('admin.moderation.dialog.releasedNotice'));
+          await res.reload();
+        }}
+      />
+      <ReasonDialog
+        open={!!retain}
+        title={t('admin.moderation.dialog.retainTitle')}
+        description={t('admin.moderation.dialog.retainDescription')}
+        confirmLabel={t('admin.moderation.dialog.retainConfirm')}
+        reasonLabel={t('admin.moderation.dialog.retainBasis')}
+        onCancel={() => setRetain(null)}
+        onConfirm={async (basis) => {
+          if (!retain) return;
+          await api.retainHoldAfterErasure(retain.id, basis);
+          setRetain(null);
+          setNotice(t('admin.moderation.dialog.retainedNotice'));
           await res.reload();
         }}
       />

@@ -251,6 +251,26 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
             Some(json!({"reason": "x"})),
         ),
         (Method::POST, "/moderation/holds/5/reviewed", None),
+        (
+            Method::POST,
+            "/moderation/holds/5/retain",
+            Some(json!({"basis": "x"})),
+        ),
+        (
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(json!({"kind": "channel", "id": "5", "restricted": true, "reason": "x"})),
+        ),
+        (
+            Method::POST,
+            "/moderation/age/underage",
+            Some(json!({"account_id": "5", "band": "under_18", "note": "x"})),
+        ),
+        (
+            Method::POST,
+            "/moderation/age/underage/5/lift",
+            Some(json!({"reason": "x"})),
+        ),
         (Method::GET, "/moderation/appeals", None),
         (Method::GET, "/moderation/takedowns", None),
         (Method::GET, "/moderation/takedowns/export", None),
@@ -1720,4 +1740,187 @@ async fn evasion_signals_and_the_panel_over_http() {
         .unwrap();
     assert_eq!(bans, 0);
     db.cleanup().await.unwrap();
+}
+
+/// MOD-AGE-001/-003 and the hold decision of MOD-DSR-005 over HTTP: staff only, a reason is needed, a channel is
+/// marked, an underage account is reset and locked, the lock is lifted once, an unflagged hold cannot be retained.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn age_tools_and_the_hold_decision_over_http() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (BASIC, "basic"),
+        (REVIEWER, "reviewer"),
+        (CLERK, "clerk"),
+        (MEMBER, "member"),
+        (TARGET, "target"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES (77, 'Club', $1)")
+        .bind(OWNER)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES (88, 77, 0, 'general')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO moderation_holds (id, reason) VALUES (99, 'evidence')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let e = env(pool.clone()).await;
+    let mark = json!({"kind": "channel", "id": "88", "restricted": true, "reason": "misplaced"});
+
+    // Staff without the bit are refused by name; members are refused as non-staff.
+    let (s, b) = e
+        .call(
+            Some(BASIC),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(mark.clone()),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{b}");
+    assert!(
+        b["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_CASES"),
+        "{b}"
+    );
+    // A reason is required.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(json!({"kind": "channel", "id": "88", "restricted": true})),
+        )
+        .await;
+    assert!(s.is_client_error(), "{s}: {b}");
+    // Marked; the channel row changed; marking again changes nothing.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(mark.clone()),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        (b["changed"].as_bool(), b["label"].as_str()),
+        (Some(true), Some("general"))
+    );
+    let nsfw: bool = sqlx::query_scalar("SELECT nsfw FROM channels WHERE id = 88")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(nsfw);
+    let (_, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(mark),
+        )
+        .await;
+    assert_eq!(b["changed"], false);
+    // A category is a conflict.
+    sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES (89, 77, 4, 'cat')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(json!({"kind": "channel", "id": "89", "restricted": true, "reason": "x"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
+
+    // Underage handling: reset and lock, then lift once.
+    sqlx::query("UPDATE accounts SET age_confirmed = TRUE, age_confirmed_at = now() WHERE id = $1")
+        .bind(TARGET)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let under = json!({"account_id": TARGET.to_string(), "band": "under_18", "note": "says 16"});
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/underage",
+            Some(under),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        (b["suspended"].as_bool(), b["band"].as_str()),
+        (Some(false), Some("under_18"))
+    );
+    let (confirmed, locked): (Option<bool>, bool) = sqlx::query_as(
+        "SELECT age_confirmed, age_locked_at IS NOT NULL FROM accounts WHERE id = $1",
+    )
+    .bind(TARGET)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((confirmed, locked), (None, true));
+    let lift = format!("/moderation/age/underage/{TARGET}/lift");
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            &lift,
+            Some(json!({"reason": "mistake"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{b}");
+    let (s, _) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            &lift,
+            Some(json!({"reason": "again"})),
+        )
+        .await;
+    assert!(s.is_client_error());
+    // The suspension of an under-13 goes through the case-action service.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/underage",
+            Some(json!({"account_id": TARGET.to_string(), "band": "under_13", "note": "says 11"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["suspended"], true);
+    assert!(
+        e.actions
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|c| c.starts_with("suspend 0"))
+    );
+
+    // A hold no deletion request met cannot be retained.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/holds/99/retain",
+            Some(json!({"basis": "legal claim"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
 }

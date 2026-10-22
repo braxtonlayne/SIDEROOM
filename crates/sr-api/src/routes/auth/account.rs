@@ -258,6 +258,17 @@ pub async fn age_gate(
     svc.store
         .set_age_confirmed(p.user_id, body.over_18, state.now_secs())
         .await?;
+    if body.over_18 {
+        // Staff reset and locked this account's confirmation (MOD-AGE-003): the store ignored the "yes".
+        let account = current_account(&svc, p.user_id).await?;
+        if account.age_confirmed != Some(true) {
+            return Err(ApiError::with_message(
+                sr_core::ErrorCode::MissingPermissions,
+                "Staff have reset your age confirmation because they have reason to believe you are under 18. Content marked 18+ stays closed until staff lift this. If that is wrong, write to the staff at the contact shown on the Help page.",
+            )
+            .into());
+        }
+    }
     svc.notify_user_update(
         p.user_id,
         serde_json::json!({ "age_confirmed": body.over_18 }),

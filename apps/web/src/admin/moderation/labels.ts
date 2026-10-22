@@ -62,6 +62,10 @@ export const EVENT_KEYS: Record<string, MessageKey> = {
   suspicion_cleared: 'admin.moderation.event.suspicionCleared',
   evasion_signal_confirmed: 'admin.moderation.event.evasionConfirmed',
   evasion_signal_linked: 'admin.moderation.event.evasionLinked',
+  age_restriction_set: 'admin.moderation.event.ageRestrictionSet',
+  underage_handled: 'admin.moderation.event.underageHandled',
+  erasure_hold_flagged: 'admin.moderation.event.erasureHoldFlagged',
+  erasure_hold_retained: 'admin.moderation.event.erasureHoldRetained',
 };
 
 /** The actions a moderator can record as taken with the server's own tools. */

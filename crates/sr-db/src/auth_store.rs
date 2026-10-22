@@ -388,10 +388,12 @@ impl AuthStore for PgAuthStore {
     }
 
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()> {
+        // An account staff found to be underage (MOD-AGE-003) cannot answer "yes" until the lock is lifted;
+        // its "no" is still recorded.
         sqlx::query(
             "UPDATE accounts SET age_confirmed = $2, \
              age_confirmed_at = CASE WHEN $2 THEN COALESCE(age_confirmed_at, to_timestamp($3::float8)) \
-             ELSE NULL END, updated_at = now() WHERE id = $1",
+             ELSE NULL END, updated_at = now() WHERE id = $1 AND (NOT $2 OR age_locked_at IS NULL)",
         )
         .bind(id)
         .bind(confirmed)

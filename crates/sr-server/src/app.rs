@@ -1200,6 +1200,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_policy(Arc::new(crate::takedown_jobs::TakedownPolicySource::new(
             features.clone(),
         )))
+        .with_channel_sink(Arc::new(crate::moderation_age::BusChannelSink {
+            guilds: guilds.0.clone(),
+            bus: bus.clone(),
+            audit: audit_sink.clone(),
+            pool: pool.clone(),
+        }))
         .with_blocklist(media_blocklist.clone())
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),

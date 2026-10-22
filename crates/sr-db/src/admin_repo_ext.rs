@@ -1114,6 +1114,21 @@ impl PgAdminRepo {
                 .execute(&mut **tx)
                 .await
                 .map_err(db)?;
+            // The moderation and request history that points at the emptied Person follows its accounts (these
+            // rows are kept forever and would otherwise block the delete below).
+            for sql in [
+                "UPDATE moderation_cases SET subject_person_id = $2 WHERE subject_person_id = $1",
+                "UPDATE data_requests SET person_id = $2 WHERE person_id = $1",
+                "UPDATE takedown_items SET subject_person_id = $2 WHERE subject_person_id = $1",
+                "UPDATE takedown_strike_reviews SET person_id = $2 WHERE person_id = $1",
+            ] {
+                sqlx::query(sql)
+                    .bind(old)
+                    .bind(person_id)
+                    .execute(&mut **tx)
+                    .await
+                    .map_err(db)?;
+            }
             sqlx::query("DELETE FROM person_bans WHERE person_id = $1")
                 .bind(old)
                 .execute(&mut **tx)

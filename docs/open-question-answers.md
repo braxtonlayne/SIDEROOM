@@ -3044,6 +3044,44 @@ Status: `ADOPTED` (D-338). Follow-up: N-41.
 
 Nothing new from this round.
 
+## Phase 19 round (answered 2026-10-22, delegated)
+
+The questions the two Phase 19 moderation branches left: `feat/p19-mod-dash` (staff dashboards, `docs/dev/handoff/feat-p19-mod-dash.md`) and `feat/p19-mod-age` (age tools and the last three data-subject rights, `docs/dev/handoff/feat-p19-mod-age.md`), answered by the owner's proxy under the same delegation and limits as the Phase 18 rounds: decide and document only (no code, build or push); legal questions get a project default and are not legal advice. Decisions are D-339 to D-343 in [01-decisions-log.md](01-decisions-log.md); follow-ups are P-01 to P-06 under "Phase 19 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 5 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Dashboards (P19, branch `feat/p19-mod-dash`)
+
+**P19-1 (dash handoff question 1; spec section 9 item 2, MOD-DASH-002). "Unattached reports" has no literal meaning, because every report has a case. The branch read it as reports in state `received` whose case is `open` with nobody assigned. Is that right?**
+Decision: yes, as built, and the spec now says it in those words. A report has a case from the moment it is filed (D-209), so "unattached" can only mean "nobody has picked this up": not triaged (`received`), no decision on the case (`open`; a reopened case is known work and stays in the queue), nobody holding it (`assignee_id IS NULL`, so a claimed-then-released case returns to the inbox). One group per case is the only duplicate grouping that never compares reporters or notes (spec 3.3). "Cases still waiting" in the health section stays a different count (no first action yet).
+Status: `ADOPTED` (D-339). Follow-up: P-01 (spec wording).
+
+**P19-2 (dash handoff question 2). Should staff holding `PLATFORM_BAN` alone see the Moderation section with only the Dashboard tab (ban figures)? An existing test says no.**
+Decision: no; the test stands. The ban figures (MOD-DASH-007) go on Admin > Bans instead, above the list, for every `PLATFORM_BAN` holder: that is the page a ban officer works, MOD-BAN-003 just gave it the matching filters, and each count can link to the list filtered the same way. The API already answers only the `bans` section to a `PLATFORM_BAN` caller, so it is one `getDashboard()` call on the page. Staff who also hold `MANAGE_CASES` or `MANAGE_TAKEDOWNS` keep the figures on the Dashboard tab as well.
+Status: `ADOPTED` (D-340). Follow-up: P-02.
+
+### Age tools and data-subject rights (P19, branch `feat/p19-mod-age`)
+
+**P19-3 (age handoff question 1; D-294 lawyer note). Below the minimum age: suspend, plus reset and lock the age confirmation. Under 18: reset and lock, the account stays active, the member is told by DM. Is that the right handling, and is the wording of the DM and of the inviter's notice right?**
+Decision: the handling stands, with two additions and one rewording. Under 18 as built (reset-and-restrict is D-294; the lock makes the reset real; being 13 to 17 is not a breach, so the account stays active; the member must be told because the gate will now refuse them). The DM is reworded: it names the reason, what is closed, and the staff contact on the Help page (D-295), because "reply to the staff" points at a system DM nobody reads. Below the minimum age: the suspension is the right immediate step but not the right resting state, since actual knowledge of a child under the consent age voids the consent the registration rested on (GDPR articles 8(1) and 17(1)(f); COPPA 16 CFR 312.5 and 312.10). So the route also opens an erasure request for the account in the data-request queue (kind `erasure`, state `verified`, verified by the acting staff member, note "below the minimum registration age (D-341)", due by `compliance.data_request_deadline_days`), run only by staff through the queue's ordinary path (holds are flagged, the retained-record list applies, the request can be declined if a parent writes in). The inviter's notice stands as written. The D-294 lawyer note gains the deletion-versus-suspension question. Not legal advice.
+Status: `ADOPTED` (D-341). Follow-ups: P-03, P-04, P-06.
+
+**P19-4 (age handoff question 2; MOD-DSR-007). Should Person-link rectification be open to `MANAGE_ACCOUNTS` alone, or keep needing both `MANAGE_TAKEDOWNS` and `MANAGE_ACCOUNTS`?**
+Decision: keep both on the data-request route. It reads and changes a request (gated by `MANAGE_TAKEDOWNS`, D-210; a caller without it cannot see the queue) and rewrites the Person graph that ban evasion and inviter suspicion are computed from (gated by `MANAGE_ACCOUNTS` on the Persons page). Both is the intersection of "may read the request" and "may change the graph". `MANAGE_ACCOUNTS` alone keeps the same write on the Persons page; a clerk without it asks an account holder and records the outcome on the request, as the dialog already says.
+Status: `ADOPTED` (D-342). No follow-up.
+
+**P19-5 (age handoff question 3; MOD-DSR-006). Restriction/objection hides cinema and library sharing, watching presence and recommendations from discovery. Is that enough for GDPR articles 18 and 21, or must the account also leave the member directory and message search while a request is active?**
+Decision: the scope stands; the account does not leave server member lists, member search or message search (there is no member directory; the Server Directory lists servers). Article 21 reaches processing on a legitimate-interest basis, which here is the discovery layer that `activity_shares()` already switches off in one place; the member lists and messages of the servers a member joined are the service they asked for (article 6(1)(b)), and article 18(2) allows processing of restricted data to protect the rights of other people, here the other members in the same rooms. Hiding a member from their own servers would itself disclose the request and break their use of the service; the member already has `activity.paused`, the sharing switches, leaving a server and the bulk self-delete (D-324). What the branch lacks is article 18(3): the member must be told before the restriction is lifted. So the tool gains a system DM when the restriction is applied and when it ends (staff lift, completion or decline), recorded on the request like the extension notice (D-317, D-327), with the intake-channel fallback. The D-295 lawyer note gains the scope question. Not legal advice.
+Status: `ADOPTED` (D-343). Follow-ups: P-05, P-06.
+
+### Still with the owner
+
+Actions only: hand D-341 and D-343 to the lawyer with D-294, D-295 and D-336.
+
 ## Phase 19 suspicion round (answered 2026-10-22, delegated)
 
 The defaults and questions `feat/p19-mod-sus` (MOD-SUS-001 to -005, spec section 10 step 5) left in `docs/dev/handoff/feat-p19-mod-sus.md`, answered by the owner's proxy under the same delegation and limits as the Phase 18 rounds: decide and document only (no code, build or push); the legal point in P19-SUS-4 is a project default, not legal advice. Decisions are D-344 to D-348 in [01-decisions-log.md](01-decisions-log.md) (D-339 to D-343 belong to another branch); follow-ups are P-10 to P-16 under "Phase 19 suspicion round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).

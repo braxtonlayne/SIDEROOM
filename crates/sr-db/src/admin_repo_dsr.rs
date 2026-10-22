@@ -27,7 +27,7 @@ fn cols() -> String {
         "r.id, r.kind, r.person_id, r.account_id, a.username::text AS username, r.state, r.note, \
          {} AS received_ms, {} AS due_ms, {} AS ext_ms, r.extension_reason, r.verified_by, \
          {} AS verified_ms, r.export_id, r.outcome, r.retained, {} AS completed_ms, r.created_by, \
-         {} AS extended_ms, {} AS notified_ms",
+         {} AS extended_ms, {} AS notified_ms, {} AS hidden_ms, r.activity_hidden_reason, {} AS rnotified_ms, r.restriction_notice_failed",
         ms("r.received_at"),
         ms("r.due_at"),
         ms("r.extended_until"),
@@ -35,6 +35,8 @@ fn cols() -> String {
         ms("r.completed_at"),
         ms("r.extended_at"),
         ms("r.member_notified_at"),
+        ms("r.activity_hidden_at"),
+        ms("r.restriction_notified_at"),
     )
 }
 
@@ -75,6 +77,11 @@ fn row(r: &PgRow) -> Result<DataRequest, sqlx::Error> {
         extended_at_ms: r.try_get("extended_ms")?,
         extended_late: false,
         member_notified_at_ms: r.try_get("notified_ms")?,
+        activity_hidden: r.try_get::<Option<i64>, _>("hidden_ms")?.is_some(),
+        activity_hidden_at_ms: r.try_get("hidden_ms")?,
+        activity_hidden_reason: r.try_get("activity_hidden_reason")?,
+        restriction_notified_at_ms: r.try_get("rnotified_ms")?,
+        restriction_notice_failed: r.try_get("restriction_notice_failed")?,
         created_by: r.try_get("created_by")?,
     })
 }
@@ -94,6 +101,68 @@ async fn load(conn: &mut PgConnection, id: i64, lock: bool) -> AdminResult<DataR
 }
 
 impl PgAdminRepo {
+    /// MOD-DSR-005: flag every hold still keeping a row of the erased account for a staff decision (release, or
+    /// retain with a stated legal basis), and tell each hold's case on its timeline. Nothing is released or
+    /// deleted. A hold flagged by an earlier request keeps its first flag.
+    async fn flag_held_holds(
+        &self,
+        account: i64,
+        request_id: i64,
+        actor: i64,
+        report: &mut ErasureReport,
+    ) -> AdminResult<()> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let flagged: Vec<(i64, Option<i64>)> = sqlx::query_as(
+            "WITH held AS ( \
+               SELECT hold_id FROM messages WHERE author_id = $1 AND hold_id IS NOT NULL \
+               UNION SELECT hold_id FROM attachments WHERE uploader_id = $1 AND hold_id IS NOT NULL) \
+             UPDATE moderation_holds h SET \
+               erasure_request_id = COALESCE(h.erasure_request_id, $2), \
+               erasure_flagged_at = COALESCE(h.erasure_flagged_at, now()) \
+             WHERE h.id IN (SELECT hold_id FROM held) AND h.released_at IS NULL \
+             RETURNING h.id, h.case_id",
+        )
+        .bind(account)
+        .bind(request_id)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(db)?;
+        let mut cases: Vec<i64> = flagged.iter().filter_map(|(_, c)| *c).collect();
+        cases.sort_unstable();
+        cases.dedup();
+        for case in &cases {
+            let holds: Vec<String> = flagged
+                .iter()
+                .filter(|(_, c)| *c == Some(*case))
+                .map(|(h, _)| h.to_string())
+                .collect();
+            sqlx::query(
+                "INSERT INTO moderation_case_events (id, case_id, actor_id, kind, detail) \
+                 VALUES ($1, $2, $3, 'erasure_hold_flagged', $4)",
+            )
+            .bind(self.next_id())
+            .bind(case)
+            .bind(actor)
+            .bind(serde_json::json!({
+                "data_request_id": request_id.to_string(),
+                "holds": holds,
+                "held_rows": report.held_rows,
+            }))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+            sqlx::query("UPDATE moderation_cases SET updated_at = now() WHERE id = $1")
+                .bind(case)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+        }
+        tx.commit().await.map_err(db)?;
+        report.held_holds = i64::try_from(flagged.len()).unwrap_or(i64::MAX);
+        report.held_cases = cases;
+        Ok(())
+    }
+
     /// Messages and attachments of the account that a moderation hold keeps.
     async fn held_rows(conn: &mut PgConnection, account: i64) -> AdminResult<i64> {
         sqlx::query_scalar(
@@ -328,6 +397,68 @@ impl DataRequestRepository for PgAdminRepo {
         Ok(out)
     }
 
+    async fn set_activity_hidden(
+        &self,
+        id: i64,
+        hidden: bool,
+        reason: &str,
+        by: i64,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest> {
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let r = load(&mut tx, id, true).await?;
+        if !r.state.is_active() {
+            return Err(AdminError::Conflict("The request is closed".into()));
+        }
+        if r.activity_hidden == hidden {
+            return Err(AdminError::Conflict(if hidden {
+                "The activity is already hidden".into()
+            } else {
+                "The activity is not hidden".into()
+            }));
+        }
+        if hidden {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "UPDATE data_requests SET activity_hidden_at = {}, activity_hidden_by = $2, \
+                 activity_hidden_reason = $3 WHERE id = $1",
+                from_ms("$4")
+            )))
+            .bind(id)
+            .bind(by)
+            .bind(reason)
+            .bind(now_ms)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        } else {
+            sqlx::query(
+                "UPDATE data_requests SET activity_hidden_at = NULL, activity_hidden_by = NULL, \
+                 activity_hidden_reason = NULL WHERE id = $1",
+            )
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
+        self.audit_in(&mut tx, audit).await?;
+        let out = load(&mut tx, id, false).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(out)
+    }
+
+    async fn restriction_notice(
+        &self,
+        id: i64,
+        delivered: bool,
+        _now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest> {
+        data_export::record_restriction_notice(self.pool(), id, delivered, audit).await?;
+        let mut c = self.pool().acquire().await.map_err(db)?;
+        load(&mut c, id, false).await
+    }
+
     async fn run_export(
         &self,
         id: i64,
@@ -470,6 +601,10 @@ impl DataRequestRepository for PgAdminRepo {
             report.messages_queued = Some(visible.messages);
             report.reactions_queued = visible.reactions;
             report.votes_queued = visible.poll_votes;
+        }
+        if report.held_rows > 0 {
+            self.flag_held_holds(r.account_id, id, audit.actor_id, &mut report)
+                .await?;
         }
         let outcome = erasure_outcome(&report, opts.invoice_years);
         let mut tx = self.pool().begin().await.map_err(db)?;

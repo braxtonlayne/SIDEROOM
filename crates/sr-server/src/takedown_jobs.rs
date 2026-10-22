@@ -94,6 +94,15 @@ impl PolicySource for TakedownPolicySource {
             operator_contact: s.operator_contact,
         }
     }
+
+    async fn data_request_deadline_days(&self) -> u32 {
+        let values = self
+            .features
+            .effective_settings(COMPLIANCE_ID, &ScopeRef::Platform)
+            .await
+            .unwrap_or_default();
+        u32::from(ComplianceSettings::from_values(&values).data_request_deadline_days)
+    }
 }
 
 /// Announces a message a takedown removed as a `MESSAGE_DELETE` on the event bus (D-335 item 3), so the gateway

@@ -239,11 +239,12 @@ pub fn snapshot_of(src: &Message, atts: &[Attachment]) -> ForwardSnapshot {
 
 /// Resolve `message_reference.type = 1`: the forwarder must be able to read the
 /// source message. The target channel's own send permission is checked by the chat
-/// rules as for any message.
+/// rules as for any message. `destination` is the channel the forward is sent to.
 pub async fn plan_forward(
     deps: &MessagesDeps,
     forwarder: UserId,
     r: &MessageReferenceIn,
+    destination: ChannelId,
 ) -> MsgResult<ForwardRequest> {
     let src_channel: ChannelId = r
         .channel_id
@@ -266,10 +267,18 @@ pub async fn plan_forward(
         .await?
         .remove(&src_id)
         .unwrap_or_default();
+    let mut snapshot = snapshot_of(&src, &atts);
+    // MOD-AGE-004: previews from an age-restricted channel do not follow the message into a place without the gate.
+    if sr_chat::sensitive::embeds_stay_behind(
+        deps.channel_age_restricted(src_channel).await,
+        deps.channel_age_restricted(destination).await,
+    ) {
+        snapshot.embeds.clear();
+    }
     Ok(ForwardRequest {
         source_message: src_id,
         source_channel: src_channel,
-        snapshot: snapshot_of(&src, &atts),
+        snapshot,
     })
 }
 

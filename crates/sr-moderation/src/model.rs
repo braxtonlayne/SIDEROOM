@@ -190,6 +190,10 @@ pub struct CaseSummary {
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub guild_id: Option<i64>,
+    /// The channel a message case is about (the channel to mark age-restricted for misplaced adult content).
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub target_channel_id: Option<i64>,
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub assignee_id: Option<i64>,
@@ -310,6 +314,16 @@ pub struct HoldView {
     pub catalog_rows: i64,
     /// Older than `moderation.hold_review_days`, so it is flagged for review (D-212).
     pub review_due: bool,
+    /// A deletion request met this hold (MOD-DSR-005): the hold is flagged for a staff decision, release or retain
+    /// with a stated legal basis. Cleared by either.
+    #[serde(default)]
+    pub erasure_flagged: bool,
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub erasure_request_id: Option<i64>,
+    /// Staff decided to retain the held rows after the request, with this basis.
+    #[serde(default)]
+    pub erasure_retained_basis: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
