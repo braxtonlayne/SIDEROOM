@@ -725,3 +725,186 @@ impl Default for TakedownPolicy {
         }
     }
 }
+
+// ---- inviter suspicion and evasion signals (Phase 7 step 5; spec section 10) ---------------------------------------
+
+text_enum! {
+    /// What an evasion signal says about a pair of Persons. A signal is a review item and never acts.
+    SignalKind {
+        SharedLoginIp => "shared_login_ip",
+        SharedInviteLineage => "shared_invite_lineage",
+        NewAccountAfterBan => "new_account_after_ban",
+    }
+}
+
+text_enum! {
+    /// Where a signal is in review.
+    SignalState {
+        Open => "open",
+        Dismissed => "dismissed",
+        Confirmed => "confirmed",
+    }
+}
+
+/// An account as staff see it in the panel.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AccountRef {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub username: String,
+}
+
+/// One step of the suspicion history (`suspicion_events`); a clear is a step with a negative delta and the
+/// reason the staff member gave. Steps are never deleted.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PanelEvent {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub delta: i32,
+    pub level_after: i32,
+    /// `raised` or `cleared`.
+    pub kind: String,
+    pub reason: String,
+    /// The banned account that raised it.
+    pub source_account: Option<AccountRef>,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub actor_id: Option<i64>,
+    /// The case this step opened or fed.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub case_id: Option<i64>,
+    pub created_at_ms: i64,
+}
+
+/// A banned account somewhere below the Person in the invite tree.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BannedDescendant {
+    pub account: AccountRef,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
+    /// 1 for an account the Person invited directly.
+    pub depth: i32,
+    /// `serious` raises the inviter's suspicion; `standard` does not (D-031).
+    pub ban_category: String,
+    /// The why (spec section 8), when the ban carries one.
+    pub reason_category: Option<String>,
+    pub banned_at_ms: i64,
+    /// The ban was lifted.
+    pub lifted: bool,
+    /// The newest case about that Person.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub case_id: Option<i64>,
+}
+
+/// The chain of inviters from the root down to one of the Person's accounts.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct InvitePath {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub account_id: i64,
+    /// Root first; the last entry is the account itself.
+    pub nodes: Vec<AccountRef>,
+}
+
+/// An automatic case about the Person, open or not.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SuspicionCaseRef {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub state: CaseState,
+    /// `suspicion_freeze` or `suspicion_escalation`.
+    pub auto_kind: String,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub assignee_id: Option<i64>,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub linked_case_id: Option<i64>,
+    pub opened_at_ms: i64,
+}
+
+/// An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SignalView {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
+    pub account: Option<AccountRef>,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub related_person_id: i64,
+    pub related_account: Option<AccountRef>,
+    pub kind: SignalKind,
+    #[schema(value_type = Object)]
+    pub detail: Value,
+    pub state: SignalState,
+    pub created_at_ms: i64,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub reviewed_by: Option<i64>,
+    pub reviewed_at_ms: Option<i64>,
+    pub review_reason: Option<String>,
+}
+
+/// One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SharedAddress {
+    pub ip: String,
+    pub person_last_seen_ms: i64,
+    pub related_last_seen_ms: i64,
+    /// How many Persons signed in from it in the window.
+    pub persons: i64,
+}
+
+/// A signal with the addresses behind it, read live: nothing is stored, so what retention or an account deletion
+/// removed is gone from here too.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SignalDetail {
+    pub signal: SignalView,
+    pub window_days: i64,
+    pub shared_addresses: Vec<SharedAddress>,
+}
+
+/// The suspicion panel of a Person page (MOD-SUS-001).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SuspicionPanel {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
+    pub level: i32,
+    pub freeze_threshold: i64,
+    pub escalate_threshold: i64,
+    /// The level has reached the freeze threshold: the Person's invite creation is paused.
+    pub invites_paused: bool,
+    pub accounts: Vec<AccountRef>,
+    pub events: Vec<PanelEvent>,
+    pub banned_descendants: Vec<BannedDescendant>,
+    pub invite_paths: Vec<InvitePath>,
+    pub cases: Vec<SuspicionCaseRef>,
+    /// Evasion signals about the Person; absent when the viewer lacks `MANAGE_ACCOUNTS` (they are IP-derived).
+    pub signals: Option<Vec<SignalView>>,
+}
+
+/// What a scan of one Person raised.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ScanOutcome {
+    /// Signals newly raised by this scan.
+    pub raised: i64,
+}
+
+/// Query of the signal list.
+#[derive(Debug, Clone, Default)]
+pub struct SignalFilter {
+    pub state: Option<SignalState>,
+    pub person_id: Option<i64>,
+    pub limit: i64,
+}

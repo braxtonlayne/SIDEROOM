@@ -519,6 +519,16 @@ pub struct SuspicionChange {
     pub frozen: bool,
     /// Level reached the escalation threshold.
     pub escalated: bool,
+    /// This very ban moved the level across the freeze threshold (it was below before).
+    #[serde(default)]
+    pub freeze_crossed: bool,
+    /// This very ban moved the level across the escalation threshold.
+    #[serde(default)]
+    pub escalate_crossed: bool,
+    /// The Person whose ban caused it (the invitee). Staff only; never shown to the inviter.
+    #[serde(default, with = "id")]
+    #[schema(value_type = String)]
+    pub banned_person_id: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

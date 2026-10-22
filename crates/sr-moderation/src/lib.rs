@@ -23,6 +23,8 @@ pub mod rules;
 pub mod service;
 pub mod snapshot;
 pub mod takedown_rules;
+mod suspicion;
+pub mod suspicion_rules;
 mod takedowns;
 
 pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
@@ -33,4 +35,5 @@ pub use service::{
     GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, PolicySource, RemovalSink,
     SubjectNotifier,
 };
+pub use suspicion::SCAN_BATCH;
 pub use takedowns::register_csv;
