@@ -5029,6 +5029,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/sr/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The modules with a channel scope, with this channel's state (`MANAGE_CHANNELS`). */
+        get: operations["list_channel_features"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/sr/features/{feature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove this channel's switch and overrides, so it follows the server again
+         *     (`MANAGE_CHANNELS`).
+         */
+        delete: operations["reset_channel_feature"];
+        options?: never;
+        head?: never;
+        /**
+         * Switch a module on or off in this channel, or change its settings here
+         *     (`MANAGE_CHANNELS`).
+         */
+        patch: operations["patch_channel_feature"];
+        trace?: never;
+    };
     "/channels/{channel_id}/thread-members": {
         parameters: {
             query?: never;
@@ -11761,6 +11802,44 @@ export interface paths {
         patch: operations["patch_settings"];
         trace?: never;
     };
+    "/users/@me/sr/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The modules with personal settings, with the caller's own preferences. Only the
+         *     caller can read them.
+         */
+        get: operations["list_user_features"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/sr/features/{feature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget the caller's preferences for one module, so the defaults apply again. */
+        delete: operations["reset_user_feature"];
+        options?: never;
+        head?: never;
+        /** Change the caller's own preferences for one module. */
+        patch: operations["patch_user_feature"];
+        trace?: never;
+    };
     "/users/{user_id}/guestbook": {
         parameters: {
             query?: never;
@@ -13340,6 +13419,32 @@ export interface components {
         ChannelActivity: {
             enabled: boolean;
             instance?: null | components["schemas"]["InstanceView"];
+        };
+        /** @description One module as a channel sees it. */
+        ChannelFeatureObject: {
+            description: string;
+            /** @description Whether the module is on in this channel (the server's switch narrowed by the channel's). */
+            enabled: boolean;
+            /** @description Whether the module is on in the server. A channel cannot switch it on by itself. */
+            guild_enabled: boolean;
+            id: string;
+            /**
+             * @description What the channel would use with no overrides of its own: the defaults and the server's
+             *     settings, for the fields that belong to the channel level.
+             */
+            inherited: Record<string, never>;
+            name: string;
+            /** @description The channel's own switch: `true` or `false`, or `null` when it follows the server. */
+            override_enabled?: boolean | null;
+            /** @description Only what this channel overrides. */
+            overrides: Record<string, never>;
+            /** @description The platform operator switched the module off everywhere. */
+            platform_disabled: boolean;
+            /** @description The settings schema of the channel level, for the auto-rendered form. */
+            schema: Record<string, never>;
+            section: string;
+            /** @description Effective settings in this channel (defaults, the server's, then the channel's). */
+            settings: Record<string, never>;
         };
         ChannelObject: {
             /** @description Forum tag ids applied to a post. */
@@ -17632,6 +17737,12 @@ export interface components {
         PatchBotBody: {
             username: string;
         };
+        PatchChannelFeatureBody: {
+            /** @description This channel's own switch for the module. */
+            enabled?: boolean | null;
+            /** @description Replace the channel's setting overrides (validated against the channel schema). */
+            settings?: Record<string, never> | null;
+        };
         PatchConfigBody: {
             /** @description A JSON merge patch over the configuration (`DonationConfig` fields). */
             changes: Record<string, never>;
@@ -17684,6 +17795,10 @@ export interface components {
             reason?: string | null;
             /** @description Setting key to new value; unknown keys or out-of-range values reject the whole patch. */
             values: Record<string, never>;
+        };
+        PatchUserFeatureBody: {
+            /** @description Replace the person's preferences for the module (validated against the personal schema). */
+            settings: Record<string, never>;
         };
         /** @description Body of `PATCH /users/@me/settings`. */
         PatchUserSettingsBody: {
@@ -20557,6 +20672,19 @@ export interface components {
             prefix: string;
             /** @description `https://api.example.com/v1`: https, no query. */
             target: string;
+        };
+        /** @description One module as a person sees it. */
+        UserFeatureObject: {
+            description: string;
+            id: string;
+            name: string;
+            /** @description Only what the person changed. */
+            overrides: Record<string, never>;
+            /** @description The settings schema of the personal level, for the auto-rendered form. */
+            schema: Record<string, never>;
+            section: string;
+            /** @description The person's effective preferences (defaults plus what they chose). */
+            settings: Record<string, never>;
         };
         UserGuildSettingsObject: {
             channel_overrides: components["schemas"]["ChannelOverrideObject"][];
@@ -37737,6 +37865,134 @@ export interface operations {
             };
             /** @description Another sound was just played (900012) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_channel_features: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelFeatureObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_channel_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Feature id, e.g. lounge.message_quotes */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_channel_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Feature id, e.g. lounge.message_quotes */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchChannelFeatureBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelFeatureObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -58393,6 +58649,103 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_user_features: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserFeatureObject"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_user_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Feature id, e.g. community.leveling */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_user_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Feature id, e.g. community.leveling */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchUserFeatureBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserFeatureObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

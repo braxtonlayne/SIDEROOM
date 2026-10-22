@@ -71,7 +71,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
    - Built (p11-userset-fe): Cinema watch history list with Clear all and the server-side pause, Cinema defaults (autoplay next, data saver, subtitle language), Library reader defaults (mode, direction, background). Open: per-item removal (no route), reading history list and clear (no route), audio language, quality cap and preload count (player/reader have no such setting).
 
 ## SIDE ROOM: Features
-- [ ] **LNG-USET-036** [FE] User-scope feature modules via SchemaForm *Still open: needs a user-scope module schema API; not started.*
+- [x] **LNG-USET-036** [FE] User-scope feature modules via SchemaForm *(p18: done. User Settings > Modules (`sections/Modules.tsx`) renders the modules with a user scope through SchemaForm; API `GET|PATCH|DELETE /users/@me/sr/features`, first module `community.leveling` (Announce my level-ups); tests `p18modules.test.tsx`, `features_tests.rs`, `userfeat_pg_tests.rs`.)*
    - Open (backend): only `/admin/features` exists; no user-scope feature module list or settings route.
 
 ## Appearance

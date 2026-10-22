@@ -225,6 +225,11 @@ pub async fn delete_account(
         .bind(id)
         .execute(&mut *tx)
         .await?;
+    // Personal module preferences (user-scope feature settings, LNG-USET-036).
+    sqlx::query("DELETE FROM feature_enablements WHERE scope = 'user' AND scope_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
         "UPDATE package_versions v SET review_state = 'withdrawn' FROM packages p \
          WHERE p.id = v.package_id AND p.author_id = $1 AND v.review_state = 'pending'",

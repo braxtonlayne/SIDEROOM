@@ -240,7 +240,7 @@ const README: &str = "SIDE ROOM data package\n\
 This archive holds the data tied to your account, as JSON files.\n\
 \n\
   account.json        your profile and account details\n\
-  settings.json       your settings, privacy and notification choices, chosen status\n\
+  settings.json       your settings, privacy and notification choices, chosen status, personal module settings\n\
   relationships.json  friends, requests, blocks, ignores and your private notes\n\
   servers.json        servers you belong to or own, with your nickname there\n\
   connections.json    linked accounts\n\
@@ -292,6 +292,7 @@ pub async fn build_package<W: Write + Seek>(
 
     let settings = json!({
         "user_settings": rows(pool, "SELECT settings, version, default_notification_level, updated_at FROM user_settings WHERE user_id = $1", user).await?,
+        "module_settings": rows(pool, "SELECT feature, COALESCE(config -> 'values', '{}'::jsonb) AS settings, updated_at FROM feature_enablements WHERE scope = 'user' AND scope_id = $1 ORDER BY feature", user).await?,
         "privacy": rows(pool, "SELECT fr_everyone, fr_friends_of_friends, fr_server_members, dm_server_members, dm_message_requests FROM user_privacy WHERE user_id = $1", user).await?,
         "notification_settings": rows(pool, "SELECT guild_id::text AS guild_id, level, suppress_everyone, suppress_roles, suppress_highlights, mute_scheduled_events, mobile_push, muted, mute_end_at FROM notification_settings WHERE user_id = $1", user).await?,
         "presence": rows(pool, "SELECT status, status_expires_at, custom_text, custom_emoji_name, custom_expires_at FROM user_presence_prefs WHERE user_id = $1", user).await?,

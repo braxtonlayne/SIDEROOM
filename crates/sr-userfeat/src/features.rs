@@ -22,6 +22,8 @@ pub const SUGGESTIONS_ID: &str = "community.suggestions";
 pub const TICKETS_ID: &str = "community.tickets";
 
 const PLATFORM_GUILD: &[Scope] = &[Scope::Platform, Scope::Guild];
+/// Leveling also keeps one personal preference per member (LNG-USET-036).
+const PLATFORM_GUILD_USER: &[Scope] = &[Scope::Platform, Scope::Guild, Scope::User];
 
 fn int(key: &str, label: &str, min: i64, max: i64, default: i64) -> Field {
     Field::new(
@@ -56,6 +58,19 @@ fn opt(value: &str, label: &str) -> EnumOption {
 
 macro_rules! module {
     ($ty:ident, $id:expr, $name:expr, $desc:expr, $section:expr, $phase:expr, $on:expr, $fields:expr) => {
+        module!(
+            $ty,
+            $id,
+            $name,
+            $desc,
+            $section,
+            $phase,
+            $on,
+            $fields,
+            PLATFORM_GUILD
+        );
+    };
+    ($ty:ident, $id:expr, $name:expr, $desc:expr, $section:expr, $phase:expr, $on:expr, $fields:expr, $scopes:expr) => {
         #[derive(Default)]
         pub struct $ty;
 
@@ -76,7 +91,7 @@ macro_rules! module {
                 SettingsSchema::new($fields)
             }
             fn scopes(&self) -> &[Scope] {
-                PLATFORM_GUILD
+                $scopes
             }
         }
     };
@@ -192,7 +207,12 @@ module!(
             },
         )
         .help("The role is given when a member reaches the level."),
-    ]
+        Field::new("announce_mine", "Announce my level-ups", FieldKind::Bool)
+            .at(&[Scope::User])
+            .help("Off: you still earn XP and level roles, but no server posts a message when you level up.")
+            .default_value(json!(true)),
+    ],
+    PLATFORM_GUILD_USER
 );
 
 module!(

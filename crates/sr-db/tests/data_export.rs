@@ -128,6 +128,13 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         .execute(pool)
         .await
         .unwrap();
+    // Personal module settings: mine are in the package, another person's are not.
+    sqlx::query(
+        "INSERT INTO feature_enablements (id, feature, scope, scope_id, enabled, config) VALUES \n         (7001, 'community.leveling', 'user', 1, NULL, '{\"values\":{\"announce_mine\":false}}'), \n         (7002, 'community.leveling', 'user', 2, NULL, '{\"values\":{\"announce_mine\":true}}')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
     // Three messages by the user (one deleted) and one by someone else.
     for (id, author, content, deleted) in [
         (1_i64, 1_i64, "hello", false),
@@ -210,6 +217,11 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         zip.by_name(name).unwrap().read_to_string(&mut s).unwrap();
         s
     };
+    let settings: serde_json::Value = serde_json::from_str(&read("settings.json")).unwrap();
+    let modules = settings["module_settings"].as_array().unwrap();
+    assert_eq!(modules.len(), 1, "only the person's own rows");
+    assert_eq!(modules[0]["feature"], "community.leveling");
+    assert_eq!(modules[0]["settings"]["announce_mine"], false);
     let activity: serde_json::Value = serde_json::from_str(&read("activity.json")).unwrap();
     assert_eq!(activity["profile_media"][0]["id"], "6001");
     assert_eq!(activity["profile_media"][0]["kind"], "background");

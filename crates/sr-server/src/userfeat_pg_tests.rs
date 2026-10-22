@@ -464,6 +464,76 @@ async fn suggestion_cards_get_votes_and_follow_the_status() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_members_own_switch_quiets_their_level_up_announcement_only() {
+    let f = fx().await;
+    let role = f.role("Regular").await;
+    f.enable(
+        LEVELING_ID,
+        json!({
+            "xp_min": 100, "xp_max": 100, "cooldown": 0,
+            "level_roles": [{"level": 1, "role": role.to_string()}]
+        }),
+    )
+    .await;
+    // The member turns their own announcements off (user scope, LNG-USET-036).
+    f.uf.features
+        .set_settings(
+            LEVELING_ID,
+            &ScopeRef::User {
+                user: UserId::new(f.member as u64),
+            },
+            json!({"announce_mine": false})
+                .as_object()
+                .cloned()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let cell: PosterCell = Arc::default();
+    cell.set(f.poster.clone() as Arc<dyn Poster>).ok();
+    let hook = LevelingHook {
+        uf: f.uf.clone(),
+        poster: cell,
+    };
+    let msg = f
+        .messages
+        .send(
+            UserId::new(f.member as u64),
+            ChannelId::new(f.channel as u64),
+            SendMessage {
+                content: "hello there".into(),
+                ..SendMessage::default()
+            },
+        )
+        .await
+        .unwrap();
+    hook.message_sent(&msg, &[]).await;
+    // They still earn the XP and the level role; the role grant comes before the announcement step.
+    assert!(
+        wait_for(|| async { f.uf.rank_card(f.guild, f.member).await.map(|c| c.level) == Ok(1) })
+            .await
+    );
+    assert!(wait_for(|| async { f.has_role(f.member, role).await }).await);
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert!(
+        !f.messages_in(f.channel)
+            .await
+            .iter()
+            .any(|r| r.get::<String, _>("content").contains("reached level")),
+        "no level-up message for a member who turned them off"
+    );
+    // Someone else's preference is theirs alone: the effective value for the owner is the default.
+    let other =
+        f.uf.user_settings(LEVELING_ID, f.owner)
+            .await
+            .unwrap()
+            .flag("announce_mine", false);
+    assert!(other, "defaults to on for everyone else");
+    f.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn leveling_awards_from_stored_messages_hands_out_roles_and_announces() {
     let f = fx().await;
     let role = f.role("Regular").await;

@@ -95,6 +95,11 @@ pub struct Field {
     /// Per-scope default overrides.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub scope_defaults: BTreeMap<Scope, Value>,
+    /// The scopes the field is shown and accepted at. Empty (the default) means the
+    /// platform and server levels only, which is what every module had before channel and
+    /// user scope existed; a module opts a field into other levels with [`Field::at`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<Scope>,
 }
 
 impl Field {
@@ -106,6 +111,22 @@ impl Field {
             kind,
             default: None,
             scope_defaults: BTreeMap::new(),
+            scopes: Vec::new(),
+        }
+    }
+
+    /// Show and accept the field at exactly these scopes (see [`Field::scopes`]).
+    pub fn at(mut self, scopes: &[Scope]) -> Self {
+        self.scopes = scopes.to_vec();
+        self
+    }
+
+    /// Whether the field belongs to `scope`.
+    pub fn applies_to(&self, scope: Scope) -> bool {
+        if self.scopes.is_empty() {
+            matches!(scope, Scope::Platform | Scope::Guild)
+        } else {
+            self.scopes.contains(&scope)
         }
     }
 
@@ -138,7 +159,38 @@ impl SettingsSchema {
     /// Defaults for `scope`: field default, overridden by the scope default;
     /// groups yield nested objects. Fields without a default are omitted.
     pub fn defaults(&self, scope: Scope) -> Map<String, Value> {
-        defaults_of(&self.fields, scope)
+        defaults_of(&self.for_scope(scope).fields, scope)
+    }
+
+    /// The part of the schema that belongs to `scope`: what a settings form at that
+    /// level shows.
+    pub fn for_scope(&self, scope: Scope) -> SettingsSchema {
+        SettingsSchema {
+            fields: self
+                .fields
+                .iter()
+                .filter(|f| f.applies_to(scope))
+                .cloned()
+                .collect(),
+        }
+    }
+
+    /// Like [`Self::validate`], but a key that belongs to another level is unknown.
+    pub fn validate_at(
+        &self,
+        scope: Scope,
+        values: &Map<String, Value>,
+    ) -> Result<(), ValidationError> {
+        self.for_scope(scope).validate(values)
+    }
+
+    /// Drop the top-level keys of `values` that do not belong to `scope`.
+    pub fn retain_scope(&self, scope: Scope, values: &mut Map<String, Value>) {
+        values.retain(|k, _| {
+            self.fields
+                .iter()
+                .any(|f| &f.key == k && f.applies_to(scope))
+        });
     }
 
     /// Validate a (possibly partial) settings object. Unknown keys are rejected.
@@ -360,6 +412,7 @@ mod tests {
                 },
             )
             .default_value(json!(5))
+            .at(&[Scope::Platform, Scope::Guild, Scope::Channel])
             .scope_default(Scope::Channel, json!(2)),
             Field::new(
                 "mode",
@@ -496,5 +549,76 @@ mod picked_tests {
         let got = s.picked_ids(v.as_object().unwrap());
         assert_eq!(got.channels, vec![1, 4, 7]);
         assert_eq!(got.roles, vec![2, 3, 5]);
+    }
+
+    fn scoped() -> SettingsSchema {
+        SettingsSchema::new(vec![
+            Field::new("everywhere", "E", FieldKind::Bool)
+                .at(&[Scope::Platform, Scope::Guild, Scope::Channel, Scope::User])
+                .default_value(json!(true)),
+            Field::new("server", "S", FieldKind::Bool).default_value(json!(false)),
+            Field::new("mine", "M", FieldKind::Bool)
+                .at(&[Scope::User])
+                .default_value(json!(true)),
+        ])
+    }
+
+    #[test]
+    fn fields_belong_to_their_levels() {
+        let s = scoped();
+        let keys = |scope| -> Vec<String> {
+            s.for_scope(scope)
+                .fields
+                .iter()
+                .map(|f| f.key.clone())
+                .collect()
+        };
+        // No `at` means the platform and server levels, as before channel and user scope.
+        assert_eq!(keys(Scope::Platform), ["everywhere", "server"]);
+        assert_eq!(keys(Scope::Guild), ["everywhere", "server"]);
+        assert_eq!(keys(Scope::Channel), ["everywhere"]);
+        assert_eq!(keys(Scope::User), ["everywhere", "mine"]);
+        assert!(!s.defaults(Scope::Channel).contains_key("server"));
+        assert_eq!(s.defaults(Scope::User)["mine"], json!(true));
+    }
+
+    #[test]
+    fn a_key_of_another_level_is_unknown() {
+        let s = scoped();
+        let v = json!({"server": true});
+        let v = v.as_object().unwrap();
+        s.validate_at(Scope::Guild, v).unwrap();
+        assert!(s.validate_at(Scope::Channel, v).is_err());
+        assert!(s.validate_at(Scope::User, v).is_err());
+        let mine = json!({"mine": false});
+        assert!(
+            s.validate_at(Scope::Guild, mine.as_object().unwrap())
+                .is_err()
+        );
+        s.validate_at(Scope::User, mine.as_object().unwrap())
+            .unwrap();
+        // The all-fields validation used for whole schemas is unchanged.
+        s.validate(mine.as_object().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn retain_scope_drops_other_levels_keys() {
+        let s = scoped();
+        let mut v = json!({"everywhere": false, "server": true, "mine": true})
+            .as_object()
+            .cloned()
+            .unwrap();
+        s.retain_scope(Scope::Channel, &mut v);
+        assert_eq!(v.keys().collect::<Vec<_>>(), ["everywhere"]);
+    }
+
+    #[test]
+    fn scopes_survive_json_and_are_omitted_when_empty() {
+        let s = scoped();
+        let back = SettingsSchema::from_json(&s.to_json().unwrap()).unwrap();
+        assert_eq!(back, s);
+        let j = serde_json::to_value(&s).unwrap();
+        assert!(j["fields"][1].get("scopes").is_none());
+        assert_eq!(j["fields"][2]["scopes"], json!(["user"]));
     }
 }

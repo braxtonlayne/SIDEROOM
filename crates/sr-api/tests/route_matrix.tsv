@@ -43,6 +43,7 @@ DELETE	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membershi
 DELETE	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-
+DELETE	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-
 DELETE	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-
 DELETE	/cinema/comments/{comment_id}	authenticated	author	allow	-
 DELETE	/cinema/comments/{comment_id}/like	authenticated	user	allow	-
@@ -114,6 +115,7 @@ DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-
 DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
+DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-
 DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-
 DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-
@@ -246,6 +248,7 @@ GET	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	
 GET	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-
 GET	/channels/{channel_id}/pins	authenticated	membership	allow	-
 GET	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}	authenticated	membership	allow	-
+GET	/channels/{channel_id}/sr/features	authenticated	membership	allow	-
 GET	/channels/{channel_id}/thread-members	authenticated	membership	allow	-
 GET	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-
 GET	/channels/{channel_id}/threads/archived/private	authenticated	membership	allow	-
@@ -483,6 +486,7 @@ GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 GET	/users/@me/reminders	authenticated	self	deny	-
 GET	/users/@me/scheduled-messages	authenticated	self	deny	-
 GET	/users/@me/settings	authenticated	self	deny	-
+GET	/users/@me/sr/features	authenticated	self	deny	-
 GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-
 GET	/users/{user_id}/profile	authenticated	user	allow	-
 GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-
@@ -506,6 +510,7 @@ PATCH	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	allow
 PATCH	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
 PATCH	/channels/{channel_id}	authenticated	membership	allow	-
 PATCH	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
+PATCH	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-
 PATCH	/cinema/comments/{comment_id}	authenticated	author	allow	-
 PATCH	/cinema/lists/{list_id}	authenticated	author	allow	-
 PATCH	/donations/me/preferences	authenticated	self	allow	-
@@ -549,6 +554,7 @@ PATCH	/users/@me/privacy	authenticated	self	deny	-
 PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
 PATCH	/users/@me/settings	authenticated	self	deny	-
+PATCH	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-
 PATCH	/watch-parties/{party_id}	authenticated	party_manager	allow	-
 PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-
 PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-

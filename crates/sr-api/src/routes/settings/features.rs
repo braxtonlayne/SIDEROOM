@@ -241,7 +241,53 @@ pub struct PatchGuildFeatureBody {
     pub settings: Option<Map<String, Value>>,
 }
 
-fn feature_err(e: FeatureError) -> HttpError {
+/// Validate `values` against the part of the schema that belongs to `scope`, then check
+/// that every channel and role they name is this server's, and that every role is one the
+/// acting manager could assign by hand (modules act with the owner's authority).
+pub(super) async fn check_settings(
+    deps: &SettingsDeps,
+    acc: &super::deps::GuildAccess,
+    gid: GuildId,
+    feature: &Arc<dyn Feature>,
+    scope: Scope,
+    values: &Map<String, Value>,
+) -> ApiResult<()> {
+    // Shape first (so the error names the bad field), then ownership of every id.
+    let schema = feature.settings_schema();
+    schema
+        .validate_at(scope, values)
+        .map_err(|e| feature_err(e.into()))?;
+    let picked = schema.picked_ids(values);
+    for ch in picked.channels {
+        let channel = deps
+            .chat
+            .get_channel(sr_core::ChannelId::new(ch))
+            .await
+            .map_err(|e| ce(e.into()))?;
+        if channel.and_then(|c| c.guild_id) != Some(gid) {
+            return Err(invalid(
+                "settings",
+                "CHANNEL_NOT_IN_GUILD",
+                "A channel in the settings does not belong to this server.",
+            ));
+        }
+    }
+    let actor_perms = GuildActor::new(&acc.guild, &acc.member, &acc.roles);
+    for r in picked.roles {
+        let Some(role) = acc.roles.iter().find(|x| x.id == RoleId::new(r)) else {
+            return Err(invalid(
+                "settings",
+                "ROLE_NOT_IN_GUILD",
+                "A role in the settings does not belong to this server.",
+            ));
+        };
+        // Modules grant these roles with the owner's authority, so a manager may only name
+        // roles they could assign by hand.
+        sr_chat::role_rules::check_assign_role(&actor_perms, role).map_err(ce)?;
+    }
+    Ok(())
+}
+pub(super) fn feature_err(e: FeatureError) -> HttpError {
     match e {
         FeatureError::UnknownFeature(f) => {
             ApiError::with_message(ErrorCode::SrNotFound, format!("Unknown feature {f}")).into()
@@ -277,7 +323,8 @@ async fn view(
         default_enabled: meta.default_enabled,
         platform_disabled: ctx.settings.platform_killed(fid).await?,
         settings: Value::Object(ctx.settings.effective_settings(fid, &scope).await?),
-        schema: serde_json::to_value(f.settings_schema()).unwrap_or(Value::Null),
+        schema: serde_json::to_value(f.settings_schema().for_scope(Scope::Guild))
+            .unwrap_or(Value::Null),
     })
 }
 
@@ -355,37 +402,7 @@ pub async fn patch_feature(
     let scope = ScopeRef::Guild { guild: gid };
 
     if let Some(values) = &body.settings {
-        // Shape first (so the error names the bad field), then ownership of every id.
-        let schema = feature.settings_schema();
-        schema.validate(values).map_err(|e| feature_err(e.into()))?;
-        let picked = schema.picked_ids(values);
-        for ch in picked.channels {
-            let channel = deps
-                .chat
-                .get_channel(sr_core::ChannelId::new(ch))
-                .await
-                .map_err(|e| ce(e.into()))?;
-            if channel.and_then(|c| c.guild_id) != Some(gid) {
-                return Err(invalid(
-                    "settings",
-                    "CHANNEL_NOT_IN_GUILD",
-                    "A channel in the settings does not belong to this server.",
-                ));
-            }
-        }
-        let actor_perms = GuildActor::new(&acc.guild, &acc.member, &acc.roles);
-        for r in picked.roles {
-            let Some(role) = acc.roles.iter().find(|x| x.id == RoleId::new(r)) else {
-                return Err(invalid(
-                    "settings",
-                    "ROLE_NOT_IN_GUILD",
-                    "A role in the settings does not belong to this server.",
-                ));
-            };
-            // Modules grant these roles with the owner's authority, so a manager may
-            // only name roles they could assign by hand.
-            sr_chat::role_rules::check_assign_role(&actor_perms, role).map_err(ce)?;
-        }
+        check_settings(&deps, &acc, gid, &feature, Scope::Guild, values).await?;
         gf.ctx
             .settings
             .set_settings(feature.id(), &scope, values.clone())

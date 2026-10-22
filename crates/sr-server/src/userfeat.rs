@@ -628,7 +628,13 @@ async fn award(
     for role in roles_between(&cfg, up.old, up.new) {
         poster.add_role(guild, author, role).await;
     }
-    if cfg.flag("announce", true) {
+    // The member's own switch (user scope) can only quiet the announcement, never add one.
+    let mine = uf
+        .user_settings(LEVELING_ID, author)
+        .await
+        .map(|s| s.flag("announce_mine", true))
+        .unwrap_or(true);
+    if cfg.flag("announce", true) && mine {
         let target = cfg.id("announce_channel").unwrap_or(channel);
         let card = Card {
             content: format!("<@{author}> reached level {}!", up.new),
