@@ -35,11 +35,13 @@ Migration 1140 adds the indexes the aggregates need (cases `opened_at`/`closed_a
 
 ## Tests run
 
-- `cargo fmt --all --check`, `cargo clippy -p sr-admin -p sr-db -p sr-moderation -p sr-api --all-targets -j 2 -- -D warnings`: see the final report for the result.
+- `cargo fmt --all --check` ok; `cargo clippy -p sr-admin -p sr-db -p sr-moderation -p sr-api --all-targets -j 2 -- -D warnings` ok.
+- Postgres (own scratch DB `sr_p19_moddash` and TestDb clones, all dropped afterwards): `sr-moderation` all suites (28 unit, 8 dashboard, 14 db, 16 takedowns), `sr-db` `admin_repo` (10, with the filter signature), `p13_settings_admin` (6, incl. the age-reset counter), `migration_versions` (6).
 - `sr-moderation --test dashboard` (Postgres, own TestDb databases): 8 passed (inbox grouping/privacy/paging/claim, bulk dismiss, sections per bit, health with first action and reopen, retention with a hold and review flag, bans by reason/severity/age plus the `PgAdminRepo` filters, age metrics, register and data requests). `sr-moderation` unit tests, `sr-admin` (61, incl. `the_bans_list_filters_by_severity_reason_and_age`).
 - `sr-api --lib routes::moderation routes::admin --include-ignored --test-threads=1`: 41 passed (new: access matrix rows, denial log, bad inputs, `the_dashboard_sections_follow_the_bits_over_http`, `/admin/bans` filters).
 - `route_matrix` (5, no `?`), `openapi_names` (`KNOWN_CLASHES` empty): passed.
-- Vitest: `p19dashboard.test.tsx` (5), `moderation.test.tsx`, `takedowns.test.tsx`, `banThroughCase.test.tsx`; web typecheck, eslint on the touched folders, prettier on the touched files.
+- Web: `pnpm -r typecheck`, `pnpm -r lint`, prettier on the touched files, full Vitest once (`--maxWorkers=2`): 274 files, 2468 tests passed (new `p19dashboard.test.tsx`, 5 tests); `mocks:check` up to date (944 operations); web build and `check-bundle-budget` ok (admin 358.9 of 600 KB gzip).
+- Not run: the whole-workspace `cargo test`/`clippy` (limited to touched crates by the brief), Playwright (not allowed this wave).
 
 ## Open owner questions
 
