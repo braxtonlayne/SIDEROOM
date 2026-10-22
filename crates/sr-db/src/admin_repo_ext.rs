@@ -1114,9 +1114,62 @@ impl PgAdminRepo {
                 .execute(&mut **tx)
                 .await
                 .map_err(db)?;
+            // One open automatic suspicion case per Person (migration 1150): when both Persons have one, the
+            // target's stays the automatic case and the emptied Person's becomes an ordinary case linked to it.
+            let folded_cases: Vec<(i64, i64)> = sqlx::query_as(
+                "UPDATE moderation_cases o SET auto_kind = NULL, \
+                 linked_case_id = COALESCE(o.linked_case_id, t.id), updated_at = now() \
+                 FROM moderation_cases t \
+                 WHERE o.subject_person_id = $1 AND o.auto_kind IS NOT NULL \
+                 AND o.state NOT IN ('dismissed', 'closed') \
+                 AND t.subject_person_id = $2 AND t.auto_kind IS NOT NULL \
+                 AND t.state NOT IN ('dismissed', 'closed') \
+                 RETURNING o.id, t.id",
+            )
+            .bind(old)
+            .bind(person_id)
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(db)?;
+            for (case, into) in folded_cases {
+                sqlx::query(
+                    "INSERT INTO moderation_case_events (id, case_id, actor_id, kind, detail) \
+                     VALUES ($1, $2, NULL, 'suspicion_folded', $3)",
+                )
+                .bind(self.next_id())
+                .bind(case)
+                .bind(serde_json::json!({
+                    "into_case_id": into.to_string(),
+                    "person_id": person_id.to_string(),
+                }))
+                .execute(&mut **tx)
+                .await
+                .map_err(db)?;
+            }
+            // Evasion signals follow too (migration 1152). A signal between the two Persons being merged, or one
+            // the target already has for the same banned Person and kind, is kept and marked folded rather than
+            // deleted: it may carry a review and a snapshot.
+            sqlx::query(
+                "UPDATE evasion_signals s SET folded_at = now(), folded_from_person_id = $1 \
+                 WHERE s.folded_at IS NULL AND (s.person_id = $1 OR s.related_person_id = $1) \
+                 AND ((CASE WHEN s.person_id = $1 THEN $2 ELSE s.person_id END) \
+                      = (CASE WHEN s.related_person_id = $1 THEN $2 ELSE s.related_person_id END) \
+                   OR EXISTS (SELECT 1 FROM evasion_signals d WHERE d.folded_at IS NULL AND d.kind = s.kind \
+                      AND d.person_id <> $1 AND d.related_person_id <> $1 \
+                      AND d.person_id = (CASE WHEN s.person_id = $1 THEN $2 ELSE s.person_id END) \
+                      AND d.related_person_id = \
+                          (CASE WHEN s.related_person_id = $1 THEN $2 ELSE s.related_person_id END)))",
+            )
+            .bind(old)
+            .bind(person_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(db)?;
             // The moderation and request history that points at the emptied Person follows its accounts (these
             // rows are kept forever and would otherwise block the delete below).
             for sql in [
+                "UPDATE evasion_signals SET person_id = $2 WHERE person_id = $1",
+                "UPDATE evasion_signals SET related_person_id = $2 WHERE related_person_id = $1",
                 "UPDATE moderation_cases SET subject_person_id = $2 WHERE subject_person_id = $1",
                 "UPDATE data_requests SET person_id = $2 WHERE person_id = $1",
                 "UPDATE takedown_items SET subject_person_id = $2 WHERE subject_person_id = $1",

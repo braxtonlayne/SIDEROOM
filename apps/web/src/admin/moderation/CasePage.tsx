@@ -143,6 +143,7 @@ function EventLine({ e }: { e: api.CaseEvent }) {
         restricted: d('restricted'),
         band: d('band'),
         basis: d('basis'),
+        into: d('into_case_id'),
       })
     : e.kind;
   return (

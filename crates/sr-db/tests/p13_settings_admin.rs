@@ -522,3 +522,138 @@ async fn age_confirmation_has_a_time_and_can_be_reset() {
     let a = store.find_by_id(id).await.unwrap().unwrap();
     assert_eq!((a.age_confirmed, a.age_confirmed_at), (Some(false), None));
 }
+
+/// Linking an account folds its emptied Person into the target. The phase-19 suspicion rows that point at the
+/// emptied Person follow it (migration 1152): evasion signals are re-pointed, a signal between the two Persons or
+/// one that duplicates the target's is kept and marked folded, and when both Persons have an open automatic
+/// suspicion case the target's stays automatic and the other is linked to it with a timeline event.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_person_link_carries_the_evasion_signals_and_automatic_cases() {
+    use sr_admin::AdminRepository;
+    let pool = pool().await;
+    let repo = admin_repo(&pool);
+    let staff = account(&pool).await;
+    let a = account(&pool).await;
+    let a_person = person_of(&pool, a).await;
+    let b = account(&pool).await;
+    let b_person = person_of(&pool, b).await;
+    let x_person = person_of(&pool, account(&pool).await).await;
+    let y_person = person_of(&pool, account(&pool).await).await;
+
+    let signal = |p: i64, r: i64, kind: &'static str| {
+        let pool = pool.clone();
+        async move {
+            let id = uid();
+            sqlx::query(
+                "INSERT INTO evasion_signals (id, person_id, related_person_id, kind) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(id)
+            .bind(p)
+            .bind(r)
+            .bind(kind)
+            .execute(&pool)
+            .await
+            .unwrap();
+            id
+        }
+    };
+    let between = signal(a_person, b_person, "shared_login_ip").await;
+    let between_back = signal(b_person, a_person, "shared_login_ip").await;
+    let dup = signal(a_person, x_person, "shared_invite_lineage").await;
+    let kept = signal(b_person, x_person, "shared_invite_lineage").await;
+    let plain = signal(a_person, y_person, "new_account_after_ban").await;
+    let toward = signal(y_person, a_person, "shared_login_ip").await;
+
+    let auto_case = |person: i64, kind: &'static str| {
+        let pool = pool.clone();
+        async move {
+            let id = uid();
+            sqlx::query(
+                "INSERT INTO moderation_cases (id, category, severity, routing, target_kind, target_id, \
+                 subject_person_id, opened_by_kind, auto_kind) \
+                 VALUES ($1, 'other', 'serious', 'platform', 'person', $2, $2, 'staff', $3)",
+            )
+            .bind(id)
+            .bind(person)
+            .bind(kind)
+            .execute(&pool)
+            .await
+            .unwrap();
+            id
+        }
+    };
+    let a_case = auto_case(a_person, "suspicion_freeze").await;
+    let b_case = auto_case(b_person, "suspicion_escalation").await;
+
+    repo.link_account(b_person, a, &audit(staff, "person.link"))
+        .await
+        .unwrap();
+    assert_eq!(person_of(&pool, a).await, b_person);
+    let gone: i64 = sqlx::query_scalar("SELECT count(*) FROM persons WHERE id = $1")
+        .bind(a_person)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(gone, 0, "the emptied Person is removed");
+
+    let row = |id: i64| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_as::<_, (i64, i64, bool, Option<i64>)>(
+                "SELECT person_id, related_person_id, folded_at IS NOT NULL, folded_from_person_id \
+                 FROM evasion_signals WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let folded = (b_person, b_person, true, Some(a_person));
+    assert_eq!(
+        row(between).await,
+        folded,
+        "a pair of the two Persons is kept, folded"
+    );
+    assert_eq!(row(between_back).await, folded);
+    assert_eq!(
+        row(dup).await,
+        (b_person, x_person, true, Some(a_person)),
+        "a duplicate is kept, folded"
+    );
+    assert_eq!(
+        row(kept).await,
+        (b_person, x_person, false, None),
+        "the target's own signal is untouched"
+    );
+    assert_eq!(
+        row(plain).await,
+        (b_person, y_person, false, None),
+        "the rest is re-pointed"
+    );
+    assert_eq!(row(toward).await, (y_person, b_person, false, None));
+
+    let (a_auto, a_link): (Option<String>, Option<i64>) =
+        sqlx::query_as("SELECT auto_kind, linked_case_id FROM moderation_cases WHERE id = $1")
+            .bind(a_case)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!((a_auto, a_link), (None, Some(b_case)));
+    let b_auto: Option<String> =
+        sqlx::query_scalar("SELECT auto_kind FROM moderation_cases WHERE id = $1")
+            .bind(b_case)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(b_auto.as_deref(), Some("suspicion_escalation"));
+    let into: String = sqlx::query_scalar(
+        "SELECT detail->>'into_case_id' FROM moderation_case_events WHERE case_id = $1 AND kind = 'suspicion_folded'",
+    )
+    .bind(a_case)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(into, b_case.to_string());
+}
