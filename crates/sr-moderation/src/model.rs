@@ -748,7 +748,7 @@ text_enum! {
 
 /// An account as staff see it in the panel.
 #[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct AccountRef {
+pub struct PersonAccountRef {
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub id: i64,
@@ -768,7 +768,7 @@ pub struct PanelEvent {
     pub kind: String,
     pub reason: String,
     /// The banned account that raised it.
-    pub source_account: Option<AccountRef>,
+    pub source_account: Option<PersonAccountRef>,
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub actor_id: Option<i64>,
@@ -782,7 +782,7 @@ pub struct PanelEvent {
 /// A banned account somewhere below the Person in the invite tree.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct BannedDescendant {
-    pub account: AccountRef,
+    pub account: PersonAccountRef,
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub person_id: i64,
@@ -808,7 +808,7 @@ pub struct InvitePath {
     #[schema(value_type = String)]
     pub account_id: i64,
     /// Root first; the last entry is the account itself.
-    pub nodes: Vec<AccountRef>,
+    pub nodes: Vec<PersonAccountRef>,
 }
 
 /// An automatic case about the Person, open or not.
@@ -838,11 +838,11 @@ pub struct SignalView {
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub person_id: i64,
-    pub account: Option<AccountRef>,
+    pub account: Option<PersonAccountRef>,
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub related_person_id: i64,
-    pub related_account: Option<AccountRef>,
+    pub related_account: Option<PersonAccountRef>,
     pub kind: SignalKind,
     #[schema(value_type = Object)]
     pub detail: Value,
@@ -885,7 +885,7 @@ pub struct SuspicionPanel {
     pub escalate_threshold: i64,
     /// The level has reached the freeze threshold: the Person's invite creation is paused.
     pub invites_paused: bool,
-    pub accounts: Vec<AccountRef>,
+    pub accounts: Vec<PersonAccountRef>,
     pub events: Vec<PanelEvent>,
     pub banned_descendants: Vec<BannedDescendant>,
     pub invite_paths: Vec<InvitePath>,

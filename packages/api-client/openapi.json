@@ -67966,7 +67966,7 @@
         ],
         "properties": {
           "account": {
-            "$ref": "#/components/schemas/AccountRef"
+            "$ref": "#/components/schemas/PersonAccountRef"
           },
           "ban_category": {
             "type": "string",
@@ -78327,7 +78327,7 @@
           "nodes": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AccountRef"
+              "$ref": "#/components/schemas/PersonAccountRef"
             },
             "description": "Root first; the last entry is the account itself."
           }
@@ -83826,7 +83826,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/AccountRef",
+                "$ref": "#/components/schemas/PersonAccountRef",
                 "description": "The banned account that raised it."
               }
             ]
@@ -84619,6 +84619,22 @@
             "$ref": "#/components/schemas/ConfigView"
           },
           "owner_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PersonAccountRef": {
+        "type": "object",
+        "description": "An account as staff see it in the panel.",
+        "required": [
+          "id",
+          "username"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
             "type": "string"
           }
         }
@@ -89470,7 +89486,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/AccountRef"
+                "$ref": "#/components/schemas/PersonAccountRef"
               }
             ]
           },
@@ -89496,7 +89512,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/AccountRef"
+                "$ref": "#/components/schemas/PersonAccountRef"
               }
             ]
           },
@@ -90898,7 +90914,7 @@
           "accounts": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AccountRef"
+              "$ref": "#/components/schemas/PersonAccountRef"
             }
           },
           "banned_descendants": {

@@ -14096,7 +14096,7 @@ export interface components {
         };
         /** @description A banned account somewhere below the Person in the invite tree. */
         BannedDescendant: {
-            account: components["schemas"]["AccountRef"];
+            account: components["schemas"]["PersonAccountRef"];
             /** @description `serious` raises the inviter's suspicion; `standard` does not (D-031). */
             ban_category: string;
             /** Format: int64 */
@@ -17385,7 +17385,7 @@ export interface components {
         InvitePath: {
             account_id: string;
             /** @description Root first; the last entry is the account itself. */
-            nodes: components["schemas"]["AccountRef"][];
+            nodes: components["schemas"]["PersonAccountRef"][];
         };
         InviteRow: {
             code: string;
@@ -19079,7 +19079,7 @@ export interface components {
             /** Format: int32 */
             level_after: number;
             reason: string;
-            source_account?: null | components["schemas"]["AccountRef"];
+            source_account?: null | components["schemas"]["PersonAccountRef"];
         };
         ParsedReaderName: {
             /** Format: double */
@@ -19303,6 +19303,11 @@ export interface components {
             bundle: components["schemas"]["BundleDetail"];
             config: components["schemas"]["ConfigView"];
             owner_id: string;
+        };
+        /** @description An account as staff see it in the panel. */
+        PersonAccountRef: {
+            id: string;
+            username: string;
         };
         PersonBanBody: {
             category?: null | components["schemas"]["BanCategory"];
@@ -20869,14 +20874,14 @@ export interface components {
         SignalState: "open" | "dismissed" | "confirmed";
         /** @description An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address. */
         SignalView: {
-            account?: null | components["schemas"]["AccountRef"];
+            account?: null | components["schemas"]["PersonAccountRef"];
             /** Format: int64 */
             created_at_ms: number;
             detail: Record<string, never>;
             id: string;
             kind: components["schemas"]["SignalKind"];
             person_id: string;
-            related_account?: null | components["schemas"]["AccountRef"];
+            related_account?: null | components["schemas"]["PersonAccountRef"];
             related_person_id: string;
             review_reason?: string | null;
             /** Format: int64 */
@@ -21312,7 +21317,7 @@ export interface components {
         };
         /** @description The suspicion panel of a Person page (MOD-SUS-001). */
         SuspicionPanel: {
-            accounts: components["schemas"]["AccountRef"][];
+            accounts: components["schemas"]["PersonAccountRef"][];
             banned_descendants: components["schemas"]["BannedDescendant"][];
             cases: components["schemas"]["SuspicionCaseRef"][];
             /** Format: int64 */

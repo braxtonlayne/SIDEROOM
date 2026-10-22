@@ -418,7 +418,7 @@ pub fn router() -> Router<AppState> {
         suspicion::SignalReviewBody,
         sr_moderation::model::SuspicionPanel,
         sr_moderation::model::PanelEvent,
-        sr_moderation::model::AccountRef,
+        sr_moderation::model::PersonAccountRef,
         sr_moderation::model::BannedDescendant,
         sr_moderation::model::InvitePath,
         sr_moderation::model::SuspicionCaseRef,

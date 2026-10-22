@@ -21,9 +21,9 @@ use sr_core::PlatformPermissions as P;
 
 use crate::error::{ModError, ModResult, conflict, invalid};
 use crate::model::{
-    AccountRef, BannedDescendant, CaseState, InvitePath, PanelEvent, ScanOutcome, SharedAddress,
-    SignalDetail, SignalFilter, SignalKind, SignalState, SignalView, SuspicionCaseRef,
-    SuspicionPanel, Who,
+    BannedDescendant, CaseState, InvitePath, PanelEvent, PersonAccountRef, ScanOutcome,
+    SharedAddress, SignalDetail, SignalFilter, SignalKind, SignalState, SignalView,
+    SuspicionCaseRef, SuspicionPanel, Who,
 };
 use crate::service::{Moderation, log_staff, push_event, require_staff};
 use crate::suspicion_rules::{
@@ -43,9 +43,9 @@ fn ms(col: &str) -> String {
     format!("(extract(epoch FROM {col}) * 1000)::bigint")
 }
 
-fn account_ref(id: Option<i64>, name: Option<String>) -> Option<AccountRef> {
+fn account_ref(id: Option<i64>, name: Option<String>) -> Option<PersonAccountRef> {
     match (id, name) {
-        (Some(id), Some(username)) => Some(AccountRef { id, username }),
+        (Some(id), Some(username)) => Some(PersonAccountRef { id, username }),
         _ => None,
     }
 }
@@ -149,7 +149,7 @@ impl Moderation {
         let level = level.ok_or(ModError::NotFound("person"))?;
         let (freeze, escalate) = thresholds(&mut tx).await?;
 
-        let accounts: Vec<AccountRef> = sqlx::query(
+        let accounts: Vec<PersonAccountRef> = sqlx::query(
             "SELECT id, username::text AS username FROM accounts WHERE person_id = $1 AND id <> 1 ORDER BY id",
         )
         .bind(person_id)
@@ -157,7 +157,7 @@ impl Moderation {
         .await?
         .iter()
         .map(|r| {
-            Ok(AccountRef {
+            Ok(PersonAccountRef {
                 id: r.try_get("id")?,
                 username: r.try_get("username")?,
             })
@@ -219,7 +219,7 @@ impl Moderation {
         .iter()
         .map(|r| {
             Ok(BannedDescendant {
-                account: AccountRef {
+                account: PersonAccountRef {
                     id: r.try_get("id")?,
                     username: r.try_get("username")?,
                 },
@@ -253,7 +253,7 @@ impl Moderation {
             .await?
             .iter()
             .map(|r| {
-                Ok(AccountRef {
+                Ok(PersonAccountRef {
                     id: r.try_get("id")?,
                     username: r.try_get("username")?,
                 })
