@@ -391,6 +391,12 @@ pub async fn retain(
         .svc()
         .retain_hold_after_erasure(&Who::Staff(&ctx.caller), hid, b.basis.as_deref())
         .await;
-    staff_result(ctx, "moderation.hold.retain_after_erasure", Some(("hold", hid)), r).await?;
+    staff_result(
+        ctx,
+        "moderation.hold.retain_after_erasure",
+        Some(("hold", hid)),
+        r,
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }

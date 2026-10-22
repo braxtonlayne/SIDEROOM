@@ -42,7 +42,8 @@ export default {
   'admin.moderation.dialog.retainBasis': 'Legal basis',
   'admin.moderation.dialog.retainedNotice': 'The hold was marked as retained.',
   'admin.dataRequests.hiddenBadge': 'Activity hidden',
-  'admin.dataRequests.hiddenNote': 'Shared activity hidden from discovery since {when}. Reason: {reason}',
+  'admin.dataRequests.hiddenNote':
+    'Shared activity hidden from discovery since {when}. Reason: {reason}',
   'admin.dataRequests.hideActivity': 'Hide activity',
   'admin.dataRequests.showActivity': 'Show activity',
   'admin.dataRequests.hideActivityAria': 'Hide the shared activity of {name} from discovery',
@@ -50,7 +51,7 @@ export default {
   'admin.dataRequests.hideActivityTitle': 'Hide activity from discovery',
   'admin.dataRequests.showActivityTitle': 'Show activity again',
   'admin.dataRequests.hideActivityDescription':
-    "While the request is reviewed, the account's shared cinema, library and TV activity, watching presence and recommendations are hidden from other members. Nothing is deleted. It ends when the request closes.",
+    "While the request is reviewed, the account's shared cinema and library activity, watching presence and recommendations are hidden from other members. Nothing is deleted. It ends when the request closes.",
   'admin.dataRequests.showActivityDescription':
     "The account's shared activity becomes visible again, as its own privacy settings allow.",
   'admin.dataRequests.restrictReason': 'Reason (kept in the staff log)',

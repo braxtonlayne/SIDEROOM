@@ -653,7 +653,7 @@ impl AdminService {
             .with_clock(now))
     }
 
-    /// MOD-DSR-006: hide the account's shared activity (cinema, library and TV sharing, watching presence,
+    /// MOD-DSR-006: hide the account's shared activity (cinema and library sharing, watching presence,
     /// recommendations) from discovery while the request is reviewed; or, with `hide = false`, show it again.
     /// A reason is required. Nothing is deleted. The hiding also ends when the request is completed or declined.
     pub async fn set_data_request_restriction(

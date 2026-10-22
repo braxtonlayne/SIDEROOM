@@ -1062,7 +1062,18 @@ async fn staff_rectify_a_person_link_from_the_request_with_a_logged_reason() {
     assert_eq!(p, 300);
     assert_eq!(person_of().await, 300);
     assert_eq!(log_count(pool, "person.link").await, 1);
-    assert_eq!(log_count(pool, "data_request.rectify").await, 1);
+    assert_eq!(
+        log_count(pool, "data_request.rectify").await,
+        3,
+        "one admin row and the two denials"
+    );
+    let done: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'data_request.rectify' AND kind = 'admin_action'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(done, 1);
     // ... and split it off again into a Person of its own.
     let fresh = svc
         .rectify_person_link(&c, q.id, None, Some("they are two people"))
@@ -1071,9 +1082,15 @@ async fn staff_rectify_a_person_link_from_the_request_with_a_logged_reason() {
     assert!(fresh != 300 && fresh != 100);
     assert_eq!(person_of().await, fresh);
     assert_eq!(log_count(pool, "person.unlink").await, 1);
-    assert_eq!(log_count(pool, "data_request.rectify").await, 2);
+    let done: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'data_request.rectify' AND kind = 'admin_action'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(done, 2);
     let reason: String = sqlx::query_scalar(
-        "SELECT reason FROM staff_access_log WHERE action = 'data_request.rectify' ORDER BY id DESC LIMIT 1",
+        "SELECT reason FROM staff_access_log WHERE action = 'data_request.rectify' AND kind = 'admin_action' ORDER BY seq DESC LIMIT 1",
     )
     .fetch_one(pool)
     .await

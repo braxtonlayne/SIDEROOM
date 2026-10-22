@@ -27,11 +27,12 @@ use crate::model::{Access, CaseState, Who};
 use crate::rules;
 use crate::service::{Moderation, log_staff, push_event, require_staff};
 
-/// Tells live clients that a channel changed (its `nsfw` flag), so open apps show the gate without a reload.
+/// Tells live clients that a channel changed (its `nsfw` flag), so open apps show the gate without a reload, and
+/// writes the change to the server's audit log (`actor` is the staff member).
 /// Implemented by the server over the event bus; without one clients see the change on their next fetch.
 #[async_trait]
 pub trait ChannelSink: Send + Sync {
-    async fn channel_changed(&self, guild: i64, channel: i64);
+    async fn channel_changed(&self, guild: i64, channel: i64, actor: i64, nsfw: bool);
 }
 
 /// What can be marked age-restricted.
@@ -58,8 +59,10 @@ impl AgeTargetKind {
 #[serde(rename_all = "snake_case")]
 pub enum AgeBand {
     /// 13 to 17: the age confirmation is reset and locked.
+    #[serde(rename = "under_18")]
     Under18,
     /// Below the minimum registration age: the same, and the account is suspended.
+    #[serde(rename = "under_13")]
     Under13,
 }
 
@@ -238,7 +241,7 @@ impl Moderation {
         .await?;
         tx.commit().await?;
         if changed && let (Some(g), Some(sink)) = (guild, &self.channel_sink) {
-            sink.channel_changed(g, id).await;
+            sink.channel_changed(g, id, who.user_id(), restricted).await;
         }
         Ok(AgeChange {
             kind,

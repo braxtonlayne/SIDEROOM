@@ -88,7 +88,7 @@ struct Sink(Mutex<Vec<(i64, i64)>>);
 
 #[async_trait]
 impl ChannelSink for Sink {
-    async fn channel_changed(&self, guild: i64, channel: i64) {
+    async fn channel_changed(&self, guild: i64, channel: i64, _actor: i64, _nsfw: bool) {
         self.0.lock().unwrap().push((guild, channel));
     }
 }

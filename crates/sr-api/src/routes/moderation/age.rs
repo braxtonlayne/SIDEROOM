@@ -96,9 +96,14 @@ pub async fn underage(a: Actor, Json(b): Json<UnderageBody>) -> ApiResult<Json<U
             case,
         )
         .await;
-    staff_result(ctx, "moderation.age.underage", Some(("account", account)), r)
-        .await
-        .map(Json)
+    staff_result(
+        ctx,
+        "moderation.age.underage",
+        Some(("account", account)),
+        r,
+    )
+    .await
+    .map(Json)
 }
 
 /// Body of `POST /moderation/age/underage/{account_id}/lift`.

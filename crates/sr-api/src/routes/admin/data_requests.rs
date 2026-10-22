@@ -367,7 +367,7 @@ pub struct RestrictBody {
 }
 
 /// Restriction or objection (GDPR articles 18 and 21, MOD-DSR-006): hide the requester's shared activity (cinema,
-/// library and TV sharing, watching presence, recommendations) from discovery while the request is reviewed, or
+/// library sharing, watching presence, recommendations) from discovery while the request is reviewed, or
 /// show it again. Nothing is deleted. It also ends when the request is completed or declined. 409 when the request
 /// is closed or already in that state.
 #[utoipa::path(

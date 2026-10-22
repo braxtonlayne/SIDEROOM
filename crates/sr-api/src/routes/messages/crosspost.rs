@@ -1,9 +1,3 @@
-    let source_restricted = messages.channel_age_restricted(src.channel_id).await;
-        // MOD-AGE-004: an age-restricted announcement channel's previews do not reach followers without the gate.
-        let keep_embeds = !sr_chat::sensitive::embeds_stay_behind(
-            source_restricted,
-            messages.channel_age_restricted(target.id).await,
-        );
 //! Announcement channels (LNG-CHN-004): publishing a message to the channels that follow it.
 //!
 //! * `POST /channels/{id}/messages/{id}/crosspost`: publish one message by hand.
