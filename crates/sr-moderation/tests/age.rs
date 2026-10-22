@@ -543,6 +543,13 @@ async fn underage_handling_resets_and_locks_and_under_thirteen_also_suspends() {
         out.erasure_request_id, None,
         "under 18 opens no erasure request"
     );
+    // The dashboard counts the staff reset (MOD-DASH-010), without the account.
+    let staff_resets: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM age_gate_resets WHERE source = 'staff'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(staff_resets, 1, "the staff reset is counted");
     {
         let sent = dms.0.lock().unwrap();
         let dm = sent

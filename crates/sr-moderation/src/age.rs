@@ -344,9 +344,12 @@ impl Moderation {
             Some(c) => Some(load(&mut tx, who, c, Access::Work, true).await?),
             None => None,
         };
+        // The reset is counted for the dashboard in the same statement, without the account (MOD-DASH-010,
+        // migration 1140; the self-service reset writes `self`).
         sqlx::query(
-            "UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, \
-             age_locked_at = now(), age_locked_by = $2, updated_at = now() WHERE id = $1",
+            "WITH u AS (UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, \
+             age_locked_at = now(), age_locked_by = $2, updated_at = now() WHERE id = $1 RETURNING 1) \
+             INSERT INTO age_gate_resets (source) SELECT 'staff' FROM u",
         )
         .bind(account_id)
         .bind(by.user_id)
