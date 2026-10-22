@@ -480,6 +480,52 @@ pub fn validate_delete(
     Ok(delete_plan(message, now_ms, limits))
 }
 
+/// What to persist when a deleted message is restored by a moderator (N-21; D-121, D-122, D-123).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestorePlan {
+    pub message_id: MessageId,
+    pub channel_id: ChannelId,
+}
+
+/// Restoring a deleted message: `MANAGE_MESSAGES` in its channel. The message must still exist (a purged one is
+/// gone for good, D-121) and not be due for purge (the purge job deletes its stored files first, so a restore
+/// racing it would leave a message without its attachments). A message under a hold may be restored: the hold
+/// stays on it (D-122). A message a platform member removed (`staff_removed`) is restored only by platform staff
+/// (`by_platform`).
+pub fn validate_restore(
+    message: &Message,
+    perms: Permissions,
+    by_platform: bool,
+    now_ms: i64,
+) -> ChatResult<RestorePlan> {
+    require_view(perms)?;
+    require(perms, Permissions::MANAGE_MESSAGES)?;
+    if message.is_visible() {
+        return Err(ChatError::invalid(
+            "message",
+            "MESSAGE_NOT_DELETED",
+            "The message is not deleted.",
+        ));
+    }
+    if message.visibility == Visibility::StaffRemoved && !by_platform {
+        return Err(ChatError::MissingPermissions);
+    }
+    let due = message.hold_id.is_none() && message.purge_after_ms.is_some_and(|p| p <= now_ms);
+    if due {
+        return Err(ChatError::UnknownMessage);
+    }
+    Ok(RestorePlan {
+        message_id: message.id,
+        channel_id: message.channel_id,
+    })
+}
+
+/// Moderating a message you did not write (removing one attachment): `MANAGE_MESSAGES` in its channel.
+pub fn validate_moderate(perms: Permissions) -> ChatResult<()> {
+    require_view(perms)?;
+    require(perms, Permissions::MANAGE_MESSAGES)
+}
+
 /// Bulk delete (LNG-MSG-006): guild channels only, MANAGE_MESSAGES, 2-100 distinct ids,
 /// every requested id younger than 14 days. Ids that are unknown or already deleted
 /// are skipped; if none remain the request fails.

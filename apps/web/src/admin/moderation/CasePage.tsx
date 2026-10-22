@@ -40,10 +40,22 @@ const MOVE_KEYS: Record<api.CaseState, MessageKey> = {
   closed: 'admin.moderation.case.moveClosed',
 };
 
+/** The attachments the evidence snapshots show on the reported message, once each. */
+function targetAttachments(d: api.CaseDetail): { id: string; filename: string }[] {
+  const seen = new Map<string, string>();
+  for (const ev of d.evidence)
+    for (const m of ev.payload.messages ?? [])
+      if (m.target) for (const a of m.attachments) seen.set(a.id, a.filename);
+  return [...seen].map(([id, filename]) => ({ id, filename }));
+}
+
 /** What can be done from this case: the reported message, the account in the case's server, a suspension. */
 function performable(d: api.CaseDetail, manage: boolean): api.PerformedAction[] {
   const out: api.PerformedAction[] = [];
-  if (d.case.target_kind === 'message' && d.case.target_id) out.push('delete_message');
+  if (d.case.target_kind === 'message' && d.case.target_id) {
+    out.push('delete_message', 'restore_message');
+    if (targetAttachments(d).length > 0) out.push('remove_attachment');
+  }
   if (d.case.guild_id && d.subject_account_id) out.push('timeout', 'kick', 'guild_ban');
   if (manage && d.subject_account_id) out.push('suspend_account');
   return out;
@@ -51,6 +63,8 @@ function performable(d: api.CaseDetail, manage: boolean): api.PerformedAction[] 
 
 const PERFORM_KEYS: Record<api.PerformedAction, MessageKey> = {
   delete_message: 'admin.moderation.perform.deleteMessage',
+  restore_message: 'admin.moderation.perform.restoreMessage',
+  remove_attachment: 'admin.moderation.perform.removeAttachment',
   timeout: 'admin.moderation.perform.timeout',
   kick: 'admin.moderation.perform.kick',
   guild_ban: 'admin.moderation.perform.guildBan',
@@ -471,6 +485,8 @@ function CaseDialogs({
     performable(data, data.access === 'manage')[0] ?? 'kick',
   );
   const [minutes, setMinutes] = useState('60');
+  const attachments = targetAttachments(data);
+  const [attachmentId, setAttachmentId] = useState(attachments[0]?.id ?? '');
   const [text, setText] = useState('');
   const [holdKind, setHoldKind] = useState<api.HoldKind>('message');
   const [holdId, setHoldId] = useState('');
@@ -558,7 +574,10 @@ function CaseDialogs({
         title={t('admin.moderation.perform.title')}
         description={t('admin.moderation.perform.description')}
         confirmLabel={t('admin.moderation.perform.confirm')}
-        valid={performKind !== 'timeout' || Number(minutes) >= 1}
+        valid={
+          (performKind !== 'timeout' || Number(minutes) >= 1) &&
+          (performKind !== 'remove_attachment' || attachmentId !== '')
+        }
         onCancel={close}
         onConfirm={async (reason) =>
           done(
@@ -568,6 +587,7 @@ function CaseDialogs({
                 performKind,
                 reason,
                 performKind === 'timeout' ? Number(minutes) : undefined,
+                performKind === 'remove_attachment' ? attachmentId : undefined,
               ),
             t('admin.moderation.perform.done'),
           )()
@@ -582,6 +602,14 @@ function CaseDialogs({
           value={performKind}
           onValueChange={(v) => setPerformKind(v as api.PerformedAction)}
         />
+        {performKind === 'remove_attachment' && (
+          <Select
+            aria-label={t('admin.moderation.perform.attachment')}
+            options={attachments.map((a) => ({ value: a.id, label: a.filename }))}
+            value={attachmentId}
+            onValueChange={setAttachmentId}
+          />
+        )}
         {performKind === 'timeout' && (
           <TextInput
             label={t('admin.moderation.perform.minutes')}

@@ -254,7 +254,8 @@ fn deliver_to(session: &Session, name: &str, data: &Value) {
 fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
     Some(match ev {
         // The message family is full-payload (Discord shaped), built by the producer.
-        DomainEvent::MessageSent { channel, data, .. } => Dispatch {
+        DomainEvent::MessageSent { channel, data, .. }
+        | DomainEvent::MessageRestored { channel, data, .. } => Dispatch {
             name: "MESSAGE_CREATE",
             data: data.clone(),
             channel: Some(*channel),

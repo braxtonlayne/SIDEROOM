@@ -380,6 +380,8 @@ pub struct ActionBody {
     pub perform: bool,
     /// `timeout` when performing: minutes, 1 to 40320.
     pub timeout_minutes: Option<i64>,
+    /// `remove_attachment` when performing: the attachment snowflake (one of the case's message).
+    pub attachment_id: Option<String>,
 }
 
 /// Record that an action was taken with the server's own tools, or (`perform`) do it through the server's services
@@ -402,6 +404,11 @@ pub async fn record_action(
     if b.perform {
         let action = sr_moderation::PerformedAction::parse(&b.action)
             .ok_or_else(|| map_err(ModError::Invalid("unknown action".into())))?;
+        let attachment_id = b
+            .attachment_id
+            .as_deref()
+            .map(|s| id(s, "attachment_id"))
+            .transpose()?;
         let r = a
             .svc()
             .perform_action(
@@ -411,6 +418,7 @@ pub async fn record_action(
                     action,
                     note: b.note.clone().unwrap_or_default(),
                     timeout_minutes: b.timeout_minutes,
+                    attachment_id,
                 },
             )
             .await;

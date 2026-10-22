@@ -3019,3 +3019,27 @@ Status: `ADOPTED` (D-336). No code follow-up beyond N-35's dependency on item (e
 ### Still with the owner
 
 Actions only: the lawyer's review of D-336 (which now carries the D-293 items), and the actions already listed in the earlier rounds.
+
+## Phase 18 restore round (answered 2026-10-22, delegated)
+
+The questions `feat/p18-mod-restore` (MOD-CASE-009 remainder, N-21) left in `docs/dev/handoff/feat-p18-mod-restore.md`, answered by the owner's proxy under the same delegation and limits as the earlier Phase 18 rounds: decide and document only (no code, build or push). Decisions are D-337 and D-338 in [01-decisions-log.md](01-decisions-log.md) (D-332 to D-336 belong to other Phase 18 branches); follow-ups are N-40 and N-41 under "Phase 18 restore round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 2 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Restoring messages from a case (P18-RST, branch `feat/p18-mod-restore`)
+
+**P18-RST-1 (handoff question 1; D-121, D-213). Should a server moderator be able to restore a message that a platform staff member removed (`staff_removed`), or only platform staff? The branch defaults to platform staff only; the takedown register's uphold sets `staff_removed`.**
+Decision: platform staff only, as built, and one step further: a message that a takedown item still holds (notice in `removed` or `counter_noticed` state, item `held` or `disabled`) is not restorable from a case by anyone; it returns only through the register's restore or withdraw. The restore right follows the removal right: `user_deleted` belongs to the author and the server's `MANAGE_MESSAGES` holders, `staff_removed` is set only by platform processes (today the takedown uphold), and D-213 already keeps platform holds out of a server moderator's hands. The extra clause exists because a `MANAGE_CASES` holder without `MANAGE_TAKEDOWNS` could otherwise undo a legal takedown from the case page: the restore keeps the hold (D-122) and knows nothing of the notice, so the content would be visible while the strike still counts (D-333), the ten-business-day counter-notice wait would be moot, and the register's later restore (which keys on `visibility = 'staff_removed'`) would find nothing to put back. The case action answers a 409 naming the notice and pointing at the register, the shape N-32 chose for held catalogue rows. No new permission: `by_platform` stays "any platform permission on the caller", and `rules::access` already gates platform-routed cases to `MANAGE_CASES`.
+Status: `ADOPTED` (D-337). Follow-up: N-40.
+
+**P18-RST-2 (handoff "still open"). A restored message raises the mention badge of anyone it mentions again, because clients treat `MESSAGE_CREATE` as new. Accept this, or send something else (a `MESSAGE_UPDATE`-style restore event, or suppress mentions on restore)?**
+Decision: keep `MESSAGE_CREATE` with the full object and add `restored: true` to the dispatched payload (set by the hub when it dispatches `DomainEvent::MessageRestored`; never stored). The web reducer then inserts the message without bumping `mention_count`, and the desktop alert, PWA alert and DM toast hooks skip it. `MESSAGE_CREATE` is the only event every client, bot and SDK will act on (they dropped the message on `MESSAGE_DELETE`; the web reducer ignores a `MESSAGE_UPDATE` for a message it does not hold; a new event name would leave the message invisible until reload wherever it is unknown). The badge is a client-only artefact: the server never calls `record_mentions` on restore, so `read_states` is untouched and client and server disagree until the next reload; the field makes them agree. The `SUPPRESS_NOTIFICATIONS` flag was rejected because it is lossy (a restore and an `@silent` message would look the same to a bot) and would have to be scrubbed from the stored object. Consumers that ignore the field keep today's behaviour, which is acceptable.
+Status: `ADOPTED` (D-338). Follow-up: N-41.
+
+### Still with the owner
+
+Nothing new from this round.

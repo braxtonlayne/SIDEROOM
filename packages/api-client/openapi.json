@@ -64995,6 +64995,13 @@
             "type": "string",
             "description": "`delete_message`, `restore_message`, `remove_attachment`, `timeout`, `kick`, `guild_ban`, `mark_nsfw`\nor `other`. Recording does not perform it."
           },
+          "attachment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`remove_attachment` when performing: the attachment snowflake (one of the case's message)."
+          },
           "note": {
             "type": [
               "string",

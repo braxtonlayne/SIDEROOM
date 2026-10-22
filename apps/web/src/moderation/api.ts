@@ -236,19 +236,27 @@ export const escalateCase = (id: string, reason: string) =>
 export const recordCaseAction = (id: string, action: string, note: string) =>
   send<CaseSummary>(`/moderation/cases/${id}/actions`, 'POST', { action, note });
 export type PerformedAction =
-  'delete_message' | 'timeout' | 'kick' | 'guild_ban' | 'suspend_account';
+  | 'delete_message'
+  | 'restore_message'
+  | 'remove_attachment'
+  | 'timeout'
+  | 'kick'
+  | 'guild_ban'
+  | 'suspend_account';
 /** Do the action through the server's services on the case's own target (N-21). */
 export const performCaseAction = (
   id: string,
   action: PerformedAction,
   note: string,
   timeoutMinutes?: number,
+  attachmentId?: string,
 ) =>
   send<CaseSummary>(`/moderation/cases/${id}/actions`, 'POST', {
     action,
     note,
     perform: true,
     ...(timeoutMinutes ? { timeout_minutes: timeoutMinutes } : {}),
+    ...(attachmentId ? { attachment_id: attachmentId } : {}),
   });
 export const warnCase = (id: string, text: string) =>
   send<{ delivered: boolean }>(`/moderation/cases/${id}/warn`, 'POST', { text });

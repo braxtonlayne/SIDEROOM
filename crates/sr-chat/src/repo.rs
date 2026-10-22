@@ -4,7 +4,7 @@
 use crate::domain::{Channel, Guild, Member, Message, Role};
 use crate::error::RepoError;
 use crate::guild_rules::GuildBlueprint;
-use crate::message_rules::{DeletePlan, EditPlan};
+use crate::message_rules::{DeletePlan, EditPlan, RestorePlan};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use sr_core::permissions::Overwrite;
@@ -134,6 +134,9 @@ pub trait MessageRepository: Send + Sync {
         now_ms: i64,
     ) -> RepoResult<bool>;
     async fn apply_delete(&self, plan: &DeletePlan) -> RepoResult<()>;
+    /// Undo a delete (N-21): visible again, no `deleted_at`, no `purge_after`; a hold stays. Counts towards its
+    /// thread again.
+    async fn apply_restore(&self, plan: &RestorePlan) -> RepoResult<()>;
     /// Time the user last posted in the channel, for slowmode. System messages
     /// (types other than default and reply) do not count (open question 154).
     async fn last_sent_ms(&self, channel: ChannelId, user: UserId) -> RepoResult<Option<i64>>;
@@ -318,6 +321,16 @@ pub struct Attachment {
     pub blurhash: Option<String>,
 }
 
+/// An attachment taken off a message by [`MessageStore::detach_attachment`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetachedAttachment {
+    /// Object storage key.
+    pub key: String,
+    pub filename: String,
+    /// A hold covers it: the object and row are kept.
+    pub held: bool,
+}
+
 /// Largest declared image side, in pixels.
 pub const MAX_IMAGE_SIDE: u32 = 16_384;
 
@@ -403,6 +416,20 @@ pub trait MessageStore: Send + Sync {
     async fn attachment_multipart(&self, id: AttachmentId) -> StoreResult<Option<(String, u64)>>;
     /// Forget the multipart record (after completion or abort).
     async fn clear_attachment_multipart(&self, id: AttachmentId) -> StoreResult<()>;
+    /// Take one attachment off `message` for a moderation case (N-21): it stops showing at once. An attachment no
+    /// hold covers is reported `Detached { held: false }`, and the caller deletes the stored object and then calls
+    /// [`Self::forget_removed_attachment`]; a held one (its own hold, or its message's: it then joins that hold)
+    /// keeps its object and row for the evidence (D-122) and is reported `held: true`.
+    async fn detach_attachment(
+        &self,
+        id: AttachmentId,
+        message: MessageId,
+        case: i64,
+        by: UserId,
+        now_ms: i64,
+    ) -> StoreResult<Option<DetachedAttachment>>;
+    /// Delete the row of a removed attachment once its object is gone (no-op while a hold covers it).
+    async fn forget_removed_attachment(&self, id: AttachmentId) -> StoreResult<()>;
     /// Attachments belonging to messages (any state `Attached`).
     async fn attachments_of(
         &self,

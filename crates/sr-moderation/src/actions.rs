@@ -26,6 +26,9 @@ pub enum ActionError {
     Unsupported,
     /// The service refused: the acting person lacks the server bit, the hierarchy forbids it, and so on.
     Refused(String),
+    /// The target is not in a state the action applies to (a message that is not deleted, an attachment that is not
+    /// on the message); the text is shown to the person.
+    Conflict(String),
     /// Something broke.
     Failed(String),
 }
@@ -95,11 +98,14 @@ pub trait CaseActions: Send + Sync {
         channel: i64,
         message: i64,
     ) -> Result<String, ActionError>;
+    /// Take one attachment off the case's message (it must belong to it).
     async fn remove_attachment(
         &self,
         by: &Caller,
         case: i64,
+        channel: i64,
         message: i64,
+        attachment: i64,
     ) -> Result<String, ActionError>;
     /// `until_ms` is when the timeout ends.
     async fn timeout_member(
@@ -142,6 +148,8 @@ pub struct PerformRequest {
     pub note: String,
     /// `Timeout` only: how long, in minutes (1 to 40320, four weeks).
     pub timeout_minutes: Option<i64>,
+    /// `RemoveAttachment` only: which attachment of the case's message.
+    pub attachment_id: Option<i64>,
 }
 
 impl Moderation {
@@ -218,8 +226,11 @@ impl Moderation {
                 actions.restore_message(&by, id, c, m).await
             }
             PerformedAction::RemoveAttachment => {
-                let (_, m) = need_message()?;
-                actions.remove_attachment(&by, id, m).await
+                let (c, m) = need_message()?;
+                let a = req
+                    .attachment_id
+                    .ok_or_else(|| invalid("attachment_id is required to remove an attachment"))?;
+                actions.remove_attachment(&by, id, c, m, a).await
             }
             PerformedAction::Timeout => {
                 let minutes = req
@@ -254,6 +265,7 @@ impl Moderation {
                 let _ = m;
                 ModError::Forbidden
             }
+            ActionError::Conflict(m) => conflict(m),
             ActionError::Failed(m) => ModError::Storage(m),
         })?;
 

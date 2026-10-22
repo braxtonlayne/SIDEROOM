@@ -2,14 +2,15 @@
 //! [`MessageStore`], for tests and local bring-up (open question 148).
 
 use crate::repo::{
-    Attachment, EmojiKey, MessageStore, Page, ReactionSummary, StoreError, StoreResult, UploadState,
+    Attachment, DetachedAttachment, EmojiKey, MessageStore, Page, ReactionSummary, StoreError,
+    StoreResult, UploadState,
 };
 use async_trait::async_trait;
 
 use crate::admin_repo::{Ban, GuildAdminRepository, MemberFilter, PruneCriteria};
 use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
 use crate::guild_rules::GuildBlueprint;
-use crate::message_rules::{DeletePlan, EditPlan};
+use crate::message_rules::{DeletePlan, EditPlan, RestorePlan};
 use crate::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
 use sr_core::permissions::{Overwrite, OverwriteKind};
 use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
@@ -371,6 +372,20 @@ impl MessageRepository for MemoryBackend {
         Ok(())
     }
 
+    async fn apply_restore(&self, plan: &RestorePlan) -> RepoResult<()> {
+        let mut s = self.data();
+        if let Some(m) = s
+            .messages
+            .iter_mut()
+            .find(|m| m.id == plan.message_id && !m.is_visible())
+        {
+            m.visibility = Visibility::Visible;
+            m.deleted_at_ms = None;
+            m.purge_after_ms = None;
+        }
+        Ok(())
+    }
+
     async fn last_sent_ms(&self, channel: ChannelId, user: UserId) -> RepoResult<Option<i64>> {
         Ok(self.data().sent_at.get(&(channel, user)).copied())
     }
@@ -620,6 +635,33 @@ impl MessageStore for MemoryBackend {
 
     async fn clear_attachment_multipart(&self, id: AttachmentId) -> StoreResult<()> {
         self.data().multipart.remove(&id);
+        Ok(())
+    }
+
+    async fn detach_attachment(
+        &self,
+        id: AttachmentId,
+        message: MessageId,
+        _case: i64,
+        _by: UserId,
+        _now_ms: i64,
+    ) -> StoreResult<Option<DetachedAttachment>> {
+        let mut s = self.data();
+        match s.attachments.get_mut(&id) {
+            Some(a) if a.message_id == Some(message) => {
+                a.message_id = None;
+                Ok(Some(DetachedAttachment {
+                    key: a.key.clone(),
+                    filename: a.filename.clone(),
+                    held: false,
+                }))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    async fn forget_removed_attachment(&self, id: AttachmentId) -> StoreResult<()> {
+        self.data().attachments.remove(&id);
         Ok(())
     }
 
