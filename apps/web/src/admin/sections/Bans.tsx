@@ -1,29 +1,90 @@
-import { Badge, Button, EmptyState, Notice, Switch } from '@sideroom/ui';
+import { Badge, Button, EmptyState, Notice, Select, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
-import { useT } from '../../i18n';
+import { useT, type MessageKey } from '../../i18n';
+import { REPORT_CATEGORIES, type ReportCategory } from '../../moderation/api';
+import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import { PersonDrawer } from './PersonDrawer';
 import { LoadMore, ReasonDialog, SectionHeader, fmtMs, usePaged } from '../ui';
+
+/** The age filter (MOD-BAN-003): the same buckets the dashboard counts (MOD-DASH-007). */
+type AgeFilter = 'any' | 'under7' | 'd7to30' | 'd30to90' | 'over90';
+const AGE_KEYS: Record<AgeFilter, MessageKey> = {
+  any: 'admin.bans.ageAny',
+  under7: 'admin.bans.ageUnder7',
+  d7to30: 'admin.bans.age7to30',
+  d30to90: 'admin.bans.age30to90',
+  over90: 'admin.bans.ageOver90',
+};
+const AGE_RANGE: Record<AgeFilter, Pick<api.BanQuery, 'older_than_days' | 'newer_than_days'>> = {
+  any: {},
+  under7: { newer_than_days: 7 },
+  d7to30: { older_than_days: 7, newer_than_days: 30 },
+  d30to90: { older_than_days: 30, newer_than_days: 90 },
+  over90: { older_than_days: 90 },
+};
 
 export function BansSection() {
   const t = useT();
   const [activeOnly, setActiveOnly] = useState(true);
+  const [severity, setSeverity] = useState<api.BanCategory | 'any'>('any');
+  const [reason, setReason] = useState<ReportCategory | 'none' | 'any'>('any');
+  const [age, setAge] = useState<AgeFilter>('any');
   const [target, setTarget] = useState<api.BanRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [person, setPerson] = useState<string | null>(null);
-  const paged = usePaged<api.BanRecord>(`bans:${activeOnly}`, async (after) => {
-    const p = await api.listBans({ active_only: activeOnly, after, limit: 50 });
-    return { items: p.items, next: p.next_after };
-  });
+  const paged = usePaged<api.BanRecord>(
+    `bans:${activeOnly}:${severity}:${reason}:${age}`,
+    async (after) => {
+      const p = await api.listBans({
+        active_only: activeOnly,
+        ...(severity !== 'any' ? { category: severity } : {}),
+        ...(reason !== 'any' ? { reason_category: reason } : {}),
+        ...AGE_RANGE[age],
+        after,
+        limit: 50,
+      });
+      return { items: p.items, next: p.next_after };
+    },
+  );
 
   return (
     <>
       <SectionHeader title={t('admin.bans.title')} description={t('admin.bans.description')} />
-      <div className="ss-toolbar">
+      <div className="ss-toolbar" role="group" aria-label={t('admin.bans.filters')}>
         <Switch
           label={t('admin.bans.onlyActive')}
           checked={activeOnly}
           onChange={(e) => setActiveOnly(e.target.checked)}
+        />
+        <Select
+          aria-label={t('admin.bans.severityFilter')}
+          options={[
+            { value: 'any', label: t('admin.bans.severityAny') },
+            { value: 'serious', label: t('admin.bans.severitySerious') },
+            { value: 'standard', label: t('admin.bans.severityStandard') },
+          ]}
+          value={severity}
+          onValueChange={(v) => setSeverity(v as api.BanCategory | 'any')}
+        />
+        <Select
+          aria-label={t('admin.bans.reasonFilter')}
+          options={[
+            { value: 'any', label: t('admin.bans.reasonAny') },
+            ...REPORT_CATEGORIES.map((c) => ({ value: c, label: t(CATEGORY_KEYS[c]) })),
+            { value: 'none', label: t('admin.bans.reasonNone') },
+          ]}
+          value={reason}
+          onValueChange={(v) => setReason(v as ReportCategory | 'none' | 'any')}
+        />
+        <Select
+          aria-label={t('admin.bans.ageFilter')}
+          options={(Object.keys(AGE_KEYS) as AgeFilter[]).map((a) => ({
+            value: a,
+            label: t(AGE_KEYS[a]),
+          }))}
+          value={age}
+          onValueChange={(v) => setAge(v as AgeFilter)}
         />
       </div>
       {notice && (
@@ -60,6 +121,11 @@ export function BansSection() {
                   <Badge variant={b.category === 'serious' ? 'danger' : 'warning'}>
                     {b.category}
                   </Badge>{' '}
+                  {b.reason_category && (
+                    <>
+                      <Badge>{reasonLabel(t, b.reason_category)}</Badge>{' '}
+                    </>
+                  )}
                   {b.lifted_at_ms ? (
                     <Badge>{t('admin.bans.lifted')}</Badge>
                   ) : (
@@ -111,4 +177,10 @@ export function BansSection() {
       />
     </>
   );
+}
+
+/** The label of a stored `reason_category`; an unknown value (a later forward-only addition) shows as is. */
+function reasonLabel(t: ReturnType<typeof useT>, value: string): string {
+  const key = CATEGORY_KEYS[value as ReportCategory];
+  return key ? t(key) : value;
 }

@@ -1156,6 +1156,30 @@ async fn ban_invite_graph_and_credits_over_http() {
         )
         .await;
     assert_eq!(b["items"].as_array().unwrap().len(), 1);
+    // MOD-BAN-003: the filters narrow the list; an unknown reason is a client error.
+    for (q, n) in [
+        ("category=serious", 1),
+        ("category=standard", 0),
+        ("reason_category=none", 1),
+        ("reason_category=fraud", 0),
+        ("older_than_days=1", 0),
+        ("newer_than_days=1", 1),
+    ] {
+        let (s, b) = e
+            .call(Some(MODER), Method::GET, &format!("/admin/bans?{q}"), None)
+            .await;
+        assert_eq!(s, StatusCode::OK, "{q}: {b}");
+        assert_eq!(b["items"].as_array().unwrap().len(), n, "{q}: {b}");
+    }
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::GET,
+            "/admin/bans?reason_category=nonsense",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
     let (s, _) = e
         .call(Some(MODER), Method::GET, "/admin/suspicion", None)
         .await;

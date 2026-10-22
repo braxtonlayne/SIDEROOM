@@ -85,19 +85,19 @@ Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HO
 ## MOD-BAN — Ban reason taxonomy (spec section 8; D-211)
 - [x] **MOD-BAN-001** [DB] `ban_reason_category` enum and `person_bans.reason_category` _(migration 0580, XC-MOD-001.)_
 - [x] **MOD-BAN-002** [FE] Ban dialog picks `reason_category` with the serious-by-default mapping (D-211) and lets staff raise `harassment` and `ban_evasion` _(`admin/moderation/BanReasonFields.tsx`, used by the case page and the Accounts ban dialog, which opens or joins the person's platform case and bans through it; staff without `MANAGE_CASES` keep the severity-only request.)_
-- [ ] **MOD-BAN-003** [FE] Bans list filters by `reason_category`, severity and age
+- [x] **MOD-BAN-003** [FE] Bans list filters by `reason_category`, severity and age *(P19, feat/p19-mod-dash) `GET /admin/bans` takes `category`, `reason_category` (or `none`), `older_than_days` and `newer_than_days`; `BanRecord` carries `reason_category`; Admin > Bans has the three filters. Tests: `sr-moderation/tests/dashboard.rs` (Postgres), `sr-admin` `the_bans_list_filters_by_severity_reason_and_age`, `admin/__tests__/p19dashboard.test.tsx`.*
 
-## MOD-DASH — Staff dashboards (spec section 9; step 4, later)
+## MOD-DASH — Staff dashboards (spec section 9; step 4, built in P19)
 - [x] **MOD-DASH-001** [FE] Case queue (see `MOD-CASE-011`) _(see MOD-CASE-011.)_
-- [ ] **MOD-DASH-002** [FE][BE] Reports inbox: unattached reports, duplicate grouping, bulk dismiss with a reason _(later)_
+- [x] **MOD-DASH-002** [FE][BE] Reports inbox: unattached reports, duplicate grouping, bulk dismiss with a reason *(P19) `GET /moderation/dashboard/inbox` lists the open, unassigned platform cases that have reports nobody has looked at, one group per case (several reports = duplicates), oldest first, without the reporter; `POST /moderation/dashboard/inbox/dismiss` dismisses up to 100 with one reason through the normal state change (timeline event and access-log row each, skipped ones reported). `MANAGE_CASES`. See the handoff for how "unattached" is read.*
 - [x] **MOD-DASH-003** [FE] Case detail (see `MOD-CASE-012`) _(see MOD-CASE-012.)_
 - [x] **MOD-DASH-004** [FE][BE] Holds list with the review warning (API in `MOD-HOLD-004`; the dashboard view is later) _(the Holds tab shows the review flag and can mark a hold reviewed.)_
-- [ ] **MOD-DASH-005** [FE] Takedown register view (see `MOD-TKD-010`)
-- [ ] **MOD-DASH-006** [FE] Data requests view (see `MOD-DSR-008`)
-- [ ] **MOD-DASH-007** [FE] Bans by reason, severity and age (see `MOD-BAN-003`)
-- [ ] **MOD-DASH-008** [FE][BE] Health: reports per day, median time to first action, reopen rate, appeal outcomes; aggregates only, no per-staff ranking _(later)_
-- [ ] **MOD-DASH-009** [FE][BE] Retention check: counts of rows skipped by purge jobs because of holds _(later)_
-- [ ] **MOD-DASH-010** [FE][BE] Age and child-safety metrics (spec 7) _(later)_
+- [x] **MOD-DASH-005** [FE] Takedown register view (see `MOD-TKD-010`) *(P19) Dashboard card: notices to decide, past the triage target, counter-notices pending and restorable, received and removed in the window, with a button to the register; `MANAGE_TAKEDOWNS`.*
+- [x] **MOD-DASH-006** [FE] Data requests view (see `MOD-DSR-008`) *(P19) Dashboard card: open exports and erasures, overdue (extension honoured), due within 7 days, completed in the window, linking to the queue page; `MANAGE_TAKEDOWNS`.*
+- [x] **MOD-DASH-007** [FE] Bans by reason, severity and age (see `MOD-BAN-003`) *(P19) Dashboard card with bar lists by `reason_category` (`none` for older bans), severity and four age buckets, plus bans lifted in the window; `PLATFORM_BAN`.*
+- [x] **MOD-DASH-008** [FE][BE] Health: reports per day, median time to first action, reopen rate, appeal outcomes; aggregates only, no per-staff ranking *(P19) `GET /moderation/dashboard` `health` section over a 7/30/90-day window; only cases platform staff may see count (D-209); no per-staff figure.*
+- [x] **MOD-DASH-009** [FE][BE] Retention check: counts of rows skipped by purge jobs because of holds *(P19) `retention` section: due messages kept by a hold or a held attachment, removed attachments kept, large attachments past expiry kept, held draft/rejected submissions, holds in force and holds due for review; each count capped at 10 000.*
+- [x] **MOD-DASH-010** [FE][BE] Age and child-safety metrics (spec 7) *(P19) `age` section: age-restricted channels, series and titles, age-confirmation resets in the window (new account-free counter `age_gate_resets`, migration 1140), open child-safety cases, child-safety reports in the window, active child-safety bans.*
 
 ## MOD-SUS — Inviter suspicion tooling (spec section 10; step 5, later)
 - [ ] **MOD-SUS-001** [FE][BE] Suspicion panel on the Person page: `suspicion_events`, banned descendants with `reason_category`, invite path to the root _(later)_

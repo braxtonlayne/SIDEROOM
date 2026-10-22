@@ -1,12 +1,14 @@
-// Admin > Moderation (MOD-CASE-011/012, MOD-HOLD-006, MOD-APL-005, MOD-TKD-010; docs/specs/moderation-compliance.md
-// section 9). The queue, one case at a time, the holds list, the appeals list and the takedown register. The API
-// decides what each viewer may see; the tabs follow the two platform bits (cases, takedowns).
+// Admin > Moderation (MOD-CASE-011/012, MOD-HOLD-006, MOD-APL-005, MOD-TKD-010, MOD-DASH-*; docs/specs/
+// moderation-compliance.md section 9). The queue, one case at a time, the holds list, the appeals list, the takedown
+// register and the dashboard. The API decides what each viewer may see; the tabs follow the platform bits (cases,
+// takedowns; PLATFORM_BAN adds the ban figures to the dashboard).
 import { Tabs } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import { SectionHeader, useAdminViewer } from '../ui';
 import { CasePage } from './CasePage';
 import { CaseQueue } from './CaseQueue';
+import { DashboardTab } from './DashboardTab';
 import { AppealsTab, HoldsTab } from './HoldsAndAppeals';
 import { TakedownsTab } from './TakedownsTab';
 
@@ -19,7 +21,10 @@ export function ModerationSection() {
   const cases =
     manage ||
     (['REVIEW_READING', 'REVIEW_MEDIA', 'DELETE_CONTENT'] as const).some((p) => viewer.can(p));
-  const [tab, setTab] = useState(cases ? 'cases' : 'takedowns');
+  // The Dashboard tab shows whatever the viewer's bits allow: MANAGE_CASES, MANAGE_TAKEDOWNS and, for the ban
+  // figures, PLATFORM_BAN on top of one of them (the section itself stays hidden from PLATFORM_BAN alone).
+  const dashboard = manage || takedowns;
+  const [tab, setTab] = useState(cases ? 'cases' : takedowns ? 'takedowns' : 'dashboard');
   const [caseId, setCaseId] = useState<string | null>(null);
   const [noticeId, setNoticeId] = useState<string | null>(null);
 
@@ -38,6 +43,20 @@ export function ModerationSection() {
     : undefined;
 
   const items = [
+    ...(dashboard
+      ? [
+          {
+            id: 'dashboard',
+            label: t('admin.moderation.tabDashboard'),
+            content: (
+              <DashboardTab
+                onOpenCase={open}
+                onOpenRegister={takedowns ? () => setTab('takedowns') : undefined}
+              />
+            ),
+          },
+        ]
+      : []),
     ...(cases
       ? [
           {
@@ -80,7 +99,7 @@ export function ModerationSection() {
       />
       {caseId && cases ? (
         <CasePage id={caseId} onBack={() => setCaseId(null)} onOpenNotice={openNotice} />
-      ) : !manage && !takedowns ? (
+      ) : !dashboard ? (
         // Reviewers work the cases routed to them; holds and appeals are platform staff's (D-213, D-215).
         <CaseQueue onOpen={open} />
       ) : (

@@ -235,6 +235,8 @@ export interface BanRecord {
   note: string;
   created_at_ms: number;
   lifted_at_ms?: number | null;
+  /** Why (spec 8); absent for bans made without a case. */
+  reason_category?: string | null;
 }
 export interface BanPage {
   items: BanRecord[];
@@ -275,9 +277,18 @@ export interface PersonDetail {
   notes: string;
   suspicion_level: number;
 }
-export const listBans = (
-  p: { active_only?: boolean; after?: string | null; limit?: number } = {},
-) => get<BanPage>(`/admin/bans${qs(p)}`);
+export interface BanQuery {
+  active_only?: boolean;
+  /** Severity. */
+  category?: BanCategory;
+  /** A ban reason category, or `none` for bans made without one. */
+  reason_category?: string;
+  older_than_days?: number;
+  newer_than_days?: number;
+  after?: string | null;
+  limit?: number;
+}
+export const listBans = (p: BanQuery = {}) => get<BanPage>(`/admin/bans${qs({ ...p })}`);
 export const getPerson = (id: string) => get<PersonDetail>(`/admin/persons/${id}`);
 export const unbanPerson = (id: string, reason: string) =>
   send<UnbanOutcome>(`/admin/persons/${id}/unban`, 'POST', reasonBody(reason));

@@ -198,6 +198,13 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
             Some(json!({"category": "spam", "target_kind": "other"})),
         ),
         (Method::GET, "/moderation/holds", None),
+        (Method::GET, "/moderation/dashboard", None),
+        (Method::GET, "/moderation/dashboard/inbox", None),
+        (
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["5"], "reason": "x"})),
+        ),
         (
             Method::POST,
             "/moderation/cases/5/holds",
@@ -1188,4 +1195,186 @@ async fn takedown_notice_to_counter_notice_to_export_over_http() {
         )
         .await;
     assert_eq!(st["state"], "none");
+}
+
+// ---- the dashboards ----------------------------------------------------------------------------------------
+
+/// A staff member with none of the dashboard bits is refused by name, and the denial is logged; the inbox and its
+/// bulk dismissal are `MANAGE_CASES` only, so the takedown clerk is refused there too.
+#[tokio::test]
+async fn the_dashboard_needs_one_of_its_bits_and_the_inbox_needs_manage_cases() {
+    let e = env(lazy()).await;
+    let (s, body) = e
+        .call(Some(BASIC), Method::GET, "/moderation/dashboard", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_CASES"),
+        "{body}"
+    );
+    for (m, p, b) in [
+        (Method::GET, "/moderation/dashboard/inbox", None),
+        (
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["5"], "reason": "x"})),
+        ),
+    ] {
+        let (s, body) = e.call(Some(CLERK), m.clone(), p, b).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{m} {p}: {body}");
+        assert!(
+            body["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("MANAGE_CASES"),
+            "{body}"
+        );
+    }
+    let log = e
+        .admin
+        .list_log(&sr_admin::AccessLogFilter {
+            limit: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    for (action, actor) in [
+        ("moderation.dashboard", BASIC),
+        ("moderation.inbox.list", CLERK),
+        ("moderation.inbox.dismiss", CLERK),
+    ] {
+        assert!(
+            log.iter()
+                .any(|r| r.action == action && r.actor_id == actor),
+            "{action} denial is in the access log: {log:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn bulk_dismiss_inputs_that_name_nothing_are_client_errors() {
+    let e = env(lazy()).await;
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["nope"], "reason": "x"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "{b}");
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/dashboard/inbox?cursor=abc",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+}
+
+/// Each staff member gets the sections their bits read, over HTTP, and a bulk dismissal reaches the case.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_dashboard_sections_follow_the_bits_over_http() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (CLERK, "clerk"),
+        (MEMBER, "member"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    let e = env(pool.clone()).await;
+
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/dashboard?days=7",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["window_days"], 7);
+    assert_eq!(b["health"]["reports_per_day"].as_array().unwrap().len(), 7);
+    for k in ["inbox", "health", "retention", "age"] {
+        assert!(b[k].is_object(), "{k}: {b}");
+    }
+    for k in ["bans", "takedowns", "data_requests"] {
+        assert!(b[k].is_null(), "{k} is the clerk's or the banner's: {b}");
+    }
+
+    let (s, b) = e
+        .call(Some(CLERK), Method::GET, "/moderation/dashboard", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert!(
+        b["takedowns"].is_object() && b["data_requests"].is_object(),
+        "{b}"
+    );
+    assert!(b["health"].is_null() && b["inbox"].is_null(), "{b}");
+
+    // A case staff opened without a report is not in the inbox (it has no report); a reported one is.
+    sqlx::query(
+        "INSERT INTO moderation_cases (id, category, severity, routing, summary, target_kind, opened_by_kind)          VALUES (7001, 'child_safety', 'serious', 'platform', 'x', 'other', 'staff')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO moderation_reports (id, case_id, reporter_id, target_kind, target_id, category)          VALUES (7002, 7001, $1, 'other', 9, 'child_safety')",
+    )
+    .bind(MEMBER)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/dashboard/inbox",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["items"].as_array().unwrap().len(), 1, "{b}");
+    assert_eq!(b["items"][0]["case_id"], "7001");
+    assert_eq!(b["items"][0]["reports"], 1);
+    assert!(
+        !b.to_string().contains(&MEMBER.to_string()),
+        "no reporter in the inbox: {b}"
+    );
+
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["7001", "7777"]})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "a reason is required: {b}");
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["7001", "7777"], "reason": "Not a violation"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["dismissed"], json!(["7001"]));
+    assert_eq!(b["skipped"][0]["case_id"], "7777");
+    let state: String = sqlx::query_scalar("SELECT state FROM moderation_cases WHERE id = 7001")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "dismissed");
 }
