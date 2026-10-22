@@ -8,6 +8,8 @@ import type { Message } from '../store/types';
 /** A message worth interrupting for: a direct message (no server) or one that names the viewer. */
 export function shouldAlert(m: Message, me: string | null): boolean {
   if (!me || m.author?.id === me) return false;
+  // A restored message (D-338) is not new.
+  if (m.restored) return false;
   if (m.type !== undefined && m.type !== 0 && m.type !== 19) return false;
   return !m.guild_id || !!m.mention_everyone || !!m.mentions?.some((u) => u.id === me);
 }

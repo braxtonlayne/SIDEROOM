@@ -15810,6 +15810,11 @@ export interface components {
              */
             username_release_at_ms: number;
         };
+        /** @description `{ "delivered": bool }`. */
+        Delivered: {
+            /** @description Whether the system DM went out. */
+            delivered: boolean;
+        };
         /** @description An application. The client secret is never part of it. */
         DeveloperApplicationObject: {
             bot: components["schemas"]["BotUserObject"];
@@ -53942,6 +53947,8 @@ export interface operations {
                 guild_id?: string;
                 /** @description Cases about this account. */
                 subject_account_id?: string;
+                /** @description `takedown`: only cases opened for a takedown notice. */
+                source?: string;
                 /** @description `next_cursor` of the previous page. */
                 cursor?: string;
                 /** @description Oldest first (the work queue); default newest first. */
@@ -54717,6 +54724,8 @@ export interface operations {
                 guild_id?: string;
                 /** @description Cases about this account. */
                 subject_account_id?: string;
+                /** @description `takedown`: only cases opened for a takedown notice. */
+                source?: string;
                 /** @description `next_cursor` of the previous page. */
                 cursor?: string;
                 /** @description Oldest first (the work queue); default newest first. */

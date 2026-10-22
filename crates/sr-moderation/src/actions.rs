@@ -223,6 +223,11 @@ impl Moderation {
             }
             PerformedAction::RestoreMessage => {
                 let (c, m) = need_message()?;
+                // A message a takedown holds or removed returns only through the register (D-337); the
+                // chat rule below it (`staff_removed` needs platform staff) is unchanged.
+                if let Some(notice) = self.message_takedown(m).await? {
+                    return Err(conflict(Self::takedown_restore_refusal(notice)));
+                }
                 actions.restore_message(&by, id, c, m).await
             }
             PerformedAction::RemoveAttachment => {

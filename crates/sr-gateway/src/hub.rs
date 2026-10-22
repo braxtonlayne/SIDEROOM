@@ -254,13 +254,27 @@ fn deliver_to(session: &Session, name: &str, data: &Value) {
 fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
     Some(match ev {
         // The message family is full-payload (Discord shaped), built by the producer.
-        DomainEvent::MessageSent { channel, data, .. }
-        | DomainEvent::MessageRestored { channel, data, .. } => Dispatch {
+        DomainEvent::MessageSent { channel, data, .. } => Dispatch {
             name: "MESSAGE_CREATE",
             data: data.clone(),
             channel: Some(*channel),
             audience: None,
         },
+        // A moderator restored a deleted message (N-21): clients get the full object again, marked so they do
+        // not treat it as new (no mention bump, no notification; D-338). Only the dispatch carries the flag; the
+        // producer's payload (search, audit) stays the plain object.
+        DomainEvent::MessageRestored { channel, data, .. } => {
+            let mut data = data.clone();
+            if let Some(o) = data.as_object_mut() {
+                o.insert("restored".into(), Value::Bool(true));
+            }
+            Dispatch {
+                name: "MESSAGE_CREATE",
+                data,
+                channel: Some(*channel),
+                audience: None,
+            }
+        }
         DomainEvent::MessageEdited { channel, data, .. } => Dispatch {
             name: "MESSAGE_UPDATE",
             data: data.clone(),

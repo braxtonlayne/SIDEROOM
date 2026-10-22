@@ -15,7 +15,7 @@ use sr_db::{
     testing::TestDb,
 };
 use sr_moderation::{
-    HoldScope, ModError, Moderation, Transition,
+    HoldScope, ModError, Moderation, SelfDeleteNote, Transition,
     model::{
         AppealDecision, CaseFilter, CaseSeverity, CaseState, NewCase, NewReport, ReportCategory,
         ReportState, Routing, TargetKind, Who,
@@ -1827,4 +1827,103 @@ async fn actions_are_performed_on_the_cases_own_target_through_the_services() {
             .await,
         Err(ModError::Conflict(_))
     ));
+}
+
+/// D-324: a member's bulk self-delete is noted on every open case about them and on the case of their active
+/// platform ban; closed cases and other people's cases get nothing, and the note carries counts, no text.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_self_delete_is_noted_on_the_members_open_cases_and_their_ban_case() {
+    let w = world().await;
+    let s = staff(w.staff_id, P::MANAGE_CASES);
+    let who = Who::Staff(&s);
+    let about = |subject: i64, summary: &str| NewCase {
+        category: ReportCategory::Harassment,
+        target_kind: TargetKind::User,
+        target_id: Some(subject),
+        subject_account_id: Some(subject),
+        summary: summary.into(),
+    };
+    let open = w.m.open_case(&who, &about(w.author, "open")).await.unwrap();
+    let closed =
+        w.m.open_case(&who, &about(w.author, "closed"))
+            .await
+            .unwrap();
+    exec(
+        w.pool(),
+        "UPDATE moderation_cases SET state = 'dismissed' WHERE id = $1",
+        &[closed.id],
+    )
+    .await;
+    let other =
+        w.m.open_case(&who, &about(w.reporter, "other"))
+            .await
+            .unwrap();
+    let banned = w.m.open_case(&who, &about(w.author, "ban")).await.unwrap();
+    let person: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+        .bind(w.author)
+        .fetch_one(w.pool())
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO person_bans (id, person_id, category, note, banned_by) VALUES ($1, $2, 'standard', 'n', $3)",
+    )
+    .bind(uid())
+    .bind(person)
+    .bind(w.staff_id)
+    .execute(w.pool())
+    .await
+    .unwrap();
+    w.m.record_platform_ban(&who, banned.id, ReportCategory::Harassment, "ban")
+        .await
+        .unwrap();
+    let banned_state = w.m.get_case(&who, banned.id).await.unwrap().case.state;
+    assert_eq!(
+        banned_state,
+        CaseState::Actioned,
+        "the ban case is no longer open"
+    );
+
+    let note = SelfDeleteNote {
+        run_id: 42,
+        messages: 120,
+        reactions: 7,
+        poll_votes: 2,
+        by_staff: false,
+    };
+    let mut want = vec![open.id, banned.id];
+    want.sort_unstable();
+    assert_eq!(
+        w.m.note_member_self_delete(w.author, note).await.unwrap(),
+        want
+    );
+    for (case, noted) in [
+        (open.id, true),
+        (banned.id, true),
+        (closed.id, false),
+        (other.id, false),
+    ] {
+        let d = w.m.get_case(&who, case).await.unwrap();
+        let ev: Vec<_> = d
+            .events
+            .iter()
+            .filter(|e| e.kind == "member_self_delete")
+            .collect();
+        assert_eq!(ev.len(), usize::from(noted), "case {case}");
+        if let Some(e) = ev.first() {
+            assert_eq!(e.actor_id, None, "a system event");
+            assert_eq!(e.detail["messages"], 120);
+            assert_eq!(e.detail["reactions"], 7);
+            assert_eq!(e.detail["poll_votes"], 2);
+            assert_eq!(e.detail["via"], "member");
+            assert_eq!(e.detail["run_id"], "42");
+        }
+    }
+    // Without an open case or a ban nothing is written.
+    assert!(
+        w.m.note_member_self_delete(w.reporter2, note)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }

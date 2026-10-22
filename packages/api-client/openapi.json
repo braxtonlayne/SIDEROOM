@@ -48948,6 +48948,15 @@
             }
           },
           {
+            "name": "source",
+            "in": "query",
+            "description": "`takedown`: only cases opened for a takedown notice.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "in": "query",
             "description": "`next_cursor` of the previous page.",
@@ -50152,6 +50161,15 @@
             "name": "subject_account_id",
             "in": "query",
             "description": "Cases about this account.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "`takedown`: only cases opened for a takedown notice.",
             "required": false,
             "schema": {
               "type": "string"
@@ -73273,6 +73291,19 @@
             "type": "integer",
             "format": "int64",
             "description": "When the username can be taken again."
+          }
+        }
+      },
+      "Delivered": {
+        "type": "object",
+        "description": "`{ \"delivered\": bool }`.",
+        "required": [
+          "delivered"
+        ],
+        "properties": {
+          "delivered": {
+            "type": "boolean",
+            "description": "Whether the system DM went out."
           }
         }
       },

@@ -17,7 +17,8 @@ export function ModerationSection() {
   const takedowns = viewer.can('MANAGE_TAKEDOWNS');
   // Reviewers (no MANAGE_CASES) still work the cases routed to them (D-331).
   const cases =
-    manage || (['REVIEW_READING', 'REVIEW_MEDIA', 'DELETE_CONTENT'] as const).some((p) => viewer.can(p));
+    manage ||
+    (['REVIEW_READING', 'REVIEW_MEDIA', 'DELETE_CONTENT'] as const).some((p) => viewer.can(p));
   const [tab, setTab] = useState(cases ? 'cases' : 'takedowns');
   const [caseId, setCaseId] = useState<string | null>(null);
   const [noticeId, setNoticeId] = useState<string | null>(null);

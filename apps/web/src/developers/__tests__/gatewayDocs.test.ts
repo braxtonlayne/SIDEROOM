@@ -27,6 +27,16 @@ describe('generated references (DEV-PORT-004)', () => {
     expect(GATEWAY_EVENTS).toContain('MESSAGE_CREATE');
   });
 
+  it('documents the restored flag of MESSAGE_CREATE (D-338)', () => {
+    const md = readFileSync(DOC as string, 'utf8');
+    const s63 = md.slice(
+      md.indexOf('### 6.3 Dispatch events'),
+      md.indexOf('### 6.4 Session lifecycle'),
+    );
+    expect(s63).toMatch(/`MESSAGE_CREATE` has one SIDE ROOM field: `restored`/);
+    expect(s63).toMatch(/no notification is due/);
+  });
+
   it('lists the operations of an OpenAPI document by area and path', () => {
     const list = endpointsOf({
       paths: {

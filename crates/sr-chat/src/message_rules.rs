@@ -491,7 +491,8 @@ pub struct RestorePlan {
 /// gone for good, D-121) and not be due for purge (the purge job deletes its stored files first, so a restore
 /// racing it would leave a message without its attachments). A message under a hold may be restored: the hold
 /// stays on it (D-122). A message a platform member removed (`staff_removed`) is restored only by platform staff
-/// (`by_platform`).
+/// (`by_platform`). A message a takedown notice holds or removed is refused one layer up, in
+/// `sr-moderation` (`Moderation::perform_action`), which sends it to the register instead (D-337).
 pub fn validate_restore(
     message: &Message,
     perms: Permissions,

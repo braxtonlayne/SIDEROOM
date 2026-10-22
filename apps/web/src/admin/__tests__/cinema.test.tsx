@@ -170,8 +170,14 @@ describe('Cinema catalog list', () => {
     await user.type(within(dlg).getByRole('textbox'), 'Ghost');
     await user.click(confirm);
     await waitFor(() => expect(calls).toContain('delete 12'));
+    // The request reaching the mock is not the end of the delete: the dialog closes and the list reloads only
+    // after the response is handled. Until then the modal hides the rest of the page from the accessibility
+    // tree and the reload swaps the rows, so a synchronous lookup of the next button raced the reload under
+    // load. Wait for the outcome the person sees, then find the next button asynchronously.
+    expect(await screen.findByText('Ghost deleted.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
-    await user.click(screen.getByRole('button', { name: 'Merge Akira into another title' }));
+    await user.click(await screen.findByRole('button', { name: 'Merge Akira into another title' }));
     const merge = await screen.findByRole('dialog', { name: /Merge Akira/ });
     await user.type(within(merge).getByRole('searchbox'), 'ak');
     await user.click(await within(merge).findByRole('button', { name: 'Keep Akira (2019)' }));

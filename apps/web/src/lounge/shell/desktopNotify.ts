@@ -32,6 +32,8 @@ export type NotifyKind = 'mention' | 'message';
 /** Whether `msg` should raise a desktop notification, and which kind of sound it gets. */
 export function desktopDecision(msg: Message, c: NotifyContext): NotifyKind | null {
   if (msg.author.id === c.me) return null;
+  // A restored message (D-338) is not new.
+  if (msg.restored) return null;
   if ((msg.type ?? 0) !== 0 && msg.type !== 19) return null;
   if (c.status === 'dnd') return null;
   if (c.windowFocused && c.activeChannelId === msg.channel_id) return null;

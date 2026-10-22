@@ -5,7 +5,8 @@
 //!   7 days. Retried with backoff; after the last attempt the request is marked failed so the
 //!   member can ask again at once.
 //! * `user.messages_self_delete` hides a member's own messages (N-05, D-324): `sr_db::self_delete`,
-//!   then one `MESSAGE_DELETE_BULK` per channel, an access-log row and a system DM with the count.
+//!   then one `MESSAGE_DELETE_BULK` per channel, an access-log row, a `member_self_delete` event on the
+//!   member's open moderation cases (D-324) and a system DM with the count.
 //! * `user.data_export.sweep` (hourly singleton) deletes packages whose link lapsed.
 //! * `user.connections.refresh` (hourly singleton) re-reads the public stats of GitHub and
 //!   Reddit connections older than a day (LNG-USET-024); no token is stored, so other
@@ -305,6 +306,23 @@ pub(crate) async fn run_self_delete(
             };
             if let Err(e) = sr_admin::AdminRepository::append_log(&repo, &entry).await {
                 tracing::warn!(error = %e, "could not log a message self-delete");
+            }
+            // D-324: a note on any open case about the member (and on their active ban's case), so staff can
+            // place a hold while the rows are still visible to them. Best effort, like the access-log row.
+            let cases = sr_moderation::Moderation::new(pool.clone(), env.ids.clone())
+                .note_member_self_delete(
+                    run.account_id,
+                    sr_moderation::SelfDeleteNote {
+                        run_id: id,
+                        messages: total,
+                        reactions,
+                        poll_votes: votes,
+                        by_staff: run.via != "member",
+                    },
+                )
+                .await;
+            if let Err(e) = cases {
+                tracing::warn!(error = %e, "could not note a message self-delete on the member's cases");
             }
             if run.via == "member"
                 && let Some(n) = &env.notifier

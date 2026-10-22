@@ -26,7 +26,7 @@ Base `feat/p18-mod-cases`. Migration range used: **1130** only (`1130_attachment
 
 ## Still open / notes
 
-- A restored message that mentions a member raises their mention badge again (clients treat `MESSAGE_CREATE` as new). Cosmetic; a flag on the payload could suppress it. *Answered 2026-10-22 (delegated): D-338, `restored: true` on the dispatched payload; follow-up N-41.*
+- A restored message that mentions a member raises their mention badge again (clients treat `MESSAGE_CREATE` as new). Cosmetic; a flag on the payload could suppress it. *Answered 2026-10-22 (delegated): D-338, `restored: true` on the dispatched payload; follow-up N-41. Resolved at integration (`feat-p18-integration.md`).*
 - The case page offers removal only for attachments the evidence snapshot shows (taken when the report was filed). A staff-opened message case has no snapshot and no channel id, so it offers neither (it never could act on the message, same as before).
 - Attachments deleted with their channel (FK cascade) never lose their stored object; that is the existing behaviour for all attachments, not new.
 - No browser run (brief forbids servers and Playwright).

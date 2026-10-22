@@ -2006,6 +2006,25 @@ impl Moderation {
         Ok(out)
     }
 
+    /// The notice that holds or took down this message, if one has not ended (D-337): a case restore
+    /// refuses such a message, because only the register puts it back (its restore or withdrawal).
+    pub async fn message_takedown(&self, message_id: i64) -> ModResult<Option<i64>> {
+        Ok(sqlx::query_scalar(
+            "SELECT n.id FROM takedown_items i JOIN takedown_notices n ON n.id = i.notice_id              WHERE i.kind = 'message' AND i.target_id = $1 AND i.state IN ('held', 'disabled')                AND n.state IN ('triage', 'removed', 'counter_noticed')              ORDER BY n.id LIMIT 1",
+        )
+        .bind(message_id)
+        .fetch_optional(&self.pool)
+        .await?)
+    }
+
+    /// The refusal a case restore gives for a message a takedown holds (D-337, the N-32 shape).
+    pub(crate) fn takedown_restore_refusal(notice: i64) -> String {
+        format!(
+            "The message was removed by takedown notice {}. Restore or withdraw the notice in the register.",
+            notice_ref(notice)
+        )
+    }
+
     /// Whether a library or cinema item is held or taken down, for the reader and player pages
     /// (`MOD-TKD-011`). Any signed-in person may ask; the answer is only the state. A chapter answers for its
     /// series and an episode for its title.

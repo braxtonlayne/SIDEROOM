@@ -98,6 +98,8 @@ function EventLine({ e }: { e: api.CaseEvent }) {
         messages: d('messages'),
         attachments: d('attachments'),
         submissions: d('submissions'),
+        reactions: d('reactions'),
+        votes: d('poll_votes'),
       })
     : e.kind;
   return (
@@ -167,10 +169,13 @@ export function CasePage({
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A restore refused because a takedown notice holds the message (D-337): the text, and the notice to open.
+  const [refusal, setRefusal] = useState<{ text: string; noticeId: string } | null>(null);
   const [note, setNote] = useState('');
 
   const run = async (fn: () => Promise<unknown>, done?: string) => {
     setError(null);
+    setRefusal(null);
     try {
       await fn();
       if (done) setNotice(done);
@@ -195,6 +200,16 @@ export function CasePage({
       {error && (
         <Notice variant="danger" role="alert" className="ss-status">
           {error}
+        </Notice>
+      )}
+      {refusal && (
+        <Notice variant="danger" role="alert" className="ss-status">
+          {refusal.text}{' '}
+          {onOpenNotice && (
+            <Button size="sm" variant="ghost" onClick={() => onOpenNotice(refusal.noticeId)}>
+              {t('admin.moderation.takedownBadge.open', { id: refusal.noticeId })}
+            </Button>
+          )}
         </Notice>
       )}
       <Async res={res}>
@@ -455,6 +470,11 @@ export function CasePage({
                 dialog={dialog}
                 close={() => setDialog(null)}
                 run={run}
+                onTakedownRefusal={(text, noticeId) => {
+                  setDialog(null);
+                  setNotice(null);
+                  setRefusal({ text, noticeId });
+                }}
               />
             </>
           );
@@ -464,18 +484,36 @@ export function CasePage({
   );
 }
 
+/** A case restore of a message a takedown holds answers 409 naming the notice, "TK-n" (D-337); that refusal
+ * leaves the dialog and shows on the page with a way to the notice. Every other error stays in the dialog. */
+async function takedownAware(
+  onRefusal: (text: string, noticeId: string) => void,
+  fn: () => Promise<void>,
+): Promise<void> {
+  try {
+    await fn();
+  } catch (e) {
+    const text = e instanceof Error ? e.message : '';
+    const m = /takedown notice TK-(d+)/.exec(text);
+    if (!m?.[1]) throw e;
+    onRefusal(text, m[1]);
+  }
+}
+
 function CaseDialogs({
   id,
   data,
   dialog,
   close,
   run,
+  onTakedownRefusal,
 }: {
   id: string;
   data: api.CaseDetail;
   dialog: Dialog | null;
   close: () => void;
   run: (fn: () => Promise<unknown>, done?: string) => Promise<void>;
+  onTakedownRefusal: (text: string, noticeId: string) => void;
 }) {
   const t = useT();
   const [outcome, setOutcome] = useState('');
@@ -580,17 +618,19 @@ function CaseDialogs({
         }
         onCancel={close}
         onConfirm={async (reason) =>
-          done(
-            () =>
-              api.performCaseAction(
-                id,
-                performKind,
-                reason,
-                performKind === 'timeout' ? Number(minutes) : undefined,
-                performKind === 'remove_attachment' ? attachmentId : undefined,
-              ),
-            t('admin.moderation.perform.done'),
-          )()
+          takedownAware(onTakedownRefusal, () =>
+            done(
+              () =>
+                api.performCaseAction(
+                  id,
+                  performKind,
+                  reason,
+                  performKind === 'timeout' ? Number(minutes) : undefined,
+                  performKind === 'remove_attachment' ? attachmentId : undefined,
+                ),
+              t('admin.moderation.perform.done'),
+            )(),
+          )
         }
       >
         <Select

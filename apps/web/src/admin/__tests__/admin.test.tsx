@@ -91,6 +91,7 @@ describe('admin shell', () => {
       'Accounts',
       'Platform bans',
       'Moderation',
+      'Data requests',
       'Invites',
       'Invite graph',
       'Servers',
@@ -116,7 +117,6 @@ describe('admin shell', () => {
       'Private content',
       'Access log',
       'Command line',
-      'Data requests',
     ]);
   });
 

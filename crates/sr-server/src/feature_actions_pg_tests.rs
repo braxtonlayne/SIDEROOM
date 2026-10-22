@@ -1231,6 +1231,108 @@ async fn a_deleted_message_is_restored_from_a_case() {
     );
 }
 
+/// N-40, D-337: a message a takedown notice holds or removed is not restored from a case; the 409 names the
+/// notice and nothing changes. The register's own restore still brings it back.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_case_restore_refuses_a_message_a_takedown_holds() {
+    use sr_core::PlatformPermissions as P;
+    use sr_moderation::{
+        ModError, PerformedAction,
+        model::{ItemKind, NewItem, NewNotice, TakedownKind, Who},
+    };
+    let f = fx().await;
+    let env = case_env(&f).await;
+    let owner = f.owner.get() as i64;
+    let staff = sr_admin::Caller {
+        user_id: owner,
+        permissions: P::MANAGE_CASES | P::MANAGE_TAKEDOWNS,
+        is_owner: false,
+        ip: None,
+    };
+    let who = Who::Staff(&staff);
+    let msg = insert_user_message(&f, 5, "a pirated chapter").await;
+    let case = message_case(&f, &env, &staff, msg).await;
+    let notice = env
+        .moderation
+        .create_notice(
+            &who,
+            &NewNotice {
+                kind: TakedownKind::Copyright,
+                notifier_name: "Rights Holder Ltd".into(),
+                notifier_contact: "legal@rights.example".into(),
+                legal_basis: "Copyright in the work".into(),
+                locations: vec![],
+                original_text: "Please remove it.".into(),
+                received_at_ms: None,
+            },
+        )
+        .await
+        .unwrap()
+        .summary
+        .id;
+    env.moderation
+        .add_item(
+            &who,
+            notice,
+            &NewItem {
+                kind: ItemKind::Message,
+                id: msg.get() as i64,
+            },
+        )
+        .await
+        .unwrap();
+    env.moderation
+        .uphold_notice(&who, notice, Some("valid claim"))
+        .await
+        .unwrap();
+    let vis = |pool: PgPool| async move {
+        sqlx::query_scalar::<_, String>("SELECT visibility::text FROM messages WHERE id = $1")
+            .bind(msg.get() as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    };
+    assert_eq!(vis(f.pool.clone()).await, "staff_removed");
+
+    let err = env
+        .moderation
+        .perform_action(&who, case, &perform(PerformedAction::RestoreMessage))
+        .await
+        .unwrap_err();
+    match &err {
+        ModError::Conflict(m) => assert!(
+            m.contains(&format!("TK-{notice}")) && m.contains("register"),
+            "{m}"
+        ),
+        other => panic!("expected a conflict, got {other:?}"),
+    }
+    assert_eq!(
+        vis(f.pool.clone()).await,
+        "staff_removed",
+        "nothing changed"
+    );
+    let detail = env.moderation.get_case(&who, case).await.unwrap();
+    assert!(
+        !detail.events.iter().any(|e| e.kind == "action_performed"),
+        "a refused action writes no event"
+    );
+
+    // The register puts it back; after that the notice no longer blocks anything.
+    env.moderation
+        .restore_notice(&who, notice, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    assert_eq!(vis(f.pool.clone()).await, "visible");
+    assert_eq!(
+        env.moderation
+            .message_takedown(msg.get() as i64)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
 async fn attach(f: &Fx, env: &CaseEnv, message: MessageId, name: &str) -> i64 {
     use sr_storage::ObjectStorage;
     let id = f.messages.next_id().get() as i64;

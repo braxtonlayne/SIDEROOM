@@ -53,6 +53,7 @@ export const EVENT_KEYS: Record<string, MessageKey> = {
   reopened: 'admin.moderation.event.reopened',
   continued_in: 'admin.moderation.event.continuedIn',
   action_performed: 'admin.moderation.event.actionPerformed',
+  member_self_delete: 'admin.moderation.event.memberSelfDelete',
   strike_review_opened: 'admin.moderation.event.strikeReview',
   counter_notice: 'admin.moderation.event.takedownCounterNotice',
 };

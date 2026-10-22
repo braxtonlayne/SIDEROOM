@@ -67,14 +67,14 @@ Delivery order (spec section 13, D-315): step 1 = `MOD-RPT`, `MOD-CASE`, `MOD-HO
 - [x] **MOD-TKD-011** [FE] Library reader and cinema player pages show that the item is held or taken down _(`GET /moderation/item-status` + `moderation/ItemHold.tsx`, used by `library/reader/Reader.tsx` and `cinema/player/Watch.tsx` (banner while held, own message once taken down); tests in the reader and player suites.)_
 
 ## MOD-DSR — Data-subject requests (spec section 6; D-295, D-124; step 3)
-- [ ] **MOD-DSR-001** [DB] `data_requests` (kind, requester, subject Person, verified by, state, `received_at`, `due_at`, `extended_until`, outcome)
-- [ ] **MOD-DSR-002** [BE] `due_at` from `compliance.data_request_deadline_days` at creation; one documented extension with a reason (`POST /admin/data-requests/{id}/extend {days, reason}`), access-logged
-- [ ] **MOD-DSR-003** [BE] Export run reusing the data-export job and README (G-66), triggerable by staff after identity verification, logged
-- [ ] **MOD-DSR-004** [BE] Erasure run reusing account deletion, naming the retained records (Person record, invite graph, invoices, moderation history; D-124)
+- [x] **MOD-DSR-001** [DB] `data_requests` (kind, requester, subject Person, verified by, state, `received_at`, `due_at`, `extended_until`, outcome) *(P18, feat/p18-mod-dsr) Migrations 1100 and 1101: `data_requests` with kind, account and Person, `received_at`, `due_at`, the extension fields, `verified_by`, outcome, `retained` and `member_notified_at`; one active request per account and kind; `sr-admin` `data_requests` and its tests.*
+- [x] **MOD-DSR-002** [BE] `due_at` from `compliance.data_request_deadline_days` at creation; one documented extension with a reason (`POST /admin/data-requests/{id}/extend {days, reason}`), access-logged *(P18) `due_at` from `compliance.data_request_deadline_days` at creation, never recomputed; one extension of 1 to 60 days with a reason (D-316), the member DM (D-317) and the two-row access log (D-327).*
+- [x] **MOD-DSR-003** [BE] Export run reusing the data-export job and README (G-66), triggerable by staff after identity verification, logged *(P18) `POST /admin/data-requests/{id}/run` on an export reuses the `user.data_export` job and README after verification; logged.*
+- [x] **MOD-DSR-004** [BE] Erasure run reusing account deletion, naming the retained records (Person record, invite graph, invoices, moderation history; D-124) *(P18) The erasure run calls `account_deletion::delete_account` and names the nine retained records (D-318, D-326); the optional `delete_messages` queues the self-delete job (D-324).*
 - [ ] **MOD-DSR-005** [BE] A deletion request that meets a hold keeps the held rows, states why, and flags the hold's case for a decision
 - [ ] **MOD-DSR-006** [BE] Restriction or objection: staff tool to hide an account's activity from discovery while a request is reviewed, nothing deleted
 - [ ] **MOD-DSR-007** [BE] Rectification by staff: correct a Person link with a logged reason
-- [ ] **MOD-DSR-008** [FE] Admin > Moderation > Data requests queue with due dates and overdue marking
+- [x] **MOD-DSR-008** [FE] Admin > Moderation > Data requests queue with due dates and overdue marking *(P18) Admin page `data-requests` ("Data requests", `MANAGE_TAKEDOWNS`) in the People group right after Moderation, with due dates, overdue and extension badges and the actions; `admin/__tests__/p18dsr.test.tsx`. It is a neighbour page of Admin > Moderation, not a tab (integration, `feat-p18-integration.md`).*
 
 ## MOD-AGE — NSFW and age policy enforcement (spec section 7)
 - [ ] **MOD-AGE-001** [BE][FE] Mark and unmark series, titles and channels as age-restricted from a case or the item page, logged

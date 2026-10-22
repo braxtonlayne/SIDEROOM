@@ -26,7 +26,7 @@ pub mod takedown_rules;
 mod takedowns;
 
 pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
-pub use cases::{RECORDABLE_ACTIONS, Transition};
+pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
 pub use service::{

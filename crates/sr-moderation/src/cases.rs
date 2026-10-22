@@ -1060,3 +1060,65 @@ pub(crate) async fn appeal_of_case(
         .await?;
     row.map(|r| crate::appeals::appeal_from(&r)).transpose()
 }
+
+/// What a member's bulk self-delete removed, for the case timeline (D-324).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelfDeleteNote {
+    /// The self-delete run (`message_self_deletes.id`).
+    pub run_id: i64,
+    pub messages: i64,
+    pub reactions: i64,
+    pub poll_votes: i64,
+    /// `true` when staff ran it from an erasure request, `false` when the member asked.
+    pub by_staff: bool,
+}
+
+impl Moderation {
+    /// D-324: after a member's bulk self-delete, write a `member_self_delete` event on every open case about
+    /// the member (by account or by person) and on the case that recorded their active platform ban, so
+    /// staff can place a hold while the rows are still visible to them (D-121, 30 days). It is a system
+    /// event (no actor) and carries the counts only, never message text. Returns the cases written to.
+    pub async fn note_member_self_delete(
+        &self,
+        account_id: i64,
+        note: SelfDeleteNote,
+    ) -> ModResult<Vec<i64>> {
+        let mut tx = self.pool.begin().await?;
+        let cases: Vec<i64> = sqlx::query_scalar(
+            "WITH me AS (SELECT id, person_id FROM accounts WHERE id = $1), \
+             ban AS (SELECT b.id FROM person_bans b JOIN me ON b.person_id = me.person_id \
+                     WHERE b.lifted_at IS NULL) \
+             SELECT c.id FROM moderation_cases c, me \
+             WHERE (c.subject_account_id = me.id OR c.subject_person_id = me.person_id) \
+               AND c.state IN ('open', 'triage', 'investigating') \
+             UNION \
+             SELECT e.case_id FROM moderation_case_events e JOIN ban ON e.kind = 'platform_ban' \
+               AND e.detail->>'ban_id' = ban.id::text \
+             ORDER BY 1",
+        )
+        .bind(account_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        for &case in &cases {
+            push_event(
+                &mut tx,
+                self.next_id(),
+                case,
+                None,
+                "member_self_delete",
+                json!({
+                    "run_id": note.run_id.to_string(),
+                    "account_id": account_id.to_string(),
+                    "messages": note.messages,
+                    "reactions": note.reactions,
+                    "poll_votes": note.poll_votes,
+                    "via": if note.by_staff { "staff" } else { "member" },
+                    "visible_to_staff_days": 30,
+                }),
+            )
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(cases)
+    }
+}

@@ -461,4 +461,36 @@ describe('Take action (N-21)', () => {
       },
     ]);
   });
+
+  it('shows a takedown refusal on the page with a way to the notice (N-40, D-337)', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_CASES', 'MANAGE_TAKEDOWNS'] });
+    const refusal =
+      'The message was removed by takedown notice TK-77. Restore or withdraw the notice in the register.';
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [CASE], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/cases/9001', () => HttpResponse.json(DETAIL)),
+      http.post('*/api/v1/moderation/cases/9001/actions', () =>
+        HttpResponse.json({ code: 0, message: refusal }, { status: 409 }),
+      ),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Open case 9001' }));
+    await screen.findByRole('heading', { name: 'Case 9001' });
+    await user.click(screen.getByRole('button', { name: 'Take action' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Take action on this case' });
+    await user.click(within(dialog).getByRole('combobox', { name: 'What to do' }));
+    await user.click(await screen.findByRole('option', { name: 'Restore the reported message' }));
+    await user.type(
+      within(dialog).getByLabelText(/Reason/, { selector: 'textarea' }),
+      'appeal won',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Do it' }));
+    const alert = await screen.findByText(refusal, { exact: false });
+    expect(alert).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Take action on this case' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open takedown notice 77' })).toBeInTheDocument();
+  });
 });
