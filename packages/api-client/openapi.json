@@ -50097,6 +50097,259 @@
         ]
       }
     },
+    "/moderation/evasion-signals": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Evasion signals, newest first (`MANAGE_ACCOUNTS`; the read is logged). They carry counts and words, never\nan address.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "`open` (default), `dismissed`, `confirmed`, or `all`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "person_id",
+            "in": "query",
+            "description": "Only signals that name this Person on either side.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SignalView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals/{signal_id}": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "One signal with the addresses behind it, read from the sign-in history of the last 180 days (`MANAGE_ACCOUNTS`).\nAddresses removed by retention or by an account deletion are not shown. The read is logged.",
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "description": "Signal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals/{signal_id}/review": {
+      "post": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Review a signal (`MANAGE_ACCOUNTS`; reason required; logged). Confirming does not ban anyone: a ban is its own\ndecision under `PLATFORM_BAN`.",
+        "operationId": "review",
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "description": "Signal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalReviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/guilds/{guild_id}/cases": {
       "get": {
         "tags": [
@@ -50541,6 +50794,140 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/persons/{person_id}/evasion-scan": {
+      "post": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Compare a Person with the banned Persons now and raise the evasion signals that are justified (`MANAGE_ACCOUNTS`).\nNothing is banned, frozen or hidden by it.",
+        "operationId": "scan",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanOutcome"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/persons/{person_id}/suspicion": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "The suspicion panel of a Person page: history, banned accounts below the Person in the invite tree with their\nban reasons, the invite path to the root, the automatic cases, and (with `MANAGE_ACCOUNTS`) the evasion\nsignals. Staff only; the read is logged.",
+        "operationId": "panel",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuspicionPanel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -67566,6 +67953,57 @@
           }
         }
       },
+      "BannedDescendant": {
+        "type": "object",
+        "description": "A banned account somewhere below the Person in the invite tree.",
+        "required": [
+          "account",
+          "person_id",
+          "depth",
+          "ban_category",
+          "banned_at_ms",
+          "lifted"
+        ],
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountRef"
+          },
+          "ban_category": {
+            "type": "string",
+            "description": "`serious` raises the inviter's suspicion; `standard` does not (D-031)."
+          },
+          "banned_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The newest case about that Person."
+          },
+          "depth": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 for an account the Person invited directly."
+          },
+          "lifted": {
+            "type": "boolean",
+            "description": "The ban was lifted."
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "reason_category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The why (spec section 8), when the ban carries one."
+          }
+        }
+      },
       "BeginResponse": {
         "type": "object",
         "description": "Response of every `.../begin` route.",
@@ -77875,6 +78313,26 @@
           }
         }
       },
+      "InvitePath": {
+        "type": "object",
+        "description": "The chain of inviters from the root down to one of the Person's accounts.",
+        "required": [
+          "account_id",
+          "nodes"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountRef"
+            },
+            "description": "Root first; the last entry is the account itself."
+          }
+        }
+      },
       "InviteRow": {
         "type": "object",
         "required": [
@@ -83315,6 +83773,66 @@
           }
         }
       },
+      "PanelEvent": {
+        "type": "object",
+        "description": "One step of the suspicion history (`suspicion_events`); a clear is a step with a negative delta and the\nreason the staff member gave. Steps are never deleted.",
+        "required": [
+          "id",
+          "delta",
+          "level_after",
+          "kind",
+          "reason",
+          "created_at_ms"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The case this step opened or fed."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`raised` or `cleared`."
+          },
+          "level_after": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccountRef",
+                "description": "The banned account that raised it."
+              }
+            ]
+          }
+        }
+      },
       "ParsedReaderName": {
         "type": "object",
         "required": [
@@ -87794,6 +88312,20 @@
           }
         }
       },
+      "ScanOutcome": {
+        "type": "object",
+        "description": "What a scan of one Person raised.",
+        "required": [
+          "raised"
+        ],
+        "properties": {
+          "raised": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Signals newly raised by this scan."
+          }
+        }
+      },
       "ScanReport": {
         "type": "object",
         "description": "What a scan found and did.",
@@ -88762,6 +89294,34 @@
           "value": {}
         }
       },
+      "SharedAddress": {
+        "type": "object",
+        "description": "One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged).",
+        "required": [
+          "ip",
+          "person_last_seen_ms",
+          "related_last_seen_ms",
+          "persons"
+        ],
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "person_last_seen_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "persons": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many Persons signed in from it in the window."
+          },
+          "related_last_seen_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "Shelf": {
         "type": "string",
         "description": "The \"My library\" shelf of a followed series.",
@@ -88826,6 +89386,144 @@
           "body": {
             "type": "string",
             "description": "1 to 500 characters."
+          }
+        }
+      },
+      "SignalDetail": {
+        "type": "object",
+        "description": "A signal with the addresses behind it, read live: nothing is stored, so what retention or an account deletion\nremoved is gone from here too.",
+        "required": [
+          "signal",
+          "window_days",
+          "shared_addresses"
+        ],
+        "properties": {
+          "shared_addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedAddress"
+            }
+          },
+          "signal": {
+            "$ref": "#/components/schemas/SignalView"
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SignalKind": {
+        "type": "string",
+        "description": "What an evasion signal says about a pair of Persons. A signal is a review item and never acts.",
+        "enum": [
+          "shared_login_ip",
+          "shared_invite_lineage",
+          "new_account_after_ban"
+        ]
+      },
+      "SignalReviewBody": {
+        "type": "object",
+        "description": "Body of a signal review.",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "`dismissed` (not the same person) or `confirmed` (looks like the same person)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          }
+        }
+      },
+      "SignalState": {
+        "type": "string",
+        "description": "Where a signal is in review.",
+        "enum": [
+          "open",
+          "dismissed",
+          "confirmed"
+        ]
+      },
+      "SignalView": {
+        "type": "object",
+        "description": "An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address.",
+        "required": [
+          "id",
+          "person_id",
+          "related_person_id",
+          "kind",
+          "detail",
+          "state",
+          "created_at_ms"
+        ],
+        "properties": {
+          "account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccountRef"
+              }
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SignalKind"
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "related_account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccountRef"
+              }
+            ]
+          },
+          "related_person_id": {
+            "type": "string"
+          },
+          "review_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "reviewed_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/SignalState"
           }
         }
       },
@@ -90058,6 +90756,44 @@
           }
         }
       },
+      "SuspicionCaseRef": {
+        "type": "object",
+        "description": "An automatic case about the Person, open or not.",
+        "required": [
+          "id",
+          "state",
+          "auto_kind",
+          "opened_at_ms"
+        ],
+        "properties": {
+          "assignee_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auto_kind": {
+            "type": "string",
+            "description": "`suspicion_freeze` or `suspicion_escalation`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "linked_case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opened_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CaseState"
+          }
+        }
+      },
       "SuspicionChange": {
         "type": "object",
         "required": [
@@ -90068,9 +90804,21 @@
           "escalated"
         ],
         "properties": {
+          "banned_person_id": {
+            "type": "string",
+            "description": "The Person whose ban caused it (the invitee). Staff only; never shown to the inviter."
+          },
+          "escalate_crossed": {
+            "type": "boolean",
+            "description": "This very ban moved the level across the escalation threshold."
+          },
           "escalated": {
             "type": "boolean",
             "description": "Level reached the escalation threshold."
+          },
+          "freeze_crossed": {
+            "type": "boolean",
+            "description": "This very ban moved the level across the freeze threshold (it was below before)."
           },
           "frozen": {
             "type": "boolean",
@@ -90128,6 +90876,83 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "SuspicionPanel": {
+        "type": "object",
+        "description": "The suspicion panel of a Person page (MOD-SUS-001).",
+        "required": [
+          "person_id",
+          "level",
+          "freeze_threshold",
+          "escalate_threshold",
+          "invites_paused",
+          "accounts",
+          "events",
+          "banned_descendants",
+          "invite_paths",
+          "cases"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountRef"
+            }
+          },
+          "banned_descendants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BannedDescendant"
+            }
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuspicionCaseRef"
+            }
+          },
+          "escalate_threshold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PanelEvent"
+            }
+          },
+          "freeze_threshold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "invite_paths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitePath"
+            }
+          },
+          "invites_paused": {
+            "type": "boolean",
+            "description": "The level has reached the freeze threshold: the Person's invite creation is paused."
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "signals": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SignalView"
+            },
+            "description": "Evasion signals about the Person; absent when the viewer lacks `MANAGE_ACCOUNTS` (they are IP-derived)."
           }
         }
       },
