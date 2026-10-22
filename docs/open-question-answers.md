@@ -3043,3 +3043,39 @@ Status: `ADOPTED` (D-338). Follow-up: N-41.
 ### Still with the owner
 
 Nothing new from this round.
+
+## Phase 19 suspicion round (answered 2026-10-22, delegated)
+
+The defaults and questions `feat/p19-mod-sus` (MOD-SUS-001 to -005, spec section 10 step 5) left in `docs/dev/handoff/feat-p19-mod-sus.md`, answered by the owner's proxy under the same delegation and limits as the Phase 18 rounds: decide and document only (no code, build or push); the legal point in P19-SUS-4 is a project default, not legal advice. Decisions are D-344 to D-348 in [01-decisions-log.md](01-decisions-log.md) (D-339 to D-343 belong to another branch); follow-ups are P-10 to P-16 under "Phase 19 suspicion round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 5 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Inviter suspicion (P19-SUS, branch `feat/p19-mod-sus`)
+
+**P19-SUS-1 (handoff decision 1; D-210). "Senior staff" for the automatic case assignment means an account whose roles hold both `MANAGE_CASES` and `MANAGE_TAKEDOWNS`, chosen by permission rather than role name; least loaded wins; nobody qualifying leaves the case unassigned. Confirm?**
+Decision: confirmed as built. The permission pair is the only durable definition (D-162 lets roles be renamed or split; D-210 defines Senior Staff by exactly these two bits) and matches the work the case may lead to. Unassigned is right when nobody qualifies: the platform queue already shows unassigned cases to every `MANAGE_CASES` holder, and an automatic fallback to the Owner would copy the D-215 appeal rule, which exists for a different reason (a second pair of eyes). On a one-person installation the Owner qualifies through the rule itself.
+Status: `ADOPTED` (D-344). Follow-up: none.
+
+**P19-SUS-2 (handoff decision 2, owner question 1). The inviter gets a system DM ("Invite creation is paused for review.") at the freeze crossing on top of the Invites screen text. Is the DM welcome?**
+Decision: yes, keep it, and add the mirror DM at the clear ("Invite creation is available again."), sent only when the clear takes the Person under the freeze threshold. The screen alone informs the inviter only when they next try to make a code, while their existing codes fail for other people in the meantime; the inviter may be innocent (D-031 flags a Person whose invitee was banned, nothing more), and one plain sentence at the moment of the pause is the courteous thing. No new leak: the DM and the screen say the same unit-tested sentence and the pause is observable from redemption failures anyway. Nothing is sent at the escalation.
+Status: `ADOPTED` (D-345). Follow-up: P-10.
+
+**P19-SUS-3 (handoff decision 3, owner question 2). "Same inviter as a banned Person" and "created within 14 days after a ban" raise nothing alone and need a second kind of evidence for the same pair; "invited by a banned Person's account" stands alone. Should the four-people-per-address cut-off and the 14-day window be settings or constants?**
+Decision: the corroboration rule stands (the two weak kinds alone describe normal life on an invite-only site and would train staff to dismiss unread; the invite link is the graph D-031 already trusts). The two numbers become platform settings in Admin > Limits beside the other moderation numbers of D-212: `moderation.shared_ip_max_persons` (default 4, bounds 2 to 50) and `moderation.new_account_after_ban_days` (default 14, bounds 1 to 90). They describe the operator's population (NAT-heavy communities, invite speed), which the project cannot know. The 180-day window stays a constant: it is the doc 09 retention promise and must not be moved from a moderation screen. The rule itself stays code.
+Status: `ADOPTED` (D-346). Follow-up: P-11.
+
+**P19-SUS-4 (handoff decision 4, owner question 3; doc 09, D-122, D-124). Doc 09 promises 180 days of login history but nothing deleted `login_events`; the daily job now deletes rows older than 180 days. Intended? Should login rows tied to an open case or hold be kept?**
+Decision: the deletion is the intended enforcement (a stated retention with no job behind it was a storage-limitation gap; note that the first run on an old installation removes every row past the window, in batches). No hold exception: holds scope content (messages, attachments, submissions, catalogue rows with `hold_id`), `login_events` is not evidence content and names two Persons of whom only one may be the case's subject, and the signal design reads addresses live precisely so retention and the phase-18 blanking apply by construction. What a case keeps is the finding: a `confirmed` review snapshots the detail as staff saw it (kinds, counts, overlap dates, number of shared addresses, never an address) onto the signal and into the Person's open automatic case as evidence, so a D-215 appeal can be answered after the rows are gone. Doc 09 names the job. Not legal advice: a lawyer should confirm 180 days as a security retention under article 6(1)(f) for the operator's country and that the signal rows and the snapshot (kept with the case under D-124) are covered.
+Status: `ADOPTED` (D-347). Follow-up: P-12.
+
+**P19-SUS-5 (handoff "still open" 1 to 4). No Discord-identity signal (D-030 makes the id unique, nothing to compare), no one-click "open a case from a signal", no signal count in the Review hub, and `MANAGE_ACCOUNTS`-only staff reach signals only from the Person page. Close or schedule each?**
+Decision: Discord identity: closed as designed; D-030 refuses the banned Person's identity at registration (`Rejection::PersonBanned`) and at link, which is stronger than a review item. One visibility item is scheduled: the refusal writes a suspicion event on the banned Person and a staff alert naming the invite's inviter, nothing automatic against the inviter. Case from a signal: scheduled, a button on the signal detail for viewers with `MANAGE_CASES` that calls the D-330 staff-opened case form prefilled (category `ban_evasion`, the signal's Person, a first note naming the signal and its kinds, no address) and fills the existing `evasion_signals.case_id`. Review hub count: scheduled, open signals for `MANAGE_ACCOUNTS` holders, linking to the Signals tab (the Reports count N-23 left out may ride along). Reach: scheduled, Admin > Moderation visible to `MANAGE_ACCOUNTS` holders, who then see only the Signals tab.
+Status: `ADOPTED` (D-348). Follow-ups: P-13, P-14, P-15, P-16.
+
+### Still with the owner
+
+Actions only: the lawyer's check named in D-347 (180-day security retention of sign-in addresses, and the retention of signal rows and confirmed snapshots with the case), which can join the D-336 list.

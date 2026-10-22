@@ -43,6 +43,8 @@ Results (all green): sr-admin 60; sr-moderation 34 unit + 14 + 7 + 16 Postgres; 
 
 ## Owner questions
 
+Answered 2026-10-22 by the owner's proxy (delegated): D-344 to D-348 in `docs/01-decisions-log.md`, P19-SUS-1 to -5 in `docs/open-question-answers.md`, follow-ups P-10 to P-16 in `docs/dev/answers-followups-p16.md`. In short: decision 1 confirmed; the DM stays and a mirror DM goes at the clear; the cut-off and the window become settings, the 180 days stay a constant; the deletion is the intended enforcement with no hold exception (a confirmed signal keeps a no-address snapshot); the Discord gap is closed by D-030 with a visibility item, the other three gaps are scheduled.
+
 1. Is a system DM to the inviter at the freeze welcome, or should only the Invites screen say it (decision 2)?
 2. Should the shared-network cut-off (four people per address) and the 14-day "soon after a ban" window be settings? They are constants now.
 3. Is deleting `login_events` after 180 days (decision 4) the intended enforcement of doc 09?
