@@ -2959,3 +2959,31 @@ Status: `ADOPTED` (D-323). Follow-up: N-10.
 ### Still with the owner
 
 Nothing from this round. The actions already listed in [open-questions.md](open-questions.md) stand.
+
+## Phase 18 moderation round (answered 2026-10-20, delegated)
+
+The questions `feat/p18-mod-cases` (M-25 steps 0 and a, D-315) left in `docs/dev/handoff/feat-p18-mod-cases.md`, answered by the owner's proxy under the same delegation and limits as the Phase 17 round: decide and document only (no code, build or push). Decisions are D-328 to D-331 in [01-decisions-log.md](01-decisions-log.md) (D-316 to D-327 belong to other Phase 18 branches); follow-ups are N-20 to N-27 under "Phase 18 moderation round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 3 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Cases and reports (P18-MOD, branch `feat/p18-mod-cases`)
+
+**P18-MOD-1 (spec 3.2, D-213). Should the automatic hold on a reported message stay a system action, or wait for a staff member? A flood of false reports could freeze messages. Should the system hold freeze evidence without hiding the message, or hide it?**
+Decision: it stays a system action, and it is an evidence freeze, never a hide. D-213 guards the manual hold because that hold overrides the author's deletion (D-122); the report hold only keeps a deleted-after-report message out of the purge, which is the evidence spec 3.2 exists to keep, and waiting for staff would lose it in the window before triage. As built the hold already changes nothing a member sees (`hold_id` blocks the purge jobs only), which is spec 3.3's "nothing is hidden until a human acts"; the spec now says so explicitly. The flood is bounded by `moderation.reports_per_day`, one open report per (reporter, target), and a cost that is storage only. The gap was the exit: a dismissed case left its hold in force and a server moderator cannot release one, so dismissal now releases the system-placed holds of that case in the same transaction with the dismissal's reason and a case event; staff-placed holds stay manual; actioned cases keep theirs.
+Status: `ADOPTED` (D-328). Follow-up: N-20.
+
+**P18-MOD-2 (D-216). `moderation.reports` is platform-wide with no per-guild pilot switch. Acceptable?**
+Decision: yes. Routing sends most report targets (DMs, users, servers, library and cinema items) to platform staff or reviewers, so there is no guild to key a switch on, and a member of two servers would get two answers to "can I report". The instance is one friend group; the pilot is the operator turning the flag on once someone holds `MANAGE_CASES`. A `Scope::Guild` opt-out can come later as a server preference if asked for. The flag's description text is stale and gets corrected.
+Status: `ADOPTED` (D-329). Follow-up: N-27 (docs and the flag description only).
+
+**P18-MOD-3 (handoff "still open"). Case actions through the chat services (`MOD-CASE-009`), a staff-opened case form, a reviewers' queue UI, the reporter status page (`MOD-RPT-013`), the case-aware ban dialog (`MOD-BAN-002`), guild audit-log rows for moderators' case actions: which are next wave, which closed or changed?**
+Decision: next wave, scope fixed: `MOD-CASE-009` through a `CaseActions` trait in `sr-moderation` implemented in `sr-server` over the existing chat and guild services (one call writes the case event and the guild audit row; `record_action` stays for work done elsewhere); the staff-opened case form over the existing `POST /moderation/cases`; the reporter's status list in Settings > Privacy over `GET /moderation/reports/mine`; `MOD-BAN-002` by reusing the case page's reason picker on Accounts and Bans, with such bans joining or opening the person's case so the appeal lands somewhere. Changed: no separate reviewers' queue; Admin > Moderation becomes visible to `REVIEW_READING`, `REVIEW_MEDIA` and `DELETE_CONTENT` holders and lists what their hat can work (the API already filters). Changed: guild audit-log rows for outcomes only (escalate, dismiss, actioned, recorded and wired actions, with category and outcome line, never the reporter or note text), not for claims and notes. Nothing closed. The configured report channel of spec 3.4 was not asked and stays open.
+Status: `ADOPTED` (D-330, D-331). Follow-ups: N-21 to N-26.
+
+### Still with the owner
+
+Nothing new from this round. Operator action when ready: turn `moderation.reports` on in Admin > Features after appointing a `MANAGE_CASES` holder (D-329).

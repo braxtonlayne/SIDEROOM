@@ -90,6 +90,7 @@ describe('admin shell', () => {
       'Dashboard',
       'Accounts',
       'Platform bans',
+      'Moderation',
       'Invites',
       'Invite graph',
       'Servers',

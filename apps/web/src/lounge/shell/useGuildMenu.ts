@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import type { MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { t } from '../../i18n';
+import { useReportEntry } from '../../moderation/reports';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
@@ -49,6 +50,7 @@ export function useGuildMenuCore(guild: Guild) {
   const hideMuted = useLoungeUi((s) => !!s.hideMutedChannels[guild.id]);
   const toggleHideMuted = useLoungeUi((s) => s.toggleHideMuted);
   const mute = useMuteEntry(guild.id);
+  const reportEntry = useReportEntry();
   const p = guild.permissions;
   const isOwner = guild.ownerId === me.id;
   return {
@@ -139,6 +141,8 @@ export function useGuildMenuCore(guild: Guild) {
       label: t('lounge.platformAdmin.menu'),
       onSelect: () => void navigate({ to: '/admin' }),
     } as MenuEntry,
+    /** "Report Server" while reporting is on; the owner has nobody to report it to. */
+    report: isOwner ? null : reportEntry({ kind: 'guild', id: guild.id, guildId: guild.id }),
     isOwner,
   };
 }

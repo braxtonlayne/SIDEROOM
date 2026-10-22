@@ -7,7 +7,8 @@ import { CatalogGate } from './i18n/CatalogGate';
 import { initLocale } from './i18n';
 import { PwaHost } from './pwa/PwaHost';
 import { registerServiceWorker } from './pwa/register';
-import { ReportUnavailableDialog, ReportsFlagSync } from './moderation/reports';
+import { ReportDialog } from './moderation/ReportDialog';
+import { ReportsFlagSync } from './moderation/reports';
 import { MiniPlayerMount } from './cinema/player/MiniPlayerMount';
 import { IncomingCallOverlay } from './lounge/voice/IncomingCall';
 import { VoiceBridge } from './lounge/voice/VoiceBridge';
@@ -31,7 +32,7 @@ void initLocale().finally(() => {
         <LiveRegions />
         <ReportsFlagSync />
         <CatalogGate>
-          <ReportUnavailableDialog />
+          <ReportDialog />
           {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
           <VoiceBridge />
           <IncomingCallOverlay />

@@ -40,6 +40,7 @@ An item is "done" when it meets the definition of done in [AGENTS.md](../../AGEN
 | 16 | [Watch parties](16-watch-parties.md) | `WP` | 5 |
 | 17 | [Developer platform & extensions](17-developer-platform.md) | `DEV`, `EXT` | 6 |
 | 18 | [Cross-cutting](18-cross-cutting.md) | `XC` | all |
+| 19 | [Moderation & compliance](19-moderation.md) | `MOD` | 7 |
 
 ## Counting progress
 `grep -c "\- \[x\]" docs/inventory/*.md` vs `grep -c "\- \[ \]"`. A CI job publishes a per-file progress table to the PR summary (item XC-CI-006).

@@ -54,6 +54,7 @@ pub mod inbox;
 pub mod library;
 pub mod media;
 pub mod messages;
+pub mod moderation;
 pub mod packages;
 pub mod push;
 pub mod review;
@@ -138,6 +139,7 @@ pub fn all() -> Router<AppState> {
         .merge(gifs::router())
         .merge(inbox::router())
         .merge(userfeat::router())
+        .merge(moderation::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -180,6 +182,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(gifs::openapi());
     doc.merge(inbox::openapi());
     doc.merge(userfeat::openapi());
+    doc.merge(moderation::openapi());
     doc
 }
 

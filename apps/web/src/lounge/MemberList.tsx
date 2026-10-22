@@ -41,7 +41,7 @@ function MemberRowView({
   const openDm = useOpenDm();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const isSelf = u.id === me.id;
-  const userEntries = useUserMenuEntries(isSelf ? undefined : { id: u.id, name });
+  const userEntries = useUserMenuEntries(isSelf ? undefined : { id: u.id, name }, guildId);
   // Only people connected to a voice channel get these (volume, mute, and for moderators server mute / move).
   const voiceEntries = useVoiceMenuEntries(guildId, { id: u.id, name });
   const isOwner = ownerId === u.id;

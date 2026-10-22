@@ -5922,6 +5922,7 @@ dependencies = [
  "sr-library-social",
  "sr-markdown",
  "sr-media",
+ "sr-moderation",
  "sr-net",
  "sr-packages",
  "sr-payments",
@@ -6330,6 +6331,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-moderation"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-admin",
+ "sr-core",
+ "sr-db",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "sr-net"
 version = "0.0.0"
 dependencies = [
@@ -6503,6 +6521,7 @@ dependencies = [
  "sr-library",
  "sr-library-social",
  "sr-media",
+ "sr-moderation",
  "sr-net",
  "sr-packages",
  "sr-payments",
