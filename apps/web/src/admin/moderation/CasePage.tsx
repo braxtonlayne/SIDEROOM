@@ -25,6 +25,7 @@ type Dialog =
   | { kind: 'reopen' }
   | { kind: 'action' }
   | { kind: 'perform' }
+  | { kind: 'age' }
   | { kind: 'warn' }
   | { kind: 'hold' }
   | { kind: 'ban' }
@@ -60,6 +61,41 @@ function performable(d: api.CaseDetail, manage: boolean): api.PerformedAction[] 
   if (manage && d.subject_account_id) out.push('suspend_account');
   return out;
 }
+
+/** What staff can do about age restriction from this case (MOD-AGE-001 to -003); platform-routed cases only. */
+type AgeOp =
+  | 'restrict_channel'
+  | 'unrestrict_channel'
+  | 'restrict_series'
+  | 'unrestrict_series'
+  | 'restrict_title'
+  | 'unrestrict_title'
+  | 'under_18'
+  | 'under_13';
+
+function ageOps(d: api.CaseDetail, manage: boolean): AgeOp[] {
+  if (d.case.routing === 'guild') return [];
+  const out: AgeOp[] = [];
+  const channel = d.case.target_kind === 'channel' ? d.case.target_id : d.case.target_channel_id;
+  if (channel) out.push('restrict_channel', 'unrestrict_channel');
+  if (d.case.target_kind === 'library' && d.case.target_id)
+    out.push('restrict_series', 'unrestrict_series');
+  if (d.case.target_kind === 'cinema' && d.case.target_id)
+    out.push('restrict_title', 'unrestrict_title');
+  if (manage && d.subject_account_id) out.push('under_18', 'under_13');
+  return out;
+}
+
+const AGE_KEYS: Record<AgeOp, MessageKey> = {
+  restrict_channel: 'admin.moderation.age.restrictChannel',
+  unrestrict_channel: 'admin.moderation.age.unrestrictChannel',
+  restrict_series: 'admin.moderation.age.restrictSeries',
+  unrestrict_series: 'admin.moderation.age.unrestrictSeries',
+  restrict_title: 'admin.moderation.age.restrictTitle',
+  unrestrict_title: 'admin.moderation.age.unrestrictTitle',
+  under_18: 'admin.moderation.age.under18',
+  under_13: 'admin.moderation.age.under13',
+};
 
 const PERFORM_KEYS: Record<api.PerformedAction, MessageKey> = {
   delete_message: 'admin.moderation.perform.deleteMessage',
@@ -100,6 +136,10 @@ function EventLine({ e }: { e: api.CaseEvent }) {
         submissions: d('submissions'),
         reactions: d('reactions'),
         votes: d('poll_votes'),
+        label: d('label'),
+        restricted: d('restricted'),
+        band: d('band'),
+        basis: d('basis'),
       })
     : e.kind;
   return (
@@ -292,6 +332,11 @@ export function CasePage({
                   {performable(d, manage).length > 0 && (
                     <Button variant="secondary" onClick={() => setDialog({ kind: 'perform' })}>
                       {t('admin.moderation.perform.button')}
+                    </Button>
+                  )}
+                  {ageOps(d, manage).length > 0 && (
+                    <Button variant="secondary" onClick={() => setDialog({ kind: 'age' })}>
+                      {t('admin.moderation.age.button')}
                     </Button>
                   )}
                   <Button variant="secondary" onClick={() => setDialog({ kind: 'action' })}>
@@ -523,6 +568,8 @@ function CaseDialogs({
     performable(data, data.access === 'manage')[0] ?? 'kick',
   );
   const [minutes, setMinutes] = useState('60');
+  const ageChoices = ageOps(data, data.access === 'manage');
+  const [ageOp, setAgeOp] = useState<AgeOp>(ageChoices[0] ?? 'restrict_channel');
   const attachments = targetAttachments(data);
   const [attachmentId, setAttachmentId] = useState(attachments[0]?.id ?? '');
   const [text, setText] = useState('');
@@ -658,6 +705,54 @@ function CaseDialogs({
             onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ''))}
           />
         )}
+      </ReasonDialog>
+      <ReasonDialog
+        open={dialog?.kind === 'age'}
+        danger={ageOp === 'under_13'}
+        title={t('admin.moderation.age.title')}
+        description={
+          ageOp === 'under_13'
+            ? t('admin.moderation.age.descriptionUnder13')
+            : ageOp === 'under_18'
+              ? t('admin.moderation.age.descriptionUnder18')
+              : t('admin.moderation.age.description')
+        }
+        confirmLabel={t('admin.moderation.age.confirm')}
+        reasonLabel={t('admin.moderation.age.reason')}
+        onCancel={close}
+        onConfirm={async (reason) => {
+          const restricted = ageOp.startsWith('restrict_');
+          const channel =
+            data.case.target_kind === 'channel' ? data.case.target_id : data.case.target_channel_id;
+          await done(() => {
+            if (ageOp === 'under_18' || ageOp === 'under_13')
+              return api.handleUnderage({
+                account_id: data.subject_account_id ?? '',
+                band: ageOp,
+                note: reason,
+                case_id: id,
+              });
+            const kind: api.AgeTargetKind = ageOp.endsWith('channel')
+              ? 'channel'
+              : ageOp.endsWith('series')
+                ? 'library_series'
+                : 'cinema_title';
+            return api.setAgeRestricted({
+              kind,
+              id: (kind === 'channel' ? channel : data.case.target_id) ?? '',
+              restricted,
+              reason,
+              case_id: id,
+            });
+          }, t('admin.moderation.age.done'))();
+        }}
+      >
+        <Select
+          aria-label={t('admin.moderation.age.kind')}
+          options={ageChoices.map((a) => ({ value: a, label: t(AGE_KEYS[a]) }))}
+          value={ageOp}
+          onValueChange={(v) => setAgeOp(v as AgeOp)}
+        />
       </ReasonDialog>
       <FormDialog
         open={dialog?.kind === 'warn'}

@@ -56,6 +56,10 @@ export const EVENT_KEYS: Record<string, MessageKey> = {
   member_self_delete: 'admin.moderation.event.memberSelfDelete',
   strike_review_opened: 'admin.moderation.event.strikeReview',
   counter_notice: 'admin.moderation.event.takedownCounterNotice',
+  age_restriction_set: 'admin.moderation.event.ageRestrictionSet',
+  underage_handled: 'admin.moderation.event.underageHandled',
+  erasure_hold_flagged: 'admin.moderation.event.erasureHoldFlagged',
+  erasure_hold_retained: 'admin.moderation.event.erasureHoldRetained',
 };
 
 /** The actions a moderator can record as taken with the server's own tools. */

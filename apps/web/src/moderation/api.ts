@@ -82,6 +82,8 @@ export interface CaseSummary {
   summary: string;
   target_kind: TargetKind;
   target_id: string | null;
+  /** The channel a message case is about. */
+  target_channel_id?: string | null;
   guild_id: string | null;
   assignee_id: string | null;
   report_count: number;
@@ -162,6 +164,11 @@ export interface HoldView {
   /** Library and cinema rows (series, chapters, titles, episodes) the hold freezes. */
   catalog_rows?: number;
   review_due: boolean;
+  /** A deletion request met this hold and staff have not decided yet (MOD-DSR-005). */
+  erasure_flagged?: boolean;
+  erasure_request_id?: string | null;
+  /** The legal basis staff stated for keeping the held rows after the request. */
+  erasure_retained_basis?: string | null;
 }
 export interface AppealView {
   id: string;
@@ -431,3 +438,41 @@ export type ItemHoldKind = 'library_series' | 'library_chapter' | 'cinema_title'
 export type ItemHoldState = 'none' | 'held' | 'taken_down';
 export const itemStatus = (kind: ItemHoldKind, id: string) =>
   get<{ state: ItemHoldState }>(`/moderation/item-status${qs({ kind, id })}`);
+
+/** Keep the rows of a hold a deletion request met, with a stated legal basis (MOD-DSR-005). */
+export const retainHoldAfterErasure = (id: string, basis: string) =>
+  send<void>(`/moderation/holds/${id}/retain`, 'POST', { basis });
+
+export type AgeTargetKind = 'channel' | 'library_series' | 'cinema_title';
+export type AgeBand = 'under_18' | 'under_13';
+export interface AgeChange {
+  kind: AgeTargetKind;
+  id: string;
+  label: string;
+  restricted: boolean;
+  changed: boolean;
+}
+export interface UnderageOutcome {
+  account_id: string;
+  band: AgeBand;
+  suspended: boolean;
+  member_notified: boolean;
+  inviter_notified: boolean;
+}
+/** Mark or unmark a channel, series or title as age-restricted (MOD-AGE-001). */
+export const setAgeRestricted = (body: {
+  kind: AgeTargetKind;
+  id: string;
+  restricted: boolean;
+  reason: string;
+  case_id?: string;
+}) => send<AgeChange>('/moderation/age/restrictions', 'POST', body);
+/** Reset and lock an underage account's age confirmation; under 13 also suspends it (MOD-AGE-003). */
+export const handleUnderage = (body: {
+  account_id: string;
+  band: AgeBand;
+  note: string;
+  case_id?: string;
+}) => send<UnderageOutcome>('/moderation/age/underage', 'POST', body);
+export const liftAgeLock = (accountId: string, reason: string) =>
+  send<void>(`/moderation/age/underage/${accountId}/lift`, 'POST', { reason });

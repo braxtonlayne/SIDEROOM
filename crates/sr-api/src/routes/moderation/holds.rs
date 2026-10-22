@@ -360,3 +360,37 @@ pub async fn decide_appeal(
         .await
         .map(Json)
 }
+
+/// Body of a retain decision.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct HoldRetainBody {
+    /// The stated legal basis for keeping the held rows after the deletion request (required, up to 500
+    /// characters; kept on the hold, the case timeline and the access log).
+    pub basis: Option<String>,
+}
+
+/// Decide a hold a deletion request met: keep the held rows with a stated legal basis (`MANAGE_CASES`,
+/// MOD-DSR-005). The other decision is releasing the hold. 409 when no deletion request met the hold, or it was
+/// decided or released already.
+#[utoipa::path(
+    post, path = "/moderation/holds/{hold_id}/retain", request_body = HoldRetainBody,
+    params(("hold_id" = String, Path, description = "Hold snowflake")),
+    responses((status = 204), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
+              (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn retain(
+    a: Actor,
+    Path(hold_id): Path<String>,
+    Json(b): Json<HoldRetainBody>,
+) -> ApiResult<StatusCode> {
+    let hid = id(&hold_id, "hold")?;
+    let ctx = a.staff_only()?;
+    let r = a
+        .svc()
+        .retain_hold_after_erasure(&Who::Staff(&ctx.caller), hid, b.basis.as_deref())
+        .await;
+    staff_result(ctx, "moderation.hold.retain_after_erasure", Some(("hold", hid)), r).await?;
+    Ok(StatusCode::NO_CONTENT)
+}

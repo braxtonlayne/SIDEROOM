@@ -477,7 +477,9 @@ const HOLD_SELECT: &str = "SELECT h.id, h.case_id, h.scope_kind, h.scope_id, h.r
      + (SELECT count(*) FROM reading_chapters x WHERE x.hold_id = h.id) \
      + (SELECT count(*) FROM video_titles x WHERE x.hold_id = h.id) \
      + (SELECT count(*) FROM video_episodes x WHERE x.hold_id = h.id)) AS catalog_rows, \
-    (h.released_at IS NULL AND coalesce(h.reviewed_at, h.created_at) < now() - make_interval(days => $1)) AS review_due \
+    (h.released_at IS NULL AND coalesce(h.reviewed_at, h.created_at) < now() - make_interval(days => $1)) AS review_due, \
+    (h.erasure_flagged_at IS NOT NULL AND h.erasure_decision IS NULL AND h.released_at IS NULL) AS erasure_flagged, \
+    h.erasure_request_id, h.erasure_basis \
     FROM moderation_holds h";
 
 fn hold_from(r: &sqlx::postgres::PgRow) -> Result<HoldView, sqlx::Error> {
@@ -496,6 +498,9 @@ fn hold_from(r: &sqlx::postgres::PgRow) -> Result<HoldView, sqlx::Error> {
         submissions: r.try_get("submissions")?,
         catalog_rows: r.try_get("catalog_rows")?,
         review_due: r.try_get("review_due")?,
+        erasure_flagged: r.try_get("erasure_flagged")?,
+        erasure_request_id: r.try_get("erasure_request_id")?,
+        erasure_retained_basis: r.try_get("erasure_basis")?,
     })
 }
 
@@ -633,6 +638,74 @@ impl Moderation {
         if n == 0 {
             return Err(ModError::NotFound("hold"));
         }
+        Ok(())
+    }
+
+    /// The decision on a hold a deletion request met (MOD-DSR-005, spec section 6): keep the held rows, with a
+    /// stated legal basis. The other answer is [`Self::release_hold`]. Staff decide, never the system. The
+    /// basis is required (up to 500 characters); the flag is cleared; the case gets a timeline entry and the
+    /// access log a row. `Conflict` when the hold is not flagged, was released, or was decided already.
+    pub async fn retain_hold_after_erasure(
+        &self,
+        who: &Who<'_>,
+        hold_id: i64,
+        basis: Option<&str>,
+    ) -> ModResult<()> {
+        require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
+        let basis = rules::reason(basis)?;
+        let mut tx = self.pool.begin().await?;
+        let row = sqlx::query(
+            "SELECT case_id, erasure_flagged_at IS NOT NULL AS flagged, erasure_decision IS NOT NULL AS decided, \
+             released_at IS NOT NULL AS released FROM moderation_holds WHERE id = $1 FOR UPDATE",
+        )
+        .bind(hold_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(ModError::NotFound("hold"))?;
+        let flagged: bool = row.try_get("flagged")?;
+        let decided: bool = row.try_get("decided")?;
+        let released: bool = row.try_get("released")?;
+        if released {
+            return Err(conflict("The hold was released"));
+        }
+        if !flagged {
+            return Err(conflict("No deletion request has met this hold"));
+        }
+        if decided {
+            return Err(conflict("This hold was already decided"));
+        }
+        let case_id: Option<i64> = row.try_get("case_id")?;
+        sqlx::query(
+            "UPDATE moderation_holds SET erasure_decision = 'retained', erasure_basis = $2, \
+             erasure_decided_by = $3, erasure_decided_at = now() WHERE id = $1",
+        )
+        .bind(hold_id)
+        .bind(&basis)
+        .bind(who.user_id())
+        .execute(&mut *tx)
+        .await?;
+        if let Some(case) = case_id {
+            push_event(
+                &mut tx,
+                self.next_id(),
+                case,
+                Some(who.user_id()),
+                "erasure_hold_retained",
+                json!({ "hold_id": hold_id.to_string(), "basis": basis }),
+            )
+            .await?;
+        }
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::AdminAction,
+            "moderation.hold.retain_after_erasure",
+            ("hold", hold_id),
+            &basis,
+            json!({}),
+        )
+        .await?;
+        tx.commit().await?;
         Ok(())
     }
 }

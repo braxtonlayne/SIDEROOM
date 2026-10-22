@@ -268,6 +268,14 @@ pub fn router() -> Router<AppState> {
             post(data_requests::run),
         )
         .route(
+            "/admin/data-requests/{request_id}/restriction",
+            post(data_requests::restriction),
+        )
+        .route(
+            "/admin/data-requests/{request_id}/rectify",
+            post(data_requests::rectify),
+        )
+        .route(
             "/admin/accounts/{account_id}/deleted-archive",
             get(data_requests::deleted_archive),
         )
@@ -335,6 +343,8 @@ pub fn router() -> Router<AppState> {
         data_requests::decline,
         data_requests::extend,
         data_requests::run,
+        data_requests::restriction,
+        data_requests::rectify,
         data_requests::deleted_archive,
         announce::alerts,
         announce::ack,
@@ -403,6 +413,9 @@ pub fn router() -> Router<AppState> {
         data_requests::CreateBody,
         data_requests::ExtendBody,
         data_requests::RunBody,
+        data_requests::RestrictBody,
+        data_requests::RectifyBody,
+        data_requests::RectifyResult,
         sr_admin::DeletedArchive,
         sr_admin::DataRequest,
         sr_admin::DataRequestKind,

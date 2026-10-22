@@ -12,6 +12,7 @@
 //! The rules and the SQL live in `sr-moderation`; this module checks the caller, applies the channel
 //! permissions to what a report points at, and maps errors.
 
+mod age;
 mod cases;
 mod holds;
 mod reports;
@@ -243,6 +244,13 @@ pub fn router() -> Router<AppState> {
             "/moderation/holds/{hold_id}/reviewed",
             post(holds::reviewed),
         )
+        .route("/moderation/holds/{hold_id}/retain", post(holds::retain))
+        .route("/moderation/age/restrictions", post(age::restrict))
+        .route("/moderation/age/underage", post(age::underage))
+        .route(
+            "/moderation/age/underage/{account_id}/lift",
+            post(age::lift),
+        )
         .route(
             "/moderation/appeals",
             get(holds::list_appeals).post(holds::file_appeal),
@@ -319,6 +327,10 @@ pub fn router() -> Router<AppState> {
         holds::list,
         holds::release,
         holds::reviewed,
+        holds::retain,
+        age::restrict,
+        age::underage,
+        age::lift,
         holds::list_appeals,
         holds::file_appeal,
         holds::decide_appeal,
@@ -373,6 +385,14 @@ pub fn router() -> Router<AppState> {
         holds::HoldReleased,
         holds::AppealBody,
         holds::AppealDecisionBody,
+        holds::HoldRetainBody,
+        age::RestrictionBody,
+        age::UnderageBody,
+        age::LiftBody,
+        sr_moderation::AgeChange,
+        sr_moderation::AgeTargetKind,
+        sr_moderation::AgeBand,
+        sr_moderation::UnderageOutcome,
         sr_moderation::model::NewNotice,
         sr_moderation::model::NewItem,
         sr_moderation::model::NoticeSummary,

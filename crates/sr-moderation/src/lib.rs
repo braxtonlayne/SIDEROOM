@@ -12,6 +12,7 @@
 //! * [`rules`] holds everything that needs no database: routing (D-209), access, lifecycle, reviewer rule.
 
 mod actions;
+pub mod age;
 mod appeals;
 pub mod blocklist;
 mod cases;
@@ -26,6 +27,7 @@ pub mod takedown_rules;
 mod takedowns;
 
 pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
+pub use age::{AgeBand, AgeChange, AgeTargetKind, ChannelSink, UnderageOutcome};
 pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};

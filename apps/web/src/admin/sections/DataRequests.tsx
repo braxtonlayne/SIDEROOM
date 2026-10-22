@@ -45,7 +45,7 @@ const isActive = (r: api.DataRequest) =>
 const daysUntil = (ms: number, now: number) => Math.trunc((ms - now) / DAY_MS);
 
 type Dialog =
-  { kind: 'verify' | 'decline' | 'extend' | 'run'; req: api.DataRequest } | { kind: 'new' } | null;
+  { kind: 'verify' | 'decline' | 'extend' | 'run' | 'restrict' | 'rectify'; req: api.DataRequest } | { kind: 'new' } | null;
 
 export function DataRequestsSection() {
   const t = useT();
@@ -63,6 +63,7 @@ export function DataRequestsSection() {
   });
   const [days, setDays] = useState('30');
   const [deleteMessages, setDeleteMessages] = useState(false);
+  const [personId, setPersonId] = useState('');
   const action = useAction();
   const now = Date.now();
 
@@ -134,6 +135,9 @@ export function DataRequestsSection() {
                         </Badge>{' '}
                         {r.overdue && (
                           <Badge variant="danger">{t('admin.dataRequests.overdueBadge')}</Badge>
+                        )}{' '}
+                        {r.activity_hidden && active && (
+                          <Badge variant="warning">{t('admin.dataRequests.hiddenBadge')}</Badge>
                         )}
                       </div>
                       <div className="ss-meta">
@@ -181,6 +185,15 @@ export function DataRequestsSection() {
                                   date: fmtMs(r.member_notified_at_ms),
                                 })
                               : t('admin.dataRequests.notNotified')}
+                          </>
+                        )}
+                        {r.activity_hidden && active && (
+                          <>
+                            <br />
+                            {t('admin.dataRequests.hiddenNote', {
+                              when: fmtMs(r.activity_hidden_at_ms ?? 0),
+                              reason: r.activity_hidden_reason ?? '',
+                            })}
                           </>
                         )}
                         {r.outcome && (
@@ -234,6 +247,35 @@ export function DataRequestsSection() {
                         }}
                       >
                         {t('admin.dataRequests.extend')}
+                      </Button>
+                    )}
+                    {active && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label={
+                          r.activity_hidden
+                            ? t('admin.dataRequests.showActivityAria', { name: r.username })
+                            : t('admin.dataRequests.hideActivityAria', { name: r.username })
+                        }
+                        onClick={() => setDialog({ kind: 'restrict', req: r })}
+                      >
+                        {r.activity_hidden
+                          ? t('admin.dataRequests.showActivity')
+                          : t('admin.dataRequests.hideActivity')}
+                      </Button>
+                    )}
+                    {active && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t('admin.dataRequests.rectifyAria', { name: r.username })}
+                        onClick={() => {
+                          setPersonId('');
+                          setDialog({ kind: 'rectify', req: r });
+                        }}
+                      >
+                        {t('admin.dataRequests.rectify')}
                       </Button>
                     )}
                     {(r.state === 'open' || r.state === 'verified') && (
@@ -356,6 +398,59 @@ export function DataRequestsSection() {
           onChange={(e) => setDays(e.target.value)}
         />
         <p className="ss-sub">{t('admin.dataRequests.extend.reasonHint')}</p>
+      </ReasonDialog>
+
+      <ReasonDialog
+        open={dialog?.kind === 'restrict'}
+        title={
+          dialog?.kind === 'restrict' && dialog.req.activity_hidden
+            ? t('admin.dataRequests.showActivityTitle')
+            : t('admin.dataRequests.hideActivityTitle')
+        }
+        description={
+          dialog?.kind === 'restrict' && dialog.req.activity_hidden
+            ? t('admin.dataRequests.showActivityDescription')
+            : t('admin.dataRequests.hideActivityDescription')
+        }
+        confirmLabel={
+          dialog?.kind === 'restrict' && dialog.req.activity_hidden
+            ? t('admin.dataRequests.showActivity')
+            : t('admin.dataRequests.hideActivity')
+        }
+        reasonLabel={t('admin.dataRequests.restrictReason')}
+        onCancel={() => setDialog(null)}
+        onConfirm={async (reason) => {
+          if (dialog?.kind !== 'restrict') return;
+          await api.setDataRequestRestriction(dialog.req.id, !dialog.req.activity_hidden, reason);
+          await done(
+            dialog.req.activity_hidden
+              ? t('admin.dataRequests.activityShown')
+              : t('admin.dataRequests.activityHidden'),
+          );
+        }}
+      />
+
+      <ReasonDialog
+        open={dialog?.kind === 'rectify'}
+        title={t('admin.dataRequests.rectifyTitle')}
+        description={t('admin.dataRequests.rectifyDescription')}
+        confirmLabel={t('admin.dataRequests.rectifyConfirm')}
+        reasonLabel={t('admin.dataRequests.rectifyReason')}
+        valid={personId.trim() === '' || /^\d+$/.test(personId.trim())}
+        onCancel={() => setDialog(null)}
+        onConfirm={async (reason) => {
+          if (dialog?.kind !== 'rectify') return;
+          await api.rectifyPersonLink(dialog.req.id, reason, personId.trim() || undefined);
+          await done(t('admin.dataRequests.rectified'));
+        }}
+      >
+        <TextInput
+          label={t('admin.dataRequests.rectifyPerson')}
+          hint={t('admin.dataRequests.rectifyPersonHint')}
+          inputMode="numeric"
+          value={personId}
+          onChange={(e) => setPersonId(e.target.value)}
+        />
       </ReasonDialog>
 
       <ReasonDialog

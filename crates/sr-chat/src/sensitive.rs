@@ -156,6 +156,15 @@ pub fn apply_to_message(
     }
 }
 
+/// MOD-AGE-004 (spec 7, "Previews"): whether the embeds and link previews of a message must stay behind when it is
+/// copied from `source_restricted` to a place with `destination_restricted`. Only an age-restricted place sits
+/// behind the age gate, so a copy into a place without it (a followed announcement channel, a forward) carries the
+/// text but no previews. A copy into another age-restricted place keeps them, and nothing is stripped when the
+/// source is not restricted.
+pub const fn embeds_stay_behind(source_restricted: bool, destination_restricted: bool) -> bool {
+    source_restricted && !destination_restricted
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,6 +197,14 @@ mod tests {
         dm: false,
         age_restricted: false,
     };
+
+    #[test]
+    fn embeds_stay_behind_only_when_the_gate_does_not_follow() {
+        assert!(embeds_stay_behind(true, false));
+        assert!(!embeds_stay_behind(true, true));
+        assert!(!embeds_stay_behind(false, false));
+        assert!(!embeds_stay_behind(false, true));
+    }
 
     #[test]
     fn every_setting_times_every_signal() {

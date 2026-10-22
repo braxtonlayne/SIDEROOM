@@ -214,6 +214,12 @@ pub struct DataRequest {
     pub extended_late: bool,
     /// When the member was told of the extension by system DM; `None` when no DM could be sent.
     pub member_notified_at_ms: Option<i64>,
+    /// MOD-DSR-006: staff hid the account's shared activity from discovery while this request is reviewed.
+    /// Nothing is deleted; it ends with the request or when staff lift it.
+    #[serde(default)]
+    pub activity_hidden: bool,
+    pub activity_hidden_at_ms: Option<i64>,
+    pub activity_hidden_reason: Option<String>,
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub created_by: i64,
@@ -269,6 +275,10 @@ pub struct ErasureReport {
     pub profile_media_keys: Vec<String>,
     /// Messages and attachments kept because a moderation hold covers them.
     pub held_rows: i64,
+    /// The holds that keep them, flagged for a decision (MOD-DSR-005): how many.
+    pub held_holds: i64,
+    /// The cases of those holds (a hold from before cases has none), each given an `erasure_hold_flagged` event.
+    pub held_cases: Vec<i64>,
     /// The account was already deleted when the run started.
     pub already_deleted: bool,
     /// `Some(n)` when the run queued the member's message self-delete at their request (N-06): `n`
@@ -340,6 +350,17 @@ pub trait DataRequestRepository: Send + Sync {
         now_ms: i64,
         audit: &AuditEntry,
     ) -> AdminResult<DataRequest>;
+    /// Hide (`hidden`) or show again the account's shared activity while the request is active (MOD-DSR-006).
+    /// `Conflict` when the request is closed, already hidden, or not hidden.
+    async fn set_activity_hidden(
+        &self,
+        id: i64,
+        hidden: bool,
+        reason: &str,
+        by: i64,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest>;
     /// Queue the export build for a `verified` export request (no 24-hour cooldown: staff act on
     /// the subject's behalf). Moves it to `running`.
     async fn run_export(
@@ -375,8 +396,23 @@ pub fn erasure_outcome(report: &ErasureReport, invoice_years: u8) -> String {
     s.push('.');
     if report.held_rows > 0 {
         s.push_str(&format!(
-            " {} held row(s) stay until their case releases them; the case needs a decision.",
+            " {} held row(s) stay while their hold lasts (D-122); the request does not release them.",
             report.held_rows
+        ));
+        let cases = report
+            .held_cases
+            .iter()
+            .map(|c| format!("#{c}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        s.push_str(&format!(
+            " {} hold(s) are flagged for a staff decision (release, or retain with a stated legal basis){}.",
+            report.held_holds,
+            if cases.is_empty() {
+                String::new()
+            } else {
+                format!("; case(s) {cases}")
+            }
         ));
     }
     match report.messages_queued {
@@ -617,6 +653,81 @@ impl AdminService {
             .with_clock(now))
     }
 
+    /// MOD-DSR-006: hide the account's shared activity (cinema, library and TV sharing, watching presence,
+    /// recommendations) from discovery while the request is reviewed; or, with `hide = false`, show it again.
+    /// A reason is required. Nothing is deleted. The hiding also ends when the request is completed or declined.
+    pub async fn set_data_request_restriction(
+        &self,
+        c: &Caller,
+        req_id: i64,
+        hide: bool,
+        reason: Option<&str>,
+    ) -> AdminResult<DataRequest> {
+        let action = if hide {
+            "data_request.restrict"
+        } else {
+            "data_request.unrestrict"
+        };
+        self.require(c, P::MANAGE_TAKEDOWNS, action).await?;
+        let reason = Self::reason(reason)?;
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            action,
+            Some(("data_request", req_id)),
+            &reason,
+            json!({}),
+        );
+        let now = self.now_ms();
+        Ok(self
+            .requests()?
+            .set_activity_hidden(req_id, hide, &reason, c.user_id, now, &audit)
+            .await?
+            .with_clock(now))
+    }
+
+    /// MOD-DSR-007: rectification of a Person link, from the request of the person it concerns. `to_person`
+    /// puts the request's account under that Person; `None` splits it off into a Person of its own. A reason is
+    /// required. Needs `MANAGE_TAKEDOWNS` and, because it changes the Person graph, `MANAGE_ACCOUNTS`; the
+    /// access log holds the link row (`person.link` or `person.unlink`) and a `data_request.rectify` row that
+    /// names the request. Refused while a ban involves either Person. Returns the Person the account is under.
+    pub async fn rectify_person_link(
+        &self,
+        c: &Caller,
+        req_id: i64,
+        to_person: Option<i64>,
+        reason: Option<&str>,
+    ) -> AdminResult<i64> {
+        self.require(c, P::MANAGE_TAKEDOWNS, "data_request.rectify")
+            .await?;
+        self.require(c, P::MANAGE_ACCOUNTS, "data_request.rectify")
+            .await?;
+        let reason = Self::reason(reason)?;
+        let r = self.loaded_request(req_id).await?;
+        let person = match to_person {
+            Some(p) => {
+                self.link_account(c, p, r.account_id, Some(&reason)).await?;
+                p
+            }
+            None => self.unlink_account(c, r.account_id, Some(&reason)).await?,
+        };
+        let audit = self.entry(
+            c,
+            AccessKind::AdminAction,
+            "data_request.rectify",
+            Some(("data_request", req_id)),
+            &reason,
+            json!({
+                "account_id": r.account_id.to_string(),
+                "from_person_id": r.person_id.to_string(),
+                "to_person_id": person.to_string(),
+                "op": if to_person.is_some() { "link" } else { "unlink" },
+            }),
+        );
+        self.repo().append_log(&audit).await?;
+        Ok(person)
+    }
+
     /// The original username, email and display name of a deleted account, from the staff-only
     /// archive (D-326). `MANAGE_ACCOUNTS`. Every view is written to the staff access log with
     /// `account.deleted_archive.view`, written before the data is returned.
@@ -810,6 +921,9 @@ impl DataRequestRepository for MemoryDataRequests {
                 extended_at_ms: None,
                 extended_late: false,
                 member_notified_at_ms: None,
+                activity_hidden: false,
+                activity_hidden_at_ms: None,
+                activity_hidden_reason: None,
                 created_by: n.created_by,
             };
             rows.push(row.clone());
@@ -916,6 +1030,37 @@ impl DataRequestRepository for MemoryDataRequests {
             r.extension_reason = Some(reason.to_owned());
             r.extended_at_ms = Some(now_ms);
             let _ = by;
+            r.clone()
+        };
+        self.log(audit).await?;
+        Ok(row)
+    }
+
+    async fn set_activity_hidden(
+        &self,
+        id: i64,
+        hidden: bool,
+        reason: &str,
+        _by: i64,
+        now_ms: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<DataRequest> {
+        let row = {
+            let mut rows = self.rows();
+            let r = rows.iter_mut().find(|r| r.id == id).ok_or_else(not_found)?;
+            if !r.state.is_active() {
+                return Err(AdminError::Conflict("The request is closed".into()));
+            }
+            if r.activity_hidden == hidden {
+                return Err(AdminError::Conflict(if hidden {
+                    "The activity is already hidden".into()
+                } else {
+                    "The activity is not hidden".into()
+                }));
+            }
+            r.activity_hidden = hidden;
+            r.activity_hidden_at_ms = hidden.then_some(now_ms);
+            r.activity_hidden_reason = hidden.then(|| reason.to_owned());
             r.clone()
         };
         self.log(audit).await?;

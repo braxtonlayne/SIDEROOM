@@ -160,7 +160,7 @@ pub async fn create_message(
         .as_ref()
         .filter(|r| r.kind == Some(1))
     {
-        forward = Some(super::rich_create::plan_forward(&deps, author, r).await?);
+        forward = Some(super::rich_create::plan_forward(&deps, author, r, channel_id).await?);
     } else if let Some(r) = &body.message_reference {
         let id: MessageId = r.message_id.parse().map_err(|_| {
             invalid(

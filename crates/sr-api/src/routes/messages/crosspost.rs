@@ -1,3 +1,9 @@
+    let source_restricted = messages.channel_age_restricted(src.channel_id).await;
+        // MOD-AGE-004: an age-restricted announcement channel's previews do not reach followers without the gate.
+        let keep_embeds = !sr_chat::sensitive::embeds_stay_behind(
+            source_restricted,
+            messages.channel_age_restricted(target.id).await,
+        );
 //! Announcement channels (LNG-CHN-004): publishing a message to the channels that follow it.
 //!
 //! * `POST /channels/{id}/messages/{id}/crosspost`: publish one message by hand.
@@ -56,6 +62,7 @@ pub async fn deliver(messages: &MessagesDeps, settings: &SettingsDeps, src: &Mes
         }
     };
     let mut delivered = 0;
+    let source_restricted = messages.channel_age_restricted(src.channel_id).await;
     for w in &followers {
         let Ok(Some(target)) = messages.repo.get_channel(w.channel_id).await else {
             continue;
@@ -63,6 +70,11 @@ pub async fn deliver(messages: &MessagesDeps, settings: &SettingsDeps, src: &Mes
         if !target.kind.accepts_messages() || target.kind.is_dm() {
             continue;
         }
+        // MOD-AGE-004: an age-restricted announcement channel's previews do not reach followers without the gate.
+        let keep_embeds = !sr_chat::sensitive::embeds_stay_behind(
+            source_restricted,
+            messages.channel_age_restricted(target.id).await,
+        );
         let copy = Message {
             id: MessageId::from(messages.next_id()),
             channel_id: target.id,
@@ -70,7 +82,13 @@ pub async fn deliver(messages: &MessagesDeps, settings: &SettingsDeps, src: &Mes
             author_id: src.author_id,
             kind: MessageType::Default,
             content: src.content.clone(),
-            flags: message_flags::IS_CROSSPOST | (src.flags & message_flags::SUPPRESS_EMBEDS),
+            flags: message_flags::IS_CROSSPOST
+                | (src.flags & message_flags::SUPPRESS_EMBEDS)
+                | if keep_embeds {
+                    0
+                } else {
+                    message_flags::SUPPRESS_EMBEDS
+                },
             edited_at_ms: None,
             reference: Some(MessageReference {
                 message_id: src.id,
@@ -78,7 +96,11 @@ pub async fn deliver(messages: &MessagesDeps, settings: &SettingsDeps, src: &Mes
                 forward: None,
             }),
             attachment_ids: Vec::new(),
-            embeds: src.embeds.clone(),
+            embeds: if keep_embeds {
+                src.embeds.clone()
+            } else {
+                Vec::new()
+            },
             components: Vec::new(),
             sticker_ids: Vec::new(),
             poll: None,
