@@ -3884,13 +3884,23 @@ async fn a_blocked_message_still_gets_an_alert_card_without_a_delete_button() {
 #[tokio::test]
 async fn previews_of_an_age_restricted_announcement_channel_do_not_reach_followers() {
     let e = env().await;
-    let adult = add_channel(&e, 7_101, sr_chat::ChannelType::Announcement, "adult-news", 0);
+    let adult = add_channel(
+        &e,
+        7_101,
+        sr_chat::ChannelType::Announcement,
+        "adult-news",
+        0,
+    );
     e.backend.data().channels.get_mut(&adult).unwrap().nsfw = true;
     let plain = add_channel(&e, 7_102, sr_chat::ChannelType::Announcement, "news", 0);
     let target = json!({ "webhook_channel_id": e.ch.to_string() });
     for news in [adult, plain] {
         let (s, v) = e
-            .post(&format!("/channels/{news}/followers"), "owner", target.clone())
+            .post(
+                &format!("/channels/{news}/followers"),
+                "owner",
+                target.clone(),
+            )
             .await;
         assert_eq!(s, StatusCode::OK, "{v}");
         let (s, m) = e
