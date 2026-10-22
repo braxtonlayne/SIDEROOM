@@ -38,6 +38,15 @@ const DASH = {
     ],
     holds_active: 7,
     holds_review_due: 2,
+    holds_erasure_pending: 1,
+    sign_ins: {
+      window_days: 180,
+      past_window: 3,
+      past_window_capped: false,
+      last_purged: 41,
+      last_run_at_ms: 1_700_000_000_000,
+      backlog: true,
+    },
   },
   age: {
     window_days: 30,
@@ -113,6 +122,14 @@ describe('Admin > Moderation > Dashboard', () => {
     const retention = screen.getByRole('list', { name: 'Rows skipped by purge jobs' });
     expect(within(retention).getByText('at least 10,000')).toBeInTheDocument();
     expect(within(retention).getByText('Deleted messages due for purge, held')).toBeInTheDocument();
+    // The sign-in purge (D-347) shows what is past the window and the last run, read from the job.
+    const purge = screen.getByRole('list', { name: 'Sign-in history purge' });
+    expect(within(purge).getByText(/older than 180 days still stored/)).toBeInTheDocument();
+    expect(within(purge).getByText(/Last run deleted 41 rows/)).toBeInTheDocument();
+    expect(within(purge).getByText(/An old backlog remains/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Holds a deletion request met, waiting for a decision'),
+    ).toBeInTheDocument();
 
     // Age and child safety.
     expect(screen.getByRole('heading', { name: 'Age and child safety' })).toBeInTheDocument();

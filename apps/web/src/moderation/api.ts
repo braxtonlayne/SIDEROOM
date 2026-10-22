@@ -464,10 +464,22 @@ export interface DashHealth {
   appeal_outcomes: DashCount[];
   appeals_open: number;
 }
+/** The sign-in history purge (D-347): no hold exception, so it shows whether the job keeps up. */
+export interface DashSignIns {
+  window_days: number;
+  past_window: number;
+  past_window_capped: boolean;
+  last_purged?: number | null;
+  last_run_at_ms?: number | null;
+  backlog: boolean;
+}
 export interface DashRetention {
   rows: { key: string; count: number; capped: boolean }[];
   holds_active: number;
   holds_review_due: number;
+  /** Holds a deletion request met, waiting for release or retain (MOD-DSR-005). */
+  holds_erasure_pending: number;
+  sign_ins: DashSignIns;
 }
 export interface DashAge {
   window_days: number;

@@ -38,5 +38,5 @@ pub use service::{
     GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, PolicySource, RemovalSink,
     SubjectNotifier,
 };
-pub use suspicion::SCAN_BATCH;
+pub use suspicion::{HOUSEKEEPING_JOB_ID, SCAN_BATCH};
 pub use takedowns::register_csv;

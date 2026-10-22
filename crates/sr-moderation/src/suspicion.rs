@@ -36,6 +36,9 @@ const DEFAULT_ESCALATE: i64 = 3;
 const SCAN_ROW_CAP: i64 = 2000;
 /// Most Persons one housekeeping run scans.
 pub const SCAN_BATCH: i64 = 500;
+/// Singleton id of `moderation.suspicion_housekeeping` (`sr-server/src/suspicion_jobs.rs` asserts it is the
+/// same). The purge records its last result on that row for the dashboard.
+pub const HOUSEKEEPING_JOB_ID: i64 = 1150;
 /// The most rows one purge statement removes.
 const PURGE_BATCH: i64 = 20_000;
 /// Batches one purge run removes before it hands the queue back (500,000 rows).
@@ -676,7 +679,8 @@ impl Moderation {
                 }
                 let n = sqlx::query(
                     "INSERT INTO evasion_signals (id, person_id, related_person_id, kind, detail) \
-                     VALUES ($1, $2, $3, $4, $5) ON CONFLICT (person_id, related_person_id, kind) DO NOTHING",
+                     VALUES ($1, $2, $3, $4, $5) \
+                     ON CONFLICT (person_id, related_person_id, kind) WHERE folded_at IS NULL DO NOTHING",
                 )
                 .bind(self.next_id())
                 .bind(person_id)
@@ -719,6 +723,7 @@ impl Moderation {
     /// installation cannot hold the job queue; `more` says the job should run again soon. Returns (rows, more).
     pub async fn purge_login_events(&self) -> ModResult<(u64, bool)> {
         let mut total = 0;
+        let mut more = true;
         for _ in 0..PURGE_BATCHES_PER_RUN {
             let n = sqlx::query(
                 "DELETE FROM login_events WHERE id IN (SELECT id FROM login_events \
@@ -731,11 +736,23 @@ impl Moderation {
             .rows_affected();
             total += n;
             if n < PURGE_BATCH as u64 {
-                return Ok((total, false));
+                more = false;
+                break;
             }
             tokio::task::yield_now().await;
         }
-        Ok((total, true))
+        // The result goes on the job's own row, where the dashboard's retention check reads it (MOD-DASH-009).
+        // There is no row when the job is not scheduled (tests that call this directly).
+        sqlx::query(
+            "UPDATE jobs SET payload = payload || jsonb_build_object('last_purged', $2::bigint, \
+             'last_run_at_ms', (extract(epoch FROM now()) * 1000)::bigint, 'backlog', $3::bool) WHERE id = $1",
+        )
+        .bind(HOUSEKEEPING_JOB_ID)
+        .bind(i64::try_from(total).unwrap_or(i64::MAX))
+        .bind(more)
+        .execute(&self.pool)
+        .await?;
+        Ok((total, more))
     }
 
     /// The signal list (`MANAGE_ACCOUNTS`; the read is logged), newest first.

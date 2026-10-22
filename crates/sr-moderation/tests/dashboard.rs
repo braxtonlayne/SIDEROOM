@@ -537,8 +537,42 @@ async fn the_retention_check_counts_what_a_hold_keeps_from_the_purge() {
         0
     );
     assert_eq!(r.holds_active, 0);
+    assert_eq!(r.holds_erasure_pending, 0);
     assert!(r.rows.iter().all(|x| !x.capped));
     let _ = (case, HoldScope::Message(held));
+
+    // The sign-in purge (D-347) has no hold exception: the check shows what is still past the window and what the
+    // last run of the housekeeping job deleted, read from the job's own row.
+    assert_eq!(r.sign_ins.window_days, 180);
+    assert_eq!((r.sign_ins.past_window, r.sign_ins.last_purged), (0, None));
+    for (id, age) in [(uid(), 200), (uid(), 10)] {
+        sqlx::query(
+            "INSERT INTO login_events (id, account_id, ip, success, created_at) \
+             VALUES ($1, $2, '192.0.2.1', true, now() - make_interval(days => $3))",
+        )
+        .bind(id)
+        .bind(w.reporter)
+        .bind(age)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    }
+    let r = w.m.dashboard(&c, None).await.unwrap().retention.unwrap();
+    assert_eq!(
+        r.sign_ins.past_window, 1,
+        "one sign-in is older than the window"
+    );
+    exec(
+        w.pool(),
+        "INSERT INTO jobs (id, kind, payload) VALUES ($1, 'moderation.suspicion_housekeeping', '{}')",
+        &[sr_moderation::HOUSEKEEPING_JOB_ID],
+    )
+    .await;
+    assert_eq!(w.m.purge_login_events().await.unwrap(), (1, false));
+    let r = w.m.dashboard(&c, None).await.unwrap().retention.unwrap();
+    assert_eq!(r.sign_ins.past_window, 0);
+    assert_eq!(r.sign_ins.last_purged, Some(1));
+    assert!(r.sign_ins.last_run_at_ms.is_some() && !r.sign_ins.backlog);
 }
 
 #[tokio::test]

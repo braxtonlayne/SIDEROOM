@@ -18,6 +18,10 @@ pub const KIND: &str = "moderation.suspicion_housekeeping";
 /// Reserved singleton id (below any Snowflake; unique in this repository, see the grep in the handoff).
 pub const JOB_ID: i64 = 1150;
 const _: () = assert!(JOB_ID < 1 << 40, "singleton ids stay below the snowflakes");
+const _: () = assert!(
+    JOB_ID == sr_moderation::HOUSEKEEPING_JOB_ID,
+    "the dashboard reads the purge result from this row"
+);
 pub const INTERVAL: Duration = Duration::from_secs(24 * 3600);
 /// Delay before the next slice while an old backlog of sign-in history remains.
 const CONTINUE_AFTER: Duration = Duration::from_secs(300);

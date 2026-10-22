@@ -90,6 +90,23 @@ pub struct DashRetentionRow {
     pub capped: bool,
 }
 
+/// The sign-in history purge (`moderation.suspicion_housekeeping`, D-347). It has no hold exception, so it never
+/// skips a row; the check shows whether it keeps up instead.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DashSignIns {
+    /// The window the history is kept for (180 days, doc 09).
+    pub window_days: i64,
+    /// Sign-in rows older than the window that are still stored (0 when the job keeps up; capped).
+    pub past_window: i64,
+    pub past_window_capped: bool,
+    /// Rows the last run of the job deleted; absent before the first run.
+    pub last_purged: Option<i64>,
+    /// When that run finished (Unix ms).
+    pub last_run_at_ms: Option<i64>,
+    /// The last run stopped at its slice limit and comes back in five minutes.
+    pub backlog: bool,
+}
+
 /// What the purge jobs are leaving behind (MOD-DASH-009).
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DashRetention {
@@ -98,6 +115,9 @@ pub struct DashRetention {
     pub holds_active: i64,
     /// Holds that nobody has looked at for longer than `moderation.hold_review_days`.
     pub holds_review_due: i64,
+    /// Holds a deletion request met that wait for staff to release them or retain the rows (MOD-DSR-005).
+    pub holds_erasure_pending: i64,
+    pub sign_ins: DashSignIns,
 }
 
 /// Age and child-safety metrics (MOD-DASH-010, spec 7).
@@ -439,7 +459,8 @@ impl Moderation {
         }
         let holds = sqlx::query(
             "SELECT count(*) AS active, \
-             count(*) FILTER (WHERE coalesce(reviewed_at, created_at) < now() - make_interval(days => $1)) AS due \
+             count(*) FILTER (WHERE coalesce(reviewed_at, created_at) < now() - make_interval(days => $1)) AS due, \
+             count(*) FILTER (WHERE erasure_flagged_at IS NOT NULL AND erasure_decision IS NULL) AS erasure \
              FROM moderation_holds WHERE released_at IS NULL",
         )
         .bind(i32::try_from(limits.hold_review_days).unwrap_or(90))
@@ -449,6 +470,32 @@ impl Moderation {
             rows,
             holds_active: holds.try_get("active")?,
             holds_review_due: holds.try_get("due")?,
+            holds_erasure_pending: holds.try_get("erasure")?,
+            sign_ins: self.dash_sign_ins().await?,
+        })
+    }
+
+    /// The sign-in purge: what is still past the window (indexed on `login_events.created_at`, capped) and what
+    /// the last run recorded on its job row ([`Moderation::purge_login_events`]).
+    async fn dash_sign_ins(&self) -> ModResult<DashSignIns> {
+        let inner = format!(
+            "login_events WHERE created_at < now() - make_interval(days => {})",
+            crate::suspicion_rules::IP_WINDOW_DAYS
+        );
+        let (past_window, past_window_capped) = capped(&self.pool, &inner).await?;
+        let last: Option<serde_json::Value> =
+            sqlx::query_scalar("SELECT payload FROM jobs WHERE id = $1")
+                .bind(crate::suspicion::HOUSEKEEPING_JOB_ID)
+                .fetch_optional(&self.pool)
+                .await?;
+        let field = |k: &str| last.as_ref().and_then(|p| p.get(k)).cloned();
+        Ok(DashSignIns {
+            window_days: crate::suspicion_rules::IP_WINDOW_DAYS,
+            past_window,
+            past_window_capped,
+            last_purged: field("last_purged").and_then(|v| v.as_i64()),
+            last_run_at_ms: field("last_run_at_ms").and_then(|v| v.as_i64()),
+            backlog: field("backlog").and_then(|v| v.as_bool()).unwrap_or(false),
         })
     }
 

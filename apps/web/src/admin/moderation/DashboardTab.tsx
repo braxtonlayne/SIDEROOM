@@ -446,6 +446,10 @@ function RetentionSection({ v }: { v: api.DashRetention }) {
           label={t('admin.moderation.dash.retention.holdsReview')}
           value={n(v.holds_review_due)}
         />
+        <Stat
+          label={t('admin.moderation.dash.retention.holdsErasure')}
+          value={n(v.holds_erasure_pending)}
+        />
       </div>
       <ul className="ss-list" aria-label={t('admin.moderation.dash.retention.listLabel')}>
         {v.rows.map((r) => (
@@ -461,7 +465,37 @@ function RetentionSection({ v }: { v: api.DashRetention }) {
           </li>
         ))}
       </ul>
+      <SignInPurge v={v.sign_ins} />
     </Section>
+  );
+}
+
+/** The sign-in history purge (D-347). It never skips a row for a hold, so it shows whether it keeps up. */
+function SignInPurge({ v }: { v: api.DashSignIns }) {
+  const t = useT();
+  const past = v.past_window_capped
+    ? t('admin.moderation.dash.retention.atLeast', { n: v.past_window })
+    : n(v.past_window);
+  return (
+    <ul className="ss-list" aria-label={t('admin.moderation.dash.retention.signInsLabel')}>
+      <li className="ss-row">
+        <div className="ss-grow">
+          <div className="ss-name">
+            {t('admin.moderation.dash.retention.signInsPast', { days: v.window_days })}
+          </div>
+          <div className="ss-meta">
+            {v.last_purged == null || v.last_run_at_ms == null
+              ? t('admin.moderation.dash.retention.signInsNever')
+              : t('admin.moderation.dash.retention.signInsLast', {
+                  n: v.last_purged,
+                  when: fmtMs(v.last_run_at_ms),
+                })}
+            {v.backlog ? ` ${t('admin.moderation.dash.retention.signInsBacklog')}` : ''}
+          </div>
+        </div>
+        <Badge variant={v.past_window > 0 ? 'warning' : 'neutral'}>{past}</Badge>
+      </li>
+    </ul>
   );
 }
 

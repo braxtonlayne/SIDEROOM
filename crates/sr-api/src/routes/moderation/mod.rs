@@ -458,6 +458,7 @@ pub fn router() -> Router<AppState> {
         sr_moderation::dashboard::DashDay,
         sr_moderation::dashboard::DashCount,
         sr_moderation::dashboard::DashRetention,
+        sr_moderation::dashboard::DashSignIns,
         sr_moderation::dashboard::DashRetentionRow,
         sr_moderation::dashboard::DashAge,
         sr_moderation::dashboard::DashBans,
