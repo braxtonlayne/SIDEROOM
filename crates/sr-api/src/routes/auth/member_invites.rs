@@ -267,3 +267,20 @@ pub async fn revoke(
     ))
 )]
 pub struct MemberInvitesApiDoc;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// MOD-SUS-005: a paused inviter reads only that creation is paused for review, never a cause.
+    #[test]
+    fn the_paused_notice_names_no_cause() {
+        let text = refusal_text(InviteBlock::Frozen);
+        assert_eq!(text, "Invite creation is paused for review.");
+        let lower = text.to_lowercase();
+        for word in ["ban", "suspic", "invitee", "serious"] {
+            assert!(!lower.contains(word), "mentions {word}");
+        }
+        assert_eq!(blocked(InviteBlock::Frozen).reason, "frozen");
+    }
+}

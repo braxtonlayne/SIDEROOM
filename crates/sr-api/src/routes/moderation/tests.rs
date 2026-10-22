@@ -37,6 +37,7 @@ const CASE_STAFF: i64 = 11;
 const BASIC: i64 = 12;
 const REVIEWER: i64 = 13;
 const CLERK: i64 = 14;
+const ACCOUNTS_STAFF: i64 = 15;
 const MEMBER: i64 = 20;
 const TARGET: i64 = 21;
 
@@ -63,6 +64,7 @@ async fn env(pool: sqlx::PgPool) -> Env {
         (BASIC, "basic"),
         (REVIEWER, "reviewer"),
         (CLERK, "clerk"),
+        (ACCOUNTS_STAFF, "accounts"),
         (MEMBER, "member"),
         (TARGET, "target"),
     ] {
@@ -73,6 +75,12 @@ async fn env(pool: sqlx::PgPool) -> Env {
     admin.add_role(3, "Basic", 1, P::STAFF_BASIC);
     admin.add_role(4, "Reader", 1, P::STAFF_BASIC | P::REVIEW_READING);
     admin.add_role(5, "Takedown clerk", 2, P::STAFF_BASIC | P::MANAGE_TAKEDOWNS);
+    admin.add_role(
+        6,
+        "Accounts",
+        2,
+        P::STAFF_BASIC | P::MANAGE_INVITES | P::MANAGE_ACCOUNTS,
+    );
     admin.set_owner(OWNER);
     let svc = AdminService::new(admin.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
@@ -84,12 +92,24 @@ async fn env(pool: sqlx::PgPool) -> Env {
         .await
         .unwrap();
     svc.appoint(&op, CLERK, &[5], Some("test")).await.unwrap();
+    svc.appoint(&op, ACCOUNTS_STAFF, &[6], Some("test"))
+        .await
+        .unwrap();
 
     let sessions = Arc::new(MemorySessions::new());
     let mut tokens = HashMap::new();
-    for (n, uid) in [OWNER, CASE_STAFF, BASIC, REVIEWER, CLERK, MEMBER, TARGET]
-        .into_iter()
-        .enumerate()
+    for (n, uid) in [
+        OWNER,
+        CASE_STAFF,
+        BASIC,
+        REVIEWER,
+        CLERK,
+        ACCOUNTS_STAFF,
+        MEMBER,
+        TARGET,
+    ]
+    .into_iter()
+    .enumerate()
     {
         let t = SessionToken::generate().unwrap();
         sessions
@@ -196,6 +216,15 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
             Method::POST,
             "/moderation/cases",
             Some(json!({"category": "spam", "target_kind": "other"})),
+        ),
+        (Method::GET, "/moderation/persons/5/suspicion", None),
+        (Method::POST, "/moderation/persons/5/evasion-scan", None),
+        (Method::GET, "/moderation/evasion-signals", None),
+        (Method::GET, "/moderation/evasion-signals/5", None),
+        (
+            Method::POST,
+            "/moderation/evasion-signals/5/review",
+            Some(json!({"decision": "dismissed", "reason": "x"})),
         ),
         (Method::GET, "/moderation/holds", None),
         (
@@ -1188,4 +1217,230 @@ async fn takedown_notice_to_counter_notice_to_export_over_http() {
         )
         .await;
     assert_eq!(st["state"], "none");
+}
+
+// ---- suspicion and evasion signals (MOD-SUS-001 to -004) ------------------------------------------------------
+
+#[tokio::test]
+async fn the_suspicion_routes_name_the_missing_bit_and_log_the_denial() {
+    let e = env(lazy()).await;
+    // The panel needs MANAGE_INVITES; signals (IP-derived) need MANAGE_ACCOUNTS.
+    for (path, bit) in [
+        ("/moderation/persons/5/suspicion", "MANAGE_INVITES"),
+        ("/moderation/evasion-signals", "MANAGE_ACCOUNTS"),
+        ("/moderation/evasion-signals/5", "MANAGE_ACCOUNTS"),
+    ] {
+        let (s, body) = e.call(Some(CASE_STAFF), Method::GET, path, None).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{path}: {body}");
+        assert!(
+            body["message"].as_str().unwrap_or_default().contains(bit),
+            "{path}: {body}"
+        );
+    }
+    let (s, body) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/persons/5/evasion-scan",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    let log = e
+        .admin
+        .list_log(&sr_admin::AccessLogFilter {
+            limit: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    for action in [
+        "moderation.suspicion.view",
+        "moderation.evasion.list",
+        "moderation.evasion.scan",
+    ] {
+        assert!(
+            log.iter()
+                .any(|r| r.action == action && r.actor_id == CASE_STAFF),
+            "{action} denial is logged"
+        );
+    }
+}
+
+#[tokio::test]
+async fn suspicion_inputs_that_name_nothing_are_client_errors() {
+    let e = env(lazy()).await;
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/persons/nope/suspicion",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals/nope",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals?state=maybe",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // A review decides one way or the other, never "open".
+    for decision in ["open", "ban"] {
+        let (s, _) = e
+            .call(
+                Some(ACCOUNTS_STAFF),
+                Method::POST,
+                "/moderation/evasion-signals/5/review",
+                Some(json!({"decision": decision, "reason": "x"})),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{decision}");
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn evasion_signals_and_the_panel_over_http() {
+    let db = sr_db::testing::TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (ACCOUNTS_STAFF, "accounts"),
+        (MEMBER, "banned"),
+        (TARGET, "newcomer"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    // Both people signed in from one address; one of them is banned.
+    sqlx::query(
+        "INSERT INTO person_bans (id, person_id, category, banned_by) VALUES (900, $1, 'serious', $2)",
+    )
+    .bind(MEMBER + 1_000)
+    .bind(OWNER)
+    .execute(&pool)
+    .await
+    .unwrap();
+    for (n, who) in [MEMBER, TARGET].into_iter().enumerate() {
+        sqlx::query("INSERT INTO login_events (id, account_id, ip, success) VALUES ($1, $2, '203.0.113.44', true)")
+            .bind(700 + n as i64)
+            .bind(who)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let e = env(pool.clone()).await;
+
+    // The scan raises one review item; scanning again raises none.
+    let scan = format!("/moderation/persons/{}/evasion-scan", TARGET + 1_000);
+    let (s, body) = e
+        .call(Some(ACCOUNTS_STAFF), Method::POST, &scan, None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["raised"], 1);
+    let (_, body) = e
+        .call(Some(ACCOUNTS_STAFF), Method::POST, &scan, None)
+        .await;
+    assert_eq!(body["raised"], 0);
+
+    let (s, list) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    let item = &list[0];
+    assert_eq!(item["kind"], "shared_login_ip");
+    assert_eq!(item["state"], "open");
+    assert!(
+        !list.to_string().contains("203.0.113"),
+        "the list carries no address"
+    );
+    let sid = item["id"].as_str().unwrap().to_owned();
+
+    // The address is behind the detail read, which is logged.
+    let (s, d) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            &format!("/moderation/evasion-signals/{sid}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!(d["shared_addresses"][0]["ip"], "203.0.113.44");
+    assert_eq!(d["window_days"], 180);
+    let logged: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'moderation.evasion.detail' AND actor_id = $1",
+    )
+    .bind(ACCOUNTS_STAFF)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(logged, 1);
+
+    // The panel for the newcomer includes the signal; a review needs a reason.
+    let (s, panel) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            &format!("/moderation/persons/{}/suspicion", TARGET + 1_000),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{panel}");
+    assert_eq!(panel["signals"].as_array().map(Vec::len), Some(1));
+    assert_eq!(panel["invites_paused"], false);
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &format!("/moderation/evasion-signals/{sid}/review"),
+            Some(json!({"decision": "dismissed"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, done) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &format!("/moderation/evasion-signals/{sid}/review"),
+            Some(json!({"decision": "dismissed", "reason": "same household"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{done}");
+    assert_eq!(done["state"], "dismissed");
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &format!("/moderation/evasion-signals/{sid}/review"),
+            Some(json!({"decision": "confirmed", "reason": "again"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+
+    // Nobody was banned or suspended by any of this.
+    let bans: i64 = sqlx::query_scalar("SELECT count(*) FROM person_bans WHERE person_id = $1")
+        .bind(TARGET + 1_000)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(bans, 0);
+    db.cleanup().await.unwrap();
 }
