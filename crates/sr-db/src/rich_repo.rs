@@ -183,6 +183,27 @@ impl RichStore for PgRichStore {
                 t.mine.insert(answer);
             }
         }
+        // Votes removed after the poll closed stay in the result without a voter (D-332).
+        let anon = sqlx::query(
+            "SELECT id, poll->'anonymous_counts' AS anon FROM messages 
+             WHERE id = ANY($1) AND poll ? 'anonymous_counts'",
+        )
+        .bind(messages.iter().map(|m| i(m.get())).collect::<Vec<_>>())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        for r in anon {
+            let m = MessageId::new(u(r.try_get("id").map_err(sdb)?));
+            let v: Option<serde_json::Value> = r.try_get("anon").map_err(sdb)?;
+            if let Some(obj) = v.as_ref().and_then(serde_json::Value::as_object) {
+                for (k, n) in obj {
+                    if let (Ok(a), Some(n)) = (k.parse::<u32>(), n.as_u64()) {
+                        let n = u32::try_from(n).unwrap_or(u32::MAX);
+                        *out.entry(m).or_default().counts.entry(a).or_default() += n;
+                    }
+                }
+            }
+        }
         Ok(out)
     }
 

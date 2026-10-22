@@ -36,6 +36,7 @@ import { AccountsSection } from './sections/Accounts';
 import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
 import { DashboardSection } from './sections/Dashboard';
+import { DataRequestsSection } from './sections/DataRequests';
 import { EntranceSection } from './sections/Entrance';
 import { FeaturesSection } from './sections/Features';
 import { InviteGraphSection } from './sections/InviteGraph';
@@ -262,6 +263,14 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     visible: (v) =>
       hasAny(v.perms, 'MANAGE_INVITES', 'APPOINT_STAFF', 'OPERATOR', 'VIEW_ACCESS_LOG'),
     component: CliParitySection,
+  },
+  {
+    // M-25 step c: its own page until the integrator places it under Admin > Moderation.
+    id: 'data-requests',
+    label: 'admin.adminApp.section.dataRequests',
+    group: 'admin.dataRequests.group',
+    visible: (v) => v.can('MANAGE_TAKEDOWNS'),
+    component: DataRequestsSection,
   },
 ];
 

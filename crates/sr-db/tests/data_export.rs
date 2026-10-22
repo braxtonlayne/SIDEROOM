@@ -184,8 +184,26 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     .await
     .unwrap();
 
+    // N-15: a reaction and a poll vote of the member, and one of someone else's.
+    sqlx::query("UPDATE messages SET poll = '{\"finalized\":false}'::jsonb WHERE id = 4")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO reactions (message_id, emoji_key, user_id) VALUES (4, 'x', 1), (1, 'x', 2)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO poll_votes (message_id, answer_id, user_id) VALUES (4, 2, 1), (4, 1, 2)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
     let mut buf = Cursor::new(Vec::new());
-    let n = data_export::build_package(pool, 1, &mut buf, 1_700_000_000_000)
+    let n = data_export::build_package(pool, 1, &mut buf, 1_700_000_000_000, 10)
         .await
         .unwrap();
     assert_eq!(n, 2, "only the user's own, undeleted messages");
@@ -204,6 +222,8 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         "activity.json",
         "security.json",
         "attachments.json",
+        "reactions.json",
+        "poll_votes.json",
         "messages/20.json",
         "package.json",
     ] {
@@ -222,6 +242,30 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     assert_eq!(modules.len(), 1, "only the person's own rows");
     assert_eq!(modules[0]["feature"], "community.leveling");
     assert_eq!(modules[0]["settings"]["announce_mine"], false);
+    let reactions: serde_json::Value = serde_json::from_str(&read("reactions.json")).unwrap();
+    assert_eq!(
+        reactions.as_array().unwrap().len(),
+        1,
+        "only the member's own"
+    );
+    assert_eq!(reactions[0]["message_id"], "4");
+    assert_eq!(reactions[0]["channel_id"], "20");
+    assert_eq!(reactions[0]["emoji_key"], "x");
+    let votes: serde_json::Value = serde_json::from_str(&read("poll_votes.json")).unwrap();
+    assert_eq!(votes.as_array().unwrap().len(), 1);
+    assert_eq!(
+        (
+            votes[0]["message_id"].as_str(),
+            votes[0]["answer_id"].as_i64()
+        ),
+        (Some("4"), Some(2))
+    );
+    assert!(
+        !reactions.to_string().contains("not mine"),
+        "no message text"
+    );
+    let readme = read("README.txt");
+    assert!(readme.contains("reactions.json") && readme.contains("poll_votes.json"));
     let activity: serde_json::Value = serde_json::from_str(&read("activity.json")).unwrap();
     assert_eq!(activity["profile_media"][0]["id"], "6001");
     assert_eq!(activity["profile_media"][0]["kind"], "background");

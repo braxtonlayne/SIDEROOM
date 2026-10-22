@@ -5,7 +5,8 @@
 //!
 //! * the row is scrubbed to "Deleted User" (username `deleted.<id>`, placeholder email, no
 //!   avatar, banner, bio, pronouns or colours, unusable password) and set to `deleted`;
-//! * sessions, trusted devices, second factors, passkeys, e-mail tokens and bot tokens go;
+//! * sessions (their addresses, browser strings and device names are blanked), sign-in attempt
+//!   addresses, trusted devices, second factors, passkeys, e-mail tokens and bot tokens go;
 //! * friendships, blocks, ignores, notes, server and group-DM memberships go;
 //! * open platform invites are revoked and the unspent invite credits are forfeited (a
 //!   negative row in the append-only ledger);
@@ -175,6 +176,18 @@ pub async fn delete_account(
 
     // Credentials and sessions.
     sqlx::query("UPDATE sessions SET revoked_at = now(), updated_at = now() WHERE account_id = $1 AND revoked_at IS NULL")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    // The revoked session rows stay for the session history, but not the network address, browser
+    // string or device name; sign-in attempts lose their address too (N-03, D-318).
+    sqlx::query(
+        "UPDATE sessions SET ip = NULL, user_agent = NULL, device_label = NULL WHERE account_id = $1",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("UPDATE login_events SET ip = NULL WHERE account_id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;

@@ -20,6 +20,7 @@ mod accounts_ext;
 pub(crate) mod announce;
 pub use announce::{ReviewPress, press_review_button};
 mod ctx;
+mod data_requests;
 mod entrance;
 mod invites;
 mod people;
@@ -242,6 +243,34 @@ pub fn router() -> Router<AppState> {
                 .delete(entrance::delete_hero)
                 .layer(crate::routes::media::body_limit()),
         )
+        .route(
+            "/admin/data-requests",
+            get(data_requests::list).post(data_requests::create),
+        )
+        .route(
+            "/admin/data-requests/{request_id}",
+            get(data_requests::get_one),
+        )
+        .route(
+            "/admin/data-requests/{request_id}/verify",
+            post(data_requests::verify),
+        )
+        .route(
+            "/admin/data-requests/{request_id}/decline",
+            post(data_requests::decline),
+        )
+        .route(
+            "/admin/data-requests/{request_id}/extend",
+            post(data_requests::extend),
+        )
+        .route(
+            "/admin/data-requests/{request_id}/run",
+            post(data_requests::run),
+        )
+        .route(
+            "/admin/accounts/{account_id}/deleted-archive",
+            get(data_requests::deleted_archive),
+        )
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
         .route("/admin/card-actions", post(announce::card_action))
@@ -299,6 +328,14 @@ pub fn router() -> Router<AppState> {
         entrance::put_hero,
         entrance::delete_hero,
         entrance::delete_copy,
+        data_requests::list,
+        data_requests::create,
+        data_requests::get_one,
+        data_requests::verify,
+        data_requests::decline,
+        data_requests::extend,
+        data_requests::run,
+        data_requests::deleted_archive,
         announce::alerts,
         announce::ack,
         announce::card_action,
@@ -362,6 +399,15 @@ pub fn router() -> Router<AppState> {
         people::UnlinkResult,
         people::TransferBody,
         announce::CardActionBody,
+        data_requests::DataRequestList,
+        data_requests::CreateBody,
+        data_requests::ExtendBody,
+        data_requests::RunBody,
+        sr_admin::DeletedArchive,
+        sr_admin::DataRequest,
+        sr_admin::DataRequestKind,
+        sr_admin::DataRequestState,
+        sr_admin::RetainedRecord,
         sr_admin::StaffOffer,
         sr_admin::OfferState,
         sr_admin::Delegation,

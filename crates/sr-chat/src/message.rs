@@ -118,6 +118,10 @@ pub struct Poll {
     /// Set once the poll has been finalised (results are final, votes refused).
     #[serde(default)]
     pub finalized: bool,
+    /// Votes of members whose votes were removed after the poll closed (D-332): counted per answer id
+    /// without a voter, so the result the room saw does not move.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub anonymous_counts: std::collections::BTreeMap<u32, u32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

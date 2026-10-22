@@ -233,6 +233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/accounts/{account_id}/deleted-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The original username, email and display name of a deleted account, from the staff-only archive
+         *     (`MANAGE_ACCOUNTS`, D-326). Each view is written to the access log.
+         */
+        get: operations["deleted_archive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts/{account_id}/force-logout": {
         parameters: {
             query?: never;
@@ -1204,6 +1224,113 @@ export interface paths {
         post?: never;
         /** Delete a variant (`PUBLISH_MEDIA`). */
         delete: operations["admin_cinema_delete_variant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The queue, active requests by due date first (`MANAGE_TAKEDOWNS`). */
+        get: operations["list"];
+        put?: never;
+        /** Enter a request that arrived by email or form; the due date is computed now. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One request (the read is logged). */
+        get: operations["get_one"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refuse a request with a stated reason. */
+        post: operations["decline"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extend the deadline by `days`, once, with a reason (GDPR article 12(3)). */
+        post: operations["extend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a verified request. An export queues the self-service data package for the person (they
+         *     download it from Settings for 7 days); an erasure deletes the account through account
+         *     deletion and completes with an outcome that names the records that stay (D-124, G-66).
+         */
+        post: operations["run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record that staff checked who is asking; the reason says how. */
+        post: operations["verify"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -10129,6 +10256,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/users/@me/messages/delete-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many messages a run would hide, and the last run. */
+        get: operations["preview"];
+        put?: never;
+        /** Hide every message and upload of yours in the chosen places. Runs in the background. */
+        post: operations["delete_all"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/voice/turn": {
         parameters: {
             query?: never;
@@ -12496,6 +12641,40 @@ export interface components {
             email: string;
             reason?: string | null;
         };
+        /** @description Body of `POST /admin/data-requests`. */
+        AdminCreateDataRequestBody: {
+            /** @description The account the request is about (decimal snowflake). */
+            account_id: string;
+            kind: components["schemas"]["DataRequestKind"];
+            /** @description Free text: how it arrived, what was asked (at most 1000 characters). */
+            note?: string | null;
+            /**
+             * Format: int64
+             * @description When it arrived, Unix milliseconds; defaults to now.
+             */
+            received_at_ms?: number | null;
+        };
+        /** @description The queue with the settings the page needs. */
+        AdminDataRequestList: {
+            /**
+             * Format: int32
+             * @description `compliance.data_request_deadline_days` today (new requests use it).
+             */
+            deadline_days: number;
+            items: components["schemas"]["DataRequest"][];
+            /** @description The records an erasure keeps, so the page can name them (G-66, D-295). */
+            retained_catalog: components["schemas"]["RetainedRecord"][];
+        };
+        /** @description Body of `POST /admin/data-requests/{id}/extend`. */
+        AdminExtendDataRequestBody: {
+            /**
+             * Format: int64
+             * @description 1 to 60 days added to the original due date. Allowed once.
+             */
+            days: number;
+            /** @description Why the request is complex or numerous (required, kept in the access log). */
+            reason?: string | null;
+        };
         /** @description A server in the platform-wide list (staff only). */
         AdminGuild: {
             /** Format: int64 */
@@ -12562,6 +12741,14 @@ export interface components {
             reason?: string | null;
             /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
             username?: string | null;
+        };
+        /** @description Body of `POST /admin/data-requests/{id}/run` (optional). */
+        AdminRunDataRequestBody: {
+            /**
+             * @description Erasure only: the member also asked for their messages to be deleted (N-06, D-324). The
+             *     member's message self-delete is queued with servers and direct messages, no cut-off.
+             */
+            delete_messages?: boolean;
         };
         /** @description An open session of an account, as the staff drawer lists it. No token material. */
         AdminSession: {
@@ -14690,6 +14877,69 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        /** @description A queue row. */
+        DataRequest: {
+            account_id: string;
+            /** Format: int64 */
+            completed_at_ms?: number | null;
+            created_by: string;
+            /**
+             * Format: int64
+             * @description The deadline computed when the request was entered.
+             */
+            due_at_ms: number;
+            /**
+             * Format: int64
+             * @description `extended_until_ms` when extended, else `due_at_ms`.
+             */
+            effective_due_ms: number;
+            /** @description The `data_exports` row an export run queued. */
+            export_id?: string | null;
+            /**
+             * Format: int64
+             * @description When the extension was recorded.
+             */
+            extended_at_ms?: number | null;
+            /** @description The extension was granted after the original `due_at` (it does not cure a missed deadline). */
+            extended_late: boolean;
+            /**
+             * Format: int64
+             * @description The new deadline once the one extension was recorded.
+             */
+            extended_until_ms?: number | null;
+            extension_reason?: string | null;
+            id: string;
+            kind: components["schemas"]["DataRequestKind"];
+            /**
+             * Format: int64
+             * @description When the member was told of the extension by system DM; `None` when no DM could be sent.
+             */
+            member_notified_at_ms?: number | null;
+            note: string;
+            outcome?: string | null;
+            /** @description Active and past the effective deadline. */
+            overdue: boolean;
+            person_id: string;
+            /** Format: int64 */
+            received_at_ms: number;
+            /** @description Ids of the [`retained`] records an erasure named. */
+            retained: string[];
+            state: components["schemas"]["DataRequestState"];
+            username: string;
+            /** Format: int64 */
+            verified_at_ms?: number | null;
+            verified_by?: string | null;
+        };
+        /**
+         * @description What the request asks for.
+         * @enum {string}
+         */
+        DataRequestKind: "export" | "erasure";
+        /**
+         * @description Where the request stands.
+         * @enum {string}
+         */
+        DataRequestState: "open" | "verified" | "running" | "completed" | "declined";
         DecideRequestBody: {
             approve: boolean;
             note?: string | null;
@@ -14757,6 +15007,24 @@ export interface components {
             created_at_ms: number;
             id: string;
             state: string;
+        };
+        /** @description The staff-only archive of a deleted account's original identifiers (D-326). */
+        DeletedArchive: {
+            account_id: string;
+            /** Format: int32 */
+            credits_forfeited: number;
+            /** Format: int64 */
+            deleted_at_ms: number;
+            display_name?: string | null;
+            email: string;
+            /** Format: int32 */
+            invites_revoked: number;
+            username: string;
+            /**
+             * Format: int64
+             * @description When the username can be taken again.
+             */
+            username_release_at_ms: number;
         };
         /** @description An application. The client secret is never part of it. */
         DeveloperApplicationObject: {
@@ -16953,6 +17221,60 @@ export interface components {
             /** Format: int64 */
             upload_url_expires_in: number;
         };
+        /** @description Body of `POST /sr/users/@me/messages/delete-all`. */
+        MessagesSelfDeleteBody: {
+            /**
+             * Format: int64
+             * @description Only messages older than this (Unix milliseconds).
+             */
+            before_ms?: number | null;
+            /** @description The account's username, typed to confirm (case-insensitive). */
+            confirm_username: string;
+            /** @description Hide messages in direct messages and group DMs. */
+            dms: boolean;
+            mfa?: null | components["schemas"]["MfaProof"];
+            /** @description Current password. */
+            password: string;
+            /** @description Hide messages in servers (including servers you left). */
+            servers: boolean;
+        };
+        /** @description What a run would hide, and the last run. */
+        MessagesSelfDeletePreview: {
+            /**
+             * Format: int64
+             * @description Visible messages inside the scope right now (messages under a hold are included: they are
+             *     hidden from everyone but never purged).
+             */
+            count: number;
+            last?: null | components["schemas"]["MessagesSelfDeleteRun"];
+            /**
+             * Format: int64
+             * @description Your poll votes a run would remove; votes in closed polls stay as anonymous counts.
+             */
+            poll_votes: number;
+            /**
+             * Format: int64
+             * @description Your reactions inside the scope that a run would remove (not those on held messages).
+             */
+            reactions: number;
+        };
+        /** @description A run. */
+        MessagesSelfDeleteRun: {
+            /** Format: int64 */
+            before_ms?: number | null;
+            dms: boolean;
+            finished_at?: string | null;
+            /**
+             * Format: int64
+             * @description Messages hidden, once done.
+             */
+            hidden_count?: number | null;
+            id: string;
+            requested_at: string;
+            servers: boolean;
+            /** @description `queued`, `running`, `done` or `failed`. */
+            state: string;
+        };
         /** @description Body of `POST /guilds/{id}/mfa`. */
         MfaLevelBody: {
             /**
@@ -18360,6 +18682,11 @@ export interface components {
         PublicComplianceObject: {
             /**
              * Format: int32
+             * @description Years invoices stay linked to a member after the year of payment (D-325).
+             */
+            invoice_retention_years: number;
+            /**
+             * Format: int32
              * @description The age a person must be to register (13 unless the operator raised it).
              */
             minimum_age: number;
@@ -18812,6 +19139,12 @@ export interface components {
         RespondBody: {
             /** @description `true` to accept (and join the staff), `false` to decline. */
             accept: boolean;
+        };
+        /** @description One record kept after an erasure, with the reason (G-66, D-124, D-295). */
+        RetainedRecord: {
+            id: string;
+            label: string;
+            reason: string;
         };
         RetranscodeBody: {
             /** @description The asset or title id; required unless the scope is `all`. */
@@ -21983,6 +22316,52 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    deleted_archive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedArchive"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -25565,6 +25944,412 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only requests that still need staff (default true) */
+                active_only?: boolean;
+                /** @description At most 200 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDataRequestList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateDataRequestBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_one: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    decline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    extend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminExtendDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRunDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -53947,6 +54732,88 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query?: {
+                /** @description Count messages in servers (default true) */
+                servers?: boolean;
+                /** @description Count messages in direct messages (default true) */
+                dms?: boolean;
+                /** @description Only messages older than this */
+                before_ms?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesSelfDeletePreview"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessagesSelfDeleteBody"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesSelfDeleteRun"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description A run is open, or one ran in the last 24 hours */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

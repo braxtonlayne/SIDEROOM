@@ -585,7 +585,7 @@ describe('Delete account (LNG-USET-006, D-124, G-82)', () => {
     );
     const router = openSettings('account');
     const dialog = await openDialog();
-    expect(within(dialog).getByText(/your Person record/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/These records stay: Person record/)).toBeInTheDocument();
     expect(await axeViolations(dialog)).toEqual([]);
     // The button stays off until the username matches.
     const confirm = within(dialog).getByRole('button', { name: 'Delete my account for good' });

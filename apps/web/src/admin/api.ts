@@ -920,3 +920,81 @@ export const decideActivity = (
     bundle_id: bundleId,
     note: note || null,
   });
+
+// ---- data-subject requests (M-25 step c, MOD-DSR) ----
+
+export type DataRequestKind = 'export' | 'erasure';
+export type DataRequestState = 'open' | 'verified' | 'running' | 'completed' | 'declined';
+export interface DataRequest {
+  id: string;
+  kind: DataRequestKind;
+  person_id: string;
+  account_id: string;
+  username: string;
+  state: DataRequestState;
+  note: string;
+  received_at_ms: number;
+  /** The date computed when the request was entered. */
+  due_at_ms: number;
+  extended_until_ms: number | null;
+  extension_reason: string | null;
+  /** The extended date when there is one, else `due_at_ms`. */
+  effective_due_ms: number;
+  overdue: boolean;
+  verified_by: string | null;
+  verified_at_ms: number | null;
+  export_id: string | null;
+  outcome: string | null;
+  retained: string[];
+  completed_at_ms: number | null;
+  extended_at_ms: number | null;
+  /** The extension was granted after the original due date. */
+  extended_late: boolean;
+  /** When the member was told by system DM; null when no DM could be sent. */
+  member_notified_at_ms: number | null;
+  created_by: string;
+}
+export interface RetainedRecord {
+  id: string;
+  label: string;
+  reason: string;
+}
+export interface DataRequestList {
+  items: DataRequest[];
+  deadline_days: number;
+  retained_catalog: RetainedRecord[];
+}
+export const listDataRequests = (activeOnly: boolean) =>
+  get<DataRequestList>(`/admin/data-requests${qs({ active_only: activeOnly, limit: 200 })}`);
+export const createDataRequest = (body: {
+  kind: DataRequestKind;
+  account_id: string;
+  received_at_ms?: number;
+  note?: string;
+}) => send<DataRequest>('/admin/data-requests', 'POST', body);
+export const verifyDataRequest = (id: string, reason: string) =>
+  send<DataRequest>(`/admin/data-requests/${id}/verify`, 'POST', { reason });
+export const declineDataRequest = (id: string, reason: string) =>
+  send<DataRequest>(`/admin/data-requests/${id}/decline`, 'POST', { reason });
+export const extendDataRequest = (id: string, days: number, reason: string) =>
+  send<DataRequest>(`/admin/data-requests/${id}/extend`, 'POST', { days, reason });
+export const runDataRequest = (id: string, deleteMessages = false) =>
+  send<DataRequest>(
+    `/admin/data-requests/${id}/run`,
+    'POST',
+    deleteMessages ? { delete_messages: true } : undefined,
+  );
+
+export interface DeletedArchive {
+  account_id: string;
+  username: string;
+  email: string;
+  display_name: string | null;
+  deleted_at_ms: number;
+  username_release_at_ms: number;
+  credits_forfeited: number;
+  invites_revoked: number;
+}
+/** Original identifiers of a deleted account (D-326); each call is written to the access log. */
+export const getDeletedArchive = (accountId: string) =>
+  get<DeletedArchive>(`/admin/accounts/${accountId}/deleted-archive`);

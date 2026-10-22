@@ -20,7 +20,7 @@ pub mod store;
 pub mod template;
 pub mod testing;
 
-pub use compliance::{COMPLIANCE_ID, ComplianceFeature, ComplianceSettings};
+pub use compliance::{COMPLIANCE_ID, ComplianceFeature, ComplianceSettings, INVOICE_YEARS_RANGE};
 pub use directory::{DirectoryHiddenCategoriesFeature, HIDDEN_CATEGORIES_ID, hidden_from};
 pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,

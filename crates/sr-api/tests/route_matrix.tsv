@@ -130,6 +130,7 @@ GET	/admin/access-log/verify	authenticated	staff	deny	-
 GET	/admin/accounts	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
+GET	/admin/accounts/{account_id}/deleted-archive	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/guilds	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-descendants	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-
@@ -145,6 +146,8 @@ GET	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-
 GET	/admin/cinema/reports	authenticated	staff	deny	-
 GET	/admin/cinema/titles	authenticated	staff	deny	-
 GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
+GET	/admin/data-requests	authenticated	staff	deny	-
+GET	/admin/data-requests/{request_id}	authenticated	staff	deny	-
 GET	/admin/developers/activities	authenticated	staff	deny	-
 GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-
 GET	/admin/developers/packages	authenticated	staff	deny	-
@@ -426,6 +429,7 @@ GET	/sr/entrance/hero	public	none	deny	-
 GET	/sr/features/flags	authenticated	user	deny	-
 GET	/sr/invites	authenticated	self	deny	-
 GET	/sr/profile-catalog	authenticated	user	deny	-
+GET	/sr/users/@me/messages/delete-all	authenticated	self	deny	-
 GET	/sr/voice/turn	authenticated	user	allow	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
 GET	/sticker-packs	authenticated	user	allow	-
@@ -596,6 +600,11 @@ POST	/admin/cinema/titles/{title_id}/seasons	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/trailers	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/unpublish	authenticated	staff	deny	-
 POST	/admin/cinema/titles/{title_id}/variants	authenticated	staff	deny	-
+POST	/admin/data-requests	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/decline	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/extend	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/run	authenticated	staff	deny	-
+POST	/admin/data-requests/{request_id}/verify	authenticated	staff	deny	-
 POST	/admin/developers/activities/{application_id}/decision	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/suspend	authenticated	staff	deny	-
 POST	/admin/developers/apps/{application_id}/unsuspend	authenticated	staff	deny	-
@@ -762,6 +771,7 @@ POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
 POST	/sr/auth/password	authenticated	self	deny	-
 POST	/sr/auth/reauth	authenticated	self	deny	-
 POST	/sr/invites	authenticated	self	deny	-
+POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-

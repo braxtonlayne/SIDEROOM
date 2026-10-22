@@ -41,6 +41,10 @@ use sr_payments::{
 
 pub const WATCH_KIND: &str = "payments.watch";
 pub const HOUSEKEEP_KIND: &str = "payments.housekeeping";
+pub const DETACH_KIND: &str = "payments.detach_expired_invoices";
+/// Monthly singleton that detaches invoices past the retention period (N-08, D-325).
+pub const DETACH_JOB_ID: i64 = 1105;
+const DETACH_INTERVAL: Duration = Duration::from_secs(30 * 24 * 3600);
 pub const WATCH_JOB_ID: i64 = 540;
 pub const HOUSEKEEP_JOB_ID: i64 = 541;
 const WATCH_INTERVAL: Duration = Duration::from_secs(15);
@@ -180,7 +184,32 @@ async fn seed_wallet(service: &PaymentService) {
 }
 
 /// Register both handlers; pair with [`schedule`].
-pub fn register(runner: JobRunner, pool: &PgPool, service: Arc<PaymentService>) -> JobRunner {
+pub fn register(
+    runner: JobRunner,
+    pool: &PgPool,
+    service: Arc<PaymentService>,
+    features: sr_features::FeatureService,
+) -> JobRunner {
+    let detach_pool = pool.clone();
+    let runner = runner.register(DETACH_KIND, 1, move |job: Job| {
+        let (pool, features) = (detach_pool.clone(), features.clone());
+        Box::pin(async move {
+            let values = features
+                .effective_settings(sr_features::COMPLIANCE_ID, &sr_features::ScopeRef::Platform)
+                .await
+                .unwrap_or_default();
+            let years =
+                sr_features::ComplianceSettings::from_values(&values).invoice_retention_years;
+            match sr_db::invoice_retention::detach_expired(&pool, years, now_ms()).await {
+                Ok(n) => tracing::info!(invoices = n, years, "expired invoices detached"),
+                Err(e) => tracing::warn!(error = %e, "invoice detach failed"),
+            }
+            jobs::reschedule_running(&pool, job.id, DETACH_INTERVAL)
+                .await
+                .map_err(HandlerError::from)?;
+            Ok(())
+        })
+    });
     let (watch_pool, keep_pool) = (pool.clone(), pool.clone());
     let (watch, keep) = (service.clone(), service);
     runner
@@ -228,6 +257,14 @@ pub fn register(runner: JobRunner, pool: &PgPool, service: Arc<PaymentService>) 
 /// Create or re-arm the periodic singletons. Call only when [`register`] is on the runner.
 pub async fn schedule(pool: &PgPool) -> DbResult<()> {
     jobs::schedule_singleton(pool, WATCH_JOB_ID, WATCH_KIND, &json!({}), WATCH_INTERVAL).await?;
+    jobs::schedule_singleton(
+        pool,
+        DETACH_JOB_ID,
+        DETACH_KIND,
+        &json!({}),
+        DETACH_INTERVAL,
+    )
+    .await?;
     jobs::schedule_singleton(
         pool,
         HOUSEKEEP_JOB_ID,

@@ -76,8 +76,14 @@ function Detail({
             <dl className="adm-dl">
               <dt>{t('admin.donations.invoices.dtPayer')}</dt>
               <dd>
-                {inv.user_name ?? t('admin.donations.invoices.unknown')}{' '}
-                <span className="adm-mono">({inv.user_id})</span>
+                {inv.user_id === '0' ? (
+                  t('admin.donations.invoices.detached')
+                ) : (
+                  <>
+                    {inv.user_name ?? t('admin.donations.invoices.unknown')}{' '}
+                    <span className="adm-mono">({inv.user_id})</span>
+                  </>
+                )}
               </dd>
               <dt>{t('admin.donations.invoices.dtFor')}</dt>
               <dd>
@@ -305,7 +311,11 @@ export function InvoicesSection() {
                       {i.id}
                     </Button>
                   </th>
-                  <td>{i.user_name ?? i.user_id}</td>
+                  <td>
+                    {i.user_id === '0'
+                      ? t('admin.donations.invoices.detached')
+                      : (i.user_name ?? i.user_id)}
+                  </td>
                   <td>{PURPOSE_COPY[i.purpose]}</td>
                   <td>{usd(i.usd_cents)}</td>
                   <td>

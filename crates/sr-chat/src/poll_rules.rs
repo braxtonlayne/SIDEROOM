@@ -160,6 +160,7 @@ pub fn plan_poll(c: PollCreate, now_ms: i64) -> ChatResult<Poll> {
         layout_type: Some(1),
         expiry_ms: Some(now_ms + i64::from(hours) * HOUR_MS),
         finalized: false,
+        anonymous_counts: std::collections::BTreeMap::new(),
     })
 }
 

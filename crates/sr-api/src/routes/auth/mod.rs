@@ -27,6 +27,7 @@ mod mfa;
 mod passkeys;
 mod recovery;
 mod register;
+mod self_delete;
 mod sessions;
 mod store;
 pub mod throttle;
@@ -52,6 +53,10 @@ pub async fn confirm_password(
 }
 /// Second-factor window of a staff session (ADM-STF-009).
 pub use identity::{STAFF_MFA_WINDOW_SECS, StaffMfa};
+pub use self_delete::{
+    SelfDeleteCounts, SelfDeleteDeps, SelfDeleteRefusal, SelfDeleteRun, SelfDeleteScope,
+    SelfDeleteStore,
+};
 
 /// Is the session's second factor fresh? (admin re-auth gate)
 pub async fn staff_mfa_state(
@@ -98,6 +103,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(passkeys::PasskeysApiDoc::openapi());
     doc.merge(discord::DiscordApiDoc::openapi());
     doc.merge(member_invites::MemberInvitesApiDoc::openapi());
+    doc.merge(self_delete::SelfDeleteApiDoc::openapi());
     doc
 }
 
@@ -171,6 +177,10 @@ pub fn router() -> Router<AppState> {
         .route("/sr/auth/password", post(identity::change_password))
         .route("/sr/auth/username", put(identity::change_username))
         .route("/sr/auth/account/delete", post(identity::delete_account))
+        .route(
+            "/sr/users/@me/messages/delete-all",
+            get(self_delete::preview).post(self_delete::delete_all),
+        )
         .route("/sr/auth/email/change", post(identity::change_email))
         .route("/sr/auth/email/cancel", post(identity::cancel_change_email))
         .route(

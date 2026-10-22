@@ -17,6 +17,9 @@ pub const COMPLIANCE_ID: &str = "platform.compliance";
 /// 18 for an adults-only instance).
 pub const MIN_AGE_RANGE: (i64, i64) = (13, 18);
 
+/// Range of `compliance.invoice_retention_years` (D-325).
+pub const INVOICE_YEARS_RANGE: (i64, i64) = (3, 15);
+
 #[derive(Default)]
 pub struct ComplianceFeature;
 
@@ -84,6 +87,13 @@ impl Feature for ComplianceFeature {
                         .default_value(json!(30))
                         .help("The due date staff see on a data-subject request when it arrives."),
                         Field::new(
+                            "invoice_retention_years",
+                            "Invoice retention (years)",
+                            int(INVOICE_YEARS_RANGE.0, INVOICE_YEARS_RANGE.1),
+                        )
+                        .default_value(json!(10))
+                        .help("Years invoices stay linked to the member after the year of payment; set it to what accounting law requires where you operate."),
+                        Field::new(
                             "operator_country",
                             "Operator country",
                             FieldKind::String { max_len: Some(2) },
@@ -113,6 +123,8 @@ pub struct ComplianceSettings {
     pub strike_review_threshold: u8,
     pub strike_window_months: u8,
     pub data_request_deadline_days: u16,
+    /// Years invoices stay linked to the member after the year of payment (N-07, D-325).
+    pub invoice_retention_years: u8,
     /// Upper-case ISO 3166-1 alpha-2, when valid.
     pub operator_country: Option<String>,
     pub operator_contact: Option<String>,
@@ -125,6 +137,7 @@ impl Default for ComplianceSettings {
             strike_review_threshold: 3,
             strike_window_months: 12,
             data_request_deadline_days: 30,
+            invoice_retention_years: 10,
             operator_country: None,
             operator_contact: None,
         }
@@ -188,6 +201,12 @@ impl ComplianceSettings {
                 i64::from(d.data_request_deadline_days),
             ))
             .unwrap_or(d.data_request_deadline_days),
+            invoice_retention_years: small(
+                compliance,
+                "invoice_retention_years",
+                INVOICE_YEARS_RANGE,
+                d.invoice_retention_years,
+            ),
             operator_country: text(compliance, "operator_country")
                 .map(|c| c.to_ascii_uppercase())
                 .filter(|c| c.len() == 2 && c.chars().all(|ch| ch.is_ascii_uppercase())),
@@ -225,6 +244,7 @@ mod tests {
             "moderation": { "strike_review_threshold": 5, "strike_window_months": 6 },
             "compliance": {
                 "data_request_deadline_days": 45,
+                "invoice_retention_years": 7,
                 "operator_country": "de",
                 "operator_contact": " legal@example.org "
             }
@@ -240,6 +260,14 @@ mod tests {
         assert_eq!(s.minimum_age, 16);
         assert_eq!((s.strike_review_threshold, s.strike_window_months), (5, 6));
         assert_eq!(s.data_request_deadline_days, 45);
+        assert_eq!(s.invoice_retention_years, 7);
+        assert_eq!(ComplianceSettings::default().invoice_retention_years, 10);
+        let wild = json!({"compliance": {"invoice_retention_years": 99}});
+        assert_eq!(
+            ComplianceSettings::from_values(wild.as_object().unwrap()).invoice_retention_years,
+            10,
+            "a hand-edited out-of-range value falls back to the default"
+        );
         assert_eq!(s.operator_country.as_deref(), Some("DE"));
         assert_eq!(s.operator_contact.as_deref(), Some("legal@example.org"));
     }
@@ -252,6 +280,8 @@ mod tests {
             json!({"accounts": {"minimum_age": 19}}),
             json!({"moderation": {"strike_review_threshold": 0}}),
             json!({"compliance": {"data_request_deadline_days": 91}}),
+            json!({"compliance": {"invoice_retention_years": 2}}),
+            json!({"compliance": {"invoice_retention_years": 16}}),
             json!({"compliance": {"operator_country": "DEU"}}),
         ] {
             assert!(

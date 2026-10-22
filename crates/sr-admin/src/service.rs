@@ -61,6 +61,7 @@ pub struct AdminService {
     bus: Option<Arc<dyn EventBus>>,
     pub(crate) extras: Option<Arc<dyn StaffExtrasRepository>>,
     pub(crate) notifier: Option<Arc<dyn StaffNotifier>>,
+    pub(crate) data_requests: Option<Arc<dyn crate::data_requests::DataRequestRepository>>,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) stats_cache: Arc<Mutex<Option<(i64, SystemCounts)>>>,
 }
@@ -72,6 +73,7 @@ impl AdminService {
             bus: None,
             extras: None,
             notifier: None,
+            data_requests: None,
             clock: Arc::new(SystemClock),
             stats_cache: Arc::new(Mutex::new(None)),
         }
@@ -80,6 +82,15 @@ impl AdminService {
     /// Storage of offers, announcements, alerts and private reads (phase 10).
     pub fn with_extras(mut self, extras: Arc<dyn StaffExtrasRepository>) -> Self {
         self.extras = Some(extras);
+        self
+    }
+
+    /// Storage of the data-subject request queue (M-25 step c).
+    pub fn with_data_requests(
+        mut self,
+        r: Arc<dyn crate::data_requests::DataRequestRepository>,
+    ) -> Self {
+        self.data_requests = Some(r);
         self
     }
 

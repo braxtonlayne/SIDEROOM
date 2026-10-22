@@ -1175,10 +1175,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     ));
     // Tester invitations and endpoint warnings reach developers as system DMs.
     dev_deps.set_system_dm(staff_voice.clone());
+    let self_delete_voice: Arc<dyn sr_admin::StaffNotifier> = staff_voice.clone();
     // Review decisions reach the submitter as a system DM too (REV-CORE-007).
     let _ = review_dm.set(staff_voice.clone());
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
-        .with_extras(admin_repo)
+        .with_extras(admin_repo.clone())
+        .with_data_requests(admin_repo)
         .with_notifier(staff_voice.clone())
         .with_bus(bus.clone());
     // Incident "Resume invites" cards close once the pause is over, whoever ended it (D-253).
@@ -1305,6 +1307,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(social_api.clone())
         .extension(connections_deps)
         .extension(export_deps)
+        .extension(Arc::new(routes::auth::SelfDeleteDeps {
+            store: Arc::new(crate::userset_jobs::PgSelfDeleteStore::new(
+                pool.clone(),
+                id_src.clone(),
+            )),
+        }))
         .extension(push_deps)
         .extension(gif_deps)
         .extension(lookup_deps)
@@ -1453,7 +1461,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         media_service_shared,
         download_service,
     );
-    let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
+    let runner =
+        crate::payments_jobs::register(runner, &pool, payments.service.clone(), features.clone());
     let runner = crate::userset_jobs::register(
         runner,
         &pool,
@@ -1461,6 +1470,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         social_api.clone(),
         provider_client.clone(),
         packages_deps.service.clone(),
+        crate::userset_jobs::SelfDeleteEnv {
+            bus: bus.clone(),
+            notifier: Some(self_delete_voice),
+            ids: id_src.clone(),
+            features: features.clone(),
+        },
     );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
