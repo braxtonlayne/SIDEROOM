@@ -34,7 +34,7 @@ Base `integration/phase19` (= main). Migration range used: **1150** only (`1150_
 
 ## Tests run
 
-See the final report of the run for the exact counts; commands:
+Results (all green): sr-admin 60; sr-moderation 34 unit + 14 + 7 + 16 Postgres; sr-api 649 lib (incl. 14 moderation route tests), route_matrix 5, openapi_names 2; sr-db admin_repo 10, member_invites 8, p13_settings_admin 2, data_requests 6, registration 4; sr-server 125; fmt and clippy -D warnings clean; web typecheck, eslint, prettier, full vitest 274 files / 2467 tests, vite build, bundle budget (admin 357.7 of 600 KB gzip). Commands:
 - `cargo fmt --check`; `cargo clippy -j 2 -p sr-admin -p sr-db -p sr-moderation -p sr-api -p sr-server --all-targets -- -D warnings`.
 - `cargo test -p sr-moderation` (unit 34 incl. 8 new in `suspicion_rules`) and `--test suspicion -- --include-ignored --test-threads=1` (7 Postgres tests: auto case, no-senior, panel, shared address and privacy, shared networks/old history/scrubbed, lineage, end to end through `AdminService`).
 - `cargo test -p sr-api` moderation route tests (denials by name and logged, bad input, Postgres flow over HTTP), `route_matrix`, `openapi_names`.
