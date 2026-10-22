@@ -45,5 +45,7 @@ Migration 1140 adds the indexes the aggregates need (cases `opened_at`/`closed_a
 
 ## Open owner questions
 
-1. Is the reading of "unattached reports" (open and unassigned) what you meant?
-2. Should `PLATFORM_BAN` alone see the Moderation section (with only the Dashboard tab)? Today an existing test says no.
+1. ANSWERED (D-339): "unattached" = report `received`, case `open`, no assignee. Spec 9.2, section 17 and the `INBOX_CASES` comment say so.
+2. ANSWERED (D-340): no. `PLATFORM_BAN` holders get the ban figures on Admin > Bans instead (P-02, done).
+
+For the integrator: tick P-01 and P-02 in `answers-followups-p16.md` (that file is on the mod-age branch). Commits are prefixed P-01 and P-02.

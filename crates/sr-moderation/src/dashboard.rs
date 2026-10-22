@@ -285,7 +285,8 @@ impl Moderation {
     }
 
     /// The part of the inbox every figure and list shares: an open case that nobody has picked up, routed to
-    /// platform staff or reviewers (a server's own cases stay with its moderators, D-209).
+    /// platform staff or reviewers (a server's own cases stay with its moderators, D-209). This is what
+    /// "unattached" means in spec 9.2: report `received`, case `open`, no assignee (D-339).
     const INBOX_CASES: &'static str = "c.state = 'open' AND c.assignee_id IS NULL \
         AND c.routing IN ('platform', 'reviewers')";
 
