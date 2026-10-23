@@ -1206,6 +1206,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             audit: audit_sink.clone(),
             pool: pool.clone(),
         }))
+        .with_item_index_sink(Arc::new(crate::moderation_index::CatalogIndexSink {
+            library: library_service.clone(),
+            cinema: cinema_service.clone(),
+        }))
         .with_blocklist(media_blocklist.clone())
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),

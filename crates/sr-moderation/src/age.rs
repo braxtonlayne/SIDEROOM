@@ -35,6 +35,14 @@ pub trait ChannelSink: Send + Sync {
     async fn channel_changed(&self, guild: i64, channel: i64, actor: i64, nsfw: bool);
 }
 
+/// Refreshes the search index entry of a library series or cinema title whose age flag just changed, so a search
+/// that hides 18+ items for some viewers sees the new flag at once instead of after the next rebuild at boot.
+/// Implemented by the server over the library and cinema services; without one the index catches up at boot.
+#[async_trait]
+pub trait ItemIndexSink: Send + Sync {
+    async fn age_changed(&self, kind: AgeTargetKind, id: i64);
+}
+
 /// What can be marked age-restricted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -123,6 +131,12 @@ fn may_mark(c: &Caller, kind: AgeTargetKind) -> bool {
 }
 
 impl Moderation {
+    /// The sink that keeps the library and cinema search indexes in step with the age flag.
+    pub fn with_item_index_sink(mut self, s: std::sync::Arc<dyn ItemIndexSink>) -> Self {
+        self.item_index_sink = Some(s);
+        self
+    }
+
     /// The channel sink live clients are told through.
     pub fn with_channel_sink(mut self, s: std::sync::Arc<dyn ChannelSink>) -> Self {
         self.channel_sink = Some(s);
@@ -249,6 +263,15 @@ impl Moderation {
         tx.commit().await?;
         if changed && let (Some(g), Some(sink)) = (guild, &self.channel_sink) {
             sink.channel_changed(g, id, who.user_id(), restricted).await;
+        }
+        if changed
+            && matches!(
+                kind,
+                AgeTargetKind::LibrarySeries | AgeTargetKind::CinemaTitle
+            )
+            && let Some(sink) = &self.item_index_sink
+        {
+            sink.age_changed(kind, id).await;
         }
         Ok(AgeChange {
             kind,

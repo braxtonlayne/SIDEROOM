@@ -990,6 +990,16 @@ impl CinemaService {
         }
     }
 
+    /// Refresh one title in the search index from the database, after something changed it outside this
+    /// service (staff set its age flag). A title that is gone, unpublished or merged away leaves the index.
+    pub async fn reindex_one(&self, id: i64) -> CinemaResult<()> {
+        match self.repo.get_title(id, Scope::Staff).await? {
+            Some(rec) => self.sync_index(&rec),
+            None => self.drop_from_index(id),
+        }
+        Ok(())
+    }
+
     /// Rebuild the index from the database. Run at startup (CIN-DATA-004).
     pub async fn reindex_all(&self) -> CinemaResult<usize> {
         let Some(ix) = &self.index else { return Ok(0) };

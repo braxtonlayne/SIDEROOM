@@ -27,6 +27,7 @@ pub mod media_jobs;
 pub mod moderation_actions;
 pub mod moderation_age;
 pub mod moderation_audit;
+pub mod moderation_index;
 pub mod party_cards;
 pub mod party_rooms;
 pub mod payments_jobs;
@@ -88,3 +89,6 @@ mod watchparty_pg_tests;
 
 #[cfg(test)]
 mod feature_actions_pg_tests;
+
+#[cfg(test)]
+mod moderation_index_pg_tests;

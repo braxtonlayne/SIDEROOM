@@ -85,6 +85,7 @@ pub struct Moderation {
     pub(crate) removals: Option<Arc<dyn RemovalSink>>,
     pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
     pub(crate) channel_sink: Option<Arc<dyn crate::age::ChannelSink>>,
+    pub(crate) item_index_sink: Option<Arc<dyn crate::age::ItemIndexSink>>,
 }
 
 impl Moderation {
@@ -99,6 +100,7 @@ impl Moderation {
             removals: None,
             blocklist: None,
             channel_sink: None,
+            item_index_sink: None,
         }
     }
 
