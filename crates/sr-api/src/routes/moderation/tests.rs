@@ -1403,7 +1403,8 @@ async fn the_dashboard_sections_follow_the_bits_over_http() {
     assert_eq!(b["items"][0]["case_id"], "7001");
     assert_eq!(b["items"][0]["reports"], 1);
     assert!(
-        !b.to_string().contains(&MEMBER.to_string()),
+        // Ids are JSON strings; a bare substring would also match inside a millisecond timestamp.
+        !b.to_string().contains(&format!("\"{MEMBER}\"")),
         "no reporter in the inbox: {b}"
     );
 
