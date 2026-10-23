@@ -52,18 +52,18 @@ The `payments` profile ships `electrs` only. The Bitcoin node it reads stays on 
 
 **Stored credentials.** Nothing that grants access is stored in a recoverable form.
 
-| Credential                                                                                                  | Stored as                                                                                                                                                              |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Account password                                                                                            | argon2id PHC string (`accounts.password_hash`)                                                                                                                         |
-| Session token, trusted-device token, email verification/reset token                                         | SHA-256 digest (`sessions`, `trusted_devices`, `email_tokens`; `token_hash`)                                                                                           |
-| Recovery codes                                                                                              | argon2id PHC / SHA-256 digest (`recovery_codes`)                                                                                                                       |
-| Bot token, interaction token, OAuth2 access/refresh token and authorization code, application client secret | SHA-256 digest (`bot_tokens`, `interactions`, `oauth2_*`, `applications.client_secret_hash`)                                                                           |
-| Webhook token                                                                                               | SHA-256 digest (`webhooks.token_hash`)                                                                                                                                 |
-| Transcode worker token                                                                                      | SHA-256 hex digest (`worker_tokens.token_sha256`)                                                                                                                      |
-| TOTP secret                                                                                                 | AES-GCM ciphertext under `server.secret_key` (`secret_enc`); it must be recoverable to verify codes                                                                    |
-| Interactions signing seed (bots with an HTTP endpoint)                                                      | AES-GCM ciphertext under `server.secret_key` (`applications.interactions_signing_seed_sealed`, D-185); the public key is derived on read                               |
-| Passkeys                                                                                                    | public key only (`passkey_credentials.cose_key`)                                                                                                                       |
-| Platform invite, server invite, server template and watch-party codes                                       | plaintext, deliberately: shareable identifiers the issuer must be able to re-display; they grant a narrow, revocable, rate-limited capability and never account access |
+| Credential | Stored as |
+|---|---|
+| Account password | argon2id PHC string (`accounts.password_hash`) |
+| Session token, trusted-device token, email verification/reset token | SHA-256 digest (`sessions`, `trusted_devices`, `email_tokens`; `token_hash`) |
+| Recovery codes | argon2id PHC / SHA-256 digest (`recovery_codes`) |
+| Bot token, interaction token, OAuth2 access/refresh token and authorization code, application client secret | SHA-256 digest (`bot_tokens`, `interactions`, `oauth2_*`, `applications.client_secret_hash`) |
+| Webhook token | SHA-256 digest (`webhooks.token_hash`) |
+| Transcode worker token | SHA-256 hex digest (`worker_tokens.token_sha256`) |
+| TOTP secret | AES-GCM ciphertext under `server.secret_key` (`secret_enc`); it must be recoverable to verify codes |
+| Interactions signing seed (bots with an HTTP endpoint) | AES-GCM ciphertext under `server.secret_key` (`applications.interactions_signing_seed_sealed`, D-185); the public key is derived on read |
+| Passkeys | public key only (`passkey_credentials.cose_key`) |
+| Platform invite, server invite, server template and watch-party codes | plaintext, deliberately: shareable identifiers the issuer must be able to re-display; they grant a narrow, revocable, rate-limited capability and never account access |
 
 The crate test `crates/sr-db/tests/secret_columns.rs` scans every migration and fails if a column named like a credential is neither a digest/ciphertext (`*_hash`, `*_sha256`, `*_phc`, `*_enc`) nor on the plaintext allow list above. Secrets shown once at creation (bot tokens, client secrets, worker tokens, webhook URLs) cannot be shown again; rotating means issuing a new one.
 
@@ -85,32 +85,32 @@ The crate test `crates/sr-db/tests/secret_columns.rs` scans every migration and 
 
 What each surface accepts, and where the code enforces it. Every number below is read from the code by a test (the last column names it), so the table cannot drift from the constants:
 
-| Surface                         | Limit                                           | Value                        | Enforced in                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------- | ----------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chat attachment                 | standard size                                   | 30 MiB                       | `sr_storage::upload::SizePolicy`                                                                                                                                                                                                                                                                                                             |
-| Chat attachment                 | donor and system maximum                        | 500 MiB                      | `SizePolicy`                                                                                                                                                                                                                                                                                                                                 |
-| Chat attachment                 | multipart above                                 | 64 MiB                       | `SizePolicy`                                                                                                                                                                                                                                                                                                                                 |
-| Image re-encoder                | source file                                     | 16 MiB                       | `sr_storage::img::Limits`                                                                                                                                                                                                                                                                                                                    |
-| Image re-encoder                | pixels per frame                                | 24000000                     | `img::Limits`, read from the header before any pixel is decoded                                                                                                                                                                                                                                                                              |
-| Image re-encoder                | animation pixels and frames                     | 32000000 and 400             | `img::Limits`                                                                                                                                                                                                                                                                                                                                |
-| Image sizes served              | range                                           | 16 to 4096 px, powers of two | `img::MIN_SIZE`, `img::MAX_SIZE`                                                                                                                                                                                                                                                                                                             |
-| Emoji                           | file size                                       | 256 KiB                      | `sr_chat::settings::expressions::ExpressionLimits`                                                                                                                                                                                                                                                                                           |
-| Sticker                         | file size                                       | 512 KiB                      | `ExpressionLimits`                                                                                                                                                                                                                                                                                                                           |
-| Soundboard sound                | file size and length                            | 512 KiB and 5 seconds        | `sr_chat::settings::soundboard` (the length is the larger of the header walk and the container's claim: every MP3 frame header and every Opus packet's TOC byte are summed, and the claim is the Ogg granule position, WAV data size, MP3 bitrate or Xing frame count; nothing is decoded, and the client cuts playback at the limit, D-363) |
-| Package zip                     | upload size and unpacked size                   | 8 MiB                        | `sr_packages::zipfiles`                                                                                                                                                                                                                                                                                                                      |
-| Package zip                     | entries                                         | 400                          | `zipfiles`                                                                                                                                                                                                                                                                                                                                   |
-| Package zip                     | path length and segment length                  | 160 and 80 characters        | `zipfiles::path_problem`                                                                                                                                                                                                                                                                                                                     |
-| Emoji pack                      | items, file size, pixels per side               | 100, 256 KiB, 512            | `sr_packages::validate`                                                                                                                                                                                                                                                                                                                      |
-| Sticker pack                    | items, file size, pixels per side               | 40, 512 KiB, 1024            | `validate` (PNG, APNG or GIF only)                                                                                                                                                                                                                                                                                                           |
-| Sound pack                      | items, file size                                | 40, 512 KiB                  | `validate` (Ogg or MP3 magic)                                                                                                                                                                                                                                                                                                                |
-| Library archive (CBZ, CB7, CBR) | file size                                       | 2 GiB                        | `sr_library::ingest::archive::ArchiveLimits`                                                                                                                                                                                                                                                                                                 |
-| Library archive (CBZ, CB7, CBR) | entries                                         | 4000                         | `ArchiveLimits`                                                                                                                                                                                                                                                                                                                              |
-| Library archive (CBZ, CB7, CBR) | one entry, inflated                             | 64 MiB                       | `ArchiveLimits`                                                                                                                                                                                                                                                                                                                              |
-| Library archive (CBZ, CB7, CBR) | all entries, inflated                           | 2 GiB                        | `ArchiveLimits`                                                                                                                                                                                                                                                                                                                              |
-| Library archive (CBZ, CB7, CBR) | compression ratio, for entries of 1 MiB or more | 150                          | `ArchiveLimits` (7z checks each solid block, RAR the whole archive)                                                                                                                                                                                                                                                                          |
-| Library archive (CBZ, CB7, CBR) | one 7z solid block                              | 1 GiB                        | `ArchiveLimits`                                                                                                                                                                                                                                                                                                                              |
-| Library page image              | source file                                     | 64 MiB                       | `sr_library::ingest::image::PageLimits`                                                                                                                                                                                                                                                                                                      |
-| Library page image              | pixels                                          | 60000000                     | `PageLimits`                                                                                                                                                                                                                                                                                                                                 |
+| Surface | Limit | Value | Enforced in |
+|---|---|---|---|
+| Chat attachment | standard size | 30 MiB | `sr_storage::upload::SizePolicy` |
+| Chat attachment | donor and system maximum | 500 MiB | `SizePolicy` |
+| Chat attachment | multipart above | 64 MiB | `SizePolicy` |
+| Image re-encoder | source file | 16 MiB | `sr_storage::img::Limits` |
+| Image re-encoder | pixels per frame | 24000000 | `img::Limits`, read from the header before any pixel is decoded |
+| Image re-encoder | animation pixels and frames | 32000000 and 400 | `img::Limits` |
+| Image sizes served | range | 16 to 4096 px, powers of two | `img::MIN_SIZE`, `img::MAX_SIZE` |
+| Emoji | file size | 256 KiB | `sr_chat::settings::expressions::ExpressionLimits` |
+| Sticker | file size | 512 KiB | `ExpressionLimits` |
+| Soundboard sound | file size and length | 512 KiB and 5 seconds | `sr_chat::settings::soundboard` (the length is the larger of the header walk and the container's claim: every MP3 frame header and every Opus packet's TOC byte are summed, and the claim is the Ogg granule position, WAV data size, MP3 bitrate or Xing frame count; nothing is decoded, and the client cuts playback at the limit, D-363) |
+| Package zip | upload size and unpacked size | 8 MiB | `sr_packages::zipfiles` |
+| Package zip | entries | 400 | `zipfiles` |
+| Package zip | path length and segment length | 160 and 80 characters | `zipfiles::path_problem` |
+| Emoji pack | items, file size, pixels per side | 100, 256 KiB, 512 | `sr_packages::validate` |
+| Sticker pack | items, file size, pixels per side | 40, 512 KiB, 1024 | `validate` (PNG, APNG or GIF only) |
+| Sound pack | items, file size | 40, 512 KiB | `validate` (Ogg or MP3 magic) |
+| Library archive (CBZ, CB7, CBR) | file size | 2 GiB | `sr_library::ingest::archive::ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | entries | 4000 | `ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | one entry, inflated | 64 MiB | `ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | all entries, inflated | 2 GiB | `ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | compression ratio, for entries of 1 MiB or more | 150 | `ArchiveLimits` (7z checks each solid block, RAR the whole archive) |
+| Library archive (CBZ, CB7, CBR) | one 7z solid block | 1 GiB | `ArchiveLimits` |
+| Library page image | source file | 64 MiB | `sr_library::ingest::image::PageLimits` |
+| Library page image | pixels | 60000000 | `PageLimits` |
 
 How the rules read in practice:
 
@@ -132,13 +132,13 @@ How the rules read in practice:
 
 ## 5. Backups and restore
 
-| What                                      | How                                                                          | Frequency                    | Retention                      |
-| ----------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------- | ------------------------------ |
-| Postgres                                  | `pg_dump` (custom format) + WAL archiving to the Storage Box                 | Nightly full, continuous WAL | 14 daily, 8 weekly, 12 monthly |
-| Garage: attachments, avatars, manga pages | `rustic` (Rust restic-compatible) snapshot                                   | Nightly                      | 30 days                        |
-| Garage: video originals                   | Optional (large). Originals can be kept on the Storage Box instead of Garage | Weekly                       | Operator choice                |
-| HLS renditions                            | **Not backed up**. Re-creatable from originals by re-transcoding             | —                            | —                              |
-| Config + secrets                          | Encrypted tarball                                                            | On change                    | 10 versions                    |
+| What | How | Frequency | Retention |
+|---|---|---|---|
+| Postgres | `pg_dump` (custom format) + WAL archiving to the Storage Box | Nightly full, continuous WAL | 14 daily, 8 weekly, 12 monthly |
+| Garage: attachments, avatars, manga pages | `rustic` (Rust restic-compatible) snapshot | Nightly | 30 days |
+| Garage: video originals | Optional (large). Originals can be kept on the Storage Box instead of Garage | Weekly | Operator choice |
+| HLS renditions | **Not backed up**. Re-creatable from originals by re-transcoding | — | — |
+| Config + secrets | Encrypted tarball | On change | 10 versions |
 
 `sr-cli restore <dump> [--force]` and `deploy/scripts/restore.sh`, with a documented restore drill (`restore-drill.sh`, scheduled weekly in CI on a sample dataset).
 
