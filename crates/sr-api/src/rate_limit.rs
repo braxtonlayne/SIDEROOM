@@ -1000,6 +1000,25 @@ mod tests {
     }
 
     #[test]
+    fn forwarded_for_is_trusted_only_behind_a_proxy_and_only_its_last_entry() {
+        let mut req = Request::builder()
+            .header("x-forwarded-for", "9.9.9.9, 1.2.3.4")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([10, 0, 0, 7], 5555))));
+        // Behind Caddy the entry it appended (the last) is the client; a spoofed first entry is ignored.
+        assert_eq!(client_ip(&req, true), Some("1.2.3.4".parse().unwrap()));
+        // Not behind a proxy: the header is attacker-controlled, so the socket peer is the identity.
+        assert_eq!(client_ip(&req, false), Some("10.0.0.7".parse().unwrap()));
+        let bare = Request::builder()
+            .header("x-forwarded-for", "1.2.3.4")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        assert_eq!(client_ip(&bare, false), None);
+    }
+
+    #[test]
     fn prefix_and_major_param() {
         assert_eq!(normalise("/api/v10/channels/{id}"), "/channels/{id}");
         assert_eq!(normalise("/api/v1/users/@me"), "/users/@me");
