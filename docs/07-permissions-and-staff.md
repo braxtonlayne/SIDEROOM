@@ -94,6 +94,44 @@ Any read of private content through admin tools:
 2. Writes `staff_access_log` (hash-chained: `hash = sha256(prev_hash || row)`).
 3. The Owner sees the log in Admin → Access Log. A nightly job verifies the chain and alerts on any break.
 
-## 6. Developer roles
+## 6. Sensitive actions (RDY-SEC-010)
+
+One list in code, `SENSITIVE_ACTIONS` in `crates/sr-api/src/sensitive.rs`, names every action that needs a fresh proof of identity. A staff row is enforced by a route layer (`reauth_gate`) that runs before the handler: the session must have proved a second factor in the last 15 minutes, otherwise `403 900004 SR_REAUTH_REQUIRED` (`900004` as well when no second factor is enrolled), and the client answers by calling `POST /admin/reauth` and retrying. A password row asks for the account password in the request body. The host row is a command that needs the server's config and database in hand. The test `routes::admin::tests::reauth_list_tests` walks every staff row through the real router with the window closed, open and expired; `sensitive::tests` checks that each listed route is in `route_matrix.tsv` as a staff or owner route.
+
+`SR_ADMIN_REQUIRE_REAUTH=0` switches the window off for development and the end-to-end suite. The server refuses to start with it when `server.public_url` is not a development host (`localhost`, a loopback literal or a `*.localhost` name; D-357), the same rule as `SR_PREFLIGHT_INSECURE_TLS`. The gate checks the second factor before the handler's own permission check, so a staff member without the permission also meets `900004` first. The private-content reads (`/admin/private/*`) keep their own gate, which logs the refusal as `denied`.
+
+The table below is printed by `cargo test -p sr-api sensitive::tests::print_table -- --nocapture`.
+
+| Action | Gate | Route or command | Effect |
+|---|---|---|---|
+| Staff appointment | second factor, last 15 minutes | `POST /admin/staff` | Appoint a staff member |
+| Staff appointment | second factor, last 15 minutes | `PUT /admin/staff/{account_id}/roles` | Change a staff member's roles |
+| Staff appointment | second factor, last 15 minutes | `DELETE /admin/staff/{account_id}` | Remove a staff member |
+| Staff appointment | second factor, last 15 minutes | `POST /admin/staff/offers` | Offer an appointment |
+| Staff appointment | second factor, last 15 minutes | `PUT /admin/staff/{account_id}/delegation` | Delegate a permission |
+| Platform ban | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/ban` | Platform-ban the Person behind an account |
+| Platform ban | second factor, last 15 minutes | `POST /admin/persons/{person_id}/ban` | Platform-ban a Person |
+| Platform ban | second factor, last 15 minutes | `POST /moderation/cases/{case_id}/ban` | Platform-ban the Person a case is about |
+| Data-request outcome | second factor, last 15 minutes | `POST /admin/data-requests/{request_id}/run` | Run an export, erasure or other data request |
+| Data-request outcome | second factor, last 15 minutes | `POST /admin/data-requests/{request_id}/decline` | Decline a data request |
+| Takedown uphold | second factor, last 15 minutes | `POST /moderation/takedowns/{notice_id}/uphold` | Uphold a takedown notice |
+| Secret rotation | host access | `sr-cli rotate-secret-key` | Re-seal every stored secret under a new server.secret_key |
+| Owner transfer | second factor, last 15 minutes | `POST /admin/guilds/{guild_id}/transfer-ownership` | Make another member the owner of a server |
+| Application secret reset | account password | `POST /applications/{application_id}/reset-secret` | Replace an application's client secret |
+| Application secret reset | account password | `POST /applications/{application_id}/bot/reset-token` | Replace a bot token |
+| Payout descriptor change | second factor, last 15 minutes | `PUT /admin/donations/wallet` | Set the wallet that receives donations |
+| Account takeover surface | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/reset-2fa` | Reset an account's second factor |
+| Account takeover surface | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/change-email` | Change an account's email |
+| Account takeover surface | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/force-password-reset` | Force a password reset |
+| Account takeover surface | second factor, last 15 minutes | `POST /admin/persons/{person_id}/identities/{identity_id}/move` | Move an identity between Persons |
+| Announcements and entrance | second factor, last 15 minutes | `POST /admin/announcements` | Broadcast an announcement |
+| Announcements and entrance | second factor, last 15 minutes | `PATCH /admin/announcements/{announcement_id}` | Edit an announcement |
+| Announcements and entrance | second factor, last 15 minutes | `PUT /admin/entrance/copy/{key}` | Change the public entrance copy |
+| Announcements and entrance | second factor, last 15 minutes | `DELETE /admin/entrance/copy/{key}` | Reset the public entrance copy |
+| Announcements and entrance | second factor, last 15 minutes | `PUT /admin/entrance/hero` | Change the entrance hero image |
+| Announcements and entrance | second factor, last 15 minutes | `DELETE /admin/entrance/hero` | Remove the entrance hero image |
+| Announcements and entrance | second factor, last 15 minutes | `POST /admin/system/email-test` | Send the operator test mail |
+
+## 7. Developer roles
 
 Not staff. "App developer" status is an account flag set when a developer application is approved (D-062). See doc 11.

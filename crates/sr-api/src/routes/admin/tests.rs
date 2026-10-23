@@ -328,7 +328,12 @@ async fn env_with(reauth: bool) -> Env {
         .extension(auth_svc)
         .build();
     Env {
-        app: build_router(state, router()),
+        app: build_router(
+            state,
+            router()
+                .merge(crate::routes::moderation::router())
+                .merge(crate::routes::donations::router()),
+        ),
         repo,
         tokens,
         bot: "bot-owner",
@@ -3143,3 +3148,6 @@ async fn the_preflight_card_runs_the_checks_for_operators_and_the_access_log_rec
     let detail = b["items"][0]["detail"].as_str().unwrap();
     assert!(detail.contains("\"failing\":[\"storage\"]"), "{detail}");
 }
+
+#[path = "reauth_list_tests.rs"]
+mod reauth_list_tests;
