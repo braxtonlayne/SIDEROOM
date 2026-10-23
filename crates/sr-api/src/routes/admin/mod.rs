@@ -33,8 +33,8 @@ mod system;
 mod tests;
 
 pub use ctx::{
-    AdminDeps, BackupsView, DiskView, IntegrationStatus, ReasonBody, StaffCtx, SystemProbe,
-    map_err, reason as reason_from,
+    AdminDeps, BackupsView, DiskView, IntegrationStatus, PreflightRunner, ReasonBody, StaffCtx,
+    SystemProbe, map_err, reason as reason_from,
 };
 
 use crate::{openapi::ErrorBody, state::AppState};
@@ -198,6 +198,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/stats", get(system::stats))
         .route("/admin/system", get(system::system))
         .route("/admin/system/email-test", post(system::email_test))
+        .route("/admin/system/preflight", post(system::preflight))
         .route("/admin/jobs", get(system::jobs))
         .route("/admin/jobs/{job_id}/retry", post(system::retry_job))
         .route(
@@ -319,6 +320,7 @@ pub fn router() -> Router<AppState> {
         entrance::get_copy,
         entrance::get_hero,
         system::email_test,
+        system::preflight,
         people::sessions,
         people::account_guilds,
         people::freeze_invites,
@@ -401,6 +403,9 @@ pub fn router() -> Router<AppState> {
         entrance::EntranceCopyBody,
         entrance::EntranceHeroBody,
         system::MailTestResult,
+        system::PreflightView,
+        system::PreflightCheckView,
+        system::PreflightStatusView,
         ctx::IntegrationStatus,
         ctx::BackupsView,
         ctx::DiskView,

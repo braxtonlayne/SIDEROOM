@@ -29,6 +29,7 @@ thiserror.workspace = true
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-admin = { path = "../sr-admin" }
 sr-activities = { path = "../sr-activities" }
+sr-preflight = { path = "../sr-preflight" }
 sr-packages = { path = "../sr-packages" }
 sr-api = { path = "../sr-api" }
 sr-apps = { path = "../sr-apps" }

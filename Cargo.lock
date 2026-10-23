@@ -5926,6 +5926,7 @@ dependencies = [
  "sr-net",
  "sr-packages",
  "sr-payments",
+ "sr-preflight",
  "sr-push",
  "sr-reader",
  "sr-review",
@@ -6430,7 +6431,6 @@ dependencies = [
  "sr-storage",
  "sr-voice-proto",
  "tokio",
- "utoipa",
 ]
 
 [[package]]
@@ -6547,6 +6547,7 @@ dependencies = [
  "sr-net",
  "sr-packages",
  "sr-payments",
+ "sr-preflight",
  "sr-push",
  "sr-review",
  "sr-search",

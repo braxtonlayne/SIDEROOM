@@ -1,10 +1,9 @@
 //! The result table.
 
 use serde::Serialize;
-use utoipa::ToSchema;
 
 /// Outcome of one check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
     Pass,
@@ -23,7 +22,7 @@ impl Status {
 }
 
 /// One row of the table.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Check {
     /// Stable id such as `database`, `storage` or `turn`.
     pub id: String,
@@ -45,7 +44,7 @@ impl Check {
 }
 
 /// All rows of one run.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Report {
     pub checks: Vec<Check>,
     /// Unix milliseconds when the run finished.

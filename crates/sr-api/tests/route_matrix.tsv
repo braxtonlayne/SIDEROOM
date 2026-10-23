@@ -672,6 +672,7 @@ POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staf
 POST	/admin/staff	authenticated	staff	deny	-
 POST	/admin/staff/offers	authenticated	staff	deny	-
 POST	/admin/system/email-test	authenticated	staff	deny	-
+POST	/admin/system/preflight	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/retry	authenticated	staff	deny	-
 POST	/admin/transcode/retranscode	authenticated	staff	deny	-

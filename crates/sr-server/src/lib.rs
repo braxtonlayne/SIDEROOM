@@ -30,6 +30,7 @@ pub mod moderation_audit;
 pub mod party_cards;
 pub mod party_rooms;
 pub mod payments_jobs;
+pub mod preflight;
 pub mod push_notify;
 pub mod push_pg;
 pub mod ready;

@@ -21,7 +21,6 @@ sr-db = { path = "../sr-db" }
 sr-storage = { path = "../sr-storage" }
 sr-voice-proto = { path = "../sr-voice-proto" }
 tokio = { workspace = true, features = ["net", "time", "io-util", "rt", "macros"] }
-utoipa = "5"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "io-util"] }
