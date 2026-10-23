@@ -1,5 +1,5 @@
 name: Repo checks
-# XC-CI-002 (PR title), XC-CI-003 (docs links), XC-CI-006 (inventory progress), plus structural checks for
+# XC-CI-002 (PR title), XC-CI-003 (docs links), XC-CI-006 (inventory progress), RDY-SEC-005 (secret scan), plus structural checks for
 # the operations files and the automation scripts themselves. No toolchain beyond Node; runs in seconds.
 on:
   push: { branches: [main] }
@@ -28,6 +28,11 @@ jobs:
         run: node scripts/check-doc-links.mjs
       - name: Operations files (dashboards, alerts, backup scripts, Caddyfile)
         run: node scripts/check-ops-files.mjs
+      - name: Secret scan (tracked files; values are never printed)
+        run: node scripts/secret-scan.mjs
+      - name: Secret scan (lines added by this PR)
+        if: github.event_name == 'pull_request'
+        run: node scripts/secret-scan.mjs --diff "${{ github.event.pull_request.base.sha }}"
       - name: Dependabot directories exist
         run: node scripts/check-dependabot.mjs
       - name: Automation scripts
