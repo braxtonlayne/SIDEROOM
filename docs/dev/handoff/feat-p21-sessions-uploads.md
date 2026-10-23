@@ -75,3 +75,4 @@ All four items are built, run and ticked in `docs/inventory/20-launch-readiness.
 - R-12: `strip_jpeg` stops at the first `FF D9` and drops the MPF APP2; unit test in `exif.rs`; `upload_hygiene.rs` JPEG half flipped, `jpeg+zip` and `jpeg+html` added; doc 12 sentence replaced.
 - R-13: doc 12 section 7 bullet.
 - Postgres suites skipped before were run: see the results line below.
+- Round 2 results: sr-server `--include-ignored --test-threads=1` 128 passed; the full sr-db `--include-ignored` suite green (every binary ok); sr-api lib, sr-chat (325 + 8), sr-storage (55 + 12) green; clippy clean; full vitest 2506 of 2506 in 282 files. Scratch database dropped.
