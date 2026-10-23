@@ -18,7 +18,13 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 
 ## Status
 
-📐 **Specification phase.** No application code exists yet. Everything you need to start building is in [`docs/`](docs/README.md).
+**Built, not yet installed for real.** The application exists: the Rust workspace under `crates/`, the web app under `apps/web`, the shipped deployment files under `deploy/`. Every component in the [inventory](docs/inventory/README.md) files 01 to 19 is ticked except three that are closed or wait on a run (`DON-PAY-009`, `XC-CI-005`, `DEV-SDK-003`). Moderation (Phase 7) is built through the dashboards, suspicion review and age tools.
+
+**Proven.** At the phase 19 integration (2026-10-22) the merged tree passed 2,824 Rust tests, 516 Postgres-backed tests, 2,489 web unit tests and the Chromium Playwright suite on a development machine ([handoff](docs/dev/handoff/feat-p19-integration.md)). That is proof of the code, not of an installation.
+
+**Not yet proven.** The phase exit gates in [docs/13-roadmap-and-phases.md](docs/13-roadmap-and-phases.md) are mostly unrun: the production Compose stack, `deploy/install.sh`, the systemd units and the production Caddyfile have never booted on a real host; ffmpeg has never run in this project (transcoding is tested on canned output); `release.yml`, `openapi.yml`, `storage.yml` and `e2e.yml` have never run on GitHub; the full load target and the manual screen-reader pass are open. The plan that closes these is [docs/dev/roadmap-p20.md](docs/dev/roadmap-p20.md) (waves 20 to 24, decision D-352), with its items in [docs/inventory/20-launch-readiness.md](docs/inventory/20-launch-readiness.md).
+
+**Going live.** What only the owner can do is in [docs/dev/owner-checklist.md](docs/dev/owner-checklist.md), the ordered install and launch steps are in [deploy/GO-LIVE.md](deploy/GO-LIVE.md), and the questions for a lawyer are in [docs/legal/lawyer-brief.md](docs/legal/lawyer-brief.md). Everything you need to work on the code is in [`docs/`](docs/README.md).
 
 ## Start here
 

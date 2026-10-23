@@ -91,6 +91,14 @@ Used through the `unrar` / `unrar_sys` crates (vendored UnRAR source, unmodified
   **GNU FriBidi** (LGPL-2.1-or-later), **HarfBuzz** (MIT-Modern-Variant), and the further components the expression
   names under NTP, Zlib and BSL-1.0 terms.
 
+To complete (placeholders, not yet filled; owner approval needed to fetch them):
+
+- **FreeType Licence, "<year>"** (the credit line inside the FTL text below). The year is the copyright year of the FreeType version compiled into `jassub@2.5.16`'s `.wasm`. Source: FreeType's `docs/FTL.TXT` (the licence) and its `docs/LICENSE.TXT` / README for the year, in the FreeType release that the jassub build pins (see the submodule or build script in https://github.com/ThaUnknown/jassub).
+- **NTP, "(CopyrightHoldersName) (From 4-digit-year)-(To 4-digit-year)"**. The holder and years belong to the component the NTP expression term refers to; which component that is has not been identified here. Source: the `LICENSE` or `COPYING` file of that component in the jassub build tree.
+- **Zlib, "<copyright holders>"**. Expected to be zlib's own notice (Jean-loup Gailly and Mark Adler, with years) as in the `README` and `zlib.h` of the zlib release the jassub build pins; not confirmed on this machine.
+
+Fetching these files is a download of licence text; until the owner approves it the placeholders stay as the SPDX templates give them.
+
 JASSUB's JavaScript wrapper (MIT):
 
 ```text
