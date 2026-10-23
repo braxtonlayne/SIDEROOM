@@ -61,6 +61,10 @@ use tokio::{
     net::TcpStream,
 };
 
+#[path = "../../sr-api/tests/support/platform_cell.rs"]
+mod platform_cell;
+use platform_cell::{Platform, is_platform_name, parse_platform};
+
 const MATRIX: &str = include_str!("../../sr-api/tests/route_matrix.tsv");
 const KEY_HEX: &str = "0707070707070707070707070707070707070707070707070707070707070707";
 /// An id nothing owns.
@@ -69,7 +73,10 @@ const BOGUS: &str = "900000000000000001";
 /// Weak refusals allowed per group, in the order of [`GROUPS`]. A refusal is weak when it is a 404 next
 /// to a 404 for the rightful actor (the seeded id names nothing). The numbers only go down: when a
 /// seed improves, lower the number in the same change.
-const WEAK_CEILING: [usize; 6] = [0, 27, 12, 0, 8, 79];
+/// Admin is 28 since R-07 (D-366): the weak refusals there are one per appointed actor on
+/// `POST /admin/review/submissions/{submission_id}/publish-now`, and the merge rows added the pair actor
+/// `staff_publish_media_and_delete_content`; the seed did not get worse.
+const WEAK_CEILING: [usize; 6] = [0, 28, 12, 0, 8, 79];
 
 /// The groups in RDY-SEC-003 order.
 const GROUPS: [&str; 6] = [
@@ -98,14 +105,22 @@ fn pair_actor_name(pair: &str) -> &'static str {
     Box::leak(format!("staff_{}", pair.to_lowercase().replace('+', "_and_")).into_boxed_str())
 }
 
-/// The distinct `A+B` values of the PLATFORM column.
+/// The distinct `A+B` values of the PLATFORM column (D-366 grammar: `All` with two or more names).
 fn pair_names(routes: &[Route]) -> Vec<String> {
     let set: BTreeSet<&String> = routes
         .iter()
+        .filter(|r| r.platform != "-")
+        .filter(|r| matches!(platform_of(r), Platform::All(_)))
         .map(|r| &r.platform)
-        .filter(|p| p.contains('+'))
         .collect();
     set.into_iter().cloned().collect()
+}
+
+/// The parsed PLATFORM cell of a staff row; the grammar is `route_matrix.rs`'s, so a bad cell
+/// fails there first.
+fn platform_of(r: &Route) -> Platform {
+    parse_platform(&r.platform, is_platform_name)
+        .unwrap_or_else(|e| panic!("{} {}: {e}", r.method, r.path))
 }
 
 /// Platform permissions an actor holds, by name; `None` for actors with no appointment.
@@ -138,15 +153,12 @@ fn holds(actor: &str, pairs: &[String]) -> Option<Vec<String>> {
     None
 }
 
-/// Whether a holder of `held` passes a row that demands `platform`: `NAME`, `A+B` (both) or `A|B` (any).
+/// Whether a holder of `held` passes a row that demands `platform`: `NAME`, `A+B` (both) or
+/// `A|B` (any), never mixed (D-366, `support/platform_cell.rs`).
 fn admitted(held: &[String], platform: &str) -> bool {
-    let has = |p: &str| held.iter().any(|h| h == p);
-    held.iter().any(|h| h == "OWNER")
-        || if platform.contains('|') {
-            platform.split('|').any(has)
-        } else {
-            platform.split('+').all(has)
-        }
+    parse_platform(platform, is_platform_name)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .admits(held)
 }
 
 fn group_of(path: &str) -> usize {
@@ -987,6 +999,28 @@ async fn seed(
         sqlx::query("INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2::text::jsonb, $3) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
             .bind(key)
             .bind(if key.ends_with("messages") { "600" } else if key.ends_with("uploads") { "6000" } else { "60000" })
+            .bind(SYSTEM_USER_ID)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    // RDY-SEC-006: the abuse limits too. Twenty actors call each guarded route (a webhook token's
+    // bucket is shared by every caller, interaction callbacks are per address, and every actor here
+    // is 127.0.0.1), so the defaults would turn expected statuses into 429. Every abuse setting goes
+    // to its catalog maximum, the data-export cooldown to its minimum; `abuse_limits.rs` proves the
+    // limits themselves.
+    for d in sr_admin::settings::CATALOG
+        .iter()
+        .filter(|d| d.group == "abuse")
+    {
+        let figure = if d.key == sr_admin::settings::ABUSE_DATA_EXPORT_COOLDOWN {
+            d.min
+        } else {
+            d.max
+        };
+        sqlx::query("INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2::text::jsonb, $3) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
+            .bind(d.key)
+            .bind((figure as i64).to_string())
             .bind(SYSTEM_USER_ID)
             .execute(&pool)
             .await
@@ -2366,4 +2400,52 @@ fn ctx_for(
         c.insert("channel_id", v.clone());
     }
     (c, true)
+}
+
+/// D-366: how a PLATFORM cell admits an appointed actor (no database).
+#[test]
+fn admitted_grammar() {
+    let held = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+    let publisher = held(&["STAFF_BASIC", "PUBLISH_MEDIA"]);
+    let deleter = held(&["STAFF_BASIC", "DELETE_CONTENT"]);
+    let operator = held(&["STAFF_BASIC", "OPERATOR"]);
+    let both = held(&["STAFF_BASIC", "PUBLISH_MEDIA", "DELETE_CONTENT"]);
+    let basic = held(&["STAFF_BASIC"]);
+    let owner = held(&["OWNER"]);
+    let support = held(&["STAFF_BASIC", "MANAGE_ACCOUNTS", "MANAGE_INVITES"]);
+
+    // `Any`: a holder of any listed bit, nobody else.
+    assert!(admitted(&publisher, "PUBLISH_MEDIA|DELETE_CONTENT"));
+    assert!(admitted(&deleter, "PUBLISH_MEDIA|DELETE_CONTENT"));
+    assert!(!admitted(&operator, "PUBLISH_MEDIA|DELETE_CONTENT"));
+    assert!(!admitted(&support, "PUBLISH_MEDIA|DELETE_CONTENT"));
+    assert!(!admitted(&basic, "PUBLISH_MEDIA|DELETE_CONTENT"));
+    // `All`: only a holder of every listed bit.
+    assert!(admitted(&both, "PUBLISH_MEDIA+DELETE_CONTENT"));
+    assert!(!admitted(&publisher, "PUBLISH_MEDIA+DELETE_CONTENT"));
+    assert!(!admitted(&deleter, "PUBLISH_MEDIA+DELETE_CONTENT"));
+    // `STAFF_BASIC` alone admits every appointment.
+    for h in [&publisher, &deleter, &operator, &basic, &support] {
+        assert!(admitted(h, "STAFF_BASIC"));
+    }
+    // `OWNER` passes every cell.
+    for cell in [
+        "OWNER",
+        "OPERATOR",
+        "PUBLISH_MEDIA+DELETE_CONTENT",
+        "PUBLISH_MEDIA|DELETE_CONTENT",
+        "STAFF_BASIC",
+    ] {
+        assert!(admitted(&owner, cell), "{cell}");
+    }
+    // A single bit.
+    assert!(admitted(&operator, "OPERATOR"));
+    assert!(!admitted(&publisher, "OPERATOR"));
+    // The refused forms never reach `admitted` silently.
+    for bad in ["PUBLISH_MEDIA+DELETE_CONTENT|OPERATOR", "OWNER|OPERATOR", "A|A"] {
+        assert!(
+            std::panic::catch_unwind(|| admitted(&owner, bad)).is_err(),
+            "{bad}"
+        );
+    }
 }
