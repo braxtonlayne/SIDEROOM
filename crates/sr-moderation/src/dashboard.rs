@@ -659,6 +659,13 @@ impl Moderation {
 
     // ---- the reports inbox (MOD-DASH-002) ----------------------------------------------------------------
 
+    /// The size of the inbox without its groups (the Review hub tile): the same three figures as the dashboard's
+    /// inbox section, read on their own so the hub does not build the whole dashboard. `MANAGE_CASES`.
+    pub async fn inbox_count(&self, who: &Who<'_>) -> ModResult<DashInbox> {
+        require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
+        self.dash_inbox().await
+    }
+
     /// Reports nobody has picked up, grouped by case (a case is one target, so a group of several reports is a
     /// group of duplicates), oldest first. Platform staff only; the reporter is never in the answer.
     pub async fn inbox(

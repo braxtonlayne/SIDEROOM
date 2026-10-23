@@ -30,7 +30,9 @@ pub mod takedown_rules;
 mod takedowns;
 
 pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
-pub use age::{AgeBand, AgeChange, AgeTargetKind, ChannelSink, UNDER18_DM, UnderageOutcome};
+pub use age::{
+    AgeBand, AgeChange, AgeTargetKind, ChannelSink, ItemIndexSink, UNDER18_DM, UnderageOutcome,
+};
 pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};

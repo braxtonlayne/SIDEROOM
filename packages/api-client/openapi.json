@@ -50716,6 +50716,52 @@
         ]
       }
     },
+    "/moderation/dashboard/inbox/count": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "How many reports wait in the inbox, how many cases they make up and how old the oldest is (`MANAGE_CASES`).\nThe same figures as the dashboard's inbox section, for the Review hub tile.",
+        "operationId": "inbox_count",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashInbox"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/dashboard/inbox/dismiss": {
       "post": {
         "tags": [
