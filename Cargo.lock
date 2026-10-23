@@ -6412,6 +6412,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-preflight"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "fs4",
+ "hmac 0.13.0",
+ "reqwest 0.13.5",
+ "serde",
+ "sha1 0.11.0",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-storage",
+ "sr-voice-proto",
+ "tokio",
+ "utoipa",
+]
+
+[[package]]
 name = "sr-push"
 version = "0.0.0"
 dependencies = [
