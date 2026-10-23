@@ -411,6 +411,7 @@ GET	/moderation/cases	authenticated	staff	deny	-
 GET	/moderation/cases/{case_id}	authenticated	membership	deny	-
 GET	/moderation/dashboard	authenticated	staff	deny	-
 GET	/moderation/dashboard/inbox	authenticated	staff	deny	-
+GET	/moderation/dashboard/inbox/count	authenticated	staff	deny	-
 GET	/moderation/evasion-signals	authenticated	staff	deny	-
 GET	/moderation/evasion-signals/count	authenticated	staff	deny	-
 GET	/moderation/evasion-signals/{signal_id}	authenticated	staff	deny	-

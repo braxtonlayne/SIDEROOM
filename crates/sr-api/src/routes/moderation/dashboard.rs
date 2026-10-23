@@ -8,7 +8,7 @@ use axum::{Json, extract::Query};
 use serde::Deserialize;
 use sr_moderation::{
     ModError,
-    dashboard::{DashboardView, InboxDismissOutcome, InboxPage},
+    dashboard::{DashInbox, DashboardView, InboxDismissOutcome, InboxPage},
     model::Who,
 };
 use utoipa::{IntoParams, ToSchema};
@@ -71,6 +71,22 @@ pub async fn inbox(a: Actor, Query(p): Query<InboxParams>) -> ApiResult<Json<Inb
         .inbox(&Who::Staff(&ctx.caller), cursor, p.limit.unwrap_or(25))
         .await;
     staff_result(ctx, "moderation.inbox.list", None, r)
+        .await
+        .map(Json)
+}
+
+/// How many reports wait in the inbox, how many cases they make up and how old the oldest is (`MANAGE_CASES`).
+/// The same figures as the dashboard's inbox section, for the Review hub tile.
+#[utoipa::path(
+    get, path = "/moderation/dashboard/inbox/count",
+    responses((status = 200, body = DashInbox), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn inbox_count(a: Actor) -> ApiResult<Json<DashInbox>> {
+    let ctx = a.staff_only()?;
+    let r = a.svc().inbox_count(&Who::Staff(&ctx.caller)).await;
+    staff_result(ctx, "moderation.inbox.count", None, r)
         .await
         .map(Json)
 }
