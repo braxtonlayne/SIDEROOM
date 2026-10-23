@@ -1281,13 +1281,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                     .unwrap_or(default)
             }
         };
-        let start = sr_api::rate_limit::RateConfig {
+        let mut start = sr_api::rate_limit::RateConfig {
             ip: get(k::RATE_IP, d.ip).await,
             session: get(k::RATE_SESSION, d.session).await,
             bot: get(k::RATE_BOT, d.bot).await,
             messages: get(k::RATE_MESSAGES, d.messages).await,
             uploads: get(k::RATE_UPLOADS, d.uploads).await,
+            ..d
         };
+        // RDY-SEC-006: the abuse limits start from their stored settings too.
+        for a in sr_api::rate_limit::Abuse::ALL {
+            start.abuse[a.index()] = get(a.key(), d.abuse[a.index()]).await;
+        }
         tokio::sync::watch::channel(start)
     };
     let mut admin = routes::admin::AdminDeps::new(admin_service)
