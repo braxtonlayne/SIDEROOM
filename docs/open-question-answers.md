@@ -3117,3 +3117,31 @@ Status: `ADOPTED` (D-348). Follow-ups: P-13, P-14, P-15, P-16.
 ### Still with the owner
 
 Actions only: the lawyer's check named in D-347 (180-day security retention of sign-in addresses, and the retention of signal rows and confirmed snapshots with the case), which can join the D-336 list.
+
+## Phase 19 integration round (answered 2026-10-22, delegated)
+
+The three questions `integration/phase19` left in `docs/dev/handoff/feat-p19-integration.md` ("Open issues") about migration 1152 and the fold of a Person's suspicion data in `link_in` (`crates/sr-db/src/admin_repo_ext.rs`), answered by the owner's proxy under the same delegation and limits as the Phase 18 and 19 rounds: decide and document only (no code, build or push). Decisions are D-349 to D-351 in [01-decisions-log.md](01-decisions-log.md); follow-ups are P-20 and P-21 under "Phase 19 integration round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 3 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Person links and suspicion data (P19-INT, branch `integration/phase19`)
+
+**P19-INT-1 (handoff open issue 1; migration 1152, D-124, D-347). Linking two Persons folds the emptied Person's evasion signals into the target: a signal that would become a Person against itself, or that duplicates one the target already has for the same banned Person and kind, is kept and marked folded, never deleted; every other signal is re-pointed; when both Persons have an open automatic case, the emptied Person's becomes an ordinary case linked to the target's with a `suspicion_folded` event. Is the fold rule right?**
+Decision: yes, as built. Keeping is what D-124 requires and what the rows deserve: a signal may hold a review with its reason and the D-347 snapshot that is case evidence after the sign-in rows are gone, and a Person link is a correctable staff act (D-342), so nothing it touches may be irreversible. The two kept classes are exactly the rows the pair check and the once-per-pair index cannot hold, and relaxing both only for folded rows keeps the invariants (and the scan's `ON CONFLICT`) where they still mean something. Re-pointing the rest is right because a signal is about Persons, and the survivor is now the Person. Demoting the second automatic case rather than closing it is right because a close is a case decision that a data operation must not take; the demoted case keeps its notes, assignee and evidence and staff close it themselves. `folded_from_person_id` has no FK on purpose and matches the link's audit row. Spec 17.2 gains a "Person links" bullet.
+Status: `ADOPTED` (D-349). Follow-up: P-20 (the spec bullet rides with it).
+
+**P19-INT-2 (handoff open issue 1, second half, and open issue 2). Should folded signals stay in their current state and keep appearing in the Signals list, or be closed automatically with a reason?**
+Decision: they keep appearing, marked folded with the former Person's id, but an open one does not stay open: the fold closes a still-open self-pair as `confirmed` (the link is staff saying "the same person", which is what the state means) and a still-open superseded duplicate as `dismissed` (the surviving row carries the review), `reviewed_by` empty as on the `suspicion_folded` event, `reviewed_at` the fold time, a reason naming the fold and, for a duplicate, the surviving signal. A signal staff had already reviewed is untouched. No snapshot or case evidence is written by the fold, and the detail route reads no addresses for a self-pair (it would list every address of the Person as "shared", a disclosure with no review purpose). Open folded rows would otherwise sit in the open list and the Review hub count asking a question nobody can answer; hiding them would make a review unreachable. `SignalView` gains `folded_from_person_id`; the Signals tab and the panel show a "folded" tag.
+Status: `ADOPTED` (D-350). Follow-up: P-20.
+
+**P19-INT-3 (handoff open issue 2). A demoted automatic case drops out of the suspicion panel's list of automatic cases, though it stays linked from the surviving case. Acceptable?**
+Decision: the demotion is right and stays; the drop-out is not: the panel's "automatic cases" query also lists the Person's cases that carry a `suspicion_folded` event, marked "folded into case n". The link runs from the demoted case to the survivor (`linked_case_id`) and the case page shows only outgoing links, so without the panel entry a demoted case with open work on it is found only through the queue. Listing by the event keeps the one-open-automatic-case index and the upgrade rule of `open_suspicion_case` untouched; the lookup is per Person under the panel's existing limit.
+Status: `ADOPTED` (D-351). Follow-up: P-21.
+
+### Still with the owner
+
+Nothing. No lawyer check is added by this round.
