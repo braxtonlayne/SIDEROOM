@@ -194,7 +194,10 @@ impl Abuse {
 /// strings as `route_matrix.tsv`, which a test checks).
 pub const ABUSE_ROUTES: &[(&str, Abuse)] = &[
     ("POST /users/@me/relationships", Abuse::FriendRequests),
-    ("PUT /users/@me/relationships/{user_id}", Abuse::FriendRequests),
+    (
+        "PUT /users/@me/relationships/{user_id}",
+        Abuse::FriendRequests,
+    ),
     ("POST /users/@me/channels", Abuse::DmOpens),
     ("POST /webhooks/{webhook_id}/{token}", Abuse::WebhookExecute),
     ("POST /oauth2/authorize", Abuse::OauthAuthorize),
@@ -202,9 +205,15 @@ pub const ABUSE_ROUTES: &[(&str, Abuse)] = &[
         "POST /interactions/{interaction_id}/{token}/callback",
         Abuse::InteractionCallbacks,
     ),
-    ("POST /watch-parties/{party_id}/join", Abuse::WatchPartyJoins),
+    (
+        "POST /watch-parties/{party_id}/join",
+        Abuse::WatchPartyJoins,
+    ),
     ("POST /guilds/{guild_id}/emojis", Abuse::EmojiUploads),
-    ("POST /applications/{application_id}/emojis", Abuse::EmojiUploads),
+    (
+        "POST /applications/{application_id}/emojis",
+        Abuse::EmojiUploads,
+    ),
     ("POST /guilds/{guild_id}/stickers", Abuse::StickerUploads),
     ("POST /moderation/appeals", Abuse::AppealAttempts),
 ];
@@ -502,9 +511,8 @@ impl RateLimiter {
             UPLOADS_ROUTE if self.cfg.live.is_some() => now.uploads_spec(),
             // An explicit static override wins (tests); otherwise the abuse figure, live.
             _ if abuse_for(route_key).is_some() && !self.cfg.routes.contains_key(route_key) => {
-                abuse_for(route_key).map_or(self.cfg.default_bucket, |a| {
-                    a.spec(now.abuse[a.index()])
-                })
+                abuse_for(route_key)
+                    .map_or(self.cfg.default_bucket, |a| a.spec(now.abuse[a.index()]))
             }
             _ => self
                 .cfg
@@ -713,9 +721,15 @@ pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next)
     let who = identity(&req, state.settings().trust_forwarded_for);
     // A webhook token's limit belongs to the token, whoever calls it (RDY-SEC-006).
     let (resource, bucket_who) = if abuse_for(&route_key) == Some(Abuse::WebhookExecute) {
-        (webhook_token_resource(req.uri().path()), "webhook-token".to_owned())
+        (
+            webhook_token_resource(req.uri().path()),
+            "webhook-token".to_owned(),
+        )
     } else {
-        (major_resource(&pattern, req.uri().path()).to_owned(), who.clone())
+        (
+            major_resource(&pattern, req.uri().path()).to_owned(),
+            who.clone(),
+        )
     };
     match state
         .rate_limiter()

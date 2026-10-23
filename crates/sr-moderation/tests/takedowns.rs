@@ -1297,5 +1297,7 @@ async fn counter_notices_per_staff_member_per_day_are_limited_by_a_setting() {
         .execute(w.pool())
         .await
         .unwrap();
-    w.m.record_counter_notice(&who, ids[2], "mine").await.unwrap();
+    w.m.record_counter_notice(&who, ids[2], "mine")
+        .await
+        .unwrap();
 }

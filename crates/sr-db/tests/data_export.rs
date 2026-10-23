@@ -122,7 +122,12 @@ async fn the_cooldown_follows_the_platform_setting() {
         .execute(pool)
         .await
         .unwrap();
-    assert!(data_export::request(pool, 102, 103, 1).await.unwrap().is_ok());
+    assert!(
+        data_export::request(pool, 102, 103, 1)
+            .await
+            .unwrap()
+            .is_ok()
+    );
 }
 
 #[tokio::test]

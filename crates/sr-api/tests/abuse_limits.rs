@@ -144,15 +144,21 @@ async fn a_member_limit_is_per_caller_and_a_webhook_limit_is_per_token() {
     );
     // Webhook: one token is one bucket whoever calls; another token is another bucket.
     assert_eq!(
-        send(&f.app, "POST", &url("/webhooks/{a}/{b}", "t1"), "x").await.0,
+        send(&f.app, "POST", &url("/webhooks/{a}/{b}", "t1"), "x")
+            .await
+            .0,
         StatusCode::NO_CONTENT
     );
     assert_eq!(
-        send(&f.app, "POST", &url("/webhooks/{a}/{b}", "t1"), "y").await.0,
+        send(&f.app, "POST", &url("/webhooks/{a}/{b}", "t1"), "y")
+            .await
+            .0,
         StatusCode::TOO_MANY_REQUESTS
     );
     assert_eq!(
-        send(&f.app, "POST", &url("/webhooks/{a}/{b}", "t2"), "y").await.0,
+        send(&f.app, "POST", &url("/webhooks/{a}/{b}", "t2"), "y")
+            .await
+            .0,
         StatusCode::NO_CONTENT
     );
 }
@@ -160,8 +166,7 @@ async fn a_member_limit_is_per_caller_and_a_webhook_limit_is_per_token() {
 #[tokio::test]
 async fn a_live_change_applies_to_the_next_request() {
     let f = fixture();
-    f.live
-        .send_modify(|c| c.abuse[Abuse::DmOpens.index()] = 1);
+    f.live.send_modify(|c| c.abuse[Abuse::DmOpens.index()] = 1);
     let uri = "/api/v1/users/@me/channels";
     assert_eq!(
         send(&f.app, "POST", uri, "a").await.0,
@@ -185,20 +190,28 @@ async fn a_live_change_applies_to_the_next_request() {
 fn doc_05_table_matches_the_catalog_and_its_tests_exist() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let doc = std::fs::read_to_string(root.join("docs/05-api-and-gateway.md")).unwrap();
-    let start = doc.find("**Abuse limits (RDY-SEC-006).**").expect("section");
+    let start = doc
+        .find("**Abuse limits (RDY-SEC-006).**")
+        .expect("section");
     let rows: Vec<Vec<String>> = doc[start..]
         .lines()
         .skip_while(|l| !l.starts_with("| Limit |"))
         .skip(2)
         .take_while(|l| l.starts_with('|'))
-        .map(|l| l.trim_matches('|').split('|').map(|c| c.trim().to_owned()).collect())
+        .map(|l| {
+            l.trim_matches('|')
+                .split('|')
+                .map(|c| c.trim().to_owned())
+                .collect()
+        })
         .collect();
     assert!(rows.len() >= 15, "{} rows", rows.len());
     let mut listed = std::collections::HashSet::new();
     for r in &rows {
         assert_eq!(r.len(), 5, "{r:?}");
         if let Some(key) = r[1].strip_prefix('`').and_then(|k| k.split('`').next()) {
-            let def = sr_admin::settings::find(key).unwrap_or_else(|| panic!("{key} not in catalog"));
+            let def =
+                sr_admin::settings::find(key).unwrap_or_else(|| panic!("{key} not in catalog"));
             assert_eq!(r[2], def.default_int.to_string(), "{key} default");
             listed.insert(key.to_owned());
         }
@@ -212,7 +225,10 @@ fn doc_05_table_matches_the_catalog_and_its_tests_exist() {
             "{file} has no test {name}"
         );
     }
-    for d in sr_admin::settings::CATALOG.iter().filter(|d| d.group == "abuse") {
+    for d in sr_admin::settings::CATALOG
+        .iter()
+        .filter(|d| d.group == "abuse")
+    {
         assert!(listed.contains(d.key), "{} is not in doc 05", d.key);
     }
 }
