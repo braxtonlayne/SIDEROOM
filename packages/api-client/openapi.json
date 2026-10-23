@@ -86907,17 +86907,18 @@
         "properties": {
           "detail": {
             "type": "string",
-            "description": "One sentence: what was seen, or what to do about it. Never contains a secret."
+            "description": "English operator text, not localized (D-356): one sentence, what was seen or what to do about it. Never\ncontains a secret."
           },
           "id": {
             "type": "string",
-            "description": "Stable id such as `database`, `storage` or `turn`."
+            "description": "Stable id; clients may key strings on it (D-356). One of `database`, `migrations`, `clock`, `storage`,\n`smtp`, `public-url`, `turn`, `vapid`, `disk`, `secrets`, `esplora`, `voice`."
           },
           "status": {
             "$ref": "#/components/schemas/PreflightStatusView"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "English operator text, not localized (D-356)."
           }
         }
       },

@@ -20062,11 +20062,18 @@ export interface components {
         };
         /** @description One row of the preflight table. */
         PreflightCheckView: {
-            /** @description One sentence: what was seen, or what to do about it. Never contains a secret. */
+            /**
+             * @description English operator text, not localized (D-356): one sentence, what was seen or what to do about it. Never
+             *     contains a secret.
+             */
             detail: string;
-            /** @description Stable id such as `database`, `storage` or `turn`. */
+            /**
+             * @description Stable id; clients may key strings on it (D-356). One of `database`, `migrations`, `clock`, `storage`,
+             *     `smtp`, `public-url`, `turn`, `vapid`, `disk`, `secrets`, `esplora`, `voice`.
+             */
             id: string;
             status: components["schemas"]["PreflightStatusView"];
+            /** @description English operator text, not localized (D-356). */
             title: string;
         };
         /**

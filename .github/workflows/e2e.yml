@@ -127,6 +127,25 @@ jobs:
         env:
           CI: "true"
           SR_VOICE__E2EE: "true"
+      # RDY-OPS-004: the preflight's TURN row against the dev stack's coturn (deploy/compose/dev.yml, same shared
+      # secret as deploy/compose/coturn/turnserver.conf): credentials derive and a UDP allocation is granted. Only the
+      # turn row is asserted; the other rows describe this runner, not a production box.
+      - name: sr-cli preflight TURN allocation against coturn
+        if: always()
+        run: |
+          docker compose -f deploy/compose/dev.yml up -d coturn
+          sleep 3
+          ./target/debug/sr-cli preflight --json > preflight.json || true
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("preflight.json", "utf8"));
+            const t = r.checks.find((c) => c.id === "turn");
+            console.log(JSON.stringify(t));
+            if (!t || t.status !== "pass") process.exit(1);
+          '
+        env:
+          SR_STORAGE__ENDPOINT: "memory:"
+          SR_VOICE__TURN__SECRET: dev-turn-shared-secret
+          SR_VOICE__TURN__URLS: '["turn:127.0.0.1:3478?transport=udp"]'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
