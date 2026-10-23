@@ -126,9 +126,9 @@ export function ModerationSection() {
       />
       {caseId && cases ? (
         <CasePage id={caseId} onBack={() => setCaseId(null)} onOpenNotice={openNotice} />
-      ) : items.length === 1 ? (
+      ) : items.length <= 1 ? (
         // One tab only (a reviewer's queue, D-331; MANAGE_ACCOUNTS alone sees the signals, P-16): no tab bar.
-        items[0].content
+        (items[0]?.content ?? null)
       ) : (
         <Tabs
           label={t('admin.moderation.tabsLabel')}
