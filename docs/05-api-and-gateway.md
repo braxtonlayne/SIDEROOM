@@ -327,6 +327,33 @@ factor and are audited (`entrance.hero`). `GET /sr/entrance/hero` is public, ans
 `.messages` (12 to 600 sends a minute per channel and caller; default 60) and `.uploads` (6 to 6 000 slot requests; default 240) are read by the limiter on
 every request; `PATCH /admin/settings` updates them without a restart. Gateway and voice limits stay static.
 
+**Abuse limits (RDY-SEC-006).** Every member-writable surface that moderation, social and the developer platform added has a limit. Each row with a
+setting is an entry of the Admin > Limits catalog (group `abuse`, or `limits` for the older report limit), has a default and a range, and is read live:
+`PATCH /admin/settings` applies it on the next request (the HTTP ones through the `RateConfig` watch channel of H-39, the data-export and counter-notice
+ones from the `platform_settings` row on each request). A refused request answers `429` with `Retry-After` (REST) or the 429 error body. **Scope is per
+process, as for every limiter in this document**: one node, counters reset on restart, not shared across nodes (documented, not changed). "Per credential"
+means one session cookie, bot token or bearer token (the limiter's identity); "per address" is the client IP (`trust_forwarded_for` behind Caddy). The
+table is checked against the catalog by `abuse_limits.rs::doc_05_table_matches_the_catalog_and_its_tests_exist`: a row's setting, default and test must
+exist.
+
+| Limit | Setting | Default | Scope | Test |
+|---|---|---|---|---|
+| Reports per day | `moderation.reports_per_day` | 20 | per account, rolling 24 h (database count) | `crates/sr-moderation/tests/db.rs::one_open_report_per_target_duplicates_attach_and_the_daily_limit_holds` |
+| Appeals per ban | none: one appeal per decision, no second appeal (D-215; unique `ban_id`) | 1 | per ban | `crates/sr-moderation/tests/db.rs::appeals_one_per_ban_reviewed_by_somebody_else` |
+| Appeal attempts (`POST /moderation/appeals`) | `abuse.appeal_attempts_per_hour` | 10 | per address per hour; sign-in throttles apply to the credentials besides | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Data-package requests | `abuse.data_export_cooldown_hours` | 24 | per account, hours between two requests; one open request at a time | `crates/sr-db/tests/data_export.rs::the_cooldown_follows_the_platform_setting` |
+| Counter-notices recorded | `abuse.counter_notices_per_day` | 50 | per staff member, rolling 24 h (database count) | `crates/sr-moderation/tests/takedowns.rs::counter_notices_per_staff_member_per_day_are_limited_by_a_setting` |
+| Invite-code checks (`GET /sr/invites/{code}`) | none: fixed 10 a minute and 50 a day per address (doc 06 section 3) | 10 / 50 | per address | `crates/sr-api/src/routes/auth/tests.rs::invite_check_is_rate_limited_per_ip` |
+| Direct-message requests (`POST /users/@me/channels`) | `abuse.dm_opens_per_hour` | 40 | per credential per hour | `crates/sr-api/tests/abuse_limits.rs::a_live_change_applies_to_the_next_request` |
+| Friend requests and blocks (`POST /users/@me/relationships`, `PUT /users/@me/relationships/{user_id}`) | `abuse.friend_requests_per_hour` | 60 | per credential per hour, per route | `crates/sr-api/tests/abuse_limits.rs::a_member_limit_is_per_caller_and_a_webhook_limit_is_per_token` |
+| Webhook execute (`POST /webhooks/{webhook_id}/{token}`) | `abuse.webhook_execute_per_minute` | 60 | per webhook token across all callers, a burst of five seconds' worth | `crates/sr-api/src/rate_limit.rs::a_webhook_limit_belongs_to_the_token_not_the_caller` |
+| OAuth2 authorize attempts (`POST /oauth2/authorize`) | `abuse.oauth_authorize_per_minute` | 20 | per credential or address per minute | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Interaction callbacks (`POST /interactions/{interaction_id}/{token}/callback`) | `abuse.interaction_callbacks_per_minute` | 60 | per address, a burst of five seconds' worth | `crates/sr-api/src/rate_limit.rs::the_figures_mean_what_the_catalog_says` |
+| Watch-party joins (`POST /watch-parties/{party_id}/join`) | `abuse.watch_party_joins_per_minute` | 20 | per credential per minute (the service keeps a backstop of 120 a minute per account) | `crates/sr-api/src/rate_limit.rs::every_abuse_route_limits_at_its_figure_and_follows_a_live_change` |
+| Custom emoji uploads (`POST /guilds/{guild_id}/emojis`, `POST /applications/{application_id}/emojis`) | `abuse.emoji_uploads_per_hour` | 50 | per credential per server (per application) per hour | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Sticker uploads (`POST /guilds/{guild_id}/stickers`) | `abuse.sticker_uploads_per_hour` | 20 | per credential per server per hour | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Messages sent | `limits.rate.messages` | 60 | per channel and caller per minute (H-39) | `crates/sr-api/src/rate_limit.rs::a_live_change_applies_on_the_next_request` |
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)
