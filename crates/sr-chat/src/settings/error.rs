@@ -76,7 +76,7 @@ impl SettingsError {
             Self::UnknownEmoji | Self::UnknownSticker => ApiError::new(ErrorCode::UnknownEmoji),
             Self::UnknownSound => ApiError::new(ErrorCode::UnknownSound),
             Self::UnknownWebhook => ApiError::new(ErrorCode::UnknownWebhook),
-            Self::UnknownRule | Self::UnknownTemplate => ApiError::new(ErrorCode::General),
+            Self::UnknownRule | Self::UnknownTemplate => ApiError::new(ErrorCode::SrNotFound),
             Self::UnknownApplication => ApiError::new(ErrorCode::SrNotFound),
             Self::UnknownEvent => ApiError::new(ErrorCode::UnknownScheduledEvent),
             Self::LimitReached(what) => match *what {
@@ -115,5 +115,15 @@ mod tests {
         assert_eq!(SettingsError::MaxInvites.to_api_error().code.code(), 30016);
         let e = SettingsError::invalid("name", "BASE_TYPE_BAD_LENGTH", "bad").to_api_error();
         assert!(e.body()["errors"]["name"].is_object());
+    }
+
+    /// R-06: an unknown rule or poll template (also one of another server, which the repository does not
+    /// return) is a 404 `SrNotFound`, not a 400 `General error`.
+    #[test]
+    fn unknown_rule_and_template_are_404() {
+        for e in [SettingsError::UnknownRule, SettingsError::UnknownTemplate] {
+            let a = e.to_api_error();
+            assert_eq!((a.status(), a.code.code()), (404, 900009));
+        }
     }
 }

@@ -24,7 +24,7 @@
 //! unchanged after the denied calls of a group (no write). The groups are proven in the RDY-SEC-003
 //! order: moderation, admin, developers and applications, oauth2, submissions, then the rest.
 //!
-//! Needs Postgres: `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-api --test authz_matrix
+//! Needs Postgres: `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-server --test authz_matrix
 //! -- --ignored --test-threads=1 --nocapture`. Set `SR_AUTHZ_REPORT=<file>` for the full
 //! observation table (one row per call).
 
@@ -61,7 +61,7 @@ use tokio::{
     net::TcpStream,
 };
 
-const MATRIX: &str = include_str!("route_matrix.tsv");
+const MATRIX: &str = include_str!("../../sr-api/tests/route_matrix.tsv");
 const KEY_HEX: &str = "0707070707070707070707070707070707070707070707070707070707070707";
 /// An id nothing owns.
 const BOGUS: &str = "900000000000000001";
