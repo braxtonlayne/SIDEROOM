@@ -20,9 +20,9 @@ Nothing is mid-work. Next: the integrator merges this with `ops-smoke` and `pref
 - The "Setup Wizard" is the setup checklist on the Admin dashboard (ADM-DASH-003), not a separate wizard.
 - Notices note: which component the NTP term belongs to is not identified; the Zlib holder is stated as expected, not confirmed.
 
-## Not changed, on purpose
+## Phase 20 answers (D-353 to D-357)
 
-README "Repository layout (target)" heading and the License section ("To be decided"; D-309 says unpublished rather than proprietary, `Cargo.toml` still says `LicenseRef-Proprietary`) were left: no reason from the evidence to reword without an owner answer.
+The five open questions of this wave (licence wording, `prod-smoke.yml` triggers, the preflight permission, preflight row text, insecure TLS) were answered under the owner's delegation: decisions D-353 to D-357 in `docs/01-decisions-log.md`, answers P20-1 to P20-5 in `docs/open-question-answers.md`, follow-ups Q-01 to Q-05 under "Phase 20 round" in `docs/dev/answers-followups-p16.md`. The README License section and the "Repository layout" heading were changed on this branch (D-353); `Cargo.toml` and the `package.json` fields are the integrator's (Q-01).
 
 ## Run
 
@@ -30,5 +30,5 @@ README "Repository layout (target)" heading and the License section ("To be deci
 
 ## Open questions for the owner
 
-1. License section of the README ("To be decided"): update after D-309's clarification?
+1. ~~License section of the README ("To be decided"): update after D-309's clarification?~~ Answered: D-353.
 2. Is `prod-smoke.yml` meant to be named in the owner checklist as a dispatch row only after ops-smoke merges (it is, worded "once wave 20 is merged")?

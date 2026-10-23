@@ -32,7 +32,7 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 - **AI coding agents:** read [AGENTS.md](AGENTS.md) first. It tells you exactly what to read for the task you were given.
 - **Every decision the owner has made**, with its rationale, is in [docs/01-decisions-log.md](docs/01-decisions-log.md). When docs disagree, the decisions log wins.
 
-## Repository layout (target)
+## Repository layout
 
 ```
 apps/web/            React + TypeScript + Vite PWA (all user-facing UI)
@@ -44,4 +44,6 @@ docs/                Specifications, ADRs, component inventory
 
 ## License
 
-To be decided by the owner. Until a license file is added, all rights are reserved.
+**Unpublished; not proprietary; no licence chosen yet** (D-309, D-353). The owner's recorded intent is that the code is not meant to be proprietary, only not yet published, and that GPL dependencies are acceptable. No licence file exists, so until one is added the code is not offered under any licence to anyone outside the project. The Rust workspace and the npm packages carry no licence expression and are marked unpublishable (`publish = false`, `"private": true`); the earlier `LicenseRef-Proprietary` label is withdrawn.
+
+Third-party licences and their texts are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Two of them are copyleft and their obligations attach when the **web bundle is distributed**, which includes serving the web app to people outside the operator: `rvfc-polyfill` (GPL-3.0, bundled in the JASSUB chunk) and JASSUB (LGPL-2.1-or-later, shipped as its own unminified chunk, worker and `.wasm` so it can be replaced). An operator who opens an instance to others should offer the corresponding source of the web bundle alongside the notices (D-309, D-314). Not legal advice.
