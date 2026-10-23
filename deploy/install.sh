@@ -6,8 +6,9 @@
 # It asks for the handful of things only you know (domain, mail server, the Owner account), generates every
 # secret fresh, writes deploy/compose/.env.prod and garage.prod.toml (mode 0600), then brings the stack up in
 # the right order: Postgres and Garage, the bucket and its key, migrations, the CORS rule, the Owner account,
-# and last the server and Caddy. Run it again with --force to rewrite the files (the old ones are kept as
-# *.bak); without --force it refuses to touch an existing installation.
+# then the server and Caddy, and last `sr-cli preflight`, whose table says whether the box is ready for its first
+# invite (RDY-OPS-004). Run it again with --force to rewrite the files (the old ones are kept as *.bak); without
+# --force it refuses to touch an existing installation.
 #
 #   --yes        take every answer from the environment or the default; never prompt
 #   --force      overwrite an existing .env.prod / garage.prod.toml (the old ones become *.bak)
@@ -19,6 +20,9 @@
 #   SR_PAYMENTS_ELECTRS (yes turns the electrs `payments` profile on) SR_PAYMENTS_ESPLORA_URL (empty = donations off)
 #   SR_INSTALL_SKIP_PULL=1 (skip `docker compose pull` when the image was built or loaded locally; compose still
 #   pulls whatever is missing when it starts the services. Used by .github/workflows/prod-smoke.yml)
+#   SR_INSTALL_PREFLIGHT=warn (default: print the preflight table; a FAIL row is reported, the install still
+#   succeeds), strict (a FAIL row makes the installer exit 3) or skip. SR_INSTALL_PREFLIGHT_ARGS: extra arguments for
+#   `sr-cli preflight`, for example --insecure-tls when Caddy serves a private CA, or --send-to you@example.org
 #
 # Needs Docker with the compose plugin and a source of randomness (openssl, or /dev/urandom with od).
 set -eu
@@ -39,12 +43,17 @@ for arg in "$@"; do
     --yes|--non-interactive) yes=1 ;;
     --force) force=1 ;;
     --no-start) start=0 ;;
-    -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $arg (try --help)" ;;
   esac
 done
 
-# --- preflight ------------------------------------------------------------------------------------------
+case ${SR_INSTALL_PREFLIGHT:-warn} in
+  warn|strict|skip) ;;
+  *) die "SR_INSTALL_PREFLIGHT must be warn, strict or skip (got '${SR_INSTALL_PREFLIGHT:-}')" ;;
+esac
+
+# --- host checks ----------------------------------------------------------------------------------------
 if [ "${SR_INSTALL_SKIP_CHECKS:-0}" != "1" ]; then
   command -v docker >/dev/null 2>&1 || die "docker is not installed (https://docs.docker.com/engine/install/)"
   docker compose version >/dev/null 2>&1 || die "the docker compose plugin is missing (docker compose version failed)"
@@ -244,6 +253,7 @@ Not started (--no-start). To bring the stack up by hand:
   docker compose -f prod.yml --env-file .env.prod run --rm --no-deps --entrypoint /usr/local/bin/sr-cli sr-server storage ensure-cors --origin https://$SR_DOMAIN
   SR_OWNER_PASSWORD=... docker compose -f prod.yml --env-file .env.prod run --rm --no-deps -e SR_OWNER_PASSWORD --entrypoint /usr/local/bin/sr-cli sr-server bootstrap --owner-username $SR_OWNER_USERNAME --owner-email $SR_OWNER_EMAIL
   docker compose -f prod.yml --env-file .env.prod up -d
+  docker compose -f prod.yml --env-file .env.prod run --rm --no-deps --entrypoint /usr/local/bin/sr-cli sr-server preflight
 EOF
   exit 0
 fi
@@ -295,6 +305,38 @@ fi
 say "starting the server and Caddy"
 dc up -d
 
+# --- preflight (RDY-OPS-004) ------------------------------------------------------------------------------
+# The same checks as Admin > System > Preflight, from a one-off container on the compose network. It waits for
+# sr-server to report healthy first, so the public URL row sees the running server behind Caddy.
+preflight_mode=${SR_INSTALL_PREFLIGHT:-warn}
+preflight_status=0
+case $preflight_mode in
+  skip) say "skipping sr-cli preflight (SR_INSTALL_PREFLIGHT=skip)" ;;
+  warn|strict)
+    say "waiting for sr-server to report healthy"
+    waited=0
+    wait_secs=${SR_INSTALL_WAIT_SECS:-180}
+    while :; do
+      cid=$(dc ps -q sr-server 2>/dev/null || true)
+      state=starting
+      if [ -n "$cid" ]; then
+        state=$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo starting)
+      fi
+      [ "$state" = "healthy" ] && break
+      if [ "$waited" -ge "$wait_secs" ]; then
+        echo "warning: sr-server is still '$state' after ${wait_secs}s; running the preflight anyway" >&2
+        break
+      fi
+      sleep 3
+      waited=$((waited + 3))
+    done
+    say "sr-cli preflight"
+    # shellcheck disable=SC2086 # the extra arguments are meant to split
+    sr_cli preflight ${SR_INSTALL_PREFLIGHT_ARGS:-} || preflight_status=$?
+    ;;
+  *) die "SR_INSTALL_PREFLIGHT must be warn, strict or skip (got '$preflight_mode')" ;;
+esac
+
 cat <<EOF
 
 SIDE ROOM is starting at https://$SR_DOMAIN (Caddy fetches the certificate on the first request; DNS and
@@ -312,3 +354,12 @@ cat <<EOF
 Next: the web app must be in $SR_WEB_DIR (the contents of apps/web/dist from the release), then set up the
 nightly backups (deploy/BACKUP.md) and check https://$SR_DOMAIN/healthz.
 EOF
+if [ "$preflight_status" != "0" ]; then
+  cat >&2 <<EOF
+
+warning: sr-cli preflight reported a FAIL row (table above). The stack is installed, but fix those rows before the
+first invite (deploy/GO-LIVE.md), then run it again:
+  cd $compose_dir && docker compose -f prod.yml --env-file .env.prod run --rm --no-deps --entrypoint /usr/local/bin/sr-cli sr-server preflight
+EOF
+  if [ "$preflight_mode" = "strict" ]; then exit 3; fi
+fi

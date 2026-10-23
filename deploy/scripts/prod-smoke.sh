@@ -11,6 +11,8 @@
 #   deploy/scripts/prod-smoke.sh backups       backup.sh, basebackup (the systemd command), restore.sh, restore-drill.sh,
 #                                              wal-drill.sh and a live WAL segment, then the Admin > System backup time
 #   deploy/scripts/prod-smoke.sh cli-backups   sr-cli upgrade --dry-run, backup, restore, restore --force on the host
+#   deploy/scripts/prod-smoke.sh preflight     sr-cli preflight --insecure-tls on the host against the running stack;
+#                                              every row must pass except the ones the smoke cannot have (below)
 #   deploy/scripts/prod-smoke.sh logs          container logs and state, for a failed run
 #
 #   SMOKE_IMAGE     server image already built or loaded on this host (install)
@@ -66,7 +68,7 @@ stage_install() {
     SMTP_HOST=mail.example.org SMTP_PORT=587 SMTP_TLS=starttls \
     SR_OWNER_USERNAME=owner SR_OWNER_EMAIL=owner@example.test SR_OWNER_PASSWORD=$(cat "$pwfile") \
     SR_GARAGE_CAPACITY=1G SR_INGEST_DIR="$work/ingest" SR_PAYMENTS_ELECTRS=no \
-    SR_INSTALL_SKIP_PULL=1 \
+    SR_INSTALL_SKIP_PULL=1 SR_INSTALL_PREFLIGHT=warn SR_INSTALL_PREFLIGHT_ARGS=--insecure-tls \
     sh "$repo/deploy/install.sh" --yes
   [ "$(stat -c %a "$env_file")" = "600" ] || die ".env.prod is not mode 0600"
 }
@@ -190,27 +192,65 @@ stage_backups() {
     node "$here/smoke-admin.mjs" backup-time --dir /var/backups/sideroom --max-age-min 45 --expect-verify
 }
 
-stage_cli_backups() {
+# The host-side sr-cli (the static one taken out of the image) with the stack's configuration, reaching Postgres
+# and Garage by their container addresses. `cli <database> <args>`.
+host_cli_setup() {
   : "${SR_CLI:?set SR_CLI to the sr-cli binary}"
-  need pg_dump
-  need pg_restore
   need docker
   pgip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(dc ps -q postgres)")
   garageip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(dc ps -q garage)")
   [ -n "$pgip" ] && [ -n "$garageip" ] || die "could not find the postgres and garage container addresses"
   pgpw=$(env_value POSTGRES_PASSWORD)
   [ -n "$pgpw" ] || die "no POSTGRES_PASSWORD in $env_file"
-  cli() {
-    db=$1
-    shift
-    env "SR_DATABASE__URL=postgres://sideroom:$pgpw@$pgip:5432/$db?sslmode=disable" \
-      "SR_SERVER__PUBLIC_URL=$base_url" "SR_SERVER__SECRET_KEY=$(env_value SR_SECRET_KEY)" \
-      "SR_STORAGE__ENDPOINT=http://$garageip:3900" SR_STORAGE__REGION=garage \
-      "SR_STORAGE__BUCKET=$(env_value GARAGE_BUCKET)" "SR_STORAGE__ACCESS_KEY=$(env_value GARAGE_ACCESS_KEY)" \
-      "SR_STORAGE__SECRET_KEY=$(env_value GARAGE_SECRET_KEY)" \
-      "SR_SMTP__HOST=mail.example.org" "SR_SMTP__FROM=SIDE ROOM <no-reply@example.test>" \
-      "$SR_CLI" "$@"
-  }
+}
+cli() {
+  db=$1
+  shift
+  env "SR_DATABASE__URL=postgres://sideroom:$pgpw@$pgip:5432/$db?sslmode=disable" \
+    "SR_SERVER__PUBLIC_URL=$base_url" "SR_SERVER__SECRET_KEY=$(env_value SR_SECRET_KEY)" \
+    "SR_STORAGE__ENDPOINT=http://$garageip:3900" SR_STORAGE__REGION=garage \
+    "SR_STORAGE__BUCKET=$(env_value GARAGE_BUCKET)" "SR_STORAGE__ACCESS_KEY=$(env_value GARAGE_ACCESS_KEY)" \
+    "SR_STORAGE__SECRET_KEY=$(env_value GARAGE_SECRET_KEY)" \
+    "SR_SMTP__HOST=$(env_value SMTP_HOST)" "SR_SMTP__PORT=$(env_value SMTP_PORT)" \
+    "SR_SMTP__TLS=$(env_value SMTP_TLS)" "SR_SMTP__FROM=SIDE ROOM <no-reply@example.test>" \
+    "$SR_CLI" "$@"
+}
+
+# RDY-OPS-004 in the smoke: sr-cli preflight from the host, where smoke.localhost resolves to Caddy (the one-off
+# container install.sh runs it in cannot resolve that name, so its public URL row fails there). --insecure-tls
+# accepts Caddy's internal CA. Every row must pass, except the ones this stack cannot pass by construction:
+#   mail   the smoke has no mail relay (SMTP_HOST=mail.example.org is a placeholder): FAIL is expected
+#   turn   prod.yml runs no coturn: WARN ("no TURN configured") is expected; a FAIL is not
+# Anything else that is not PASS fails the stage.
+stage_preflight() {
+  need node
+  host_cli_setup
+  log "sr-cli preflight --insecure-tls (table)"
+  cli sideroom preflight --insecure-tls || true
+  log "sr-cli preflight --insecure-tls --json (checked)"
+  json=$work/preflight.json
+  cli sideroom preflight --insecure-tls --json >"$json" || true
+  node -e '
+    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const allowed = { mail: ["pass", "warn", "fail"], turn: ["pass", "warn"] };
+    const bad = r.checks.filter((c) => !(allowed[c.id] ?? ["pass"]).includes(c.status));
+    for (const c of r.checks) console.log(`${c.status.padEnd(4)}  ${c.id.padEnd(12)}  ${c.detail}`);
+    for (const id of ["database", "migrations", "storage", "public-url", "vapid", "secrets"]) {
+      if (!r.checks.some((c) => c.id === id)) bad.push({ id, status: "missing", detail: "row not in the report" });
+    }
+    if (bad.length) {
+      console.error("preflight rows that must pass on the smoke stack:");
+      for (const c of bad) console.error(`  ${c.id}: ${c.status}: ${c.detail}`);
+      process.exit(1);
+    }
+    console.log(`preflight: ${r.passed} passed, ${r.warned} warned, ${r.failed} failed (only the allowed rows)`);
+  ' "$json"
+}
+
+stage_cli_backups() {
+  need pg_dump
+  need pg_restore
+  host_cli_setup
   dir=$work/srcli-backups
   rm -rf "$dir"
 
@@ -263,6 +303,7 @@ case $stage in
   signin) stage_signin ;;
   backups) stage_backups ;;
   cli-backups) stage_cli_backups ;;
+  preflight) stage_preflight ;;
   logs) stage_logs ;;
-  *) die "usage: prod-smoke.sh install|wait|migrate|signin|backups|cli-backups|logs" ;;
+  *) die "usage: prod-smoke.sh install|wait|migrate|signin|backups|cli-backups|preflight|logs" ;;
 esac

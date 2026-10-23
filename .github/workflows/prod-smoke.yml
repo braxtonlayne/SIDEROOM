@@ -114,6 +114,10 @@ jobs:
         run: deploy/scripts/prod-smoke.sh migrate
       - name: Sign in through Caddy, read Admin > System
         run: deploy/scripts/prod-smoke.sh signin
+      # RDY-OPS-004: install.sh already printed the table from its one-off container; this run is from the host,
+      # where smoke.localhost reaches Caddy, and it fails on any row the smoke stack should pass.
+      - name: sr-cli preflight --insecure-tls against the running stack
+        run: deploy/scripts/prod-smoke.sh preflight
       - name: Playwright entrance-smoke through Caddy
         run: |
           pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
