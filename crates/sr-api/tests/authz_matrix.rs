@@ -151,6 +151,19 @@ fn sample(schema: &Value, comps: &Value, depth: usize, name: &str, all: bool) ->
     if let Some(e) = s.get("enum").and_then(Value::as_array)
         && let Some(v) = e.iter().find(|v| !v.is_null())
     {
+        // utoipa lists Rust variant names; the wire format of this code base is snake_case.
+        if let Some(t) = v.as_str()
+            && t.chars().next().is_some_and(char::is_uppercase)
+        {
+            let mut out = String::new();
+            for (i, ch) in t.chars().enumerate() {
+                if ch.is_uppercase() && i > 0 {
+                    out.push('_');
+                }
+                out.extend(ch.to_lowercase());
+            }
+            return json!(out);
+        }
         return v.clone();
     }
     for k in ["oneOf", "anyOf"] {
@@ -551,7 +564,11 @@ async fn create(
         .unwrap_or_else(|| json!({}));
     let r = srv.call(cred, method, path, Some(&body)).await;
     if (200..300).contains(&r.status) {
-        serde_json::from_str(&r.body).ok()
+        let v: Option<Value> = serde_json::from_str(&r.body).ok();
+        if v.as_ref().and_then(|v| v.get("id")).is_none() {
+            println!("authz_matrix: seed {method} {template} answered without an id: {}", r.body.chars().take(120).collect::<String>());
+        }
+        v
     } else {
         println!("authz_matrix: seed {method} {template} -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
         None
@@ -597,7 +614,7 @@ async fn seed(
     let mut users: BTreeMap<&'static str, i64> = BTreeMap::new();
     for n in [
         "ownera", "ownerb", "member", "insider", "mod", "outsider", "victim", "staffowner",
-        "support", "fakestaff", "appowner",
+        "support", "fakestaff", "appowner", "staffbasic",
     ] {
         users.insert(n, account(&pool, &ids, n).await);
     }
@@ -657,7 +674,19 @@ async fn seed(
         .unwrap();
         staff_roles.insert(name, id);
     }
+    // A staff role with the basic bit only: appointed staff who hold no section permission.
+    let basic_role = ids.generate().get() as i64;
+    sqlx::query(
+        "INSERT INTO roles (id, guild_id, name, color, position, platform_permissions, hoist, mentionable) \n         VALUES ($1,$2,'Basic only',0,8,1,true,true)",
+    )
+    .bind(basic_role)
+    .bind(gs)
+    .execute(&pool)
+    .await
+    .unwrap();
+    staff_roles.insert("Basic only".to_owned(), basic_role);
     for (user, role, appointed) in [
+        ("staffbasic", "Basic only", true),
         ("staffowner", "Owner", true),
         ("support", "Support", true),
         ("fakestaff", "Owner", false),
@@ -690,6 +719,7 @@ async fn seed(
         ("owner_a", "ownera"),
         ("owner_b", "ownerb"),
         ("staff_owner", "staffowner"),
+        ("staff_basic", "staffbasic"),
         ("support", "support"),
         ("fake_staff", "fakestaff"),
         ("app_owner", "appowner"),
@@ -999,7 +1029,7 @@ async fn seed(
         "/moderation/cases",
         "/moderation/cases",
         infos,
-        Some(json!({"category": "spam", "target_kind": "other"})),
+        Some(json!({"category": "spam", "target_kind": "other", "guild_id": ga.to_string()})),
     )
     .await
         && let Some(case) = v["id"].as_str()
@@ -1015,7 +1045,7 @@ async fn seed(
             Some(json!({"kind": "message", "id": a["message_id"], "reason": "authz matrix"})),
         )
         .await
-            && let Some(hold) = h["id"].as_str()
+            && let Some(hold) = h["hold_id"].as_str()
         {
             a.insert("hold_id", hold.to_owned());
         }
@@ -1058,7 +1088,7 @@ async fn seed(
         Some(json!({"kind": "library.series", "payload": {"title": "Authz series", "kind": "manga"}, "title": "Authz series", "summary": "authz matrix"})),
     )
     .await
-        && let Some(n) = v["id"].as_str()
+        && let Some(n) = v["submission"]["id"].as_str()
     {
         a.insert("submission_id", n.to_owned());
     }
@@ -1082,6 +1112,43 @@ async fn seed(
     {
         a.insert("grant_id", g.to_string());
     }
+    // Every optional module on, in both servers, so that their routes are reached past the feature gate.
+    for (who, g) in [(&oa, ga), (&ob, gb)] {
+        let list = srv.call(who, "GET", &format!("/guilds/{g}/sr/features"), None).await;
+        let list: Value = serde_json::from_str(&list.body).unwrap_or(Value::Null);
+        for f in list.as_array().into_iter().flatten() {
+            if let Some(fid) = f["id"].as_str() {
+                srv.call(
+                    who,
+                    "PATCH",
+                    &format!("/guilds/{g}/sr/features/{fid}"),
+                    Some(&json!({"enabled": true})),
+                )
+                .await;
+            }
+        }
+    }
+    // Children of the server, for the cross-tenant sweep.
+    let png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHDlN5QAAAABJRU5ErkJggg==";
+    let emoji_body = json!({"name": "authzemoji", "image": png});
+    let recipes: [(&'static str, &str, &Cred, Option<Value>); 7] = [
+        ("event_id", "/guilds/{guild_id}/scheduled-events", &oa, Some(json!({"name": "authz", "entity_type": 3, "privacy_level": 2, "scheduled_start_time": "2031-01-01T00:00:00+00:00", "scheduled_end_time": "2031-01-01T02:00:00+00:00", "entity_metadata": {"location": "here"}})),),
+        ("rule_id", "/guilds/{guild_id}/auto-moderation/rules", &oa, Some(json!({"name": "authz", "event_type": 1, "trigger_type": 3, "enabled": false, "actions": [{"type": 1}]}))),
+        ("emoji_id", "/guilds/{guild_id}/emojis", &oa, Some(emoji_body)),
+        ("suggestion_id", "/guilds/{guild_id}/suggestions", &member_cred, None),
+        ("ticket_id", "/guilds/{guild_id}/tickets", &member_cred, None),
+        ("template_id", "/guilds/{guild_id}/poll-templates", &oa, Some(json!({"name": "authz", "question": "q", "answers": ["a", "b"]}))),
+        ("feed_id", "/guilds/{guild_id}/rss-feeds", &oa, None),
+    ];
+    for (param, tpl, who, body) in recipes {
+        let path = fill(tpl, &a);
+        if let Some(v) = create(&srv, who, "POST", tpl, &path, infos, body).await
+            && let Some(id) = v["id"].as_str()
+        {
+            a.insert(param, id.to_owned());
+        }
+    }
+
     let mut private = a.clone();
     private.insert("channel_id", priv_chan);
     private.insert("message_id", msg_priv);
@@ -1117,7 +1184,14 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 11] = [
+const TENANT: [&str; 18] = [
+    "event_id",
+    "rule_id",
+    "emoji_id",
+    "suggestion_id",
+    "ticket_id",
+    "template_id",
+    "feed_id",
     "guild_id",
     "channel_id",
     "message_id",
@@ -1168,8 +1242,64 @@ fn outsider_exception(r: &Route) -> Option<&'static str> {
     match key {
         ("GET", "/guilds/{guild_id}/preview") => Some("public preview of a discoverable server"),
         ("GET", "/guilds/{guild_id}/widget.json") => Some("public widget"),
+        // Custom emoji are drawn in messages that anyone may read; this lookup gives the name and
+        // whether it is animated, and names no server (`guild` is null for a non-member).
+        ("GET", "/sr/emojis/{emoji_id}") => Some("public emoji metadata, no server named"),
         _ => None,
     }
+}
+
+/// Hand-made bodies for the routes whose sampled body is refused as malformed before the
+/// permission check could be seen, and for the escalation attempts that matter most (a role with
+/// administrator rights, a role handed to someone else, a rename). `{name}` placeholders are
+/// replaced with the seeded ids of tenant A.
+fn body_override(method: &str, path: &str) -> Option<&'static str> {
+    Some(match (method, path) {
+        ("POST", "/applications/{application_id}/testers") => r#"{"username":"victim"}"#,
+        ("POST", "/submissions/{submission_id}/artwork/{kind}") => {
+            r#"{"image":"data:image/png;base64,iVBORw0KGgo="}"#
+        }
+        ("PATCH", "/guilds/{guild_id}/vanity-url") => r#"{"code":"authzmatrix"}"#,
+        ("PATCH", "/guilds/{guild_id}/voice-states/{user_id}") => r#"{"suppress":true}"#,
+        ("PATCH", "/stage-instances/{channel_id}") => r#"{"topic":"authz"}"#,
+        ("POST", "/channels/{channel_id}/scheduled-messages") => {
+            r#"{"content":"authz","send_at":"2031-01-01T00:00:00Z"}"#
+        }
+        ("POST", "/guilds/{guild_id}/channels") => r#"{"name":"authz","type":0}"#,
+        ("PUT", "/users/@me/channels/{channel_id}/request") => r#"{"state":"accepted"}"#,
+        ("PUT", "/watch-parties/{party_id}/media") => r#"{"title_id":"1"}"#,
+        ("PATCH", "/guilds/{guild_id}/members/@me") => r#"{"nick":"authz"}"#,
+        ("PATCH", "/guilds/{guild_id}/members/{user_id}") => {
+            r#"{"nick":"authz","roles":["{role_id}"]}"#
+        }
+        ("PATCH", "/guilds/{guild_id}/roles/{role_id}") => {
+            r#"{"name":"authz","permissions":"8"}"#
+        }
+        ("POST", "/guilds/{guild_id}/roles") => r#"{"name":"authz","permissions":"8"}"#,
+        ("POST", "/channels/{channel_id}/threads") => r#"{"name":"authz","type":11}"#,
+        ("PUT", "/guilds/{guild_id}/requests/@me") => r#"{"agreed":true}"#,
+        ("PATCH", "/guilds/{guild_id}") => r#"{"name":"authz taken over"}"#,
+        ("PATCH", "/channels/{channel_id}") => r#"{"name":"authz-renamed"}"#,
+        ("PUT", "/channels/{channel_id}/permissions/{overwrite_id}") => {
+            r#"{"type":0,"allow":"8","deny":"0"}"#
+        }
+        ("POST", "/channels/{channel_id}/messages") => r#"{"content":"authz matrix post"}"#,
+        ("PATCH", "/guilds/{guild_id}/roles") => r#"[{"id":"{role_id}","position":1}]"#,
+        ("PATCH", "/guilds/{guild_id}/emojis/{emoji_id}") => r#"{"name":"hijacked"}"#,
+        ("POST", "/guilds/{guild_id}/poll-templates") | ("PATCH", "/guilds/{guild_id}/poll-templates/{template_id}") => {
+            r#"{"name":"authz","question":"q","answers":["a","b"]}"#
+        }
+        ("PATCH", "/guilds/{guild_id}/suggestions/{suggestion_id}") => r#"{"status":"approved"}"#,
+        ("PATCH", "/guilds/{guild_id}/scheduled-events/{event_id}") => r#"{"name":"hijacked"}"#,
+        ("PUT", "/admin/staff/{account_id}/delegation") => r#"{"max_permissions":"1"}"#,
+        ("POST", "/admin/accounts/{account_id}/ban") => {
+            r#"{"category":"standard","reason":"authz matrix"}"#
+        }
+        ("POST", "/admin/persons/{person_id}/ban") => {
+            r#"{"category":"standard","reason":"authz matrix"}"#
+        }
+        _ => return None,
+    })
 }
 
 fn is_write(method: &str) -> bool {
@@ -1203,7 +1333,7 @@ struct Call {
 /// The actor who is rightfully allowed on the route: its status shows whether the seeded ids
 /// reach a real resource (a refusal as 404 next to a 404 for the control proves little).
 fn control_of(r: &Route) -> &'static str {
-    if r.authz == "staff" {
+    if r.authz == "staff" || r.path.starts_with("/moderation") {
         "staff_owner"
     } else if r.authz == "owner" {
         "app_owner"
@@ -1284,6 +1414,7 @@ fn plan_calls(
             if staff { Exp::Deny } else { Exp::Observe },
         ));
         calls.push(std("support", Exp::Observe));
+        calls.push(std("staff_basic", Exp::Observe));
         calls.push(std(
             "staff_owner",
             if staff && !is_write(&r.method) {
@@ -1297,6 +1428,7 @@ fn plan_calls(
             if staff
                 || (portal_owner && r.path.contains("{application_id}"))
                 || r.authz == "bot"
+                || (r.authz == "membership" && r.path.starts_with("/moderation/cases"))
             {
                 Exp::Deny
             } else {
@@ -1401,10 +1533,11 @@ fn plan_calls(
         .filter(|c| {
             let r = &routes[c.route];
             is_write(&r.method)
-                && ["member", "outsider", "fake_staff", "bot_out", "owner_b"].contains(&c.actor)
+                && ["member", "outsider", "fake_staff", "bot_out", "owner_b", "staff_basic", "support"].contains(&c.actor)
                 && infos
                     .get(&(r.method.clone(), r.path.clone()))
                     .is_some_and(|i| i.full.is_some() && i.full != i.body)
+                && body_override(&r.method, &r.path).is_none()
         })
         .map(|c| Call {
             pass: match c.pass {
@@ -1441,8 +1574,12 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
                 && (r.body.trim() == "[]" || r.body.contains("\"instance\":null"))
             {
                 ("ok", "empty answer".into())
+            } else if s == 400 && code == "0" {
+                // `General error` without a field: the id names nothing in this server (an unknown
+                // auto-moderation rule is answered this way), so nothing was reached.
+                ("ok", "unknown id".into())
             } else if matches!(s, 400 | 405 | 409 | 415 | 422) {
-                ("masked", code)
+                ("masked", format!("{code} {}", short(100)))
             } else if s == 0 || s >= 500 {
                 ("error", format!("{s} {}", short(120)))
             } else {
@@ -1463,8 +1600,10 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
     }
 }
 
-/// Tables whose rows change on any request.
-const NOISY: [&str; 12] = [
+/// Tables a background job or any request moves (the job runner, sessions, the access log, the payment
+/// watcher cursor), so that they say nothing about one refused call.
+const NOISY: [&str; 13] = [
+    "payment_watcher",
     "staff_access_log",
     "sessions",
     "jobs",
@@ -1555,7 +1694,13 @@ async fn run_group(
     let (denials, others): (Vec<&Call>, Vec<&Call>) =
         calls.iter().partition(|c| c.exp == Exp::Deny);
     let mut others = others;
-    others.sort_by_key(|c| class_of(&routes[c.route].method));
+    // Reads, then writes, then deletes; deeper paths first among the deletes, so that removing a
+    // server does not leave its children looking absent to the controls.
+    others.sort_by_key(|c| {
+        let r = &routes[c.route];
+        let depth = r.path.matches('/').count();
+        (class_of(&r.method), if r.method == "DELETE" { usize::MAX - depth } else { 0 })
+    });
 
     let before = fingerprint(&world.pool).await;
     let mut group_fail = 0usize;
@@ -1573,10 +1718,20 @@ async fn run_group(
                 path.push_str(&i.query);
             }
             let body = if is_write(&r.method) {
+                if let Some(text) = body_override(&r.method, &r.path) {
+                    {
+                        let mut t = text.to_owned();
+                        for (k, v) in &world.a {
+                            t = t.replace(&format!("{{{k}}}"), v);
+                        }
+                        serde_json::from_str(&t).ok()
+                    }
+                } else {
                 Some(
                     info.and_then(|i| if c.full { i.full.clone() } else { i.body.clone() })
                         .unwrap_or_else(|| json!({})),
                 )
+                }
             } else {
                 None
             };
@@ -1646,7 +1801,8 @@ async fn run_group(
                 .get(&(o.method.clone(), o.path.clone()))
                 .copied()
                 .unwrap_or(0);
-            if matches!(c, 0 | 400 | 404 | 422) || c >= 500 {
+            // The refusal is only as good as its difference from the rightful actor's answer.
+            if c == o.status || c == 0 || c >= 500 {
                 o.verdict = "weak";
                 weak += 1;
             }
