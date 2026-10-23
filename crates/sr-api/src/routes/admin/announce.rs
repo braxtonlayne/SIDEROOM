@@ -338,7 +338,7 @@ pub async fn press_package_button(
         message: message.into(),
         link: None,
     };
-    if !permissions.contains(sr_core::PlatformPermissions::REVIEW_PACKAGES) {
+    if !permissions.has(sr_core::PlatformPermissions::REVIEW_PACKAGES) {
         return Err(HttpError::from(ErrorCode::MissingPermissions));
     }
     match service

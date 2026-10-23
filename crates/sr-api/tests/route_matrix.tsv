@@ -1,972 +1,970 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
-# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER (a trailing ? on AUTHZ means unreviewed)
-DELETE	/activity-instances/{instance_id}	authenticated	membership	allow	-
-DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-
-DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-
-DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-
-DELETE	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-
-DELETE	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
-DELETE	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
-DELETE	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
-DELETE	/admin/donations/entitlements/{grant_id}	authenticated	staff	deny	-
-DELETE	/admin/entrance/copy/{key}	authenticated	staff	deny	-
-DELETE	/admin/entrance/hero	authenticated	staff	deny	-
-DELETE	/admin/guilds/{guild_id}	authenticated	staff	deny	-
-DELETE	/admin/ingest-sources/{source_id}	authenticated	staff	deny	-
-DELETE	/admin/invites/{invite_id}	authenticated	staff	deny	-
-DELETE	/admin/jobs/{job_id}	authenticated	staff	deny	-
-DELETE	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
-DELETE	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
-DELETE	/admin/library/series/{series_id}	authenticated	staff	deny	-
-DELETE	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-
-DELETE	/admin/library/volumes/{volume_id}	authenticated	staff	deny	-
-DELETE	/admin/staff/offers/{offer_id}	authenticated	staff	deny	-
-DELETE	/admin/staff/{account_id}	authenticated	staff	deny	-
-DELETE	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-
-DELETE	/admin/transcode/tokens/{token_id}	authenticated	staff	deny	-
-DELETE	/admin/tv/blocks/{block_id}	authenticated	staff	deny	-
-DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
-DELETE	/applications/{application_id}	authenticated	owner	deny	-
-DELETE	/applications/{application_id}/assets/{asset_id}	authenticated	owner	deny	-
-DELETE	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
-DELETE	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	allow	-
-DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
-DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-
-DELETE	/channels/{channel_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/attachments/{upload_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/messages/{message_id}/reactions	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/{user_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-
-DELETE	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-
-DELETE	/cinema/comments/{comment_id}	authenticated	author	allow	-
-DELETE	/cinema/comments/{comment_id}/like	authenticated	user	allow	-
-DELETE	/cinema/lists/{list_id}	authenticated	author	allow	-
-DELETE	/cinema/lists/{list_id}/items/{title_id}	authenticated	author	allow	-
-DELETE	/cinema/me/history	authenticated	self	allow	-
-DELETE	/cinema/me/list/{title_id}	authenticated	self	allow	-
-DELETE	/cinema/me/watching	authenticated	self	allow	-
-DELETE	/cinema/reviews/{review_id}/helpful	authenticated	user	allow	-
-DELETE	/cinema/titles/{title_id}/episodes/{episode_id}/progress	authenticated	self	allow	-
-DELETE	/cinema/titles/{title_id}/episodes/{episode_id}/rating	authenticated	self	allow	-
-DELETE	/cinema/titles/{title_id}/progress	authenticated	self	allow	-
-DELETE	/cinema/titles/{title_id}/rating	authenticated	self	allow	-
-DELETE	/cinema/titles/{title_id}/review	authenticated	self	allow	-
-DELETE	/guilds/{guild_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/directory	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/integrations/{integration_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-
-DELETE	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/tag	authenticated	membership	allow	-
-DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
-DELETE	/invites/{code}	authenticated	membership	allow	-
-DELETE	/library/bookmarks/{bookmark_id}	authenticated	self	allow	-
-DELETE	/library/chapters/{chapter_id}/progress	authenticated	self	allow	-
-DELETE	/library/chapters/{chapter_id}/rating	authenticated	self	allow	-
-DELETE	/library/comments/{comment_id}	authenticated	author	allow	-
-DELETE	/library/comments/{comment_id}/like	authenticated	user	allow	-
-DELETE	/library/lists/{list_id}	authenticated	author	allow	-
-DELETE	/library/lists/{list_id}/items/{series_id}	authenticated	author	allow	-
-DELETE	/library/me/presence	authenticated	self	allow	-
-DELETE	/library/reviews/{review_id}/helpful	authenticated	user	allow	-
-DELETE	/library/series/{series_id}/follow	authenticated	self	allow	-
-DELETE	/library/series/{series_id}/rating	authenticated	self	allow	-
-DELETE	/library/series/{series_id}/review	authenticated	self	allow	-
-DELETE	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-
-DELETE	/moderation/takedowns/{notice_id}/items/{item_id}	authenticated	staff	deny	-
-DELETE	/oauth2/tokens/{grant_id}	authenticated	self	deny	-
-DELETE	/packages/{package_id}	authenticated	author	deny	-
-DELETE	/requests/{request_id}/claim	authenticated	author_or_staff	allow	-
-DELETE	/requests/{request_id}/vote	authenticated	self	allow	-
-DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
-DELETE	/sr/invites/{code}	authenticated	self	deny	-
-DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
-DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-
-DELETE	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	author	allow	-
-DELETE	/tv/favorites/{channel_id}	authenticated	self	allow	-
-DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-
-DELETE	/users/@me/age-confirmation	authenticated	self	deny	-
-DELETE	/users/@me/birthday	authenticated	self	deny	-
-DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
-DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
-DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
-DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
-DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-
-DELETE	/users/@me/packages/{package_id}	authenticated	self	deny	-
-DELETE	/users/@me/profile-media/{media_id}	authenticated	self	deny	-
-DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-
-DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-
-DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
-DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-
-DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-
-DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-
-DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-
-DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-
-DELETE	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
-DELETE	/webhooks/{webhook_id}	authenticated	membership	allow	-
-DELETE	/webhooks/{webhook_id}/{token}	public	none	allow	-
-GET	/activities	authenticated	user	allow	-
-GET	/activity-instances/{instance_id}	authenticated	membership	allow	-
-GET	/admin/access-log	authenticated	staff	deny	-
-GET	/admin/access-log/verify	authenticated	staff	deny	-
-GET	/admin/accounts	authenticated	staff	deny	-
-GET	/admin/accounts/{account_id}	authenticated	staff	deny	-
-GET	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
-GET	/admin/accounts/{account_id}/deleted-archive	authenticated	staff	deny	-
-GET	/admin/accounts/{account_id}/guilds	authenticated	staff	deny	-
-GET	/admin/accounts/{account_id}/invite-descendants	authenticated	staff	deny	-
-GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-
-GET	/admin/accounts/{account_id}/sessions	authenticated	staff	deny	-
-GET	/admin/alerts	authenticated	staff	deny	-
-GET	/admin/announcements	authenticated	staff	deny	-
-GET	/admin/bans	authenticated	staff	deny	-
-GET	/admin/cinema/assets	authenticated	staff	deny	-
-GET	/admin/cinema/assets/{asset_id}	authenticated	staff	deny	-
-GET	/admin/cinema/collections	authenticated	staff	deny	-
-GET	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-
-GET	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-
-GET	/admin/cinema/reports	authenticated	staff	deny	-
-GET	/admin/cinema/titles	authenticated	staff	deny	-
-GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
-GET	/admin/data-requests	authenticated	staff	deny	-
-GET	/admin/data-requests/{request_id}	authenticated	staff	deny	-
-GET	/admin/developers/activities	authenticated	staff	deny	-
-GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-
-GET	/admin/developers/packages	authenticated	staff	deny	-
-GET	/admin/developers/packages/versions/{version_id}/download	authenticated	staff	deny	-
-GET	/admin/developers/requests	authenticated	staff	deny	-
-GET	/admin/developers/versions	authenticated	staff	deny	-
-GET	/admin/directory	authenticated	staff	deny	-
-GET	/admin/directory/queue/{guild_id}/preview	authenticated	staff	deny	-
-GET	/admin/donations/config	authenticated	staff	deny	-
-GET	/admin/donations/entitlements	authenticated	staff	deny	-
-GET	/admin/donations/invoices	authenticated	staff	deny	-
-GET	/admin/donations/invoices/{invoice_id}	authenticated	staff	deny	-
-GET	/admin/donations/leaderboard/{board}	authenticated	staff	deny	-
-GET	/admin/donations/rates	authenticated	staff	deny	-
-GET	/admin/donations/report	authenticated	staff	deny	-
-GET	/admin/donations/status	authenticated	staff	deny	-
-GET	/admin/features	authenticated	staff	deny	-
-GET	/admin/guilds	authenticated	staff	deny	-
-GET	/admin/guilds/{guild_id}	authenticated	staff	deny	-
-GET	/admin/ingest-sources	authenticated	staff	deny	-
-GET	/admin/invites	authenticated	staff	deny	-
-GET	/admin/jobs	authenticated	staff	deny	-
-GET	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
-GET	/admin/library/chapters/{chapter_id}/uploads	authenticated	staff	deny	-
-GET	/admin/library/comment-reports	authenticated	staff	deny	-
-GET	/admin/library/series	authenticated	staff	deny	-
-GET	/admin/library/series/{series_id}	authenticated	staff	deny	-
-GET	/admin/library/series/{series_id}/chapters	authenticated	staff	deny	-
-GET	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-
-GET	/admin/library/uploads/{upload_id}/inspect	authenticated	staff	deny	-
-GET	/admin/library/uploads/{upload_id}/parts	authenticated	staff	deny	-
-GET	/admin/me	authenticated	staff	deny	-
-GET	/admin/persons/{person_id}	authenticated	staff	deny	-
-GET	/admin/persons/{person_id}/suspicion-log	authenticated	staff	deny	-
-GET	/admin/private/accounts/{account_id}/dms	authenticated	staff	deny	-
-GET	/admin/private/channels/{channel_id}/messages	authenticated	staff	deny	-
-GET	/admin/private/guilds/{guild_id}/channels	authenticated	staff	deny	-
-GET	/admin/reauth	authenticated	staff	deny	-
-GET	/admin/review/queue	authenticated	staff	deny	-
-GET	/admin/review/submissions/{submission_id}	authenticated	staff	deny	-
-GET	/admin/review/submissions/{submission_id}/credits	authenticated	staff	deny	-
-GET	/admin/review/submissions/{submission_id}/duplicates	authenticated	staff	deny	-
-GET	/admin/review/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
-GET	/admin/review/submissions/{submission_id}/media	authenticated	staff	deny	-
-GET	/admin/review/submissions/{submission_id}/preview	authenticated	staff	deny	-
-GET	/admin/settings	authenticated	staff	deny	-
-GET	/admin/staff	authenticated	staff	deny	-
-GET	/admin/staff/delegations	authenticated	staff	deny	-
-GET	/admin/staff/former	authenticated	staff	deny	-
-GET	/admin/staff/offers	authenticated	staff	deny	-
-GET	/admin/staff/roles	authenticated	staff	deny	-
-GET	/admin/stats	authenticated	staff	deny	-
-GET	/admin/suspicion	authenticated	staff	deny	-
-GET	/admin/system	authenticated	staff	deny	-
-GET	/admin/system/csp-reports	authenticated	staff	deny	-
-GET	/admin/transcode/jobs	authenticated	staff	deny	-
-GET	/admin/transcode/jobs/{job_id}	authenticated	staff	deny	-
-GET	/admin/transcode/queue	authenticated	staff	deny	-
-GET	/admin/transcode/tokens	authenticated	staff	deny	-
-GET	/admin/transcode/workers	authenticated	staff	deny	-
-GET	/admin/tv/channels	authenticated	staff	deny	-
-GET	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
-GET	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-
-GET	/admin/tv/channels/{channel_id}/imports/{import_id}	authenticated	staff	deny	-
-GET	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
-GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-
-GET	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
-GET	/admin/tv/guide-template	authenticated	staff	deny	-
-GET	/admin/tv/report	authenticated	staff	deny	-
-GET	/admin/tv/slate	authenticated	staff	deny	-
-GET	/announcements/active	authenticated	user	deny	-
-GET	/app-directory	authenticated	user	allow	-
-GET	/app-directory/tags	authenticated	user	allow	-
-GET	/app-directory/{application_id}	authenticated	user	allow	-
-GET	/applications	authenticated	owner	deny	-
-GET	/applications/@me	authenticated	owner	allow	-
-GET	/applications/{application_id}	authenticated	owner	deny	-
-GET	/applications/{application_id}/activity	authenticated	owner	deny	-
-GET	/applications/{application_id}/activity/bundles/{bundle_id}	authenticated	owner	deny	-
-GET	/applications/{application_id}/assets	authenticated	user	deny	-
-GET	/applications/{application_id}/audit-log	authenticated	owner	deny	-
-GET	/applications/{application_id}/commands	authenticated	owner	allow	-
-GET	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
-GET	/applications/{application_id}/emojis	authenticated	owner	allow	-
-GET	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	membership	allow	-
-GET	/applications/{application_id}/guilds/{guild_id}/commands/permissions	authenticated	membership	allow	-
-GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
-GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	membership	allow	-
-GET	/applications/{application_id}/installs	authenticated	owner	deny	-
-GET	/applications/{application_id}/testers	authenticated	owner	deny	-
-GET	/applications/{application_id}/versions	authenticated	owner	deny	-
-GET	/channels/{channel_id}	authenticated	membership	allow	-
-GET	/channels/{channel_id}/activity	authenticated	membership	allow	-
-GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-
-GET	/channels/{channel_id}/attachments/{upload_id}/parts	authenticated	membership	allow	-
-GET	/channels/{channel_id}/call	authenticated	membership	allow	-
-GET	/channels/{channel_id}/invites	authenticated	membership	allow	-
-GET	/channels/{channel_id}/messages	authenticated	membership	allow	-
-GET	/channels/{channel_id}/messages/pins	authenticated	membership	allow	-
-GET	/channels/{channel_id}/messages/search	authenticated	membership	allow	-
-GET	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
-GET	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-
-GET	/channels/{channel_id}/pins	authenticated	membership	allow	-
-GET	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}	authenticated	membership	allow	-
-GET	/channels/{channel_id}/sr/features	authenticated	membership	allow	-
-GET	/channels/{channel_id}/thread-members	authenticated	membership	allow	-
-GET	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-
-GET	/channels/{channel_id}/threads/archived/private	authenticated	membership	allow	-
-GET	/channels/{channel_id}/threads/archived/public	authenticated	membership	allow	-
-GET	/channels/{channel_id}/users/@me/threads/archived/private	authenticated	membership	allow	-
-GET	/channels/{channel_id}/watch-party	authenticated	membership	allow	-
-GET	/channels/{channel_id}/webhooks	authenticated	membership	allow	-
-GET	/cinema/assets/{asset_id}/playback	authenticated	user	allow	-
-GET	/cinema/collections	authenticated	user	allow	-
-GET	/cinema/comments/{comment_id}/replies	authenticated	user	allow	-
-GET	/cinema/discover	authenticated	user	allow	-
-GET	/cinema/downloads/{job_id}	authenticated	self	allow	-
-GET	/cinema/downloads/{job_id}/file	authenticated	self	allow	-
-GET	/cinema/episodes/{episode_id}	authenticated	user	allow	-
-GET	/cinema/episodes/{episode_id}/markers	authenticated	user	allow	-
-GET	/cinema/episodes/{episode_id}/play	authenticated	user	allow	-
-GET	/cinema/facets	authenticated	user	allow	-
-GET	/cinema/lists	authenticated	self	allow	-
-GET	/cinema/lists/{list_id}	authenticated	visibility	allow	-
-GET	/cinema/me/continue-watching	authenticated	self	allow	-
-GET	/cinema/me/friends-watching	authenticated	self	allow	-
-GET	/cinema/me/history	authenticated	self	allow	-
-GET	/cinema/me/history/settings	authenticated	self	allow	-
-GET	/cinema/me/list	authenticated	self	allow	-
-GET	/cinema/me/recommendations	authenticated	self	allow	-
-GET	/cinema/rows/{key}	authenticated	user	allow	-
-GET	/cinema/search	authenticated	user	allow	-
-GET	/cinema/titles	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/comments	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/contributors	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/downloads	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/episodes	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/episodes/{episode_id}/progress	authenticated	self	allow	-
-GET	/cinema/titles/{title_id}/episodes/{episode_id}/ratings	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/markers	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/play	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/progress	authenticated	self	allow	-
-GET	/cinema/titles/{title_id}/ratings	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/reviews	authenticated	user	allow	-
-GET	/cinema/titles/{title_id}/watch-state	authenticated	self	allow	-
-GET	/cinema/trending	authenticated	user	allow	-
-GET	/cinema/users/{user_id}/lists	authenticated	visibility	allow	-
-GET	/developers/status	authenticated	owner	deny	-
-GET	/directory	authenticated	user	deny	-
-GET	/directory/categories	authenticated	user	deny	-
-GET	/directory/{guild_id}	authenticated	user	deny	-
-GET	/donations/config	authenticated	user	allow	-
-GET	/donations/invoices	authenticated	self	allow	-
-GET	/donations/invoices/{invoice_id}	authenticated	self	allow	-
-GET	/donations/leaderboards/contributors/{kind}	authenticated	user	allow	-
-GET	/donations/leaderboards/{board}	authenticated	user	allow	-
-GET	/donations/me	authenticated	self	allow	-
-GET	/gateway	public	none	allow	-
-GET	/gateway/bot	authenticated	bot	allow	-
-GET	/gifs/categories	authenticated	self	deny	-
-GET	/gifs/config	authenticated	self	deny	-
-GET	/gifs/search	authenticated	self	deny	-
-GET	/gifs/trending	authenticated	self	deny	-
-GET	/guilds/templates/builtin	authenticated	membership	allow	-
-GET	/guilds/templates/{code}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/appearance	authenticated	membership	deny	-
-GET	/guilds/{guild_id}/audit-logs	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/bans	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/birthdays	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/channels	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/directory	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/emojis/{emoji_id}/url	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/integrations	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/invites	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/leveling/leaderboard	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/leveling/rank/{user_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/member-verification	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/members	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/members/search	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/messages/search	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/modules	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/packages	authenticated	membership	deny	-
-GET	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/roles/{role_id}/members	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/scheduled-events/{event_id}/users	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/sr/applications	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/sr/applications/@me	authenticated	self	allow	-
-GET	/guilds/{guild_id}/sr/applications/form	authenticated	user	allow	-
-GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/sr/features	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/sr/insights	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/sr/slowmode/presets	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/stage-instances	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/support	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/tag	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/templates	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/threads/active	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/tickets	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/webhooks	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
-GET	/guilds/{guild_id}/widget	authenticated	membership	allow	-
-GET	/invites/{code}	authenticated	membership	allow	-
-GET	/library/chapters/{chapter_id}/bookmarks	authenticated	self	allow	-
-GET	/library/chapters/{chapter_id}/comments	authenticated	user	allow	-
-GET	/library/chapters/{chapter_id}/pages	authenticated	user	allow	-
-GET	/library/chapters/{chapter_id}/progress	authenticated	self	allow	-
-GET	/library/chapters/{chapter_id}/rating	authenticated	self	allow	-
-GET	/library/comments/{comment_id}/replies	authenticated	user	allow	-
-GET	/library/friends/reading	authenticated	self	allow	-
-GET	/library/lists/featured	authenticated	user	allow	-
-GET	/library/lists/{list_id}	authenticated	visibility	allow	-
-GET	/library/me/bookmarks	authenticated	self	allow	-
-GET	/library/me/downloads	authenticated	self	allow	-
-GET	/library/me/follows	authenticated	self	allow	-
-GET	/library/me/lists	authenticated	self	allow	-
-GET	/library/me/notifications	authenticated	self	allow	-
-GET	/library/me/progress	authenticated	self	allow	-
-GET	/library/me/unread	authenticated	self	allow	-
-GET	/library/rankings	authenticated	user	allow	-
-GET	/library/recommendations	authenticated	self	allow	-
-GET	/library/search	authenticated	user	allow	-
-GET	/library/series	authenticated	user	allow	-
-GET	/library/series/{series_id}	authenticated	user	allow	-
-GET	/library/series/{series_id}/chapters	authenticated	user	allow	-
-GET	/library/series/{series_id}/comments	authenticated	user	allow	-
-GET	/library/series/{series_id}/contributors	authenticated	user	allow	-
-GET	/library/series/{series_id}/ratings	authenticated	user	allow	-
-GET	/library/series/{series_id}/related	authenticated	user	allow	-
-GET	/library/series/{series_id}/reviews	authenticated	user	allow	-
-GET	/library/updates	authenticated	user	allow	-
-GET	/library/users/{user_id}/lists	authenticated	visibility	allow	-
-GET	/moderation/appeals	authenticated	staff	deny	-
-GET	/moderation/cases	authenticated	staff	deny	-
-GET	/moderation/cases/{case_id}	authenticated	membership	deny	-
-GET	/moderation/dashboard	authenticated	staff	deny	-
-GET	/moderation/dashboard/inbox	authenticated	staff	deny	-
-GET	/moderation/dashboard/inbox/count	authenticated	staff	deny	-
-GET	/moderation/evasion-signals	authenticated	staff	deny	-
-GET	/moderation/evasion-signals/count	authenticated	staff	deny	-
-GET	/moderation/evasion-signals/{signal_id}	authenticated	staff	deny	-
-GET	/moderation/guilds/{guild_id}/cases	authenticated	membership	deny	-
-GET	/moderation/holds	authenticated	staff	deny	-
-GET	/moderation/item-status	authenticated	user	deny	-
-GET	/moderation/persons/{person_id}/suspicion	authenticated	staff	deny	-
-GET	/moderation/reports/mine	authenticated	self	deny	-
-GET	/moderation/takedowns	authenticated	staff	deny	-
-GET	/moderation/takedowns/export	authenticated	staff	deny	-
-GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-
-GET	/oauth2/@me	authenticated	self	allow	any
-GET	/oauth2/authorize	authenticated	self	deny	-
-GET	/oauth2/tokens	authenticated	self	deny	-
-GET	/packages	authenticated	user	deny	-
-GET	/packages/mine	authenticated	self	deny	-
-GET	/packages/versions/{version_id}/files/{path}	authenticated	user	deny	-
-GET	/packages/{package_id}	authenticated	user	deny	-
-GET	/profile-pages/{username}	authenticated	visibility	deny	-
-GET	/push/vapid-key	authenticated	self	deny	-
-GET	/requests	authenticated	user	allow	-
-GET	/soundboard-default-sounds	authenticated	user	allow	-
-GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-
-GET	/sr/appearance/defaults	public	none	deny	-
-GET	/sr/auth/discord	authenticated	self	deny	-
-GET	/sr/auth/passkeys	authenticated	self	deny	-
-GET	/sr/auth/reauth	authenticated	self	deny	-
-GET	/sr/compliance/public	public	none	deny	-
-GET	/sr/csrf	authenticated	self	allow	-
-GET	/sr/emojis/{emoji_id}	authenticated	visibility	allow	-
-GET	/sr/emojis/{emoji_id}/url	authenticated	user	allow	-
-GET	/sr/entrance/copy	public	none	deny	-
-GET	/sr/entrance/hero	public	none	deny	-
-GET	/sr/features/flags	authenticated	user	deny	-
-GET	/sr/invites	authenticated	self	deny	-
-GET	/sr/profile-catalog	authenticated	user	deny	-
-GET	/sr/users/@me/messages/delete-all	authenticated	self	deny	-
-GET	/sr/voice/turn	authenticated	user	allow	-
-GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
-GET	/sticker-packs	authenticated	user	allow	-
-GET	/stickers/{sticker_id}/url	authenticated	user	allow	-
-GET	/streams/{stream_key}/preview	authenticated	membership	allow	-
-GET	/submissions	authenticated	self	allow	-
-GET	/submissions/kinds	authenticated	user	allow	-
-GET	/submissions/lookup	authenticated	user	allow	-
-GET	/submissions/lookup/providers	authenticated	user	allow	-
-GET	/submissions/quota	authenticated	self	allow	-
-GET	/submissions/{submission_id}	authenticated	author	allow	-
-GET	/submissions/{submission_id}/credits	authenticated	author	allow	-
-GET	/submissions/{submission_id}/duplicates	authenticated	author	allow	-
-GET	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-
-GET	/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	author	allow	-
-GET	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	author	allow	-
-GET	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	author	allow	-
-GET	/submissions/{submission_id}/library/uploads/{upload_id}/inspect	authenticated	author	allow	-
-GET	/submissions/{submission_id}/library/uploads/{upload_id}/parts	authenticated	author	allow	-
-GET	/submissions/{submission_id}/preview	authenticated	author	allow	-
-GET	/tv/channels	authenticated	user	allow	-
-GET	/tv/channels/{channel_id}	authenticated	membership	allow	-
-GET	/tv/channels/{channel_id}/live/audio.m3u8	authenticated	membership	allow	-
-GET	/tv/channels/{channel_id}/live/master.m3u8	authenticated	membership	allow	-
-GET	/tv/channels/{channel_id}/live/v/{file}	authenticated	membership	allow	-
-GET	/tv/channels/{channel_id}/now	authenticated	membership	allow	-
-GET	/tv/channels/{channel_id}/tune	authenticated	membership	allow	-
-GET	/tv/favorites	authenticated	self	allow	-
-GET	/tv/guide	authenticated	user	allow	-
-GET	/tv/reminders	authenticated	self	deny	-
-GET	/tv/timezones	authenticated	user	allow	-
-GET	/users/@me	authenticated	self	allow	identify
-GET	/users/@me/age-confirmation	authenticated	self	deny	-
-GET	/users/@me/birthday	authenticated	self	deny	-
-GET	/users/@me/bookmarks	authenticated	self	deny	-
-GET	/users/@me/channels	authenticated	self	allow	-
-GET	/users/@me/connections	authenticated	self	deny	-
-GET	/users/@me/data-export	authenticated	self	deny	-
-GET	/users/@me/data-export/{id}/download	authenticated	self	deny	-
-GET	/users/@me/guilds	authenticated	self	allow	guilds
-GET	/users/@me/guilds/{guild_id}/member	authenticated	membership	allow	-
-GET	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
-GET	/users/@me/ignores	authenticated	self	deny	-
-GET	/users/@me/mentions	authenticated	self	deny	-
-GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
-GET	/users/@me/notification-defaults	authenticated	self	deny	-
-GET	/users/@me/notification-keywords	authenticated	self	deny	-
-GET	/users/@me/packages	authenticated	self	deny	-
-GET	/users/@me/presence	authenticated	self	allow	-
-GET	/users/@me/primary-guild	authenticated	self	deny	-
-GET	/users/@me/privacy	authenticated	self	deny	-
-GET	/users/@me/profile	authenticated	self	allow	-
-GET	/users/@me/profile-doc	authenticated	self	deny	-
-GET	/users/@me/profile-media	authenticated	self	deny	-
-GET	/users/@me/read-states	authenticated	self	allow	-
-GET	/users/@me/relationships	authenticated	self	deny	-
-GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-GET	/users/@me/reminders	authenticated	self	deny	-
-GET	/users/@me/scheduled-messages	authenticated	self	deny	-
-GET	/users/@me/settings	authenticated	self	deny	-
-GET	/users/@me/sr/features	authenticated	self	deny	-
-GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-
-GET	/users/{user_id}/profile	authenticated	user	allow	-
-GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-
-GET	/watch-parties/me	authenticated	self	allow	-
-GET	/watch-parties/time	authenticated	user	allow	-
-GET	/watch-parties/{party_id}	authenticated	party_access	allow	-
-GET	/watch-parties/{party_id}/audit	authenticated	party_manager	allow	-
-GET	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
-GET	/webhooks/{webhook_id}	authenticated	membership	allow	-
-GET	/webhooks/{webhook_id}/{token}	public	none	allow	-
-PATCH	/admin/announcements/{announcement_id}	authenticated	staff	deny	-
-PATCH	/admin/directory/{guild_id}	authenticated	staff	deny	-
-PATCH	/admin/donations/config	authenticated	staff	deny	-
-PATCH	/admin/features/{feature_id}	authenticated	staff	deny	-
-PATCH	/admin/ingest-sources/{source_id}	authenticated	staff	deny	-
-PATCH	/admin/settings	authenticated	staff	deny	-
-PATCH	/applications/{application_id}	authenticated	owner	deny	-
-PATCH	/applications/{application_id}/bot	authenticated	owner	deny	-
-PATCH	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-
-PATCH	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	allow	-
-PATCH	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-
-PATCH	/channels/{channel_id}	authenticated	membership	allow	-
-PATCH	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-
-PATCH	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-
-PATCH	/cinema/comments/{comment_id}	authenticated	author	allow	-
-PATCH	/cinema/lists/{list_id}	authenticated	author	allow	-
-PATCH	/donations/me/preferences	authenticated	self	allow	-
-PATCH	/guilds/{guild_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/appearance	authenticated	membership	deny	-
-PATCH	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/channels	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/members/@me	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/sr/profile	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/voice-states/{user_id}	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
-PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-
-PATCH	/library/comments/{comment_id}	authenticated	author	allow	-
-PATCH	/library/lists/{list_id}	authenticated	author	allow	-
-PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-
-PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-
-PATCH	/submissions/{submission_id}	authenticated	author	allow	-
-PATCH	/users/@me	authenticated	self	allow	-
-PATCH	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-
-PATCH	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
-PATCH	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-
-PATCH	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
-PATCH	/users/@me/notification-defaults	authenticated	self	deny	-
-PATCH	/users/@me/presence	authenticated	self	allow	-
-PATCH	/users/@me/privacy	authenticated	self	deny	-
-PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-
-PATCH	/users/@me/settings	authenticated	self	deny	-
-PATCH	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-
-PATCH	/watch-parties/{party_id}	authenticated	party_manager	allow	-
-PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-
-PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
-PATCH	/webhooks/{webhook_id}	authenticated	membership	allow	-
-PATCH	/webhooks/{webhook_id}/{token}	public	none	allow	-
-POST	/activity-instances/{instance_id}/join	authenticated	membership	allow	-
-POST	/activity-instances/{instance_id}/leave	authenticated	membership	allow	-
-POST	/admin/accounts/{account_id}/badges	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/ban	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/change-email	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/delete-request	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/force-logout	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/force-password-reset	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/freeze-invites	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/rename	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/reset-2fa	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/suspend	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/unfreeze-invites	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/unlink	authenticated	staff	deny	-
-POST	/admin/accounts/{account_id}/unsuspend	authenticated	staff	deny	-
-POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-
-POST	/admin/announcements	authenticated	staff	deny	-
-POST	/admin/card-actions	authenticated	staff	deny	-
-POST	/admin/cinema/assets	authenticated	staff	deny	-
-POST	/admin/cinema/assets/{asset_id}/complete	authenticated	staff	deny	-
-POST	/admin/cinema/assets/{asset_id}/probe	authenticated	staff	deny	-
-POST	/admin/cinema/assets/{asset_id}/transcode	authenticated	staff	deny	-
-POST	/admin/cinema/collections	authenticated	staff	deny	-
-POST	/admin/cinema/episodes/{episode_id}/publish	authenticated	staff	deny	-
-POST	/admin/cinema/episodes/{episode_id}/unpublish	authenticated	staff	deny	-
-POST	/admin/cinema/reports/{report_id}/resolve	authenticated	staff	deny	-
-POST	/admin/cinema/seasons/{season_id}/episodes	authenticated	staff	deny	-
-POST	/admin/cinema/titles	authenticated	staff	deny	-
-POST	/admin/cinema/titles/{title_id}/artwork	authenticated	staff	deny	-
-POST	/admin/cinema/titles/{title_id}/merge	authenticated	staff	deny	-
-POST	/admin/cinema/titles/{title_id}/publish	authenticated	staff	deny	-
-POST	/admin/cinema/titles/{title_id}/seasons	authenticated	staff	deny	-
-POST	/admin/cinema/titles/{title_id}/trailers	authenticated	staff	deny	-
-POST	/admin/cinema/titles/{title_id}/unpublish	authenticated	staff	deny	-
-POST	/admin/cinema/titles/{title_id}/variants	authenticated	staff	deny	-
-POST	/admin/data-requests	authenticated	staff	deny	-
-POST	/admin/data-requests/{request_id}/decline	authenticated	staff	deny	-
-POST	/admin/data-requests/{request_id}/extend	authenticated	staff	deny	-
-POST	/admin/data-requests/{request_id}/rectify	authenticated	staff	deny	-
-POST	/admin/data-requests/{request_id}/restriction	authenticated	staff	deny	-
-POST	/admin/data-requests/{request_id}/run	authenticated	staff	deny	-
-POST	/admin/data-requests/{request_id}/verify	authenticated	staff	deny	-
-POST	/admin/developers/activities/{application_id}/decision	authenticated	staff	deny	-
-POST	/admin/developers/apps/{application_id}/suspend	authenticated	staff	deny	-
-POST	/admin/developers/apps/{application_id}/unsuspend	authenticated	staff	deny	-
-POST	/admin/developers/packages/versions/{version_id}/decision	authenticated	staff	deny	-
-POST	/admin/developers/requests/{request_id}/decision	authenticated	staff	deny	-
-POST	/admin/developers/versions/{version_id}/decision	authenticated	staff	deny	-
-POST	/admin/donations/entitlements	authenticated	staff	deny	-
-POST	/admin/donations/invoices/{invoice_id}/resolve	authenticated	staff	deny	-
-POST	/admin/donations/leaderboard/hide	authenticated	staff	deny	-
-POST	/admin/donations/wallet/test	authenticated	staff	deny	-
-POST	/admin/guilds/{guild_id}/transfer-ownership	authenticated	staff	deny	-
-POST	/admin/ingest-sources	authenticated	staff	deny	-
-POST	/admin/ingest-sources/{source_id}/dry-run	authenticated	staff	deny	-
-POST	/admin/ingest-sources/{source_id}/scan	authenticated	staff	deny	-
-POST	/admin/jobs/{job_id}/retry	authenticated	staff	deny	-
-POST	/admin/library/chapters/{chapter_id}/publish	authenticated	staff	deny	-
-POST	/admin/library/chapters/{chapter_id}/unpublish	authenticated	staff	deny	-
-POST	/admin/library/chapters/{chapter_id}/uploads	authenticated	staff	deny	-
-POST	/admin/library/comment-reports/{report_id}/resolve	authenticated	staff	deny	-
-POST	/admin/library/editions/{edition_id}/chapters	authenticated	staff	deny	-
-POST	/admin/library/editions/{edition_id}/volumes	authenticated	staff	deny	-
-POST	/admin/library/lists/{list_id}/feature	authenticated	staff	deny	-
-POST	/admin/library/series	authenticated	staff	deny	-
-POST	/admin/library/series/{series_id}/editions	authenticated	staff	deny	-
-POST	/admin/library/series/{series_id}/merge	authenticated	staff	deny	-
-POST	/admin/library/series/{series_id}/publish	authenticated	staff	deny	-
-POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-
-POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-
-POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-
-POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-
-POST	/admin/persons/{person_id}/identities/{identity_id}/move	authenticated	staff	deny	-
-POST	/admin/persons/{person_id}/link	authenticated	staff	deny	-
-POST	/admin/persons/{person_id}/unban	authenticated	staff	deny	-
-POST	/admin/reauth	authenticated	staff	deny	-
-POST	/admin/review/requests/{request_id}/decline	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/approve	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/claim	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/comments	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/publish	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/publish-now	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/reject	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/release	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	staff	deny	-
-POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staff	deny	-
-POST	/admin/staff	authenticated	staff	deny	-
-POST	/admin/staff/offers	authenticated	staff	deny	-
-POST	/admin/system/email-test	authenticated	staff	deny	-
-POST	/admin/system/preflight	authenticated	staff	deny	-
-POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-
-POST	/admin/transcode/jobs/{job_id}/retry	authenticated	staff	deny	-
-POST	/admin/transcode/retranscode	authenticated	staff	deny	-
-POST	/admin/transcode/sweep	authenticated	staff	deny	-
-POST	/admin/transcode/tokens	authenticated	staff	deny	-
-POST	/admin/tv/channels	authenticated	staff	deny	-
-POST	/admin/tv/channels/{channel_id}/blocks	authenticated	staff	deny	-
-POST	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-
-POST	/admin/tv/channels/{channel_id}/imports/{import_id}/confirm	authenticated	staff	deny	-
-POST	/admin/tv/channels/{channel_id}/preview	authenticated	staff	deny	-
-POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-
-POST	/applications	authenticated	owner	deny	-
-POST	/applications/{application_id}/activity/bundles	authenticated	owner	deny	-
-POST	/applications/{application_id}/activity/submit	authenticated	owner	deny	-
-POST	/applications/{application_id}/assets	authenticated	owner	deny	-
-POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-
-POST	/applications/{application_id}/commands	authenticated	owner	allow	-
-POST	/applications/{application_id}/emojis	authenticated	owner	allow	-
-POST	/applications/{application_id}/endpoint/verify	authenticated	owner	deny	-
-POST	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
-POST	/applications/{application_id}/interactions-key	authenticated	owner	deny	-
-POST	/applications/{application_id}/reset-secret	authenticated	owner	deny	-
-POST	/applications/{application_id}/testers	authenticated	owner	deny	-
-POST	/applications/{application_id}/versions	authenticated	owner	deny	-
-POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-
-POST	/channels/{channel_id}/activity	authenticated	membership	allow	-
-POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-
-POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-
-POST	/channels/{channel_id}/call/ring	authenticated	membership	allow	-
-POST	/channels/{channel_id}/call/stop-ringing	authenticated	membership	allow	-
-POST	/channels/{channel_id}/followers	authenticated	membership	allow	-
-POST	/channels/{channel_id}/invites	authenticated	membership	allow	-
-POST	/channels/{channel_id}/messages	authenticated	membership	allow	-
-POST	/channels/{channel_id}/messages/bulk-delete	authenticated	membership	allow	-
-POST	/channels/{channel_id}/messages/{message_id}/ack	authenticated	membership	allow	-
-POST	/channels/{channel_id}/messages/{message_id}/crosspost	authenticated	membership	allow	-
-POST	/channels/{channel_id}/messages/{message_id}/threads	authenticated	membership	allow	-
-POST	/channels/{channel_id}/pins/ack	authenticated	membership	allow	-
-POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	allow	-
-POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	deny	-
-POST	/channels/{channel_id}/send-soundboard-sound	authenticated	membership	allow	-
-POST	/channels/{channel_id}/threads	authenticated	membership	allow	-
-POST	/channels/{channel_id}/typing	authenticated	membership	allow	-
-POST	/channels/{channel_id}/webhooks	authenticated	membership	allow	-
-POST	/cinema/assets/{asset_id}/refresh	authenticated	user	allow	-
-POST	/cinema/comments/{comment_id}/report	authenticated	user	allow	-
-POST	/cinema/lists	authenticated	self	allow	-
-POST	/cinema/reviews/{review_id}/report	authenticated	user	allow	-
-POST	/cinema/titles/{title_id}/comments	authenticated	user	allow	-
-POST	/cinema/titles/{title_id}/downloads	authenticated	user	allow	-
-POST	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	user	allow	-
-POST	/cinema/titles/{title_id}/watched	authenticated	self	allow	-
-POST	/developers/apply	authenticated	owner	deny	-
-POST	/developers/tester-invites/{invite_id}/respond	authenticated	self	deny	-
-POST	/directory/{guild_id}/join	authenticated	membership	deny	-
-POST	/donations/invoices	authenticated	self	allow	-
-POST	/donations/invoices/{invoice_id}/cancel	authenticated	self	allow	-
-POST	/donations/invoices/{invoice_id}/check	authenticated	self	allow	-
-POST	/guilds	authenticated	membership	deny	-
-POST	/guilds/templates/{code}	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/ack	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/alert-actions	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-
-POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/packages/{package_id}/apply	authenticated	membership	deny	-
-POST	/guilds/{guild_id}/packages/{package_id}/import	authenticated	membership	deny	-
-POST	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/sr/applications	authenticated	user	allow	-
-POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/sr/slowmode/apply	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/tickets	authenticated	membership	allow	-
-POST	/guilds/{guild_id}/tickets/{ticket_id}/close	authenticated	membership	allow	-
-POST	/interactions	authenticated	membership	deny	-
-POST	/interactions/{interaction_id}/{token}/callback	public	none	allow	-
-POST	/invites/{code}	authenticated	membership	deny	-
-POST	/library/chapters/{chapter_id}/comments	authenticated	user	allow	-
-POST	/library/chapters/{chapter_id}/download	authenticated	user	allow	-
-POST	/library/chapters/{chapter_id}/read	authenticated	self	allow	-
-POST	/library/comments/{comment_id}/report	authenticated	user	allow	-
-POST	/library/lists	authenticated	self	allow	-
-POST	/library/me/notifications/seen	authenticated	self	allow	-
-POST	/library/series/{series_id}/comments	authenticated	user	allow	-
-POST	/library/submissions/{submission_id}/cover	authenticated	author	allow	-
-POST	/moderation/age/restrictions	authenticated	staff	deny	-
-POST	/moderation/age/underage	authenticated	staff	deny	-
-POST	/moderation/age/underage/{account_id}/lift	authenticated	staff	deny	-
-POST	/moderation/appeals	public	none	deny	-
-POST	/moderation/appeals/{appeal_id}/decision	authenticated	staff	deny	-
-POST	/moderation/cases	authenticated	staff	deny	-
-POST	/moderation/cases/{case_id}/actions	authenticated	membership	deny	-
-POST	/moderation/cases/{case_id}/ban	authenticated	staff	deny	-
-POST	/moderation/cases/{case_id}/escalate	authenticated	membership	deny	-
-POST	/moderation/cases/{case_id}/holds	authenticated	staff	deny	-
-POST	/moderation/cases/{case_id}/notes	authenticated	membership	deny	-
-POST	/moderation/cases/{case_id}/reopen	authenticated	membership	deny	-
-POST	/moderation/cases/{case_id}/state	authenticated	membership	deny	-
-POST	/moderation/cases/{case_id}/warn	authenticated	staff	deny	-
-POST	/moderation/dashboard/inbox/dismiss	authenticated	staff	deny	-
-POST	/moderation/evasion-signals/{signal_id}/link-case	authenticated	staff	deny	-
-POST	/moderation/evasion-signals/{signal_id}/review	authenticated	staff	deny	-
-POST	/moderation/holds/{hold_id}/release	authenticated	staff	deny	-
-POST	/moderation/holds/{hold_id}/retain	authenticated	staff	deny	-
-POST	/moderation/holds/{hold_id}/reviewed	authenticated	staff	deny	-
-POST	/moderation/persons/{person_id}/evasion-scan	authenticated	staff	deny	-
-POST	/moderation/reports	authenticated	visibility	deny	-
-POST	/moderation/takedowns	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/counter-notice	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/court-filing	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/hold	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/items	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/reject	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/restore	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/uphold	authenticated	staff	deny	-
-POST	/moderation/takedowns/{notice_id}/withdraw	authenticated	staff	deny	-
-POST	/oauth2/authorize	authenticated	self	deny	-
-POST	/oauth2/introspect	public	none	allow	-
-POST	/oauth2/token	public	none	allow	-
-POST	/oauth2/token/revoke	public	none	allow	-
-POST	/packages	authenticated	user	deny	-
-POST	/packages/versions/{version_id}/withdraw	authenticated	author	deny	-
-POST	/packages/{package_id}/create-guild	authenticated	user	deny	-
-POST	/read-states/ack-bulk	authenticated	membership	allow	-
-POST	/requests	authenticated	user	allow	-
-POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-
-POST	/sr/auth/account/delete	authenticated	self	deny	-
-POST	/sr/auth/discord/link	authenticated	self	deny	-
-POST	/sr/auth/discord/unlink	authenticated	self	deny	-
-POST	/sr/auth/email/cancel	public	none	deny	-
-POST	/sr/auth/email/change	authenticated	self	deny	-
-POST	/sr/auth/passkeys/login/begin	public	none	deny	-
-POST	/sr/auth/passkeys/login/finish	public	none	deny	-
-POST	/sr/auth/passkeys/register/begin	authenticated	self	deny	-
-POST	/sr/auth/passkeys/register/finish	authenticated	self	deny	-
-POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
-POST	/sr/auth/password	authenticated	self	deny	-
-POST	/sr/auth/reauth	authenticated	self	deny	-
-POST	/sr/invites	authenticated	self	deny	-
-POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-
-POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
-POST	/stage-instances	authenticated	membership	allow	-
-POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
-POST	/submissions	authenticated	self	allow	-
-POST	/submissions/naming/parse	authenticated	user	allow	-
-POST	/submissions/{submission_id}/artwork/{kind}	authenticated	author	allow	-
-POST	/submissions/{submission_id}/comments	authenticated	author	allow	-
-POST	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-
-POST	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	author	allow	-
-POST	/submissions/{submission_id}/library/uploads/{upload_id}/complete	authenticated	author	allow	-
-POST	/submissions/{submission_id}/submit	authenticated	author	allow	-
-POST	/submissions/{submission_id}/withdraw	authenticated	author	allow	-
-POST	/users/@me/channels	authenticated	self	allow	-
-POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-
-POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-
-POST	/users/@me/data-export	authenticated	self	deny	-
-POST	/users/@me/profile-doc/layout	authenticated	self	deny	-
-POST	/users/@me/profile-media	authenticated	self	deny	-
-POST	/users/@me/push-subscriptions	authenticated	self	deny	-
-POST	/users/@me/relationships	authenticated	self	deny	-
-POST	/users/@me/reminders	authenticated	self	deny	-
-POST	/users/{user_id}/guestbook	authenticated	visibility	deny	-
-POST	/watch-parties	authenticated	party_access	allow	-
-POST	/watch-parties/{party_id}/heartbeat	authenticated	party_member	allow	-
-POST	/watch-parties/{party_id}/host	authenticated	party_manager	allow	-
-POST	/watch-parties/{party_id}/join	authenticated	party_access	allow	-
-POST	/watch-parties/{party_id}/leave	authenticated	party_member	allow	-
-POST	/watch-parties/{party_id}/messages	authenticated	party_member	allow	-
-POST	/watch-parties/{party_id}/next	authenticated	party_control	allow	-
-POST	/watch-parties/{party_id}/playback	authenticated	party_control	allow	-
-POST	/watch-parties/{party_id}/queue	authenticated	party_control	allow	-
-POST	/watch-parties/{party_id}/reactions	authenticated	party_member	allow	-
-POST	/webhooks/{webhook_id}/reset-token	authenticated	membership	allow	-
-POST	/webhooks/{webhook_id}/{token}	public	none	allow	-
-PUT	/admin/cinema/assets/{asset_id}/link	authenticated	staff	deny	-
-PUT	/admin/cinema/assets/{asset_id}/original-downloads	authenticated	staff	deny	-
-PUT	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-
-PUT	/admin/cinema/collections/{collection_id}/items	authenticated	staff	deny	-
-PUT	/admin/cinema/comments/{comment_id}/hidden	authenticated	staff	deny	-
-PUT	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-
-PUT	/admin/cinema/episodes/{episode_id}/asset	authenticated	staff	deny	-
-PUT	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-
-PUT	/admin/cinema/reviews/{review_id}/hidden	authenticated	staff	deny	-
-PUT	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-
-PUT	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
-PUT	/admin/cinema/titles/{title_id}/asset	authenticated	staff	deny	-
-PUT	/admin/cinema/titles/{title_id}/markers	authenticated	staff	deny	-
-PUT	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-
-PUT	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-
-PUT	/admin/donations/wallet	authenticated	staff	deny	-
-PUT	/admin/entrance/copy/{key}	authenticated	staff	deny	-
-PUT	/admin/entrance/hero	authenticated	staff	deny	-
-PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
-PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
-PUT	/admin/library/chapters/{chapter_id}/pages/{index}	authenticated	staff	deny	-
-PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
-PUT	/admin/library/series/{series_id}	authenticated	staff	deny	-
-PUT	/admin/persons/{person_id}/notes	authenticated	staff	deny	-
-PUT	/admin/review/submissions/{submission_id}/duplicate	authenticated	staff	deny	-
-PUT	/admin/review/submissions/{submission_id}/items/{item_id}	authenticated	staff	deny	-
-PUT	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-
-PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-
-PUT	/admin/transcode/workers/{worker_id}/drain	authenticated	staff	deny	-
-PUT	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
-PUT	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
-PUT	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-
-PUT	/applications/{application_id}/activity	authenticated	owner	deny	-
-PUT	/applications/{application_id}/commands	authenticated	owner	allow	-
-PUT	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-
-PUT	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	membership	allow	applications.commands.permissions.update
-PUT	/channels/{channel_id}/messages/{message_id}/bookmark	authenticated	membership	allow	-
-PUT	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-
-PUT	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-
-PUT	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-
-PUT	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-
-PUT	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-
-PUT	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-
-PUT	/channels/{channel_id}/voice-status	authenticated	membership	allow	-
-PUT	/cinema/comments/{comment_id}/like	authenticated	user	allow	-
-PUT	/cinema/lists/{list_id}/items/{title_id}	authenticated	author	allow	-
-PUT	/cinema/lists/{list_id}/order	authenticated	author	allow	-
-PUT	/cinema/me/history/settings	authenticated	self	allow	-
-PUT	/cinema/me/list/{title_id}	authenticated	self	allow	-
-PUT	/cinema/reviews/{review_id}/helpful	authenticated	user	allow	-
-PUT	/cinema/titles/{title_id}/episodes/{episode_id}/progress	authenticated	self	allow	-
-PUT	/cinema/titles/{title_id}/episodes/{episode_id}/rating	authenticated	self	allow	-
-PUT	/cinema/titles/{title_id}/progress	authenticated	self	allow	-
-PUT	/cinema/titles/{title_id}/rating	authenticated	self	allow	-
-PUT	/cinema/titles/{title_id}/review	authenticated	self	allow	-
-PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/incident-actions	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-
-PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-
-PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
-PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	self	allow	-
-PUT	/library/chapters/{chapter_id}/presence	authenticated	self	allow	-
-PUT	/library/chapters/{chapter_id}/progress	authenticated	self	allow	-
-PUT	/library/chapters/{chapter_id}/rating	authenticated	self	allow	-
-PUT	/library/comments/{comment_id}/like	authenticated	user	allow	-
-PUT	/library/lists/{list_id}/items/{series_id}	authenticated	author	allow	-
-PUT	/library/lists/{list_id}/order	authenticated	author	allow	-
-PUT	/library/reviews/{review_id}/helpful	authenticated	user	allow	-
-PUT	/library/series/{series_id}/follow	authenticated	self	allow	-
-PUT	/library/series/{series_id}/rating	authenticated	self	allow	-
-PUT	/library/series/{series_id}/review	authenticated	self	allow	-
-PUT	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-
-PUT	/requests/{request_id}/claim	authenticated	user	allow	-
-PUT	/requests/{request_id}/vote	authenticated	self	allow	-
-PUT	/sr/auth/username	authenticated	self	deny	-
-PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-
-PUT	/submissions/{submission_id}/library/series	authenticated	author	allow	-
-PUT	/tv/favorites/{channel_id}	authenticated	self	allow	-
-PUT	/tv/reminders/{block_id}	authenticated	self	deny	-
-PUT	/users/@me/birthday	authenticated	self	deny	-
-PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
-PUT	/users/@me/connections/link	authenticated	self	deny	-
-PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-
-PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-
-PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-
-PUT	/users/@me/notification-keywords	authenticated	self	deny	-
-PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-
-PUT	/users/@me/primary-guild	authenticated	self	deny	-
-PUT	/users/@me/profile-doc	authenticated	self	deny	-
-PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-
-PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	party_manager	allow	-
-PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
+# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER	PLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row)
+DELETE	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
+DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
+DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
+DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-	DELETE_CONTENT
+DELETE	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-	DELETE_CONTENT
+DELETE	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-	DELETE_CONTENT
+DELETE	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+DELETE	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+DELETE	/admin/donations/entitlements/{grant_id}	authenticated	staff	deny	-	MANAGE_DONATIONS
+DELETE	/admin/entrance/copy/{key}	authenticated	staff	deny	-	MANAGE_ENTRANCE
+DELETE	/admin/entrance/hero	authenticated	staff	deny	-	MANAGE_ENTRANCE
+DELETE	/admin/guilds/{guild_id}	authenticated	staff	deny	-	MANAGE_GUILDS_GLOBAL
+DELETE	/admin/ingest-sources/{source_id}	authenticated	staff	deny	-	PUBLISH_READING
+DELETE	/admin/invites/{invite_id}	authenticated	staff	deny	-	MANAGE_INVITES
+DELETE	/admin/jobs/{job_id}	authenticated	staff	deny	-	MANAGE_TRANSCODE
+DELETE	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-	DELETE_CONTENT
+DELETE	/admin/library/editions/{edition_id}	authenticated	staff	deny	-	DELETE_CONTENT
+DELETE	/admin/library/series/{series_id}	authenticated	staff	deny	-	DELETE_CONTENT
+DELETE	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-	PUBLISH_READING
+DELETE	/admin/library/volumes/{volume_id}	authenticated	staff	deny	-	DELETE_CONTENT
+DELETE	/admin/staff/offers/{offer_id}	authenticated	staff	deny	-	APPOINT_STAFF
+DELETE	/admin/staff/{account_id}	authenticated	staff	deny	-	APPOINT_STAFF
+DELETE	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-	OWNER
+DELETE	/admin/transcode/tokens/{token_id}	authenticated	staff	deny	-	MANAGE_TRANSCODE
+DELETE	/admin/tv/blocks/{block_id}	authenticated	staff	deny	-	MANAGE_TV
+DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-	MANAGE_TV
+DELETE	/applications/{application_id}	authenticated	owner	deny	-	-
+DELETE	/applications/{application_id}/assets/{asset_id}	authenticated	owner	deny	-	-
+DELETE	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-	-
+DELETE	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	allow	-	-
+DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-	-
+DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-	-
+DELETE	/channels/{channel_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/attachments/{upload_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/messages/{message_id}/reactions	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/{user_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
+DELETE	/cinema/comments/{comment_id}	authenticated	author	allow	-	-
+DELETE	/cinema/comments/{comment_id}/like	authenticated	user	allow	-	-
+DELETE	/cinema/lists/{list_id}	authenticated	author	allow	-	-
+DELETE	/cinema/lists/{list_id}/items/{title_id}	authenticated	author	allow	-	-
+DELETE	/cinema/me/history	authenticated	self	allow	-	-
+DELETE	/cinema/me/list/{title_id}	authenticated	self	allow	-	-
+DELETE	/cinema/me/watching	authenticated	self	allow	-	-
+DELETE	/cinema/reviews/{review_id}/helpful	authenticated	user	allow	-	-
+DELETE	/cinema/titles/{title_id}/episodes/{episode_id}/progress	authenticated	self	allow	-	-
+DELETE	/cinema/titles/{title_id}/episodes/{episode_id}/rating	authenticated	self	allow	-	-
+DELETE	/cinema/titles/{title_id}/progress	authenticated	self	allow	-	-
+DELETE	/cinema/titles/{title_id}/rating	authenticated	self	allow	-	-
+DELETE	/cinema/titles/{title_id}/review	authenticated	self	allow	-	-
+DELETE	/guilds/{guild_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/directory	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/integrations/{integration_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-	-
+DELETE	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
+DELETE	/invites/{code}	authenticated	membership	allow	-	-
+DELETE	/library/bookmarks/{bookmark_id}	authenticated	self	allow	-	-
+DELETE	/library/chapters/{chapter_id}/progress	authenticated	self	allow	-	-
+DELETE	/library/chapters/{chapter_id}/rating	authenticated	self	allow	-	-
+DELETE	/library/comments/{comment_id}	authenticated	author	allow	-	-
+DELETE	/library/comments/{comment_id}/like	authenticated	user	allow	-	-
+DELETE	/library/lists/{list_id}	authenticated	author	allow	-	-
+DELETE	/library/lists/{list_id}/items/{series_id}	authenticated	author	allow	-	-
+DELETE	/library/me/presence	authenticated	self	allow	-	-
+DELETE	/library/reviews/{review_id}/helpful	authenticated	user	allow	-	-
+DELETE	/library/series/{series_id}/follow	authenticated	self	allow	-	-
+DELETE	/library/series/{series_id}/rating	authenticated	self	allow	-	-
+DELETE	/library/series/{series_id}/review	authenticated	self	allow	-	-
+DELETE	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-	-
+DELETE	/moderation/takedowns/{notice_id}/items/{item_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+DELETE	/oauth2/tokens/{grant_id}	authenticated	self	deny	-	-
+DELETE	/packages/{package_id}	authenticated	author	deny	-	-
+DELETE	/requests/{request_id}/claim	authenticated	author_or_staff	allow	-	REVIEW_READING
+DELETE	/requests/{request_id}/vote	authenticated	self	allow	-	-
+DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
+DELETE	/sr/invites/{code}	authenticated	self	deny	-	-
+DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
+DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-	-
+DELETE	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	author	allow	-	-
+DELETE	/tv/favorites/{channel_id}	authenticated	self	allow	-	-
+DELETE	/tv/reminders/{block_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/age-confirmation	authenticated	self	deny	-	-
+DELETE	/users/@me/birthday	authenticated	self	deny	-	-
+DELETE	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-	-
+DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-	-
+DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-	-
+DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/packages/{package_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/profile-media/{media_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-	-
+DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-	-
+DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
+DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
+DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-	-
+DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
+DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-	-
+DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-	-
+DELETE	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-	-
+DELETE	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
+DELETE	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
+GET	/activities	authenticated	user	allow	-	-
+GET	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
+GET	/admin/access-log	authenticated	staff	deny	-	VIEW_ACCESS_LOG
+GET	/admin/access-log/verify	authenticated	staff	deny	-	VIEW_ACCESS_LOG
+GET	/admin/accounts	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/admin/accounts/{account_id}	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/accounts/{account_id}/deleted-archive	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/admin/accounts/{account_id}/guilds	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/admin/accounts/{account_id}/invite-descendants	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/accounts/{account_id}/sessions	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/admin/alerts	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/announcements	authenticated	staff	deny	-	MANAGE_FEATURES
+GET	/admin/bans	authenticated	staff	deny	-	PLATFORM_BAN
+GET	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
+GET	/admin/cinema/assets/{asset_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+GET	/admin/cinema/collections	authenticated	staff	deny	-	MANAGE_COLLECTIONS
+GET	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
+GET	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-	PUBLISH_MEDIA
+GET	/admin/cinema/reports	authenticated	staff	deny	-	DELETE_CONTENT
+GET	/admin/cinema/titles	authenticated	staff	deny	-	PUBLISH_MEDIA
+GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+GET	/admin/data-requests	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/admin/data-requests/{request_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/admin/developers/activities	authenticated	staff	deny	-	REVIEW_APPS
+GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-	REVIEW_APPS
+GET	/admin/developers/packages	authenticated	staff	deny	-	REVIEW_PACKAGES
+GET	/admin/developers/packages/versions/{version_id}/download	authenticated	staff	deny	-	REVIEW_PACKAGES
+GET	/admin/developers/requests	authenticated	staff	deny	-	REVIEW_APPS
+GET	/admin/developers/versions	authenticated	staff	deny	-	REVIEW_APPS
+GET	/admin/directory	authenticated	staff	deny	-	MANAGE_DIRECTORY
+GET	/admin/directory/queue/{guild_id}/preview	authenticated	staff	deny	-	MANAGE_DIRECTORY
+GET	/admin/donations/config	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/donations/entitlements	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/donations/invoices	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/donations/invoices/{invoice_id}	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/donations/leaderboard/{board}	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/donations/rates	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/donations/report	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/donations/status	authenticated	staff	deny	-	MANAGE_DONATIONS
+GET	/admin/features	authenticated	staff	deny	-	MANAGE_FEATURES
+GET	/admin/guilds	authenticated	staff	deny	-	MANAGE_GUILDS_GLOBAL
+GET	/admin/guilds/{guild_id}	authenticated	staff	deny	-	MANAGE_GUILDS_GLOBAL
+GET	/admin/ingest-sources	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/invites	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/jobs	authenticated	staff	deny	-	MANAGE_TRANSCODE
+GET	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/library/chapters/{chapter_id}/uploads	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/library/comment-reports	authenticated	staff	deny	-	REVIEW_READING
+GET	/admin/library/series	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/library/series/{series_id}	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/library/series/{series_id}/chapters	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/library/uploads/{upload_id}/inspect	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/library/uploads/{upload_id}/parts	authenticated	staff	deny	-	PUBLISH_READING
+GET	/admin/me	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/persons/{person_id}	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/admin/persons/{person_id}/suspicion-log	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/private/accounts/{account_id}/dms	authenticated	staff	deny	-	READ_PRIVATE_CONTENT
+GET	/admin/private/channels/{channel_id}/messages	authenticated	staff	deny	-	READ_PRIVATE_CONTENT
+GET	/admin/private/guilds/{guild_id}/channels	authenticated	staff	deny	-	READ_PRIVATE_CONTENT
+GET	/admin/reauth	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/review/queue	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/review/submissions/{submission_id}	authenticated	staff	deny	-	REVIEW_READING
+GET	/admin/review/submissions/{submission_id}/credits	authenticated	staff	deny	-	REVIEW_READING
+GET	/admin/review/submissions/{submission_id}/duplicates	authenticated	staff	deny	-	REVIEW_READING
+GET	/admin/review/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-	REVIEW_READING
+GET	/admin/review/submissions/{submission_id}/media	authenticated	staff	deny	-	REVIEW_READING
+GET	/admin/review/submissions/{submission_id}/preview	authenticated	staff	deny	-	REVIEW_READING
+GET	/admin/settings	authenticated	staff	deny	-	MANAGE_FEATURES
+GET	/admin/staff	authenticated	staff	deny	-	APPOINT_STAFF
+GET	/admin/staff/delegations	authenticated	staff	deny	-	APPOINT_STAFF
+GET	/admin/staff/former	authenticated	staff	deny	-	APPOINT_STAFF
+GET	/admin/staff/offers	authenticated	staff	deny	-	APPOINT_STAFF
+GET	/admin/staff/roles	authenticated	staff	deny	-	APPOINT_STAFF
+GET	/admin/stats	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/suspicion	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/system	authenticated	staff	deny	-	OPERATOR
+GET	/admin/transcode/jobs	authenticated	staff	deny	-	MANAGE_TRANSCODE
+GET	/admin/transcode/jobs/{job_id}	authenticated	staff	deny	-	MANAGE_TRANSCODE
+GET	/admin/transcode/queue	authenticated	staff	deny	-	MANAGE_TRANSCODE
+GET	/admin/transcode/tokens	authenticated	staff	deny	-	MANAGE_TRANSCODE
+GET	/admin/transcode/workers	authenticated	staff	deny	-	MANAGE_TRANSCODE
+GET	/admin/tv/channels	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/channels/{channel_id}/imports/{import_id}	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/guide-template	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/report	authenticated	staff	deny	-	MANAGE_TV
+GET	/admin/tv/slate	authenticated	staff	deny	-	MANAGE_TV
+GET	/announcements/active	authenticated	user	deny	-	-
+GET	/app-directory	authenticated	user	allow	-	-
+GET	/app-directory/tags	authenticated	user	allow	-	-
+GET	/app-directory/{application_id}	authenticated	user	allow	-	-
+GET	/applications	authenticated	owner	deny	-	-
+GET	/applications/@me	authenticated	owner	allow	-	-
+GET	/applications/{application_id}	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/activity	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/activity/bundles/{bundle_id}	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/assets	authenticated	user	deny	-	-
+GET	/applications/{application_id}/audit-log	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/commands	authenticated	owner	allow	-	-
+GET	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-	-
+GET	/applications/{application_id}/emojis	authenticated	owner	allow	-	-
+GET	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	membership	allow	-	-
+GET	/applications/{application_id}/guilds/{guild_id}/commands/permissions	authenticated	membership	allow	-	-
+GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-	-
+GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	membership	allow	-	-
+GET	/applications/{application_id}/installs	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/testers	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/versions	authenticated	owner	deny	-	-
+GET	/channels/{channel_id}	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/activity	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-	-
+GET	/channels/{channel_id}/attachments/{upload_id}/parts	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/call	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/invites	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/messages	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/messages/pins	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/messages/search	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/pins	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/sr/features	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/thread-members	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/threads/archived/private	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/threads/archived/public	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/users/@me/threads/archived/private	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/watch-party	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/webhooks	authenticated	membership	allow	-	-
+GET	/cinema/assets/{asset_id}/playback	authenticated	user	allow	-	-
+GET	/cinema/collections	authenticated	user	allow	-	-
+GET	/cinema/comments/{comment_id}/replies	authenticated	user	allow	-	-
+GET	/cinema/discover	authenticated	user	allow	-	-
+GET	/cinema/downloads/{job_id}	authenticated	self	allow	-	-
+GET	/cinema/downloads/{job_id}/file	authenticated	self	allow	-	-
+GET	/cinema/episodes/{episode_id}	authenticated	user	allow	-	-
+GET	/cinema/episodes/{episode_id}/markers	authenticated	user	allow	-	-
+GET	/cinema/episodes/{episode_id}/play	authenticated	user	allow	-	-
+GET	/cinema/facets	authenticated	user	allow	-	-
+GET	/cinema/lists	authenticated	self	allow	-	-
+GET	/cinema/lists/{list_id}	authenticated	visibility	allow	-	-
+GET	/cinema/me/continue-watching	authenticated	self	allow	-	-
+GET	/cinema/me/friends-watching	authenticated	self	allow	-	-
+GET	/cinema/me/history	authenticated	self	allow	-	-
+GET	/cinema/me/history/settings	authenticated	self	allow	-	-
+GET	/cinema/me/list	authenticated	self	allow	-	-
+GET	/cinema/me/recommendations	authenticated	self	allow	-	-
+GET	/cinema/rows/{key}	authenticated	user	allow	-	-
+GET	/cinema/search	authenticated	user	allow	-	-
+GET	/cinema/titles	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/comments	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/contributors	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/downloads	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/episodes	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/episodes/{episode_id}/progress	authenticated	self	allow	-	-
+GET	/cinema/titles/{title_id}/episodes/{episode_id}/ratings	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/markers	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/play	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/progress	authenticated	self	allow	-	-
+GET	/cinema/titles/{title_id}/ratings	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/reviews	authenticated	user	allow	-	-
+GET	/cinema/titles/{title_id}/watch-state	authenticated	self	allow	-	-
+GET	/cinema/trending	authenticated	user	allow	-	-
+GET	/cinema/users/{user_id}/lists	authenticated	visibility	allow	-	-
+GET	/developers/status	authenticated	owner	deny	-	-
+GET	/directory	authenticated	user	deny	-	-
+GET	/directory/categories	authenticated	user	deny	-	-
+GET	/directory/{guild_id}	authenticated	user	deny	-	-
+GET	/donations/config	authenticated	user	allow	-	-
+GET	/donations/invoices	authenticated	self	allow	-	-
+GET	/donations/invoices/{invoice_id}	authenticated	self	allow	-	-
+GET	/donations/leaderboards/contributors/{kind}	authenticated	user	allow	-	-
+GET	/donations/leaderboards/{board}	authenticated	user	allow	-	-
+GET	/donations/me	authenticated	self	allow	-	-
+GET	/gateway	public	none	allow	-	-
+GET	/gateway/bot	authenticated	bot	allow	-	-
+GET	/gifs/categories	authenticated	self	deny	-	-
+GET	/gifs/config	authenticated	self	deny	-	-
+GET	/gifs/search	authenticated	self	deny	-	-
+GET	/gifs/trending	authenticated	self	deny	-	-
+GET	/guilds/templates/builtin	authenticated	membership	allow	-	-
+GET	/guilds/templates/{code}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/appearance	authenticated	membership	deny	-	-
+GET	/guilds/{guild_id}/audit-logs	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/bans	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/birthdays	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/directory	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/emojis	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/emojis/{emoji_id}/url	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/integrations	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/invites	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/leveling/leaderboard	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/leveling/rank/{user_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/member-verification	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/members	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/members/search	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/messages/search	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/modules	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/packages	authenticated	membership	deny	-	-
+GET	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/roles/{role_id}/members	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/scheduled-events/{event_id}/users	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/sr/applications	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/sr/applications/@me	authenticated	self	allow	-	-
+GET	/guilds/{guild_id}/sr/applications/form	authenticated	user	allow	-	-
+GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/sr/features	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/sr/insights	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/sr/slowmode/presets	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/stage-instances	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/support	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/templates	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/threads/active	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/tickets	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/webhooks	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/widget	authenticated	membership	allow	-	-
+GET	/invites/{code}	authenticated	membership	allow	-	-
+GET	/library/chapters/{chapter_id}/bookmarks	authenticated	self	allow	-	-
+GET	/library/chapters/{chapter_id}/comments	authenticated	user	allow	-	-
+GET	/library/chapters/{chapter_id}/pages	authenticated	user	allow	-	-
+GET	/library/chapters/{chapter_id}/progress	authenticated	self	allow	-	-
+GET	/library/chapters/{chapter_id}/rating	authenticated	self	allow	-	-
+GET	/library/comments/{comment_id}/replies	authenticated	user	allow	-	-
+GET	/library/friends/reading	authenticated	self	allow	-	-
+GET	/library/lists/featured	authenticated	user	allow	-	-
+GET	/library/lists/{list_id}	authenticated	visibility	allow	-	-
+GET	/library/me/bookmarks	authenticated	self	allow	-	-
+GET	/library/me/downloads	authenticated	self	allow	-	-
+GET	/library/me/follows	authenticated	self	allow	-	-
+GET	/library/me/lists	authenticated	self	allow	-	-
+GET	/library/me/notifications	authenticated	self	allow	-	-
+GET	/library/me/progress	authenticated	self	allow	-	-
+GET	/library/me/unread	authenticated	self	allow	-	-
+GET	/library/rankings	authenticated	user	allow	-	-
+GET	/library/recommendations	authenticated	self	allow	-	-
+GET	/library/search	authenticated	user	allow	-	-
+GET	/library/series	authenticated	user	allow	-	-
+GET	/library/series/{series_id}	authenticated	user	allow	-	-
+GET	/library/series/{series_id}/chapters	authenticated	user	allow	-	-
+GET	/library/series/{series_id}/comments	authenticated	user	allow	-	-
+GET	/library/series/{series_id}/contributors	authenticated	user	allow	-	-
+GET	/library/series/{series_id}/ratings	authenticated	user	allow	-	-
+GET	/library/series/{series_id}/related	authenticated	user	allow	-	-
+GET	/library/series/{series_id}/reviews	authenticated	user	allow	-	-
+GET	/library/updates	authenticated	user	allow	-	-
+GET	/library/users/{user_id}/lists	authenticated	visibility	allow	-	-
+GET	/moderation/appeals	authenticated	staff	deny	-	MANAGE_CASES
+GET	/moderation/cases	authenticated	staff	deny	-	REVIEW_MEDIA|REVIEW_READING|DELETE_CONTENT|MANAGE_CASES
+GET	/moderation/cases/{case_id}	authenticated	membership	deny	-	-
+GET	/moderation/dashboard	authenticated	staff	deny	-	PLATFORM_BAN|MANAGE_CASES|MANAGE_TAKEDOWNS
+GET	/moderation/dashboard/inbox	authenticated	staff	deny	-	MANAGE_CASES
+GET	/moderation/dashboard/inbox/count	authenticated	staff	deny	-	MANAGE_CASES
+GET	/moderation/evasion-signals	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/moderation/evasion-signals/count	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/moderation/evasion-signals/{signal_id}	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+GET	/moderation/guilds/{guild_id}/cases	authenticated	membership	deny	-	-
+GET	/moderation/holds	authenticated	staff	deny	-	MANAGE_CASES
+GET	/moderation/item-status	authenticated	user	deny	-	-
+GET	/moderation/persons/{person_id}/suspicion	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/moderation/reports/mine	authenticated	self	deny	-	-
+GET	/moderation/takedowns	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/moderation/takedowns/export	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/oauth2/@me	authenticated	self	allow	any	-
+GET	/oauth2/authorize	authenticated	self	deny	-	-
+GET	/oauth2/tokens	authenticated	self	deny	-	-
+GET	/packages	authenticated	user	deny	-	-
+GET	/packages/mine	authenticated	self	deny	-	-
+GET	/packages/versions/{version_id}/files/{path}	authenticated	user	deny	-	-
+GET	/packages/{package_id}	authenticated	user	deny	-	-
+GET	/profile-pages/{username}	authenticated	visibility	deny	-	-
+GET	/push/vapid-key	authenticated	self	deny	-	-
+GET	/requests	authenticated	user	allow	-	-
+GET	/soundboard-default-sounds	authenticated	user	allow	-	-
+GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-	-
+GET	/sr/appearance/defaults	public	none	deny	-	-
+GET	/sr/auth/discord	authenticated	self	deny	-	-
+GET	/sr/auth/passkeys	authenticated	self	deny	-	-
+GET	/sr/auth/reauth	authenticated	self	deny	-	-
+GET	/sr/compliance/public	public	none	deny	-	-
+GET	/sr/csrf	authenticated	self	allow	-	-
+GET	/sr/emojis/{emoji_id}	authenticated	visibility	allow	-	-
+GET	/sr/emojis/{emoji_id}/url	authenticated	user	allow	-	-
+GET	/sr/entrance/copy	public	none	deny	-	-
+GET	/sr/entrance/hero	public	none	deny	-	-
+GET	/sr/features/flags	authenticated	user	deny	-	-
+GET	/sr/invites	authenticated	self	deny	-	-
+GET	/sr/profile-catalog	authenticated	user	deny	-	-
+GET	/sr/users/@me/messages/delete-all	authenticated	self	deny	-	-
+GET	/sr/voice/turn	authenticated	user	allow	-	-
+GET	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
+GET	/sticker-packs	authenticated	user	allow	-	-
+GET	/stickers/{sticker_id}/url	authenticated	user	allow	-	-
+GET	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
+GET	/submissions	authenticated	self	allow	-	-
+GET	/submissions/kinds	authenticated	user	allow	-	-
+GET	/submissions/lookup	authenticated	user	allow	-	-
+GET	/submissions/lookup/providers	authenticated	user	allow	-	-
+GET	/submissions/quota	authenticated	self	allow	-	-
+GET	/submissions/{submission_id}	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/credits	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/duplicates	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/library/uploads/{upload_id}/inspect	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/library/uploads/{upload_id}/parts	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/preview	authenticated	author	allow	-	-
+GET	/tv/channels	authenticated	user	allow	-	-
+GET	/tv/channels/{channel_id}	authenticated	user	allow	-	-
+GET	/tv/channels/{channel_id}/live/audio.m3u8	authenticated	user	allow	-	-
+GET	/tv/channels/{channel_id}/live/master.m3u8	authenticated	user	allow	-	-
+GET	/tv/channels/{channel_id}/live/v/{file}	authenticated	user	allow	-	-
+GET	/tv/channels/{channel_id}/now	authenticated	user	allow	-	-
+GET	/tv/channels/{channel_id}/tune	authenticated	user	allow	-	-
+GET	/tv/favorites	authenticated	self	allow	-	-
+GET	/tv/guide	authenticated	user	allow	-	-
+GET	/tv/reminders	authenticated	self	deny	-	-
+GET	/tv/timezones	authenticated	user	allow	-	-
+GET	/users/@me	authenticated	self	allow	identify	-
+GET	/users/@me/age-confirmation	authenticated	self	deny	-	-
+GET	/users/@me/birthday	authenticated	self	deny	-	-
+GET	/users/@me/bookmarks	authenticated	self	deny	-	-
+GET	/users/@me/channels	authenticated	self	allow	-	-
+GET	/users/@me/connections	authenticated	self	deny	-	-
+GET	/users/@me/data-export	authenticated	self	deny	-	-
+GET	/users/@me/data-export/{id}/download	authenticated	self	deny	-	-
+GET	/users/@me/guilds	authenticated	self	allow	guilds	-
+GET	/users/@me/guilds/{guild_id}/member	authenticated	membership	allow	-	-
+GET	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-	-
+GET	/users/@me/ignores	authenticated	self	deny	-	-
+GET	/users/@me/mentions	authenticated	self	deny	-	-
+GET	/users/@me/notes/{user_id}	authenticated	self	deny	-	-
+GET	/users/@me/notification-defaults	authenticated	self	deny	-	-
+GET	/users/@me/notification-keywords	authenticated	self	deny	-	-
+GET	/users/@me/packages	authenticated	self	deny	-	-
+GET	/users/@me/presence	authenticated	self	allow	-	-
+GET	/users/@me/primary-guild	authenticated	self	deny	-	-
+GET	/users/@me/privacy	authenticated	self	deny	-	-
+GET	/users/@me/profile	authenticated	self	allow	-	-
+GET	/users/@me/profile-doc	authenticated	self	deny	-	-
+GET	/users/@me/profile-media	authenticated	self	deny	-	-
+GET	/users/@me/read-states	authenticated	self	allow	-	-
+GET	/users/@me/relationships	authenticated	self	deny	-	-
+GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
+GET	/users/@me/reminders	authenticated	self	deny	-	-
+GET	/users/@me/scheduled-messages	authenticated	self	deny	-	-
+GET	/users/@me/settings	authenticated	self	deny	-	-
+GET	/users/@me/sr/features	authenticated	self	deny	-	-
+GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
+GET	/users/{user_id}/profile	authenticated	user	allow	-	-
+GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-	-
+GET	/watch-parties/me	authenticated	self	allow	-	-
+GET	/watch-parties/time	authenticated	user	allow	-	-
+GET	/watch-parties/{party_id}	authenticated	party_access	allow	-	-
+GET	/watch-parties/{party_id}/audit	authenticated	party_manager	allow	-	-
+GET	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-	-
+GET	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
+GET	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
+PATCH	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
+PATCH	/admin/directory/{guild_id}	authenticated	staff	deny	-	MANAGE_DIRECTORY
+PATCH	/admin/donations/config	authenticated	staff	deny	-	MANAGE_DONATIONS
+PATCH	/admin/features/{feature_id}	authenticated	staff	deny	-	MANAGE_FEATURES
+PATCH	/admin/ingest-sources/{source_id}	authenticated	staff	deny	-	PUBLISH_READING
+PATCH	/admin/settings	authenticated	staff	deny	-	MANAGE_FEATURES
+PATCH	/applications/{application_id}	authenticated	owner	deny	-	-
+PATCH	/applications/{application_id}/bot	authenticated	owner	deny	-	-
+PATCH	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-	-
+PATCH	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	allow	-	-
+PATCH	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	authenticated	owner	allow	-	-
+PATCH	/channels/{channel_id}	authenticated	membership	allow	-	-
+PATCH	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
+PATCH	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
+PATCH	/cinema/comments/{comment_id}	authenticated	author	allow	-	-
+PATCH	/cinema/lists/{list_id}	authenticated	author	allow	-	-
+PATCH	/donations/me/preferences	authenticated	self	allow	-	-
+PATCH	/guilds/{guild_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/appearance	authenticated	membership	deny	-	-
+PATCH	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/members/@me	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/poll-templates/{template_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/sr/profile	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/voice-states/{user_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-	-
+PATCH	/library/comments/{comment_id}	authenticated	author	allow	-	-
+PATCH	/library/lists/{list_id}	authenticated	author	allow	-	-
+PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
+PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
+PATCH	/submissions/{submission_id}	authenticated	author	allow	-	-
+PATCH	/users/@me	authenticated	self	allow	-	-
+PATCH	/users/@me/bookmarks/{message_id}	authenticated	self	deny	-	-
+PATCH	/users/@me/channels/{channel_id}	authenticated	membership	allow	-	-
+PATCH	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-	-
+PATCH	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-	-
+PATCH	/users/@me/notification-defaults	authenticated	self	deny	-	-
+PATCH	/users/@me/presence	authenticated	self	allow	-	-
+PATCH	/users/@me/privacy	authenticated	self	deny	-	-
+PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
+PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
+PATCH	/users/@me/settings	authenticated	self	deny	-	-
+PATCH	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
+PATCH	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
+PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-	-
+PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-	-
+PATCH	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
+PATCH	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
+POST	/activity-instances/{instance_id}/join	authenticated	membership	allow	-	-
+POST	/activity-instances/{instance_id}/leave	authenticated	membership	allow	-	-
+POST	/admin/accounts/{account_id}/badges	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/ban	authenticated	staff	deny	-	PLATFORM_BAN
+POST	/admin/accounts/{account_id}/change-email	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-	MANAGE_INVITES
+POST	/admin/accounts/{account_id}/delete-request	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/force-logout	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/force-password-reset	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/freeze-invites	authenticated	staff	deny	-	MANAGE_INVITES
+POST	/admin/accounts/{account_id}/rename	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/reset-2fa	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/suspend	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/unfreeze-invites	authenticated	staff	deny	-	MANAGE_INVITES
+POST	/admin/accounts/{account_id}/unlink	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/accounts/{account_id}/unsuspend	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-	STAFF_BASIC
+POST	/admin/announcements	authenticated	staff	deny	-	MANAGE_FEATURES
+POST	/admin/card-actions	authenticated	staff	deny	-	STAFF_BASIC
+POST	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/assets/{asset_id}/complete	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/assets/{asset_id}/probe	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/assets/{asset_id}/transcode	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/collections	authenticated	staff	deny	-	MANAGE_COLLECTIONS
+POST	/admin/cinema/episodes/{episode_id}/publish	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/episodes/{episode_id}/unpublish	authenticated	staff	deny	-	PUBLISH_MEDIA|DELETE_CONTENT
+POST	/admin/cinema/reports/{report_id}/resolve	authenticated	staff	deny	-	DELETE_CONTENT
+POST	/admin/cinema/seasons/{season_id}/episodes	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/titles	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/titles/{title_id}/artwork	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/titles/{title_id}/merge	authenticated	staff	deny	-	DELETE_CONTENT
+POST	/admin/cinema/titles/{title_id}/publish	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/titles/{title_id}/seasons	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/titles/{title_id}/trailers	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/titles/{title_id}/unpublish	authenticated	staff	deny	-	PUBLISH_MEDIA|DELETE_CONTENT
+POST	/admin/cinema/titles/{title_id}/variants	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/data-requests	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/data-requests/{request_id}/decline	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/data-requests/{request_id}/extend	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/data-requests/{request_id}/rectify	authenticated	staff	deny	-	MANAGE_ACCOUNTS+MANAGE_TAKEDOWNS
+POST	/admin/data-requests/{request_id}/restriction	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/data-requests/{request_id}/run	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/data-requests/{request_id}/verify	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/developers/activities/{application_id}/decision	authenticated	staff	deny	-	REVIEW_APPS
+POST	/admin/developers/apps/{application_id}/suspend	authenticated	staff	deny	-	REVIEW_APPS
+POST	/admin/developers/apps/{application_id}/unsuspend	authenticated	staff	deny	-	REVIEW_APPS
+POST	/admin/developers/packages/versions/{version_id}/decision	authenticated	staff	deny	-	REVIEW_PACKAGES
+POST	/admin/developers/requests/{request_id}/decision	authenticated	staff	deny	-	REVIEW_APPS
+POST	/admin/developers/versions/{version_id}/decision	authenticated	staff	deny	-	REVIEW_APPS
+POST	/admin/donations/entitlements	authenticated	staff	deny	-	MANAGE_DONATIONS
+POST	/admin/donations/invoices/{invoice_id}/resolve	authenticated	staff	deny	-	MANAGE_DONATIONS
+POST	/admin/donations/leaderboard/hide	authenticated	staff	deny	-	MANAGE_DONATIONS
+POST	/admin/donations/wallet/test	authenticated	staff	deny	-	MANAGE_DONATIONS
+POST	/admin/guilds/{guild_id}/transfer-ownership	authenticated	staff	deny	-	MANAGE_GUILDS_GLOBAL
+POST	/admin/ingest-sources	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/ingest-sources/{source_id}/dry-run	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/ingest-sources/{source_id}/scan	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/jobs/{job_id}/retry	authenticated	staff	deny	-	MANAGE_TRANSCODE
+POST	/admin/library/chapters/{chapter_id}/publish	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/chapters/{chapter_id}/unpublish	authenticated	staff	deny	-	PUBLISH_READING|DELETE_CONTENT
+POST	/admin/library/chapters/{chapter_id}/uploads	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/comment-reports/{report_id}/resolve	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/library/editions/{edition_id}/chapters	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/editions/{edition_id}/volumes	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/lists/{list_id}/feature	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/series	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/series/{series_id}/editions	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/series/{series_id}/merge	authenticated	staff	deny	-	DELETE_CONTENT
+POST	/admin/library/series/{series_id}/publish	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-	PUBLISH_READING|DELETE_CONTENT
+POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-	PLATFORM_BAN
+POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-	MANAGE_INVITES
+POST	/admin/persons/{person_id}/identities/{identity_id}/move	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/persons/{person_id}/link	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/admin/persons/{person_id}/unban	authenticated	staff	deny	-	PLATFORM_BAN
+POST	/admin/reauth	authenticated	staff	deny	-	STAFF_BASIC
+POST	/admin/review/requests/{request_id}/decline	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/approve	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/claim	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/comments	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/publish	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/publish-now	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/review/submissions/{submission_id}/reject	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/release	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	staff	deny	-	REVIEW_READING
+POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/staff	authenticated	staff	deny	-	APPOINT_STAFF
+POST	/admin/staff/offers	authenticated	staff	deny	-	APPOINT_STAFF
+POST	/admin/system/email-test	authenticated	staff	deny	-	OPERATOR
+POST	/admin/system/preflight	authenticated	staff	deny	-	OPERATOR
+POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-	MANAGE_TRANSCODE
+POST	/admin/transcode/jobs/{job_id}/retry	authenticated	staff	deny	-	MANAGE_TRANSCODE
+POST	/admin/transcode/retranscode	authenticated	staff	deny	-	MANAGE_TRANSCODE
+POST	/admin/transcode/sweep	authenticated	staff	deny	-	MANAGE_TRANSCODE
+POST	/admin/transcode/tokens	authenticated	staff	deny	-	MANAGE_TRANSCODE
+POST	/admin/tv/channels	authenticated	staff	deny	-	MANAGE_TV
+POST	/admin/tv/channels/{channel_id}/blocks	authenticated	staff	deny	-	MANAGE_TV
+POST	/admin/tv/channels/{channel_id}/imports	authenticated	staff	deny	-	MANAGE_TV
+POST	/admin/tv/channels/{channel_id}/imports/{import_id}/confirm	authenticated	staff	deny	-	MANAGE_TV
+POST	/admin/tv/channels/{channel_id}/preview	authenticated	staff	deny	-	MANAGE_TV
+POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-	MANAGE_TV
+POST	/applications	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/activity/bundles	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/activity/submit	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/assets	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/commands	authenticated	owner	allow	-	-
+POST	/applications/{application_id}/emojis	authenticated	owner	allow	-	-
+POST	/applications/{application_id}/endpoint/verify	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-	-
+POST	/applications/{application_id}/interactions-key	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/reset-secret	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/testers	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/versions	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-	-
+POST	/channels/{channel_id}/activity	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/call/ring	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/call/stop-ringing	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/followers	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/invites	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/messages	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/messages/bulk-delete	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/messages/{message_id}/ack	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/messages/{message_id}/crosspost	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/messages/{message_id}/threads	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/pins/ack	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	deny	-	-
+POST	/channels/{channel_id}/send-soundboard-sound	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/threads	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/typing	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/webhooks	authenticated	membership	allow	-	-
+POST	/cinema/assets/{asset_id}/refresh	authenticated	user	allow	-	-
+POST	/cinema/comments/{comment_id}/report	authenticated	user	allow	-	-
+POST	/cinema/lists	authenticated	self	allow	-	-
+POST	/cinema/reviews/{review_id}/report	authenticated	user	allow	-	-
+POST	/cinema/titles/{title_id}/comments	authenticated	user	allow	-	-
+POST	/cinema/titles/{title_id}/downloads	authenticated	user	allow	-	-
+POST	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	user	allow	-	-
+POST	/cinema/titles/{title_id}/watched	authenticated	self	allow	-	-
+POST	/developers/apply	authenticated	owner	deny	-	-
+POST	/developers/tester-invites/{invite_id}/respond	authenticated	self	deny	-	-
+POST	/directory/{guild_id}/join	authenticated	membership	deny	-	-
+POST	/donations/invoices	authenticated	self	allow	-	-
+POST	/donations/invoices/{invoice_id}/cancel	authenticated	self	allow	-	-
+POST	/donations/invoices/{invoice_id}/check	authenticated	self	allow	-	-
+POST	/guilds	authenticated	membership	deny	-	-
+POST	/guilds/templates/{code}	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/ack	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/alert-actions	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-	-
+POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/packages/{package_id}/apply	authenticated	membership	deny	-	-
+POST	/guilds/{guild_id}/packages/{package_id}/import	authenticated	membership	deny	-	-
+POST	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/sr/applications	authenticated	user	allow	-	-
+POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/sr/slowmode/apply	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/tickets	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/tickets/{ticket_id}/close	authenticated	membership	allow	-	-
+POST	/interactions	authenticated	membership	deny	-	-
+POST	/interactions/{interaction_id}/{token}/callback	public	none	allow	-	-
+POST	/invites/{code}	authenticated	membership	deny	-	-
+POST	/library/chapters/{chapter_id}/comments	authenticated	user	allow	-	-
+POST	/library/chapters/{chapter_id}/download	authenticated	user	allow	-	-
+POST	/library/chapters/{chapter_id}/read	authenticated	self	allow	-	-
+POST	/library/comments/{comment_id}/report	authenticated	user	allow	-	-
+POST	/library/lists	authenticated	self	allow	-	-
+POST	/library/me/notifications/seen	authenticated	self	allow	-	-
+POST	/library/series/{series_id}/comments	authenticated	user	allow	-	-
+POST	/library/submissions/{submission_id}/cover	authenticated	author	allow	-	-
+POST	/moderation/age/restrictions	authenticated	staff	deny	-	DELETE_CONTENT|MANAGE_CASES
+POST	/moderation/age/underage	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/age/underage/{account_id}/lift	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/appeals	public	none	deny	-	-
+POST	/moderation/appeals/{appeal_id}/decision	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/cases	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/cases/{case_id}/actions	authenticated	membership	deny	-	-
+POST	/moderation/cases/{case_id}/ban	authenticated	staff	deny	-	MANAGE_CASES+PLATFORM_BAN
+POST	/moderation/cases/{case_id}/escalate	authenticated	membership	deny	-	-
+POST	/moderation/cases/{case_id}/holds	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/cases/{case_id}/notes	authenticated	membership	deny	-	-
+POST	/moderation/cases/{case_id}/reopen	authenticated	membership	deny	-	-
+POST	/moderation/cases/{case_id}/state	authenticated	membership	deny	-	-
+POST	/moderation/cases/{case_id}/warn	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/dashboard/inbox/dismiss	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/evasion-signals/{signal_id}/link-case	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/evasion-signals/{signal_id}/review	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/moderation/holds/{hold_id}/release	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/holds/{hold_id}/retain	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/holds/{hold_id}/reviewed	authenticated	staff	deny	-	MANAGE_CASES
+POST	/moderation/persons/{person_id}/evasion-scan	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+POST	/moderation/reports	authenticated	visibility	deny	-	-
+POST	/moderation/takedowns	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/counter-notice	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/court-filing	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/hold	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/items	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/reject	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/restore	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/uphold	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/moderation/takedowns/{notice_id}/withdraw	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/oauth2/authorize	authenticated	self	deny	-	-
+POST	/oauth2/introspect	public	none	allow	-	-
+POST	/oauth2/token	public	none	allow	-	-
+POST	/oauth2/token/revoke	public	none	allow	-	-
+POST	/packages	authenticated	user	deny	-	-
+POST	/packages/versions/{version_id}/withdraw	authenticated	author	deny	-	-
+POST	/packages/{package_id}/create-guild	authenticated	user	deny	-	-
+POST	/read-states/ack-bulk	authenticated	membership	allow	-	-
+POST	/requests	authenticated	user	allow	-	-
+POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-	REVIEW_READING
+POST	/sr/auth/account/delete	authenticated	self	deny	-	-
+POST	/sr/auth/discord/link	authenticated	self	deny	-	-
+POST	/sr/auth/discord/unlink	authenticated	self	deny	-	-
+POST	/sr/auth/email/cancel	public	none	deny	-	-
+POST	/sr/auth/email/change	authenticated	self	deny	-	-
+POST	/sr/auth/passkeys/login/begin	public	none	deny	-	-
+POST	/sr/auth/passkeys/login/finish	public	none	deny	-	-
+POST	/sr/auth/passkeys/register/begin	authenticated	self	deny	-	-
+POST	/sr/auth/passkeys/register/finish	authenticated	self	deny	-	-
+POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-	-
+POST	/sr/auth/password	authenticated	self	deny	-	-
+POST	/sr/auth/reauth	authenticated	self	deny	-	-
+POST	/sr/invites	authenticated	self	deny	-	-
+POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-	-
+POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-	-
+POST	/stage-instances	authenticated	membership	allow	-	-
+POST	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
+POST	/submissions	authenticated	self	allow	-	-
+POST	/submissions/naming/parse	authenticated	user	allow	-	-
+POST	/submissions/{submission_id}/artwork/{kind}	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/comments	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/library/uploads/{upload_id}/complete	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/submit	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/withdraw	authenticated	author	allow	-	-
+POST	/users/@me/channels	authenticated	self	allow	-	-
+POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-	-
+POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-	-
+POST	/users/@me/data-export	authenticated	self	deny	-	-
+POST	/users/@me/profile-doc/layout	authenticated	self	deny	-	-
+POST	/users/@me/profile-media	authenticated	self	deny	-	-
+POST	/users/@me/push-subscriptions	authenticated	self	deny	-	-
+POST	/users/@me/relationships	authenticated	self	deny	-	-
+POST	/users/@me/reminders	authenticated	self	deny	-	-
+POST	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
+POST	/watch-parties	authenticated	party_access	allow	-	-
+POST	/watch-parties/{party_id}/heartbeat	authenticated	party_member	allow	-	-
+POST	/watch-parties/{party_id}/host	authenticated	party_manager	allow	-	-
+POST	/watch-parties/{party_id}/join	authenticated	party_access	allow	-	-
+POST	/watch-parties/{party_id}/leave	authenticated	party_member	allow	-	-
+POST	/watch-parties/{party_id}/messages	authenticated	party_member	allow	-	-
+POST	/watch-parties/{party_id}/next	authenticated	party_control	allow	-	-
+POST	/watch-parties/{party_id}/playback	authenticated	party_control	allow	-	-
+POST	/watch-parties/{party_id}/queue	authenticated	party_control	allow	-	-
+POST	/watch-parties/{party_id}/reactions	authenticated	party_member	allow	-	-
+POST	/webhooks/{webhook_id}/reset-token	authenticated	membership	allow	-	-
+POST	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
+PUT	/admin/cinema/assets/{asset_id}/link	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/assets/{asset_id}/original-downloads	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
+PUT	/admin/cinema/collections/{collection_id}/items	authenticated	staff	deny	-	MANAGE_COLLECTIONS
+PUT	/admin/cinema/comments/{comment_id}/hidden	authenticated	staff	deny	-	DELETE_CONTENT
+PUT	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/episodes/{episode_id}/asset	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/reviews/{review_id}/hidden	authenticated	staff	deny	-	DELETE_CONTENT
+PUT	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/titles/{title_id}/asset	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/titles/{title_id}/markers	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/trailers/{trailer_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+PUT	/admin/donations/wallet	authenticated	staff	deny	-	MANAGE_DONATIONS
+PUT	/admin/entrance/copy/{key}	authenticated	staff	deny	-	MANAGE_ENTRANCE
+PUT	/admin/entrance/hero	authenticated	staff	deny	-	MANAGE_ENTRANCE
+PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-	PUBLISH_READING
+PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-	PUBLISH_READING
+PUT	/admin/library/chapters/{chapter_id}/pages/{index}	authenticated	staff	deny	-	PUBLISH_READING
+PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-	PUBLISH_READING
+PUT	/admin/library/series/{series_id}	authenticated	staff	deny	-	PUBLISH_READING
+PUT	/admin/persons/{person_id}/notes	authenticated	staff	deny	-	MANAGE_ACCOUNTS
+PUT	/admin/review/submissions/{submission_id}/duplicate	authenticated	staff	deny	-	REVIEW_READING
+PUT	/admin/review/submissions/{submission_id}/items/{item_id}	authenticated	staff	deny	-	REVIEW_READING
+PUT	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-	OWNER
+PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-	APPOINT_STAFF
+PUT	/admin/transcode/workers/{worker_id}/drain	authenticated	staff	deny	-	MANAGE_TRANSCODE
+PUT	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-	MANAGE_TV
+PUT	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-	MANAGE_TV
+PUT	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-	MANAGE_TV
+PUT	/applications/{application_id}/activity	authenticated	owner	deny	-	-
+PUT	/applications/{application_id}/commands	authenticated	owner	allow	-	-
+PUT	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-	-
+PUT	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	membership	allow	applications.commands.permissions.update	-
+PUT	/channels/{channel_id}/messages/{message_id}/bookmark	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/voice-status	authenticated	membership	allow	-	-
+PUT	/cinema/comments/{comment_id}/like	authenticated	user	allow	-	-
+PUT	/cinema/lists/{list_id}/items/{title_id}	authenticated	author	allow	-	-
+PUT	/cinema/lists/{list_id}/order	authenticated	author	allow	-	-
+PUT	/cinema/me/history/settings	authenticated	self	allow	-	-
+PUT	/cinema/me/list/{title_id}	authenticated	self	allow	-	-
+PUT	/cinema/reviews/{review_id}/helpful	authenticated	user	allow	-	-
+PUT	/cinema/titles/{title_id}/episodes/{episode_id}/progress	authenticated	self	allow	-	-
+PUT	/cinema/titles/{title_id}/episodes/{episode_id}/rating	authenticated	self	allow	-	-
+PUT	/cinema/titles/{title_id}/progress	authenticated	self	allow	-	-
+PUT	/cinema/titles/{title_id}/rating	authenticated	self	allow	-	-
+PUT	/cinema/titles/{title_id}/review	authenticated	self	allow	-	-
+PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/incident-actions	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-	-
+PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
+PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	self	allow	-	-
+PUT	/library/chapters/{chapter_id}/presence	authenticated	self	allow	-	-
+PUT	/library/chapters/{chapter_id}/progress	authenticated	self	allow	-	-
+PUT	/library/chapters/{chapter_id}/rating	authenticated	self	allow	-	-
+PUT	/library/comments/{comment_id}/like	authenticated	user	allow	-	-
+PUT	/library/lists/{list_id}/items/{series_id}	authenticated	author	allow	-	-
+PUT	/library/lists/{list_id}/order	authenticated	author	allow	-	-
+PUT	/library/reviews/{review_id}/helpful	authenticated	user	allow	-	-
+PUT	/library/series/{series_id}/follow	authenticated	self	allow	-	-
+PUT	/library/series/{series_id}/rating	authenticated	self	allow	-	-
+PUT	/library/series/{series_id}/review	authenticated	self	allow	-	-
+PUT	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-	-
+PUT	/requests/{request_id}/claim	authenticated	user	allow	-	-
+PUT	/requests/{request_id}/vote	authenticated	self	allow	-	-
+PUT	/sr/auth/username	authenticated	self	deny	-	-
+PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-	-
+PUT	/submissions/{submission_id}/library/series	authenticated	author	allow	-	-
+PUT	/tv/favorites/{channel_id}	authenticated	self	allow	-	-
+PUT	/tv/reminders/{block_id}	authenticated	self	deny	-	-
+PUT	/users/@me/birthday	authenticated	self	deny	-	-
+PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-	-
+PUT	/users/@me/connections/link	authenticated	self	deny	-	-
+PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-	-
+PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-	-
+PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-	-
+PUT	/users/@me/notification-keywords	authenticated	self	deny	-	-
+PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-	-
+PUT	/users/@me/primary-guild	authenticated	self	deny	-	-
+PUT	/users/@me/profile-doc	authenticated	self	deny	-	-
+PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
+PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	party_manager	allow	-	-
+PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-	-
 #undocumented	/
 #undocumented	/cdn/external/{hmac}/{url_b64}
 #undocumented	/cdn/{*path}
 #undocumented	/connections/{provider}/callback
 #undocumented	/developers/docs/api
 #undocumented	/healthz
-#undocumented	/internal/csp-report
 #undocumented	/internal/metrics
 #undocumented	/openapi.json
 #undocumented	/packages/versions/{version_id}/files/{*path}

@@ -89,6 +89,9 @@ struct Row {
     authz: String,
     bot: String,
     bearer: String,
+    /// The platform permission(s) a `staff` or `author_or_staff` row demands: `NAME`, `A+B`, `OWNER`,
+    /// `STAFF_BASIC` (any appointment suffices); `-` on every other row (D-360).
+    platform: String,
 }
 
 /// `(METHOD, path) -> declared access` for every operation in the OpenAPI document.
@@ -123,7 +126,7 @@ fn parse() -> (BTreeMap<(String, String), Row>, BTreeSet<String>) {
             continue;
         }
         let f: Vec<&str> = line.split('\t').collect();
-        assert_eq!(f.len(), 6, "malformed matrix row: {line:?}");
+        assert_eq!(f.len(), 7, "malformed matrix row: {line:?}");
         rows.insert(
             (f[0].to_owned(), f[1].to_owned()),
             Row {
@@ -131,6 +134,7 @@ fn parse() -> (BTreeMap<(String, String), Row>, BTreeSet<String>) {
                 authz: f[3].to_owned(),
                 bot: f[4].to_owned(),
                 bearer: f[5].to_owned(),
+                platform: f[6].to_owned(),
             },
         );
     }
@@ -403,6 +407,29 @@ fn matrix_covers_every_route() {
             "{m} {p}: unknown AUTHZ {}",
             row.authz
         );
+        // D-360: the PLATFORM cell names the permission a staff row demands, spelled as in
+        // `sr_core::PlatformPermissions`; every other row has `-`.
+        let needs_bit = row.authz == "staff" || row.authz == "author_or_staff";
+        if needs_bit {
+            assert!(
+                row.platform != "-",
+                "{m} {p}: a {} row needs a PLATFORM permission (STAFF_BASIC when any appointment suffices)",
+                row.authz
+            );
+            for bit in row.platform.split(['+', '|']) {
+                assert!(
+                    bit == "STAFF_BASIC"
+                        || bit == "OWNER"
+                        || sr_core::PlatformPermissions::from_name(bit).is_some(),
+                    "{m} {p}: unknown PLATFORM permission {bit}"
+                );
+            }
+        } else {
+            assert_eq!(
+                row.platform, "-",
+                "{m} {p}: only staff rows carry a PLATFORM permission"
+            );
+        }
         assert_eq!(
             row.access,
             docs[&(m.clone(), p.clone())],
