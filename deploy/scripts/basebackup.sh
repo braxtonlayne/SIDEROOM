@@ -6,6 +6,7 @@
 #   SR_BACKUP_DIR       base backups go to $SR_BACKUP_DIR/base/base-<stamp>/            (default ./backups)
 #   SR_WAL_ARCHIVE_DIR  the archive that wal-archive.sh fills; trimmed after each run   (optional)
 #   SR_BASEBACKUP_KEEP  how many base backups to keep                                   (default 7)
+#   SR_BACKUP_DIR_MODE  mode of $SR_BACKUP_DIR itself (default 700; the Compose stack uses 750, see BACKUP.md)
 #
 # Each backup is a tar pair (base.tar.gz + pg_wal.tar.gz, WAL streamed so the backup restores on its own)
 # plus backup.json with the checksum and the first WAL segment it needs. After pruning, archived segments
@@ -24,7 +25,8 @@ need gzip
 pg_env_from_url "$SR_DATABASE_URL"
 
 mkdir -p "$dir/base"
-chmod 700 "$dir" "$dir/base" 2>/dev/null || true
+chmod "${SR_BACKUP_DIR_MODE:-700}" "$dir" 2>/dev/null || true
+chmod 700 "$dir/base" 2>/dev/null || true
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 dest="$dir/base/base-$stamp"
 tmp="$dest.partial"

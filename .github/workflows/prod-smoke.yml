@@ -1,0 +1,188 @@
+name: Production smoke
+# RDY-OPS-001/002/003: the shipped production files boot on a machine nobody prepared by hand. Builds the server image and
+# the web bundle as release-dry-run.yml does, then (stack) runs deploy/install.sh --yes against deploy/compose/prod.yml
+# with Caddy on its internal CA, waits for /healthz through Caddy, signs in, runs the entrance-smoke spec, and drills
+# backup.sh, restore.sh, wal-drill.sh, sr-cli backup / restore --force / upgrade --dry-run against the running containers.
+# The systemd job runs `systemd-analyze verify` over deploy/systemd and the static-binary install of deploy/INSTALL.md as
+# a user service. Manual dispatch plus weekly; it is not a pull-request check (it needs a cold Docker host and ~20 minutes).
+# The steps live in deploy/scripts/prod-smoke.sh and deploy/scripts/smoke-systemd.sh so they can be read and run by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      systemd_user_fallback:
+        description: "If the runner has no systemd user manager, run sr-server directly (the unit is then NOT proven)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "41 5 * * 2"
+concurrency:
+  group: prod-smoke-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  SMOKE_IMAGE: sideroom-server:smoke
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # The same build as release-dry-run.yml's server-image job (shares its layer cache), kept as a tarball.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/server.Dockerfile
+          platforms: linux/amd64
+          tags: ${{ env.SMOKE_IMAGE }}
+          outputs: type=docker,dest=${{ runner.temp }}/server-image.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-server-image
+          path: ${{ runner.temp }}/server-image.tar
+          retention-days: 1
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sideroom/wasm build
+      - run: pnpm --filter @sideroom/web build
+      - run: tar -C apps/web -czf "$RUNNER_TEMP/web-dist.tar.gz" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-web-dist
+          path: ${{ runner.temp }}/web-dist.tar.gz
+          retention-days: 1
+
+  stack:
+    needs: [image, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: smoke-server-image, path: "${{ runner.temp }}/in" }
+      - uses: actions/download-artifact@v4
+        with: { name: smoke-web-dist, path: "${{ runner.temp }}/in" }
+      - name: Load the image, unpack the web bundle, take the static binaries out of the image
+        run: |
+          docker load -i "$RUNNER_TEMP/in/server-image.tar"
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/in/web-dist.tar.gz"
+          echo "SMOKE_WEB_DIR=$RUNNER_TEMP/dist" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/bin"
+          id=$(docker create "$SMOKE_IMAGE")
+          docker cp "$id:/usr/local/bin/sr-cli" "$RUNNER_TEMP/bin/sr-cli"
+          docker rm "$id" >/dev/null
+          chmod +x "$RUNNER_TEMP/bin/sr-cli"
+          echo "SR_CLI=$RUNNER_TEMP/bin/sr-cli" >> "$GITHUB_ENV"
+      # pg_dump refuses to dump a newer server, and the runner ships the 16 client: same fix as backup-drill.yml.
+      - name: Install the PostgreSQL 17 client tools (sr-cli backup and restore run on the host)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @sideroom/e2e...
+      - name: Install (deploy/install.sh --yes against prod.yml, https://smoke.localhost)
+        run: deploy/scripts/prod-smoke.sh install
+      - name: Healthz through Caddy
+        run: deploy/scripts/prod-smoke.sh wait
+      - name: Migrate again, bootstrap again
+        run: deploy/scripts/prod-smoke.sh migrate
+      - name: Sign in through Caddy, read Admin > System
+        run: deploy/scripts/prod-smoke.sh signin
+      - name: Playwright entrance-smoke through Caddy
+        run: |
+          pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+          # Same specs and settings as playwright.config.ts, but against the running stack: no dev server, no
+          # global setup (the stack is already migrated and bootstrapped), Chromium only, and Caddy's internal CA
+          # is not in the browser's trust store.
+          cat > e2e/playwright.prod-smoke.config.ts <<'EOF'
+          import { defineConfig } from '@playwright/test';
+          import base from './playwright.config';
+          export default defineConfig({
+            ...base,
+            globalSetup: undefined,
+            webServer: undefined,
+            retries: 0,
+            reporter: [['list']],
+            projects: [base.projects![0]],
+            use: { ...base.use, baseURL: 'https://smoke.localhost', ignoreHTTPSErrors: true },
+          });
+          EOF
+          pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke
+      - name: Backup, restore and WAL drills against the running stack
+        run: deploy/scripts/prod-smoke.sh backups
+      - name: sr-cli backup, restore --force and upgrade --dry-run
+        run: deploy/scripts/prod-smoke.sh cli-backups
+      - name: Container state and logs
+        if: failure()
+        run: deploy/scripts/prod-smoke.sh logs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: prod-smoke-playwright
+          path: e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 3
+
+  systemd:
+    needs: [image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sideroom
+          POSTGRES_PASSWORD: sideroom_ci
+          POSTGRES_DB: sideroom
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sideroom" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: smoke-server-image, path: "${{ runner.temp }}/in" }
+      - name: Take the static binaries out of the image
+        run: |
+          docker load -i "$RUNNER_TEMP/in/server-image.tar"
+          mkdir -p "$RUNNER_TEMP/bin"
+          id=$(docker create "$SMOKE_IMAGE")
+          docker cp "$id:/usr/local/bin/sr-server" "$RUNNER_TEMP/bin/sr-server"
+          docker cp "$id:/usr/local/bin/sr-cli" "$RUNNER_TEMP/bin/sr-cli"
+          docker rm "$id" >/dev/null
+          chmod +x "$RUNNER_TEMP/bin/sr-server" "$RUNNER_TEMP/bin/sr-cli"
+          echo "SR_SERVER=$RUNNER_TEMP/bin/sr-server" >> "$GITHUB_ENV"
+          echo "SR_CLI=$RUNNER_TEMP/bin/sr-cli" >> "$GITHUB_ENV"
+      - name: systemd-analyze verify over deploy/systemd
+        run: deploy/scripts/smoke-systemd.sh verify
+      - name: Static-binary install, started as a systemd user service
+        env:
+          SMOKE_DATABASE_URL: postgres://sideroom:sideroom_ci@127.0.0.1:5432/sideroom?sslmode=disable
+          SMOKE_SYSTEMD_USER_FALLBACK: ${{ inputs.systemd_user_fallback && '1' || '0' }}
+        run: deploy/scripts/smoke-systemd.sh user-service

@@ -689,3 +689,80 @@ fn electrs_is_an_optional_private_payments_profile_with_default_price_sources() 
         assert!(vars.contains(k), "sr-server does not receive {k}");
     }
 }
+
+/// RDY-OPS-002: Admin > System can only show the last backup if sr-server sees the folder the postgres container
+/// writes to, read-only, and may read it.
+#[test]
+fn the_server_sees_the_backup_folder_read_only() {
+    let c = compose();
+    let server = &c.services["sr-server"];
+    assert!(
+        server
+            .section("volumes")
+            .iter()
+            .any(|v| v.trim_start_matches("- ") == "pg-backups:/var/backups/sideroom:ro"),
+        "sr-server mounts pg-backups read-only at /var/backups/sideroom"
+    );
+    assert_eq!(
+        server.section("group_add"),
+        ["[\"999\"]"],
+        "sr-server joins the postgres group to read the 750 backup folder"
+    );
+    let init = c.services["wal-archive-init"].scalar("command").unwrap();
+    assert!(
+        init.contains("chmod 750 /var/backups/sideroom"),
+        "the init container makes the backup folder 750 (group readable): {init}"
+    );
+    // The postgres side writes with the same mode.
+    assert!(read("deploy/systemd/sideroom-basebackup.service").contains("SR_BACKUP_DIR_MODE=750"));
+    assert!(read("deploy/scripts/backup.sh").contains("SR_BACKUP_DIR_MODE:-700"));
+    assert!(read("deploy/scripts/basebackup.sh").contains("SR_BACKUP_DIR_MODE:-700"));
+}
+
+/// RDY-OPS-001/002/003: the production smoke workflow only calls stages and files that exist, so a renamed script
+/// or stage fails here instead of on the first dispatch.
+#[test]
+fn the_prod_smoke_workflow_calls_things_that_exist() {
+    let wf = read(".github/workflows/prod-smoke.yml");
+    assert!(wf.contains("workflow_dispatch:") && wf.contains("schedule:"));
+    let smoke = read("deploy/scripts/prod-smoke.sh");
+    let systemd = read("deploy/scripts/smoke-systemd.sh");
+    let mut stages = 0;
+    for line in wf.lines().filter(|l| !l.trim_start().starts_with('#')) {
+        for (script, body) in [
+            ("deploy/scripts/prod-smoke.sh ", &smoke),
+            ("deploy/scripts/smoke-systemd.sh ", &systemd),
+        ] {
+            if let Some(i) = line.find(script) {
+                let stage = line[i + script.len()..].split_whitespace().next().unwrap();
+                assert!(
+                    body.contains(&format!("\n  {stage}) ")),
+                    "{script}{stage}: no such stage"
+                );
+                stages += 1;
+            }
+        }
+    }
+    assert!(stages >= 9, "the workflow runs the stages ({stages} found)");
+    for f in [
+        "deploy/scripts/smoke-admin.mjs",
+        "deploy/scripts/restore-drill.sh",
+        "deploy/scripts/wal-drill.sh",
+        "deploy/scripts/backup.sh",
+        "deploy/scripts/restore.sh",
+    ] {
+        assert!(root().join(f).exists(), "{f} is missing");
+    }
+    // prod-smoke.sh reads the basebackup command out of the unit; its pattern must still match the unit.
+    let unit = read("deploy/systemd/sideroom-basebackup.service");
+    assert!(
+        unit.lines().any(|l| l.starts_with("ExecStart=")
+            && l.contains(" exec -T postgres sh -c \"")
+            && l.ends_with('"')),
+        "sideroom-basebackup.service keeps the `exec -T postgres sh -c \"...\"` shape prod-smoke.sh parses"
+    );
+    // The systemd stage derives the config template from INSTALL.md section 4.
+    let install = read("deploy/INSTALL.md");
+    assert!(install.contains("```toml\n[server]\nbind = \"127.0.0.1:8080\""));
+    assert!(install.contains("metrics_bind = \"127.0.0.1:9100\""));
+}

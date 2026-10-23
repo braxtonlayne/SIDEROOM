@@ -17,6 +17,8 @@
 #   SR_DOMAIN SR_IMAGE SR_WEB_DIR SMTP_HOST SMTP_PORT SMTP_TLS SMTP_FROM SMTP_USERNAME SMTP_PASSWORD
 #   SR_OWNER_USERNAME SR_OWNER_EMAIL SR_OWNER_PASSWORD SR_GARAGE_CAPACITY SR_INGEST_DIR
 #   SR_PAYMENTS_ELECTRS (yes turns the electrs `payments` profile on) SR_PAYMENTS_ESPLORA_URL (empty = donations off)
+#   SR_INSTALL_SKIP_PULL=1 (skip `docker compose pull` when the image was built or loaded locally; compose still
+#   pulls whatever is missing when it starts the services. Used by .github/workflows/prod-smoke.yml)
 #
 # Needs Docker with the compose plugin and a source of randomness (openssl, or /dev/urandom with od).
 set -eu
@@ -37,7 +39,7 @@ for arg in "$@"; do
     --yes|--non-interactive) yes=1 ;;
     --force) force=1 ;;
     --no-start) start=0 ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $arg (try --help)" ;;
   esac
 done
@@ -246,8 +248,12 @@ EOF
   exit 0
 fi
 
-say "pulling images"
-dc pull
+if [ "${SR_INSTALL_SKIP_PULL:-0}" = "1" ]; then
+  say "skipping the image pull (SR_INSTALL_SKIP_PULL=1)"
+else
+  say "pulling images"
+  dc pull
+fi
 say "starting Postgres and Garage"
 dc up -d --wait postgres
 dc up -d garage
