@@ -61,6 +61,9 @@ deny = [
     # user supplied (D-234: only the base host and allow-listed hosts are followed).
     # sr-push, sr-storage, sr-transcoder and sr-unfurl are grandfathered: operator-configured
     # fixed endpoints (push services, S3, transcoder worker) or SafeClient transports.
+    # sr-preflight (RDY-OPS-004, integration of wave 20; pending an owner decision) fetches only the operator's own
+    # server.public_url and SR_PAYMENTS_ESPLORA_URL, without redirects; SafeClient would refuse the private and loopback
+    # addresses a box often reaches its own public URL by.
     { crate = "reqwest", wrappers = [
         "sr-net",
         "sr-unfurl",
@@ -68,6 +71,7 @@ deny = [
         "sr-sdk",
         "sr-storage",
         "sr-transcoder",
+        "sr-preflight",
         "oauth2",
         "object_store",
     ] },
