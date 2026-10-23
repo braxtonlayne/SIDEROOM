@@ -563,6 +563,17 @@ async fn a_person_link_carries_the_evasion_signals_and_automatic_cases() {
     let kept = signal(b_person, x_person, "shared_invite_lineage").await;
     let plain = signal(a_person, y_person, "new_account_after_ban").await;
     let toward = signal(y_person, a_person, "shared_login_ip").await;
+    // A duplicate staff had already dismissed keeps its review (D-350).
+    let reviewed_dup = signal(a_person, x_person, "new_account_after_ban").await;
+    let _reviewed_kept = signal(b_person, x_person, "new_account_after_ban").await;
+    sqlx::query(
+        "UPDATE evasion_signals SET state = 'dismissed', reviewed_by = $2, reviewed_at = now(),          review_reason = 'checked by hand' WHERE id = $1",
+    )
+    .bind(reviewed_dup)
+    .bind(staff)
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let auto_case = |person: i64, kind: &'static str| {
         let pool = pool.clone();
@@ -632,6 +643,55 @@ async fn a_person_link_carries_the_evasion_signals_and_automatic_cases() {
         "the rest is re-pointed"
     );
     assert_eq!(row(toward).await, (y_person, b_person, false, None));
+    assert_eq!(
+        row(reviewed_dup).await,
+        (b_person, x_person, true, Some(a_person))
+    );
+
+    // D-350: the fold closes what it folds; a reviewed row keeps its review.
+    let review = |id: i64| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_as::<_, (String, Option<i64>, bool, Option<String>)>(
+                "SELECT state, reviewed_by, reviewed_at IS NOT NULL, review_reason FROM evasion_signals WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let merged = Some("folded by a Person link: the two Persons were merged".to_owned());
+    assert_eq!(
+        review(between).await,
+        ("confirmed".into(), None, true, merged.clone())
+    );
+    assert_eq!(
+        review(between_back).await,
+        ("confirmed".into(), None, true, merged)
+    );
+    assert_eq!(
+        review(dup).await,
+        (
+            "dismissed".into(),
+            None,
+            true,
+            Some(format!(
+                "folded by a Person link: superseded by signal {kept}"
+            ))
+        )
+    );
+    assert_eq!(
+        review(reviewed_dup).await,
+        (
+            "dismissed".into(),
+            Some(staff),
+            true,
+            Some("checked by hand".into())
+        )
+    );
+    assert_eq!(review(kept).await, ("open".into(), None, false, None));
+    assert_eq!(review(plain).await, ("open".into(), None, false, None));
 
     let (a_auto, a_link): (Option<String>, Option<i64>) =
         sqlx::query_as("SELECT auto_kind, linked_case_id FROM moderation_cases WHERE id = $1")

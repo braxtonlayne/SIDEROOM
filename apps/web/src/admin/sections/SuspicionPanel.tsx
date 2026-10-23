@@ -55,11 +55,20 @@ export function SuspicionPanel({ personId, version }: { personId: string; versio
                   <li key={c.id} className="ss-row">
                     <div className="ss-grow">
                       <div className="ss-name">
-                        {t(
-                          c.auto_kind === 'suspicion_escalation'
-                            ? 'admin.suspicion.caseEscalation'
-                            : 'admin.suspicion.caseFreeze',
-                          { id: c.id },
+                        {c.auto_kind == null && c.folded_into_case_id ? (
+                          <>
+                            {t('admin.suspicion.caseDemoted', { id: c.id })}{' '}
+                            <a href={`/admin/moderation?case=${c.folded_into_case_id}`}>
+                              {t('admin.suspicion.caseFoldedInto', { id: c.folded_into_case_id })}
+                            </a>
+                          </>
+                        ) : (
+                          t(
+                            c.auto_kind === 'suspicion_escalation'
+                              ? 'admin.suspicion.caseEscalation'
+                              : 'admin.suspicion.caseFreeze',
+                            { id: c.id },
+                          )
                         )}{' '}
                         <Badge>{t(STATE_KEYS[c.state])}</Badge>
                       </div>

@@ -589,7 +589,9 @@ export interface InvitePath {
 export interface SuspicionCaseRef {
   id: string;
   state: CaseState;
-  auto_kind: 'suspicion_freeze' | 'suspicion_escalation';
+  /** Absent for a case a Person link demoted; `folded_into_case_id` names the surviving case (D-351). */
+  auto_kind: 'suspicion_freeze' | 'suspicion_escalation' | null;
+  folded_into_case_id?: string | null;
   assignee_id: string | null;
   linked_case_id: string | null;
   opened_at_ms: number;
@@ -610,6 +612,8 @@ export interface EvasionSignal {
   reviewed_at_ms: number | null;
   review_reason: string | null;
   case_id: string | null;
+  /** Set when a Person link folded this signal: the Person merged away (D-349, D-350). */
+  folded_from_person_id?: string | null;
 }
 export interface SharedAddress {
   ip: string;

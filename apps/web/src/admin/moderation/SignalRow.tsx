@@ -66,6 +66,14 @@ export function SignalRow({
                 : t('admin.suspicion.signalDismissed')}
             </Badge>
           )}
+          {signal.folded_from_person_id && (
+            <>
+              {' '}
+              <Badge>
+                {t('admin.suspicion.signalFolded', { id: signal.folded_from_person_id })}
+              </Badge>
+            </>
+          )}
         </div>
         <div className="ss-meta">
           {fmtMs(signal.created_at_ms)}

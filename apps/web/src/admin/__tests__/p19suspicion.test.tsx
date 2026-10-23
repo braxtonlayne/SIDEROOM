@@ -365,3 +365,48 @@ describe('follow-ups P-13 to P-16', () => {
     expect(screen.getByText(/matched by discord/)).toBeInTheDocument();
   });
 });
+
+describe('Person links (D-349 to D-351, P-20, P-21)', () => {
+  it('marks a folded signal and keeps a demoted automatic case listed with its survivor', async () => {
+    await openPerson(['STAFF_BASIC', 'MANAGE_ACCOUNTS', 'MANAGE_INVITES'], {
+      cases: [
+        {
+          id: '9200',
+          state: 'open',
+          auto_kind: 'suspicion_escalation',
+          assignee_id: null,
+          linked_case_id: null,
+          opened_at_ms: 1_700_000_100_000,
+          folded_into_case_id: null,
+        },
+        {
+          id: '9100',
+          state: 'open',
+          auto_kind: null,
+          assignee_id: null,
+          linked_case_id: '9200',
+          opened_at_ms: 1_700_000_000_000,
+          folded_into_case_id: '9200',
+        },
+      ],
+      signals: [
+        signal({
+          related_person_id: '500',
+          related_account: { id: '100', username: 'alice' },
+          state: 'confirmed',
+          reviewed_at_ms: 1_700_000_500_000,
+          review_reason: 'folded by a Person link: the two Persons were merged',
+          folded_from_person_id: '777',
+        }),
+      ],
+    });
+    const cases = await screen.findByRole('list', { name: 'Cases opened by the system' }, SLOW);
+    expect(within(cases).getByText('Case 9200: escalated for senior review')).toBeInTheDocument();
+    expect(within(cases).getByText('Case 9100, from a merged Person:')).toBeInTheDocument();
+    expect(within(cases).getByRole('link', { name: 'folded into case 9200' })).toHaveAttribute(
+      'href',
+      '/admin/moderation?case=9200',
+    );
+    expect(await screen.findByText('Folded (Person 777)')).toBeInTheDocument();
+  });
+});

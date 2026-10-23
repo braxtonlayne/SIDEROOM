@@ -9,7 +9,7 @@ Main checkout `C:\Users\braxt\Desktop\SIDEROOM_repo`, branch `integration/phase1
 **What is left for the owner or the coordinator:**
 
 1. Push `integration/phase19` and open the PR when the owner agrees.
-2. Migration **1152** is new, written by the integrator in the sus range (1150 to 1159). See "Integrator work" for why. Review it with the rest.
+2. Migration **1152** is new, written by the integrator in the sus range (1150 to 1159). Fable reviewed it (D-349 to D-351); the follow-ups P-20 and P-21 are built on this branch (see "Integration round").
 3. Still open from the branches, by design: item-page age buttons (Library series, Cinema title), "move a message" for a misplaced-NSFW report, mandatory external reporting (waits on the lawyer, D-336 h), and the lawyer checks named in D-341, D-343 and D-347. Also open: the Reports count in the Review hub, and search indexes that carry the age flag only after their next rebuild.
 
 **How to rerun the browser tests locally:** as in `feat-p18-integration.md`. The scratch DB is migrated with `sr-cli migrate`. Start `sr-server` with these settings:
@@ -80,6 +80,13 @@ The E2EE config needs `SR_E2E_VOICE=1` too, or it skips. `test:static` needs a `
   Reproduced deterministically: with a mailer that takes 1 s and the old code and test, the test fails with exactly "left: 0, right: 1". The fix is in the code, not a longer sleep. The mail decision (setting and throttle) is taken before the card is posted, so a visible card means the decision is final. The mail is sent after the card, so a slow relay does not delay it. The test now waits for the mail explicitly and always runs with a 300 ms mailer, so the ordering is exercised on every run. The `staff_feed_pg_tests` suite passed three times in a row, then again in the full Postgres run.
 - Small: an unused import in the new test (clippy), and the single-tab branch of `ModerationSection` reads `items[0]?.content` (`noUncheckedIndexedAccess`).
 
+## Integration round (D-349 to D-351, P-20, P-21)
+
+- **P-20:** `link_in` closes an open folded signal (self-pair `confirmed`, duplicate `dismissed` with "superseded by signal n"), no reviewer, snapshot or evidence; reviewed rows untouched. `SignalView.folded_from_person_id`; `signal_detail` skips the address read for a self-pair (privacy). "Folded (Person n)" tag on the signal rows (Signals tab and panel).
+- **P-21:** the panel lists a demoted automatic case (`suspicion_folded` event), `SuspicionCaseRef.auto_kind` optional, `folded_into_case_id`; "folded into case n" links to the new `?case=n` deep link of Admin > Moderation.
+- OpenAPI, the api-client schema and the mocks regenerated (957 operations). Catalog fragment `p19-integ-2.ts`.
+- Gates after this round: `cargo fmt --check`; clippy `-D warnings` on sr-db, sr-moderation, sr-api, sr-server (all targets); Postgres `sr-moderation` suspicion (12) and dashboard and age, `sr-db` p13_settings_admin (7), `sr-api` moderation routes and `openapi_names`; full Vitest; web build and budget; Playwright Chromium suite. Results in the reply to the coordinator and the commit.
+
 ## Gate results (merged tree)
 
 | Gate | Result |
@@ -118,7 +125,7 @@ The check did not cover signals with data (none were raised on a fresh DB), the 
 
 ## Open issues
 
-- Migration 1152 and the fold rule are an integrator decision. If the owner prefers signals between merged Persons to be closed (state change) rather than folded, that is a small follow-up. Folded rows keep their state and still show in the Signals list.
-- A demoted automatic case drops out of the panel's "automatic cases" list. It is still linked from the surviving case and carries the `suspicion_folded` event.
+- ANSWERED (D-349, D-350; P-20 done): migration 1152 and the fold rule stand; a folded signal still open is closed by the fold (self-pair `confirmed`, duplicate `dismissed` naming the survivor), folded rows are marked "Folded (Person n)", and the detail of a self-pair reads no addresses.
+- ANSWERED (D-351; P-21 done): a demoted automatic case stays in the panel with "folded into case n", a link to `/admin/moderation?case=n`.
 - The sign-in purge figures read the job row, so they show nothing until the job has run once ("The purge job has not run yet.").
 - `i18n-audit.mjs` (informational) was not rerun.

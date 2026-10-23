@@ -840,8 +840,8 @@ pub struct SuspicionCaseRef {
     #[schema(value_type = String)]
     pub id: i64,
     pub state: CaseState,
-    /// `suspicion_freeze` or `suspicion_escalation`.
-    pub auto_kind: String,
+    /// `suspicion_freeze` or `suspicion_escalation`; absent for a case a Person link demoted (D-351).
+    pub auto_kind: Option<String>,
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub assignee_id: Option<i64>,
@@ -849,6 +849,10 @@ pub struct SuspicionCaseRef {
     #[schema(value_type = Option<String>)]
     pub linked_case_id: Option<i64>,
     pub opened_at_ms: i64,
+    /// Set when a Person link demoted this case: the surviving automatic case it was folded into (D-351).
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub folded_into_case_id: Option<i64>,
 }
 
 /// An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address.
@@ -879,6 +883,10 @@ pub struct SignalView {
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub case_id: Option<i64>,
+    /// Set when a Person link folded this signal: the Person that was merged away (D-349, D-350).
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub folded_from_person_id: Option<i64>,
 }
 
 /// One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged).

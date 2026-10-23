@@ -43,7 +43,10 @@ export function ModerationSection() {
             ? 'signals'
             : 'dashboard',
   );
-  const [caseId, setCaseId] = useState<string | null>(null);
+  // A deep link `?case=<id>` opens that case (the suspicion panel's "folded into case n", D-351).
+  const [caseId, setCaseId] = useState<string | null>(
+    () => (cases && /(?:^|[?&])case=(\d+)/.exec(search)?.[1]) || null,
+  );
   const [noticeId, setNoticeId] = useState<string | null>(null);
 
   const open = (id: string) => {

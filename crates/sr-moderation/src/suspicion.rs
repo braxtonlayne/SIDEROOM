@@ -59,7 +59,7 @@ fn signal_select() -> String {
     format!(
         "SELECT s.id, s.person_id, pa.id AS acc_id, pa.username::text AS acc_name, s.related_person_id, \
          ra.id AS racc_id, ra.username::text AS racc_name, s.kind, s.detail, s.state, {created} AS created_ms, \
-         s.reviewed_by, {reviewed} AS reviewed_ms, s.review_reason, s.case_id \
+         s.reviewed_by, {reviewed} AS reviewed_ms, s.review_reason, s.case_id, s.folded_from_person_id \
          FROM evasion_signals s \
          LEFT JOIN LATERAL (SELECT id, username FROM accounts WHERE person_id = s.person_id AND id <> 1 \
                             ORDER BY id LIMIT 1) pa ON true \
@@ -86,6 +86,7 @@ fn signal_from(r: &PgRow) -> ModResult<SignalView> {
         reviewed_at_ms: r.try_get("reviewed_ms")?,
         review_reason: r.try_get("review_reason")?,
         case_id: r.try_get("case_id")?,
+        folded_from_person_id: r.try_get("folded_from_person_id")?,
     })
 }
 
@@ -276,10 +277,14 @@ impl Moderation {
         }
 
         let cases = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT id, state, auto_kind, assignee_id, linked_case_id, {} AS opened_ms \
-             FROM moderation_cases WHERE subject_person_id = $1 AND auto_kind IS NOT NULL \
-             ORDER BY id DESC LIMIT 20",
-            ms("opened_at")
+            "SELECT c.id, c.state, c.auto_kind, c.assignee_id, c.linked_case_id, {} AS opened_ms, \
+             (SELECT (e.detail->>'into_case_id')::bigint FROM moderation_case_events e \
+              WHERE e.case_id = c.id AND e.kind = 'suspicion_folded' ORDER BY e.id DESC LIMIT 1) AS folded_into \
+             FROM moderation_cases c WHERE c.subject_person_id = $1 AND (c.auto_kind IS NOT NULL \
+              OR EXISTS (SELECT 1 FROM moderation_case_events e \
+                         WHERE e.case_id = c.id AND e.kind = 'suspicion_folded')) \
+             ORDER BY c.id DESC LIMIT 20",
+            ms("c.opened_at")
         )))
         .bind(person_id)
         .fetch_all(&mut *tx)
@@ -294,6 +299,7 @@ impl Moderation {
                 assignee_id: r.try_get("assignee_id")?,
                 linked_case_id: r.try_get("linked_case_id")?,
                 opened_at_ms: r.try_get("opened_ms")?,
+                folded_into_case_id: r.try_get("folded_into")?,
             })
         })
         .collect::<ModResult<Vec<_>>>()?;
@@ -806,7 +812,11 @@ impl Moderation {
             .ok_or(ModError::NotFound("signal"))?;
         let signal = signal_from(&row)?;
         let lim = crate::service::limits_in(&mut *tx).await?;
-        let shared_addresses = if signal.kind == SignalKind::SharedLoginIp {
+        // A folded self-pair (D-350) names one Person twice: comparing its sign-ins with themselves would list
+        // every address it used, so nothing is read.
+        let shared_addresses = if signal.kind == SignalKind::SharedLoginIp
+            && signal.person_id != signal.related_person_id
+        {
             shared_addresses_in(
                 &mut tx,
                 signal.person_id,

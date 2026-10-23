@@ -1146,19 +1146,26 @@ impl PgAdminRepo {
                 .await
                 .map_err(db)?;
             }
-            // Evasion signals follow too (migration 1152). A signal between the two Persons being merged, or one
-            // the target already has for the same banned Person and kind, is kept and marked folded rather than
-            // deleted: it may carry a review and a snapshot.
+            // Evasion signals follow too (migration 1152, D-349). A signal between the two Persons being merged, or
+            // one the target already has for the same banned Person and kind, is kept and marked folded rather than
+            // deleted: it may carry a review and a snapshot. A folded signal that is still open is closed by the fold
+            // (D-350): a self-pair as `confirmed` (the link is that finding), a duplicate as `dismissed` naming the
+            // surviving signal; no reviewer (the system), no snapshot, no case evidence. Reviewed rows keep their review.
             sqlx::query(
-                "UPDATE evasion_signals s SET folded_at = now(), folded_from_person_id = $1 \
-                 WHERE s.folded_at IS NULL AND (s.person_id = $1 OR s.related_person_id = $1) \
-                 AND ((CASE WHEN s.person_id = $1 THEN $2 ELSE s.person_id END) \
-                      = (CASE WHEN s.related_person_id = $1 THEN $2 ELSE s.related_person_id END) \
-                   OR EXISTS (SELECT 1 FROM evasion_signals d WHERE d.folded_at IS NULL AND d.kind = s.kind \
-                      AND d.person_id <> $1 AND d.related_person_id <> $1 \
-                      AND d.person_id = (CASE WHEN s.person_id = $1 THEN $2 ELSE s.person_id END) \
-                      AND d.related_person_id = \
-                          (CASE WHEN s.related_person_id = $1 THEN $2 ELSE s.related_person_id END)))",
+                "UPDATE evasion_signals s SET folded_at = now(), folded_from_person_id = $1, \
+                state = CASE WHEN s.state <> 'open' THEN s.state WHEN f.self_pair THEN 'confirmed' ELSE 'dismissed' END, \
+                reviewed_at = CASE WHEN s.state = 'open' THEN now() ELSE s.reviewed_at END, \
+                review_reason = CASE WHEN s.state <> 'open' THEN s.review_reason \
+                WHEN f.self_pair THEN 'folded by a Person link: the two Persons were merged' \
+                ELSE 'folded by a Person link: superseded by signal ' || f.survivor END \
+                FROM (SELECT x.id, x.np = x.nr AS self_pair, \
+                (SELECT d.id FROM evasion_signals d WHERE d.folded_at IS NULL AND d.kind = x.kind \
+                AND d.person_id <> $1 AND d.related_person_id <> $1 \
+                AND d.person_id = x.np AND d.related_person_id = x.nr ORDER BY d.id LIMIT 1) AS survivor \
+                FROM (SELECT id, kind, CASE WHEN person_id = $1 THEN $2 ELSE person_id END AS np, \
+                CASE WHEN related_person_id = $1 THEN $2 ELSE related_person_id END AS nr \
+                FROM evasion_signals WHERE folded_at IS NULL AND (person_id = $1 OR related_person_id = $1)) x) f \
+                WHERE s.id = f.id AND (f.self_pair OR f.survivor IS NOT NULL)",
             )
             .bind(old)
             .bind(person_id)

@@ -91330,6 +91330,13 @@
           "detail": {
             "type": "object"
           },
+          "folded_from_person_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when a Person link folded this signal: the Person that was merged away (D-349, D-350)."
+          },
           "id": {
             "type": "string"
           },
@@ -92611,7 +92618,6 @@
         "required": [
           "id",
           "state",
-          "auto_kind",
           "opened_at_ms"
         ],
         "properties": {
@@ -92622,8 +92628,18 @@
             ]
           },
           "auto_kind": {
-            "type": "string",
-            "description": "`suspicion_freeze` or `suspicion_escalation`."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`suspicion_freeze` or `suspicion_escalation`; absent for a case a Person link demoted (D-351)."
+          },
+          "folded_into_case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when a Person link demoted this case: the surviving automatic case it was folded into (D-351)."
           },
           "id": {
             "type": "string"

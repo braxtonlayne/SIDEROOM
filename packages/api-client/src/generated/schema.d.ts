@@ -21509,6 +21509,8 @@ export interface components {
             /** Format: int64 */
             created_at_ms: number;
             detail: Record<string, never>;
+            /** @description Set when a Person link folded this signal: the Person that was merged away (D-349, D-350). */
+            folded_from_person_id?: string | null;
             id: string;
             kind: components["schemas"]["SignalKind"];
             person_id: string;
@@ -21909,8 +21911,10 @@ export interface components {
         /** @description An automatic case about the Person, open or not. */
         SuspicionCaseRef: {
             assignee_id?: string | null;
-            /** @description `suspicion_freeze` or `suspicion_escalation`. */
-            auto_kind: string;
+            /** @description `suspicion_freeze` or `suspicion_escalation`; absent for a case a Person link demoted (D-351). */
+            auto_kind?: string | null;
+            /** @description Set when a Person link demoted this case: the surviving automatic case it was folded into (D-351). */
+            folded_into_case_id?: string | null;
             id: string;
             linked_case_id?: string | null;
             /** Format: int64 */

@@ -1111,3 +1111,98 @@ async fn the_panel_lists_a_refused_re_registration_and_linking_a_signal_works_on
     assert_eq!(w.m.count_open_signals(&who).await.unwrap(), 1);
     w.db.cleanup().await.unwrap();
 }
+
+/// D-350, D-351: after a Person link folds two Persons, the self-pair signal is closed as confirmed, marked with the
+/// Person merged away, and its detail reads no addresses (both sides are one Person now); the emptied Person's
+/// automatic case stays in the panel, demoted, with the case it was folded into.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_person_link_folds_a_self_pair_without_addresses_and_keeps_the_demoted_case_listed() {
+    use sr_admin::StaffExtrasRepository;
+    let w = world().await;
+    let pool = w.pool();
+    let a = person(pool, "folda").await;
+    let b = person(pool, "foldb").await;
+    let senior = person(pool, "foldstaff").await;
+    // Both signed in from one address: the kind of pair a link answers.
+    login(pool, &a, "198.51.100.7", 3).await;
+    login(pool, &b, "198.51.100.7", 2).await;
+    let sid = uid();
+    exec(
+        pool,
+        "INSERT INTO evasion_signals (id, person_id, related_person_id, kind) VALUES ($1, $2, $3, 'shared_login_ip')",
+        &[sid, a.person, b.person],
+    )
+    .await;
+    let auto_case = |person: i64, kind: &'static str| async move {
+        let id = uid();
+        sqlx::query(
+            "INSERT INTO moderation_cases (id, category, severity, routing, target_kind, target_id, \
+             subject_person_id, opened_by_kind, auto_kind) \
+             VALUES ($1, 'other', 'serious', 'platform', 'person', $2, $2, 'staff', $3)",
+        )
+        .bind(id)
+        .bind(person)
+        .bind(kind)
+        .execute(pool)
+        .await
+        .unwrap();
+        id
+    };
+    let a_case = auto_case(a.person, "suspicion_freeze").await;
+    let b_case = auto_case(b.person, "suspicion_escalation").await;
+
+    let repo = sr_db::admin_repo::PgAdminRepo::new(pool.clone(), Arc::new(uid));
+    repo.link_account(
+        b.person,
+        a.account,
+        &sr_admin::AuditEntry {
+            actor_id: senior.account,
+            kind: sr_admin::AccessKind::AdminAction,
+            action: "person.link".into(),
+            target_kind: None,
+            target_id: None,
+            reason: "same person".into(),
+            ip: None,
+            detail: "{}".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let reader = staff(
+        senior.account,
+        P::MANAGE_INVITES | P::MANAGE_ACCOUNTS | P::MANAGE_CASES,
+    );
+    let who = Who::Staff(&reader);
+    let d = w.m.signal_detail(&who, sid).await.unwrap();
+    assert_eq!(
+        (d.signal.person_id, d.signal.related_person_id),
+        (b.person, b.person)
+    );
+    assert_eq!(d.signal.folded_from_person_id, Some(a.person));
+    assert_eq!(d.signal.state, SignalState::Confirmed);
+    assert!(
+        d.shared_addresses.is_empty(),
+        "a self-pair reads no addresses: {:?}",
+        d.shared_addresses
+    );
+
+    let panel = w.m.suspicion_panel(&who, b.person).await.unwrap();
+    let demoted = panel
+        .cases
+        .iter()
+        .find(|c| c.id == a_case)
+        .expect("the demoted case stays listed");
+    assert_eq!(demoted.auto_kind, None);
+    assert_eq!(demoted.folded_into_case_id, Some(b_case));
+    let survivor = panel.cases.iter().find(|c| c.id == b_case).unwrap();
+    assert_eq!(survivor.auto_kind.as_deref(), Some("suspicion_escalation"));
+    assert_eq!(survivor.folded_into_case_id, None);
+    let signals = panel.signals.expect("MANAGE_ACCOUNTS sees signals");
+    assert!(
+        signals
+            .iter()
+            .any(|s| s.id == sid && s.folded_from_person_id == Some(a.person))
+    );
+}
