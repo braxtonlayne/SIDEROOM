@@ -26,13 +26,12 @@ pub fn md5(data: &[u8]) -> [u8; 16] {
         msg.push(0);
     }
     msg.extend_from_slice(&((data.len() as u64).wrapping_mul(8)).to_le_bytes());
-    for chunk in msg.chunks_exact(64) {
-        let m: Vec<u32> = chunk
-            .chunks_exact(4)
-            .map(|w| u32::from_le_bytes([w[0], w[1], w[2], w[3]]))
-            .collect();
+    let (blocks, _) = msg.as_chunks::<64>();
+    for chunk in blocks {
+        let (words, _) = chunk.as_chunks::<4>();
+        let m: Vec<u32> = words.iter().map(|w| u32::from_le_bytes(*w)).collect();
         let (mut a, mut b, mut c, mut d) = (a0, b0, c0, d0);
-        for i in 0..64 {
+        for (i, &s) in S.iter().enumerate() {
             let (f, g) = match i / 16 {
                 0 => ((b & c) | (!b & d), i),
                 1 => ((d & b) | (!d & c), (5 * i + 1) % 16),
@@ -43,7 +42,7 @@ pub fn md5(data: &[u8]) -> [u8; 16] {
             a = d;
             d = c;
             c = b;
-            b = b.wrapping_add(f2.rotate_left(S[i]));
+            b = b.wrapping_add(f2.rotate_left(s));
         }
         a0 = a0.wrapping_add(a);
         b0 = b0.wrapping_add(b);

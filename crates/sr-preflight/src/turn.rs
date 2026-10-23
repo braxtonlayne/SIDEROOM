@@ -45,7 +45,7 @@ fn push_attr(buf: &mut Vec<u8>, ty: u16, val: &[u8]) {
     buf.extend_from_slice(&ty.to_be_bytes());
     buf.extend_from_slice(&(val.len() as u16).to_be_bytes());
     buf.extend_from_slice(val);
-    while buf.len() % 4 != 0 {
+    while !buf.len().is_multiple_of(4) {
         buf.push(0);
     }
 }

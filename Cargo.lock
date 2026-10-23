@@ -6059,6 +6059,8 @@ dependencies = [
  "sr-library",
  "sr-media",
  "sr-packages",
+ "sr-preflight",
+ "sr-server",
  "sr-storage",
  "sr-theme",
  "sr-transcoder",

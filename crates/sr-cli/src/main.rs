@@ -78,6 +78,23 @@ pub enum Command {
         #[arg(long)]
         force: bool,
     },
+    /// Is this box ready for its first invite? Checks the database, migrations, storage, mail, public URL, TURN, disk,
+    /// clock and secret files, prints a table and exits 1 when any check fails (RDY-OPS-004).
+    Preflight {
+        /// Also send a test mail to this address through the configured relay.
+        #[arg(long)]
+        send_to: Option<String>,
+        /// Post a test card to the Staff Server #alerts channel (and mail the Owner when that setting is on) through
+        /// the real staff feed path (RDY-OPS-006).
+        #[arg(long)]
+        alert_test: bool,
+        /// Accept the certificate of a private CA when fetching server.public_url (the smoke stack).
+        #[arg(long)]
+        insecure_tls: bool,
+        /// Print the report as JSON instead of the table.
+        #[arg(long)]
+        json: bool,
+    },
     /// Queue a full rebuild of the message search index (a running sr-server does the work).
     Reindex,
     /// Check, back up and migrate: the safe way to move a database to this release.

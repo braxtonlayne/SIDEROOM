@@ -696,17 +696,10 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
     struct FakeHost {
         disks: Vec<(String, Option<(u64, u64)>)>,
         modes: Vec<(String, ModeResult)>,
-    }
-    impl Default for FakeHost {
-        fn default() -> Self {
-            Self {
-                disks: vec![],
-                modes: vec![],
-            }
-        }
     }
     impl HostProbe for FakeHost {
         fn disk(&self, path: &str) -> Option<(u64, u64)> {

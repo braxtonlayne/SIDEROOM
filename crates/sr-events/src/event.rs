@@ -47,6 +47,8 @@ pub enum StaffAlertKind {
     BackupFailed,
     /// A transcode job ran out of attempts.
     TranscodeFailed,
+    /// `sr-cli preflight --alert-test`: proves the card and mail path (RDY-OPS-006).
+    AlertTest,
 }
 
 /// Which Staff Server feed a [`DomainEvent::StaffFeed`] card goes to.
@@ -88,6 +90,7 @@ impl StaffAlertKind {
             Self::DiskLow => "disk_low",
             Self::BackupFailed => "backup_failed",
             Self::TranscodeFailed => "transcode_failed",
+            Self::AlertTest => "alert_test",
         }
     }
 }
