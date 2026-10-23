@@ -5931,6 +5931,7 @@ dependencies = [
  "sr-reader",
  "sr-review",
  "sr-search",
+ "sr-server",
  "sr-storage",
  "sr-tv",
  "sr-unfurl",

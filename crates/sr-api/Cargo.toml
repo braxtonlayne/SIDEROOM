@@ -71,3 +71,6 @@ sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio",
 sr-db = { path = "../sr-db" }
 ciborium = "0.2.2"
 p256 = { version = "0.14.0", features = ["ecdsa"] }
+# RDY-SEC-001: the authorization matrix boots the real server wiring in-process (a dev-dependency
+# cycle is fine for integration tests; sr-server depends on sr-api).
+sr-server = { path = "../sr-server" }
