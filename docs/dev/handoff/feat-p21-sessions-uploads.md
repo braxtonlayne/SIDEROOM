@@ -1,6 +1,6 @@
 # Handoff: feat/p21-sessions-uploads (wave 21: RDY-SEC-007, 008, 009, 010)
 
-Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\p21-sessions-uploads`, branch `feat/p21-sessions-uploads` (base `integration/phase20`). Local commits only: nothing pushed, no PR, nothing merged. Cargo target dir `C:/Users/braxt/Desktop/SIDEROOM_wt/p21-sessions-uploads-target`, scratch database `sr_p21_sessions` (migrations 1230 only; 1231 to 1239 unused).
+Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\p21-sessions-uploads`, branch `feat/p21-sessions-uploads` (base `integration/phase20`). Local commits only: nothing pushed, no PR, nothing merged. Cargo target dir `C:/Users/braxt/Desktop/SIDEROOM_wt/p21-sessions-uploads-target`, scratch database `sr_p21_sessions` (dropped at the end; the TestDb template `sr_tpl_158_1230_b23a52a3` it created is still on the server, because Postgres refuses to drop a template without `ALTER DATABASE ... is_template false`; it is reused by the next run). Migrations: 1230 only; 1231 to 1239 unused.
 
 ## Resume here
 
