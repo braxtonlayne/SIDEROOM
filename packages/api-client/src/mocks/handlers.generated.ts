@@ -712,6 +712,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"warn","method":"post","path":"/moderation/cases/:case_id/warn","status":200,"body":{"delivered":false}},
   {"id":"get","method":"get","path":"/moderation/dashboard","status":200,"body":{"generated_at_ms":0,"window_days":0}},
   {"id":"inbox","method":"get","path":"/moderation/dashboard/inbox","status":200,"body":{"items":[{}]}},
+  {"id":"inbox_count","method":"get","path":"/moderation/dashboard/inbox/count","status":200,"body":{"groups":0,"reports":0}},
   {"id":"dismiss","method":"post","path":"/moderation/dashboard/inbox/dismiss","status":200,"body":{"dismissed":["string"],"skipped":[{}]}},
   {"id":"list","method":"get","path":"/moderation/evasion-signals","status":200,"body":[{"created_at_ms":0,"detail":{},"id":"1","kind":"shared_login_ip","person_id":"1","related_person_id":"1","state":"open"}]},
   {"id":"detail","method":"get","path":"/moderation/evasion-signals/:signal_id","status":200,"body":{"shared_addresses":[{}],"signal":{"created_at_ms":0,"detail":{},"id":"1","kind":"shared_login_ip","person_id":"1","related_person_id":"1","state":"open"},"window_days":0}},

@@ -9709,6 +9709,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/dashboard/inbox/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many reports wait in the inbox, how many cases they make up and how old the oldest is (`MANAGE_CASES`).
+         *     The same figures as the dashboard's inbox section, for the Review hub tile.
+         */
+        get: operations["inbox_count"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/dashboard/inbox/dismiss": {
         parameters: {
             query?: never;
@@ -56011,6 +56031,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inbox_count: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashInbox"];
                 };
             };
             401: {
