@@ -55,6 +55,20 @@ pub fn insecure_tls_allowed(value: Option<&str>, public_url: &str) -> anyhow::Re
     Ok(on)
 }
 
+#[async_trait]
+impl PreflightRunner for LivePreflight {
+    async fn run(&self) -> Report {
+        sr_preflight::run(&Ctx {
+            db: &self.db,
+            storage: self.storage.as_ref(),
+            net: &RealNet,
+            host: &RealHost,
+            settings: &self.settings,
+        })
+        .await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::insecure_tls_allowed;
@@ -70,19 +84,5 @@ mod tests {
             err.to_string().contains("SR_PREFLIGHT_INSECURE_TLS"),
             "{err}"
         );
-    }
-}
-
-#[async_trait]
-impl PreflightRunner for LivePreflight {
-    async fn run(&self) -> Report {
-        sr_preflight::run(&Ctx {
-            db: &self.db,
-            storage: self.storage.as_ref(),
-            net: &RealNet,
-            host: &RealHost,
-            settings: &self.settings,
-        })
-        .await
     }
 }
