@@ -676,7 +676,8 @@ impl PartyService {
 
     /// Join (WP-BE-002). Private parties need the invite code; bound parties need to see the channel.
     pub async fn join(&self, v: Viewer, id: i64, input: JoinInput) -> PartyResult<PartyView> {
-        self.limit(v.user_id, "join", 60_000, 20)?;
+        // The REST limit (`abuse.watch_party_joins_per_minute`, at most 120) is the tuned one; this is the backstop for callers that skip it.
+        self.limit(v.user_id, "join", 60_000, 120)?;
         let mut tx = self.begin().await?;
         let mut notices = Vec::new();
         let mut row = self.locked(&mut tx, id).await?;

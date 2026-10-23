@@ -1641,8 +1641,19 @@ impl Moderation {
         let text = rules::required_text("counter-notice", text, 20_000)?;
         let now = now_ms();
         let restore_after = add_business_days(now, RESTORE_BUSINESS_DAYS, self.weekend().await);
+        let limits = self.limits().await?;
         let mut tx = self.pool.begin().await?;
         let n = lock_notice(&mut tx, id, now).await?;
+        // RDY-SEC-006: one staff member records only so many a day (`abuse.counter_notices_per_day`).
+        let recent: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM takedown_notices WHERE counter_notice_by = $1              AND counter_noticed_at > now() - interval '1 day'",
+        )
+        .bind(who.user_id())
+        .fetch_one(&mut *tx)
+        .await?;
+        if recent >= limits.counter_notices_per_day {
+            return Err(ModError::RateLimited);
+        }
         sqlx::query(
             "UPDATE takedown_notices SET counter_noticed_at = to_timestamp($2::double precision / 1000.0), \
              counter_notice_by = $3, counter_notice_text = $4, \

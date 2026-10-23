@@ -486,6 +486,8 @@ pub struct Limits {
     pub shared_ip_max_persons: i64,
     /// A new account counts as "shortly after a ban" within this many days (D-346).
     pub new_account_after_ban_days: i64,
+    /// Counter-notices one staff member may record per day (RDY-SEC-006).
+    pub counter_notices_per_day: i64,
 }
 
 impl Default for Limits {
@@ -497,6 +499,7 @@ impl Default for Limits {
             deleted_message_days: 30,
             shared_ip_max_persons: 4,
             new_account_after_ban_days: 14,
+            counter_notices_per_day: 50,
         }
     }
 }
@@ -509,6 +512,7 @@ pub mod keys {
     pub const DELETED_MESSAGE_DAYS: &str = "retention.deleted_message_days";
     pub const SHARED_IP_MAX_PERSONS: &str = "moderation.shared_ip_max_persons";
     pub const NEW_ACCOUNT_AFTER_BAN_DAYS: &str = "moderation.new_account_after_ban_days";
+    pub const COUNTER_NOTICES_PER_DAY: &str = "abuse.counter_notices_per_day";
 }
 
 fn is_zero(n: &i64) -> bool {

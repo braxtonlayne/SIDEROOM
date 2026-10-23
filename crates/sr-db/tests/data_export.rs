@@ -81,6 +81,52 @@ async fn request_is_queued_once_and_cooled_down() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_cooldown_follows_the_platform_setting() {
+    // RDY-SEC-006: `abuse.data_export_cooldown_hours` (default 24) is read on every request.
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    account(pool, 1, "asker").await;
+    data_export::request(pool, 100, 101, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    data_export::begin(pool, 100).await.unwrap();
+    data_export::finish(pool, 100, "exports/1/100.zip", 10)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO platform_settings (key, value) VALUES ('abuse.data_export_cooldown_hours', '72'::jsonb)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    assert!(matches!(
+        data_export::request(pool, 102, 103, 1).await.unwrap(),
+        Err(RequestRefusal::TooSoon { retry_after_secs }) if retry_after_secs > 71 * 3600
+    ));
+    // A value outside the catalog range is ignored (the default applies).
+    sqlx::query("UPDATE platform_settings SET value = '0'::jsonb WHERE key = 'abuse.data_export_cooldown_hours'")
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(matches!(
+        data_export::request(pool, 102, 103, 1).await.unwrap(),
+        Err(RequestRefusal::TooSoon { retry_after_secs }) if retry_after_secs > 23 * 3600 && retry_after_secs <= 24 * 3600
+    ));
+    // Lowered to one hour and the request made two hours ago: allowed.
+    sqlx::query("UPDATE platform_settings SET value = '1'::jsonb WHERE key = 'abuse.data_export_cooldown_hours'")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE data_exports SET requested_at = now() - interval '2 hours' WHERE id = 100")
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(data_export::request(pool, 102, 103, 1).await.unwrap().is_ok());
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn expired_links_are_found_and_marked() {
     let db = TestDb::new().await.unwrap();
     let pool = db.pool();

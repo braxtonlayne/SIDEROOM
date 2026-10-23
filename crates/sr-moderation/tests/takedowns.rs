@@ -1259,3 +1259,43 @@ async fn uphold_announces_each_removed_message_once_and_restore_sends_nothing() 
     w.m.restore_notice(&who, id, Some("mistake")).await.unwrap();
     assert_eq!(sink.0.lock().unwrap().len(), 2, "a restore sends no event");
 }
+
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn counter_notices_per_staff_member_per_day_are_limited_by_a_setting() {
+    // RDY-SEC-006: `abuse.counter_notices_per_day`.
+    let w = world().await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let mut ids = Vec::new();
+    for _ in 0..3 {
+        let (series, _) = w.series(w.uploader).await;
+        let id = w.triaged(&[(ItemKind::LibrarySeries, series)]).await;
+        w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+        ids.push(id);
+    }
+    sqlx::query(
+        "INSERT INTO platform_settings (key, value) VALUES ('abuse.counter_notices_per_day', '2'::jsonb) \
+         ON CONFLICT (key) DO UPDATE SET value = '2'::jsonb",
+    )
+    .execute(w.pool())
+    .await
+    .unwrap();
+    for id in &ids[..2] {
+        w.m.record_counter_notice(&who, *id, "mine").await.unwrap();
+    }
+    assert!(matches!(
+        w.m.record_counter_notice(&who, ids[2], "mine").await,
+        Err(ModError::RateLimited)
+    ));
+    // Nothing was recorded by the refused call, and raising the setting lets it through.
+    assert_eq!(
+        w.m.get_notice(&who, ids[2]).await.unwrap().summary.state,
+        NoticeState::Removed
+    );
+    sqlx::query("UPDATE platform_settings SET value = '3'::jsonb WHERE key = 'abuse.counter_notices_per_day'")
+        .execute(w.pool())
+        .await
+        .unwrap();
+    w.m.record_counter_notice(&who, ids[2], "mine").await.unwrap();
+}
