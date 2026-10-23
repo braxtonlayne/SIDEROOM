@@ -53,6 +53,7 @@ describe('admin shell', () => {
     expect(navNames()).toEqual([
       'Dashboard',
       'Accounts',
+      'Moderation',
       'Invites',
       'Invite graph',
       'Command line',

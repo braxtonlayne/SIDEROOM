@@ -8,7 +8,8 @@ import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
 import { BanReasonFields } from './BanReasonFields';
 import { TakedownBadge } from './TakedownBadge';
-import { Async, FormDialog, ReasonDialog, fmtMs, useResource } from '../ui';
+import { Link } from '@tanstack/react-router';
+import { Async, FormDialog, ReasonDialog, fmtMs, useAdminViewer, useResource } from '../ui';
 import {
   EVENT_KEYS,
   MOVES,
@@ -25,6 +26,7 @@ type Dialog =
   | { kind: 'reopen' }
   | { kind: 'action' }
   | { kind: 'perform' }
+  | { kind: 'age' }
   | { kind: 'warn' }
   | { kind: 'hold' }
   | { kind: 'ban' }
@@ -61,6 +63,41 @@ function performable(d: api.CaseDetail, manage: boolean): api.PerformedAction[] 
   return out;
 }
 
+/** What staff can do about age restriction from this case (MOD-AGE-001 to -003); platform-routed cases only. */
+type AgeOp =
+  | 'restrict_channel'
+  | 'unrestrict_channel'
+  | 'restrict_series'
+  | 'unrestrict_series'
+  | 'restrict_title'
+  | 'unrestrict_title'
+  | 'under_18'
+  | 'under_13';
+
+function ageOps(d: api.CaseDetail, manage: boolean): AgeOp[] {
+  if (d.case.routing === 'guild') return [];
+  const out: AgeOp[] = [];
+  const channel = d.case.target_kind === 'channel' ? d.case.target_id : d.case.target_channel_id;
+  if (channel) out.push('restrict_channel', 'unrestrict_channel');
+  if (d.case.target_kind === 'library' && d.case.target_id)
+    out.push('restrict_series', 'unrestrict_series');
+  if (d.case.target_kind === 'cinema' && d.case.target_id)
+    out.push('restrict_title', 'unrestrict_title');
+  if (manage && d.subject_account_id) out.push('under_18', 'under_13');
+  return out;
+}
+
+const AGE_KEYS: Record<AgeOp, MessageKey> = {
+  restrict_channel: 'admin.moderation.age.restrictChannel',
+  unrestrict_channel: 'admin.moderation.age.unrestrictChannel',
+  restrict_series: 'admin.moderation.age.restrictSeries',
+  unrestrict_series: 'admin.moderation.age.unrestrictSeries',
+  restrict_title: 'admin.moderation.age.restrictTitle',
+  unrestrict_title: 'admin.moderation.age.unrestrictTitle',
+  under_18: 'admin.moderation.age.under18',
+  under_13: 'admin.moderation.age.under13',
+};
+
 const PERFORM_KEYS: Record<api.PerformedAction, MessageKey> = {
   delete_message: 'admin.moderation.perform.deleteMessage',
   restore_message: 'admin.moderation.perform.restoreMessage',
@@ -80,6 +117,7 @@ const HOLD_KINDS: { id: api.HoldKind; key: MessageKey }[] = [
 
 function EventLine({ e }: { e: api.CaseEvent }) {
   const t = useT();
+  const viewer = useAdminViewer();
   const d = (k: string) => {
     const v = e.detail[k];
     return v === undefined || v === null ? '' : String(v);
@@ -100,12 +138,32 @@ function EventLine({ e }: { e: api.CaseEvent }) {
         submissions: d('submissions'),
         reactions: d('reactions'),
         votes: d('poll_votes'),
+        level: d('level'),
+        label: d('label'),
+        restricted: d('restricted'),
+        band: d('band'),
+        basis: d('basis'),
+        into: d('into_case_id'),
       })
     : e.kind;
   return (
     <li className="ss-row">
       <div className="ss-grow">
-        <div className="ss-name">{text}</div>
+        <div className="ss-name">
+          {text}
+          {e.kind === 'underage_handled' &&
+            Boolean(e.detail['erasure_request_id']) &&
+            viewer.can('MANAGE_TAKEDOWNS') && (
+              <>
+                {' '}
+                <Link to="/admin/$section" params={{ section: 'data-requests' }}>
+                  {t('admin.moderation.event.erasureRequestLink', {
+                    id: String(e.detail['erasure_request_id']),
+                  })}
+                </Link>
+              </>
+            )}
+        </div>
         <div className="ss-meta">
           {fmtMs(e.created_at_ms)} ·{' '}
           {e.actor_id
@@ -120,6 +178,16 @@ function EventLine({ e }: { e: api.CaseEvent }) {
 function Evidence({ ev }: { ev: api.CaseEvidence }) {
   const t = useT();
   const msgs = ev.payload.messages;
+  if (ev.kind === 'evasion_signal')
+    return (
+      <p>
+        {t('admin.suspicion.evidence', {
+          kind: String(ev.payload.kind ?? ''),
+          n: Number(ev.payload.shared_addresses ?? 0),
+          days: Number(ev.payload.window_days ?? 0),
+        })}
+      </p>
+    );
   if (!msgs)
     return (
       <p>
@@ -292,6 +360,11 @@ export function CasePage({
                   {performable(d, manage).length > 0 && (
                     <Button variant="secondary" onClick={() => setDialog({ kind: 'perform' })}>
                       {t('admin.moderation.perform.button')}
+                    </Button>
+                  )}
+                  {ageOps(d, manage).length > 0 && (
+                    <Button variant="secondary" onClick={() => setDialog({ kind: 'age' })}>
+                      {t('admin.moderation.age.button')}
                     </Button>
                   )}
                   <Button variant="secondary" onClick={() => setDialog({ kind: 'action' })}>
@@ -523,6 +596,8 @@ function CaseDialogs({
     performable(data, data.access === 'manage')[0] ?? 'kick',
   );
   const [minutes, setMinutes] = useState('60');
+  const ageChoices = ageOps(data, data.access === 'manage');
+  const [ageOp, setAgeOp] = useState<AgeOp>(ageChoices[0] ?? 'restrict_channel');
   const attachments = targetAttachments(data);
   const [attachmentId, setAttachmentId] = useState(attachments[0]?.id ?? '');
   const [text, setText] = useState('');
@@ -658,6 +733,54 @@ function CaseDialogs({
             onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ''))}
           />
         )}
+      </ReasonDialog>
+      <ReasonDialog
+        open={dialog?.kind === 'age'}
+        danger={ageOp === 'under_13'}
+        title={t('admin.moderation.age.title')}
+        description={
+          ageOp === 'under_13'
+            ? t('admin.moderation.age.descriptionUnder13')
+            : ageOp === 'under_18'
+              ? t('admin.moderation.age.descriptionUnder18')
+              : t('admin.moderation.age.description')
+        }
+        confirmLabel={t('admin.moderation.age.confirm')}
+        reasonLabel={t('admin.moderation.age.reason')}
+        onCancel={close}
+        onConfirm={async (reason) => {
+          const restricted = ageOp.startsWith('restrict_');
+          const channel =
+            data.case.target_kind === 'channel' ? data.case.target_id : data.case.target_channel_id;
+          await done(() => {
+            if (ageOp === 'under_18' || ageOp === 'under_13')
+              return api.handleUnderage({
+                account_id: data.subject_account_id ?? '',
+                band: ageOp,
+                note: reason,
+                case_id: id,
+              });
+            const kind: api.AgeTargetKind = ageOp.endsWith('channel')
+              ? 'channel'
+              : ageOp.endsWith('series')
+                ? 'library_series'
+                : 'cinema_title';
+            return api.setAgeRestricted({
+              kind,
+              id: (kind === 'channel' ? channel : data.case.target_id) ?? '',
+              restricted,
+              reason,
+              case_id: id,
+            });
+          }, t('admin.moderation.age.done'))();
+        }}
+      >
+        <Select
+          aria-label={t('admin.moderation.age.kind')}
+          options={ageChoices.map((a) => ({ value: a, label: t(AGE_KEYS[a]) }))}
+          value={ageOp}
+          onValueChange={(v) => setAgeOp(v as AgeOp)}
+        />
       </ReasonDialog>
       <FormDialog
         open={dialog?.kind === 'warn'}

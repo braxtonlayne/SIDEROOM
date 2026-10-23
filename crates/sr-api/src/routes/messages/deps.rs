@@ -496,7 +496,7 @@ impl MessagesDeps {
     }
 
     /// Whether the channel, or a thread's parent, is age-restricted.
-    async fn channel_age_restricted(&self, channel: sr_core::ChannelId) -> bool {
+    pub(crate) async fn channel_age_restricted(&self, channel: sr_core::ChannelId) -> bool {
         let Ok(Some(c)) = self.repo.get_channel(channel).await else {
             return false;
         };

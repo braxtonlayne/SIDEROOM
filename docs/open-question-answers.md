@@ -3043,3 +3043,105 @@ Status: `ADOPTED` (D-338). Follow-up: N-41.
 ### Still with the owner
 
 Nothing new from this round.
+
+## Phase 19 round (answered 2026-10-22, delegated)
+
+The questions the two Phase 19 moderation branches left: `feat/p19-mod-dash` (staff dashboards, `docs/dev/handoff/feat-p19-mod-dash.md`) and `feat/p19-mod-age` (age tools and the last three data-subject rights, `docs/dev/handoff/feat-p19-mod-age.md`), answered by the owner's proxy under the same delegation and limits as the Phase 18 rounds: decide and document only (no code, build or push); legal questions get a project default and are not legal advice. Decisions are D-339 to D-343 in [01-decisions-log.md](01-decisions-log.md); follow-ups are P-01 to P-06 under "Phase 19 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 5 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Dashboards (P19, branch `feat/p19-mod-dash`)
+
+**P19-1 (dash handoff question 1; spec section 9 item 2, MOD-DASH-002). "Unattached reports" has no literal meaning, because every report has a case. The branch read it as reports in state `received` whose case is `open` with nobody assigned. Is that right?**
+Decision: yes, as built, and the spec now says it in those words. A report has a case from the moment it is filed (D-209), so "unattached" can only mean "nobody has picked this up": not triaged (`received`), no decision on the case (`open`; a reopened case is known work and stays in the queue), nobody holding it (`assignee_id IS NULL`, so a claimed-then-released case returns to the inbox). One group per case is the only duplicate grouping that never compares reporters or notes (spec 3.3). "Cases still waiting" in the health section stays a different count (no first action yet).
+Status: `ADOPTED` (D-339). Follow-up: P-01 (spec wording).
+
+**P19-2 (dash handoff question 2). Should staff holding `PLATFORM_BAN` alone see the Moderation section with only the Dashboard tab (ban figures)? An existing test says no.**
+Decision: no; the test stands. The ban figures (MOD-DASH-007) go on Admin > Bans instead, above the list, for every `PLATFORM_BAN` holder: that is the page a ban officer works, MOD-BAN-003 just gave it the matching filters, and each count can link to the list filtered the same way. The API already answers only the `bans` section to a `PLATFORM_BAN` caller, so it is one `getDashboard()` call on the page. Staff who also hold `MANAGE_CASES` or `MANAGE_TAKEDOWNS` keep the figures on the Dashboard tab as well.
+Status: `ADOPTED` (D-340). Follow-up: P-02.
+
+### Age tools and data-subject rights (P19, branch `feat/p19-mod-age`)
+
+**P19-3 (age handoff question 1; D-294 lawyer note). Below the minimum age: suspend, plus reset and lock the age confirmation. Under 18: reset and lock, the account stays active, the member is told by DM. Is that the right handling, and is the wording of the DM and of the inviter's notice right?**
+Decision: the handling stands, with two additions and one rewording. Under 18 as built (reset-and-restrict is D-294; the lock makes the reset real; being 13 to 17 is not a breach, so the account stays active; the member must be told because the gate will now refuse them). The DM is reworded: it names the reason, what is closed, and the staff contact on the Help page (D-295), because "reply to the staff" points at a system DM nobody reads. Below the minimum age: the suspension is the right immediate step but not the right resting state, since actual knowledge of a child under the consent age voids the consent the registration rested on (GDPR articles 8(1) and 17(1)(f); COPPA 16 CFR 312.5 and 312.10). So the route also opens an erasure request for the account in the data-request queue (kind `erasure`, state `verified`, verified by the acting staff member, note "below the minimum registration age (D-341)", due by `compliance.data_request_deadline_days`), run only by staff through the queue's ordinary path (holds are flagged, the retained-record list applies, the request can be declined if a parent writes in). The inviter's notice stands as written. The D-294 lawyer note gains the deletion-versus-suspension question. Not legal advice.
+Status: `ADOPTED` (D-341). Follow-ups: P-03, P-04, P-06.
+
+**P19-4 (age handoff question 2; MOD-DSR-007). Should Person-link rectification be open to `MANAGE_ACCOUNTS` alone, or keep needing both `MANAGE_TAKEDOWNS` and `MANAGE_ACCOUNTS`?**
+Decision: keep both on the data-request route. It reads and changes a request (gated by `MANAGE_TAKEDOWNS`, D-210; a caller without it cannot see the queue) and rewrites the Person graph that ban evasion and inviter suspicion are computed from (gated by `MANAGE_ACCOUNTS` on the Persons page). Both is the intersection of "may read the request" and "may change the graph". `MANAGE_ACCOUNTS` alone keeps the same write on the Persons page; a clerk without it asks an account holder and records the outcome on the request, as the dialog already says.
+Status: `ADOPTED` (D-342). No follow-up.
+
+**P19-5 (age handoff question 3; MOD-DSR-006). Restriction/objection hides cinema and library sharing, watching presence and recommendations from discovery. Is that enough for GDPR articles 18 and 21, or must the account also leave the member directory and message search while a request is active?**
+Decision: the scope stands; the account does not leave server member lists, member search or message search (there is no member directory; the Server Directory lists servers). Article 21 reaches processing on a legitimate-interest basis, which here is the discovery layer that `activity_shares()` already switches off in one place; the member lists and messages of the servers a member joined are the service they asked for (article 6(1)(b)), and article 18(2) allows processing of restricted data to protect the rights of other people, here the other members in the same rooms. Hiding a member from their own servers would itself disclose the request and break their use of the service; the member already has `activity.paused`, the sharing switches, leaving a server and the bulk self-delete (D-324). What the branch lacks is article 18(3): the member must be told before the restriction is lifted. So the tool gains a system DM when the restriction is applied and when it ends (staff lift, completion or decline), recorded on the request like the extension notice (D-317, D-327), with the intake-channel fallback. The D-295 lawyer note gains the scope question. Not legal advice.
+Status: `ADOPTED` (D-343). Follow-ups: P-05, P-06.
+
+### Still with the owner
+
+Actions only: hand D-341 and D-343 to the lawyer with D-294, D-295 and D-336.
+
+## Phase 19 suspicion round (answered 2026-10-22, delegated)
+
+The defaults and questions `feat/p19-mod-sus` (MOD-SUS-001 to -005, spec section 10 step 5) left in `docs/dev/handoff/feat-p19-mod-sus.md`, answered by the owner's proxy under the same delegation and limits as the Phase 18 rounds: decide and document only (no code, build or push); the legal point in P19-SUS-4 is a project default, not legal advice. Decisions are D-344 to D-348 in [01-decisions-log.md](01-decisions-log.md) (D-339 to D-343 belong to another branch); follow-ups are P-10 to P-16 under "Phase 19 suspicion round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 5 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Inviter suspicion (P19-SUS, branch `feat/p19-mod-sus`)
+
+**P19-SUS-1 (handoff decision 1; D-210). "Senior staff" for the automatic case assignment means an account whose roles hold both `MANAGE_CASES` and `MANAGE_TAKEDOWNS`, chosen by permission rather than role name; least loaded wins; nobody qualifying leaves the case unassigned. Confirm?**
+Decision: confirmed as built. The permission pair is the only durable definition (D-162 lets roles be renamed or split; D-210 defines Senior Staff by exactly these two bits) and matches the work the case may lead to. Unassigned is right when nobody qualifies: the platform queue already shows unassigned cases to every `MANAGE_CASES` holder, and an automatic fallback to the Owner would copy the D-215 appeal rule, which exists for a different reason (a second pair of eyes). On a one-person installation the Owner qualifies through the rule itself.
+Status: `ADOPTED` (D-344). Follow-up: none.
+
+**P19-SUS-2 (handoff decision 2, owner question 1). The inviter gets a system DM ("Invite creation is paused for review.") at the freeze crossing on top of the Invites screen text. Is the DM welcome?**
+Decision: yes, keep it, and add the mirror DM at the clear ("Invite creation is available again."), sent only when the clear takes the Person under the freeze threshold. The screen alone informs the inviter only when they next try to make a code, while their existing codes fail for other people in the meantime; the inviter may be innocent (D-031 flags a Person whose invitee was banned, nothing more), and one plain sentence at the moment of the pause is the courteous thing. No new leak: the DM and the screen say the same unit-tested sentence and the pause is observable from redemption failures anyway. Nothing is sent at the escalation.
+Status: `ADOPTED` (D-345). Follow-up: P-10.
+
+**P19-SUS-3 (handoff decision 3, owner question 2). "Same inviter as a banned Person" and "created within 14 days after a ban" raise nothing alone and need a second kind of evidence for the same pair; "invited by a banned Person's account" stands alone. Should the four-people-per-address cut-off and the 14-day window be settings or constants?**
+Decision: the corroboration rule stands (the two weak kinds alone describe normal life on an invite-only site and would train staff to dismiss unread; the invite link is the graph D-031 already trusts). The two numbers become platform settings in Admin > Limits beside the other moderation numbers of D-212: `moderation.shared_ip_max_persons` (default 4, bounds 2 to 50) and `moderation.new_account_after_ban_days` (default 14, bounds 1 to 90). They describe the operator's population (NAT-heavy communities, invite speed), which the project cannot know. The 180-day window stays a constant: it is the doc 09 retention promise and must not be moved from a moderation screen. The rule itself stays code.
+Status: `ADOPTED` (D-346). Follow-up: P-11.
+
+**P19-SUS-4 (handoff decision 4, owner question 3; doc 09, D-122, D-124). Doc 09 promises 180 days of login history but nothing deleted `login_events`; the daily job now deletes rows older than 180 days. Intended? Should login rows tied to an open case or hold be kept?**
+Decision: the deletion is the intended enforcement (a stated retention with no job behind it was a storage-limitation gap; note that the first run on an old installation removes every row past the window, in batches). No hold exception: holds scope content (messages, attachments, submissions, catalogue rows with `hold_id`), `login_events` is not evidence content and names two Persons of whom only one may be the case's subject, and the signal design reads addresses live precisely so retention and the phase-18 blanking apply by construction. What a case keeps is the finding: a `confirmed` review snapshots the detail as staff saw it (kinds, counts, overlap dates, number of shared addresses, never an address) onto the signal and into the Person's open automatic case as evidence, so a D-215 appeal can be answered after the rows are gone. Doc 09 names the job. Not legal advice: a lawyer should confirm 180 days as a security retention under article 6(1)(f) for the operator's country and that the signal rows and the snapshot (kept with the case under D-124) are covered.
+Status: `ADOPTED` (D-347). Follow-up: P-12.
+
+**P19-SUS-5 (handoff "still open" 1 to 4). No Discord-identity signal (D-030 makes the id unique, nothing to compare), no one-click "open a case from a signal", no signal count in the Review hub, and `MANAGE_ACCOUNTS`-only staff reach signals only from the Person page. Close or schedule each?**
+Decision: Discord identity: closed as designed; D-030 refuses the banned Person's identity at registration (`Rejection::PersonBanned`) and at link, which is stronger than a review item. One visibility item is scheduled: the refusal writes a suspicion event on the banned Person and a staff alert naming the invite's inviter, nothing automatic against the inviter. Case from a signal: scheduled, a button on the signal detail for viewers with `MANAGE_CASES` that calls the D-330 staff-opened case form prefilled (category `ban_evasion`, the signal's Person, a first note naming the signal and its kinds, no address) and fills the existing `evasion_signals.case_id`. Review hub count: scheduled, open signals for `MANAGE_ACCOUNTS` holders, linking to the Signals tab (the Reports count N-23 left out may ride along). Reach: scheduled, Admin > Moderation visible to `MANAGE_ACCOUNTS` holders, who then see only the Signals tab.
+Status: `ADOPTED` (D-348). Follow-ups: P-13, P-14, P-15, P-16.
+
+### Still with the owner
+
+Actions only: the lawyer's check named in D-347 (180-day security retention of sign-in addresses, and the retention of signal rows and confirmed snapshots with the case), which can join the D-336 list.
+
+## Phase 19 integration round (answered 2026-10-22, delegated)
+
+The three questions `integration/phase19` left in `docs/dev/handoff/feat-p19-integration.md` ("Open issues") about migration 1152 and the fold of a Person's suspicion data in `link_in` (`crates/sr-db/src/admin_repo_ext.rs`), answered by the owner's proxy under the same delegation and limits as the Phase 18 and 19 rounds: decide and document only (no code, build or push). Decisions are D-349 to D-351 in [01-decisions-log.md](01-decisions-log.md); follow-ups are P-20 and P-21 under "Phase 19 integration round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 3 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Person links and suspicion data (P19-INT, branch `integration/phase19`)
+
+**P19-INT-1 (handoff open issue 1; migration 1152, D-124, D-347). Linking two Persons folds the emptied Person's evasion signals into the target: a signal that would become a Person against itself, or that duplicates one the target already has for the same banned Person and kind, is kept and marked folded, never deleted; every other signal is re-pointed; when both Persons have an open automatic case, the emptied Person's becomes an ordinary case linked to the target's with a `suspicion_folded` event. Is the fold rule right?**
+Decision: yes, as built. Keeping is what D-124 requires and what the rows deserve: a signal may hold a review with its reason and the D-347 snapshot that is case evidence after the sign-in rows are gone, and a Person link is a correctable staff act (D-342), so nothing it touches may be irreversible. The two kept classes are exactly the rows the pair check and the once-per-pair index cannot hold, and relaxing both only for folded rows keeps the invariants (and the scan's `ON CONFLICT`) where they still mean something. Re-pointing the rest is right because a signal is about Persons, and the survivor is now the Person. Demoting the second automatic case rather than closing it is right because a close is a case decision that a data operation must not take; the demoted case keeps its notes, assignee and evidence and staff close it themselves. `folded_from_person_id` has no FK on purpose and matches the link's audit row. Spec 17.2 gains a "Person links" bullet.
+Status: `ADOPTED` (D-349). Follow-up: P-20 (the spec bullet rides with it).
+
+**P19-INT-2 (handoff open issue 1, second half, and open issue 2). Should folded signals stay in their current state and keep appearing in the Signals list, or be closed automatically with a reason?**
+Decision: they keep appearing, marked folded with the former Person's id, but an open one does not stay open: the fold closes a still-open self-pair as `confirmed` (the link is staff saying "the same person", which is what the state means) and a still-open superseded duplicate as `dismissed` (the surviving row carries the review), `reviewed_by` empty as on the `suspicion_folded` event, `reviewed_at` the fold time, a reason naming the fold and, for a duplicate, the surviving signal. A signal staff had already reviewed is untouched. No snapshot or case evidence is written by the fold, and the detail route reads no addresses for a self-pair (it would list every address of the Person as "shared", a disclosure with no review purpose). Open folded rows would otherwise sit in the open list and the Review hub count asking a question nobody can answer; hiding them would make a review unreachable. `SignalView` gains `folded_from_person_id`; the Signals tab and the panel show a "folded" tag.
+Status: `ADOPTED` (D-350). Follow-up: P-20.
+
+**P19-INT-3 (handoff open issue 2). A demoted automatic case drops out of the suspicion panel's list of automatic cases, though it stays linked from the surviving case. Acceptable?**
+Decision: the demotion is right and stays; the drop-out is not: the panel's "automatic cases" query also lists the Person's cases that carry a `suspicion_folded` event, marked "folded into case n". The link runs from the demoted case to the survivor (`linked_case_id`) and the case page shows only outgoing links, so without the panel entry a demoted case with open work on it is found only through the queue. Listing by the event keeps the one-open-automatic-case index and the upgrade rule of `open_suspicion_case` untouched; the lookup is per Person under the panel's existing limit.
+Status: `ADOPTED` (D-351). Follow-up: P-21.
+
+### Still with the owner
+
+Nothing. No lawyer check is added by this round.

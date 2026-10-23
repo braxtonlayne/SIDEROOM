@@ -625,7 +625,7 @@ async fn serious_ban_blocks_registration_raises_inviter_suspicion_and_unban_rest
             display_name: None,
             email: format!("fresh{}@example.test", uid()),
             password_hash: "x".into(),
-            discord_id: Some(discord),
+            discord_id: Some(discord.clone()),
             identity_id: uid(),
             account_cap: i64::MAX,
             initial_credits: 0,
@@ -634,6 +634,24 @@ async fn serious_ban_blocks_registration_raises_inviter_suspicion_and_unban_rest
     .await
     .unwrap();
     assert_eq!(res.unwrap_err(), Rejection::PersonBanned);
+    // D-348: the refusal is written on the banned Person for staff; the inviter's level is untouched.
+    let (n, kind, reason): (i64, String, String) = sqlx::query_as(
+        "SELECT count(*), max(kind), max(reason) FROM suspicion_events \n         WHERE person_id = $1 AND kind = 'reregistration_refused'",
+    )
+    .bind(target_person)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((n, kind.as_str()), (1, "reregistration_refused"));
+    assert!(reason.contains("matched by discord"), "{reason}");
+    assert!(!reason.contains(&discord), "never the matching value");
+    let inviter_level: i32 =
+        sqlx::query_scalar("SELECT suspicion_level::int FROM persons WHERE id = $1")
+            .bind(inviter_person)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(inviter_level, 1, "unchanged");
 
     // Clearing suspicion resets the level.
     r.clear_suspicion(
@@ -652,7 +670,11 @@ async fn serious_ban_blocks_registration_raises_inviter_suspicion_and_unban_rest
     );
 
     // Unban: both accounts return while under the cap; a tiny cap leaves them deactivated.
-    let list = r.list_bans(true, None, 500).await.unwrap();
+    let active = sr_admin::BanFilter {
+        active_only: true,
+        ..Default::default()
+    };
+    let list = r.list_bans(&active, None, 500).await.unwrap();
     assert!(list.iter().any(|b| b.person_id == target_person));
     let u = r
         .unban_person(

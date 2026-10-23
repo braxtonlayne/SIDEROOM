@@ -12,9 +12,12 @@
 //! The rules and the SQL live in `sr-moderation`; this module checks the caller, applies the channel
 //! permissions to what a report points at, and maps errors.
 
+mod age;
 mod cases;
+mod dashboard;
 mod holds;
 mod reports;
+mod suspicion;
 mod takedowns;
 #[cfg(test)]
 mod tests;
@@ -243,6 +246,13 @@ pub fn router() -> Router<AppState> {
             "/moderation/holds/{hold_id}/reviewed",
             post(holds::reviewed),
         )
+        .route("/moderation/holds/{hold_id}/retain", post(holds::retain))
+        .route("/moderation/age/restrictions", post(age::restrict))
+        .route("/moderation/age/underage", post(age::underage))
+        .route(
+            "/moderation/age/underage/{account_id}/lift",
+            post(age::lift),
+        )
         .route(
             "/moderation/appeals",
             get(holds::list_appeals).post(holds::file_appeal),
@@ -290,6 +300,34 @@ pub fn router() -> Router<AppState> {
             post(takedowns::withdraw),
         )
         .route("/moderation/item-status", get(takedowns::item_status))
+        .route("/moderation/dashboard", get(dashboard::get))
+        .route("/moderation/dashboard/inbox", get(dashboard::inbox))
+        .route(
+            "/moderation/dashboard/inbox/dismiss",
+            post(dashboard::dismiss),
+        )
+        .route(
+            "/moderation/persons/{person_id}/suspicion",
+            get(suspicion::panel),
+        )
+        .route(
+            "/moderation/persons/{person_id}/evasion-scan",
+            post(suspicion::scan),
+        )
+        .route("/moderation/evasion-signals", get(suspicion::list))
+        .route("/moderation/evasion-signals/count", get(suspicion::count))
+        .route(
+            "/moderation/evasion-signals/{signal_id}",
+            get(suspicion::detail),
+        )
+        .route(
+            "/moderation/evasion-signals/{signal_id}/link-case",
+            post(suspicion::link_case),
+        )
+        .route(
+            "/moderation/evasion-signals/{signal_id}/review",
+            post(suspicion::review),
+        )
         .route(
             "/moderation/appeals/{appeal_id}/decision",
             post(holds::decide_appeal),
@@ -319,6 +357,10 @@ pub fn router() -> Router<AppState> {
         holds::list,
         holds::release,
         holds::reviewed,
+        holds::retain,
+        age::restrict,
+        age::underage,
+        age::lift,
         holds::list_appeals,
         holds::file_appeal,
         holds::decide_appeal,
@@ -336,6 +378,16 @@ pub fn router() -> Router<AppState> {
         takedowns::withdraw,
         takedowns::export,
         takedowns::item_status,
+        dashboard::get,
+        dashboard::inbox,
+        dashboard::dismiss,
+        suspicion::panel,
+        suspicion::scan,
+        suspicion::list,
+        suspicion::detail,
+        suspicion::review,
+        suspicion::link_case,
+        suspicion::count,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
@@ -373,6 +425,14 @@ pub fn router() -> Router<AppState> {
         holds::HoldReleased,
         holds::AppealBody,
         holds::AppealDecisionBody,
+        holds::HoldRetainBody,
+        age::RestrictionBody,
+        age::UnderageBody,
+        age::LiftBody,
+        sr_moderation::AgeChange,
+        sr_moderation::AgeTargetKind,
+        sr_moderation::AgeBand,
+        sr_moderation::UnderageOutcome,
         sr_moderation::model::NewNotice,
         sr_moderation::model::NewItem,
         sr_moderation::model::NoticeSummary,
@@ -392,6 +452,38 @@ pub fn router() -> Router<AppState> {
         takedowns::CounterNoticeBody,
         takedowns::CourtFilingBody,
         takedowns::TakedownItemStatus,
+        sr_moderation::dashboard::DashboardView,
+        sr_moderation::dashboard::DashInbox,
+        sr_moderation::dashboard::DashHealth,
+        sr_moderation::dashboard::DashDay,
+        sr_moderation::dashboard::DashCount,
+        sr_moderation::dashboard::DashRetention,
+        sr_moderation::dashboard::DashSignIns,
+        sr_moderation::dashboard::DashRetentionRow,
+        sr_moderation::dashboard::DashAge,
+        sr_moderation::dashboard::DashBans,
+        sr_moderation::dashboard::DashTakedowns,
+        sr_moderation::dashboard::DashDataRequests,
+        sr_moderation::dashboard::InboxGroup,
+        sr_moderation::dashboard::InboxPage,
+        sr_moderation::dashboard::InboxSkipped,
+        sr_moderation::dashboard::InboxDismissOutcome,
+        dashboard::InboxDismissBody,
+        suspicion::SignalReviewBody,
+        suspicion::LinkCaseBody,
+        suspicion::SignalCount,
+        sr_moderation::model::SuspicionPanel,
+        sr_moderation::model::PanelEvent,
+        sr_moderation::model::PersonAccountRef,
+        sr_moderation::model::BannedDescendant,
+        sr_moderation::model::InvitePath,
+        sr_moderation::model::SuspicionCaseRef,
+        sr_moderation::model::SignalView,
+        sr_moderation::model::SignalDetail,
+        sr_moderation::model::SharedAddress,
+        sr_moderation::model::ScanOutcome,
+        sr_moderation::model::SignalKind,
+        sr_moderation::model::SignalState,
         Delivered,
         ErrorBody,
     ))

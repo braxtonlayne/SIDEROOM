@@ -177,6 +177,31 @@ pub async fn register_with_invite(
             .fetch_one(&mut *tx)
             .await?;
             if banned {
+                // D-348: a banned Person coming back is evidence, so the refusal is written down for staff on the
+                // banned Person (never the matching value) and the inviter is only named, never touched.
+                let key = if discord_known.is_some() {
+                    "discord"
+                } else {
+                    "email"
+                };
+                let inviter: Option<i64> =
+                    sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+                        .bind(issuer_id)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                sqlx::query(
+                    "INSERT INTO suspicion_events (id, person_id, delta, level_after, reason, kind) \
+                     SELECT $1, $2, 0, suspicion_level, $3, 'reregistration_refused' FROM persons WHERE id = $2",
+                )
+                .bind(r.identity_id)
+                .bind(p)
+                .bind(format!(
+                    "registration refused: matched by {key}; invite from person {}",
+                    inviter.map_or_else(|| "unknown".to_owned(), |i| i.to_string())
+                ))
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
                 return Ok(Err(Rejection::PersonBanned));
             }
             p

@@ -411,3 +411,36 @@
   outline: 2px solid var(--ui-focus, var(--ui-accent));
   outline-offset: 2px;
 }
+
+/* Admin > Moderation > Dashboard (MOD-DASH-*). Logical properties only. */
+.adm-dash-section {
+  margin-block-end: 28px;
+}
+.adm-dash-heading {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.adm-dash-bars {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.adm-dash-bar {
+  display: grid;
+  grid-template-columns: minmax(96px, 200px) 1fr 3.5rem;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8125rem;
+}
+.adm-dash-bar-label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.adm-dash-bar-count {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}

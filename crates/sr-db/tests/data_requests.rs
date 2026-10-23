@@ -777,3 +777,545 @@ async fn erasure_can_queue_the_members_message_delete_and_the_archive_is_readabl
     assert!(a.username_release_at_ms > a.deleted_at_ms);
     assert!(r.deleted_archive(1).await.unwrap().is_none());
 }
+
+/// MOD-DSR-005: a deletion request that meets a hold keeps the held rows, the outcome says why, and the hold and
+/// its case are flagged for a decision. Nothing is released by the request.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn erasure_that_meets_a_hold_flags_the_hold_and_its_case_and_releases_nothing() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    sqlx::query(
+        "INSERT INTO moderation_cases (id, category, routing, target_kind, opened_by_kind) \
+         VALUES (77, 'harassment', 'platform', 'user', 'staff')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO moderation_holds (id, reason, case_id) VALUES (10, 'evidence', 77)")
+        .execute(pool)
+        .await
+        .unwrap();
+    // A second hold that keeps nothing of the account.
+    sqlx::query("INSERT INTO moderation_holds (id, reason) VALUES (11, 'old')")
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO channels (id, type) VALUES (11, 1)")
+        .execute(pool)
+        .await
+        .unwrap();
+    let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE)")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let mid: i64 =
+        sqlx::query_scalar("SELECT sr_snowflake_floor(date_trunc('month', now())) + 1000")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    sqlx::query(
+        "INSERT INTO messages (id, channel_id, author_id, hold_id) VALUES ($1, 11, 100, 10)",
+    )
+    .bind(mid)
+    .execute(pool)
+    .await
+    .unwrap();
+    let r = repo(pool);
+    let q = r
+        .create(
+            &new(DataRequestKind::Erasure, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    r.verify(q.id, STAFF, T0, &entry("data_request.verify", q.id))
+        .await
+        .unwrap();
+    let run = r
+        .run_erasure(q.id, T0 + 1, OPTS, &entry("data_request.run_erasure", q.id))
+        .await
+        .unwrap();
+    assert_eq!(run.report.held_rows, 1);
+    assert_eq!(run.report.held_holds, 1);
+    assert_eq!(run.report.held_cases, vec![77]);
+    let outcome = run.request.outcome.unwrap();
+    assert!(outcome.contains("1 held row(s) stay"), "{outcome}");
+    assert!(
+        outcome.contains("flagged for a staff decision") && outcome.contains("#77"),
+        "{outcome}"
+    );
+    // The hold is flagged, not released; the message is still held.
+    let (flagged, req, released): (bool, Option<i64>, bool) = sqlx::query_as(
+        "SELECT erasure_flagged_at IS NOT NULL, erasure_request_id, released_at IS NOT NULL \
+         FROM moderation_holds WHERE id = 10",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!((flagged, req, released), (true, Some(q.id), false));
+    let untouched: bool =
+        sqlx::query_scalar("SELECT erasure_flagged_at IS NULL FROM moderation_holds WHERE id = 11")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert!(
+        untouched,
+        "a hold that keeps nothing of the account is not flagged"
+    );
+    let still_held: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM messages WHERE author_id = 100 AND hold_id = 10")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!(still_held, 1);
+    // The case timeline says so.
+    let (kind, who): (String, Option<i64>) = sqlx::query_as(
+        "SELECT kind, actor_id FROM moderation_case_events WHERE case_id = 77 ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!((kind.as_str(), who), ("erasure_hold_flagged", Some(STAFF)));
+}
+
+/// MOD-DSR-006: hiding the activity of a requester hides it from every reader of `activity_shares` while the
+/// request is active, deletes nothing, and ends when the request closes.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn restriction_hides_shared_activity_while_the_request_is_active_and_deletes_nothing() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    let r = repo(pool);
+    let shares = || async {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT activity_shares(100, 'cinema') AND activity_shares(100, 'library')",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    };
+    let q = r
+        .create(
+            &new(DataRequestKind::Export, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    assert!(shares().await, "shared by default");
+    assert!(!q.activity_hidden);
+    // Not hidden: lifting is a conflict.
+    assert!(matches!(
+        r.set_activity_hidden(
+            q.id,
+            false,
+            "x",
+            STAFF,
+            T0,
+            &entry("data_request.unrestrict", q.id)
+        )
+        .await,
+        Err(AdminError::Conflict(_))
+    ));
+    let hidden = r
+        .set_activity_hidden(
+            q.id,
+            true,
+            "objects to profiling",
+            STAFF,
+            T0 + 5,
+            &entry("data_request.restrict", q.id),
+        )
+        .await
+        .unwrap();
+    assert!(hidden.activity_hidden);
+    assert_eq!(
+        hidden.activity_hidden_reason.as_deref(),
+        Some("objects to profiling")
+    );
+    assert_eq!(hidden.activity_hidden_at_ms, Some(T0 + 5));
+    assert!(!shares().await);
+    assert_eq!(log_count(pool, "data_request.restrict").await, 1);
+    // Twice is a conflict; the cinema share level reads the same function.
+    assert!(matches!(
+        r.set_activity_hidden(
+            q.id,
+            true,
+            "again",
+            STAFF,
+            T0,
+            &entry("data_request.restrict", q.id)
+        )
+        .await,
+        Err(AdminError::Conflict(_))
+    ));
+    let level: i16 = sqlx::query_scalar("SELECT cinema_share_level(100)")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(level, 0);
+    // Lifting shows it again.
+    r.set_activity_hidden(
+        q.id,
+        false,
+        "resolved",
+        STAFF,
+        T0 + 9,
+        &entry("data_request.unrestrict", q.id),
+    )
+    .await
+    .unwrap();
+    assert!(shares().await);
+    // Hide again, then decline the request: the hiding ends with it, and a closed request cannot be restricted.
+    r.set_activity_hidden(
+        q.id,
+        true,
+        "again",
+        STAFF,
+        T0 + 10,
+        &entry("data_request.restrict", q.id),
+    )
+    .await
+    .unwrap();
+    assert!(!shares().await);
+    r.decline(
+        q.id,
+        "not the account holder",
+        T0 + 11,
+        &entry("data_request.decline", q.id),
+    )
+    .await
+    .unwrap();
+    assert!(shares().await, "closing the request ends the hiding");
+    assert!(matches!(
+        r.set_activity_hidden(
+            q.id,
+            true,
+            "late",
+            STAFF,
+            T0 + 12,
+            &entry("data_request.restrict", q.id)
+        )
+        .await,
+        Err(AdminError::Conflict(_))
+    ));
+}
+
+/// MOD-DSR-007: staff correct a Person link from the request, with a logged reason; the underlying link rows and a
+/// `data_request.rectify` row are written.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn staff_rectify_a_person_link_from_the_request_with_a_logged_reason() {
+    use sr_admin::{AdminService, Caller};
+    use sr_core::PlatformPermissions as P;
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    account(pool, 300, "other").await;
+    let repo = Arc::new(repo(pool));
+    let svc = AdminService::new(repo.clone())
+        .with_extras(repo.clone())
+        .with_data_requests(repo.clone());
+    let staff = |perms: P| Caller {
+        user_id: STAFF,
+        permissions: perms,
+        is_owner: false,
+        ip: None,
+    };
+    let c = staff(P::MANAGE_TAKEDOWNS | P::MANAGE_ACCOUNTS);
+    let q = repo
+        .create(
+            &new(DataRequestKind::Export, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    let person_of = || async {
+        sqlx::query_scalar::<_, i64>("SELECT person_id FROM accounts WHERE id = 100")
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    };
+    // Both permissions and a reason are needed.
+    assert!(matches!(
+        svc.rectify_person_link(&staff(P::MANAGE_TAKEDOWNS), q.id, Some(300), Some("fix"))
+            .await,
+        Err(AdminError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        svc.rectify_person_link(&staff(P::MANAGE_ACCOUNTS), q.id, Some(300), Some("fix"))
+            .await,
+        Err(AdminError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        svc.rectify_person_link(&c, q.id, Some(300), None).await,
+        Err(AdminError::ReasonRequired)
+    ));
+    assert_eq!(person_of().await, 100, "nothing changed yet");
+    // Link the account under another Person ...
+    let p = svc
+        .rectify_person_link(&c, q.id, Some(300), Some("linked by mistake"))
+        .await
+        .unwrap();
+    assert_eq!(p, 300);
+    assert_eq!(person_of().await, 300);
+    assert_eq!(log_count(pool, "person.link").await, 1);
+    assert_eq!(
+        log_count(pool, "data_request.rectify").await,
+        3,
+        "one admin row and the two denials"
+    );
+    let done: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'data_request.rectify' AND kind = 'admin_action'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(done, 1);
+    // ... and split it off again into a Person of its own.
+    let fresh = svc
+        .rectify_person_link(&c, q.id, None, Some("they are two people"))
+        .await
+        .unwrap();
+    assert!(fresh != 300 && fresh != 100);
+    assert_eq!(person_of().await, fresh);
+    assert_eq!(log_count(pool, "person.unlink").await, 1);
+    let done: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'data_request.rectify' AND kind = 'admin_action'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(done, 2);
+    let reason: String = sqlx::query_scalar(
+        "SELECT reason FROM staff_access_log WHERE action = 'data_request.rectify' AND kind = 'admin_action' ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(reason, "they are two people");
+}
+
+/// MOD-AGE-003: an account staff locked cannot answer "yes" to the age gate; its "no" is still recorded; lifting
+/// the lock lets it answer again.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_locked_age_confirmation_ignores_yes_until_the_lock_is_lifted() {
+    use sr_auth::store::AuthStore;
+    use sr_db::{auth_repo::PgAuthRepo, auth_store::PgAuthStore};
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    let ids: sr_db::auth_repo::IdSource = Arc::new(ids);
+    let store = PgAuthStore::new(
+        pool.clone(),
+        PgAuthRepo::new(pool.clone(), ids.clone(), [0u8; 32]),
+        ids,
+    );
+    let state = || async {
+        sqlx::query_as::<_, (Option<bool>, bool)>(
+            "SELECT age_confirmed, age_confirmed_at IS NOT NULL FROM accounts WHERE id = 100",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    };
+    // Unlocked: the answer is recorded.
+    store
+        .set_age_confirmed(100, true, 1_800_000_000)
+        .await
+        .unwrap();
+    assert_eq!(state().await, (Some(true), true));
+    // Locked and reset by staff: "yes" does nothing, "no" is recorded.
+    sqlx::query(
+        "UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, age_locked_at = now(), \
+         age_locked_by = $1 WHERE id = 100",
+    )
+    .bind(STAFF)
+    .execute(pool)
+    .await
+    .unwrap();
+    store
+        .set_age_confirmed(100, true, 1_800_000_001)
+        .await
+        .unwrap();
+    assert_eq!(state().await, (None, false));
+    store
+        .set_age_confirmed(100, false, 1_800_000_002)
+        .await
+        .unwrap();
+    assert_eq!(state().await, (Some(false), false));
+    // Lifted: "yes" works again.
+    sqlx::query("UPDATE accounts SET age_locked_at = NULL, age_locked_by = NULL WHERE id = 100")
+        .execute(pool)
+        .await
+        .unwrap();
+    store
+        .set_age_confirmed(100, true, 1_800_000_003)
+        .await
+        .unwrap();
+    assert_eq!(state().await, (Some(true), true));
+}
+
+/// Captures the system DMs of the staff service.
+#[derive(Default)]
+struct Dms(std::sync::Mutex<Vec<(i64, String)>>);
+
+#[async_trait::async_trait]
+impl sr_admin::StaffNotifier for Dms {
+    async fn appointment_offer(&self, _: &sr_admin::StaffOffer) -> Option<(i64, i64)> {
+        None
+    }
+    async fn staff_notice(&self, _: &str) {}
+    fn broadcast_announcement(&self, _: &sr_admin::Announcement) {}
+    async fn system_dm(&self, to: i64, text: &str) -> bool {
+        self.0.lock().unwrap().push((to, text.to_owned()));
+        true
+    }
+}
+
+/// D-343: the requester is told when their activity is hidden, when it is shown again, and when the request
+/// closes (decline here, the finished export below) while it was hidden; never when it was not hidden. Each notice
+/// is an access-log row with `member_notified`.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_requester_is_told_when_the_restriction_starts_and_ends() {
+    use sr_admin::{AdminService, Caller};
+    use sr_core::PlatformPermissions as P;
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    let repo = Arc::new(repo(pool));
+    let dms = Arc::new(Dms::default());
+    let svc = AdminService::new(repo.clone())
+        .with_extras(repo.clone())
+        .with_data_requests(repo.clone())
+        .with_notifier(dms.clone());
+    let c = Caller {
+        user_id: STAFF,
+        permissions: P::MANAGE_TAKEDOWNS,
+        is_owner: false,
+        ip: None,
+    };
+    let q = repo
+        .create(
+            &new(DataRequestKind::Export, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    let r = svc
+        .set_data_request_restriction(&c, q.id, true, Some("objects"))
+        .await
+        .unwrap();
+    assert!(
+        r.activity_hidden && r.restriction_notified_at_ms.is_some() && !r.restriction_notice_failed
+    );
+    let r = svc
+        .set_data_request_restriction(&c, q.id, false, Some("resolved"))
+        .await
+        .unwrap();
+    assert!(!r.activity_hidden);
+    {
+        let sent = dms.0.lock().unwrap();
+        assert_eq!(sent.len(), 2);
+        assert!(
+            sent[0].1.contains("hidden from other members")
+                && sent[0].1.contains("Nothing is deleted")
+        );
+        assert!(sent[1].1.contains("has ended"));
+        assert!(sent.iter().all(|(to, _)| *to == 100));
+    }
+    // Hidden again, then declined: the ending is told once, with the decline.
+    svc.set_data_request_restriction(&c, q.id, true, Some("again"))
+        .await
+        .unwrap();
+    svc.decline_data_request(&c, q.id, Some("not the account holder"))
+        .await
+        .unwrap();
+    {
+        let sent = dms.0.lock().unwrap();
+        assert_eq!(sent.len(), 4);
+        assert!(sent[3].1.contains("declined") && sent[3].1.contains("has ended"));
+    }
+    let rows: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'data_request.restriction_notice' \
+         AND detail LIKE '%\"member_notified\":true%'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(rows, 4);
+
+    // A decline while not hidden sends nothing.
+    account(pool, 101, "other").await;
+    let q2 = repo
+        .create(
+            &new(DataRequestKind::Export, 101),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    svc.decline_data_request(&c, q2.id, Some("no"))
+        .await
+        .unwrap();
+    assert_eq!(dms.0.lock().unwrap().len(), 4);
+
+    // A finished export ends the restriction and says so (the job path).
+    account(pool, 102, "third").await;
+    let q3 = repo
+        .create(
+            &new(DataRequestKind::Export, 102),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    repo.verify(q3.id, STAFF, T0, &entry("data_request.verify", q3.id))
+        .await
+        .unwrap();
+    let ran = repo
+        .run_export(q3.id, T0, &entry("data_request.run", q3.id))
+        .await
+        .unwrap();
+    repo.set_activity_hidden(
+        q3.id,
+        true,
+        "objects",
+        STAFF,
+        T0,
+        &entry("data_request.restrict", q3.id),
+    )
+    .await
+    .unwrap();
+    let ended = data_export::finish(pool, ran.export_id.unwrap(), "exports/z.zip", 1)
+        .await
+        .unwrap()
+        .expect("the restriction ended with the export");
+    assert_eq!(
+        (ended.request_id, ended.account_id, ended.hidden_by),
+        (q3.id, 102, STAFF)
+    );
+    // An export that completes while not hidden reports nothing.
+    let q4 = repo
+        .create(
+            &new(DataRequestKind::Export, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    repo.verify(q4.id, STAFF, T0, &entry("data_request.verify", q4.id))
+        .await
+        .unwrap();
+    let ran = repo
+        .run_export(q4.id, T0, &entry("data_request.run", q4.id))
+        .await
+        .unwrap();
+    assert!(
+        data_export::finish(pool, ran.export_id.unwrap(), "exports/y.zip", 1)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}

@@ -924,7 +924,12 @@ pub struct StaffFeed {
 }
 
 impl StaffFeed {
-    /// One alert: store it, post the card, maybe mail the Owner.
+    /// One alert: store it, decide whether the Owner is mailed, post the card, then send the mail.
+    ///
+    /// The mail decision (the setting and the per-kind throttle) is taken when the alert is handled, before the
+    /// card appears: an alert handled while the Owner email was off is never mailed later, and once its card is
+    /// in #alerts the decision is made. The mail itself goes out after the card so a slow mail server does not
+    /// delay it.
     pub async fn on_alert(&self, kind: StaffAlertKind, detail: &str) {
         let id = match self.admin.record_alert(kind.as_str(), detail).await {
             Ok(r) => r.id,
@@ -933,21 +938,23 @@ impl StaffFeed {
                 0
             }
         };
+        let mail = self.owner_mail(kind, detail).await;
         let card = alert_card(kind, detail, id, self.voice.base_url());
         self.voice.post("alerts", card).await;
-        self.mail_owner(kind, detail).await;
+        if let Some(mail) = mail
+            && let Err(e) = self.mailer.send(mail).await
+        {
+            tracing::warn!(error = %e, "could not email a staff alert");
+        }
     }
 
-    async fn mail_owner(&self, kind: StaffAlertKind, detail: &str) {
-        let Ok(settings) = self.admin.alert_settings().await else {
-            return;
-        };
+    /// The mail to the Owner for this alert, when the setting is on and the kind was not mailed recently.
+    async fn owner_mail(&self, kind: StaffAlertKind, detail: &str) -> Option<OutgoingMail> {
+        let settings = self.admin.alert_settings().await.ok()?;
         if !settings.email_to_owner || !self.throttle.allow(kind.as_str()) {
-            return;
+            return None;
         }
-        let Some(to) = self.voice.owner_email().await else {
-            return;
-        };
+        let to = self.voice.owner_email().await?;
         let (title, _, path) = alert_meta(kind);
         let link = format!("{}{path}", self.voice.base_url());
         let text = format!("{title}\n\n{detail}\n\nOpen the admin page: {link}\n");
@@ -957,15 +964,12 @@ impl StaffFeed {
             escape(detail),
             escape(&link)
         );
-        let mail = OutgoingMail {
+        Some(OutgoingMail {
             to,
             subject: format!("[SIDE ROOM] {title}"),
             text,
             html,
-        };
-        if let Err(e) = self.mailer.send(mail).await {
-            tracing::warn!(error = %e, "could not email a staff alert");
-        }
+        })
     }
 
     async fn review_info(&self, id: i64) -> Option<ReviewCardInfo> {

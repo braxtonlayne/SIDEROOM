@@ -2709,7 +2709,7 @@
         "tags": [
           "accounts"
         ],
-        "summary": "List platform bans, newest first (`PLATFORM_BAN`).",
+        "summary": "List platform bans, newest first (`PLATFORM_BAN`). The filters narrow by severity (`category`), by why\n(`reason_category`, or `none` for bans made without one) and by age (MOD-BAN-003).",
         "operationId": "bans",
         "parameters": [
           {
@@ -2719,6 +2719,44 @@
             "required": false,
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Severity: serious or standard",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BanCategory"
+            }
+          },
+          {
+            "name": "reason_category",
+            "in": "query",
+            "description": "A ban reason category (spec 8), or none",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "older_than_days",
+            "in": "query",
+            "description": "Bans made at least this many days ago",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "newer_than_days",
+            "in": "query",
+            "description": "Bans made at most this many days ago",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
             }
           },
           {
@@ -6858,6 +6896,200 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AdminExtendDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/rectify": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Rectification of a Person link (MOD-DSR-007, spec section 6): correct which Person the requester's account is\nlinked to, with a logged reason. Needs `MANAGE_TAKEDOWNS` and `MANAGE_ACCOUNTS`; refused while a ban involves\neither Person.",
+        "operationId": "rectify",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRectifyDataRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRectifyDataRequestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/data-requests/{request_id}/restriction": {
+      "post": {
+        "tags": [
+          "data_requests"
+        ],
+        "summary": "Restriction or objection (GDPR articles 18 and 21, MOD-DSR-006): hide the requester's shared activity (cinema,\nlibrary sharing, watching presence, recommendations) from discovery while the request is reviewed, or\nshow it again. Nothing is deleted. It also ends when the request is completed or declined. 409 when the request\nis closed or already in that state.",
+        "operationId": "restriction",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Data request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRestrictDataRequestBody"
               }
             }
           },
@@ -48647,6 +48879,258 @@
         ]
       }
     },
+    "/moderation/age/restrictions": {
+      "post": {
+        "tags": [
+          "age"
+        ],
+        "summary": "Mark or unmark a channel, library series or cinema title as age-restricted (`MANAGE_CASES`, or the review bit of\nthe kind). The change applies on the next request; open clients are told when a channel changes. Marking a\nchannel needs a server channel that is not a category or a thread.",
+        "operationId": "restrict",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgeChange"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/age/underage": {
+      "post": {
+        "tags": [
+          "age"
+        ],
+        "summary": "Underage handling (D-294, spec 7): reset the age confirmation so the gate asks again, and lock it so the account\ncannot answer \"yes\" itself until staff lift the lock. An account under 13 is also suspended (needs\n`MANAGE_ACCOUNTS`), and its inviter is told only that the invitee did not meet the entry rules. `MANAGE_CASES`.",
+        "operationId": "underage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnderageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnderageOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/age/underage/{account_id}/lift": {
+      "post": {
+        "tags": [
+          "age"
+        ],
+        "summary": "Lift the lock on an account's age confirmation, so it may answer the age gate again (`MANAGE_CASES`). A suspension\nis lifted separately, on the account.",
+        "operationId": "lift",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/appeals": {
       "get": {
         "tags": [
@@ -50097,6 +50581,603 @@
         ]
       }
     },
+    "/moderation/dashboard": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "The dashboard (Admin > Moderation > Dashboard). A section is present only when the caller holds the bit\nthat reads it: `MANAGE_CASES` (inbox counts, health, retention check, age and child-safety metrics),\n`PLATFORM_BAN` (bans by reason, severity and age), `MANAGE_TAKEDOWNS` (the register and the data requests).\n403 when the caller holds none of them.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "The window of the figures in days, 1 to 90, default 30.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/dashboard/inbox": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "The reports inbox: cases still `open` with nobody assigned, each with the number of reports nobody has\nlooked at (several means duplicates of one target), oldest first (`MANAGE_CASES`). The reporter is never\npart of the answer.",
+        "operationId": "inbox",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 25.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/dashboard/inbox/dismiss": {
+      "post": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Dismiss several inbox cases with one reason (`MANAGE_CASES`). Each case goes through the normal state change,\nwith its own timeline event and access-log row; one that is no longer waiting is reported back as skipped.",
+        "operationId": "dismiss",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboxDismissBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxDismissOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Evasion signals, newest first (`MANAGE_ACCOUNTS`; the read is logged). They carry counts and words, never\nan address.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "`open` (default), `dismissed`, `confirmed`, or `all`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "person_id",
+            "in": "query",
+            "description": "Only signals that name this Person on either side.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SignalView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals/count": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "How many signals are open (`MANAGE_ACCOUNTS`; access-logged), for the Review hub.",
+        "operationId": "count",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalCount"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals/{signal_id}": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "One signal with the addresses behind it, read from the sign-in history of the last 180 days (`MANAGE_ACCOUNTS`).\nAddresses removed by retention or by an account deletion are not shown. The read is logged.",
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "description": "Signal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals/{signal_id}/link-case": {
+      "post": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Link a signal to the case opened from it (`MANAGE_CASES`; access-logged). 409 when it is already linked.",
+        "operationId": "link_case",
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "description": "Signal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCaseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/evasion-signals/{signal_id}/review": {
+      "post": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Review a signal (`MANAGE_ACCOUNTS`; reason required; logged). Confirming does not ban anyone: a ban is its own\ndecision under `PLATFORM_BAN`.",
+        "operationId": "review",
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "description": "Signal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalReviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/guilds/{guild_id}/cases": {
       "get": {
         "tags": [
@@ -50432,6 +51513,96 @@
         ]
       }
     },
+    "/moderation/holds/{hold_id}/retain": {
+      "post": {
+        "tags": [
+          "holds"
+        ],
+        "summary": "Decide a hold a deletion request met: keep the held rows with a stated legal basis (`MANAGE_CASES`,\nMOD-DSR-005). The other decision is releasing the hold. 409 when no deletion request met the hold, or it was\ndecided or released already.",
+        "operationId": "retain",
+        "parameters": [
+          {
+            "name": "hold_id",
+            "in": "path",
+            "description": "Hold snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldRetainBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/holds/{hold_id}/reviewed": {
       "post": {
         "tags": [
@@ -50541,6 +51712,140 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/persons/{person_id}/evasion-scan": {
+      "post": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "Compare a Person with the banned Persons now and raise the evasion signals that are justified (`MANAGE_ACCOUNTS`).\nNothing is banned, frozen or hidden by it.",
+        "operationId": "scan",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanOutcome"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/persons/{person_id}/suspicion": {
+      "get": {
+        "tags": [
+          "suspicion"
+        ],
+        "summary": "The suspicion panel of a Person page: history, banned accounts below the Person in the invite tree with their\nban reasons, the invite path to the root, the automatic cases, and (with `MANAGE_ACCOUNTS`) the evasion\nsignals. Staff only; the read is logged.",
+        "operationId": "panel",
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "description": "Person snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuspicionPanel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -65523,6 +66828,38 @@
           }
         }
       },
+      "AdminRectifyDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/rectify`.",
+        "properties": {
+          "person_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Put the requester's account under this Person (decimal snowflake); absent splits the account off into a\nPerson of its own."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the link was wrong (required, kept in the access log)."
+          }
+        }
+      },
+      "AdminRectifyDataRequestResult": {
+        "type": "object",
+        "description": "The Person the account is under after a rectification.",
+        "required": [
+          "person_id"
+        ],
+        "properties": {
+          "person_id": {
+            "type": "string"
+          }
+        }
+      },
       "AdminRenameBody": {
         "type": "object",
         "properties": {
@@ -65545,6 +66882,26 @@
               "null"
             ],
             "description": "New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it."
+          }
+        }
+      },
+      "AdminRestrictDataRequestBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/data-requests/{id}/restriction`.",
+        "required": [
+          "hide"
+        ],
+        "properties": {
+          "hide": {
+            "type": "boolean",
+            "description": "`true` hides the account's shared activity from discovery while the request is reviewed; `false` shows it\nagain."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (required, kept in the access log)."
           }
         }
       },
@@ -65650,6 +67007,44 @@
           }
         }
       },
+      "AgeBand": {
+        "type": "string",
+        "description": "How young the account was found to be (D-294).",
+        "enum": [
+          "under_18",
+          "under_13"
+        ]
+      },
+      "AgeChange": {
+        "type": "object",
+        "description": "The result of marking or unmarking.",
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "restricted",
+          "changed"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean",
+            "description": "`false` when the item already was in that state (nothing was written except the log row)."
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AgeTargetKind"
+          },
+          "label": {
+            "type": "string",
+            "description": "The channel name or the series or title name."
+          },
+          "restricted": {
+            "type": "boolean"
+          }
+        }
+      },
       "AgeConfirmationObject": {
         "type": "object",
         "description": "The stored \"18 or older\" confirmation (D-230).",
@@ -65677,6 +67072,15 @@
           "hide",
           "include",
           "only"
+        ]
+      },
+      "AgeTargetKind": {
+        "type": "string",
+        "description": "What can be marked age-restricted.",
+        "enum": [
+          "channel",
+          "library_series",
+          "cinema_title"
         ]
       },
       "AlertActionBody": {
@@ -67563,6 +68967,64 @@
           },
           "person_id": {
             "type": "string"
+          },
+          "reason_category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (spec 8, `ban_reason_category`), stamped when the ban was made through a case; `None` for older bans."
+          }
+        }
+      },
+      "BannedDescendant": {
+        "type": "object",
+        "description": "A banned account somewhere below the Person in the invite tree.",
+        "required": [
+          "account",
+          "person_id",
+          "depth",
+          "ban_category",
+          "banned_at_ms",
+          "lifted"
+        ],
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/PersonAccountRef"
+          },
+          "ban_category": {
+            "type": "string",
+            "description": "`serious` raises the inviter's suspicion; `standard` does not (D-031)."
+          },
+          "banned_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The newest case about that Person."
+          },
+          "depth": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 for an account the Person invited directly."
+          },
+          "lifted": {
+            "type": "boolean",
+            "description": "The ban was lifted."
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "reason_category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The why (spec section 8), when the ban carries one."
           }
         }
       },
@@ -68580,6 +70042,13 @@
                 "description": "The takedown notice this case was opened for (D-334), when there is one."
               }
             ]
+          },
+          "target_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The channel a message case is about (the channel to mark age-restricted for misplaced adult content)."
           },
           "target_id": {
             "type": [
@@ -72881,6 +74350,530 @@
           }
         }
       },
+      "DashAge": {
+        "type": "object",
+        "description": "Age and child-safety metrics (MOD-DASH-010, spec 7).",
+        "required": [
+          "window_days",
+          "restricted_channels",
+          "restricted_series",
+          "restricted_titles",
+          "age_gate_resets",
+          "child_safety_open_cases",
+          "child_safety_reports",
+          "child_safety_active_bans"
+        ],
+        "properties": {
+          "age_gate_resets": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Resets of the age confirmation in the window. Counts only, never whose."
+          },
+          "child_safety_active_bans": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Platform bans in force with the reason `child_safety`."
+          },
+          "child_safety_open_cases": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open cases in the `child_safety` category."
+          },
+          "child_safety_reports": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Child-safety reports filed in the window."
+          },
+          "restricted_channels": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restricted_series": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restricted_titles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashBans": {
+        "type": "object",
+        "description": "Platform bans in force (MOD-DASH-007).",
+        "required": [
+          "active",
+          "by_reason",
+          "by_severity",
+          "by_age",
+          "lifted_in_window"
+        ],
+        "properties": {
+          "active": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by_age": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "By age: `under_7d`, `7_to_30d`, `30_to_90d`, `over_90d`."
+          },
+          "by_reason": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "By `reason_category`; `none` for bans made without one."
+          },
+          "by_severity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "By severity (`serious`, `standard`)."
+          },
+          "lifted_in_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bans lifted in the window."
+          }
+        }
+      },
+      "DashCount": {
+        "type": "object",
+        "description": "A label and a count.",
+        "required": [
+          "key",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key": {
+            "type": "string"
+          }
+        }
+      },
+      "DashDataRequests": {
+        "type": "object",
+        "description": "The data-request queue at a glance (MOD-DASH-006).",
+        "required": [
+          "window_days",
+          "open_exports",
+          "open_erasures",
+          "overdue",
+          "due_soon",
+          "completed_in_window"
+        ],
+        "properties": {
+          "completed_in_window": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "due_soon": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open requests due within seven days."
+          },
+          "open_erasures": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "open_exports": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "overdue": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open requests past their deadline (the extended one when there is one)."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashDay": {
+        "type": "object",
+        "description": "Reports filed on one day (UTC).",
+        "required": [
+          "day",
+          "reports"
+        ],
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "`YYYY-MM-DD`."
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "DashHealth": {
+        "type": "object",
+        "description": "Health of the process (MOD-DASH-008). Totals only; there is no per-staff figure.",
+        "required": [
+          "window_days",
+          "reports_per_day",
+          "reports",
+          "cases_opened",
+          "cases_with_first_action",
+          "cases_waiting",
+          "closed",
+          "reopened",
+          "appeal_outcomes",
+          "appeals_open"
+        ],
+        "properties": {
+          "appeal_outcomes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashCount"
+            },
+            "description": "Appeals decided in the window by outcome (`upheld`, `overturned`)."
+          },
+          "appeals_open": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Appeals waiting for a decision, whatever their age."
+          },
+          "cases_opened": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cases_waiting": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cases still waiting for a first action, whatever their age."
+          },
+          "cases_with_first_action": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "closed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cases closed in the window."
+          },
+          "median_first_action_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Median seconds from the opening of a case to the first action on it; `None` when no case in the window\nhas had one."
+          },
+          "reopen_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`reopened / closed` as a fraction between 0 and 1; `None` when nothing was closed."
+          },
+          "reopened": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, how many were reopened (or continued in a new case) afterwards."
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reports_per_day": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashDay"
+            },
+            "description": "One entry per day of the window, oldest first, zero days included."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashInbox": {
+        "type": "object",
+        "description": "Reports waiting for someone to pick them up (MOD-DASH-002).",
+        "required": [
+          "groups",
+          "reports"
+        ],
+        "properties": {
+          "groups": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cases that are still `open` with nobody assigned, and have a report that nobody has looked at."
+          },
+          "oldest_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Age of the oldest waiting report, in seconds."
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Reports in those cases."
+          }
+        }
+      },
+      "DashRetention": {
+        "type": "object",
+        "description": "What the purge jobs are leaving behind (MOD-DASH-009).",
+        "required": [
+          "rows",
+          "holds_active",
+          "holds_review_due",
+          "holds_erasure_pending",
+          "sign_ins"
+        ],
+        "properties": {
+          "holds_active": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Holds in force."
+          },
+          "holds_erasure_pending": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Holds a deletion request met that wait for staff to release them or retain the rows (MOD-DSR-005)."
+          },
+          "holds_review_due": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Holds that nobody has looked at for longer than `moderation.hold_review_days`."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashRetentionRow"
+            }
+          },
+          "sign_ins": {
+            "$ref": "#/components/schemas/DashSignIns"
+          }
+        }
+      },
+      "DashRetentionRow": {
+        "type": "object",
+        "description": "One kind of row a purge job skipped because of a hold (MOD-DASH-009).",
+        "required": [
+          "key",
+          "count",
+          "capped"
+        ],
+        "properties": {
+          "capped": {
+            "type": "boolean",
+            "description": "The count stopped at the cap: there are at least this many."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key": {
+            "type": "string",
+            "description": "`messages_held`, `messages_held_attachment`, `attachments_removed_held`, `attachments_expiry_held`,\n`submissions_held`."
+          }
+        }
+      },
+      "DashSignIns": {
+        "type": "object",
+        "description": "The sign-in history purge (`moderation.suspicion_housekeeping`, D-347). It has no hold exception, so it never\nskips a row; the check shows whether it keeps up instead.",
+        "required": [
+          "window_days",
+          "past_window",
+          "past_window_capped",
+          "backlog"
+        ],
+        "properties": {
+          "backlog": {
+            "type": "boolean",
+            "description": "The last run stopped at its slice limit and comes back in five minutes."
+          },
+          "last_purged": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Rows the last run of the job deleted; absent before the first run."
+          },
+          "last_run_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When that run finished (Unix ms)."
+          },
+          "past_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sign-in rows older than the window that are still stored (0 when the job keeps up; capped)."
+          },
+          "past_window_capped": {
+            "type": "boolean"
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The window the history is kept for (180 days, doc 09)."
+          }
+        }
+      },
+      "DashTakedowns": {
+        "type": "object",
+        "description": "The takedown register at a glance (MOD-DASH-005).",
+        "required": [
+          "window_days",
+          "undecided",
+          "triage_overdue",
+          "counter_noticed",
+          "restore_due",
+          "removed_in_window",
+          "received_in_window"
+        ],
+        "properties": {
+          "counter_noticed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices in `counter_noticed`."
+          },
+          "received_in_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices received in the window."
+          },
+          "removed_in_window": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices whose content was removed in the window."
+          },
+          "restore_due": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, restorable now (the wait is over) and no court filing noted."
+          },
+          "triage_overdue": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, past the triage target (one business day)."
+          },
+          "undecided": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Notices not decided yet (`received`, `triage`)."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "DashboardView": {
+        "type": "object",
+        "description": "The dashboard. A section is absent when the caller lacks the bit that reads it.",
+        "required": [
+          "generated_at_ms",
+          "window_days"
+        ],
+        "properties": {
+          "age": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashAge"
+              }
+            ]
+          },
+          "bans": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashBans"
+              }
+            ]
+          },
+          "data_requests": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashDataRequests"
+              }
+            ]
+          },
+          "generated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "health": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashHealth"
+              }
+            ]
+          },
+          "inbox": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashInbox"
+              }
+            ]
+          },
+          "retention": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashRetention"
+              }
+            ]
+          },
+          "takedowns": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DashTakedowns"
+              }
+            ]
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "DataRequest": {
         "type": "object",
         "description": "A queue row.",
@@ -72903,6 +74896,23 @@
         "properties": {
           "account_id": {
             "type": "string"
+          },
+          "activity_hidden": {
+            "type": "boolean",
+            "description": "MOD-DSR-006: staff hid the account's shared activity from discovery while this request is reviewed.\nNothing is deleted; it ends with the request or when staff lift it."
+          },
+          "activity_hidden_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "activity_hidden_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "completed_at_ms": {
             "type": [
@@ -72990,6 +75000,18 @@
           "received_at_ms": {
             "type": "integer",
             "format": "int64"
+          },
+          "restriction_notice_failed": {
+            "type": "boolean",
+            "description": "The last restriction notice could not be delivered: tell the member through the intake channel."
+          },
+          "restriction_notified_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the member last received a restriction notice by system DM (D-343); `None` when none reached them."
           },
           "retained": {
             "type": "array",
@@ -76902,6 +78924,19 @@
           }
         }
       },
+      "HoldRetainBody": {
+        "type": "object",
+        "description": "Body of a retain decision.",
+        "properties": {
+          "basis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The stated legal basis for keeping the held rows after the deletion request (required, up to 500\ncharacters; kept on the hold, the case timeline and the access log)."
+          }
+        }
+      },
       "HoldView": {
         "type": "object",
         "description": "A hold, in force or released.",
@@ -76940,6 +78975,23 @@
               "null"
             ],
             "description": "`None` when the system placed it (a report on a message)."
+          },
+          "erasure_flagged": {
+            "type": "boolean",
+            "description": "A deletion request met this hold (MOD-DSR-005): the hold is flagged for a staff decision, release or retain\nwith a stated legal basis. Cleared by either."
+          },
+          "erasure_request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "erasure_retained_basis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff decided to retain the held rows after the request, with this basis."
           },
           "id": {
             "type": "string"
@@ -77049,6 +79101,136 @@
               "null"
             ],
             "format": "int64"
+          }
+        }
+      },
+      "InboxDismissBody": {
+        "type": "object",
+        "description": "Body of a bulk dismissal.",
+        "required": [
+          "case_ids"
+        ],
+        "properties": {
+          "case_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The cases to dismiss, at most 100."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why they are dismissed. Required; it becomes the outcome of every case."
+          }
+        }
+      },
+      "InboxDismissOutcome": {
+        "type": "object",
+        "description": "Result of a bulk dismissal.",
+        "required": [
+          "dismissed",
+          "skipped"
+        ],
+        "properties": {
+          "dismissed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxSkipped"
+            }
+          }
+        }
+      },
+      "InboxGroup": {
+        "type": "object",
+        "description": "One case in the reports inbox: a target and the reports that arrived for it (MOD-DASH-002).",
+        "required": [
+          "case_id",
+          "summary",
+          "target_kind",
+          "severity",
+          "categories",
+          "reports",
+          "first_report_at_ms",
+          "last_report_at_ms"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The report categories in the group, so a mixed group shows."
+          },
+          "first_report_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_report_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reports": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Reports in the group that nobody has looked at; more than one means duplicates."
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "target_kind": {
+            "type": "string"
+          }
+        }
+      },
+      "InboxPage": {
+        "type": "object",
+        "description": "A page of the inbox, oldest first.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxGroup"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "InboxSkipped": {
+        "type": "object",
+        "description": "A case the bulk dismissal left alone, and why.",
+        "required": [
+          "case_id",
+          "reason"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -77872,6 +80054,26 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "InvitePath": {
+        "type": "object",
+        "description": "The chain of inviters from the root down to one of the Person's accounts.",
+        "required": [
+          "account_id",
+          "nodes"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonAccountRef"
+            },
+            "description": "Root first; the last entry is the account itself."
           }
         }
       },
@@ -79397,6 +81599,19 @@
           "public"
         ]
       },
+      "LiftBody": {
+        "type": "object",
+        "description": "Body of `POST /moderation/age/underage/{account_id}/lift`.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the lock goes (required)."
+          }
+        }
+      },
       "LinkAccountBody": {
         "type": "object",
         "description": "Body of `POST /admin/persons/{person_id}/link`.",
@@ -79439,6 +81654,19 @@
               "null"
             ],
             "description": "The title the asset belongs to (a film, or the series for bookkeeping)."
+          }
+        }
+      },
+      "LinkCaseBody": {
+        "type": "object",
+        "description": "Body of a case link.",
+        "required": [
+          "case_id"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "description": "The case staff opened from the signal."
           }
         }
       },
@@ -83315,6 +85543,66 @@
           }
         }
       },
+      "PanelEvent": {
+        "type": "object",
+        "description": "One step of the suspicion history (`suspicion_events`); a clear is a step with a negative delta and the\nreason the staff member gave. Steps are never deleted.",
+        "required": [
+          "id",
+          "delta",
+          "level_after",
+          "kind",
+          "reason",
+          "created_at_ms"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The case this step opened or fed."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delta": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`raised`, `cleared` or `reregistration_refused` (a banned Person's registration was refused)."
+          },
+          "level_after": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source_account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonAccountRef",
+                "description": "The banned account that raised it."
+              }
+            ]
+          }
+        }
+      },
       "ParsedReaderName": {
         "type": "object",
         "required": [
@@ -84101,6 +86389,22 @@
             "$ref": "#/components/schemas/ConfigView"
           },
           "owner_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PersonAccountRef": {
+        "type": "object",
+        "description": "An account as staff see it in the panel.",
+        "required": [
+          "id",
+          "username"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
             "type": "string"
           }
         }
@@ -87089,6 +89393,42 @@
           }
         }
       },
+      "RestrictionBody": {
+        "type": "object",
+        "description": "Body of `POST /moderation/age/restrictions`.",
+        "required": [
+          "kind",
+          "id",
+          "restricted"
+        ],
+        "properties": {
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The case this belongs to; its timeline gets the entry and a case being worked moves to `actioned`."
+          },
+          "id": {
+            "type": "string",
+            "description": "The channel, series or title (decimal snowflake)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AgeTargetKind"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (required, up to 500 characters; goes to the access log and the case timeline)."
+          },
+          "restricted": {
+            "type": "boolean",
+            "description": "`true` marks it age-restricted, `false` removes the mark."
+          }
+        }
+      },
       "RetainedRecord": {
         "type": "object",
         "description": "One record kept after an erasure, with the reason (G-66, D-124, D-295).",
@@ -87791,6 +90131,20 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "ScanOutcome": {
+        "type": "object",
+        "description": "What a scan of one Person raised.",
+        "required": [
+          "raised"
+        ],
+        "properties": {
+          "raised": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Signals newly raised by this scan."
           }
         }
       },
@@ -88762,6 +91116,34 @@
           "value": {}
         }
       },
+      "SharedAddress": {
+        "type": "object",
+        "description": "One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged).",
+        "required": [
+          "ip",
+          "person_last_seen_ms",
+          "related_last_seen_ms",
+          "persons"
+        ],
+        "properties": {
+          "ip": {
+            "type": "string"
+          },
+          "person_last_seen_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "persons": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many Persons signed in from it in the window."
+          },
+          "related_last_seen_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "Shelf": {
         "type": "string",
         "description": "The \"My library\" shelf of a followed series.",
@@ -88826,6 +91208,178 @@
           "body": {
             "type": "string",
             "description": "1 to 500 characters."
+          }
+        }
+      },
+      "SignalCount": {
+        "type": "object",
+        "description": "Open evasion signals.",
+        "required": [
+          "open"
+        ],
+        "properties": {
+          "open": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SignalDetail": {
+        "type": "object",
+        "description": "A signal with the addresses behind it, read live: nothing is stored, so what retention or an account deletion\nremoved is gone from here too.",
+        "required": [
+          "signal",
+          "window_days",
+          "shared_addresses"
+        ],
+        "properties": {
+          "shared_addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedAddress"
+            }
+          },
+          "signal": {
+            "$ref": "#/components/schemas/SignalView"
+          },
+          "snapshot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the reviewer looked at when they confirmed the signal (never an address); stays when the rows are gone."
+          },
+          "window_days": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SignalKind": {
+        "type": "string",
+        "description": "What an evasion signal says about a pair of Persons. A signal is a review item and never acts.",
+        "enum": [
+          "shared_login_ip",
+          "shared_invite_lineage",
+          "new_account_after_ban"
+        ]
+      },
+      "SignalReviewBody": {
+        "type": "object",
+        "description": "Body of a signal review.",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "`dismissed` (not the same person) or `confirmed` (looks like the same person)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required."
+          }
+        }
+      },
+      "SignalState": {
+        "type": "string",
+        "description": "Where a signal is in review.",
+        "enum": [
+          "open",
+          "dismissed",
+          "confirmed"
+        ]
+      },
+      "SignalView": {
+        "type": "object",
+        "description": "An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address.",
+        "required": [
+          "id",
+          "person_id",
+          "related_person_id",
+          "kind",
+          "detail",
+          "state",
+          "created_at_ms"
+        ],
+        "properties": {
+          "account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonAccountRef"
+              }
+            ]
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The case opened from this signal."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "folded_from_person_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when a Person link folded this signal: the Person that was merged away (D-349, D-350)."
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SignalKind"
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "related_account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PersonAccountRef"
+              }
+            ]
+          },
+          "related_person_id": {
+            "type": "string"
+          },
+          "review_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "reviewed_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/SignalState"
           }
         }
       },
@@ -90058,6 +92612,53 @@
           }
         }
       },
+      "SuspicionCaseRef": {
+        "type": "object",
+        "description": "An automatic case about the Person, open or not.",
+        "required": [
+          "id",
+          "state",
+          "opened_at_ms"
+        ],
+        "properties": {
+          "assignee_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auto_kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`suspicion_freeze` or `suspicion_escalation`; absent for a case a Person link demoted (D-351)."
+          },
+          "folded_into_case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when a Person link demoted this case: the surviving automatic case it was folded into (D-351)."
+          },
+          "id": {
+            "type": "string"
+          },
+          "linked_case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opened_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CaseState"
+          }
+        }
+      },
       "SuspicionChange": {
         "type": "object",
         "required": [
@@ -90068,9 +92669,21 @@
           "escalated"
         ],
         "properties": {
+          "banned_person_id": {
+            "type": "string",
+            "description": "The Person whose ban caused it (the invitee). Staff only; never shown to the inviter."
+          },
+          "escalate_crossed": {
+            "type": "boolean",
+            "description": "This very ban moved the level across the escalation threshold."
+          },
           "escalated": {
             "type": "boolean",
             "description": "Level reached the escalation threshold."
+          },
+          "freeze_crossed": {
+            "type": "boolean",
+            "description": "This very ban moved the level across the freeze threshold (it was below before)."
           },
           "frozen": {
             "type": "boolean",
@@ -90128,6 +92741,83 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "SuspicionPanel": {
+        "type": "object",
+        "description": "The suspicion panel of a Person page (MOD-SUS-001).",
+        "required": [
+          "person_id",
+          "level",
+          "freeze_threshold",
+          "escalate_threshold",
+          "invites_paused",
+          "accounts",
+          "events",
+          "banned_descendants",
+          "invite_paths",
+          "cases"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonAccountRef"
+            }
+          },
+          "banned_descendants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BannedDescendant"
+            }
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuspicionCaseRef"
+            }
+          },
+          "escalate_threshold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PanelEvent"
+            }
+          },
+          "freeze_threshold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "invite_paths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitePath"
+            }
+          },
+          "invites_paused": {
+            "type": "boolean",
+            "description": "The level has reached the freeze threshold: the Person's invite creation is paused."
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "person_id": {
+            "type": "string"
+          },
+          "signals": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SignalView"
+            },
+            "description": "Evasion signals about the Person; absent when the viewer lacks `MANAGE_ACCOUNTS` (they are IP-derived)."
           }
         }
       },
@@ -92954,6 +95644,75 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "UnderageBody": {
+        "type": "object",
+        "description": "Body of `POST /moderation/age/underage`.",
+        "required": [
+          "account_id",
+          "band"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "The account found to be younger than allowed (decimal snowflake)."
+          },
+          "band": {
+            "$ref": "#/components/schemas/AgeBand",
+            "description": "`under_18`: reset and lock the age confirmation. `under_13` (below the minimum registration age): the same,\nand the account is suspended."
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why (required, up to 500 characters; kept in the access log and, for a suspension, the audit reason)."
+          }
+        }
+      },
+      "UnderageOutcome": {
+        "type": "object",
+        "description": "The result of underage handling.",
+        "required": [
+          "account_id",
+          "band",
+          "suspended",
+          "member_notified",
+          "inviter_notified"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "band": {
+            "$ref": "#/components/schemas/AgeBand"
+          },
+          "erasure_request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The erasure request opened (or already open) for the account below the minimum age (D-341); nothing runs it."
+          },
+          "inviter_notified": {
+            "type": "boolean",
+            "description": "The inviter was told the invitee did not meet the entry rules (under 13)."
+          },
+          "member_notified": {
+            "type": "boolean",
+            "description": "The account was told its age confirmation was reset (under 18, when a DM could be sent)."
+          },
+          "suspended": {
+            "type": "boolean",
+            "description": "The account was suspended (under 13 and still active)."
           }
         }
       },

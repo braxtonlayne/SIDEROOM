@@ -577,7 +577,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List platform bans, newest first (`PLATFORM_BAN`). */
+        /**
+         * List platform bans, newest first (`PLATFORM_BAN`). The filters narrow by severity (`category`), by why
+         *     (`reason_category`, or `none` for bans made without one) and by age (MOD-BAN-003).
+         */
         get: operations["bans"];
         put?: never;
         post?: never;
@@ -1292,6 +1295,49 @@ export interface paths {
         put?: never;
         /** Extend the deadline by `days`, once, with a reason (GDPR article 12(3)). */
         post: operations["extend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/rectify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rectification of a Person link (MOD-DSR-007, spec section 6): correct which Person the requester's account is
+         *     linked to, with a logged reason. Needs `MANAGE_TAKEDOWNS` and `MANAGE_ACCOUNTS`; refused while a ban involves
+         *     either Person.
+         */
+        post: operations["rectify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/data-requests/{request_id}/restriction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restriction or objection (GDPR articles 18 and 21, MOD-DSR-006): hide the requester's shared activity (cinema,
+         *     library sharing, watching presence, recommendations) from discovery while the request is reviewed, or
+         *     show it again. Nothing is deleted. It also ends when the request is completed or declined. 409 when the request
+         *     is closed or already in that state.
+         */
+        post: operations["restriction"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9312,6 +9358,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/age/restrictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark or unmark a channel, library series or cinema title as age-restricted (`MANAGE_CASES`, or the review bit of
+         *     the kind). The change applies on the next request; open clients are told when a channel changes. Marking a
+         *     channel needs a server channel that is not a category or a thread.
+         */
+        post: operations["restrict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/age/underage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Underage handling (D-294, spec 7): reset the age confirmation so the gate asks again, and lock it so the account
+         *     cannot answer "yes" itself until staff lift the lock. An account under 13 is also suspended (needs
+         *     `MANAGE_ACCOUNTS`), and its inviter is told only that the invitee did not meet the entry rules. `MANAGE_CASES`.
+         */
+        post: operations["underage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/age/underage/{account_id}/lift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lift the lock on an account's age confirmation, so it may answer the age gate again (`MANAGE_CASES`). A suspension
+         *     is lifted separately, on the account.
+         */
+        post: operations["lift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/appeals": {
         parameters: {
             query?: never;
@@ -9558,6 +9666,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The dashboard (Admin > Moderation > Dashboard). A section is present only when the caller holds the bit
+         *     that reads it: `MANAGE_CASES` (inbox counts, health, retention check, age and child-safety metrics),
+         *     `PLATFORM_BAN` (bans by reason, severity and age), `MANAGE_TAKEDOWNS` (the register and the data requests).
+         *     403 when the caller holds none of them.
+         */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/dashboard/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The reports inbox: cases still `open` with nobody assigned, each with the number of reports nobody has
+         *     looked at (several means duplicates of one target), oldest first (`MANAGE_CASES`). The reporter is never
+         *     part of the answer.
+         */
+        get: operations["inbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/dashboard/inbox/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss several inbox cases with one reason (`MANAGE_CASES`). Each case goes through the normal state change,
+         *     with its own timeline event and access-log row; one that is no longer waiting is reported back as skipped.
+         */
+        post: operations["dismiss"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/evasion-signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Evasion signals, newest first (`MANAGE_ACCOUNTS`; the read is logged). They carry counts and words, never
+         *     an address.
+         */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/evasion-signals/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many signals are open (`MANAGE_ACCOUNTS`; access-logged), for the Review hub. */
+        get: operations["count"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/evasion-signals/{signal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One signal with the addresses behind it, read from the sign-in history of the last 180 days (`MANAGE_ACCOUNTS`).
+         *     Addresses removed by retention or by an account deletion are not shown. The read is logged.
+         */
+        get: operations["detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/evasion-signals/{signal_id}/link-case": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Link a signal to the case opened from it (`MANAGE_CASES`; access-logged). 409 when it is already linked. */
+        post: operations["link_case"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/evasion-signals/{signal_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review a signal (`MANAGE_ACCOUNTS`; reason required; logged). Confirming does not ban anyone: a ban is its own
+         *     decision under `PLATFORM_BAN`.
+         */
+        post: operations["review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/guilds/{guild_id}/cases": {
         parameters: {
             query?: never;
@@ -9612,6 +9877,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/holds/{hold_id}/retain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide a hold a deletion request met: keep the held rows with a stated legal basis (`MANAGE_CASES`,
+         *     MOD-DSR-005). The other decision is releasing the hold. 409 when no deletion request met the hold, or it was
+         *     decided or released already.
+         */
+        post: operations["retain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/holds/{hold_id}/reviewed": {
         parameters: {
             query?: never;
@@ -9638,6 +9924,47 @@ export interface paths {
         };
         /** Is this library or cinema item held or taken down? (Any signed-in person; reveals nothing but the state.) */
         get: operations["item_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/persons/{person_id}/evasion-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compare a Person with the banned Persons now and raise the evasion signals that are justified (`MANAGE_ACCOUNTS`).
+         *     Nothing is banned, frozen or hidden by it.
+         */
+        post: operations["scan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/persons/{person_id}/suspicion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The suspicion panel of a Person page: history, banned accounts below the Person in the invite tree with their
+         *     ban reasons, the invite path to the root, the automatic cases, and (with `MANAGE_ACCOUNTS`) the evasion
+         *     signals. Staff only; the read is logged.
+         */
+        get: operations["panel"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13340,12 +13667,36 @@ export interface components {
             /** @description `totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion). */
             method: string;
         };
+        /** @description Body of `POST /admin/data-requests/{id}/rectify`. */
+        AdminRectifyDataRequestBody: {
+            /**
+             * @description Put the requester's account under this Person (decimal snowflake); absent splits the account off into a
+             *     Person of its own.
+             */
+            person_id?: string | null;
+            /** @description Why the link was wrong (required, kept in the access log). */
+            reason?: string | null;
+        };
+        /** @description The Person the account is under after a rectification. */
+        AdminRectifyDataRequestResult: {
+            person_id: string;
+        };
         AdminRenameBody: {
             /** @description New display name; `null` or empty clears it. Leave out to keep it. */
             display_name?: string | null;
             reason?: string | null;
             /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
             username?: string | null;
+        };
+        /** @description Body of `POST /admin/data-requests/{id}/restriction`. */
+        AdminRestrictDataRequestBody: {
+            /**
+             * @description `true` hides the account's shared activity from discovery while the request is reviewed; `false` shows it
+             *     again.
+             */
+            hide: boolean;
+            /** @description Why (required, kept in the access log). */
+            reason?: string | null;
         };
         /** @description Body of `POST /admin/data-requests/{id}/run` (optional). */
         AdminRunDataRequestBody: {
@@ -13377,6 +13728,21 @@ export interface components {
             trailers: components["schemas"]["Trailer"][];
             variants: components["schemas"]["Variant"][];
         };
+        /**
+         * @description How young the account was found to be (D-294).
+         * @enum {string}
+         */
+        AgeBand: "under_18" | "under_13";
+        /** @description The result of marking or unmarking. */
+        AgeChange: {
+            /** @description `false` when the item already was in that state (nothing was written except the log row). */
+            changed: boolean;
+            id: string;
+            kind: components["schemas"]["AgeTargetKind"];
+            /** @description The channel name or the series or title name. */
+            label: string;
+            restricted: boolean;
+        };
         /** @description The stored "18 or older" confirmation (D-230). */
         AgeConfirmationObject: {
             /**
@@ -13393,6 +13759,11 @@ export interface components {
          * @enum {string}
          */
         AgeFilter: "hide" | "include" | "only";
+        /**
+         * @description What can be marked age-restricted.
+         * @enum {string}
+         */
+        AgeTargetKind: "channel" | "library_series" | "cinema_title";
         AlertActionBody: {
             channel_id: string;
             /** @description The `custom_id` of the pressed button or select (`sr:automod:...`, `sr:incident:...`). */
@@ -13992,6 +14363,28 @@ export interface components {
             lifted_at_ms?: number | null;
             note: string;
             person_id: string;
+            /** @description Why (spec 8, `ban_reason_category`), stamped when the ban was made through a case; `None` for older bans. */
+            reason_category?: string | null;
+        };
+        /** @description A banned account somewhere below the Person in the invite tree. */
+        BannedDescendant: {
+            account: components["schemas"]["PersonAccountRef"];
+            /** @description `serious` raises the inviter's suspicion; `standard` does not (D-031). */
+            ban_category: string;
+            /** Format: int64 */
+            banned_at_ms: number;
+            /** @description The newest case about that Person. */
+            case_id?: string | null;
+            /**
+             * Format: int32
+             * @description 1 for an account the Person invited directly.
+             */
+            depth: number;
+            /** @description The ban was lifted. */
+            lifted: boolean;
+            person_id: string;
+            /** @description The why (spec section 8), when the ban carries one. */
+            reason_category?: string | null;
         };
         /** @description Response of every `.../begin` route. */
         BeginResponse: {
@@ -14307,6 +14700,8 @@ export interface components {
             state: components["schemas"]["CaseState"];
             summary: string;
             takedown?: null | components["schemas"]["CaseTakedown"];
+            /** @description The channel a message case is about (the channel to mark age-restricted for misplaced adult content). */
+            target_channel_id?: string | null;
             target_id?: string | null;
             target_kind: components["schemas"]["TargetKind"];
             /** Format: int64 */
@@ -15661,9 +16056,272 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        /** @description Age and child-safety metrics (MOD-DASH-010, spec 7). */
+        DashAge: {
+            /**
+             * Format: int64
+             * @description Resets of the age confirmation in the window. Counts only, never whose.
+             */
+            age_gate_resets: number;
+            /**
+             * Format: int64
+             * @description Platform bans in force with the reason `child_safety`.
+             */
+            child_safety_active_bans: number;
+            /**
+             * Format: int64
+             * @description Open cases in the `child_safety` category.
+             */
+            child_safety_open_cases: number;
+            /**
+             * Format: int64
+             * @description Child-safety reports filed in the window.
+             */
+            child_safety_reports: number;
+            /** Format: int64 */
+            restricted_channels: number;
+            /** Format: int64 */
+            restricted_series: number;
+            /** Format: int64 */
+            restricted_titles: number;
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description Platform bans in force (MOD-DASH-007). */
+        DashBans: {
+            /** Format: int64 */
+            active: number;
+            /** @description By age: `under_7d`, `7_to_30d`, `30_to_90d`, `over_90d`. */
+            by_age: components["schemas"]["DashCount"][];
+            /** @description By `reason_category`; `none` for bans made without one. */
+            by_reason: components["schemas"]["DashCount"][];
+            /** @description By severity (`serious`, `standard`). */
+            by_severity: components["schemas"]["DashCount"][];
+            /**
+             * Format: int64
+             * @description Bans lifted in the window.
+             */
+            lifted_in_window: number;
+        };
+        /** @description A label and a count. */
+        DashCount: {
+            /** Format: int64 */
+            count: number;
+            key: string;
+        };
+        /** @description The data-request queue at a glance (MOD-DASH-006). */
+        DashDataRequests: {
+            /** Format: int64 */
+            completed_in_window: number;
+            /**
+             * Format: int64
+             * @description Open requests due within seven days.
+             */
+            due_soon: number;
+            /** Format: int64 */
+            open_erasures: number;
+            /** Format: int64 */
+            open_exports: number;
+            /**
+             * Format: int64
+             * @description Open requests past their deadline (the extended one when there is one).
+             */
+            overdue: number;
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description Reports filed on one day (UTC). */
+        DashDay: {
+            /** @description `YYYY-MM-DD`. */
+            day: string;
+            /** Format: int64 */
+            reports: number;
+        };
+        /** @description Health of the process (MOD-DASH-008). Totals only; there is no per-staff figure. */
+        DashHealth: {
+            /** @description Appeals decided in the window by outcome (`upheld`, `overturned`). */
+            appeal_outcomes: components["schemas"]["DashCount"][];
+            /**
+             * Format: int64
+             * @description Appeals waiting for a decision, whatever their age.
+             */
+            appeals_open: number;
+            /** Format: int64 */
+            cases_opened: number;
+            /**
+             * Format: int64
+             * @description Cases still waiting for a first action, whatever their age.
+             */
+            cases_waiting: number;
+            /** Format: int64 */
+            cases_with_first_action: number;
+            /**
+             * Format: int64
+             * @description Cases closed in the window.
+             */
+            closed: number;
+            /**
+             * Format: int64
+             * @description Median seconds from the opening of a case to the first action on it; `None` when no case in the window
+             *     has had one.
+             */
+            median_first_action_seconds?: number | null;
+            /**
+             * Format: double
+             * @description `reopened / closed` as a fraction between 0 and 1; `None` when nothing was closed.
+             */
+            reopen_rate?: number | null;
+            /**
+             * Format: int64
+             * @description Of those, how many were reopened (or continued in a new case) afterwards.
+             */
+            reopened: number;
+            /** Format: int64 */
+            reports: number;
+            /** @description One entry per day of the window, oldest first, zero days included. */
+            reports_per_day: components["schemas"]["DashDay"][];
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description Reports waiting for someone to pick them up (MOD-DASH-002). */
+        DashInbox: {
+            /**
+             * Format: int64
+             * @description Cases that are still `open` with nobody assigned, and have a report that nobody has looked at.
+             */
+            groups: number;
+            /**
+             * Format: int64
+             * @description Age of the oldest waiting report, in seconds.
+             */
+            oldest_seconds?: number | null;
+            /**
+             * Format: int64
+             * @description Reports in those cases.
+             */
+            reports: number;
+        };
+        /** @description What the purge jobs are leaving behind (MOD-DASH-009). */
+        DashRetention: {
+            /**
+             * Format: int64
+             * @description Holds in force.
+             */
+            holds_active: number;
+            /**
+             * Format: int64
+             * @description Holds a deletion request met that wait for staff to release them or retain the rows (MOD-DSR-005).
+             */
+            holds_erasure_pending: number;
+            /**
+             * Format: int64
+             * @description Holds that nobody has looked at for longer than `moderation.hold_review_days`.
+             */
+            holds_review_due: number;
+            rows: components["schemas"]["DashRetentionRow"][];
+            sign_ins: components["schemas"]["DashSignIns"];
+        };
+        /** @description One kind of row a purge job skipped because of a hold (MOD-DASH-009). */
+        DashRetentionRow: {
+            /** @description The count stopped at the cap: there are at least this many. */
+            capped: boolean;
+            /** Format: int64 */
+            count: number;
+            /**
+             * @description `messages_held`, `messages_held_attachment`, `attachments_removed_held`, `attachments_expiry_held`,
+             *     `submissions_held`.
+             */
+            key: string;
+        };
+        /**
+         * @description The sign-in history purge (`moderation.suspicion_housekeeping`, D-347). It has no hold exception, so it never
+         *     skips a row; the check shows whether it keeps up instead.
+         */
+        DashSignIns: {
+            /** @description The last run stopped at its slice limit and comes back in five minutes. */
+            backlog: boolean;
+            /**
+             * Format: int64
+             * @description Rows the last run of the job deleted; absent before the first run.
+             */
+            last_purged?: number | null;
+            /**
+             * Format: int64
+             * @description When that run finished (Unix ms).
+             */
+            last_run_at_ms?: number | null;
+            /**
+             * Format: int64
+             * @description Sign-in rows older than the window that are still stored (0 when the job keeps up; capped).
+             */
+            past_window: number;
+            past_window_capped: boolean;
+            /**
+             * Format: int64
+             * @description The window the history is kept for (180 days, doc 09).
+             */
+            window_days: number;
+        };
+        /** @description The takedown register at a glance (MOD-DASH-005). */
+        DashTakedowns: {
+            /**
+             * Format: int64
+             * @description Notices in `counter_noticed`.
+             */
+            counter_noticed: number;
+            /**
+             * Format: int64
+             * @description Notices received in the window.
+             */
+            received_in_window: number;
+            /**
+             * Format: int64
+             * @description Notices whose content was removed in the window.
+             */
+            removed_in_window: number;
+            /**
+             * Format: int64
+             * @description Of those, restorable now (the wait is over) and no court filing noted.
+             */
+            restore_due: number;
+            /**
+             * Format: int64
+             * @description Of those, past the triage target (one business day).
+             */
+            triage_overdue: number;
+            /**
+             * Format: int64
+             * @description Notices not decided yet (`received`, `triage`).
+             */
+            undecided: number;
+            /** Format: int32 */
+            window_days: number;
+        };
+        /** @description The dashboard. A section is absent when the caller lacks the bit that reads it. */
+        DashboardView: {
+            age?: null | components["schemas"]["DashAge"];
+            bans?: null | components["schemas"]["DashBans"];
+            data_requests?: null | components["schemas"]["DashDataRequests"];
+            /** Format: int64 */
+            generated_at_ms: number;
+            health?: null | components["schemas"]["DashHealth"];
+            inbox?: null | components["schemas"]["DashInbox"];
+            retention?: null | components["schemas"]["DashRetention"];
+            takedowns?: null | components["schemas"]["DashTakedowns"];
+            /** Format: int32 */
+            window_days: number;
+        };
         /** @description A queue row. */
         DataRequest: {
             account_id: string;
+            /**
+             * @description MOD-DSR-006: staff hid the account's shared activity from discovery while this request is reviewed.
+             *     Nothing is deleted; it ends with the request or when staff lift it.
+             */
+            activity_hidden?: boolean;
+            /** Format: int64 */
+            activity_hidden_at_ms?: number | null;
+            activity_hidden_reason?: string | null;
             /** Format: int64 */
             completed_at_ms?: number | null;
             created_by: string;
@@ -15706,6 +16364,13 @@ export interface components {
             person_id: string;
             /** Format: int64 */
             received_at_ms: number;
+            /** @description The last restriction notice could not be delivered: tell the member through the intake channel. */
+            restriction_notice_failed?: boolean;
+            /**
+             * Format: int64
+             * @description When the member last received a restriction notice by system DM (D-343); `None` when none reached them.
+             */
+            restriction_notified_at_ms?: number | null;
             /** @description Ids of the [`retained`] records an erasure named. */
             retained: string[];
             state: components["schemas"]["DataRequestState"];
@@ -16944,6 +17609,14 @@ export interface components {
             /** Format: int64 */
             submissions: number;
         };
+        /** @description Body of a retain decision. */
+        HoldRetainBody: {
+            /**
+             * @description The stated legal basis for keeping the held rows after the deletion request (required, up to 500
+             *     characters; kept on the hold, the case timeline and the access log).
+             */
+            basis?: string | null;
+        };
         /** @description A hold, in force or released. */
         HoldView: {
             /** Format: int64 */
@@ -16958,6 +17631,14 @@ export interface components {
             created_at_ms: number;
             /** @description `None` when the system placed it (a report on a message). */
             created_by?: string | null;
+            /**
+             * @description A deletion request met this hold (MOD-DSR-005): the hold is flagged for a staff decision, release or retain
+             *     with a stated legal basis. Cleared by either.
+             */
+            erasure_flagged?: boolean;
+            erasure_request_id?: string | null;
+            /** @description Staff decided to retain the held rows after the request, with this basis. */
+            erasure_retained_basis?: string | null;
             id: string;
             /**
              * Format: int64
@@ -16997,6 +17678,46 @@ export interface components {
             provider_user_id: string;
             /** Format: int64 */
             unlinked_at_ms?: number | null;
+        };
+        /** @description Body of a bulk dismissal. */
+        InboxDismissBody: {
+            /** @description The cases to dismiss, at most 100. */
+            case_ids: string[];
+            /** @description Why they are dismissed. Required; it becomes the outcome of every case. */
+            reason?: string | null;
+        };
+        /** @description Result of a bulk dismissal. */
+        InboxDismissOutcome: {
+            dismissed: string[];
+            skipped: components["schemas"]["InboxSkipped"][];
+        };
+        /** @description One case in the reports inbox: a target and the reports that arrived for it (MOD-DASH-002). */
+        InboxGroup: {
+            case_id: string;
+            /** @description The report categories in the group, so a mixed group shows. */
+            categories: string[];
+            /** Format: int64 */
+            first_report_at_ms: number;
+            /** Format: int64 */
+            last_report_at_ms: number;
+            /**
+             * Format: int64
+             * @description Reports in the group that nobody has looked at; more than one means duplicates.
+             */
+            reports: number;
+            severity: string;
+            summary: string;
+            target_kind: string;
+        };
+        /** @description A page of the inbox, oldest first. */
+        InboxPage: {
+            items: components["schemas"]["InboxGroup"][];
+            next_cursor?: string | null;
+        };
+        /** @description A case the bulk dismissal left alone, and why. */
+        InboxSkipped: {
+            case_id: string;
+            reason: string;
         };
         /**
          * @description Body of `PUT /guilds/{id}/incident-actions`. Both fields are replaced: omitted or `null`
@@ -17259,6 +17980,12 @@ export interface components {
         InvitePage: {
             items: components["schemas"]["InviteRow"][];
             next_after?: string | null;
+        };
+        /** @description The chain of inviters from the root down to one of the Person's accounts. */
+        InvitePath: {
+            account_id: string;
+            /** @description Root first; the last entry is the account itself. */
+            nodes: components["schemas"]["PersonAccountRef"][];
         };
         InviteRow: {
             code: string;
@@ -17721,6 +18448,11 @@ export interface components {
         };
         /** @enum {string} */
         LibraryVisibility: "private" | "friends" | "public";
+        /** @description Body of `POST /moderation/age/underage/{account_id}/lift`. */
+        LiftBody: {
+            /** @description Why the lock goes (required). */
+            reason?: string | null;
+        };
         /** @description Body of `POST /admin/persons/{person_id}/link`. */
         LinkAccountBody: {
             /** @description The account to move under this Person. */
@@ -17737,6 +18469,11 @@ export interface components {
             set_playable?: boolean | null;
             /** @description The title the asset belongs to (a film, or the series for bookkeeping). */
             title_id?: string | null;
+        };
+        /** @description Body of a case link. */
+        LinkCaseBody: {
+            /** @description The case staff opened from the signal. */
+            case_id: string;
         };
         /** @description A reading list with signed cover URLs for its first series (the fanned stack). */
         ListCard: components["schemas"]["ReadingList"] & {
@@ -18934,6 +19671,26 @@ export interface components {
             /** Format: int32 */
             width: number;
         };
+        /**
+         * @description One step of the suspicion history (`suspicion_events`); a clear is a step with a negative delta and the
+         *     reason the staff member gave. Steps are never deleted.
+         */
+        PanelEvent: {
+            actor_id?: string | null;
+            /** @description The case this step opened or fed. */
+            case_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            delta: number;
+            id: string;
+            /** @description `raised`, `cleared` or `reregistration_refused` (a banned Person's registration was refused). */
+            kind: string;
+            /** Format: int32 */
+            level_after: number;
+            reason: string;
+            source_account?: null | components["schemas"]["PersonAccountRef"];
+        };
         ParsedReaderName: {
             /** Format: double */
             chapter?: number | null;
@@ -19156,6 +19913,11 @@ export interface components {
             bundle: components["schemas"]["BundleDetail"];
             config: components["schemas"]["ConfigView"];
             owner_id: string;
+        };
+        /** @description An account as staff see it in the panel. */
+        PersonAccountRef: {
+            id: string;
+            username: string;
         };
         PersonBanBody: {
             category?: null | components["schemas"]["BanCategory"];
@@ -20162,6 +20924,18 @@ export interface components {
             /** @description `true` to accept (and join the staff), `false` to decline. */
             accept: boolean;
         };
+        /** @description Body of `POST /moderation/age/restrictions`. */
+        RestrictionBody: {
+            /** @description The case this belongs to; its timeline gets the entry and a case being worked moves to `actioned`. */
+            case_id?: string | null;
+            /** @description The channel, series or title (decimal snowflake). */
+            id: string;
+            kind: components["schemas"]["AgeTargetKind"];
+            /** @description Why (required, up to 500 characters; goes to the access log and the case timeline). */
+            reason?: string | null;
+            /** @description `true` marks it age-restricted, `false` removes the mark. */
+            restricted: boolean;
+        };
         /** @description One record kept after an erasure, with the reason (G-66, D-124, D-295). */
         RetainedRecord: {
             id: string;
@@ -20364,6 +21138,14 @@ export interface components {
             trigger_metadata: components["schemas"]["TriggerMetadata"];
             /** Format: int32 */
             trigger_type: number;
+        };
+        /** @description What a scan of one Person raised. */
+        ScanOutcome: {
+            /**
+             * Format: int64
+             * @description Signals newly raised by this scan.
+             */
+            raised: number;
         };
         /** @description What a scan found and did. */
         ScanReport: {
@@ -20650,6 +21432,19 @@ export interface components {
             updated_at_ms?: number | null;
             value: unknown;
         };
+        /** @description One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged). */
+        SharedAddress: {
+            ip: string;
+            /** Format: int64 */
+            person_last_seen_ms: number;
+            /**
+             * Format: int64
+             * @description How many Persons signed in from it in the window.
+             */
+            persons: number;
+            /** Format: int64 */
+            related_last_seen_ms: number;
+        };
         /**
          * @description The "My library" shelf of a followed series.
          * @enum {string}
@@ -20671,6 +21466,61 @@ export interface components {
         SignBody: {
             /** @description 1 to 500 characters. */
             body: string;
+        };
+        /** @description Open evasion signals. */
+        SignalCount: {
+            /** Format: int64 */
+            open: number;
+        };
+        /**
+         * @description A signal with the addresses behind it, read live: nothing is stored, so what retention or an account deletion
+         *     removed is gone from here too.
+         */
+        SignalDetail: {
+            shared_addresses: components["schemas"]["SharedAddress"][];
+            signal: components["schemas"]["SignalView"];
+            /** @description What the reviewer looked at when they confirmed the signal (never an address); stays when the rows are gone. */
+            snapshot?: Record<string, never> | null;
+            /** Format: int64 */
+            window_days: number;
+        };
+        /**
+         * @description What an evasion signal says about a pair of Persons. A signal is a review item and never acts.
+         * @enum {string}
+         */
+        SignalKind: "shared_login_ip" | "shared_invite_lineage" | "new_account_after_ban";
+        /** @description Body of a signal review. */
+        SignalReviewBody: {
+            /** @description `dismissed` (not the same person) or `confirmed` (looks like the same person). */
+            decision: string;
+            /** @description Why. Required. */
+            reason?: string | null;
+        };
+        /**
+         * @description Where a signal is in review.
+         * @enum {string}
+         */
+        SignalState: "open" | "dismissed" | "confirmed";
+        /** @description An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address. */
+        SignalView: {
+            account?: null | components["schemas"]["PersonAccountRef"];
+            /** @description The case opened from this signal. */
+            case_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            detail: Record<string, never>;
+            /** @description Set when a Person link folded this signal: the Person that was merged away (D-349, D-350). */
+            folded_from_person_id?: string | null;
+            id: string;
+            kind: components["schemas"]["SignalKind"];
+            person_id: string;
+            related_account?: null | components["schemas"]["PersonAccountRef"];
+            related_person_id: string;
+            review_reason?: string | null;
+            /** Format: int64 */
+            reviewed_at_ms?: number | null;
+            reviewed_by?: string | null;
+            state: components["schemas"]["SignalState"];
         };
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
@@ -21058,9 +21908,28 @@ export interface components {
         SuspendBody: {
             reason?: string | null;
         };
+        /** @description An automatic case about the Person, open or not. */
+        SuspicionCaseRef: {
+            assignee_id?: string | null;
+            /** @description `suspicion_freeze` or `suspicion_escalation`; absent for a case a Person link demoted (D-351). */
+            auto_kind?: string | null;
+            /** @description Set when a Person link demoted this case: the surviving automatic case it was folded into (D-351). */
+            folded_into_case_id?: string | null;
+            id: string;
+            linked_case_id?: string | null;
+            /** Format: int64 */
+            opened_at_ms: number;
+            state: components["schemas"]["CaseState"];
+        };
         SuspicionChange: {
+            /** @description The Person whose ban caused it (the invitee). Staff only; never shown to the inviter. */
+            banned_person_id?: string;
+            /** @description This very ban moved the level across the escalation threshold. */
+            escalate_crossed?: boolean;
             /** @description Level reached the escalation threshold. */
             escalated: boolean;
+            /** @description This very ban moved the level across the freeze threshold (it was below before). */
+            freeze_crossed?: boolean;
             /** @description Level reached the freeze threshold: the Person's invite creation is frozen. */
             frozen: boolean;
             inviter_account_id: string;
@@ -21080,6 +21949,25 @@ export interface components {
             level_after: number;
             reason: string;
             source_account_id?: string | null;
+        };
+        /** @description The suspicion panel of a Person page (MOD-SUS-001). */
+        SuspicionPanel: {
+            accounts: components["schemas"]["PersonAccountRef"][];
+            banned_descendants: components["schemas"]["BannedDescendant"][];
+            cases: components["schemas"]["SuspicionCaseRef"][];
+            /** Format: int64 */
+            escalate_threshold: number;
+            events: components["schemas"]["PanelEvent"][];
+            /** Format: int64 */
+            freeze_threshold: number;
+            invite_paths: components["schemas"]["InvitePath"][];
+            /** @description The level has reached the freeze threshold: the Person's invite creation is paused. */
+            invites_paused: boolean;
+            /** Format: int32 */
+            level: number;
+            person_id: string;
+            /** @description Evasion signals about the Person; absent when the viewer lacks `MANAGE_ACCOUNTS` (they are IP-derived). */
+            signals?: components["schemas"]["SignalView"][] | null;
         };
         SweepReport: {
             /** Format: int64 */
@@ -21937,6 +22825,32 @@ export interface components {
             accounts_left_deactivated: number;
             /** Format: int64 */
             accounts_reactivated: number;
+        };
+        /** @description Body of `POST /moderation/age/underage`. */
+        UnderageBody: {
+            /** @description The account found to be younger than allowed (decimal snowflake). */
+            account_id: string;
+            /**
+             * @description `under_18`: reset and lock the age confirmation. `under_13` (below the minimum registration age): the same,
+             *     and the account is suspended.
+             */
+            band: components["schemas"]["AgeBand"];
+            case_id?: string | null;
+            /** @description Why (required, up to 500 characters; kept in the access log and, for a suspension, the audit reason). */
+            note?: string | null;
+        };
+        /** @description The result of underage handling. */
+        UnderageOutcome: {
+            account_id: string;
+            band: components["schemas"]["AgeBand"];
+            /** @description The erasure request opened (or already open) for the account below the minimum age (D-341); nothing runs it. */
+            erasure_request_id?: string | null;
+            /** @description The inviter was told the invitee did not meet the entry rules (under 13). */
+            inviter_notified: boolean;
+            /** @description The account was told its age confirmation was reset (under 18, when a DM could be sent). */
+            member_notified: boolean;
+            /** @description The account was suspended (under 13 and still active). */
+            suspended: boolean;
         };
         /** @description Body of the unlink call. */
         UnlinkBody: {
@@ -24502,6 +25416,14 @@ export interface operations {
             query?: {
                 /** @description Only bans not lifted */
                 active_only?: boolean;
+                /** @description Severity: serious or standard */
+                category?: components["schemas"]["BanCategory"];
+                /** @description A ban reason category (spec 8), or none */
+                reason_category?: string;
+                /** @description Bans made at least this many days ago */
+                older_than_days?: number;
+                /** @description Bans made at most this many days ago */
+                newer_than_days?: number;
                 /** @description Cursor */
                 after?: string;
                 /** @description 1-100, default 50 */
@@ -27308,6 +28230,138 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AdminExtendDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rectify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRectifyDataRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRectifyDataRequestResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restriction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Data request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRestrictDataRequestBody"];
             };
         };
         responses: {
@@ -53773,6 +54827,188 @@ export interface operations {
             };
         };
     };
+    restrict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestrictionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeChange"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    underage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnderageBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnderageOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    lift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LiftBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_appeals: {
         parameters: {
             query?: {
@@ -54709,6 +55945,402 @@ export interface operations {
             };
         };
     };
+    get: {
+        parameters: {
+            query?: {
+                /** @description The window of the figures in days, 1 to 90, default 30. */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inbox: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` of the previous page. */
+                cursor?: string;
+                /** @description 1 to 100, default 25. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InboxDismissBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxDismissOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description `open` (default), `dismissed`, `confirmed`, or `all`. */
+                state?: string;
+                /** @description Only signals that name this Person on either side. */
+                person_id?: string;
+                /** @description 1 to 200, default 100. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalView"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    count: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalCount"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Signal snowflake */
+                signal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    link_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Signal snowflake */
+                signal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkCaseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Signal snowflake */
+                signal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignalReviewBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     guild_cases: {
         parameters: {
             query?: {
@@ -54882,6 +56514,70 @@ export interface operations {
             };
         };
     };
+    retain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Hold snowflake */
+                hold_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HoldRetainBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     reviewed: {
         parameters: {
             query?: never;
@@ -54957,6 +56653,98 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    scan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person snowflake */
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanOutcome"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    panel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person snowflake */
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspicionPanel"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

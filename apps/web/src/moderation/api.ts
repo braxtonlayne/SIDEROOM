@@ -82,6 +82,8 @@ export interface CaseSummary {
   summary: string;
   target_kind: TargetKind;
   target_id: string | null;
+  /** The channel a message case is about. */
+  target_channel_id?: string | null;
   guild_id: string | null;
   assignee_id: string | null;
   report_count: number;
@@ -162,6 +164,11 @@ export interface HoldView {
   /** Library and cinema rows (series, chapters, titles, episodes) the hold freezes. */
   catalog_rows?: number;
   review_due: boolean;
+  /** A deletion request met this hold and staff have not decided yet (MOD-DSR-005). */
+  erasure_flagged?: boolean;
+  erasure_request_id?: string | null;
+  /** The legal basis staff stated for keeping the held rows after the request. */
+  erasure_retained_basis?: string | null;
 }
 export interface AppealView {
   id: string;
@@ -431,3 +438,261 @@ export type ItemHoldKind = 'library_series' | 'library_chapter' | 'cinema_title'
 export type ItemHoldState = 'none' | 'held' | 'taken_down';
 export const itemStatus = (kind: ItemHoldKind, id: string) =>
   get<{ state: ItemHoldState }>(`/moderation/item-status${qs({ kind, id })}`);
+
+// ---- dashboards (MOD-DASH-002, -005 to -010; spec section 9) ----
+
+export interface DashCount {
+  key: string;
+  count: number;
+}
+export interface DashInbox {
+  groups: number;
+  reports: number;
+  oldest_seconds?: number | null;
+}
+export interface DashHealth {
+  window_days: number;
+  reports_per_day: { day: string; reports: number }[];
+  reports: number;
+  cases_opened: number;
+  median_first_action_seconds?: number | null;
+  cases_with_first_action: number;
+  cases_waiting: number;
+  closed: number;
+  reopened: number;
+  reopen_rate?: number | null;
+  appeal_outcomes: DashCount[];
+  appeals_open: number;
+}
+/** The sign-in history purge (D-347): no hold exception, so it shows whether the job keeps up. */
+export interface DashSignIns {
+  window_days: number;
+  past_window: number;
+  past_window_capped: boolean;
+  last_purged?: number | null;
+  last_run_at_ms?: number | null;
+  backlog: boolean;
+}
+export interface DashRetention {
+  rows: { key: string; count: number; capped: boolean }[];
+  holds_active: number;
+  holds_review_due: number;
+  /** Holds a deletion request met, waiting for release or retain (MOD-DSR-005). */
+  holds_erasure_pending: number;
+  sign_ins: DashSignIns;
+}
+export interface DashAge {
+  window_days: number;
+  restricted_channels: number;
+  restricted_series: number;
+  restricted_titles: number;
+  age_gate_resets: number;
+  child_safety_open_cases: number;
+  child_safety_reports: number;
+  child_safety_active_bans: number;
+}
+export interface DashBans {
+  active: number;
+  by_reason: DashCount[];
+  by_severity: DashCount[];
+  by_age: DashCount[];
+  lifted_in_window: number;
+}
+export interface DashTakedowns {
+  window_days: number;
+  undecided: number;
+  triage_overdue: number;
+  counter_noticed: number;
+  restore_due: number;
+  removed_in_window: number;
+  received_in_window: number;
+}
+export interface DashDataRequests {
+  window_days: number;
+  open_exports: number;
+  open_erasures: number;
+  overdue: number;
+  due_soon: number;
+  completed_in_window: number;
+}
+/** Each section is absent when the viewer lacks the bit that reads it. */
+export interface Dashboard {
+  generated_at_ms: number;
+  window_days: number;
+  inbox?: DashInbox | null;
+  health?: DashHealth | null;
+  retention?: DashRetention | null;
+  age?: DashAge | null;
+  bans?: DashBans | null;
+  takedowns?: DashTakedowns | null;
+  data_requests?: DashDataRequests | null;
+}
+export const getDashboard = (days = 30) => get<Dashboard>(`/moderation/dashboard${qs({ days })}`);
+
+export interface InboxGroup {
+  case_id: string;
+  summary: string;
+  target_kind: TargetKind;
+  severity: Severity;
+  categories: ReportCategory[];
+  reports: number;
+  first_report_at_ms: number;
+  last_report_at_ms: number;
+}
+export interface InboxPage {
+  items: InboxGroup[];
+  next_cursor?: string | null;
+}
+export interface InboxDismissOutcome {
+  dismissed: string[];
+  skipped: { case_id: string; reason: string }[];
+}
+export const listInbox = (p: { cursor?: string | null; limit?: number } = {}) =>
+  get<InboxPage>(`/moderation/dashboard/inbox${qs(p)}`);
+export const dismissInbox = (caseIds: string[], reason: string) =>
+  send<InboxDismissOutcome>('/moderation/dashboard/inbox/dismiss', 'POST', {
+    case_ids: caseIds,
+    reason,
+  });
+// ---- inviter suspicion and evasion signals (MOD-SUS-001 to -004; spec section 10) ----
+
+export interface AccountRef {
+  id: string;
+  username: string;
+}
+export interface SuspicionPanelEvent {
+  id: string;
+  delta: number;
+  level_after: number;
+  /** `raised`, or `cleared` (a clear keeps the events and carries the reason). */
+  kind: 'raised' | 'cleared' | 'reregistration_refused';
+  reason: string;
+  source_account: AccountRef | null;
+  actor_id: string | null;
+  case_id: string | null;
+  created_at_ms: number;
+}
+export interface BannedDescendant {
+  account: AccountRef;
+  person_id: string;
+  depth: number;
+  ban_category: 'serious' | 'standard';
+  reason_category: ReportCategory | null;
+  banned_at_ms: number;
+  lifted: boolean;
+  case_id: string | null;
+}
+export interface InvitePath {
+  account_id: string;
+  nodes: AccountRef[];
+}
+export interface SuspicionCaseRef {
+  id: string;
+  state: CaseState;
+  /** Absent for a case a Person link demoted; `folded_into_case_id` names the surviving case (D-351). */
+  auto_kind: 'suspicion_freeze' | 'suspicion_escalation' | null;
+  folded_into_case_id?: string | null;
+  assignee_id: string | null;
+  linked_case_id: string | null;
+  opened_at_ms: number;
+}
+export type SignalKind = 'shared_login_ip' | 'shared_invite_lineage' | 'new_account_after_ban';
+export type SignalState = 'open' | 'dismissed' | 'confirmed';
+export interface EvasionSignal {
+  id: string;
+  person_id: string;
+  account: AccountRef | null;
+  related_person_id: string;
+  related_account: AccountRef | null;
+  kind: SignalKind;
+  detail: Record<string, unknown>;
+  state: SignalState;
+  created_at_ms: number;
+  reviewed_by: string | null;
+  reviewed_at_ms: number | null;
+  review_reason: string | null;
+  case_id: string | null;
+  /** Set when a Person link folded this signal: the Person merged away (D-349, D-350). */
+  folded_from_person_id?: string | null;
+}
+export interface SharedAddress {
+  ip: string;
+  person_last_seen_ms: number;
+  related_last_seen_ms: number;
+  persons: number;
+}
+export interface SignalDetail {
+  signal: EvasionSignal;
+  window_days: number;
+  shared_addresses: SharedAddress[];
+  /** What the reviewer looked at when confirming; stays after the sign-in rows are deleted. */
+  snapshot: Record<string, unknown> | null;
+}
+export interface SuspicionPanel {
+  person_id: string;
+  level: number;
+  freeze_threshold: number;
+  escalate_threshold: number;
+  invites_paused: boolean;
+  accounts: AccountRef[];
+  events: SuspicionPanelEvent[];
+  banned_descendants: BannedDescendant[];
+  invite_paths: InvitePath[];
+  cases: SuspicionCaseRef[];
+  /** Absent for staff without `MANAGE_ACCOUNTS`: the signals are IP-derived. */
+  signals: EvasionSignal[] | null;
+}
+export const getSuspicionPanel = (personId: string) =>
+  get<SuspicionPanel>(`/moderation/persons/${personId}/suspicion`);
+export const countEvasionSignals = () => get<{ open: number }>('/moderation/evasion-signals/count');
+export const linkSignalCase = (id: string, caseId: string) =>
+  send<EvasionSignal>(`/moderation/evasion-signals/${id}/link-case`, 'POST', { case_id: caseId });
+export const scanEvasion = (personId: string) =>
+  send<{ raised: number }>(`/moderation/persons/${personId}/evasion-scan`, 'POST');
+export const listEvasionSignals = (p: { state?: SignalState | 'all'; limit?: number } = {}) =>
+  get<EvasionSignal[]>(`/moderation/evasion-signals${qs(p)}`);
+export const getEvasionSignal = (id: string) =>
+  get<SignalDetail>(`/moderation/evasion-signals/${id}`);
+export const reviewEvasionSignal = (
+  id: string,
+  decision: 'dismissed' | 'confirmed',
+  reason: string,
+) => send<EvasionSignal>(`/moderation/evasion-signals/${id}/review`, 'POST', { decision, reason });
+/** Keep the rows of a hold a deletion request met, with a stated legal basis (MOD-DSR-005). */
+export const retainHoldAfterErasure = (id: string, basis: string) =>
+  send<void>(`/moderation/holds/${id}/retain`, 'POST', { basis });
+
+export type AgeTargetKind = 'channel' | 'library_series' | 'cinema_title';
+export type AgeBand = 'under_18' | 'under_13';
+export interface AgeChange {
+  kind: AgeTargetKind;
+  id: string;
+  label: string;
+  restricted: boolean;
+  changed: boolean;
+}
+export interface UnderageOutcome {
+  account_id: string;
+  band: AgeBand;
+  suspended: boolean;
+  member_notified: boolean;
+  inviter_notified: boolean;
+  erasure_request_id?: string | null;
+}
+/** Mark or unmark a channel, series or title as age-restricted (MOD-AGE-001). */
+export const setAgeRestricted = (body: {
+  kind: AgeTargetKind;
+  id: string;
+  restricted: boolean;
+  reason: string;
+  case_id?: string;
+}) => send<AgeChange>('/moderation/age/restrictions', 'POST', body);
+/** Reset and lock an underage account's age confirmation; under 13 also suspends it (MOD-AGE-003). */
+export const handleUnderage = (body: {
+  account_id: string;
+  band: AgeBand;
+  note: string;
+  case_id?: string;
+}) => send<UnderageOutcome>('/moderation/age/underage', 'POST', body);
+export const liftAgeLock = (accountId: string, reason: string) =>
+  send<void>(`/moderation/age/underage/${accountId}/lift`, 'POST', { reason });

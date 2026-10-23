@@ -488,7 +488,37 @@ pub struct BanRecord {
     pub banned_by: i64,
     pub created_at_ms: i64,
     pub lifted_at_ms: Option<i64>,
+    /// Why (spec 8, `ban_reason_category`), stamped when the ban was made through a case; `None` for older bans.
+    #[serde(default)]
+    pub reason_category: Option<String>,
 }
+
+/// Filters of the bans list (MOD-BAN-003). Every field narrows; none set lists all bans.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BanFilter {
+    pub active_only: bool,
+    pub category: Option<BanCategory>,
+    /// A `ban_reason_category` value, or `none` for bans made without one.
+    pub reason_category: Option<String>,
+    /// Bans made at least this many days ago.
+    pub older_than_days: Option<i32>,
+    /// Bans made at most this many days ago.
+    pub newer_than_days: Option<i32>,
+}
+
+/// The values of `ban_reason_category` (spec 8) a filter may name, plus `none`.
+pub const BAN_REASON_FILTERS: [&str; 10] = [
+    "spam",
+    "harassment",
+    "illegal_content",
+    "child_safety",
+    "ban_evasion",
+    "fraud",
+    "platform_abuse",
+    "nsfw_policy",
+    "other",
+    "none",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct BanPage {
@@ -519,6 +549,16 @@ pub struct SuspicionChange {
     pub frozen: bool,
     /// Level reached the escalation threshold.
     pub escalated: bool,
+    /// This very ban moved the level across the freeze threshold (it was below before).
+    #[serde(default)]
+    pub freeze_crossed: bool,
+    /// This very ban moved the level across the escalation threshold.
+    #[serde(default)]
+    pub escalate_crossed: bool,
+    /// The Person whose ban caused it (the invitee). Staff only; never shown to the inviter.
+    #[serde(default, with = "id")]
+    #[schema(value_type = String)]
+    pub banned_person_id: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

@@ -19,6 +19,7 @@ pub mod rules;
 pub mod service;
 mod service_ext;
 pub mod settings;
+pub mod suspicion_hook;
 
 #[cfg(test)]
 mod tests;
@@ -42,3 +43,4 @@ pub use service_ext::{
     valid_username,
 };
 pub use settings::SettingKind;
+pub use suspicion_hook::{ObserverSlot, SuspicionCrossing, SuspicionObserver};

@@ -4,6 +4,7 @@ import { Badge, Button, Drawer, Notice, Select, TextArea, TextInput } from '@sid
 import { useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
+import { SuspicionPanel } from './SuspicionPanel';
 import { Async, ReasonDialog, StateBadge, fmtMs, fmtUs, useAdminViewer, useResource } from '../ui';
 
 export function PersonDrawer({ personId, onClose }: { personId: string; onClose: () => void }) {
@@ -15,10 +16,7 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
     async () =>
       viewer.can('VIEW_ACCESS_LOG') ? api.listAccessLog({ target_id: personId, limit: 20 }) : null,
   );
-  const suspicion = useResource(
-    `person-susp:${personId}:${viewer.can('MANAGE_INVITES')}`,
-    async () => (viewer.can('MANAGE_INVITES') ? api.listSuspicionLog(personId) : null),
-  );
+  const [suspVersion, setSuspVersion] = useState(0);
   const [pending, setPending] = useState<'clear' | 'unban' | 'notes' | 'link' | 'move' | null>(
     null,
   );
@@ -167,31 +165,8 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                   </ul>
                 </section>
               )}
-              {suspicion.data && (
-                <section className="ss-card" aria-labelledby="adm-susp-h">
-                  <h2 id="adm-susp-h">{t('admin.person.suspicionLogTitle')}</h2>
-                  {suspicion.data.length === 0 ? (
-                    <p className="ss-sub">{t('admin.person.noSuspicionLog')}</p>
-                  ) : (
-                    <ul className="ss-list" aria-label={t('admin.person.suspicionLogTitle')}>
-                      {suspicion.data.map((e) => (
-                        <li key={e.id} className="ss-row">
-                          <div className="ss-grow">
-                            <div className="ss-name">
-                              {t('admin.person.suspicionStep', {
-                                delta: e.delta > 0 ? `+${e.delta}` : String(e.delta),
-                                level: e.level_after,
-                              })}
-                            </div>
-                            <div className="ss-meta">
-                              {fmtMs(e.created_at_ms)} · {e.reason}
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
+              {viewer.can('MANAGE_INVITES') && (
+                <SuspicionPanel personId={personId} version={suspVersion} />
               )}
               {history.data && (
                 <section className="ss-card" aria-labelledby="adm-phist-h">
@@ -249,7 +224,8 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                   await api.linkAccount(personId, linkId.trim(), reason);
                   setPending(null);
                   setNotice(t('admin.person.linked'));
-                  await Promise.all([res.reload(), suspicion.reload()]);
+                  await res.reload();
+                  setSuspVersion((v) => v + 1);
                 }}
               >
                 <TextInput
@@ -312,6 +288,7 @@ export function PersonDrawer({ personId, onClose }: { personId: string; onClose:
                   setPending(null);
                   setNotice(t('admin.person.cleared'));
                   await res.reload();
+                  setSuspVersion((v) => v + 1);
                 }}
               />
               <ReasonDialog

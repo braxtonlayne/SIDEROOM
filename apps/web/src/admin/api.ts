@@ -235,6 +235,8 @@ export interface BanRecord {
   note: string;
   created_at_ms: number;
   lifted_at_ms?: number | null;
+  /** Why (spec 8); absent for bans made without a case. */
+  reason_category?: string | null;
 }
 export interface BanPage {
   items: BanRecord[];
@@ -275,9 +277,18 @@ export interface PersonDetail {
   notes: string;
   suspicion_level: number;
 }
-export const listBans = (
-  p: { active_only?: boolean; after?: string | null; limit?: number } = {},
-) => get<BanPage>(`/admin/bans${qs(p)}`);
+export interface BanQuery {
+  active_only?: boolean;
+  /** Severity. */
+  category?: BanCategory;
+  /** A ban reason category, or `none` for bans made without one. */
+  reason_category?: string;
+  older_than_days?: number;
+  newer_than_days?: number;
+  after?: string | null;
+  limit?: number;
+}
+export const listBans = (p: BanQuery = {}) => get<BanPage>(`/admin/bans${qs({ ...p })}`);
 export const getPerson = (id: string) => get<PersonDetail>(`/admin/persons/${id}`);
 export const unbanPerson = (id: string, reason: string) =>
   send<UnbanOutcome>(`/admin/persons/${id}/unban`, 'POST', reasonBody(reason));
@@ -952,6 +963,13 @@ export interface DataRequest {
   extended_late: boolean;
   /** When the member was told by system DM; null when no DM could be sent. */
   member_notified_at_ms: number | null;
+  /** Staff hid the account's shared activity from discovery while the request is reviewed (MOD-DSR-006). */
+  activity_hidden?: boolean;
+  activity_hidden_at_ms?: number | null;
+  activity_hidden_reason?: string | null;
+  /** The last restriction notice could not be delivered by DM (D-343). */
+  restriction_notice_failed?: boolean;
+  restriction_notified_at_ms?: number | null;
   created_by: string;
 }
 export interface RetainedRecord {
@@ -998,3 +1016,12 @@ export interface DeletedArchive {
 /** Original identifiers of a deleted account (D-326); each call is written to the access log. */
 export const getDeletedArchive = (accountId: string) =>
   get<DeletedArchive>(`/admin/accounts/${accountId}/deleted-archive`);
+/** Hide (`hide`) or show again the requester's shared activity while the request is reviewed (MOD-DSR-006). */
+export const setDataRequestRestriction = (id: string, hide: boolean, reason: string) =>
+  send<DataRequest>(`/admin/data-requests/${id}/restriction`, 'POST', { hide, reason });
+/** Correct which Person the requester's account is linked to (MOD-DSR-007). No `personId` splits it off. */
+export const rectifyPersonLink = (id: string, reason: string, personId?: string) =>
+  send<{ person_id: string }>(`/admin/data-requests/${id}/rectify`, 'POST', {
+    reason,
+    ...(personId ? { person_id: personId } : {}),
+  });

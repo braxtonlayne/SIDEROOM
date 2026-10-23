@@ -356,15 +356,24 @@ pub async fn unban_person(
 #[derive(Debug, Default, Deserialize)]
 pub struct BansParams {
     pub active_only: Option<bool>,
+    pub category: Option<sr_admin::BanCategory>,
+    pub reason_category: Option<String>,
+    pub older_than_days: Option<i32>,
+    pub newer_than_days: Option<i32>,
     pub after: Option<String>,
     pub limit: Option<i64>,
 }
 
-/// List platform bans, newest first (`PLATFORM_BAN`).
+/// List platform bans, newest first (`PLATFORM_BAN`). The filters narrow by severity (`category`), by why
+/// (`reason_category`, or `none` for bans made without one) and by age (MOD-BAN-003).
 #[utoipa::path(
     get, path = "/admin/bans",
     params(
         ("active_only" = Option<bool>, Query, description = "Only bans not lifted"),
+        ("category" = Option<sr_admin::BanCategory>, Query, description = "Severity: serious or standard"),
+        ("reason_category" = Option<String>, Query, description = "A ban reason category (spec 8), or none"),
+        ("older_than_days" = Option<i32>, Query, description = "Bans made at least this many days ago"),
+        ("newer_than_days" = Option<i32>, Query, description = "Bans made at most this many days ago"),
         ("after" = Option<String>, Query, description = "Cursor"),
         ("limit" = Option<i64>, Query, description = "1-100, default 50"),
     ),
@@ -375,7 +384,13 @@ pub async fn bans(ctx: StaffCtx, Query(p): Query<BansParams>) -> ApiResult<Json<
     ctx.svc()
         .list_bans(
             &ctx.caller,
-            p.active_only.unwrap_or(false),
+            &sr_admin::BanFilter {
+                active_only: p.active_only.unwrap_or(false),
+                category: p.category,
+                reason_category: p.reason_category,
+                older_than_days: p.older_than_days.filter(|d| *d >= 0),
+                newer_than_days: p.newer_than_days.filter(|d| *d >= 0),
+            },
             p.after.as_deref().map(id).transpose()?,
             p.limit,
         )

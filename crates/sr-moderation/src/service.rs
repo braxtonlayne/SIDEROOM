@@ -67,6 +67,10 @@ pub trait RemovalSink: Send + Sync {
 #[async_trait]
 pub trait PolicySource: Send + Sync {
     async fn takedown_policy(&self) -> TakedownPolicy;
+    /// `compliance.data_request_deadline_days`, for the erasure request opened below the minimum age (D-341).
+    async fn data_request_deadline_days(&self) -> u32 {
+        30
+    }
 }
 
 /// The moderation backend over one database. Cheap to clone.
@@ -80,6 +84,7 @@ pub struct Moderation {
     pub(crate) policy: Option<Arc<dyn PolicySource>>,
     pub(crate) removals: Option<Arc<dyn RemovalSink>>,
     pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
+    pub(crate) channel_sink: Option<Arc<dyn crate::age::ChannelSink>>,
 }
 
 impl Moderation {
@@ -93,6 +98,7 @@ impl Moderation {
             policy: None,
             removals: None,
             blocklist: None,
+            channel_sink: None,
         }
     }
 
@@ -151,6 +157,13 @@ impl Moderation {
         self
     }
 
+    pub(crate) async fn deadline_days(&self) -> u32 {
+        match &self.policy {
+            Some(p) => p.data_request_deadline_days().await,
+            None => 30,
+        }
+    }
+
     pub(crate) async fn policy(&self) -> TakedownPolicy {
         match &self.policy {
             Some(p) => p.takedown_policy().await,
@@ -189,6 +202,8 @@ where
             keys::HOLD_REVIEW_DAYS.to_owned(),
             keys::CASE_REOPEN_DAYS.to_owned(),
             keys::DELETED_MESSAGE_DAYS.to_owned(),
+            keys::SHARED_IP_MAX_PERSONS.to_owned(),
+            keys::NEW_ACCOUNT_AFTER_BAN_DAYS.to_owned(),
         ])
         .fetch_all(db)
         .await?;
@@ -202,6 +217,8 @@ where
             keys::HOLD_REVIEW_DAYS => l.hold_review_days = n,
             keys::CASE_REOPEN_DAYS => l.case_reopen_days = n,
             keys::DELETED_MESSAGE_DAYS => l.deleted_message_days = n,
+            keys::SHARED_IP_MAX_PERSONS => l.shared_ip_max_persons = n,
+            keys::NEW_ACCOUNT_AFTER_BAN_DAYS => l.new_account_after_ban_days = n,
             _ => {}
         }
     }

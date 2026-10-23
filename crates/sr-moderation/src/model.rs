@@ -190,6 +190,10 @@ pub struct CaseSummary {
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub guild_id: Option<i64>,
+    /// The channel a message case is about (the channel to mark age-restricted for misplaced adult content).
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub target_channel_id: Option<i64>,
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub assignee_id: Option<i64>,
@@ -310,6 +314,16 @@ pub struct HoldView {
     pub catalog_rows: i64,
     /// Older than `moderation.hold_review_days`, so it is flagged for review (D-212).
     pub review_due: bool,
+    /// A deletion request met this hold (MOD-DSR-005): the hold is flagged for a staff decision, release or retain
+    /// with a stated legal basis. Cleared by either.
+    #[serde(default)]
+    pub erasure_flagged: bool,
+    #[serde(default, with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub erasure_request_id: Option<i64>,
+    /// Staff decided to retain the held rows after the request, with this basis.
+    #[serde(default)]
+    pub erasure_retained_basis: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -468,6 +482,10 @@ pub struct Limits {
     pub hold_review_days: i64,
     pub case_reopen_days: i64,
     pub deleted_message_days: i64,
+    /// Most Persons that may share a sign-in address before it counts as a shared network (D-346).
+    pub shared_ip_max_persons: i64,
+    /// A new account counts as "shortly after a ban" within this many days (D-346).
+    pub new_account_after_ban_days: i64,
 }
 
 impl Default for Limits {
@@ -477,6 +495,8 @@ impl Default for Limits {
             hold_review_days: 90,
             case_reopen_days: 30,
             deleted_message_days: 30,
+            shared_ip_max_persons: 4,
+            new_account_after_ban_days: 14,
         }
     }
 }
@@ -487,6 +507,8 @@ pub mod keys {
     pub const HOLD_REVIEW_DAYS: &str = "moderation.hold_review_days";
     pub const CASE_REOPEN_DAYS: &str = "moderation.case_reopen_days";
     pub const DELETED_MESSAGE_DAYS: &str = "retention.deleted_message_days";
+    pub const SHARED_IP_MAX_PERSONS: &str = "moderation.shared_ip_max_persons";
+    pub const NEW_ACCOUNT_AFTER_BAN_DAYS: &str = "moderation.new_account_after_ban_days";
 }
 
 fn is_zero(n: &i64) -> bool {
@@ -724,4 +746,202 @@ impl Default for TakedownPolicy {
             operator_contact: None,
         }
     }
+}
+
+// ---- inviter suspicion and evasion signals (Phase 7 step 5; spec section 10) ---------------------------------------
+
+text_enum! {
+    /// What an evasion signal says about a pair of Persons. A signal is a review item and never acts.
+    SignalKind {
+        SharedLoginIp => "shared_login_ip",
+        SharedInviteLineage => "shared_invite_lineage",
+        NewAccountAfterBan => "new_account_after_ban",
+    }
+}
+
+text_enum! {
+    /// Where a signal is in review.
+    SignalState {
+        Open => "open",
+        Dismissed => "dismissed",
+        Confirmed => "confirmed",
+    }
+}
+
+/// An account as staff see it in the panel.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PersonAccountRef {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub username: String,
+}
+
+/// One step of the suspicion history (`suspicion_events`); a clear is a step with a negative delta and the
+/// reason the staff member gave. Steps are never deleted.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PanelEvent {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub delta: i32,
+    pub level_after: i32,
+    /// `raised`, `cleared` or `reregistration_refused` (a banned Person's registration was refused).
+    pub kind: String,
+    pub reason: String,
+    /// The banned account that raised it.
+    pub source_account: Option<PersonAccountRef>,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub actor_id: Option<i64>,
+    /// The case this step opened or fed.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub case_id: Option<i64>,
+    pub created_at_ms: i64,
+}
+
+/// A banned account somewhere below the Person in the invite tree.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BannedDescendant {
+    pub account: PersonAccountRef,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
+    /// 1 for an account the Person invited directly.
+    pub depth: i32,
+    /// `serious` raises the inviter's suspicion; `standard` does not (D-031).
+    pub ban_category: String,
+    /// The why (spec section 8), when the ban carries one.
+    pub reason_category: Option<String>,
+    pub banned_at_ms: i64,
+    /// The ban was lifted.
+    pub lifted: bool,
+    /// The newest case about that Person.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub case_id: Option<i64>,
+}
+
+/// The chain of inviters from the root down to one of the Person's accounts.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct InvitePath {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub account_id: i64,
+    /// Root first; the last entry is the account itself.
+    pub nodes: Vec<PersonAccountRef>,
+}
+
+/// An automatic case about the Person, open or not.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SuspicionCaseRef {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub state: CaseState,
+    /// `suspicion_freeze` or `suspicion_escalation`; absent for a case a Person link demoted (D-351).
+    pub auto_kind: Option<String>,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub assignee_id: Option<i64>,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub linked_case_id: Option<i64>,
+    pub opened_at_ms: i64,
+    /// Set when a Person link demoted this case: the surviving automatic case it was folded into (D-351).
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub folded_into_case_id: Option<i64>,
+}
+
+/// An evasion signal: a review item about a pair of Persons. It carries counts and words, never an address.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SignalView {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
+    pub account: Option<PersonAccountRef>,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub related_person_id: i64,
+    pub related_account: Option<PersonAccountRef>,
+    pub kind: SignalKind,
+    #[schema(value_type = Object)]
+    pub detail: Value,
+    pub state: SignalState,
+    pub created_at_ms: i64,
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub reviewed_by: Option<i64>,
+    pub reviewed_at_ms: Option<i64>,
+    pub review_reason: Option<String>,
+    /// The case opened from this signal.
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub case_id: Option<i64>,
+    /// Set when a Person link folded this signal: the Person that was merged away (D-349, D-350).
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub folded_from_person_id: Option<i64>,
+}
+
+/// One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SharedAddress {
+    pub ip: String,
+    pub person_last_seen_ms: i64,
+    pub related_last_seen_ms: i64,
+    /// How many Persons signed in from it in the window.
+    pub persons: i64,
+}
+
+/// A signal with the addresses behind it, read live: nothing is stored, so what retention or an account deletion
+/// removed is gone from here too.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SignalDetail {
+    pub signal: SignalView,
+    pub window_days: i64,
+    pub shared_addresses: Vec<SharedAddress>,
+    /// What the reviewer looked at when they confirmed the signal (never an address); stays when the rows are gone.
+    #[schema(value_type = Option<Object>)]
+    pub snapshot: Option<Value>,
+}
+
+/// The suspicion panel of a Person page (MOD-SUS-001).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SuspicionPanel {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub person_id: i64,
+    pub level: i32,
+    pub freeze_threshold: i64,
+    pub escalate_threshold: i64,
+    /// The level has reached the freeze threshold: the Person's invite creation is paused.
+    pub invites_paused: bool,
+    pub accounts: Vec<PersonAccountRef>,
+    pub events: Vec<PanelEvent>,
+    pub banned_descendants: Vec<BannedDescendant>,
+    pub invite_paths: Vec<InvitePath>,
+    pub cases: Vec<SuspicionCaseRef>,
+    /// Evasion signals about the Person; absent when the viewer lacks `MANAGE_ACCOUNTS` (they are IP-derived).
+    pub signals: Option<Vec<SignalView>>,
+}
+
+/// What a scan of one Person raised.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ScanOutcome {
+    /// Signals newly raised by this scan.
+    pub raised: i64,
+}
+
+/// Query of the signal list.
+#[derive(Debug, Clone, Default)]
+pub struct SignalFilter {
+    pub state: Option<SignalState>,
+    pub person_id: Option<i64>,
+    pub limit: i64,
 }

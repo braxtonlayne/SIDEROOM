@@ -37,6 +37,7 @@ const CASE_STAFF: i64 = 11;
 const BASIC: i64 = 12;
 const REVIEWER: i64 = 13;
 const CLERK: i64 = 14;
+const ACCOUNTS_STAFF: i64 = 15;
 const MEMBER: i64 = 20;
 const TARGET: i64 = 21;
 
@@ -63,6 +64,7 @@ async fn env(pool: sqlx::PgPool) -> Env {
         (BASIC, "basic"),
         (REVIEWER, "reviewer"),
         (CLERK, "clerk"),
+        (ACCOUNTS_STAFF, "accounts"),
         (MEMBER, "member"),
         (TARGET, "target"),
     ] {
@@ -73,6 +75,12 @@ async fn env(pool: sqlx::PgPool) -> Env {
     admin.add_role(3, "Basic", 1, P::STAFF_BASIC);
     admin.add_role(4, "Reader", 1, P::STAFF_BASIC | P::REVIEW_READING);
     admin.add_role(5, "Takedown clerk", 2, P::STAFF_BASIC | P::MANAGE_TAKEDOWNS);
+    admin.add_role(
+        6,
+        "Accounts",
+        2,
+        P::STAFF_BASIC | P::MANAGE_INVITES | P::MANAGE_ACCOUNTS,
+    );
     admin.set_owner(OWNER);
     let svc = AdminService::new(admin.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
@@ -84,12 +92,24 @@ async fn env(pool: sqlx::PgPool) -> Env {
         .await
         .unwrap();
     svc.appoint(&op, CLERK, &[5], Some("test")).await.unwrap();
+    svc.appoint(&op, ACCOUNTS_STAFF, &[6], Some("test"))
+        .await
+        .unwrap();
 
     let sessions = Arc::new(MemorySessions::new());
     let mut tokens = HashMap::new();
-    for (n, uid) in [OWNER, CASE_STAFF, BASIC, REVIEWER, CLERK, MEMBER, TARGET]
-        .into_iter()
-        .enumerate()
+    for (n, uid) in [
+        OWNER,
+        CASE_STAFF,
+        BASIC,
+        REVIEWER,
+        CLERK,
+        ACCOUNTS_STAFF,
+        MEMBER,
+        TARGET,
+    ]
+    .into_iter()
+    .enumerate()
     {
         let t = SessionToken::generate().unwrap();
         sessions
@@ -197,7 +217,29 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
             "/moderation/cases",
             Some(json!({"category": "spam", "target_kind": "other"})),
         ),
+        (Method::GET, "/moderation/persons/5/suspicion", None),
+        (Method::POST, "/moderation/persons/5/evasion-scan", None),
+        (Method::GET, "/moderation/evasion-signals", None),
+        (Method::GET, "/moderation/evasion-signals/count", None),
+        (
+            Method::POST,
+            "/moderation/evasion-signals/5/link-case",
+            Some(json!({"case_id": "7"})),
+        ),
+        (Method::GET, "/moderation/evasion-signals/5", None),
+        (
+            Method::POST,
+            "/moderation/evasion-signals/5/review",
+            Some(json!({"decision": "dismissed", "reason": "x"})),
+        ),
         (Method::GET, "/moderation/holds", None),
+        (Method::GET, "/moderation/dashboard", None),
+        (Method::GET, "/moderation/dashboard/inbox", None),
+        (
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["5"], "reason": "x"})),
+        ),
         (
             Method::POST,
             "/moderation/cases/5/holds",
@@ -209,6 +251,26 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
             Some(json!({"reason": "x"})),
         ),
         (Method::POST, "/moderation/holds/5/reviewed", None),
+        (
+            Method::POST,
+            "/moderation/holds/5/retain",
+            Some(json!({"basis": "x"})),
+        ),
+        (
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(json!({"kind": "channel", "id": "5", "restricted": true, "reason": "x"})),
+        ),
+        (
+            Method::POST,
+            "/moderation/age/underage",
+            Some(json!({"account_id": "5", "band": "under_18", "note": "x"})),
+        ),
+        (
+            Method::POST,
+            "/moderation/age/underage/5/lift",
+            Some(json!({"reason": "x"})),
+        ),
         (Method::GET, "/moderation/appeals", None),
         (Method::GET, "/moderation/takedowns", None),
         (Method::GET, "/moderation/takedowns/export", None),
@@ -1188,4 +1250,678 @@ async fn takedown_notice_to_counter_notice_to_export_over_http() {
         )
         .await;
     assert_eq!(st["state"], "none");
+}
+
+// ---- the dashboards ----------------------------------------------------------------------------------------
+
+/// A staff member with none of the dashboard bits is refused by name, and the denial is logged; the inbox and its
+/// bulk dismissal are `MANAGE_CASES` only, so the takedown clerk is refused there too.
+#[tokio::test]
+async fn the_dashboard_needs_one_of_its_bits_and_the_inbox_needs_manage_cases() {
+    let e = env(lazy()).await;
+    let (s, body) = e
+        .call(Some(BASIC), Method::GET, "/moderation/dashboard", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_CASES"),
+        "{body}"
+    );
+    for (m, p, b) in [
+        (Method::GET, "/moderation/dashboard/inbox", None),
+        (
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["5"], "reason": "x"})),
+        ),
+    ] {
+        let (s, body) = e.call(Some(CLERK), m.clone(), p, b).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{m} {p}: {body}");
+        assert!(
+            body["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("MANAGE_CASES"),
+            "{body}"
+        );
+    }
+    let log = e
+        .admin
+        .list_log(&sr_admin::AccessLogFilter {
+            limit: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    for (action, actor) in [
+        ("moderation.dashboard", BASIC),
+        ("moderation.inbox.list", CLERK),
+        ("moderation.inbox.dismiss", CLERK),
+    ] {
+        assert!(
+            log.iter()
+                .any(|r| r.action == action && r.actor_id == actor),
+            "{action} denial is in the access log: {log:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn bulk_dismiss_inputs_that_name_nothing_are_client_errors() {
+    let e = env(lazy()).await;
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["nope"], "reason": "x"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "{b}");
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/dashboard/inbox?cursor=abc",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+}
+
+/// Each staff member gets the sections their bits read, over HTTP, and a bulk dismissal reaches the case.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_dashboard_sections_follow_the_bits_over_http() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (CLERK, "clerk"),
+        (MEMBER, "member"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    let e = env(pool.clone()).await;
+
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/dashboard?days=7",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["window_days"], 7);
+    assert_eq!(b["health"]["reports_per_day"].as_array().unwrap().len(), 7);
+    for k in ["inbox", "health", "retention", "age"] {
+        assert!(b[k].is_object(), "{k}: {b}");
+    }
+    for k in ["bans", "takedowns", "data_requests"] {
+        assert!(b[k].is_null(), "{k} is the clerk's or the banner's: {b}");
+    }
+
+    let (s, b) = e
+        .call(Some(CLERK), Method::GET, "/moderation/dashboard", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert!(
+        b["takedowns"].is_object() && b["data_requests"].is_object(),
+        "{b}"
+    );
+    assert!(b["health"].is_null() && b["inbox"].is_null(), "{b}");
+
+    // A case staff opened without a report is not in the inbox (it has no report); a reported one is.
+    sqlx::query(
+        "INSERT INTO moderation_cases (id, category, severity, routing, summary, target_kind, opened_by_kind)          VALUES (7001, 'child_safety', 'serious', 'platform', 'x', 'other', 'staff')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO moderation_reports (id, case_id, reporter_id, target_kind, target_id, category)          VALUES (7002, 7001, $1, 'other', 9, 'child_safety')",
+    )
+    .bind(MEMBER)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/dashboard/inbox",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["items"].as_array().unwrap().len(), 1, "{b}");
+    assert_eq!(b["items"][0]["case_id"], "7001");
+    assert_eq!(b["items"][0]["reports"], 1);
+    assert!(
+        // Ids are JSON strings; a bare substring would also match inside a millisecond timestamp.
+        !b.to_string().contains(&format!("\"{MEMBER}\"")),
+        "no reporter in the inbox: {b}"
+    );
+
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["7001", "7777"]})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "a reason is required: {b}");
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/dashboard/inbox/dismiss",
+            Some(json!({"case_ids": ["7001", "7777"], "reason": "Not a violation"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["dismissed"], json!(["7001"]));
+    assert_eq!(b["skipped"][0]["case_id"], "7777");
+    let state: String = sqlx::query_scalar("SELECT state FROM moderation_cases WHERE id = 7001")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "dismissed");
+}
+
+// ---- suspicion and evasion signals (MOD-SUS-001 to -004) ------------------------------------------------------
+
+#[tokio::test]
+async fn the_suspicion_routes_name_the_missing_bit_and_log_the_denial() {
+    let e = env(lazy()).await;
+    // The panel needs MANAGE_INVITES; signals (IP-derived) need MANAGE_ACCOUNTS.
+    for (path, bit) in [
+        ("/moderation/persons/5/suspicion", "MANAGE_INVITES"),
+        ("/moderation/evasion-signals", "MANAGE_ACCOUNTS"),
+        ("/moderation/evasion-signals/5", "MANAGE_ACCOUNTS"),
+    ] {
+        let (s, body) = e.call(Some(CASE_STAFF), Method::GET, path, None).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{path}: {body}");
+        assert!(
+            body["message"].as_str().unwrap_or_default().contains(bit),
+            "{path}: {body}"
+        );
+    }
+    let (s, body) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/persons/5/evasion-scan",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    let log = e
+        .admin
+        .list_log(&sr_admin::AccessLogFilter {
+            limit: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    for action in [
+        "moderation.suspicion.view",
+        "moderation.evasion.list",
+        "moderation.evasion.scan",
+    ] {
+        assert!(
+            log.iter()
+                .any(|r| r.action == action && r.actor_id == CASE_STAFF),
+            "{action} denial is logged"
+        );
+    }
+}
+
+#[tokio::test]
+async fn linking_and_counting_name_their_bits() {
+    let e = env(lazy()).await;
+    let (s, body) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            "/moderation/evasion-signals/5/link-case",
+            Some(json!({"case_id": "7"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_CASES")
+    );
+    let (s, body) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals/count",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_ACCOUNTS")
+    );
+}
+
+#[tokio::test]
+async fn suspicion_inputs_that_name_nothing_are_client_errors() {
+    let e = env(lazy()).await;
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/persons/nope/suspicion",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals/nope",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals?state=maybe",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // A review decides one way or the other, never "open".
+    for decision in ["open", "ban"] {
+        let (s, _) = e
+            .call(
+                Some(ACCOUNTS_STAFF),
+                Method::POST,
+                "/moderation/evasion-signals/5/review",
+                Some(json!({"decision": decision, "reason": "x"})),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{decision}");
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn evasion_signals_and_the_panel_over_http() {
+    let db = sr_db::testing::TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (ACCOUNTS_STAFF, "accounts"),
+        (MEMBER, "banned"),
+        (TARGET, "newcomer"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    // Both people signed in from one address; one of them is banned.
+    sqlx::query(
+        "INSERT INTO person_bans (id, person_id, category, banned_by) VALUES (900, $1, 'serious', $2)",
+    )
+    .bind(MEMBER + 1_000)
+    .bind(OWNER)
+    .execute(&pool)
+    .await
+    .unwrap();
+    for (n, who) in [MEMBER, TARGET].into_iter().enumerate() {
+        sqlx::query("INSERT INTO login_events (id, account_id, ip, success) VALUES ($1, $2, '203.0.113.44', true)")
+            .bind(700 + n as i64)
+            .bind(who)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let e = env(pool.clone()).await;
+
+    // The scan raises one review item; scanning again raises none.
+    let scan = format!("/moderation/persons/{}/evasion-scan", TARGET + 1_000);
+    let (s, body) = e
+        .call(Some(ACCOUNTS_STAFF), Method::POST, &scan, None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["raised"], 1);
+    let (_, body) = e
+        .call(Some(ACCOUNTS_STAFF), Method::POST, &scan, None)
+        .await;
+    assert_eq!(body["raised"], 0);
+
+    let (s, list) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    let item = &list[0];
+    assert_eq!(item["kind"], "shared_login_ip");
+    assert_eq!(item["state"], "open");
+    assert!(
+        !list.to_string().contains("203.0.113"),
+        "the list carries no address"
+    );
+    let sid = item["id"].as_str().unwrap().to_owned();
+
+    // The address is behind the detail read, which is logged.
+    let (s, d) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            &format!("/moderation/evasion-signals/{sid}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!(d["shared_addresses"][0]["ip"], "203.0.113.44");
+    assert_eq!(d["window_days"], 180);
+    let logged: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'moderation.evasion.detail' AND actor_id = $1",
+    )
+    .bind(ACCOUNTS_STAFF)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(logged, 1);
+
+    // The panel for the newcomer includes the signal; a review needs a reason.
+    let (s, panel) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            &format!("/moderation/persons/{}/suspicion", TARGET + 1_000),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{panel}");
+    assert_eq!(panel["signals"].as_array().map(Vec::len), Some(1));
+    assert_eq!(panel["invites_paused"], false);
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &format!("/moderation/evasion-signals/{sid}/review"),
+            Some(json!({"decision": "dismissed"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, done) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &format!("/moderation/evasion-signals/{sid}/review"),
+            Some(json!({"decision": "dismissed", "reason": "same household"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{done}");
+    assert_eq!(done["state"], "dismissed");
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &format!("/moderation/evasion-signals/{sid}/review"),
+            Some(json!({"decision": "confirmed", "reason": "again"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+
+    // A case opened from the signal is linked once, by someone who holds MANAGE_CASES.
+    let (s, case) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/cases",
+            Some(json!({"category": "ban_evasion", "target_kind": "user",
+                        "target_id": TARGET.to_string(), "subject_account_id": TARGET.to_string()})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{case}");
+    let link = format!("/moderation/evasion-signals/{sid}/link-case");
+    let body = json!({"case_id": case["id"]});
+    let (s, _) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::POST,
+            &link,
+            Some(body.clone()),
+        )
+        .await;
+    assert_eq!(
+        s,
+        StatusCode::FORBIDDEN,
+        "MANAGE_ACCOUNTS alone cannot link"
+    );
+    let (s, linked) = e
+        .call(Some(CASE_STAFF), Method::POST, &link, Some(body.clone()))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{linked}");
+    assert_eq!(linked["case_id"], case["id"]);
+    let (s, _) = e
+        .call(Some(CASE_STAFF), Method::POST, &link, Some(body))
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (s, count) = e
+        .call(
+            Some(ACCOUNTS_STAFF),
+            Method::GET,
+            "/moderation/evasion-signals/count",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{count}");
+    assert_eq!(count["open"], 0, "the only signal was reviewed");
+
+    // Nobody was banned or suspended by any of this.
+    let bans: i64 = sqlx::query_scalar("SELECT count(*) FROM person_bans WHERE person_id = $1")
+        .bind(TARGET + 1_000)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(bans, 0);
+    db.cleanup().await.unwrap();
+}
+
+/// MOD-AGE-001/-003 and the hold decision of MOD-DSR-005 over HTTP: staff only, a reason is needed, a channel is
+/// marked, an underage account is reset and locked, the lock is lifted once, an unflagged hold cannot be retained.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn age_tools_and_the_hold_decision_over_http() {
+    let db = sr_db::testing::TestDb::new().await.expect("test db");
+    let pool = db.pool().clone();
+    for (id, name) in [
+        (OWNER, "owner"),
+        (CASE_STAFF, "casestaff"),
+        (BASIC, "basic"),
+        (REVIEWER, "reviewer"),
+        (CLERK, "clerk"),
+        (MEMBER, "member"),
+        (TARGET, "target"),
+    ] {
+        pg_account(&pool, id, name).await;
+    }
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES (77, 'Club', $1)")
+        .bind(OWNER)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES (88, 77, 0, 'general')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO moderation_holds (id, reason) VALUES (99, 'evidence')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let e = env(pool.clone()).await;
+    let mark = json!({"kind": "channel", "id": "88", "restricted": true, "reason": "misplaced"});
+
+    // Staff without the bit are refused by name; members are refused as non-staff.
+    let (s, b) = e
+        .call(
+            Some(BASIC),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(mark.clone()),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{b}");
+    assert!(
+        b["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("MANAGE_CASES"),
+        "{b}"
+    );
+    // A reason is required.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(json!({"kind": "channel", "id": "88", "restricted": true})),
+        )
+        .await;
+    assert!(s.is_client_error(), "{s}: {b}");
+    // Marked; the channel row changed; marking again changes nothing.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(mark.clone()),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        (b["changed"].as_bool(), b["label"].as_str()),
+        (Some(true), Some("general"))
+    );
+    let nsfw: bool = sqlx::query_scalar("SELECT nsfw FROM channels WHERE id = 88")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(nsfw);
+    let (_, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(mark),
+        )
+        .await;
+    assert_eq!(b["changed"], false);
+    // A category is a conflict.
+    sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES (89, 77, 4, 'cat')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/restrictions",
+            Some(json!({"kind": "channel", "id": "89", "restricted": true, "reason": "x"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
+
+    // Underage handling: reset and lock, then lift once.
+    sqlx::query("UPDATE accounts SET age_confirmed = TRUE, age_confirmed_at = now() WHERE id = $1")
+        .bind(TARGET)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let under = json!({"account_id": TARGET.to_string(), "band": "under_18", "note": "says 16"});
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/underage",
+            Some(under),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        (b["suspended"].as_bool(), b["band"].as_str()),
+        (Some(false), Some("under_18"))
+    );
+    let (confirmed, locked): (Option<bool>, bool) = sqlx::query_as(
+        "SELECT age_confirmed, age_locked_at IS NOT NULL FROM accounts WHERE id = $1",
+    )
+    .bind(TARGET)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((confirmed, locked), (None, true));
+    let lift = format!("/moderation/age/underage/{TARGET}/lift");
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            &lift,
+            Some(json!({"reason": "mistake"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{b}");
+    let (s, _) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            &lift,
+            Some(json!({"reason": "again"})),
+        )
+        .await;
+    assert!(s.is_client_error());
+    // The suspension of an under-13 goes through the case-action service.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/age/underage",
+            Some(json!({"account_id": TARGET.to_string(), "band": "under_13", "note": "says 11"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["suspended"], true);
+    assert!(
+        e.actions
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|c| c.starts_with("suspend 0"))
+    );
+
+    // A hold no deletion request met cannot be retained.
+    let (s, b) = e
+        .call(
+            Some(CASE_STAFF),
+            Method::POST,
+            "/moderation/holds/99/retain",
+            Some(json!({"basis": "legal claim"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
 }

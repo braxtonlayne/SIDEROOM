@@ -179,8 +179,24 @@ pub async fn begin(pool: &PgPool, id: i64) -> DbResult<Option<i64>> {
     .await?)
 }
 
-/// The package is stored: offer it for [`KEEP_DAYS`] days.
-pub async fn finish(pool: &PgPool, id: i64, key: &str, size: i64) -> DbResult<()> {
+/// A staff data-request export that completed while the requester's activity was hidden: the restriction ended
+/// with it, so the requester is told (D-343).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RestrictionEnded {
+    pub request_id: i64,
+    pub account_id: i64,
+    /// The staff member who hid the activity, to attribute the notice row.
+    pub hidden_by: i64,
+}
+
+/// The package is stored: offer it for [`KEEP_DAYS`] days. Returns the request that completed with it when its
+/// restriction just ended.
+pub async fn finish(
+    pool: &PgPool,
+    id: i64,
+    key: &str,
+    size: i64,
+) -> DbResult<Option<RestrictionEnded>> {
     sqlx::query(
         "UPDATE data_exports SET state = 'ready', storage_key = $2, size_bytes = $3, \
          ready_at = now(), expires_at = now() + make_interval(days => $4), error = NULL \
@@ -193,14 +209,42 @@ pub async fn finish(pool: &PgPool, id: i64, key: &str, size: i64) -> DbResult<()
     .execute(pool)
     .await?;
     // A staff data-request export (M-25 step c) completes with its package.
-    sqlx::query(
-        "UPDATE data_requests SET state = 'completed', completed_at = now(), outcome = $2 WHERE export_id = $1 AND state = 'running'",
+    let ended: Option<(i64, i64, Option<i64>)> = sqlx::query_as(
+        "UPDATE data_requests SET state = 'completed', completed_at = now(), outcome = $2 \n         WHERE export_id = $1 AND state = 'running' RETURNING id, account_id, activity_hidden_by",
     )
     .bind(id)
     .bind(sr_admin::data_requests::EXPORT_DONE)
-    .execute(pool)
+    .fetch_optional(pool)
     .await?;
-    Ok(())
+    Ok(ended.and_then(|(request_id, account_id, by)| {
+        by.map(|hidden_by| RestrictionEnded {
+            request_id,
+            account_id,
+            hidden_by,
+        })
+    }))
+}
+
+/// Record the outcome of a restriction notice (D-343): the notice columns of the request and the access-log row
+/// `audit` (`data_request.restriction_notice`), together.
+pub async fn record_restriction_notice(
+    pool: &PgPool,
+    id: i64,
+    delivered: bool,
+    audit: &sr_admin::AuditEntry,
+) -> sr_admin::AdminResult<()> {
+    let db = |e: sqlx::Error| sr_admin::AdminError::Storage(e.to_string());
+    let mut tx = pool.begin().await.map_err(db)?;
+    sqlx::query(
+        "UPDATE data_requests SET restriction_notice_failed = NOT $2, \n         restriction_notified_at = CASE WHEN $2 THEN now() ELSE restriction_notified_at END WHERE id = $1",
+    )
+    .bind(id)
+    .bind(delivered)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    crate::admin_repo::append_in(&mut tx, audit).await?;
+    tx.commit().await.map_err(db)
 }
 
 /// The build gave up.

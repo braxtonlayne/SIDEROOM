@@ -354,3 +354,88 @@ pub async fn deleted_archive(
         .map(Json)
         .map_err(map_err)
 }
+
+/// Body of `POST /admin/data-requests/{id}/restriction`.
+#[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = AdminRestrictDataRequestBody)]
+pub struct RestrictBody {
+    /// `true` hides the account's shared activity from discovery while the request is reviewed; `false` shows it
+    /// again.
+    pub hide: bool,
+    /// Why (required, kept in the access log).
+    pub reason: Option<String>,
+}
+
+/// Restriction or objection (GDPR articles 18 and 21, MOD-DSR-006): hide the requester's shared activity (cinema,
+/// library sharing, watching presence, recommendations) from discovery while the request is reviewed, or
+/// show it again. Nothing is deleted. It also ends when the request is completed or declined. 409 when the request
+/// is closed or already in that state.
+#[utoipa::path(
+    post, path = "/admin/data-requests/{request_id}/restriction", request_body = RestrictBody,
+    params(("request_id" = String, Path, description = "Data request snowflake")),
+    responses((status = 200, body = DataRequest), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn restriction(
+    ctx: StaffCtx,
+    Path(request_id): Path<String>,
+    headers: HeaderMap,
+    Json(b): Json<RestrictBody>,
+) -> ApiResult<Json<DataRequest>> {
+    let r = reason(&headers, b.reason.as_deref());
+    ctx.svc()
+        .set_data_request_restriction(&ctx.caller, id(&request_id)?, b.hide, r.as_deref())
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// Body of `POST /admin/data-requests/{id}/rectify`.
+#[derive(Debug, Deserialize, ToSchema)]
+#[schema(as = AdminRectifyDataRequestBody)]
+pub struct RectifyBody {
+    /// Put the requester's account under this Person (decimal snowflake); absent splits the account off into a
+    /// Person of its own.
+    pub person_id: Option<String>,
+    /// Why the link was wrong (required, kept in the access log).
+    pub reason: Option<String>,
+}
+
+/// The Person the account is under after a rectification.
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = AdminRectifyDataRequestResult)]
+pub struct RectifyResult {
+    pub person_id: String,
+}
+
+/// Rectification of a Person link (MOD-DSR-007, spec section 6): correct which Person the requester's account is
+/// linked to, with a logged reason. Needs `MANAGE_TAKEDOWNS` and `MANAGE_ACCOUNTS`; refused while a ban involves
+/// either Person.
+#[utoipa::path(
+    post, path = "/admin/data-requests/{request_id}/rectify", request_body = RectifyBody,
+    params(("request_id" = String, Path, description = "Data request snowflake")),
+    responses((status = 200, body = RectifyResult), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn rectify(
+    ctx: StaffCtx,
+    Path(request_id): Path<String>,
+    headers: HeaderMap,
+    Json(b): Json<RectifyBody>,
+) -> ApiResult<Json<RectifyResult>> {
+    let r = reason(&headers, b.reason.as_deref());
+    let to = b.person_id.as_deref().map(id).transpose()?;
+    ctx.svc()
+        .rectify_person_link(&ctx.caller, id(&request_id)?, to, r.as_deref())
+        .await
+        .map(|p| {
+            Json(RectifyResult {
+                person_id: p.to_string(),
+            })
+        })
+        .map_err(map_err)
+}

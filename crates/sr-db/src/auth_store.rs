@@ -127,6 +127,16 @@ fn passkey_from_row(r: &sqlx::postgres::PgRow) -> StoreResult<PasskeyRecord> {
 
 #[async_trait]
 impl AuthStore for PgAuthStore {
+    async fn invite_issuer_person(&self, code: &InviteCode) -> StoreResult<Option<i64>> {
+        sqlx::query_scalar(
+            "SELECT a.person_id FROM platform_invites pi JOIN accounts a ON a.id = pi.issuer_account_id \n             WHERE pi.code = $1",
+        )
+        .bind(code.canonical())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_err)
+    }
+
     async fn invite_state(&self, code: &InviteCode) -> StoreResult<Option<InviteState>> {
         let state: Option<String> =
             sqlx::query_scalar("SELECT state::text FROM platform_invites WHERE code = $1")
@@ -378,10 +388,12 @@ impl AuthStore for PgAuthStore {
     }
 
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()> {
+        // An account staff found to be underage (MOD-AGE-003) cannot answer "yes" until the lock is lifted;
+        // its "no" is still recorded.
         sqlx::query(
             "UPDATE accounts SET age_confirmed = $2, \
              age_confirmed_at = CASE WHEN $2 THEN COALESCE(age_confirmed_at, to_timestamp($3::float8)) \
-             ELSE NULL END, updated_at = now() WHERE id = $1",
+             ELSE NULL END, updated_at = now() WHERE id = $1 AND (NOT $2 OR age_locked_at IS NULL)",
         )
         .bind(id)
         .bind(confirmed)
@@ -393,9 +405,11 @@ impl AuthStore for PgAuthStore {
     }
 
     async fn reset_age_confirmed(&self, id: i64) -> StoreResult<()> {
+        // The reset is counted in the same statement, without the account (staff dashboard, spec 7).
         sqlx::query(
-            "UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, \
-             updated_at = now() WHERE id = $1",
+            "WITH u AS (UPDATE accounts SET age_confirmed = NULL, age_confirmed_at = NULL, \
+             updated_at = now() WHERE id = $1 RETURNING 1) \
+             INSERT INTO age_gate_resets (source) SELECT 'self' FROM u",
         )
         .bind(id)
         .execute(&self.pool)

@@ -226,7 +226,7 @@ fn refusal_text(b: InviteBlock) -> String {
         }
         InviteBlock::AtCap => "SIDE ROOM is full right now, so invites are paused.".into(),
         InviteBlock::NoCredits => "You have no spare invite credits.".into(),
-        InviteBlock::Frozen => "Invites are unavailable for this account right now.".into(),
+        InviteBlock::Frozen => "Invite creation is paused for review.".into(),
     }
 }
 
@@ -267,3 +267,20 @@ pub async fn revoke(
     ))
 )]
 pub struct MemberInvitesApiDoc;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// MOD-SUS-005: a paused inviter reads only that creation is paused for review, never a cause.
+    #[test]
+    fn the_paused_notice_names_no_cause() {
+        let text = refusal_text(InviteBlock::Frozen);
+        assert_eq!(text, "Invite creation is paused for review.");
+        let lower = text.to_lowercase();
+        for word in ["ban", "suspic", "invitee", "serious"] {
+            assert!(!lower.contains(word), "mentions {word}");
+        }
+        assert_eq!(blocked(InviteBlock::Frozen).reason, "frozen");
+    }
+}
