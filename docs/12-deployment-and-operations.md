@@ -105,13 +105,13 @@ The crate test `crates/sr-db/tests/secret_columns.rs` scans every migration and 
 | HLS renditions | **Not backed up**. Re-creatable from originals by re-transcoding | — | — |
 | Config + secrets | Encrypted tarball | On change | 10 versions |
 
-`sr-cli restore --from <snapshot>` with a documented, tested restore drill (CI runs a restore test on a sample dataset weekly).
+`sr-cli restore <dump> [--force]` and `deploy/scripts/restore.sh`, with a documented restore drill (`restore-drill.sh`, scheduled weekly in CI on a sample dataset).
 
-Shipped so far: `deploy/scripts/backup.sh`, `restore.sh` and `restore-drill.sh` (see [deploy/BACKUP.md](../deploy/BACKUP.md)), systemd timers for both, and `.github/workflows/backup-drill.yml`. `sr-cli backup` and `restore` are not written; the scripts are the interface. WAL archiving is not scripted.
+Shipped: `deploy/scripts/backup.sh`, `restore.sh` and `restore-drill.sh`; WAL archiving and point-in-time recovery, scripted (`wal-archive.sh`, `basebackup.sh`, `pitr-restore.sh`, `wal-restore.sh`, `wal-drill.sh`); systemd timers for the backup, the base backup and the restore drill; and `.github/workflows/backup-drill.yml` (see [deploy/BACKUP.md](../deploy/BACKUP.md)). `sr-cli backup`, `sr-cli restore` and `sr-cli upgrade` exist and use the same dump and manifest as the scripts. The drills are written for CI and scratch clusters; none has run on a real host yet (wave 20, [roadmap-p20](dev/roadmap-p20.md)).
 
 ## 6. Upgrades
 
-Semantic-versioned releases. `sr-cli upgrade` takes a pre-upgrade DB snapshot, runs migrations, and restarts. Migrations are forward-only and must be backward-compatible with the previous release's binaries for one version (expand/contract), so rollbacks are safe.
+Semantic-versioned releases. `sr-cli upgrade` checks, takes a pre-upgrade DB snapshot (skippable with `--no-backup`) and runs migrations (`--dry-run` shows what would be applied); restarting the service is the operator's step. Migrations are forward-only and must be backward-compatible with the previous release's binaries for one version (expand/contract), so rollbacks are safe.
 
 ## 7. Monitoring
 

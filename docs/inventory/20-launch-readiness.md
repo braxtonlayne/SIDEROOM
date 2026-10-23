@@ -15,12 +15,12 @@ Same conventions as the other files: tick in the PR that completes the item; an 
 - [x] **RDY-OPS-006** [BE][TEST] `sr-cli preflight --alert-test` posts a test card to `#alerts` and the Owner mail through the real `StaffFeed` path · dep: RDY-OPS-004 *(`staff_feed::alert_test`; Postgres test `the_alert_test_posts_a_card_and_mails_the_owner_when_on`; RUNBOOK.md)*
 
 ### RDY-OWN — The owner's packet
-- [ ] **RDY-OWN-001** [DOC] `docs/legal/lawyer-brief.md`: every open legal question (D-287, D-293 to D-295, D-297/D-309, D-311, D-314, D-336 (a) to (h), D-341, D-343, D-347) as a numbered question with the project default, where it is set, what changes if the answer differs; "not legal advice"
-- [ ] **RDY-OWN-002** [DOC] `docs/dev/owner-checklist.md`: every pending owner or integrator action (accounts, host, GitHub, legal, downloads awaiting a yes), ordered, each saying what it unblocks; replaces the action sections of `open-questions.md`
-- [ ] **RDY-OWN-003** [DOC][OPS] `deploy/GO-LIVE.md`: provision and harden, DNS, install, preflight green, restore verified, monitoring and alert test, Setup Wizard, lawyer settings, first invites · dep: RDY-OPS-004
+- [x] **RDY-OWN-001** [DOC] `docs/legal/lawyer-brief.md`: every open legal question (D-287, D-293 to D-295, D-297/D-309, D-311, D-314, D-336 (a) to (h), D-341, D-343, D-347) as a numbered question with the project default, where it is set, what changes if the answer differs; "not legal advice" _(`docs/legal/lawyer-brief.md`: 19 numbered questions, every listed decision once, D-351 noted as raising none; `open-questions.md` now points to it; written, not reviewed by a lawyer)_
+- [x] **RDY-OWN-002** [DOC] `docs/dev/owner-checklist.md`: every pending owner or integrator action (accounts, host, GitHub, legal, downloads awaiting a yes), ordered, each saying what it unblocks; replaces the action sections of `open-questions.md` _(`docs/dev/owner-checklist.md`; the VAPID row says nothing needs generating, the server creates the key on first start; `open-questions.md` action sections replaced by a link)_
+- [x] **RDY-OWN-003** [DOC][OPS] `deploy/GO-LIVE.md`: provision and harden, DNS, install, preflight green, restore verified, monitoring and alert test, Setup Wizard, lawyer settings, first invites · dep: RDY-OPS-004 _(`deploy/GO-LIVE.md`, linked from INSTALL, README and the owner checklist, known to `scripts/check-ops-files.mjs`; steps 4 and 6 name `sr-cli preflight` and `--alert-test`, which land with RDY-OPS-004 and 006; the list itself has not yet been walked on a real host)_
 
 ### RDY-DOC — Documentation truth
-- [ ] **RDY-DOC-001** [DOC] Stale statements fixed: README status, doc 12 section 5 (`sr-cli backup`/`restore`/`upgrade` exist, WAL is scripted), docs/README; `THIRD_PARTY_NOTICES.md` placeholders listed with their upstream source for the owner's approval
+- [x] **RDY-DOC-001** [DOC] Stale statements fixed: README status, doc 12 section 5 (`sr-cli backup`/`restore`/`upgrade` exist, WAL is scripted), docs/README; `THIRD_PARTY_NOTICES.md` placeholders listed with their upstream source for the owner's approval _(README Status, doc 12 section 5, docs/README and the "To complete" note in `THIRD_PARTY_NOTICES.md` (the web copy was refreshed); the placeholders themselves are unfilled until the owner approves fetching the upstream texts)_
 
 ## Wave 21 — Security proof
 

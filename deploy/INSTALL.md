@@ -16,6 +16,8 @@ It refuses to touch an existing installation unless `--force` (which regenerates
 
 **Local import folder.** The installer also asks for a folder on the host (default `/srv/sideroom/ingest`, created when missing; type `none` to leave local folders off). Compose mounts it into `sr-server` read-only at the same path and sets `SR_INGEST__ROOTS` to it (`SR_INGEST_DIR` and `SR_INGEST_ROOTS` in `.env.prod`; an empty `SR_INGEST_ROOTS` turns local folders off). There is one root; put the series under a `library/` sub-folder, named as in [ingest-naming-conventions](../docs/specs/ingest-naming-conventions.md). The mount is read-only and the ingest ledger never moves, renames or deletes files in it. The Hetzner Storage Box is a backup target, not a mount: until the owner mounts one on the host, pointing `SR_INGEST_DIR` at the mounted path is the only change needed.
 
+The ordered path from an empty server to the first invites (harden, DNS, install, preflight, a restore, monitoring, the Setup Wizard, the lawyer settings) is [GO-LIVE.md](GO-LIVE.md).
+
 ## 1. What you need
 
 | Piece | Notes |

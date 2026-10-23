@@ -76,6 +76,12 @@ for (const needle of [
   if (!caddy.includes(needle)) problems.push(`Caddyfile.prod is missing: ${needle}`);
 }
 
+// The go-live checklist must exist and be reachable from the install guide (RDY-OWN-003).
+if (!read('deploy/GO-LIVE.md').includes('## 9. The first invites'))
+  problems.push('deploy/GO-LIVE.md is missing or lost its last step');
+if (!read('deploy/INSTALL.md').includes('GO-LIVE.md'))
+  problems.push('deploy/INSTALL.md does not link GO-LIVE.md');
+
 if (problems.length) {
   console.error(problems.join('\n'));
   process.exit(1);
