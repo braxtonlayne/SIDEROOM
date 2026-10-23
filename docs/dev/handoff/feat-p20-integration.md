@@ -4,6 +4,8 @@ Main checkout `C:\Users\braxt\Desktop\SIDEROOM_repo`, branch `integration/phase2
 
 ## Resume here
 
+**2026-10-23:** PR #46's CI is green, including the first real run of prod-smoke.yml (run 39962011447): the first two runs found three real bugs, fixed on this branch (binary-path vars in the SR_ namespace, the host-side disk row, and sr-cli restore --force failing on partitioned tables). RDY-OPS-001..003 and RDY-OPS-004's CI part are ticked.
+
 **State (2026-10-23): done locally; the CI proofs have not run.** The four Phase 20 branches are merged. The integrator tasks of the roadmap and the five follow-ups Q-01 to Q-05 (D-353 to D-357) are built, tested and ticked. Every local gate below passes on the merged tree, except `cargo deny` advisories: RUSTSEC-2026-0385 (`ctutils` 0.4.3) was published after main and is on main too. The fix is a lockfile bump to 0.4.4, which needs a crate download, so the owner has to approve it. No server, Vite, cargo, Vitest or Playwright process of this pass is running. The scratch databases `sr_p20_int` and `sr_p20_ie2e` and the leftover template `sr_tpl_157_1161_7be7a166` were dropped (nothing was connected). The `postgres` database was not touched.
 
 **What waits on the first CI run.** These items are written and checked locally as far as Windows allows (no Docker, no systemd, no coturn here). They tick only when the job is green:
