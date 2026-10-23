@@ -39,6 +39,7 @@ use sr_auth::{
     repo::{SessionRecord, SessionRepository},
     session::SessionToken,
 };
+use sr_chat::repo::GuildRepository;
 use sr_core::{
     Clock, Permissions, SnowflakeGenerator, SystemClock, UserId,
     config::{Config, Secret},
@@ -50,7 +51,6 @@ use sr_db::{
     chat_repo::PgChatRepo,
     testing::TestDb,
 };
-use sr_chat::repo::GuildRepository;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
@@ -212,9 +212,7 @@ fn sample(schema: &Value, comps: &Value, depth: usize, name: &str, all: bool) ->
                 .unwrap_or_default();
             if let Some(props) = s.get("properties").and_then(Value::as_object) {
                 for (k, v) in props {
-                    if required.contains(&k.as_str()) {
-                        m.insert(k.clone(), sample(v, comps, depth + 1, k, all));
-                    } else if all && depth < 2 {
+                    if required.contains(&k.as_str()) || (all && depth < 2) {
                         m.insert(k.clone(), sample(v, comps, depth + 1, k, all));
                     }
                 }
@@ -251,7 +249,9 @@ fn op_infos() -> HashMap<(String, String), OpInfo> {
             let Some(op) = item.get(m) else { continue };
             let mut body = None;
             let mut full = None;
-            if let Some(content) = op.pointer("/requestBody/content").and_then(Value::as_object)
+            if let Some(content) = op
+                .pointer("/requestBody/content")
+                .and_then(Value::as_object)
                 && let Some(js) = content.get("application/json")
                 && let Some(schema) = js.get("schema")
             {
@@ -308,8 +308,7 @@ fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
 
 fn dechunk(mut b: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
-    loop {
-        let Some(i) = find(b, b"\r\n") else { break };
+    while let Some(i) = find(b, b"\r\n") {
         let size = std::str::from_utf8(&b[..i])
             .ok()
             .and_then(|s| usize::from_str_radix(s.split(';').next().unwrap_or("0").trim(), 16).ok())
@@ -421,13 +420,7 @@ impl Server {
         h
     }
 
-    async fn call(
-        &self,
-        cred: &Cred,
-        method: &str,
-        path: &str,
-        body: Option<&Value>,
-    ) -> Resp {
+    async fn call(&self, cred: &Cred, method: &str, path: &str, body: Option<&Value>) -> Resp {
         let b = body.map(Value::to_string);
         raw(
             self.port,
@@ -517,16 +510,20 @@ impl World {
 }
 
 fn permissions_all_but_admin() -> String {
-    (Permissions::ALL - Permissions::ADMINISTRATOR).bits().to_string()
+    (Permissions::ALL - Permissions::ADMINISTRATOR)
+        .bits()
+        .to_string()
 }
 
 async fn add_member(pool: &sqlx::PgPool, guild: i64, user: i64) {
-    sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-        .bind(guild)
-        .bind(user)
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    )
+    .bind(guild)
+    .bind(user)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn give_role(pool: &sqlx::PgPool, guild: i64, user: i64, role: i64) {
@@ -560,17 +557,28 @@ async fn create(
     body: Option<Value>,
 ) -> Option<Value> {
     let body = body
-        .or_else(|| infos.get(&(method.to_owned(), template.to_owned())).and_then(|i| i.body.clone()))
+        .or_else(|| {
+            infos
+                .get(&(method.to_owned(), template.to_owned()))
+                .and_then(|i| i.body.clone())
+        })
         .unwrap_or_else(|| json!({}));
     let r = srv.call(cred, method, path, Some(&body)).await;
     if (200..300).contains(&r.status) {
         let v: Option<Value> = serde_json::from_str(&r.body).ok();
         if v.as_ref().and_then(|v| v.get("id")).is_none() {
-            println!("authz_matrix: seed {method} {template} answered without an id: {}", r.body.chars().take(120).collect::<String>());
+            println!(
+                "authz_matrix: seed {method} {template} answered without an id: {}",
+                r.body.chars().take(120).collect::<String>()
+            );
         }
         v
     } else {
-        println!("authz_matrix: seed {method} {template} -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+        println!(
+            "authz_matrix: seed {method} {template} -> {} {}",
+            r.status,
+            r.body.chars().take(100).collect::<String>()
+        );
         None
     }
 }
@@ -613,8 +621,18 @@ async fn seed(
 
     let mut users: BTreeMap<&'static str, i64> = BTreeMap::new();
     for n in [
-        "ownera", "ownerb", "member", "insider", "mod", "outsider", "victim", "staffowner",
-        "support", "fakestaff", "appowner", "staffbasic",
+        "ownera",
+        "ownerb",
+        "member",
+        "insider",
+        "mod",
+        "outsider",
+        "victim",
+        "staffowner",
+        "support",
+        "fakestaff",
+        "appowner",
+        "staffbasic",
     ] {
         users.insert(n, account(&pool, &ids, n).await);
     }
@@ -643,7 +661,10 @@ async fn seed(
         bp_b.guild.id.get() as i64,
         bp_s.guild.id.get() as i64,
     );
-    let (chan_a, chan_b) = (bp_a.channels[2].id.get() as i64, bp_b.channels[2].id.get() as i64);
+    let (chan_a, chan_b) = (
+        bp_a.channels[2].id.get() as i64,
+        bp_b.channels[2].id.get() as i64,
+    );
     for n in ["member", "insider", "mod", "victim"] {
         add_member(&pool, ga, u(n)).await;
     }
@@ -734,7 +755,10 @@ async fn seed(
 
     // Applications: A (owned by app_owner, bot installed in server A), B (owned by owner_b).
     let apps = Arc::new(AppsService::new(
-        Arc::new(PgAppsRepo::new(pool.clone(), sr_db::sealed::SecretBox::new(key))),
+        Arc::new(PgAppsRepo::new(
+            pool.clone(),
+            sr_db::sealed::SecretBox::new(key),
+        )),
         clock.clone(),
         id_src.clone(),
     ));
@@ -748,7 +772,11 @@ async fn seed(
         .unwrap();
     for app in [&app_a, &app_b] {
         apps.update_application(
-            if std::ptr::eq(app, &app_a) { u("appowner") } else { u("ownerb") },
+            if std::ptr::eq(app, &app_a) {
+                u("appowner")
+            } else {
+                u("ownerb")
+            },
             app.application.id,
             UpdateInput {
                 bot_public: Some(true),
@@ -772,6 +800,14 @@ async fn seed(
     })
     .await
     .unwrap();
+    let bot_perms: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT r.name, r.permissions FROM roles r JOIN member_roles mr ON mr.role_id = r.id WHERE mr.user_id = $1",
+    )
+    .bind(app_a.application.bot_user_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    println!("authz_matrix: bot_in roles {bot_perms:?}");
     actors.push(Actor {
         name: "bot_in",
         cred: Cred::Bot(app_a.bot_token.clone()),
@@ -808,7 +844,13 @@ async fn seed(
     }
 
     // Lift the HTTP rate limits so the sweep is not answered with 429 (the limiter is proven elsewhere).
-    for key in ["limits.rate.ip", "limits.rate.session", "limits.rate.bot", "limits.rate.messages", "limits.rate.uploads"] {
+    for key in [
+        "limits.rate.ip",
+        "limits.rate.session",
+        "limits.rate.bot",
+        "limits.rate.messages",
+        "limits.rate.uploads",
+    ] {
         sqlx::query("INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2::text::jsonb, $3) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
             .bind(key)
             .bind(if key.ends_with("messages") { "600" } else if key.ends_with("uploads") { "6000" } else { "60000" })
@@ -958,11 +1000,21 @@ async fn seed(
         )
         .await;
     let invite_a = srv
-        .call(&oa, "POST", &format!("/channels/{chan_a}/invites"), Some(&json!({})))
+        .call(
+            &oa,
+            "POST",
+            &format!("/channels/{chan_a}/invites"),
+            Some(&json!({})),
+        )
         .await;
     let invite_a: Value = serde_json::from_str(&invite_a.body).unwrap_or(Value::Null);
     let invite_b = srv
-        .call(&ob, "POST", &format!("/channels/{chan_b}/invites"), Some(&json!({})))
+        .call(
+            &ob,
+            "POST",
+            &format!("/channels/{chan_b}/invites"),
+            Some(&json!({})),
+        )
         .await;
     let invite_b: Value = serde_json::from_str(&invite_b.body).unwrap_or(Value::Null);
     let role_b = id_of(
@@ -992,20 +1044,29 @@ async fn seed(
     a.insert("message_id", msg_a);
     a.insert("role_id", mod_role);
     a.insert("application_id", app_a.application.id.to_string());
-    a.insert("webhook_id", hook_a["id"].as_str().unwrap_or(BOGUS).to_owned());
+    a.insert(
+        "webhook_id",
+        hook_a["id"].as_str().unwrap_or(BOGUS).to_owned(),
+    );
     a.insert("token", hook_a["token"].as_str().unwrap_or("x").to_owned());
     a.insert("code", invite_a["code"].as_str().unwrap_or("x").to_owned());
     a.insert("user_id", victim.clone());
     a.insert("account_id", victim.clone());
     a.insert("person_id", victim.clone());
-    a.insert("thread_id", thread_a["id"].as_str().unwrap_or(BOGUS).to_owned());
+    a.insert(
+        "thread_id",
+        thread_a["id"].as_str().unwrap_or(BOGUS).to_owned(),
+    );
     a.insert("overwrite_id", insider_role.clone());
     b.insert("guild_id", gb.to_string());
     b.insert("channel_id", chan_b.to_string());
     b.insert("message_id", msg_b);
     b.insert("role_id", role_b);
     b.insert("application_id", app_b.application.id.to_string());
-    b.insert("webhook_id", hook_b["id"].as_str().unwrap_or(BOGUS).to_owned());
+    b.insert(
+        "webhook_id",
+        hook_b["id"].as_str().unwrap_or(BOGUS).to_owned(),
+    );
     b.insert("token", hook_b["token"].as_str().unwrap_or("x").to_owned());
     b.insert("code", invite_b["code"].as_str().unwrap_or("x").to_owned());
     b.insert("user_id", u("ownerb").to_string());
@@ -1114,7 +1175,9 @@ async fn seed(
     }
     // Every optional module on, in both servers, so that their routes are reached past the feature gate.
     for (who, g) in [(&oa, ga), (&ob, gb)] {
-        let list = srv.call(who, "GET", &format!("/guilds/{g}/sr/features"), None).await;
+        let list = srv
+            .call(who, "GET", &format!("/guilds/{g}/sr/features"), None)
+            .await;
         let list: Value = serde_json::from_str(&list.body).unwrap_or(Value::Null);
         for f in list.as_array().into_iter().flatten() {
             if let Some(fid) = f["id"].as_str() {
@@ -1132,12 +1195,46 @@ async fn seed(
     let png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHDlN5QAAAABJRU5ErkJggg==";
     let emoji_body = json!({"name": "authzemoji", "image": png});
     let recipes: [(&'static str, &str, &Cred, Option<Value>); 7] = [
-        ("event_id", "/guilds/{guild_id}/scheduled-events", &oa, Some(json!({"name": "authz", "entity_type": 3, "privacy_level": 2, "scheduled_start_time": "2031-01-01T00:00:00+00:00", "scheduled_end_time": "2031-01-01T02:00:00+00:00", "entity_metadata": {"location": "here"}})),),
-        ("rule_id", "/guilds/{guild_id}/auto-moderation/rules", &oa, Some(json!({"name": "authz", "event_type": 1, "trigger_type": 3, "enabled": false, "actions": [{"type": 1}]}))),
-        ("emoji_id", "/guilds/{guild_id}/emojis", &oa, Some(emoji_body)),
-        ("suggestion_id", "/guilds/{guild_id}/suggestions", &member_cred, None),
-        ("ticket_id", "/guilds/{guild_id}/tickets", &member_cred, None),
-        ("template_id", "/guilds/{guild_id}/poll-templates", &oa, Some(json!({"name": "authz", "question": "q", "answers": ["a", "b"]}))),
+        (
+            "event_id",
+            "/guilds/{guild_id}/scheduled-events",
+            &oa,
+            Some(
+                json!({"name": "authz", "entity_type": 3, "privacy_level": 2, "scheduled_start_time": "2031-01-01T00:00:00+00:00", "scheduled_end_time": "2031-01-01T02:00:00+00:00", "entity_metadata": {"location": "here"}}),
+            ),
+        ),
+        (
+            "rule_id",
+            "/guilds/{guild_id}/auto-moderation/rules",
+            &oa,
+            Some(
+                json!({"name": "authz", "event_type": 1, "trigger_type": 3, "enabled": false, "actions": [{"type": 1}]}),
+            ),
+        ),
+        (
+            "emoji_id",
+            "/guilds/{guild_id}/emojis",
+            &oa,
+            Some(emoji_body),
+        ),
+        (
+            "suggestion_id",
+            "/guilds/{guild_id}/suggestions",
+            &member_cred,
+            None,
+        ),
+        (
+            "ticket_id",
+            "/guilds/{guild_id}/tickets",
+            &member_cred,
+            None,
+        ),
+        (
+            "template_id",
+            "/guilds/{guild_id}/poll-templates",
+            &oa,
+            Some(json!({"name": "authz", "question": "q", "answers": ["a", "b"]})),
+        ),
         ("feed_id", "/guilds/{guild_id}/rss-feeds", &oa, None),
     ];
     for (param, tpl, who, body) in recipes {
@@ -1216,18 +1313,15 @@ fn fill(path: &str, ids: &HashMap<&'static str, String>) -> String {
         out.push_str(&rest[..i]);
         let Some(j) = rest[i..].find('}') else { break };
         let name = &rest[i + 1..i + j];
-        let v = ids
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| match name {
-                "provider" => "discord".to_owned(),
-                "kind" => "poster".to_owned(),
-                "emoji" => "%F0%9F%91%8D".to_owned(),
-                "token" | "code" | "key" | "board" | "username" | "stream_key" | "hmac"
-                | "url_b64" | "path" | "file" | "*path" => "x".to_owned(),
-                "index" => "0".to_owned(),
-                _ => BOGUS.to_owned(),
-            });
+        let v = ids.get(name).cloned().unwrap_or_else(|| match name {
+            "provider" => "discord".to_owned(),
+            "kind" => "poster".to_owned(),
+            "emoji" => "%F0%9F%91%8D".to_owned(),
+            "token" | "code" | "key" | "board" | "username" | "stream_key" | "hmac" | "url_b64"
+            | "path" | "file" | "*path" => "x".to_owned(),
+            "index" => "0".to_owned(),
+            _ => BOGUS.to_owned(),
+        });
         out.push_str(&v);
         rest = &rest[i + j + 1..];
     }
@@ -1272,9 +1366,7 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         ("PATCH", "/guilds/{guild_id}/members/{user_id}") => {
             r#"{"nick":"authz","roles":["{role_id}"]}"#
         }
-        ("PATCH", "/guilds/{guild_id}/roles/{role_id}") => {
-            r#"{"name":"authz","permissions":"8"}"#
-        }
+        ("PATCH", "/guilds/{guild_id}/roles/{role_id}") => r#"{"name":"authz","permissions":"8"}"#,
         ("POST", "/guilds/{guild_id}/roles") => r#"{"name":"authz","permissions":"8"}"#,
         ("POST", "/channels/{channel_id}/threads") => r#"{"name":"authz","type":11}"#,
         ("PUT", "/guilds/{guild_id}/requests/@me") => r#"{"agreed":true}"#,
@@ -1286,7 +1378,8 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/channels/{channel_id}/messages") => r#"{"content":"authz matrix post"}"#,
         ("PATCH", "/guilds/{guild_id}/roles") => r#"[{"id":"{role_id}","position":1}]"#,
         ("PATCH", "/guilds/{guild_id}/emojis/{emoji_id}") => r#"{"name":"hijacked"}"#,
-        ("POST", "/guilds/{guild_id}/poll-templates") | ("PATCH", "/guilds/{guild_id}/poll-templates/{template_id}") => {
+        ("POST", "/guilds/{guild_id}/poll-templates")
+        | ("PATCH", "/guilds/{guild_id}/poll-templates/{template_id}") => {
             r#"{"name":"authz","question":"q","answers":["a","b"]}"#
         }
         ("PATCH", "/guilds/{guild_id}/suggestions/{suggestion_id}") => r#"{"status":"approved"}"#,
@@ -1533,7 +1626,16 @@ fn plan_calls(
         .filter(|c| {
             let r = &routes[c.route];
             is_write(&r.method)
-                && ["member", "outsider", "fake_staff", "bot_out", "owner_b", "staff_basic", "support"].contains(&c.actor)
+                && [
+                    "member",
+                    "outsider",
+                    "fake_staff",
+                    "bot_out",
+                    "owner_b",
+                    "staff_basic",
+                    "support",
+                ]
+                .contains(&c.actor)
                 && infos
                     .get(&(r.method.clone(), r.path.clone()))
                     .is_some_and(|i| i.full.is_some() && i.full != i.body)
@@ -1699,7 +1801,18 @@ async fn run_group(
     others.sort_by_key(|c| {
         let r = &routes[c.route];
         let depth = r.path.matches('/').count();
-        (class_of(&r.method), if r.method == "DELETE" { usize::MAX - depth } else { 0 })
+        // The rightful actors go last in each class: a rename they made first would turn the
+        // others' identical request into a no-op that no permission check ever sees.
+        let rightful = matches!(c.actor, "owner_a" | "staff_owner" | "app_owner");
+        (
+            class_of(&r.method),
+            rightful,
+            if r.method == "DELETE" {
+                usize::MAX - depth
+            } else {
+                0
+            },
+        )
     });
 
     let before = fingerprint(&world.pool).await;
@@ -1727,10 +1840,16 @@ async fn run_group(
                         serde_json::from_str(&t).ok()
                     }
                 } else {
-                Some(
-                    info.and_then(|i| if c.full { i.full.clone() } else { i.body.clone() })
+                    Some(
+                        info.and_then(|i| {
+                            if c.full {
+                                i.full.clone()
+                            } else {
+                                i.body.clone()
+                            }
+                        })
                         .unwrap_or_else(|| json!({})),
-                )
+                    )
                 }
             } else {
                 None
@@ -1866,6 +1985,15 @@ async fn every_route_enforces_its_authz_row() {
             ));
         }
         let _ = std::fs::write(path, s);
+    }
+    // The per-group search index directories are scratch.
+    let prefix = format!("sr_authz_search_{}_", std::process::id());
+    if let Ok(rd) = std::fs::read_dir(std::env::temp_dir()) {
+        for e in rd.flatten() {
+            if e.file_name().to_string_lossy().starts_with(&prefix) {
+                let _ = std::fs::remove_dir_all(e.path());
+            }
+        }
     }
     println!("authz_matrix: groups in the order proven:");
     for l in &proven {
