@@ -5,6 +5,11 @@
  */
 import type { AudioDeps } from './deps';
 
+/** The longest sound a server accepts (crates/sr-chat soundboard `MAX_SOUND_MS`). */
+export const MAX_SOUND_MS = 5000;
+/** A file that decodes longer than the limit is cut here, with a little room for rounding (D-363). */
+export const SOUND_CLIP_SECONDS = (MAX_SOUND_MS + 250) / 1000;
+
 type SinkContext = AudioContext & { setSinkId?: (id: string) => Promise<void> };
 
 export class LocalSoundPlayer {
@@ -44,7 +49,7 @@ export class LocalSoundPlayer {
         /* already disconnected */
       }
     };
-    src.start();
+    src.start(0, 0, SOUND_CLIP_SECONDS);
     return true;
   }
 

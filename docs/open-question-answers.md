@@ -3193,3 +3193,79 @@ Status: `ADOPTED` (D-358). Follow-up: Q-06 (deny.toml comment, esplora row).
 ### Still with the owner
 
 Nothing new. The licence answer is a project default under D-309; the lawyer brief (Q2 to Q4) already carries the copyleft questions a lawyer should check.
+
+## Phase 21 authorization-matrix round (answered 2026-10-23, delegated)
+
+The three questions the authz-matrix branch left open in its handoff (`feat-p21-authz-matrix.md` "Decisions and questions for the owner", with the weak spots of "Not done / still open"), answered by the owner's proxy under the standing delegation: decide and document only (no code, build or push). Decisions are D-359 to D-361 in [01-decisions-log.md](01-decisions-log.md); follow-ups are R-01 to R-06 under "Phase 21 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md). P21-8 (D-366, R-07) is the branch's second-round question, from the handoff's "Round 2" section; P21-4 to P21-7 belong to the other wave-21 branches.
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 4 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Where the test lives (P21-1, branch `feat/p21-authz-matrix`)
+
+**P21-1 (handoff question 1). The matrix test needs the real server wiring, so `sr-api` gained a dev-dependency on `sr-server` (a cycle; one `Cargo.lock` line) and every `cargo test -p sr-api` now also compiles `sr-server`. Keep that, or move the test to `crates/sr-server/tests/`?**
+Decision: move it. `crates/sr-server/tests/authz_matrix.rs`, the dev-dependency and the lock line gone; `route_matrix.rs` and the TSV stay in `sr-api` (they need no database) and the moved test reads the TSV relative to its own `CARGO_MANIFEST_DIR`. The test proves the server as wired, which is what `sr-server`'s existing `*_pg_tests.rs` do, and `sr-server` already depends on everything the test imports (`sr-api`, `sr-db`, `sr-chat`, `sqlx`), so nothing is added anywhere. The cycle would make every `sr-api` test and clippy run build the leaf crate and its whole subtree for one test, and dev-dependency cycles are the one place Cargo builds a crate twice. Doc 05 section 5.4, the handoff's "Resume here", the roadmap Split row and the inventory line get the new path. The integrator runs it once on the merged tree, as the handoff asked.
+Status: `ADOPTED` (D-359). Follow-up: R-01.
+
+### Platform bits and the weak spots (P21-2, branch `feat/p21-authz-matrix`)
+
+**P21-2 (handoff question 2 and "Not done"). Should the TSV name the platform bit each `staff` row needs, so those cells are asserted rather than observed? And of the other weak spots (allow side of write routes; un-seeded ids; voice off, so no stages), which are worth closing now?**
+Decision: yes to the column, now. A seventh column `PLATFORM` with the `PlatformPermissions` constant name (`STAFF_BASIC` when any appointed staff member may call the route, `OWNER` for Owner-only, `A+B` for two required bits, `-` off staff rows), validated by `route_matrix.rs` against `platform_permissions.rs`, and asserted by `authz_matrix.rs` with one seeded staff actor per bit: the named holder admitted on reads, every other holder and `staff_basic` refused. The bit is enforced inside `sr-admin`, not in an extractor, so it cannot be derived by grep; writing it down once is the proof. About 7 thousand more calls, within the five-minute budget. Of the weak spots: now, seed every id that is a row insert or a JSON call (thread member, DM recipient and message request, watch party, Live TV channel and block, nested submission chapter and upload, application asset, version and bundle, library and cinema content, takedown item, evasion signal, appeal, report, suggestion, ticket and RSS feed with their module channel configured) and pin a per-group ceiling on weak refusals so the number only falls. Later: the allow side of write routes (a rightful DELETE breaks the world; it needs a final per-group phase in dependency order, queued for the next wave that touches the matrix), stage instances (wave 22 turns voice on), stickers and sounds (multipart) and announcements (two-factor step-up), the last two together with the write-side phase.
+Status: `ADOPTED` (D-360). Follow-ups: R-02, R-03 now; R-04, R-05 later.
+
+### Unknown auto-moderation rule (P21-3, branch `feat/p21-authz-matrix`)
+
+**P21-3 (handoff question 3). An unknown auto-moderation rule answers 400 `General error` (code 0). Should it be a 404 (10xxx) for Discord parity?**
+Decision: 404, with `SrNotFound` (900009), not an invented 10xxx: Discord publishes no code for an unknown auto-moderation rule, and the project already uses `SrNotFound` for objects Discord has no code for (the settings file's `UnknownApplication`). The unknown poll template shares the mapping arm and changes too. The lookup stays guild-scoped so a foreign rule gets the same 404; the cross-tenant sweep asserts it. XS.
+Status: `ADOPTED` (D-361). Follow-up: R-06.
+
+### The `A|B` cell form (P21-8, branch `feat/p21-authz-matrix`)
+
+**P21-8 (handoff "Round 2", R-02). Filling the `PLATFORM` column, the branch added an `A|B` ("either bit") cell form beside D-360's `A+B` ("both") for routes scoped by section or kind (unpublish takes `PUBLISH_MEDIA` or `DELETE_CONTENT`; `GET /moderation/cases` is filtered by whichever of four section bits the reader holds). Accept it, or split such rows differently?**
+Decision: accept it, with a fixed grammar. A cell is one name, or two or more distinct constant names joined by one operator used throughout: `+` means every listed bit is required, `|` means any one suffices. Never mixed, never a repeated name, never `OWNER` or `STAFF_BASIC` inside a compound. The either-form says what the services do (`toggle(false)` admits a publisher or else a deleter), and the test already asserts it the right way round: for an `A|B` row each `staff_<bit>` of a listed bit is expected admitted (reads asserted, writes observed), every other bit-holder, `support` and `staff_basic` refused, the Owner admitted. Splitting into one row per admitting bit would break the one-row-per-operation key the matrix is built on and still could not state "a holder of neither is refused". What is not right today: `route_matrix.rs` splits on `+` and `|` together, so `A+B|C` passes the parser and then means nothing to `authz_matrix.rs` (`admitted` sees a token that is no bit; the pair seeding panics). The parser must refuse the mixed form, duplicates and the two special names in a compound, and a unit test next to the parser pins the grammar, with the same cases pinned for `admitted`. Found on the way: both merge rows are `DELETE_CONTENT` but `merge_titles` and `merge_series` require `publish()` and `delete()`; they become `PUBLISH_MEDIA+DELETE_CONTENT` and `PUBLISH_READING+DELETE_CONTENT`. XS.
+Status: `ADOPTED` (D-366). Follow-up: R-07.
+
+### Still with the owner
+
+Nothing. The four are engineering defaults.
+
+## Phase 21 sessions and uploads round (answered 2026-10-23, delegated)
+
+The four questions `feat-p21-sessions-uploads.md` left open ("Decisions" 1, 3 and 4 and "Open" 1 to 4), answered by the owner's proxy under the standing delegation: decide and document only (no code, build, download or push). Decisions are D-362 to D-365 in [01-decisions-log.md](01-decisions-log.md) (the other wave-21 branch holds D-359 to D-361); follow-ups are R-10 to R-13 under "Phase 21 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md) (R-01 to R-06 belong to the other branch). The human check of P21-7 is a row in [dev/owner-checklist.md](dev/owner-checklist.md). Ids continue from P21-4 for the same reason.
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 4 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Re-authentication order (P21-4, branch `feat/p21-sessions-uploads`)
+
+**P21-4 (handoff decision 1, open 3; ADM-STF-009, RDY-SEC-010). `reauth_gate` checks the second factor before the handler's own permission check, so a staff member without the permission for a listed route meets `900004` ("confirm it's you") first and `403` after re-authenticating. This reveals only that a route is gated. Acceptable, or should the permission check come first?**
+Decision: acceptable, keep the order. The gate is an identity check, not an authorization decision, and identity before authorization is the ordinary order; the handler's permission check still runs, after. The one fact revealed, that the route is on the list, is published in doc 07 section 6, marked in `route_matrix.tsv` and named in the OpenAPI document, and it is revealed to authenticated staff only: a non-staff caller fails `StaffCtx` extraction inside the gate and gets the handler's own refusal. Moving the check into each handler after `authorize` would lose the one-test proof over the whole list (`reauth_list_tests`) and be forgotten by the next route. Two costs are accepted and named: a staff member without the permission types a code and then sees `403`, and a probe that stops at `900004` leaves no `denied` access-log row (it never reached the authorization decision the log records). The private-content reads keep their in-handler gate because it logs.
+Status: `ADOPTED` (D-362). Follow-up: R-10 (the sequence proven for a staff account without the permission; the web wrapper shows the post-reauth `403` as a permission refusal; doc 07 cites the decision).
+
+### Soundboard length (P21-5, branch `feat/p21-sessions-uploads`)
+
+**P21-5 (handoff decision 4, open 4; VOX-SB-001, RDY-SEC-008). Sound duration is the container's claim (Ogg granule, WAV data size, MP3 bitrate or Xing count), so a lying file can claim to be short. Keep that, or decode the audio for the real length, which needs a new dependency and a download the owner must approve?**
+Decision: keep the claim; no decoder. The limit is a product limit, not a security boundary: the sender's own client decodes the sound and mixes it into its microphone stream, so a hostile sender already plays anything of any length through the microphone, and a server-side decode would bound only the stored file. Abuse is bounded by 512 KiB, 48 slots, the four-second cooldown and the expressions permission; honest uploads are already exact because the web client trims to five seconds and uploads a 48 kHz WAV. Two tightenings that need nothing to depend on are built instead: the MP3 measure walks every frame header and the Ogg Opus measure sums packet lengths from their TOC bytes (`voice_meta` already walks packets by lacing), each taking the larger of the walk and the claim; and `mic.ts` clips a sound at `MAX_SOUND_MS` when it plays it. Vorbis stays at the granule. Revisit when a decoder enters the build for another reason.
+Status: `ADOPTED` (D-363). Follow-up: R-11.
+
+### JPEG trailers (P21-6, branch `feat/p21-sessions-uploads`)
+
+**P21-6 (handoff decision 3; RDY-SEC-008). The chat-attachment metadata stripper keeps the bytes after a JPEG's end marker, because multi-picture files store their second image there. Strip them (privacy, smuggling) or keep them?**
+Decision: strip. The trailer defeats the stripper: a multi-picture file's second image carries its own EXIF (GPS, time, serial) that the stripper never visits, and a motion photo's MP4 carries its own metadata, so a "stripped" attachment would still leak the tags it was stripped of; and the behaviour was inconsistent, since a photo with an orientation tag is re-encoded and loses the trailer anyway. What is lost (depth map, gain map, motion clip) is small for chat and every viewer shows the primary image either way. Smuggling is the lesser reason (attachments are sniffed from the head and served as downloads under `nosniff`), but a large zip riding behind a photo no longer passes. The MPF index segment (APP2 `MPF\0`) goes with it; a file with no end marker is copied whole, as now. The PNG rule at `IEND` is unchanged.
+Status: `ADOPTED` (D-364). Follow-up: R-12.
+
+### CSP report delivery (P21-7, branch `feat/p21-sessions-uploads`)
+
+**P21-7 (handoff open 1 and 2; RDY-SEC-009). No automated browser (headless Chromium, headless Edge, headed Edge) sent a CSP report within 90 seconds although the console showed the violations; the Reporting API is known to be unreliable under automation. The server side is proven by direct posts. Accept "server side proven, browser delivery checked once by hand" as an owner checklist row, or require something else?**
+Decision: accept, with the checklist row. A flaky automated job would prove less than the direct proof in hand; the one unproven link (an ordinary browser reaching the endpoint through Caddy and the Vite proxy) is a one-minute hand check. The Report-Only dev policy's inline-style noise stays on the developer's counters and does not touch production; the hand check reads the `img-src` row, which the dev page never produces by itself.
+Status: `ADOPTED` (D-365). Follow-up: R-13 (doc 12 sentence, handoff marked answered); the human row is in `dev/owner-checklist.md` section 6.
+
+### Still with the owner
+
+Nothing new. P21-5 declines the only download these questions could have asked for.

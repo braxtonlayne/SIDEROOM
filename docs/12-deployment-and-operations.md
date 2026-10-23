@@ -83,6 +83,41 @@ The crate test `crates/sr-db/tests/secret_columns.rs` scans every migration and 
 
 **Upload hygiene.** Uploaded bytes are sniffed, never trusted by declared type. Profile and expression images accept only PNG, JPEG, GIF and WebP (re-encoded); SVG, HTML and XML are rejected there. Chat attachments of those formats are stored as `application/octet-stream` and served as downloads under `nosniff` and a sandboxing CSP, so they never render on the site origin.
 
+What each surface accepts, and where the code enforces it. Every number below is read from the code by a test (the last column names it), so the table cannot drift from the constants:
+
+| Surface | Limit | Value | Enforced in |
+|---|---|---|---|
+| Chat attachment | standard size | 30 MiB | `sr_storage::upload::SizePolicy` |
+| Chat attachment | donor and system maximum | 500 MiB | `SizePolicy` |
+| Chat attachment | multipart above | 64 MiB | `SizePolicy` |
+| Image re-encoder | source file | 16 MiB | `sr_storage::img::Limits` |
+| Image re-encoder | pixels per frame | 24000000 | `img::Limits`, read from the header before any pixel is decoded |
+| Image re-encoder | animation pixels and frames | 32000000 and 400 | `img::Limits` |
+| Image sizes served | range | 16 to 4096 px, powers of two | `img::MIN_SIZE`, `img::MAX_SIZE` |
+| Emoji | file size | 256 KiB | `sr_chat::settings::expressions::ExpressionLimits` |
+| Sticker | file size | 512 KiB | `ExpressionLimits` |
+| Soundboard sound | file size and length | 512 KiB and 5 seconds | `sr_chat::settings::soundboard` (the length is the larger of the header walk and the container's claim: every MP3 frame header and every Opus packet's TOC byte are summed, and the claim is the Ogg granule position, WAV data size, MP3 bitrate or Xing frame count; nothing is decoded, and the client cuts playback at the limit, D-363) |
+| Package zip | upload size and unpacked size | 8 MiB | `sr_packages::zipfiles` |
+| Package zip | entries | 400 | `zipfiles` |
+| Package zip | path length and segment length | 160 and 80 characters | `zipfiles::path_problem` |
+| Emoji pack | items, file size, pixels per side | 100, 256 KiB, 512 | `sr_packages::validate` |
+| Sticker pack | items, file size, pixels per side | 40, 512 KiB, 1024 | `validate` (PNG, APNG or GIF only) |
+| Sound pack | items, file size | 40, 512 KiB | `validate` (Ogg or MP3 magic) |
+| Library archive (CBZ, CB7, CBR) | file size | 2 GiB | `sr_library::ingest::archive::ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | entries | 4000 | `ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | one entry, inflated | 64 MiB | `ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | all entries, inflated | 2 GiB | `ArchiveLimits` |
+| Library archive (CBZ, CB7, CBR) | compression ratio, for entries of 1 MiB or more | 150 | `ArchiveLimits` (7z checks each solid block, RAR the whole archive) |
+| Library archive (CBZ, CB7, CBR) | one 7z solid block | 1 GiB | `ArchiveLimits` |
+| Library page image | source file | 64 MiB | `sr_library::ingest::image::PageLimits` |
+| Library page image | pixels | 60000000 | `PageLimits` |
+
+How the rules read in practice:
+
+- **Archives.** Sizes, entry counts and compression ratios are checked from the headers before anything is inflated; one entry is inflated at a time through a hard byte cap and a running budget. A name with `..`, an absolute path, a drive letter, a backslash escape or a NUL rejects the whole archive (it is not repaired); encrypted entries are rejected; symlinks, junk files and **nested archives are skipped and never opened**. AVIF pages are refused. Package zips are stricter still: a path outside `[A-Za-z0-9._~@+-]`, a hidden segment, `%`, a control character or two names that differ only in case rejects the package, and every file must be listed by the manifest.
+- **Images.** Every accepted image is decoded and encoded again (PNG stays PNG, JPEG stays JPEG, an animation stays an animation, library pages become WebP), so bytes appended after the image (a PNG with a ZIP behind it, a GIF with HTML behind it) do not survive. The metadata stripper used for chat attachments drops everything after a JPEG's first end marker, and the MPF index with it, so a multi-picture or motion photo is reduced to its primary image (D-364); a PNG's bytes after `IEND` are dropped as well. Package images are checked by header and size only (never re-encoded) and are served from the packages route with the type of their extension, `nosniff` and `default-src 'none'; sandbox`.
+- **Proof.** The limits at the limit and one over, and generated corpora (nested archives, bombs, polyglots, truncations of every prefix, random corruption, every forbidden name segment) run in `crates/sr-library/tests/upload_hygiene.rs`, `crates/sr-storage/tests/upload_hygiene.rs`, `crates/sr-packages/tests/upload_hygiene.rs` and `crates/sr-chat/tests/sound_hygiene.rs` (RDY-SEC-008). They found one defect, an overflow in the Ogg duration measure that panicked a debug build and wrapped to a short duration in a release build; it is fixed with a checked multiply.
+
 ## 4. Transcode workers
 
 - `sr-transcoder` is a single static binary plus FFmpeg (with NVENC) in a Docker image `ghcr.io/<owner>/sideroom-transcoder:<ver>-cuda`.
@@ -118,6 +153,7 @@ Semantic-versioned releases. `sr-cli upgrade` checks, takes a pre-upgrade DB sna
 - `/internal/metrics` (Prometheus format; `http_request_duration_seconds` is a real histogram with buckets around the 100 ms budget). Dashboards and alert rules live in `deploy/monitoring`, the on-call steps in [deploy/RUNBOOK.md](../deploy/RUNBOOK.md). An optional Compose profile adds Prometheus + Grafana with shipped dashboards: gateway sessions, REST latency, voice rooms/egress, job queue, storage usage, invoice states.
 - Admin → System shows: disk usage, egress, active voice rooms, account count vs cap, job backlog, worker status, and the last backup and its verification.
 - Alerts post to the Staff Server `#alerts` channel (and optional email).
+- **CSP violation reports (RDY-SEC-009).** The app shell's policy names `POST /internal/csp-report` in `report-uri` and `report-to`; the server keeps counters only (directive, blocked origin, page path) and Admin > System > "Blocked content reports" shows them. Browser delivery cannot be proved under Playwright (the Reporting API defers and batches under automation; three browsers sent nothing in 90 seconds), so it was checked by hand once: open the site and run `document.body.insertAdjacentHTML('beforeend','<img src="https://blocked.example.test/x.png">')` in the console, then look for the `img-src` row on the card (or in `csp_report_counters`). A developer machine's Report-Only policy also counts the dev page's inline-style violations (D-365).
 
 ## 8. Security hardening checklist
 

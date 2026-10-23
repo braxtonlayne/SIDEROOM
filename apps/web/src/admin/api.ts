@@ -1043,3 +1043,18 @@ export interface PreflightReport {
 }
 /** Runs the preflight checks now (OPERATOR); the run is written to the access log. */
 export const runPreflight = () => send<PreflightReport>('/admin/system/preflight', 'POST');
+
+/** One counted key of the CSP violation counters (RDY-SEC-009). */
+export interface CspCounter {
+  key: string;
+  count: number;
+  last_seen_ms: number;
+}
+/** Reports per violated directive, blocked origin and document path; nothing personal is stored. */
+export interface CspSnapshot {
+  directives: CspCounter[];
+  origins: CspCounter[];
+  paths: CspCounter[];
+}
+/** The CSP violation counters (OPERATOR). */
+export const getCspReports = () => get<CspSnapshot>('/admin/system/csp-reports');

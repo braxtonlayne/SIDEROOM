@@ -1,7 +1,7 @@
 //! XC-SEC-005: the per-route authentication and permission matrix.
 //!
 //! `route_matrix.tsv` has one row for every operation in the generated OpenAPI document
-//! (the full API surface): `METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER`.
+//! (the full API surface): `METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER  PLATFORM`.
 //!
 //! * `ACCESS` is `public` (no credentials needed) or `authenticated`. It must agree with the
 //!   `security(...)` the handler declares in OpenAPI, and every `authenticated` route must
@@ -20,6 +20,9 @@
 //!   yet reviewed" and fails the test.
 //! * `BOT` and `BEARER` pin what `auth::policy` says about bot and OAuth bearer tokens, so a
 //!   policy change cannot slip through without touching this file.
+//! * `PLATFORM` (D-360, D-366) names the platform permission a `staff` or `author_or_staff` row
+//!   demands: one name (`NAME`, `STAFF_BASIC`, `OWNER`), `A+B` (every listed bit) or `A|B` (any
+//!   one), never mixed; `-` on every other row. The grammar is `support/platform_cell.rs`.
 //!
 //! The test fails when a route is added or removed without a row, and when a router path
 //! literal is neither documented in OpenAPI nor listed under `#undocumented`.
@@ -33,6 +36,10 @@ use axum::{
 use sr_api::{AppState, auth::policy, build_router, routes};
 use std::collections::{BTreeMap, BTreeSet};
 use tower::ServiceExt;
+
+#[path = "support/platform_cell.rs"]
+mod platform_cell;
+use platform_cell::{Platform, is_platform_name, parse_platform};
 
 const MATRIX: &str = include_str!("route_matrix.tsv");
 const MATRIX_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/route_matrix.tsv");
@@ -89,6 +96,9 @@ struct Row {
     authz: String,
     bot: String,
     bearer: String,
+    /// The platform permission(s) a `staff` or `author_or_staff` row demands: `NAME`, `A+B`, `OWNER`,
+    /// `STAFF_BASIC` (any appointment suffices); `-` on every other row (D-360).
+    platform: String,
 }
 
 /// `(METHOD, path) -> declared access` for every operation in the OpenAPI document.
@@ -123,7 +133,7 @@ fn parse() -> (BTreeMap<(String, String), Row>, BTreeSet<String>) {
             continue;
         }
         let f: Vec<&str> = line.split('\t').collect();
-        assert_eq!(f.len(), 6, "malformed matrix row: {line:?}");
+        assert_eq!(f.len(), 7, "malformed matrix row: {line:?}");
         rows.insert(
             (f[0].to_owned(), f[1].to_owned()),
             Row {
@@ -131,6 +141,7 @@ fn parse() -> (BTreeMap<(String, String), Row>, BTreeSet<String>) {
                 authz: f[3].to_owned(),
                 bot: f[4].to_owned(),
                 bearer: f[5].to_owned(),
+                platform: f[6].to_owned(),
             },
         );
     }
@@ -347,15 +358,18 @@ fn render(
 ) -> String {
     let mut s = String::from(
         "# XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.\n\
-         # METHOD\tPATH\tACCESS\tAUTHZ\tBOT\tBEARER (a trailing ? on AUTHZ means unreviewed)\n",
+         # METHOD\tPATH\tACCESS\tAUTHZ\tBOT\tBEARER\tPLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row: NAME, A+B for all, A|B for any, never mixed)\n",
     );
     for ((m, p), access) in docs {
-        let authz = old.get(&(m.clone(), p.clone())).map_or_else(
+        let old_row = old.get(&(m.clone(), p.clone()));
+        let authz = old_row.map_or_else(
             || format!("{}?", guess_authz(p, access)),
             |r| r.authz.clone(),
         );
+        // D-360: a new row starts at `-`; the reviewer fills it for a staff row.
+        let platform = old_row.map_or("-", |r| r.platform.as_str());
         s.push_str(&format!(
-            "{m}\t{p}\t{access}\t{authz}\t{}\t{}\n",
+            "{m}\t{p}\t{access}\t{authz}\t{}\t{}\t{platform}\n",
             bot_of(m, p),
             bearer_of(m, p)
         ));
@@ -403,6 +417,24 @@ fn matrix_covers_every_route() {
             "{m} {p}: unknown AUTHZ {}",
             row.authz
         );
+        // D-360: the PLATFORM cell names the permission a staff row demands, spelled as in
+        // `sr_core::PlatformPermissions`; every other row has `-`.
+        let needs_bit = row.authz == "staff" || row.authz == "author_or_staff";
+        if needs_bit {
+            assert!(
+                row.platform != "-",
+                "{m} {p}: a {} row needs a PLATFORM permission (STAFF_BASIC when any appointment suffices)",
+                row.authz
+            );
+            if let Err(e) = parse_platform(&row.platform, is_platform_name) {
+                panic!("{m} {p}: {e}");
+            }
+        } else {
+            assert_eq!(
+                row.platform, "-",
+                "{m} {p}: only staff rows carry a PLATFORM permission"
+            );
+        }
         assert_eq!(
             row.access,
             docs[&(m.clone(), p.clone())],
@@ -512,4 +544,52 @@ async fn public_routes_do_not_demand_credentials() {
         checked += 1;
     }
     assert!(checked > 0, "no public GET routes in the matrix");
+}
+
+/// D-366: the accepted and refused `PLATFORM` cell forms.
+#[test]
+fn platform_cell_grammar() {
+    let parse = |c: &str| parse_platform(c, is_platform_name);
+    assert_eq!(parse("OPERATOR"), Ok(Platform::One("OPERATOR".into())));
+    assert_eq!(
+        parse("STAFF_BASIC"),
+        Ok(Platform::One("STAFF_BASIC".into()))
+    );
+    assert_eq!(parse("OWNER"), Ok(Platform::One("OWNER".into())));
+    assert_eq!(
+        parse("MANAGE_CASES+PLATFORM_BAN"),
+        Ok(Platform::All(vec![
+            "MANAGE_CASES".into(),
+            "PLATFORM_BAN".into()
+        ]))
+    );
+    assert_eq!(
+        parse("PUBLISH_MEDIA|DELETE_CONTENT"),
+        Ok(Platform::Any(vec![
+            "PUBLISH_MEDIA".into(),
+            "DELETE_CONTENT".into()
+        ]))
+    );
+    assert!(matches!(
+        parse("REVIEW_MEDIA|REVIEW_READING|REVIEW_APPS|REVIEW_PACKAGES"),
+        Ok(Platform::Any(v)) if v.len() == 4
+    ));
+    for bad in [
+        "MANAGE_CASES+PLATFORM_BAN|OPERATOR",
+        "OPERATOR|OPERATOR",
+        "OPERATOR+",
+        "|OPERATOR",
+        "OPERATOR||MANAGE_CASES",
+        "OWNER|OPERATOR",
+        "STAFF_BASIC+OPERATOR",
+        "NOT_A_BIT",
+        "",
+    ] {
+        assert!(parse(bad).is_err(), "{bad:?} must be refused");
+    }
+    assert!(
+        parse("MANAGE_CASES+PLATFORM_BAN|OPERATOR")
+            .unwrap_err()
+            .contains("mixes")
+    );
 }

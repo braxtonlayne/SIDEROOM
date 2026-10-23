@@ -206,6 +206,7 @@ where
             keys::DELETED_MESSAGE_DAYS.to_owned(),
             keys::SHARED_IP_MAX_PERSONS.to_owned(),
             keys::NEW_ACCOUNT_AFTER_BAN_DAYS.to_owned(),
+            keys::COUNTER_NOTICES_PER_DAY.to_owned(),
         ])
         .fetch_all(db)
         .await?;
@@ -221,6 +222,7 @@ where
             keys::DELETED_MESSAGE_DAYS => l.deleted_message_days = n,
             keys::SHARED_IP_MAX_PERSONS => l.shared_ip_max_persons = n,
             keys::NEW_ACCOUNT_AFTER_BAN_DAYS => l.new_account_after_ban_days = n,
+            keys::COUNTER_NOTICES_PER_DAY => l.counter_notices_per_day = n,
             _ => {}
         }
     }

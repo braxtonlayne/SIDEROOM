@@ -23,8 +23,11 @@ use crate::{
 
 /// Job kind of the package builder.
 pub const JOB_KIND: &str = "user.data_export";
-/// Hours between two requests of one account (a failed build does not count).
+/// Hours between two requests of one account (a failed build does not count): the default of the
+/// platform setting [`COOLDOWN_SETTING`] (RDY-SEC-006).
 pub const COOLDOWN_HOURS: i64 = 24;
+/// The platform setting that overrides [`COOLDOWN_HOURS`] (Admin > Limits, group `abuse`).
+pub const COOLDOWN_SETTING: &str = "abuse.data_export_cooldown_hours";
 /// Days a finished package stays available.
 pub const KEEP_DAYS: i64 = 7;
 /// Messages written per query.
@@ -120,13 +123,22 @@ pub async fn request(
     if let Some(r) = open {
         return Ok(Err(RequestRefusal::InProgress(record(&r)?)));
     }
+    let cooldown: i64 = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM platform_settings WHERE key = $1",
+    )
+    .bind(COOLDOWN_SETTING)
+    .fetch_optional(&mut *tx)
+    .await?
+    .and_then(|v| v.as_i64())
+    .filter(|h| (1..=720).contains(h))
+    .unwrap_or(COOLDOWN_HOURS);
     let wait: Option<f64> = sqlx::query_scalar(
         "SELECT EXTRACT(EPOCH FROM (requested_at + make_interval(hours => $2) - now()))::float8 \
          FROM data_exports WHERE user_id = $1 AND state <> 'failed' \
          ORDER BY requested_at DESC LIMIT 1",
     )
     .bind(user)
-    .bind(i32::try_from(COOLDOWN_HOURS).unwrap_or(24))
+    .bind(i32::try_from(cooldown).unwrap_or(24))
     .fetch_optional(&mut *tx)
     .await?;
     if let Some(w) = wait.filter(|w| *w > 0.0) {

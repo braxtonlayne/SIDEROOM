@@ -25,7 +25,7 @@ The ordered path from an empty server to the first invites (harden, DNS, install
 | Postgres 17 | Reached over TLS. See section 2. |
 | S3-compatible storage | Garage is used in development. Create one bucket and one access key for it. |
 | SMTP server | Use STARTTLS or implicit TLS. `tls = "none"` is for Mailpit only. |
-| Reverse proxy | Terminates HTTPS. Forwards `/api/*`, `/gateway` and `/cdn/*` to the server. Never expose `/internal/*`. |
+| Reverse proxy | Terminates HTTPS. Forwards `/api/*`, `/gateway` and `/cdn/*` to the server. Never expose `/internal/*` except `POST /internal/csp-report` (browser CSP violation reports; counters only). |
 | A public hostname | Set as `server.public_url`, for example `https://chat.example.org`. |
 
 ## 2. Database connection and TLS
@@ -115,7 +115,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage); `sr-server healthcheck` runs the `/readyz` probe from the command line and is what the container health check uses.
 
-6. **Put the reverse proxy in front.** Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*`, and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the web app with the security headers and the Content-Security-Policy; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
+6. **Put the reverse proxy in front.** Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*` (the shipped Caddyfile forwards only `POST /internal/csp-report`, the browsers' CSP violation reports), and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the web app with the security headers and the Content-Security-Policy; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
 
 7. **Set the stop timeout.** The server drains for `shutdown_grace_secs` after SIGTERM, then for jobs again. Set the container or service stop timeout above `2 * shutdown_grace_secs` (50 s by default, so use 60 s). Docker's default of 10 s cuts the drain short.
 

@@ -17,6 +17,7 @@ pub mod rate_limit;
 pub mod router;
 pub mod routes;
 pub mod security_headers;
+pub mod sensitive;
 pub mod state;
 
 pub use auth::{AuthKind, Principal};

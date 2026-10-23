@@ -327,6 +327,86 @@ factor and are audited (`entrance.hero`). `GET /sr/entrance/hero` is public, ans
 `.messages` (12 to 600 sends a minute per channel and caller; default 60) and `.uploads` (6 to 6 000 slot requests; default 240) are read by the limiter on
 every request; `PATCH /admin/settings` updates them without a restart. Gateway and voice limits stay static.
 
+**Abuse limits (RDY-SEC-006).** Every member-writable surface that moderation, social and the developer platform added has a limit. Each row with a
+setting is an entry of the Admin > Limits catalog (group `abuse`, or `limits` for the older report limit), has a default and a range, and is read live:
+`PATCH /admin/settings` applies it on the next request (the HTTP ones through the `RateConfig` watch channel of H-39, the data-export and counter-notice
+ones from the `platform_settings` row on each request). A refused request answers `429` with `Retry-After` (REST) or the 429 error body. **Scope is per
+process, as for every limiter in this document**: one node, counters reset on restart, not shared across nodes (documented, not changed). "Per credential"
+means one session cookie, bot token or bearer token (the limiter's identity); "per address" is the client IP (`trust_forwarded_for` behind Caddy). The
+table is checked against the catalog by `abuse_limits.rs::doc_05_table_matches_the_catalog_and_its_tests_exist`: a row's setting, default and test must
+exist.
+
+| Limit | Setting | Default | Scope | Test |
+|---|---|---|---|---|
+| Reports per day | `moderation.reports_per_day` | 20 | per account, rolling 24 h (database count) | `crates/sr-moderation/tests/db.rs::one_open_report_per_target_duplicates_attach_and_the_daily_limit_holds` |
+| Appeals per ban | none: one appeal per decision, no second appeal (D-215; unique `ban_id`) | 1 | per ban | `crates/sr-moderation/tests/db.rs::appeals_one_per_ban_reviewed_by_somebody_else` |
+| Appeal attempts (`POST /moderation/appeals`) | `abuse.appeal_attempts_per_hour` | 10 | per address per hour; sign-in throttles apply to the credentials besides | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Data-package requests | `abuse.data_export_cooldown_hours` | 24 | per account, hours between two requests; one open request at a time | `crates/sr-db/tests/data_export.rs::the_cooldown_follows_the_platform_setting` |
+| Counter-notices recorded | `abuse.counter_notices_per_day` | 50 | per staff member, rolling 24 h (database count) | `crates/sr-moderation/tests/takedowns.rs::counter_notices_per_staff_member_per_day_are_limited_by_a_setting` |
+| Invite-code checks (`GET /sr/invites/{code}`) | none: fixed 10 a minute and 50 a day per address (doc 06 section 3) | 10 / 50 | per address | `crates/sr-api/src/routes/auth/tests.rs::invite_check_is_rate_limited_per_ip` |
+| Direct-message requests (`POST /users/@me/channels`) | `abuse.dm_opens_per_hour` | 40 | per credential per hour | `crates/sr-api/tests/abuse_limits.rs::a_live_change_applies_to_the_next_request` |
+| Friend requests and blocks (`POST /users/@me/relationships`, `PUT /users/@me/relationships/{user_id}`) | `abuse.friend_requests_per_hour` | 60 | per credential per hour, per route | `crates/sr-api/tests/abuse_limits.rs::a_member_limit_is_per_caller_and_a_webhook_limit_is_per_token` |
+| Webhook execute (`POST /webhooks/{webhook_id}/{token}`) | `abuse.webhook_execute_per_minute` | 60 | per webhook token across all callers, a burst of five seconds' worth | `crates/sr-api/src/rate_limit.rs::a_webhook_limit_belongs_to_the_token_not_the_caller` |
+| OAuth2 authorize attempts (`POST /oauth2/authorize`) | `abuse.oauth_authorize_per_minute` | 20 | per credential or address per minute | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Interaction callbacks (`POST /interactions/{interaction_id}/{token}/callback`) | `abuse.interaction_callbacks_per_minute` | 60 | per address, a burst of five seconds' worth | `crates/sr-api/src/rate_limit.rs::the_figures_mean_what_the_catalog_says` |
+| Watch-party joins (`POST /watch-parties/{party_id}/join`) | `abuse.watch_party_joins_per_minute` | 20 | per credential per minute (the service keeps a backstop of 120 a minute per account) | `crates/sr-api/src/rate_limit.rs::every_abuse_route_limits_at_its_figure_and_follows_a_live_change` |
+| Custom emoji uploads (`POST /guilds/{guild_id}/emojis`, `POST /applications/{application_id}/emojis`) | `abuse.emoji_uploads_per_hour` | 50 | per credential per server (per application) per hour | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Sticker uploads (`POST /guilds/{guild_id}/stickers`) | `abuse.sticker_uploads_per_hour` | 20 | per credential per server per hour | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
+| Messages sent | `limits.rate.messages` | 60 | per channel and caller per minute (H-39) | `crates/sr-api/src/rate_limit.rs::a_live_change_applies_on_the_next_request` |
+
+### 5.4 How authorization is tested (RDY-SEC-001 to 003)
+
+Three layers, from cheap to thorough. All of them read `crates/sr-api/tests/route_matrix.tsv`, one row per operation of the OpenAPI document
+(`METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER  PLATFORM`). `PLATFORM` names the platform permission a `staff` or `author_or_staff` row demands, spelled as in
+`sr_core::PlatformPermissions`: `NAME`, `STAFF_BASIC` (any appointment), `OWNER`, `A+B` (both) or `A|B` (either, for rows scoped by section or kind), never mixed in one cell and never with a repeated name or `OWNER`/`STAFF_BASIC` inside (D-366); `-` on every
+other row. For the review routes it names the Library section's bit (the seeded submission is a library series); the Cinema bit is the kind's in `sr-review`.
+
+1. **`route_matrix.rs`** (no database). The file and the router agree; `ACCESS` agrees with the handler's `security(...)`; every authenticated route answers
+   401 without credentials; `BOT` and `BEARER` agree with `auth::policy`; `AUTHZ` agrees with the handler's own extractors (a staff extractor means `staff`,
+   `BotOnly` means `bot`). A row carries no `?` and no `other`, a staff row names a real `PLATFORM` permission and every other row has `-`: a new route must say who may call it.
+2. **`crates/sr-server/tests/authz_matrix.rs`** (Postgres, `#[ignore]`, about four minutes; it lives in `sr-server` because that crate owns the real wiring). It boots the real server wiring (`sr_server::app::run`) in the test process on a fresh
+   migrated database, seeds a world (two servers with a private channel, roles, a message, a webhook, an invite, a thread, an emoji, an event, an
+   auto-moderation rule, a moderation case with a hold, a takedown notice, a submission, an application with a bot and a command, an OAuth2 grant, a staff
+   server with its roles) and calls **every row** over HTTP with the ids of that world as these actors:
+
+   | Actor | What it is |
+   |---|---|
+   | `anon` | no credentials |
+   | `outsider` | signed in, member of no server, not staff, owns no application |
+   | `member` | plain member of server A (the `@everyone` role only); also denied the private channel by its overwrite |
+   | `insider` | member holding the role the private channel allows |
+   | `mod` | member of server A with every permission but Administrator |
+   | `owner_a`, `owner_b` | owners of server A and of server B (and of application B) |
+   | `staff_owner` | the platform Owner; `support` holds the Support role; `staff_basic` holds the basic bit only; `fake_staff` holds the Owner role in the Staff Server with no appointment |
+   | `app_owner` | owner of application A |
+   | `staff_<bit>` | one per platform permission (appointed with `STAFF_BASIC` plus that bit), and one per `A+B` row value holding both: the holder of the named permission must be admitted by a `staff` row, every other appointed actor refused (reads asserted; writes refused with the full body, admitted ones observed) |
+   | `bot_in`, `bot_out` | the bot of application A, installed in server A with three permissions; the bot of application B, installed nowhere |
+   | `bearer_identify`, `bearer_guilds` | OAuth2 access tokens with one scope each |
+
+   What each actor must see follows from the row: `anon` 401; `outsider`, `fake_staff` and (for resource routes) `bot_out` refused on `staff`, `bot` and every
+   resource-scoped `membership`, `author`, `owner`, `party_*` row; `member` refused on staff rows, on application-owner rows and on the case routes; bots refused
+   where `BOT` is `deny`; bearers refused wherever `BEARER` is `-` or names the other scope; `staff_owner` admitted on every `staff` read. A refusal is a 401, 403
+   or 404; a 400 or 422 is reported as masked (the shape was refused before authorization could be seen) and the harness has a hand-made body for every route that
+   produced one. Write routes are called twice, with the minimal body and with every property filled in, because a handler that checks permission only when a
+   field changes (a no-op PATCH) answers 200 to anyone.
+
+   **Cross-tenant sweep (RDY-SEC-002).** For every route with a tenant id segment (`{guild_id}`, `{channel_id}`, `{message_id}`, `{thread_id}`,
+   `{application_id}`, `{role_id}`, `{webhook_id}`, `{submission_id}`, `{case_id}`, `{event_id}`, `{emoji_id}`, and others) `owner_b` calls it with the ids of
+   server A, and again with its own `{guild_id}` and the child ids of server A (the IDOR shape); `member` calls every `{channel_id}` route with the private channel.
+   All must be refused, and the database fingerprint (every table, minus the job runner, sessions, access log and authentication stamps) must be unchanged after the
+   refused calls of the group. A refusal that is a 404 next to a 404 for the rightful actor proves little and is counted as *weak* in the run summary (the
+   unseeded ids); the report file lists them and `WEAK_CEILING` in the test pins a ceiling per group that may only go down.
+
+   Run it with `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-server --test authz_matrix -- --include-ignored --test-threads=1 --nocapture`.
+   `SR_AUTHZ_REPORT=<file>` writes one row per call (group, route, actor, pass, status, expectation, verdict); `SR_AUTHZ_GROUPS=0,1` runs only those groups
+   (0 moderation, 1 admin, 2 developers and applications, 3 oauth2, 4 submissions, 5 the rest). **Proof order:** moderation, admin, developers and
+   applications, oauth2, submissions, then the rest; each group has its own world, so an interrupted run leaves the earlier groups proven.
+3. **The feature suites** (`api.rs`, `guilds.rs`, the per-module tests) cover the permission rules route by route with in-memory repositories.
+
+Exceptions to the resource-scoped rule are listed in `outsider_exception` of `authz_matrix.rs`, each with its reason (the public server preview, the
+emoji metadata lookup). Adding a route means adding its row to the TSV (`SR_UPDATE_ROUTE_MATRIX=1`, then review the `AUTHZ` cell by hand and fill `PLATFORM` from the handler's service call) and, if it takes a new
+kind of resource id, listing the placeholder in `TENANT` and seeding an instance in `seed`.
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)

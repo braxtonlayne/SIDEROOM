@@ -31,6 +31,16 @@
 		-Server
 	}
 
+	# The one internal path browsers must reach: Content-Security-Policy violation reports (RDY-SEC-009). The server
+	# rate limits it, caps the body and keeps counters only.
+	@cspReport {
+		method POST
+		path /internal/csp-report
+	}
+	handle @cspReport {
+		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
+	}
+
 	# Internal endpoints are never public.
 	handle /internal/* {
 		respond 404
@@ -65,7 +75,8 @@
 	# The single-page app.
 	handle {
 		root * {$SR_WEB_ROOT:/srv/web}
-		header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+		header Reporting-Endpoints "csp-endpoint=\"/internal/csp-report\""
 
 		# Hashed build output never changes; the shell, service worker and manifest must revalidate.
 		@hashed path /assets/* /fonts/*

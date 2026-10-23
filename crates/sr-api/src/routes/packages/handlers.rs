@@ -924,10 +924,11 @@ pub async fn remove_entry(
 // ---------------------------------------------------------------- staff
 
 fn require_review(staff: &StaffCtx) -> MsgResult<()> {
+    // `has`, not `contains`: the Owner holds the single OWNER bit, which implies every permission.
     if staff
         .caller
         .permissions
-        .contains(PlatformPermissions::REVIEW_PACKAGES)
+        .has(PlatformPermissions::REVIEW_PACKAGES)
     {
         Ok(())
     } else {

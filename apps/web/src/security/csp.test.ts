@@ -20,6 +20,20 @@ describe('CSP', () => {
     expect(caddy).toContain(`Permissions-Policy "${PERMISSIONS_POLICY}"`);
   });
 
+  it('names the report endpoint in report-uri and report-to, in the Caddyfile and the dev headers (RDY-SEC-009)', () => {
+    expect(buildCsp().endsWith('; report-uri /internal/csp-report; report-to csp-endpoint')).toBe(
+      true,
+    );
+    expect(caddy).toContain('header Reporting-Endpoints "csp-endpoint=\\"/internal/csp-report\\""');
+    expect(caddy).toContain('path /internal/csp-report');
+    for (const dev of [true, false]) {
+      const h = securityHeaders({ dev });
+      expect(h['Reporting-Endpoints']).toBe('csp-endpoint="/internal/csp-report"');
+    }
+    const vite = readFileSync(resolve(__dirname, '../../vite.config.ts'), 'utf8');
+    expect(vite.split("'/internal/csp-report'")).toHaveLength(3);
+  });
+
   it('allows WASM compilation but no inline or eval scripts', () => {
     const csp = buildCsp();
     expect(csp).toContain("script-src 'self' 'wasm-unsafe-eval';");

@@ -10,6 +10,7 @@ pub mod apps_jobs;
 pub mod backends;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
+pub mod csp_reports;
 pub mod endpoint_client;
 pub mod events_jobs;
 pub mod external_jobs;

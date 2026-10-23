@@ -1261,10 +1261,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Sensitive admin actions (private content, account email and password, staff changes,
     // announcements) need a second factor checked in the last 15 minutes (ADM-STF-009).
     // `SR_ADMIN_REQUIRE_REAUTH=0` switches that off, for development and end-to-end tests.
-    let require_reauth = !matches!(
-        std::env::var("SR_ADMIN_REQUIRE_REAUTH").as_deref(),
-        Ok("0" | "false" | "off")
-    );
+    // RDY-SEC-010: refused on any host that is not a development host.
+    let require_reauth = sr_api::sensitive::require_reauth_from_env(
+        std::env::var("SR_ADMIN_REQUIRE_REAUTH").ok().as_deref(),
+        &cfg.server.public_url,
+    )
+    .map_err(anyhow::Error::msg)?;
     let integrations = integration_status(&cfg, voice_setup.is_some());
     // H-39: the live HTTP rate limits start from the stored settings and follow later edits.
     let (rate_tx, rate_rx) = {
@@ -1281,13 +1283,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                     .unwrap_or(default)
             }
         };
-        let start = sr_api::rate_limit::RateConfig {
+        let mut start = sr_api::rate_limit::RateConfig {
             ip: get(k::RATE_IP, d.ip).await,
             session: get(k::RATE_SESSION, d.session).await,
             bot: get(k::RATE_BOT, d.bot).await,
             messages: get(k::RATE_MESSAGES, d.messages).await,
             uploads: get(k::RATE_UPLOADS, d.uploads).await,
+            ..d
         };
+        // RDY-SEC-006: the abuse limits start from their stored settings too.
+        for a in sr_api::rate_limit::Abuse::ALL {
+            start.abuse[a.index()] = get(a.key(), d.abuse[a.index()]).await;
+        }
         tokio::sync::watch::channel(start)
     };
     let mut admin = routes::admin::AdminDeps::new(admin_service)
@@ -1391,6 +1398,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .with_blocklist(media_blocklist.clone()),
         ))
         .extension(external_images)
+        .extension(Arc::new(routes::internal::CspReports::new(Arc::new(
+            crate::csp_reports::PgCspStore::new(pool.clone()),
+        ))))
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();

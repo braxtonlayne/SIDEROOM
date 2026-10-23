@@ -17416,6 +17416,52 @@
         ]
       }
     },
+    "/admin/system/csp-reports": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Content-Security-Policy violations the browsers reported, as counters (`OPERATOR`, RDY-SEC-009): the top\ndirectives, blocked origins and document paths. Nothing personal is stored; see `POST /internal/csp-report`.",
+        "operationId": "csp_reports",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CspSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/system/email-test": {
       "post": {
         "tags": [
@@ -74269,6 +74315,62 @@
             "items": {
               "$ref": "#/components/schemas/LedgerEntry"
             }
+          }
+        }
+      },
+      "CspCounter": {
+        "type": "object",
+        "description": "One counted key.",
+        "required": [
+          "key",
+          "count",
+          "last_seen_ms"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "key": {
+            "type": "string"
+          },
+          "last_seen_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds of the latest report with this key."
+          }
+        }
+      },
+      "CspSnapshot": {
+        "type": "object",
+        "description": "What the Admin > System card shows.",
+        "required": [
+          "directives",
+          "origins",
+          "paths"
+        ],
+        "properties": {
+          "directives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CspCounter"
+            },
+            "description": "Reports per violated directive."
+          },
+          "origins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CspCounter"
+            },
+            "description": "Reports per blocked origin."
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CspCounter"
+            },
+            "description": "Reports per document path."
           }
         }
       },

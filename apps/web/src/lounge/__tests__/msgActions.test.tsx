@@ -2,7 +2,9 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { useStore } from '../../store';
+import { holdInteractions } from '../../test/interactions';
 import { http, HttpResponse, server } from '../../test/server';
+import { warmLoungeRoute } from '../../test/warmRoutes';
 import { interactionConfig } from '../msg/Components';
 import { findMessageLinks } from '../msg/MessageLinkCard';
 import { reactorSentence, resetReactorNames } from '../msg/Reactions';
@@ -17,6 +19,9 @@ vi.mock('../../store/connect', () => ({
 }));
 
 const THUMBS_UP = '\u{1F44D}';
+
+// The first test renders the lazy Lounge route: load its module graph once, outside every test's budget.
+warmLoungeRoute();
 
 describe('reactions, menu actions, system rows, selects and links', () => {
   beforeEach(() => {
@@ -201,6 +206,7 @@ describe('reactions, menu actions, system rows, selects and links', () => {
       ],
       roles: [{ id: 'r1', guild_id: 'g1', name: 'Mods', color: 0, position: 1, permissions: '0' }],
     });
+    const held = holdInteractions();
     const { container } = at('/channels/g1/c1');
     const log = await screen.findByRole('log');
     const person = await within(log).findByRole('combobox', { name: 'Choose a person' });
@@ -215,7 +221,9 @@ describe('reactions, menu actions, system rows, selects and links', () => {
     ).not.toBeInTheDocument();
     await userEvent.selectOptions(channel, '#random');
     expect(channel).toHaveAttribute('aria-busy', 'true');
+    await held.fail();
     expect(await screen.findByText('This interaction failed')).toBeInTheDocument();
+    await waitFor(() => expect(channel).not.toHaveAttribute('aria-busy'));
     expect(await axeViolations(container)).toEqual([]);
   });
 
