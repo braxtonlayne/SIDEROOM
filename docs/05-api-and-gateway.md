@@ -330,12 +330,14 @@ every request; `PATCH /admin/settings` updates them without a restart. Gateway a
 ### 5.4 How authorization is tested (RDY-SEC-001 to 003)
 
 Three layers, from cheap to thorough. All of them read `crates/sr-api/tests/route_matrix.tsv`, one row per operation of the OpenAPI document
-(`METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER`).
+(`METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER  PLATFORM`). `PLATFORM` names the platform permission a `staff` or `author_or_staff` row demands, spelled as in
+`sr_core::PlatformPermissions`: `NAME`, `STAFF_BASIC` (any appointment), `OWNER`, `A+B` (both) or `A|B` (either, for rows scoped by section or kind); `-` on every
+other row. For the review routes it names the Library section's bit (the seeded submission is a library series); the Cinema bit is the kind's in `sr-review`.
 
 1. **`route_matrix.rs`** (no database). The file and the router agree; `ACCESS` agrees with the handler's `security(...)`; every authenticated route answers
    401 without credentials; `BOT` and `BEARER` agree with `auth::policy`; `AUTHZ` agrees with the handler's own extractors (a staff extractor means `staff`,
-   `BotOnly` means `bot`). A row carries no `?` and no `other`: a new route must say who may call it.
-2. **`authz_matrix.rs`** (Postgres, `#[ignore]`, about two minutes). It boots the real server wiring (`sr_server::app::run`) in the test process on a fresh
+   `BotOnly` means `bot`). A row carries no `?` and no `other`, a staff row names a real `PLATFORM` permission and every other row has `-`: a new route must say who may call it.
+2. **`crates/sr-server/tests/authz_matrix.rs`** (Postgres, `#[ignore]`, about four minutes; it lives in `sr-server` because that crate owns the real wiring). It boots the real server wiring (`sr_server::app::run`) in the test process on a fresh
    migrated database, seeds a world (two servers with a private channel, roles, a message, a webhook, an invite, a thread, an emoji, an event, an
    auto-moderation rule, a moderation case with a hold, a takedown notice, a submission, an application with a bot and a command, an OAuth2 grant, a staff
    server with its roles) and calls **every row** over HTTP with the ids of that world as these actors:
@@ -350,6 +352,7 @@ Three layers, from cheap to thorough. All of them read `crates/sr-api/tests/rout
    | `owner_a`, `owner_b` | owners of server A and of server B (and of application B) |
    | `staff_owner` | the platform Owner; `support` holds the Support role; `staff_basic` holds the basic bit only; `fake_staff` holds the Owner role in the Staff Server with no appointment |
    | `app_owner` | owner of application A |
+   | `staff_<bit>` | one per platform permission (appointed with `STAFF_BASIC` plus that bit), and one per `A+B` row value holding both: the holder of the named permission must be admitted by a `staff` row, every other appointed actor refused (reads asserted; writes refused with the full body, admitted ones observed) |
    | `bot_in`, `bot_out` | the bot of application A, installed in server A with three permissions; the bot of application B, installed nowhere |
    | `bearer_identify`, `bearer_guilds` | OAuth2 access tokens with one scope each |
 
@@ -365,16 +368,16 @@ Three layers, from cheap to thorough. All of them read `crates/sr-api/tests/rout
    server A, and again with its own `{guild_id}` and the child ids of server A (the IDOR shape); `member` calls every `{channel_id}` route with the private channel.
    All must be refused, and the database fingerprint (every table, minus the job runner, sessions, access log and authentication stamps) must be unchanged after the
    refused calls of the group. A refusal that is a 404 next to a 404 for the rightful actor proves little and is counted as *weak* in the run summary (the
-   unseeded ids: watch parties, Live TV channels, nested submission uploads); the report file lists them.
+   unseeded ids); the report file lists them and `WEAK_CEILING` in the test pins a ceiling per group that may only go down.
 
-   Run it with `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-api --test authz_matrix -- --include-ignored --test-threads=1 --nocapture`.
+   Run it with `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-server --test authz_matrix -- --include-ignored --test-threads=1 --nocapture`.
    `SR_AUTHZ_REPORT=<file>` writes one row per call (group, route, actor, pass, status, expectation, verdict); `SR_AUTHZ_GROUPS=0,1` runs only those groups
    (0 moderation, 1 admin, 2 developers and applications, 3 oauth2, 4 submissions, 5 the rest). **Proof order:** moderation, admin, developers and
    applications, oauth2, submissions, then the rest; each group has its own world, so an interrupted run leaves the earlier groups proven.
 3. **The feature suites** (`api.rs`, `guilds.rs`, the per-module tests) cover the permission rules route by route with in-memory repositories.
 
 Exceptions to the resource-scoped rule are listed in `outsider_exception` of `authz_matrix.rs`, each with its reason (the public server preview, the
-emoji metadata lookup). Adding a route means adding its row to the TSV (`SR_UPDATE_ROUTE_MATRIX=1`, then review the `AUTHZ` cell by hand) and, if it takes a new
+emoji metadata lookup). Adding a route means adding its row to the TSV (`SR_UPDATE_ROUTE_MATRIX=1`, then review the `AUTHZ` cell by hand and fill `PLATFORM` from the handler's service call) and, if it takes a new
 kind of resource id, listing the placeholder in `TENANT` and seeding an instance in `seed`.
 
 ## 6. Gateway

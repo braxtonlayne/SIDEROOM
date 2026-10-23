@@ -7,10 +7,10 @@ Branch `feat/p21-authz-matrix` (worktree `p21-authz-matrix`), base `integration/
 The proof exists and passes. To run it again:
 
 ```
-SR_TEST_DATABASE_URL=postgres://... cargo test -j 2 -p sr-api --test authz_matrix -- --include-ignored --test-threads=1 --nocapture
+SR_TEST_DATABASE_URL=postgres://... cargo test -j 2 -p sr-server --test authz_matrix -- --include-ignored --test-threads=1 --nocapture
 ```
 
-`SR_AUTHZ_REPORT=<file>` writes one row per call; `SR_AUTHZ_GROUPS=0,1` runs only those groups. About two minutes with a quiet machine (14.8 thousand calls over 959 routes, six fresh worlds).
+`SR_AUTHZ_REPORT=<file>` writes one row per call; `SR_AUTHZ_GROUPS=0,1` runs only those groups. About two minutes with a quiet machine (113 s in the last full run; about 23 thousand calls over 959 routes, six fresh worlds).
 The test makes its own database from the template (`TestDb`), so any scratch database URL works. Scratch DB `sr_p21_authz` can be dropped.
 
 ## Groups in the order they were proven (RDY-SEC-003)
@@ -19,24 +19,24 @@ Each group has its own fresh database and server, so an interrupted run leaves t
 
 | # | Group | Calls | Failures | Weak refusals |
 |---|---|---|---|---|
-| 1 | `/moderation/*` | 824 | 0 | 0 |
-| 2 | `/admin/*` | 4072 | 0 | 0 |
-| 3 | `/developers` and `/applications/*` | 747 | 0 | 15 |
-| 4 | `/oauth2/*` | 77 | 0 | 0 |
-| 5 | `/submissions/*` | 462 | 0 | 16 |
-| 6 | the rest | 8563 | 0 | 108 |
+| 1 | `/moderation/*` | 1778 | 0 | 0 (ceiling 0) |
+| 2 | `/admin/*` | 10544 | 0 | 27 (ceiling 27) |
+| 3 | `/developers` and `/applications/*` | 735 | 0 | 12 (ceiling 12) |
+| 4 | `/oauth2/*` | 75 | 0 | 0 (ceiling 0) |
+| 5 | `/submissions/*` | 448 | 0 | 8 (ceiling 8) |
+| 6 | the rest | 8408 | 0 | 79 (ceiling 79) |
 
 "Weak" means a refusal that was a 404 next to a 404 for the rightful actor (the id names nothing): it proves little. They are listed in the report file. Causes: ids that are not seeded (watch parties, Live TV channels, thread members, DM recipients, nested submission chapters and uploads, application assets, versions, bundles and emojis).
 
 ## What was built
 
-* `crates/sr-api/tests/authz_matrix.rs` (new). It boots the real wiring (`sr_server::app::run`, in the test process, ephemeral port, in-memory object storage) against a fresh migrated database, seeds a world and a cast of 16 actors (anonymous; signed in with no server; plain member; member holding the role the private channel allows; server moderator with every permission but Administrator; owners of two servers; platform Owner; Support; basic-bit-only staff; Owner role without an appointment; application owner; a bot installed with three permissions; a bot of another application; two OAuth2 bearers with one scope each), and calls every row of `route_matrix.tsv` over HTTP (raw socket client, no new dependency).
+* `crates/sr-server/tests/authz_matrix.rs` (new; first written in `sr-api`, moved by R-01). It boots the real wiring (`sr_server::app::run`, in the test process, ephemeral port, in-memory object storage) against a fresh migrated database, seeds a world and a cast of 16 actors (anonymous; signed in with no server; plain member; member holding the role the private channel allows; server moderator with every permission but Administrator; owners of two servers; platform Owner; Support; basic-bit-only staff; Owner role without an appointment; application owner; a bot installed with three permissions; a bot of another application; two OAuth2 bearers with one scope each), and calls every row of `route_matrix.tsv` over HTTP (raw socket client, no new dependency).
   * Expectations come from the AUTHZ, BOT and BEARER columns (see doc 05 section 5.4). Refusal means 401, 403 or 404; a 400 or 422 would be reported as masked. Last run: 0 masked.
   * Write routes are called with the minimal body and with every property filled in (a no-op PATCH answers 200 to anyone, so the filled body is what reaches the permission check), and with hand-made bodies for the escalation attempts (a role with Administrator, a role handed to someone else, a rename, a vanity code).
   * RDY-SEC-002: `owner_b` calls every route with a tenant id segment using server A's ids, then with its own `{guild_id}` and A's children (IDOR); `member` calls every `{channel_id}` route with the private channel. All refused. After the refused calls of each group a fingerprint of every table (minus the job runner, sessions, staff access log, payment watcher cursor, and the authentication stamps `last_used_at` / `last_seen_at`) must be unchanged: no write.
   * Seeded objects: two servers, roles, a private channel with overwrites, messages, webhooks, invites, a thread, an emoji, a scheduled event, an auto-moderation rule, a poll template, a moderation case routed to server A with a hold, a takedown notice, a submission, an application with bot and command, an OAuth2 grant, the Staff Server with its roles and appointments; every optional server module is switched on in both servers.
 * `docs/05-api-and-gateway.md` section 5.4 "How authorization is tested".
-* `crates/sr-api/Cargo.toml`: dev-dependency `sr-server` (a dev-dependency cycle; sr-server depends on sr-api). It is how the test gets the real wiring. Cost: `cargo test -p sr-api` now also compiles sr-server and what it depends on. `Cargo.lock` gains one line. This is outside the Split row's file list; the alternative (a test in `crates/sr-server`) was not in the row either.
+* R-01 (D-359): no `sr-api` -> `sr-server` dev-dependency any more (`Cargo.lock` back to its old line); `cargo test -p sr-api --no-run -v` builds no `sr-server`. The TSV is read from `../sr-api/tests/route_matrix.tsv`.
 * `route_matrix.tsv` and `route_matrix.rs` were not changed: the TSV already had no `?` and no `other` cell, and every deviation the run found was a handler bug, not a wrong cell. No TSV correction was needed.
 
 ## Authorization bugs found and fixed
@@ -65,15 +65,22 @@ No other authorization hole was found: no refused call wrote, no cross-tenant id
 
 * `cargo fmt --check -p sr-api`: clean.
 * `cargo clippy -j 2 -p sr-api --all-targets -- -D warnings`: clean.
-* `cargo test -j 2 -p sr-api --test authz_matrix -- --include-ignored --test-threads=1` on Postgres: pass, 105 to 160 seconds depending on machine load.
+* `cargo test -j 2 -p sr-server --test authz_matrix -- --include-ignored --test-threads=1` on Postgres: pass, 105 to 160 seconds depending on machine load.
 * Full `cargo test -j 2 -p sr-api -- --include-ignored --test-threads=1` on Postgres, including `route_matrix` and `openapi_names`: pass: lib 656 tests, api 18, authz_matrix 1 (124 s), guilds 23, lounge 31, openapi_names 2, route_matrix 5, doc tests 16; exit 0.
 
 OpenAPI, the api-client and the MSW mocks were not regenerated: no handler changed its API (only a permission check inside two handlers).
 
 ## Decisions and questions for the owner
 
-* Is the dev-dependency `sr-api` -> `sr-server` acceptable? The alternative is moving `authz_matrix.rs` to `crates/sr-server/tests/` (the real wiring is there). Either way the integrator should run it once on the merged tree.
-* Should the TSV get a column naming the platform bit each `staff` row needs, so the "staff with and without the platform bit" cells can be asserted rather than observed?
-* Should an unknown auto-moderation rule be a 404 (10xxx) instead of `General error` 400? Cosmetic, not an authorization matter.
-
 Answered 2026-10-23 (delegated): D-359 (move the test to `crates/sr-server/tests/`, drop the dev-dependency), D-360 (a `PLATFORM` column, asserted; the cheap ids seeded now and a weak-refusal ceiling; the write-side allow phase, stages, multipart and step-up surfaces later), D-361 (unknown rule and template answer 404 `SrNotFound`). Answers P21-1 to P21-3 in `docs/open-question-answers.md`; code follow-ups R-01 to R-06 under "Phase 21 round" in `docs/dev/answers-followups-p16.md`.
+
+## Round 2: R-01, R-02, R-03, R-06 (D-359 to D-361)
+
+* **R-01.** `authz_matrix.rs` now lives in `crates/sr-server/tests/`. Run: `cargo test -j 2 -p sr-server --test authz_matrix -- --include-ignored --test-threads=1 --nocapture`. The dev-dependency and its `Cargo.lock` line are gone; `route_matrix.rs` and the TSV stay in `sr-api`. Doc 05 section 5.4 has the new path.
+* **R-02.** `route_matrix.tsv` has a seventh column `PLATFORM`; `route_matrix.rs` parses and validates it (a `staff` or `author_or_staff` row names a real permission, every other row has `-`; the writer emits `-` for new rows and the header says to fill it). Cell forms: `NAME`, `STAFF_BASIC`, `OWNER`, `A+B` (both), and `A|B` (either; an addition to the D-360 vocabulary, needed by rows scoped by section or kind, for example unpublish takes `PUBLISH_*` or `DELETE_CONTENT`). The test seeds one appointed actor per permission (`staff_<name>`, `STAFF_BASIC` plus the bit) and one per `A+B` value; per staff row the holder is `Allow` on reads, every other appointed actor is `Deny`, with the full body on writes; admitted writes are only observed (existing write policy). Step-up answers still count as admitted.
+  * How the column was filled: a derivation run (`SR_AUTHZ_DERIVE=1` records instead of asserting) showed which bits open each row; a single bit was taken as is. The rows where every actor passed (step-up or validation answered before the permission check) and the Owner-only looking ones were filled by reading the service call: `MANAGE_ACCOUNTS` (change-email, force-password-reset, reset-2fa, signal review), `MANAGE_FEATURES` (announcements), `APPOINT_STAFF` (staff create, offers, roles, delete), `OWNER` (delegation put and delete), `READ_PRIVATE_CONTENT` (private reads), `MANAGE_CASES+PLATFORM_BAN` (case ban), `MANAGE_ACCOUNTS+MANAGE_TAKEDOWNS` (rectify), `DELETE_CONTENT` (library and cinema merge), `STAFF_BASIC` (alerts, me, reauth, stats, queue, card actions; the queue and card actions filter inside). Review and request rows name the Library section's bit (`REVIEW_READING`, `PUBLISH_READING`); the Cinema bit is the kind's. Those rows were read, not exercised, where the seeded request or submission state does not reach them (decline, publish-now).
+  * TSV correction with a reason: `GET /tv/channels/{channel_id}` and its five sub-routes were `membership` (the generator's guess for any `{channel_id}`); a Live TV channel is an instance-wide catalog entry readable by any signed-in user, as `GET /tv/channels` already was. They are now `user`.
+* **R-03.** Seeded: a moderation case routed to server A (so server moderators and the cross-tenant sweep reach it), a hold, a takedown notice and item, a submission chapter and upload, an application asset, a Live TV channel, a library series and a cinema title, a watch party, a content request, a DM channel and a group DM between friends, a thread member, a suggestion channel/ticket channel/RSS channel configuration with a feed; new placeholders are in `TENANT`; routes taking a thread, DM, group DM or TV channel as `{channel_id}` get that id (`ctx_for`). `WEAK_CEILING = [0, 27, 12, 0, 8, 79]` fails a group that exceeds its number. Not seeded (print a note in the log): application versions (need an application privacy policy), activity bundles (zip), tickets (the opener lacks a permission), evasion signals, appeals, reports, pending message requests, announcements (step-up). The no-write fingerprint now also ignores the RSS poller's bookkeeping columns.
+* **R-06.** `SettingsError::UnknownRule | UnknownTemplate` map to 404 `SrNotFound` (900009) in `crates/sr-chat/src/settings/error.rs`; unit test `unknown_rule_and_template_are_404` pins it; the matrix's tolerance for the old 400 `General error` is removed and its cross-tenant calls on rules and templates now see 404. No OpenAPI change.
+
+Tests run in round 2: fmt and clippy `-D warnings` on sr-server, sr-api, sr-chat (all targets); `cargo test -p sr-chat` (326), full `cargo test -p sr-api -- --include-ignored --test-threads=1` (lib 656, api 18, guilds 23, lounge 31, openapi_names 2, route_matrix 5, doc tests 16); the matrix on Postgres: pass, 113 s. R-04 and R-05 are left for later as instructed.

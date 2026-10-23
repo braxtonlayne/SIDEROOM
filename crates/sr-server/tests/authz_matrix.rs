@@ -41,7 +41,7 @@ use sr_auth::{
 };
 use sr_chat::repo::GuildRepository;
 use sr_core::{
-    Clock, Permissions, SnowflakeGenerator, SystemClock, UserId,
+    Clock, Permissions, PlatformPermissions, SnowflakeGenerator, SystemClock, UserId,
     config::{Config, Secret},
 };
 use sr_db::{
@@ -66,6 +66,11 @@ const KEY_HEX: &str = "070707070707070707070707070707070707070707070707070707070
 /// An id nothing owns.
 const BOGUS: &str = "900000000000000001";
 
+/// Weak refusals allowed per group, in the order of [`GROUPS`]. A refusal is weak when it is a 404 next
+/// to a 404 for the rightful actor (the seeded id names nothing). The numbers only go down: when a
+/// seed improves, lower the number in the same change.
+const WEAK_CEILING: [usize; 6] = [0, 27, 12, 0, 8, 79];
+
 /// The groups in RDY-SEC-003 order.
 const GROUPS: [&str; 6] = [
     "moderation",
@@ -75,6 +80,74 @@ const GROUPS: [&str; 6] = [
     "submissions",
     "rest",
 ];
+
+/// The platform permission names usable in the PLATFORM column, as `PlatformPermissions` spells
+/// them, without the two with special meaning (`STAFF_BASIC`: any appointment; `OWNER`).
+fn platform_bits() -> Vec<(&'static str, PlatformPermissions)> {
+    PlatformPermissions::all()
+        .iter_names()
+        .filter(|(n, _)| *n != "OWNER" && *n != "STAFF_BASIC")
+        .collect()
+}
+
+fn bit_actor_name(bit: &str) -> &'static str {
+    Box::leak(format!("staff_{}", bit.to_lowercase()).into_boxed_str())
+}
+
+fn pair_actor_name(pair: &str) -> &'static str {
+    Box::leak(format!("staff_{}", pair.to_lowercase().replace('+', "_and_")).into_boxed_str())
+}
+
+/// The distinct `A+B` values of the PLATFORM column.
+fn pair_names(routes: &[Route]) -> Vec<String> {
+    let set: BTreeSet<&String> = routes
+        .iter()
+        .map(|r| &r.platform)
+        .filter(|p| p.contains('+'))
+        .collect();
+    set.into_iter().cloned().collect()
+}
+
+/// Platform permissions an actor holds, by name; `None` for actors with no appointment.
+fn holds(actor: &str, pairs: &[String]) -> Option<Vec<String>> {
+    match actor {
+        "staff_owner" => return Some(vec!["OWNER".into()]),
+        "staff_basic" => return Some(vec!["STAFF_BASIC".into()]),
+        // The Support template: accounts and invites.
+        "support" => {
+            return Some(vec![
+                "STAFF_BASIC".into(),
+                "MANAGE_ACCOUNTS".into(),
+                "MANAGE_INVITES".into(),
+            ]);
+        }
+        _ => {}
+    }
+    for (n, _) in platform_bits() {
+        if bit_actor_name(n) == actor {
+            return Some(vec!["STAFF_BASIC".into(), n.to_owned()]);
+        }
+    }
+    for p in pairs {
+        if pair_actor_name(p) == actor {
+            let mut v = vec!["STAFF_BASIC".to_owned()];
+            v.extend(p.split('+').map(str::to_owned));
+            return Some(v);
+        }
+    }
+    None
+}
+
+/// Whether a holder of `held` passes a row that demands `platform`: `NAME`, `A+B` (both) or `A|B` (any).
+fn admitted(held: &[String], platform: &str) -> bool {
+    let has = |p: &str| held.iter().any(|h| h == p);
+    held.iter().any(|h| h == "OWNER")
+        || if platform.contains('|') {
+            platform.split('|').any(has)
+        } else {
+            platform.split('+').all(has)
+        }
+}
 
 fn group_of(path: &str) -> usize {
     if path.starts_with("/moderation") {
@@ -103,6 +176,8 @@ struct Route {
     authz: String,
     bot_denied: bool,
     bearer: String,
+    /// Platform permission(s) a `staff` row demands: `NAME`, `A+B` or `-` (D-360).
+    platform: String,
 }
 
 fn parse_matrix() -> Vec<Route> {
@@ -113,7 +188,7 @@ fn parse_matrix() -> Vec<Route> {
             continue;
         }
         let f: Vec<&str> = line.split('\t').collect();
-        assert_eq!(f.len(), 6, "malformed matrix row {line:?}");
+        assert_eq!(f.len(), 7, "malformed matrix row {line:?}");
         out.push(Route {
             method: f[0].to_owned(),
             path: f[1].to_owned(),
@@ -121,6 +196,7 @@ fn parse_matrix() -> Vec<Route> {
             authz: f[3].to_owned(),
             bot_denied: f[4] == "deny",
             bearer: f[5].to_owned(),
+            platform: f[6].to_owned(),
         });
     }
     out
@@ -587,6 +663,7 @@ async fn seed(
     db: &TestDb,
     url: &str,
     infos: &HashMap<(String, String), OpInfo>,
+    pairs: &[String],
 ) -> (World, tokio::sync::oneshot::Sender<()>, ServerTask) {
     let pool = db.pool().clone();
     sr_db::migrate(&pool).await.expect("migrate");
@@ -633,6 +710,7 @@ async fn seed(
         "fakestaff",
         "appowner",
         "staffbasic",
+        "friendtwo",
     ] {
         users.insert(n, account(&pool, &ids, n).await);
     }
@@ -726,6 +804,54 @@ async fn seed(
         }
     }
 
+    // One staff actor per platform bit (appointment with STAFF_BASIC plus that bit), and one per
+    // `A+B` pair named in the PLATFORM column (D-360).
+    let mut extra: Vec<(&'static str, i64)> = Vec::new();
+    let mut position = 20;
+    let mut combos: Vec<(&'static str, Vec<String>)> = platform_bits()
+        .into_iter()
+        .map(|(n, _)| (bit_actor_name(n), vec![n.to_owned()]))
+        .collect();
+    for p in pairs {
+        combos.push((
+            pair_actor_name(p),
+            p.split('+').map(str::to_owned).collect(),
+        ));
+    }
+    for (name, bits) in combos {
+        let mut perms = PlatformPermissions::STAFF_BASIC;
+        for b in &bits {
+            perms |= PlatformPermissions::from_name(b).expect("platform bit name");
+        }
+        position += 1;
+        let uid = account(&pool, &ids, &format!("sb{position}")).await;
+        let role = ids.generate().get() as i64;
+        position += 1;
+        sqlx::query(
+            "INSERT INTO roles (id, guild_id, name, color, position, platform_permissions, hoist, mentionable) \
+             VALUES ($1,$2,$3,0,$4,$5,true,true)",
+        )
+        .bind(role)
+        .bind(gs)
+        .bind(name)
+        .bind(position)
+        .bind(perms.bits() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        add_member(&pool, gs, uid).await;
+        give_role(&pool, gs, uid, role).await;
+        sqlx::query(
+            "INSERT INTO staff_appointments (id, account_id, appointed_by, reason) VALUES ($1,$2,$2,'authz matrix')",
+        )
+        .bind(ids.generate().get() as i64)
+        .bind(uid)
+        .execute(&pool)
+        .await
+        .unwrap();
+        extra.push((name, uid));
+    }
+
     // Sessions.
     let mut actors = vec![Actor {
         name: "anon",
@@ -749,6 +875,13 @@ async fn seed(
         sess.insert(actor, t.clone());
         actors.push(Actor {
             name: actor,
+            cred: Cred::Session(t),
+        });
+    }
+    for (name, uid) in extra {
+        let t = session_for(&auth, &ids, uid).await;
+        actors.push(Actor {
+            name,
             cred: Cred::Session(t),
         });
     }
@@ -1194,6 +1327,20 @@ async fn seed(
     // Children of the server, for the cross-tenant sweep.
     let png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHDlN5QAAAABJRU5ErkJggg==";
     let emoji_body = json!({"name": "authzemoji", "image": png});
+    // The modules that post into a channel need one configured.
+    for f in [
+        "community.suggestions",
+        "community.tickets",
+        "community.rss",
+    ] {
+        srv.call(
+            &oa,
+            "PATCH",
+            &format!("/guilds/{ga}/sr/features/{f}"),
+            Some(&json!({"enabled": true, "settings": {"channel": chan_a.to_string()}})),
+        )
+        .await;
+    }
     let recipes: [(&'static str, &str, &Cred, Option<Value>); 7] = [
         (
             "event_id",
@@ -1221,13 +1368,13 @@ async fn seed(
             "suggestion_id",
             "/guilds/{guild_id}/suggestions",
             &member_cred,
-            None,
+            Some(json!({"content": "authz suggestion"})),
         ),
         (
             "ticket_id",
             "/guilds/{guild_id}/tickets",
             &member_cred,
-            None,
+            Some(json!({"subject": "authz ticket"})),
         ),
         (
             "template_id",
@@ -1235,7 +1382,12 @@ async fn seed(
             &oa,
             Some(json!({"name": "authz", "question": "q", "answers": ["a", "b"]})),
         ),
-        ("feed_id", "/guilds/{guild_id}/rss-feeds", &oa, None),
+        (
+            "feed_id",
+            "/guilds/{guild_id}/rss-feeds",
+            &oa,
+            Some(json!({"channel_id": chan_a.to_string(), "url": "https://example.test/feed.xml"})),
+        ),
     ];
     for (param, tpl, who, body) in recipes {
         let path = fill(tpl, &a);
@@ -1244,6 +1396,124 @@ async fn seed(
         {
             a.insert(param, id.to_owned());
         }
+    }
+
+    // R-03: more ids, from the world's own API. Each is stored under the placeholder the routes use.
+    let appowner_cred = Cred::Session(sess["app_owner"].clone());
+    let friend2 = u("friendtwo").to_string();
+    for (x, y) in [(u("member"), u("victim")), (u("member"), u("friendtwo"))] {
+        for (a_, b_) in [(x, y), (y, x)] {
+            sqlx::query("INSERT INTO relationships (user_id, target_id, type) VALUES ($1, $2, 1)")
+                .bind(a_)
+                .bind(b_)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+    }
+    let aid = app_a.application.id;
+    #[allow(clippy::type_complexity)]
+    let more: Vec<(&'static str, String, &Cred, Option<Value>)> = vec![
+        (
+            "dm_channel_id",
+            "/users/@me/channels".into(),
+            &member_cred,
+            Some(json!({"recipient_id": victim})),
+        ),
+        (
+            "group_channel_id",
+            "/users/@me/channels".into(),
+            &member_cred,
+            Some(json!({"recipients": [victim, friend2]})),
+        ),
+        ("tv_channel_id", "/admin/tv/channels".into(), &staff, None),
+        (
+            "request_id",
+            "/requests".into(),
+            &member_cred,
+            Some(json!({"section": "library", "title": "authz request"})),
+        ),
+        ("series_id", "/admin/library/series".into(), &staff, None),
+        ("title_id", "/admin/cinema/titles".into(), &staff, None),
+        (
+            "chapter_id",
+            format!("/submissions/{}/library/chapters", a["submission_id"]),
+            &member_cred,
+            Some(json!({"number": 1})),
+        ),
+        (
+            "asset_id",
+            format!("/applications/{aid}/assets"),
+            &appowner_cred,
+            Some(json!({"name": "authz", "image": png, "type": 1})),
+        ),
+        (
+            "version_id",
+            format!("/applications/{aid}/versions"),
+            &appowner_cred,
+            Some(json!({"note": "authz", "privacy_policy_url": "https://example.test/privacy"})),
+        ),
+        (
+            "bundle_id",
+            format!("/applications/{aid}/activity/bundles"),
+            &appowner_cred,
+            None,
+        ),
+        (
+            "item_id",
+            format!("/moderation/takedowns/{}/items", a["notice_id"]),
+            &staff,
+            Some(json!({"kind": "message", "id": a["message_id"]})),
+        ),
+    ];
+    for (param, path, who, body) in more {
+        if let Some(v) = create(&srv, who, "POST", &path, &path, infos, body).await
+            && let Some(id) = v["id"].as_str().or(v["submission"]["id"].as_str())
+        {
+            a.insert(param, id.to_owned());
+        }
+    }
+    if let Some(tv) = a.get("tv_channel_id").cloned()
+        && let Some(v) = create(
+            &srv,
+            &member_cred,
+            "POST",
+            "/watch-parties",
+            "/watch-parties",
+            infos,
+            Some(json!({"tv_channel_id": tv})),
+        )
+        .await
+        && let Some(id) = v["id"].as_str()
+    {
+        a.insert("party_id", id.to_owned());
+    }
+    if let (Some(chapter), Some(sub)) = (a.get("chapter_id"), a.get("submission_id")) {
+        let path = format!("/submissions/{sub}/library/chapters/{chapter}/uploads");
+        if let Some(v) = create(
+            &srv,
+            &member_cred,
+            "POST",
+            &path,
+            &path,
+            infos,
+            Some(json!({"filename": "a.zip", "size_bytes": 10})),
+        )
+        .await
+            && let Some(id) = v["id"].as_str()
+        {
+            a.insert("upload_id", id.to_owned());
+        }
+    }
+    // A running thread member: the seeded thread gets the victim.
+    if let Some(t) = a.get("thread_id") {
+        srv.call(
+            &oa,
+            "PUT",
+            &format!("/channels/{t}/thread-members/{victim}"),
+            None,
+        )
+        .await;
     }
 
     let mut private = a.clone();
@@ -1281,7 +1551,19 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 18] = [
+const TENANT: [&str; 30] = [
+    "request_id",
+    "chapter_id",
+    "upload_id",
+    "asset_id",
+    "version_id",
+    "bundle_id",
+    "item_id",
+    "notice_id",
+    "series_id",
+    "title_id",
+    "command_id",
+    "hold_id",
     "event_id",
     "rule_id",
     "emoji_id",
@@ -1384,6 +1666,18 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         }
         ("PATCH", "/guilds/{guild_id}/suggestions/{suggestion_id}") => r#"{"status":"approved"}"#,
         ("PATCH", "/guilds/{guild_id}/scheduled-events/{event_id}") => r#"{"name":"hijacked"}"#,
+        ("PUT", "/admin/review/submissions/{submission_id}/duplicate") => {
+            r#"{"action":"not_duplicate"}"#
+        }
+        ("PUT", "/admin/library/chapters/{chapter_id}/pages/{index}") => {
+            r#"{"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHDlN5QAAAABJRU5ErkJggg=="}"#
+        }
+        ("POST", "/moderation/cases/{case_id}/holds") => {
+            r#"{"kind":"message","id":"{message_id}","reason":"authz matrix"}"#
+        }
+        ("POST", "/moderation/evasion-signals/{signal_id}/review") => {
+            r#"{"decision":"dismissed","reason":"authz matrix"}"#
+        }
         ("PUT", "/admin/staff/{account_id}/delegation") => r#"{"max_permissions":"1"}"#,
         ("POST", "/admin/accounts/{account_id}/ban") => {
             r#"{"category":"standard","reason":"authz matrix"}"#
@@ -1430,7 +1724,11 @@ fn control_of(r: &Route) -> &'static str {
         "staff_owner"
     } else if r.authz == "owner" {
         "app_owner"
-    } else if r.path.starts_with("/submissions") {
+    } else if r.path.starts_with("/submissions")
+        || r.path.starts_with("/users/@me/channels")
+        || r.path.contains("/recipients")
+        || r.path.starts_with("/watch-parties")
+    {
         "member"
     } else {
         "owner_a"
@@ -1452,13 +1750,15 @@ fn plan_calls(
     group: usize,
     infos: &HashMap<(String, String), OpInfo>,
 ) -> Vec<Call> {
+    let pairs = pair_names(routes);
     let mut calls = Vec::new();
     for (i, r) in routes.iter().enumerate() {
         if group_of(&r.path) != group {
             continue;
         }
         let authed = r.access == "authenticated";
-        let pa = fill(&r.path, &world.a);
+        let (ctx, swapped) = ctx_for(r, &world.a);
+        let pa = fill(&r.path, &ctx);
         calls.push(Call {
             route: i,
             actor: "anon",
@@ -1506,16 +1806,43 @@ fn plan_calls(
             "fake_staff",
             if staff { Exp::Deny } else { Exp::Observe },
         ));
-        calls.push(std("support", Exp::Observe));
-        calls.push(std("staff_basic", Exp::Observe));
-        calls.push(std(
-            "staff_owner",
-            if staff && !is_write(&r.method) {
-                Exp::Allow
-            } else {
+        // Staff by platform bit (D-360): the holder of the named bit (or the Owner) is admitted, any
+        // other appointed staff member is refused. `SR_AUTHZ_DERIVE=1` only records.
+        let derive = std::env::var_os("SR_AUTHZ_DERIVE").is_some();
+        for a in &world.actors {
+            let Some(held) = holds(a.name, &pairs) else {
+                continue;
+            };
+            // Only the staff rows are called by every bit holder; the three fixed staff actors
+            // are called on every row.
+            if !staff && !["staff_owner", "staff_basic", "support"].contains(&a.name) {
+                continue;
+            }
+            let exp = if !staff || derive {
                 Exp::Observe
-            },
-        ));
+            } else if admitted(&held, &r.platform) {
+                if is_write(&r.method) {
+                    Exp::Observe
+                } else {
+                    Exp::Allow
+                }
+            } else {
+                Exp::Deny
+            };
+            let full_only = is_write(&r.method)
+                && a.name != "staff_owner"
+                && infos
+                    .get(&(r.method.clone(), r.path.clone()))
+                    .is_some_and(|i| i.full.is_some() && i.full != i.body);
+            if full_only && body_override(&r.method, &r.path).is_none() {
+                let mut c = std(a.name, exp);
+                c.pass = "std+full";
+                c.full = true;
+                calls.push(c);
+            } else {
+                calls.push(std(a.name, exp));
+            }
+        }
         calls.push(std(
             "member",
             if staff
@@ -1574,7 +1901,7 @@ fn plan_calls(
                 path: pa.clone(),
                 full: false,
             });
-            let mut mixed = world.a.clone();
+            let mut mixed = ctx.clone();
             mixed.insert("guild_id", world.b["guild_id"].clone());
             let has_child = TENANT
                 .iter()
@@ -1594,7 +1921,7 @@ fn plan_calls(
                     full: false,
                 });
             }
-            if r.path.contains("{channel_id}") {
+            if r.path.contains("{channel_id}") && !swapped {
                 let pp = fill(&r.path, &world.private);
                 calls.push(Call {
                     route: i,
@@ -1626,16 +1953,7 @@ fn plan_calls(
         .filter(|c| {
             let r = &routes[c.route];
             is_write(&r.method)
-                && [
-                    "member",
-                    "outsider",
-                    "fake_staff",
-                    "bot_out",
-                    "owner_b",
-                    "staff_basic",
-                    "support",
-                ]
-                .contains(&c.actor)
+                && ["member", "outsider", "fake_staff", "bot_out", "owner_b"].contains(&c.actor)
                 && infos
                     .get(&(r.method.clone(), r.path.clone()))
                     .is_some_and(|i| i.full.is_some() && i.full != i.body)
@@ -1676,10 +1994,6 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
                 && (r.body.trim() == "[]" || r.body.contains("\"instance\":null"))
             {
                 ("ok", "empty answer".into())
-            } else if s == 400 && code == "0" {
-                // `General error` without a field: the id names nothing in this server (an unknown
-                // auto-moderation rule is answered this way), so nothing was reached.
-                ("ok", "unknown id".into())
             } else if matches!(s, 400 | 405 | 409 | 415 | 422) {
                 ("masked", format!("{code} {}", short(100)))
             } else if s == 0 || s >= 500 {
@@ -1721,7 +2035,16 @@ const NOISY: [&str; 13] = [
 ];
 
 /// Columns stamped by authentication itself (a bot token's last use, a session's last sight).
-const STAMPS: [&str; 2] = ["last_used_at", "last_seen_at"];
+const STAMPS: [&str; 7] = [
+    "last_used_at",
+    "last_seen_at",
+    // The RSS poller's bookkeeping.
+    "next_check_at",
+    "last_checked_at",
+    "failures",
+    "last_status",
+    "seeded",
+];
 
 async fn fingerprint(pool: &sqlx::PgPool) -> BTreeMap<String, String> {
     let tables: Vec<String> = sqlx::query_scalar(
@@ -1788,7 +2111,7 @@ async fn run_group(
         Some((head, _)) => format!("{head}/{}", db.name()),
         None => panic!("bad SR_TEST_DATABASE_URL"),
     };
-    let (world, stop, server) = seed(&db, &url, infos).await;
+    let (world, stop, server) = seed(&db, &url, infos, &pair_names(routes)).await;
     let calls = plan_calls(&world, routes, g, infos);
     let mut failures = Vec::new();
     let mut obs: Vec<Obs> = Vec::new();
@@ -1928,6 +2251,14 @@ async fn run_group(
         }
     }
 
+    // R-03: the weak refusals of a group may only go down (lower WEAK_CEILING when they do).
+    if weak > WEAK_CEILING[g] {
+        group_fail += 1;
+        failures.push(format!(
+            "[{gname}] {weak} weak refusals, the ceiling is {}: a seeded id stopped reaching its resource",
+            WEAK_CEILING[g]
+        ));
+    }
     let _ = stop.send(());
     let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
     db.cleanup().await.ok();
@@ -2011,4 +2342,28 @@ async fn every_route_enforces_its_authz_row() {
             .join("\n")
     );
     let _ = (Method::GET, policy::normalise("/"));
+}
+
+/// Routes whose `{channel_id}` is not a text channel of server A: thread members take the thread,
+/// direct-message routes the direct message, recipient routes the group, Live TV the TV channel.
+fn ctx_for(
+    r: &Route,
+    base: &HashMap<&'static str, String>,
+) -> (HashMap<&'static str, String>, bool) {
+    let from = if r.path.contains("/thread-members") {
+        "thread_id"
+    } else if r.path.starts_with("/users/@me/channels") {
+        "dm_channel_id"
+    } else if r.path.contains("/recipients") {
+        "group_channel_id"
+    } else if r.path.contains("tv/channels") {
+        "tv_channel_id"
+    } else {
+        return (base.clone(), false);
+    };
+    let mut c = base.clone();
+    if let Some(v) = base.get(from) {
+        c.insert("channel_id", v.clone());
+    }
+    (c, true)
 }
