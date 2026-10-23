@@ -5926,6 +5926,7 @@ dependencies = [
  "sr-net",
  "sr-packages",
  "sr-payments",
+ "sr-preflight",
  "sr-push",
  "sr-reader",
  "sr-review",
@@ -6059,6 +6060,8 @@ dependencies = [
  "sr-library",
  "sr-media",
  "sr-packages",
+ "sr-preflight",
+ "sr-server",
  "sr-storage",
  "sr-theme",
  "sr-transcoder",
@@ -6412,6 +6415,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-preflight"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "fs4",
+ "hmac 0.13.0",
+ "reqwest 0.13.5",
+ "serde",
+ "sha1 0.11.0",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-storage",
+ "sr-voice-proto",
+ "tokio",
+]
+
+[[package]]
 name = "sr-push"
 version = "0.0.0"
 dependencies = [
@@ -6525,6 +6547,7 @@ dependencies = [
  "sr-net",
  "sr-packages",
  "sr-payments",
+ "sr-preflight",
  "sr-push",
  "sr-review",
  "sr-search",

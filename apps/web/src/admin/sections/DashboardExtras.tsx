@@ -8,6 +8,7 @@ import * as donations from '../donations/api';
 import * as review from '../../review/api';
 import { formatNumber, useT } from '../../i18n';
 import { ActionStatus, Stat, fmtMs, useAction, useAdminViewer, useResource } from '../ui';
+import { PreflightCard } from './PreflightCard';
 
 const n = (v: number) => formatNumber(v);
 
@@ -340,6 +341,7 @@ export function SetupChecklist({ staff }: { staff: number }) {
           </li>
         ))}
       </ul>
+      {v.can('OPERATOR') && <PreflightCard compact />}
     </section>
   );
 }

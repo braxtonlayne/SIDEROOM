@@ -1025,3 +1025,21 @@ export const rectifyPersonLink = (id: string, reason: string, personId?: string)
     reason,
     ...(personId ? { person_id: personId } : {}),
   });
+
+/** One row of the preflight table (RDY-OPS-005). `detail` is a sentence from the server, never a secret. */
+export interface PreflightCheck {
+  id: string;
+  title: string;
+  status: 'pass' | 'warn' | 'fail';
+  detail: string;
+}
+export interface PreflightReport {
+  checks: PreflightCheck[];
+  ran_at_ms: number;
+  passed: number;
+  warned: number;
+  failed: number;
+  ok: boolean;
+}
+/** Runs the preflight checks now (OPERATOR); the run is written to the access log. */
+export const runPreflight = () => send<PreflightReport>('/admin/system/preflight', 'POST');

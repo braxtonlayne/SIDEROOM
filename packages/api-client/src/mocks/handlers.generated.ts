@@ -237,6 +237,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"suspects","method":"get","path":"/admin/suspicion","status":200,"body":[{"accounts":[{}],"frozen":false,"person_id":"1","suspicion_level":0}]},
   {"id":"system","method":"get","path":"/admin/system","status":200,"body":{"backups":{},"counts":{"accounts_active":0,"accounts_banned":0,"accounts_deactivated":0,"accounts_deleted":0,"jobs_dead":0,"jobs_queued":0,"jobs_running":0,"sessions_active":0,"staff":0},"disk":[{}],"integrations":[{}],"probes":[{}],"version":"string"}},
   {"id":"email_test","method":"post","path":"/admin/system/email-test","status":200,"body":{"sent_to":"string"}},
+  {"id":"preflight","method":"post","path":"/admin/system/preflight","status":200,"body":{"checks":[{}],"failed":0,"ok":false,"passed":0,"ran_at_ms":0,"warned":0}},
   {"id":"admin_transcode_jobs","method":"get","path":"/admin/transcode/jobs","status":200,"body":[{"asset_id":"1","attempt":0,"cancel_requested":false,"created_at_ms":0,"job_id":"1","kind":"proxy","priority":0,"state":"queued"}]},
   {"id":"admin_transcode_job","method":"get","path":"/admin/transcode/jobs/:job_id","status":200,"body":{"asset_id":"1","attempt":0,"cancel_requested":false,"created_at_ms":0,"job_id":"1","kind":"proxy","priority":0,"state":"queued","output_count":0,"warnings":["string"]}},
   {"id":"admin_transcode_cancel","method":"post","path":"/admin/transcode/jobs/:job_id/cancel","status":204,"body":null},

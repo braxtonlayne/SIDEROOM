@@ -1299,6 +1299,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )))
         .with_reauth(require_reauth)
         .with_storage(storage.clone())
+        .with_preflight(Arc::new(crate::preflight::LivePreflight::new(
+            pool.clone(),
+            storage.clone(),
+            &cfg,
+        )))
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())

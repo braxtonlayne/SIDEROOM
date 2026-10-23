@@ -28,6 +28,8 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 sr-db = { path = "../sr-db" }
 sr-storage = { path = "../sr-storage" }
 sr-packages = { path = "../sr-packages" }
+sr-preflight = { path = "../sr-preflight" }
+sr-server = { path = "../sr-server" }
 sr-theme = { path = "../sr-theme" }
 serde_json.workspace = true
 sha2 = "0.11"
