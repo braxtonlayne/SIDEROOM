@@ -295,3 +295,14 @@ test('the electrs payments profile is off unless asked for (M-02, D-288)', () =>
   assert.match(envOn, /^SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1$/m);
   assert.match(envOn, /^COMPOSE_PROFILES=payments$/m);
 });
+
+test('SR_INSTALL_SKIP_PULL=1 skips the image pull and nothing else (RDY-OPS-001)', () => {
+  const sb = sandbox();
+  const r = run(sb, ['--yes'], { SR_INSTALL_SKIP_PULL: '1' });
+  assert.equal(r.status, 0, r.out);
+  const calls = readFileSync(sb.log, 'utf8').trim().split('\n');
+  assert.ok(!calls.some((c) => / pull/.test(c)), `a pull ran:\n${calls.join('\n')}`);
+  assert.ok(calls.some((c) => c.includes('sr-cli sr-server migrate')));
+  assert.ok(calls.at(-1).endsWith(' up -d'));
+  assert.match(r.out, /skipping the image pull/);
+});

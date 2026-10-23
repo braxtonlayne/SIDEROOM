@@ -47,10 +47,12 @@ services:
     # No published port: only the compose network (and docker exec for backups) reaches Postgres.
 
   # The named volumes are created root-owned; the postgres user (uid 999) must be able to write to them.
+  # The backup folder is 750 rather than 700 so sr-server, which is in group 999 (see group_add below), can list it
+  # read-only and Admin > System can show the last backup time (RDY-OPS-002). The WAL archive stays 700.
   wal-archive-init:
     image: postgres:17
     user: root
-    command: ["sh", "-c", "chown postgres:postgres /var/lib/postgresql/wal-archive /var/backups/sideroom && chmod 700 /var/lib/postgresql/wal-archive /var/backups/sideroom"]
+    command: ["sh", "-c", "chown postgres:postgres /var/lib/postgresql/wal-archive /var/backups/sideroom && chmod 700 /var/lib/postgresql/wal-archive && chmod 750 /var/backups/sideroom"]
     volumes:
       - wal-archive:/var/lib/postgresql/wal-archive
       - pg-backups:/var/backups/sideroom
@@ -98,9 +100,14 @@ services:
       SR_PAYMENTS_RATE_SOURCES: ${SR_PAYMENTS_RATE_SOURCES:-}
       # Needed when the endpoint is the private electrs container (the SSRF client refuses private addresses).
       SR_PAYMENTS_ALLOW_PRIVATE_HOSTS: ${SR_PAYMENTS_ALLOW_PRIVATE_HOSTS:-}
+    # Group 999 is the postgres group of the postgres:17 image: it lets the server read the backup folder below.
+    group_add: ["999"]
     volumes:
       # Optional, read-only: the folder named above. The ledger never moves or deletes files here.
       - ${SR_INGEST_DIR:-/srv/sideroom/ingest}:/srv/sideroom/ingest:ro
+      # Read-only view of the backups the postgres container writes (backup.sh, basebackup.sh). Set the platform
+      # setting ops.backup_dir to /var/backups/sideroom and Admin > System shows the last backup (deploy/BACKUP.md).
+      - pg-backups:/var/backups/sideroom:ro
     stop_grace_period: 60s # server drains for 2 x shutdown_grace_secs (docs/dev/server.md)
     healthcheck:
       # The distroless image has no shell or curl; the binary probes its own /readyz (database and storage).

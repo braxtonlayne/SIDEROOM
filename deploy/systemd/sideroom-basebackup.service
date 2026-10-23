@@ -9,6 +9,6 @@ WorkingDirectory=/opt/sideroom
 # Runs inside the postgres container of deploy/compose/prod.yml, over the local socket (trust), so no
 # password is involved. The archive and the base backups live in the wal-archive and pg-backups volumes.
 # Copy the base backups off the host the same way the dumps are (BACKUP.md) or they die with the disk.
-ExecStart=/usr/bin/docker compose -f /opt/sideroom/deploy/compose/prod.yml --env-file /opt/sideroom/deploy/compose/.env.prod exec -T postgres sh -c "SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom SR_WAL_ARCHIVE_DIR=/var/lib/postgresql/wal-archive sh /opt/sideroom/scripts/basebackup.sh"
+ExecStart=/usr/bin/docker compose -f /opt/sideroom/deploy/compose/prod.yml --env-file /opt/sideroom/deploy/compose/.env.prod exec -T postgres sh -c "SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom SR_BACKUP_DIR_MODE=750 SR_WAL_ARCHIVE_DIR=/var/lib/postgresql/wal-archive sh /opt/sideroom/scripts/basebackup.sh"
 Nice=10
 IOSchedulingClass=idle
