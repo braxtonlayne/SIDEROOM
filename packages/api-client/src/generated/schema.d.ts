@@ -3464,6 +3464,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the preflight checks now (`OPERATOR`; the same checks as `sr-cli preflight`, minus the ones that send
+         *     mail or post cards). The run is written to the access log with the counts and the ids that failed.
+         */
+        post: operations["preflight"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/transcode/jobs": {
         parameters: {
             query?: never;
@@ -20020,6 +20040,37 @@ export interface components {
         PollVoters: {
             users: components["schemas"]["UserRef"][];
         };
+        /** @description One row of the preflight table. */
+        PreflightCheckView: {
+            /** @description One sentence: what was seen, or what to do about it. Never contains a secret. */
+            detail: string;
+            /** @description Stable id such as `database`, `storage` or `turn`. */
+            id: string;
+            status: components["schemas"]["PreflightStatusView"];
+            title: string;
+        };
+        /**
+         * @description Outcome of one preflight check.
+         * @enum {string}
+         */
+        PreflightStatusView: "pass" | "warn" | "fail";
+        /** @description The preflight table. */
+        PreflightView: {
+            checks: components["schemas"]["PreflightCheckView"][];
+            /** Format: int32 */
+            failed: number;
+            /** @description `true` when nothing failed; warnings do not fail a preflight. */
+            ok: boolean;
+            /** Format: int32 */
+            passed: number;
+            /**
+             * Format: int64
+             * @description Unix milliseconds when the run finished.
+             */
+            ran_at_ms: number;
+            /** Format: int32 */
+            warned: number;
+        };
         PrefsBody: {
             hide_amount?: boolean | null;
             hide_badge?: boolean | null;
@@ -35243,6 +35294,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MailTestResult"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preflight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreflightView"];
                 };
             };
             401: {
