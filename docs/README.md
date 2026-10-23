@@ -40,5 +40,8 @@
 ## Component inventory
 [docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered in a follow-up PR).
 
+## Roadmap after the inventory
+[dev/roadmap-p20.md](dev/roadmap-p20.md): waves 20 to 24 (launch readiness, D-352), with their work items in [inventory/20-launch-readiness.md](inventory/20-launch-readiness.md).
+
 ## Mockups
 [docs/assets/mockups/](assets/mockups/README.md)

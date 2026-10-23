@@ -42,9 +42,12 @@ Video ingest (browser, batch, watched folder, storage import), probe, transcode 
 Developer applications, developer portal, bot gateway/intents/interactions/commands, OAuth2, test-server restriction, release review, `sr-sdk` + JS SDK, Discord compatibility suite, activities + Embedded App SDK, theme store, profile layouts ("MySpace mode"), packages and recipes.
 
 ## Phase 7 — Moderation & compliance `[MOD-*]`
-Inventory: [19-moderation.md](inventory/19-moderation.md). In progress (D-315): step 1 (cases and reports), step 2 (the takedown register) and step 3 (the data-request queue) are built (P18); step 4 (the dashboards) and step 5 (suspicion review) are next, and mailing the templated takedown reply waits on the lawyer (D-336).
+Inventory: [19-moderation.md](inventory/19-moderation.md). Built (D-315): steps 1 to 3 (cases and reports, the takedown register, the data-request queue) in P18, steps 4 and 5 (the dashboards, suspicion review) and the age tools in P19. Mailing the templated takedown reply (N-35) and mandatory external reporting wait on the lawyer (D-336).
 
 Reports, cases, holds UI, the full ban-reason taxonomy, inviter-suspicion review tooling, takedown workflow, data-subject request tooling, NSFW/age policy enforcement, staff dashboards.
+
+## Waves 20 to 24 — Launch readiness `[RDY-*]`
+Inventory: [20-launch-readiness.md](inventory/20-launch-readiness.md). Plan: [dev/roadmap-p20.md](dev/roadmap-p20.md) (D-352). The inventory is ticked, but most exit gates above were never run for real (no Docker, ffmpeg, real host or coturn on the agent machines), so these waves build proofs first: 20, the first real install in CI and the owner's packet; 21, security proof; 22, media and voice for real (and the member video upload path); 23, people readiness (accessibility, first run, the handbooks); 24, scale proof, Discord parity remainders and developer platform remainders, which may follow launch. RDY-DOC-005 turns the exit gates above into a status table.
 
 ## Later / ideas
 Native desktop (Tauri, Rust) and mobile apps; Lightning and Monero; AV1 rendition; offline downloads in native clients; **bounties** ([spec](specs/future-bounties.md)); multi-node scale-out (`PgNotifyBus`).
