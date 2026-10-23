@@ -101,10 +101,12 @@ export class FakeAudioContext {
     const src = Object.assign(new FakeNode(), {
       buffer: null as unknown,
       started: false,
+      startArgs: [] as number[],
       stopped: false,
       onended: null as (() => void) | null,
-      start() {
+      start(...args: number[]) {
         src.started = true;
+        src.startArgs = args;
       },
       stop() {
         src.stopped = true;
@@ -394,9 +396,10 @@ export interface FakeTransceiver {
 export type FakeBufferSource = FakeNode & {
   buffer: unknown;
   started: boolean;
+  startArgs: number[];
   stopped: boolean;
   onended: (() => void) | null;
-  start(): void;
+  start(...args: number[]): void;
   stop(): void;
   finish(): void;
 };

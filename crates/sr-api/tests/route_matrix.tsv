@@ -204,6 +204,7 @@ GET	/admin/staff/roles	authenticated	staff	deny	-
 GET	/admin/stats	authenticated	staff	deny	-
 GET	/admin/suspicion	authenticated	staff	deny	-
 GET	/admin/system	authenticated	staff	deny	-
+GET	/admin/system/csp-reports	authenticated	staff	deny	-
 GET	/admin/transcode/jobs	authenticated	staff	deny	-
 GET	/admin/transcode/jobs/{job_id}	authenticated	staff	deny	-
 GET	/admin/transcode/queue	authenticated	staff	deny	-
@@ -965,6 +966,7 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-
 #undocumented	/connections/{provider}/callback
 #undocumented	/developers/docs/api
 #undocumented	/healthz
+#undocumented	/internal/csp-report
 #undocumented	/internal/metrics
 #undocumented	/openapi.json
 #undocumented	/packages/versions/{version_id}/files/{*path}

@@ -5,6 +5,7 @@ import { formatNumber, type MessageKey, useT } from '../../i18n';
 import { formatBytes } from '../../lounge/msg/format';
 import { CopyButton } from '../../developers/ui';
 import { PreflightCard } from './PreflightCard';
+import { CspReportsCard } from './CspReportsCard';
 import {
   ActionStatus,
   Async,
@@ -80,6 +81,7 @@ export function SystemSection() {
               </ul>
             </section>
             <PreflightCard />
+            <CspReportsCard />
             {s.backups && (
               <section className="ss-card" aria-labelledby="sys-backups">
                 <h2 id="sys-backups">{t('admin.system.backupsTitle')}</h2>

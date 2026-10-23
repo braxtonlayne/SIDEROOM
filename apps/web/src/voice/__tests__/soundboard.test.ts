@@ -305,6 +305,8 @@ describe('playing into the call', () => {
     });
     expect(await c.previewSound(deft)).toBe(true);
     expect(world.contexts[0]!.bufferSources[0]!.started).toBe(true);
+    // A file that decodes longer than the limit is cut (D-363).
+    expect(world.contexts[0]!.bufferSources[0]!.startArgs).toEqual([0, 0, 5.25]);
     setAudioFetcher(async () => {
       throw new Error('offline');
     });

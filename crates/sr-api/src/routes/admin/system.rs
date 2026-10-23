@@ -610,3 +610,28 @@ pub async fn preflight(ctx: StaffCtx) -> ApiResult<Json<PreflightView>> {
         .map_err(map_err)?;
     Ok(Json(report.into()))
 }
+
+/// Content-Security-Policy violations the browsers reported, as counters (`OPERATOR`, RDY-SEC-009): the top
+/// directives, blocked origins and document paths. Nothing personal is stored; see `POST /internal/csp-report`.
+#[utoipa::path(
+    get, path = "/admin/system/csp-reports",
+    responses((status = 200, body = crate::routes::internal::CspSnapshot), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn csp_reports(
+    ctx: StaffCtx,
+    crate::routes::MaybeExt(reports): crate::routes::MaybeExt<crate::routes::internal::CspReports>,
+) -> ApiResult<Json<crate::routes::internal::CspSnapshot>> {
+    ctx.svc()
+        .authorize(&ctx.caller, P::OPERATOR, "system.csp_reports")
+        .await
+        .map_err(map_err)?;
+    let Some(reports) = reports else {
+        return Ok(Json(crate::routes::internal::CspSnapshot::default()));
+    };
+    reports.store.top(10).await.map(Json).map_err(|e| {
+        tracing::error!(error = %e, "csp counters could not be read");
+        crate::HttpError::from(ErrorCode::SrInternal)
+    })
+}

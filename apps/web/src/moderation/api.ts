@@ -1,6 +1,7 @@
 // REST helpers for reports (members) and cases, holds and appeals (staff): /api/v1/moderation/*.
 // Shapes mirror crates/sr-moderation (utoipa schemas). Ids are snowflake strings, times Unix milliseconds.
 import { apiFetch } from '../api/client';
+import { withReauth } from '../admin/reauth';
 
 export type ReportCategory =
   | 'spam'
@@ -207,8 +208,12 @@ const qs = (p: Record<string, string | number | boolean | null | undefined>) => 
   return s ? `?${s}` : '';
 };
 const get = <T>(path: string) => apiFetch<T>(path, { retries: 0 });
+// Platform bans from a case and takedown upholds are on the sensitive-action list (RDY-SEC-010): a closed second-factor
+// window answers 900004 and the retry follows the re-auth dialog.
 const send = <T>(path: string, method: string, json?: unknown) =>
-  apiFetch<T>(path, { method, retries: 0, ...(json !== undefined ? { json } : {}) });
+  withReauth(() =>
+    apiFetch<T>(path, { method, retries: 0, ...(json !== undefined ? { json } : {}) }),
+  );
 
 export interface CaseQuery {
   state?: CaseState | '';

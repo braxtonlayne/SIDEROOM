@@ -15,6 +15,13 @@
  * - Activities are iframes on `*.activities.<host>` and are listed through `extraFrame`.
  */
 
+/** Where browsers post violation reports (unauthenticated, rate limited, counters only; RDY-SEC-009). */
+export const CSP_REPORT_PATH = '/internal/csp-report';
+/** The Reporting API group the `report-to` directive names. */
+export const CSP_REPORT_GROUP = 'csp-endpoint';
+/** Value of the `Reporting-Endpoints` header that defines [CSP_REPORT_GROUP]. */
+export const REPORTING_ENDPOINTS = `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`;
+
 export interface CspOptions {
   /** Extra origins for `connect-src`, for example a separate voice signalling host. */
   extraConnect?: readonly string[];
@@ -47,6 +54,10 @@ export function buildCsp(opts: CspOptions = {}): string {
     ['base-uri', "'self'"],
     ['form-action', "'self'"],
     ['frame-ancestors', "'none'"],
+    // RDY-SEC-009: violations are counted at POST /internal/csp-report (legacy `report-uri`, and `report-to` named in
+    // the Reporting-Endpoints header).
+    ['report-uri', CSP_REPORT_PATH],
+    ['report-to', CSP_REPORT_GROUP],
   ];
   return directives.map(([k, v]) => `${k} ${v}`).join('; ');
 }
@@ -68,6 +79,7 @@ export function securityHeaders(
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': PERMISSIONS_POLICY,
     'Cross-Origin-Opener-Policy': 'same-origin',
+    'Reporting-Endpoints': REPORTING_ENDPOINTS,
   };
   if (opts.hsts) h['Strict-Transport-Security'] = HSTS;
   return h;

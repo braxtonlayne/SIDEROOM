@@ -3444,6 +3444,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system/csp-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Content-Security-Policy violations the browsers reported, as counters (`OPERATOR`, RDY-SEC-009): the top
+         *     directives, blocked origins and document paths. Nothing personal is stored; see `POST /internal/csp-report`.
+         */
+        get: operations["csp_reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/system/email-test": {
         parameters: {
             query?: never;
@@ -16040,6 +16060,26 @@ export interface components {
             /** Format: int64 */
             balance: number;
             entries: components["schemas"]["LedgerEntry"][];
+        };
+        /** @description One counted key. */
+        CspCounter: {
+            /** Format: int64 */
+            count: number;
+            key: string;
+            /**
+             * Format: int64
+             * @description Unix milliseconds of the latest report with this key.
+             */
+            last_seen_ms: number;
+        };
+        /** @description What the Admin > System card shows. */
+        CspSnapshot: {
+            /** @description Reports per violated directive. */
+            directives: components["schemas"]["CspCounter"][];
+            /** @description Reports per blocked origin. */
+            origins: components["schemas"]["CspCounter"][];
+            /** @description Reports per document path. */
+            paths: components["schemas"]["CspCounter"][];
         };
         /** @description Body of `GET /sr/csrf`. */
         CsrfToken: {
@@ -35286,6 +35326,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    csp_reports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CspSnapshot"];
                 };
             };
             401: {

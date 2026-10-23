@@ -20,6 +20,14 @@
 	handle /cdn/* {
 		reverse_proxy host.docker.internal:8080
 	}
+	# CSP violation reports (RDY-SEC-009): the only /internal path that is public.
+	@cspReport {
+		method POST
+		path /internal/csp-report
+	}
+	handle @cspReport {
+		reverse_proxy host.docker.internal:8080
+	}
 	handle /internal/* {
 		respond 404
 	}

@@ -51,6 +51,7 @@ pub mod donations;
 pub mod gifs;
 pub mod guilds;
 pub mod inbox;
+pub mod internal;
 pub mod library;
 pub mod media;
 pub mod messages;

@@ -37,6 +37,8 @@ export default defineConfig({
     headers: securityHeaders({ ...extra, dev: true }),
     proxy: {
       '/api': 'http://localhost:8080',
+      // CSP violation reports (RDY-SEC-009).
+      '/internal/csp-report': 'http://localhost:8080',
       // The Lounge's live connection (docs/05 gateway); the WebSocket upgrade must be proxied too.
       '/gateway': { target: 'ws://localhost:8080', ws: true },
       // The SFU's signalling WebSocket (`GET /voice/ws`, docs/specs/lounge-voice-video.md section 4); media is UDP.
@@ -48,6 +50,7 @@ export default defineConfig({
     headers: securityHeaders(extra),
     proxy: {
       '/api': 'http://localhost:8080',
+      '/internal/csp-report': 'http://localhost:8080',
       '/gateway': { target: 'ws://localhost:8080', ws: true },
       '/cdn': 'http://localhost:8080',
     },
