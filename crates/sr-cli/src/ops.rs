@@ -252,11 +252,27 @@ pub async fn restore(cfg: &Config, pool: &PgPool, dump: &Path, force: bool) -> R
         env.database,
         env.host
     );
+    if tables > 0 {
+        // `pg_restore --clean` drops objects one by one and fails on partitioned tables ("cannot drop
+        // inherited constraint" on a partition's primary key), so empty the schema in one step instead.
+        // The dump recreates its extensions, so dropping them with the schema is fine.
+        let mut tx = pool.begin().await?;
+        sqlx::query("DROP SCHEMA public CASCADE")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("CREATE SCHEMA public")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("GRANT USAGE ON SCHEMA public TO PUBLIC")
+            .execute(&mut *tx)
+            .await?;
+        tx.commit()
+            .await
+            .context("emptying the database before the restore")?;
+        println!("dropped the existing objects in {} (--force)", env.database);
+    }
     let mut cmd = env.command("pg_restore");
     cmd.args(["--no-owner", "--no-privileges", "--exit-on-error"]);
-    if force {
-        cmd.args(["--clean", "--if-exists"]);
-    }
     cmd.arg("-d").arg(&env.database).arg(dump);
     run_tool(cmd, "the restore")?;
     println!(
