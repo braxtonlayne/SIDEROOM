@@ -3193,3 +3193,35 @@ Status: `ADOPTED` (D-358). Follow-up: Q-06 (deny.toml comment, esplora row).
 ### Still with the owner
 
 Nothing new. The licence answer is a project default under D-309; the lawyer brief (Q2 to Q4) already carries the copyleft questions a lawyer should check.
+
+## Phase 21 authorization-matrix round (answered 2026-10-23, delegated)
+
+The three questions the authz-matrix branch left open in its handoff (`feat-p21-authz-matrix.md` "Decisions and questions for the owner", with the weak spots of "Not done / still open"), answered by the owner's proxy under the standing delegation: decide and document only (no code, build or push). Decisions are D-359 to D-361 in [01-decisions-log.md](01-decisions-log.md); follow-ups are R-01 to R-06 under "Phase 21 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 3 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Where the test lives (P21-1, branch `feat/p21-authz-matrix`)
+
+**P21-1 (handoff question 1). The matrix test needs the real server wiring, so `sr-api` gained a dev-dependency on `sr-server` (a cycle; one `Cargo.lock` line) and every `cargo test -p sr-api` now also compiles `sr-server`. Keep that, or move the test to `crates/sr-server/tests/`?**
+Decision: move it. `crates/sr-server/tests/authz_matrix.rs`, the dev-dependency and the lock line gone; `route_matrix.rs` and the TSV stay in `sr-api` (they need no database) and the moved test reads the TSV relative to its own `CARGO_MANIFEST_DIR`. The test proves the server as wired, which is what `sr-server`'s existing `*_pg_tests.rs` do, and `sr-server` already depends on everything the test imports (`sr-api`, `sr-db`, `sr-chat`, `sqlx`), so nothing is added anywhere. The cycle would make every `sr-api` test and clippy run build the leaf crate and its whole subtree for one test, and dev-dependency cycles are the one place Cargo builds a crate twice. Doc 05 section 5.4, the handoff's "Resume here", the roadmap Split row and the inventory line get the new path. The integrator runs it once on the merged tree, as the handoff asked.
+Status: `ADOPTED` (D-359). Follow-up: R-01.
+
+### Platform bits and the weak spots (P21-2, branch `feat/p21-authz-matrix`)
+
+**P21-2 (handoff question 2 and "Not done"). Should the TSV name the platform bit each `staff` row needs, so those cells are asserted rather than observed? And of the other weak spots (allow side of write routes; un-seeded ids; voice off, so no stages), which are worth closing now?**
+Decision: yes to the column, now. A seventh column `PLATFORM` with the `PlatformPermissions` constant name (`STAFF_BASIC` when any appointed staff member may call the route, `OWNER` for Owner-only, `A+B` for two required bits, `-` off staff rows), validated by `route_matrix.rs` against `platform_permissions.rs`, and asserted by `authz_matrix.rs` with one seeded staff actor per bit: the named holder admitted on reads, every other holder and `staff_basic` refused. The bit is enforced inside `sr-admin`, not in an extractor, so it cannot be derived by grep; writing it down once is the proof. About 7 thousand more calls, within the five-minute budget. Of the weak spots: now, seed every id that is a row insert or a JSON call (thread member, DM recipient and message request, watch party, Live TV channel and block, nested submission chapter and upload, application asset, version and bundle, library and cinema content, takedown item, evasion signal, appeal, report, suggestion, ticket and RSS feed with their module channel configured) and pin a per-group ceiling on weak refusals so the number only falls. Later: the allow side of write routes (a rightful DELETE breaks the world; it needs a final per-group phase in dependency order, queued for the next wave that touches the matrix), stage instances (wave 22 turns voice on), stickers and sounds (multipart) and announcements (two-factor step-up), the last two together with the write-side phase.
+Status: `ADOPTED` (D-360). Follow-ups: R-02, R-03 now; R-04, R-05 later.
+
+### Unknown auto-moderation rule (P21-3, branch `feat/p21-authz-matrix`)
+
+**P21-3 (handoff question 3). An unknown auto-moderation rule answers 400 `General error` (code 0). Should it be a 404 (10xxx) for Discord parity?**
+Decision: 404, with `SrNotFound` (900009), not an invented 10xxx: Discord publishes no code for an unknown auto-moderation rule, and the project already uses `SrNotFound` for objects Discord has no code for (the settings file's `UnknownApplication`). The unknown poll template shares the mapping arm and changes too. The lookup stays guild-scoped so a foreign rule gets the same 404; the cross-tenant sweep asserts it. XS.
+Status: `ADOPTED` (D-361). Follow-up: R-06.
+
+### Still with the owner
+
+Nothing. The three are engineering defaults.

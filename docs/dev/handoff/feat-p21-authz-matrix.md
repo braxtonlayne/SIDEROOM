@@ -75,3 +75,5 @@ OpenAPI, the api-client and the MSW mocks were not regenerated: no handler chang
 * Is the dev-dependency `sr-api` -> `sr-server` acceptable? The alternative is moving `authz_matrix.rs` to `crates/sr-server/tests/` (the real wiring is there). Either way the integrator should run it once on the merged tree.
 * Should the TSV get a column naming the platform bit each `staff` row needs, so the "staff with and without the platform bit" cells can be asserted rather than observed?
 * Should an unknown auto-moderation rule be a 404 (10xxx) instead of `General error` 400? Cosmetic, not an authorization matter.
+
+Answered 2026-10-23 (delegated): D-359 (move the test to `crates/sr-server/tests/`, drop the dev-dependency), D-360 (a `PLATFORM` column, asserted; the cheap ids seeded now and a weak-refusal ceiling; the write-side allow phase, stages, multipart and step-up surfaces later), D-361 (unknown rule and template answer 404 `SrNotFound`). Answers P21-1 to P21-3 in `docs/open-question-answers.md`; code follow-ups R-01 to R-06 under "Phase 21 round" in `docs/dev/answers-followups-p16.md`.
