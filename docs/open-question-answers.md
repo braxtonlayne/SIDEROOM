@@ -3193,3 +3193,41 @@ Status: `ADOPTED` (D-358). Follow-up: Q-06 (deny.toml comment, esplora row).
 ### Still with the owner
 
 Nothing new. The licence answer is a project default under D-309; the lawyer brief (Q2 to Q4) already carries the copyleft questions a lawyer should check.
+
+## Phase 21 sessions and uploads round (answered 2026-10-23, delegated)
+
+The four questions `feat-p21-sessions-uploads.md` left open ("Decisions" 1, 3 and 4 and "Open" 1 to 4), answered by the owner's proxy under the standing delegation: decide and document only (no code, build, download or push). Decisions are D-362 to D-365 in [01-decisions-log.md](01-decisions-log.md) (the other wave-21 branch holds D-359 to D-361); follow-ups are R-10 to R-13 under "Phase 21 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md) (R-01 to R-06 belong to the other branch). The human check of P21-7 is a row in [dev/owner-checklist.md](dev/owner-checklist.md). Ids continue from P21-4 for the same reason.
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 4 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Re-authentication order (P21-4, branch `feat/p21-sessions-uploads`)
+
+**P21-4 (handoff decision 1, open 3; ADM-STF-009, RDY-SEC-010). `reauth_gate` checks the second factor before the handler's own permission check, so a staff member without the permission for a listed route meets `900004` ("confirm it's you") first and `403` after re-authenticating. This reveals only that a route is gated. Acceptable, or should the permission check come first?**
+Decision: acceptable, keep the order. The gate is an identity check, not an authorization decision, and identity before authorization is the ordinary order; the handler's permission check still runs, after. The one fact revealed, that the route is on the list, is published in doc 07 section 6, marked in `route_matrix.tsv` and named in the OpenAPI document, and it is revealed to authenticated staff only: a non-staff caller fails `StaffCtx` extraction inside the gate and gets the handler's own refusal. Moving the check into each handler after `authorize` would lose the one-test proof over the whole list (`reauth_list_tests`) and be forgotten by the next route. Two costs are accepted and named: a staff member without the permission types a code and then sees `403`, and a probe that stops at `900004` leaves no `denied` access-log row (it never reached the authorization decision the log records). The private-content reads keep their in-handler gate because it logs.
+Status: `ADOPTED` (D-362). Follow-up: R-10 (the sequence proven for a staff account without the permission; the web wrapper shows the post-reauth `403` as a permission refusal; doc 07 cites the decision).
+
+### Soundboard length (P21-5, branch `feat/p21-sessions-uploads`)
+
+**P21-5 (handoff decision 4, open 4; VOX-SB-001, RDY-SEC-008). Sound duration is the container's claim (Ogg granule, WAV data size, MP3 bitrate or Xing count), so a lying file can claim to be short. Keep that, or decode the audio for the real length, which needs a new dependency and a download the owner must approve?**
+Decision: keep the claim; no decoder. The limit is a product limit, not a security boundary: the sender's own client decodes the sound and mixes it into its microphone stream, so a hostile sender already plays anything of any length through the microphone, and a server-side decode would bound only the stored file. Abuse is bounded by 512 KiB, 48 slots, the four-second cooldown and the expressions permission; honest uploads are already exact because the web client trims to five seconds and uploads a 48 kHz WAV. Two tightenings that need nothing to depend on are built instead: the MP3 measure walks every frame header and the Ogg Opus measure sums packet lengths from their TOC bytes (`voice_meta` already walks packets by lacing), each taking the larger of the walk and the claim; and `mic.ts` clips a sound at `MAX_SOUND_MS` when it plays it. Vorbis stays at the granule. Revisit when a decoder enters the build for another reason.
+Status: `ADOPTED` (D-363). Follow-up: R-11.
+
+### JPEG trailers (P21-6, branch `feat/p21-sessions-uploads`)
+
+**P21-6 (handoff decision 3; RDY-SEC-008). The chat-attachment metadata stripper keeps the bytes after a JPEG's end marker, because multi-picture files store their second image there. Strip them (privacy, smuggling) or keep them?**
+Decision: strip. The trailer defeats the stripper: a multi-picture file's second image carries its own EXIF (GPS, time, serial) that the stripper never visits, and a motion photo's MP4 carries its own metadata, so a "stripped" attachment would still leak the tags it was stripped of; and the behaviour was inconsistent, since a photo with an orientation tag is re-encoded and loses the trailer anyway. What is lost (depth map, gain map, motion clip) is small for chat and every viewer shows the primary image either way. Smuggling is the lesser reason (attachments are sniffed from the head and served as downloads under `nosniff`), but a large zip riding behind a photo no longer passes. The MPF index segment (APP2 `MPF\0`) goes with it; a file with no end marker is copied whole, as now. The PNG rule at `IEND` is unchanged.
+Status: `ADOPTED` (D-364). Follow-up: R-12.
+
+### CSP report delivery (P21-7, branch `feat/p21-sessions-uploads`)
+
+**P21-7 (handoff open 1 and 2; RDY-SEC-009). No automated browser (headless Chromium, headless Edge, headed Edge) sent a CSP report within 90 seconds although the console showed the violations; the Reporting API is known to be unreliable under automation. The server side is proven by direct posts. Accept "server side proven, browser delivery checked once by hand" as an owner checklist row, or require something else?**
+Decision: accept, with the checklist row. A flaky automated job would prove less than the direct proof in hand; the one unproven link (an ordinary browser reaching the endpoint through Caddy and the Vite proxy) is a one-minute hand check. The Report-Only dev policy's inline-style noise stays on the developer's counters and does not touch production; the hand check reads the `img-src` row, which the dev page never produces by itself.
+Status: `ADOPTED` (D-365). Follow-up: R-13 (doc 12 sentence, handoff marked answered); the human row is in `dev/owner-checklist.md` section 6.
+
+### Still with the owner
+
+Nothing new. P21-5 declines the only download these questions could have asked for.
