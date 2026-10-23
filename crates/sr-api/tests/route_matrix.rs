@@ -551,7 +551,10 @@ async fn public_routes_do_not_demand_credentials() {
 fn platform_cell_grammar() {
     let parse = |c: &str| parse_platform(c, is_platform_name);
     assert_eq!(parse("OPERATOR"), Ok(Platform::One("OPERATOR".into())));
-    assert_eq!(parse("STAFF_BASIC"), Ok(Platform::One("STAFF_BASIC".into())));
+    assert_eq!(
+        parse("STAFF_BASIC"),
+        Ok(Platform::One("STAFF_BASIC".into()))
+    );
     assert_eq!(parse("OWNER"), Ok(Platform::One("OWNER".into())));
     assert_eq!(
         parse("MANAGE_CASES+PLATFORM_BAN"),

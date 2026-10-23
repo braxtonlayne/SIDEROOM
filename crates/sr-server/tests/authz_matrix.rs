@@ -2442,7 +2442,11 @@ fn admitted_grammar() {
     assert!(admitted(&operator, "OPERATOR"));
     assert!(!admitted(&publisher, "OPERATOR"));
     // The refused forms never reach `admitted` silently.
-    for bad in ["PUBLISH_MEDIA+DELETE_CONTENT|OPERATOR", "OWNER|OPERATOR", "A|A"] {
+    for bad in [
+        "PUBLISH_MEDIA+DELETE_CONTENT|OPERATOR",
+        "OWNER|OPERATOR",
+        "A|A",
+    ] {
         assert!(
             std::panic::catch_unwind(|| admitted(&owner, bad)).is_err(),
             "{bad}"
