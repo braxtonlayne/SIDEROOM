@@ -23,7 +23,7 @@ schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 image = { version = "0.25", default-features = false, features = ["png", "webp"] }
-resvg = { version = "0.45", default-features = false, optional = true }
+resvg = { version = "0.48", default-features = false, optional = true }
 
 [lints]
 workspace = true
