@@ -1,12 +1,16 @@
 // REST helpers for Admin > Donations: /api/v1/admin/donations/* (docs/specs/donations.md section 6).
 // Needs MANAGE_DONATIONS. Every write carries a reason that lands in the staff access log.
 import { apiFetch } from '../../api/client';
+import { withReauth } from '../reauth';
 import type { InvoiceState, Invoice, Purpose, PerkSet, Rate } from '../../support/api';
 
 export { errorText } from '../../settings/server/api';
 
+// Setting the wallet is on the sensitive-action list (RDY-SEC-010): a closed second-factor window answers 900004.
 const send = <T>(path: string, method: string, json?: unknown) =>
-  apiFetch<T>(path, { method, retries: 0, ...(json !== undefined ? { json } : {}) });
+  withReauth(() =>
+    apiFetch<T>(path, { method, retries: 0, ...(json !== undefined ? { json } : {}) }),
+  );
 const get = <T>(path: string) => apiFetch<T>(path, { retries: 0 });
 const qs = (p: Record<string, string | number | boolean | null | undefined>) => {
   const q = new URLSearchParams();

@@ -326,6 +326,9 @@ async fn env_with(reauth: bool) -> Env {
         .clock(clock.clone())
         .extension(Arc::new(deps))
         .extension(auth_svc)
+        .extension(Arc::new(crate::routes::internal::CspReports::new(
+            Arc::new(crate::routes::internal::MemoryCspReports::new()),
+        )))
         .build();
     Env {
         app: build_router(
@@ -3149,5 +3152,7 @@ async fn the_preflight_card_runs_the_checks_for_operators_and_the_access_log_rec
     assert!(detail.contains("\"failing\":[\"storage\"]"), "{detail}");
 }
 
+#[path = "csp_report_tests.rs"]
+mod csp_report_tests;
 #[path = "reauth_list_tests.rs"]
 mod reauth_list_tests;

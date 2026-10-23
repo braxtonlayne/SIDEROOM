@@ -199,6 +199,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/system", get(system::system))
         .route("/admin/system/email-test", post(system::email_test))
         .route("/admin/system/preflight", post(system::preflight))
+        .route("/admin/system/csp-reports", get(system::csp_reports))
         .route("/admin/jobs", get(system::jobs))
         .route("/admin/jobs/{job_id}/retry", post(system::retry_job))
         .route(
@@ -321,6 +322,7 @@ pub fn router() -> Router<AppState> {
         entrance::get_hero,
         system::email_test,
         system::preflight,
+        system::csp_reports,
         people::sessions,
         people::account_guilds,
         people::freeze_invites,
@@ -404,6 +406,8 @@ pub fn router() -> Router<AppState> {
         entrance::EntranceHeroBody,
         system::MailTestResult,
         system::PreflightView,
+        crate::routes::internal::CspSnapshot,
+        crate::routes::internal::CspCounter,
         system::PreflightCheckView,
         system::PreflightStatusView,
         ctx::IntegrationStatus,

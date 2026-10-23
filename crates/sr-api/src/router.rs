@@ -53,6 +53,10 @@ pub fn build_router(state: AppState, extra_v1: Router<AppState>) -> Router {
         .route("/readyz", get(health::readyz))
         .route("/developers/docs/api", get(api_docs))
         .route("/share", axum::routing::post(share_fallback))
+        .route(
+            "/internal/csp-report",
+            axum::routing::post(crate::routes::internal::csp_report),
+        )
         .nest("/api/v1", v1.clone())
         .nest("/api/v10", v1)
         .fallback(not_found);

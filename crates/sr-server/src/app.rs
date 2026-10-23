@@ -1393,6 +1393,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .with_blocklist(media_blocklist.clone()),
         ))
         .extension(external_images)
+        .extension(Arc::new(routes::internal::CspReports::new(Arc::new(
+            crate::csp_reports::PgCspStore::new(pool.clone()),
+        ))))
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();
