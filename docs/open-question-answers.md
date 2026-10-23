@@ -3196,11 +3196,11 @@ Nothing new. The licence answer is a project default under D-309; the lawyer bri
 
 ## Phase 21 authorization-matrix round (answered 2026-10-23, delegated)
 
-The three questions the authz-matrix branch left open in its handoff (`feat-p21-authz-matrix.md` "Decisions and questions for the owner", with the weak spots of "Not done / still open"), answered by the owner's proxy under the standing delegation: decide and document only (no code, build or push). Decisions are D-359 to D-361 in [01-decisions-log.md](01-decisions-log.md); follow-ups are R-01 to R-06 under "Phase 21 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+The three questions the authz-matrix branch left open in its handoff (`feat-p21-authz-matrix.md` "Decisions and questions for the owner", with the weak spots of "Not done / still open"), answered by the owner's proxy under the standing delegation: decide and document only (no code, build or push). Decisions are D-359 to D-361 in [01-decisions-log.md](01-decisions-log.md); follow-ups are R-01 to R-06 under "Phase 21 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md). P21-8 (D-366, R-07) is the branch's second-round question, from the handoff's "Round 2" section; P21-4 to P21-7 belong to the other wave-21 branches.
 
 | Status | Count |
 |---|---|
-| ADOPTED (owner-delegated) | 3 |
+| ADOPTED (owner-delegated) | 4 |
 | NEEDS-OWNER | 0 |
 | NO-CODE | 0 |
 
@@ -3222,6 +3222,12 @@ Status: `ADOPTED` (D-360). Follow-ups: R-02, R-03 now; R-04, R-05 later.
 Decision: 404, with `SrNotFound` (900009), not an invented 10xxx: Discord publishes no code for an unknown auto-moderation rule, and the project already uses `SrNotFound` for objects Discord has no code for (the settings file's `UnknownApplication`). The unknown poll template shares the mapping arm and changes too. The lookup stays guild-scoped so a foreign rule gets the same 404; the cross-tenant sweep asserts it. XS.
 Status: `ADOPTED` (D-361). Follow-up: R-06.
 
+### The `A|B` cell form (P21-8, branch `feat/p21-authz-matrix`)
+
+**P21-8 (handoff "Round 2", R-02). Filling the `PLATFORM` column, the branch added an `A|B` ("either bit") cell form beside D-360's `A+B` ("both") for routes scoped by section or kind (unpublish takes `PUBLISH_MEDIA` or `DELETE_CONTENT`; `GET /moderation/cases` is filtered by whichever of four section bits the reader holds). Accept it, or split such rows differently?**
+Decision: accept it, with a fixed grammar. A cell is one name, or two or more distinct constant names joined by one operator used throughout: `+` means every listed bit is required, `|` means any one suffices. Never mixed, never a repeated name, never `OWNER` or `STAFF_BASIC` inside a compound. The either-form says what the services do (`toggle(false)` admits a publisher or else a deleter), and the test already asserts it the right way round: for an `A|B` row each `staff_<bit>` of a listed bit is expected admitted (reads asserted, writes observed), every other bit-holder, `support` and `staff_basic` refused, the Owner admitted. Splitting into one row per admitting bit would break the one-row-per-operation key the matrix is built on and still could not state "a holder of neither is refused". What is not right today: `route_matrix.rs` splits on `+` and `|` together, so `A+B|C` passes the parser and then means nothing to `authz_matrix.rs` (`admitted` sees a token that is no bit; the pair seeding panics). The parser must refuse the mixed form, duplicates and the two special names in a compound, and a unit test next to the parser pins the grammar, with the same cases pinned for `admitted`. Found on the way: both merge rows are `DELETE_CONTENT` but `merge_titles` and `merge_series` require `publish()` and `delete()`; they become `PUBLISH_MEDIA+DELETE_CONTENT` and `PUBLISH_READING+DELETE_CONTENT`. XS.
+Status: `ADOPTED` (D-366). Follow-up: R-07.
+
 ### Still with the owner
 
-Nothing. The three are engineering defaults.
+Nothing. The four are engineering defaults.
