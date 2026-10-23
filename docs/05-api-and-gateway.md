@@ -358,7 +358,7 @@ exist.
 
 Three layers, from cheap to thorough. All of them read `crates/sr-api/tests/route_matrix.tsv`, one row per operation of the OpenAPI document
 (`METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER  PLATFORM`). `PLATFORM` names the platform permission a `staff` or `author_or_staff` row demands, spelled as in
-`sr_core::PlatformPermissions`: `NAME`, `STAFF_BASIC` (any appointment), `OWNER`, `A+B` (both) or `A|B` (either, for rows scoped by section or kind); `-` on every
+`sr_core::PlatformPermissions`: `NAME`, `STAFF_BASIC` (any appointment), `OWNER`, `A+B` (both) or `A|B` (either, for rows scoped by section or kind), never mixed in one cell and never with a repeated name or `OWNER`/`STAFF_BASIC` inside (D-366); `-` on every
 other row. For the review routes it names the Library section's bit (the seeded submission is a library series); the Cinema bit is the kind's in `sr-review`.
 
 1. **`route_matrix.rs`** (no database). The file and the router agree; `ACCESS` agrees with the handler's `security(...)`; every authenticated route answers

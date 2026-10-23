@@ -1,7 +1,7 @@
 //! XC-SEC-005: the per-route authentication and permission matrix.
 //!
 //! `route_matrix.tsv` has one row for every operation in the generated OpenAPI document
-//! (the full API surface): `METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER`.
+//! (the full API surface): `METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER  PLATFORM`.
 //!
 //! * `ACCESS` is `public` (no credentials needed) or `authenticated`. It must agree with the
 //!   `security(...)` the handler declares in OpenAPI, and every `authenticated` route must
@@ -20,6 +20,9 @@
 //!   yet reviewed" and fails the test.
 //! * `BOT` and `BEARER` pin what `auth::policy` says about bot and OAuth bearer tokens, so a
 //!   policy change cannot slip through without touching this file.
+//! * `PLATFORM` (D-360, D-366) names the platform permission a `staff` or `author_or_staff` row
+//!   demands: one name (`NAME`, `STAFF_BASIC`, `OWNER`), `A+B` (every listed bit) or `A|B` (any
+//!   one), never mixed; `-` on every other row. The grammar is `support/platform_cell.rs`.
 //!
 //! The test fails when a route is added or removed without a row, and when a router path
 //! literal is neither documented in OpenAPI nor listed under `#undocumented`.
@@ -33,6 +36,10 @@ use axum::{
 use sr_api::{AppState, auth::policy, build_router, routes};
 use std::collections::{BTreeMap, BTreeSet};
 use tower::ServiceExt;
+
+#[path = "support/platform_cell.rs"]
+mod platform_cell;
+use platform_cell::{Platform, is_platform_name, parse_platform};
 
 const MATRIX: &str = include_str!("route_matrix.tsv");
 const MATRIX_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/route_matrix.tsv");
@@ -351,15 +358,18 @@ fn render(
 ) -> String {
     let mut s = String::from(
         "# XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.\n\
-         # METHOD\tPATH\tACCESS\tAUTHZ\tBOT\tBEARER (a trailing ? on AUTHZ means unreviewed)\n",
+         # METHOD\tPATH\tACCESS\tAUTHZ\tBOT\tBEARER\tPLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row: NAME, A+B for all, A|B for any, never mixed)\n",
     );
     for ((m, p), access) in docs {
-        let authz = old.get(&(m.clone(), p.clone())).map_or_else(
+        let old_row = old.get(&(m.clone(), p.clone()));
+        let authz = old_row.map_or_else(
             || format!("{}?", guess_authz(p, access)),
             |r| r.authz.clone(),
         );
+        // D-360: a new row starts at `-`; the reviewer fills it for a staff row.
+        let platform = old_row.map_or("-", |r| r.platform.as_str());
         s.push_str(&format!(
-            "{m}\t{p}\t{access}\t{authz}\t{}\t{}\n",
+            "{m}\t{p}\t{access}\t{authz}\t{}\t{}\t{platform}\n",
             bot_of(m, p),
             bearer_of(m, p)
         ));
@@ -416,13 +426,8 @@ fn matrix_covers_every_route() {
                 "{m} {p}: a {} row needs a PLATFORM permission (STAFF_BASIC when any appointment suffices)",
                 row.authz
             );
-            for bit in row.platform.split(['+', '|']) {
-                assert!(
-                    bit == "STAFF_BASIC"
-                        || bit == "OWNER"
-                        || sr_core::PlatformPermissions::from_name(bit).is_some(),
-                    "{m} {p}: unknown PLATFORM permission {bit}"
-                );
+            if let Err(e) = parse_platform(&row.platform, is_platform_name) {
+                panic!("{m} {p}: {e}");
             }
         } else {
             assert_eq!(
@@ -539,4 +544,49 @@ async fn public_routes_do_not_demand_credentials() {
         checked += 1;
     }
     assert!(checked > 0, "no public GET routes in the matrix");
+}
+
+/// D-366: the accepted and refused `PLATFORM` cell forms.
+#[test]
+fn platform_cell_grammar() {
+    let parse = |c: &str| parse_platform(c, is_platform_name);
+    assert_eq!(parse("OPERATOR"), Ok(Platform::One("OPERATOR".into())));
+    assert_eq!(parse("STAFF_BASIC"), Ok(Platform::One("STAFF_BASIC".into())));
+    assert_eq!(parse("OWNER"), Ok(Platform::One("OWNER".into())));
+    assert_eq!(
+        parse("MANAGE_CASES+PLATFORM_BAN"),
+        Ok(Platform::All(vec![
+            "MANAGE_CASES".into(),
+            "PLATFORM_BAN".into()
+        ]))
+    );
+    assert_eq!(
+        parse("PUBLISH_MEDIA|DELETE_CONTENT"),
+        Ok(Platform::Any(vec![
+            "PUBLISH_MEDIA".into(),
+            "DELETE_CONTENT".into()
+        ]))
+    );
+    assert!(matches!(
+        parse("REVIEW_MEDIA|REVIEW_READING|REVIEW_APPS|REVIEW_PACKAGES"),
+        Ok(Platform::Any(v)) if v.len() == 4
+    ));
+    for bad in [
+        "MANAGE_CASES+PLATFORM_BAN|OPERATOR",
+        "OPERATOR|OPERATOR",
+        "OPERATOR+",
+        "|OPERATOR",
+        "OPERATOR||MANAGE_CASES",
+        "OWNER|OPERATOR",
+        "STAFF_BASIC+OPERATOR",
+        "NOT_A_BIT",
+        "",
+    ] {
+        assert!(parse(bad).is_err(), "{bad:?} must be refused");
+    }
+    assert!(
+        parse("MANAGE_CASES+PLATFORM_BAN|OPERATOR")
+            .unwrap_err()
+            .contains("mixes")
+    );
 }

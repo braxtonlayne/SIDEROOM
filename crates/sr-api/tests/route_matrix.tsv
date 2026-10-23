@@ -1,5 +1,5 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
-# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER	PLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row)
+# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER	PLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row: NAME, A+B for all, A|B for any, never mixed)
 DELETE	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
 DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
@@ -204,6 +204,7 @@ GET	/admin/staff/roles	authenticated	staff	deny	-	APPOINT_STAFF
 GET	/admin/stats	authenticated	staff	deny	-	STAFF_BASIC
 GET	/admin/suspicion	authenticated	staff	deny	-	MANAGE_INVITES
 GET	/admin/system	authenticated	staff	deny	-	OPERATOR
+GET	/admin/system/csp-reports	authenticated	staff	deny	-	OPERATOR
 GET	/admin/transcode/jobs	authenticated	staff	deny	-	MANAGE_TRANSCODE
 GET	/admin/transcode/jobs/{job_id}	authenticated	staff	deny	-	MANAGE_TRANSCODE
 GET	/admin/transcode/queue	authenticated	staff	deny	-	MANAGE_TRANSCODE
@@ -613,7 +614,7 @@ POST	/admin/cinema/reports/{report_id}/resolve	authenticated	staff	deny	-	DELETE
 POST	/admin/cinema/seasons/{season_id}/episodes	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/titles	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/titles/{title_id}/artwork	authenticated	staff	deny	-	PUBLISH_MEDIA
-POST	/admin/cinema/titles/{title_id}/merge	authenticated	staff	deny	-	DELETE_CONTENT
+POST	/admin/cinema/titles/{title_id}/merge	authenticated	staff	deny	-	PUBLISH_MEDIA+DELETE_CONTENT
 POST	/admin/cinema/titles/{title_id}/publish	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/titles/{title_id}/seasons	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/titles/{title_id}/trailers	authenticated	staff	deny	-	PUBLISH_MEDIA
@@ -650,7 +651,7 @@ POST	/admin/library/editions/{edition_id}/volumes	authenticated	staff	deny	-	PUB
 POST	/admin/library/lists/{list_id}/feature	authenticated	staff	deny	-	PUBLISH_READING
 POST	/admin/library/series	authenticated	staff	deny	-	PUBLISH_READING
 POST	/admin/library/series/{series_id}/editions	authenticated	staff	deny	-	PUBLISH_READING
-POST	/admin/library/series/{series_id}/merge	authenticated	staff	deny	-	DELETE_CONTENT
+POST	/admin/library/series/{series_id}/merge	authenticated	staff	deny	-	PUBLISH_READING+DELETE_CONTENT
 POST	/admin/library/series/{series_id}/publish	authenticated	staff	deny	-	PUBLISH_READING
 POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-	PUBLISH_READING|DELETE_CONTENT
 POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-	PUBLISH_READING
@@ -965,6 +966,7 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-	-
 #undocumented	/connections/{provider}/callback
 #undocumented	/developers/docs/api
 #undocumented	/healthz
+#undocumented	/internal/csp-report
 #undocumented	/internal/metrics
 #undocumented	/openapi.json
 #undocumented	/packages/versions/{version_id}/files/{*path}
