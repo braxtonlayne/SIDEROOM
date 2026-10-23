@@ -115,6 +115,7 @@ describe('MicPipeline', () => {
     expect(await p.playSound(new ArrayBuffer(8), 0.5)).toBe(true);
     const src = ctx.bufferSources[0]!;
     expect(src.started).toBe(true);
+    expect(src.startArgs).toEqual([0, 0, 5.25]);
     // The track carries the sound, the microphone path stays shut, and the sound joins the destination.
     expect(track.enabled).toBe(true);
     expect(gate.gain.value).toBe(0);

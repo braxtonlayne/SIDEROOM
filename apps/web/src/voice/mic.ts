@@ -9,6 +9,7 @@
  * stays shut. Without WebAudio the raw track is sent and only the gate works.
  */
 import { micConstraints, toMicError, type AudioDeps } from './deps';
+import { SOUND_CLIP_SECONDS } from './soundPlayer';
 import { rmsDb, SILENCE_DB } from './vad';
 
 export interface MicOptions {
@@ -167,7 +168,7 @@ export class MicPipeline {
         /* already disconnected */
       }
     };
-    src.start();
+    src.start(0, 0, SOUND_CLIP_SECONDS);
     return true;
   }
 

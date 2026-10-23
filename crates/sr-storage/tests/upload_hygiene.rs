@@ -390,7 +390,7 @@ fn the_surface_table_is_what_doc_12_says() {
 }
 
 #[test]
-fn metadata_stripping_drops_png_trailers_and_keeps_every_other_byte_of_the_image() {
+fn metadata_stripping_drops_png_and_jpeg_trailers() {
     let p = with_trailer(png(16, 16), ZIP_TRAILER);
     let out = strip_metadata(&p).unwrap();
     assert!(
@@ -398,10 +398,17 @@ fn metadata_stripping_drops_png_trailers_and_keeps_every_other_byte_of_the_image
         "bytes after IEND are dropped"
     );
     assert!(out.starts_with(b"\x89PNG\r\n\x1a\n"));
-    // A JPEG keeps what follows its end marker (multi-picture files carry their second image there); the
-    // bytes are not interpreted or served as anything else, since attachments are sniffed from the head.
+    // A JPEG ends at its first end marker too (D-364): trailers and second pictures are dropped.
     let j = with_trailer(jpeg(16, 16), b"TRAILER");
-    assert!(strip_metadata(&j).unwrap().ends_with(b"TRAILER"));
+    let out = strip_metadata(&j).unwrap();
+    assert!(!contains(&out, b"TRAILER") && out.ends_with(&[0xFF, 0xD9]));
+    for (what, trailer) in [("zip", ZIP_TRAILER), ("html", HTML_TRAILER)] {
+        let out = strip_metadata(&with_trailer(jpeg(16, 16), trailer)).unwrap();
+        assert!(
+            !contains(&out, b"PK") && !contains(&out, b"<html"),
+            "jpeg+{what}"
+        );
+    }
 }
 
 // ---- truncation and mutation

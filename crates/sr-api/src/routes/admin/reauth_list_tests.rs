@@ -98,3 +98,65 @@ async fn the_gate_is_off_when_the_window_is_not_demanded() {
     let (_, code) = code_of(&e, MODER, &Method::POST, "/admin/accounts/20/ban").await;
     assert_ne!(code, Some(900_004));
 }
+
+/// R-10 (D-362): the gate comes first for staff, the handler's own refusal after it, and a caller who is not staff
+/// never sees `900004`.
+#[tokio::test]
+async fn the_gate_comes_first_then_the_handlers_refusal_and_never_for_non_staff() {
+    use super::ALICE;
+    let e = env_with(true).await;
+    // MODER is staff but holds neither APPOINT_STAFF nor the data-request permission.
+    let routes = [
+        (Method::POST, "/admin/staff"),
+        (Method::PUT, "/admin/staff/20/roles"),
+        (Method::POST, "/admin/data-requests/1/run"),
+        (Method::POST, "/admin/data-requests/1/decline"),
+    ];
+    for (m, p) in &routes {
+        assert_eq!(
+            code_with(&e, MODER, m, p).await,
+            (StatusCode::FORBIDDEN, Some(900_004)),
+            "{p} closed"
+        );
+    }
+    let (s, st) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/reauth",
+            Some(json!({ "method": "totp", "code": totp_now(&e) })),
+        )
+        .await;
+    assert_eq!((s, st["fresh"].as_bool()), (StatusCode::OK, Some(true)));
+    for (m, p) in &routes {
+        let (s, code) = code_with(&e, MODER, m, p).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{p} open");
+        assert_ne!(
+            code,
+            Some(900_004),
+            "{p}: the handler's plain refusal, not the gate"
+        );
+    }
+    assert!(
+        e.repo
+            .log_rows()
+            .iter()
+            .any(|r| r.kind == sr_admin::AccessKind::Denied),
+        "the handler's refusal is in the access log as denied"
+    );
+    // A session that is not staff gets the staff-only refusal, with the window closed.
+    for (m, p) in &routes {
+        let (s, code) = code_with(&e, ALICE, m, p).await;
+        assert!(
+            s == StatusCode::FORBIDDEN || s == StatusCode::UNAUTHORIZED,
+            "{p}"
+        );
+        assert_ne!(code, Some(900_004), "{p}: non-staff never sees the gate");
+    }
+}
+
+async fn code_with(e: &Env, who: i64, method: &Method, path: &str) -> (StatusCode, Option<u64>) {
+    let body = json!({ "account_id": "20", "role_ids": ["3"], "reason": "drill" });
+    let (s, b) = e.call(Some(who), method.clone(), path, Some(body)).await;
+    (s, b["code"].as_u64())
+}

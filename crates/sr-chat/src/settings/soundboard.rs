@@ -250,7 +250,8 @@ fn ogg_duration(d: &[u8]) -> Option<u32> {
     let seg_count = *d.get(26)? as usize;
     let first_packet = 27 + seg_count;
     let head = d.get(first_packet..)?;
-    let (rate, pre_skip) = if head.starts_with(b"OpusHead") {
+    let opus = head.starts_with(b"OpusHead");
+    let (rate, pre_skip) = if opus {
         (48_000u64, u64::from(le16(head, 10)?))
     } else if head.len() > 16 && head[0] == 1 && &head[1..7] == b"vorbis" {
         (u64::from(le32(head, 12)?), 0)
@@ -268,7 +269,10 @@ fn ogg_duration(d: &[u8]) -> Option<u32> {
     }
     let samples = granule.saturating_sub(pre_skip);
     // A hostile granule position near 2^64 must not wrap into a short duration (RDY-SEC-008).
-    u32::try_from(samples.checked_mul(1000)? / rate).ok()
+    let claimed = samples.checked_mul(1000)? / rate;
+    // The larger of the claim and the packets actually present (D-363): a lying granule cannot shorten a file.
+    let walked = if opus { opus_walked_ms(d) } else { 0 };
+    u32::try_from(claimed.max(walked)).ok()
 }
 
 /// MPEG audio: the frame count of a Xing/Info header when there is one, otherwise the
@@ -320,12 +324,115 @@ fn mp3_duration(d: &[u8]) -> Option<u32> {
                 let frames = u64::from(u32::from_be_bytes(
                     probe.get(p + 8..p + 12)?.try_into().ok()?,
                 ));
-                return u32::try_from(frames * spf * 1000 / u64::from(rate)).ok();
+                let claimed = frames.saturating_mul(spf * 1000) / u64::from(rate);
+                return u32::try_from(claimed.max(mp3_walked_ms(d, at))).ok();
             }
         }
     }
     let audio = (d.len() - at) as u64;
-    u32::try_from(audio * 8 / u64::from(kbps)).ok()
+    let claimed = audio * 8 / u64::from(kbps);
+    u32::try_from(claimed.max(mp3_walked_ms(d, at))).ok()
+}
+
+/// Duration in milliseconds of an Ogg Opus stream by walking its pages and summing each audio packet's length
+/// from its TOC byte (RFC 6716 section 3.1), whatever the granule positions say (D-363). The first two packets
+/// (`OpusHead`, `OpusTags`) carry no audio. Stops at the first page that does not parse. Sums saturate.
+fn opus_walked_ms(d: &[u8]) -> u64 {
+    let mut pos = 0usize;
+    let mut packet_no = 0usize;
+    let mut packet_len = 0usize;
+    let mut first = [0u8; 2];
+    let mut tenths: u64 = 0;
+    while pos + 27 <= d.len() && &d[pos..pos + 4] == b"OggS" {
+        let nsegs = usize::from(d[pos + 26]);
+        let Some(table) = d.get(pos + 27..pos + 27 + nsegs) else {
+            break;
+        };
+        let body_start = pos + 27 + nsegs;
+        let mut at = body_start;
+        for &seg in table {
+            let seg_len = usize::from(seg);
+            for k in 0..seg_len {
+                if packet_len + k < 2 {
+                    first[packet_len + k] = d.get(at + k).copied().unwrap_or(0);
+                }
+            }
+            at = at.saturating_add(seg_len);
+            packet_len = packet_len.saturating_add(seg_len);
+            if seg == 255 {
+                continue;
+            }
+            if packet_no >= 2 && packet_len > 0 {
+                tenths = tenths.saturating_add(opus_packet_tenths(first[0], first[1], packet_len));
+            }
+            packet_no += 1;
+            packet_len = 0;
+            first = [0; 2];
+        }
+        if at > d.len() {
+            break;
+        }
+        pos = at;
+    }
+    tenths / 10
+}
+
+/// Length of one Opus packet in tenths of a millisecond from its TOC byte (and the frame-count byte of code 3).
+fn opus_packet_tenths(toc: u8, second: u8, len: usize) -> u64 {
+    let cfg = usize::from(toc >> 3);
+    let frame: u64 = match cfg {
+        0..=11 => [100, 200, 400, 600][cfg % 4],
+        12..=15 => [100, 200][cfg % 2],
+        _ => [25, 50, 100, 200][cfg % 4],
+    };
+    let frames: u64 = match toc & 3 {
+        0 => 1,
+        1 | 2 => 2,
+        _ if len >= 2 => u64::from(second & 0x3F),
+        _ => 0,
+    };
+    frame.saturating_mul(frames)
+}
+
+/// Duration in milliseconds of the MPEG audio frames that follow each other from `at`, by reading every frame
+/// header (D-363). Stops at the first byte that is not a frame sync.
+fn mp3_walked_ms(d: &[u8], at: usize) -> u64 {
+    const BR_V1: [u64; 15] = [
+        0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
+    ];
+    const BR_V2: [u64; 15] = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+    const RATE_V1: [u64; 3] = [44_100, 48_000, 32_000];
+    let (mut pos, mut samples_ms_num) = (at, 0u64);
+    let mut rate_seen = 0u64;
+    while let Some(h) = d.get(pos..pos + 4) {
+        if h[0] != 0xFF || h[1] & 0xE0 != 0xE0 {
+            break;
+        }
+        let version = (h[1] >> 3) & 3;
+        let layer = (h[1] >> 1) & 3;
+        let (bi, ri) = (usize::from(h[2] >> 4), usize::from((h[2] >> 2) & 3));
+        if version == 1 || layer != 1 || bi == 0 || bi == 15 || ri == 3 {
+            break;
+        }
+        let pad = u64::from((h[2] >> 1) & 1);
+        let (kbps, rate, spf, coef) = if version == 3 {
+            (BR_V1[bi], RATE_V1[ri], 1152u64, 144u64)
+        } else {
+            let div = if version == 2 { 1 } else { 2 };
+            (BR_V2[bi], RATE_V1[ri] / div, 576u64, 72u64)
+        };
+        let len = coef * kbps * 1000 / rate + pad;
+        if rate == 0 || len < 4 {
+            break;
+        }
+        rate_seen = rate;
+        samples_ms_num = samples_ms_num.saturating_add(spf);
+        pos = pos.saturating_add(len as usize);
+    }
+    if rate_seen == 0 {
+        return 0;
+    }
+    samples_ms_num.saturating_mul(1000) / rate_seen
 }
 
 // ---- default sounds ----------------------------------------------------------------------------

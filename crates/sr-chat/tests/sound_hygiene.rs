@@ -112,11 +112,11 @@ fn a_five_second_sound_is_accepted_and_one_more_millisecond_is_not_in_every_form
     // Opus: 48000 samples a second after the pre-skip.
     assert_eq!(ms(&opus(5 * 48_000 + 312, 312)), Some(5000));
     assert_eq!(ms(&opus(5 * 48_000 + 312 + 48, 312)), Some(5001));
-    // MP3 CBR: 128 kbps is 16000 bytes a second, so 80000 bytes (a whole number of frames is not needed).
+    // MP3 CBR 128 kbps: the walk counts 192 frames of 1152 samples (5015 ms) where the size alone says 5004.
     let m = mp3(192); // 80064 bytes
     assert_eq!(inspect_sound(&m).map(|i| i.format), Some(SoundFormat::Mp3));
-    assert_eq!(ms(&m), Some(5004));
-    assert_eq!(ms(&mp3(191)), Some(4977));
+    assert_eq!(ms(&m), Some(5015));
+    assert_eq!(ms(&mp3(191)), Some(4989));
 }
 
 #[test]
@@ -240,4 +240,70 @@ fn the_doc_table_matches_the_code() {
             "docs/12 section 3 lacks the row {row:?}"
         );
     }
+}
+
+// ---- R-11 (D-363): the larger of the claim and a walk of the headers
+
+/// An Ogg page holding several packets, one lacing segment each (every packet is under 255 bytes).
+fn ogg_packets_page(granule: u64, packets: &[Vec<u8>]) -> Vec<u8> {
+    let mut v = b"OggS\0\0".to_vec();
+    v.extend_from_slice(&granule.to_le_bytes());
+    v.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    v.push(packets.len() as u8);
+    v.extend(packets.iter().map(|p| p.len() as u8));
+    for p in packets {
+        v.extend_from_slice(p);
+    }
+    v
+}
+
+/// Opus with `n` packets of 20 ms (CELT, code 0) and a last granule of `granule`.
+fn opus_packets(n: usize, granule: u64) -> Vec<u8> {
+    let mut head = b"OpusHead\x01\x01".to_vec();
+    head.extend_from_slice(&0u16.to_le_bytes());
+    head.extend_from_slice(&48_000u32.to_le_bytes());
+    head.extend_from_slice(&[0, 0, 0]);
+    let mut v = ogg_page(0, 0x02, &head);
+    v.extend(ogg_page(0, 0x00, b"OpusTags\0\0\0\0\0\0\0\0"));
+    let audio = vec![0x98u8, 0, 0];
+    let mut left = n;
+    while left > 0 {
+        let k = left.min(200);
+        left -= k;
+        let g = if left == 0 { granule } else { 0 };
+        v.extend(ogg_packets_page(g, &vec![audio.clone(); k]));
+    }
+    v
+}
+
+#[test]
+fn a_lying_header_cannot_make_a_long_sound_short() {
+    // MP3: a Xing header that claims 10 frames over 300 real ones.
+    let mut m = mp3(300);
+    m[4..16].copy_from_slice(b"Xing\0\0\0\x01\0\0\0\x0A");
+    let walked = ms(&m).unwrap();
+    assert_eq!(walked, 300 * 1152 * 1000 / 44_100);
+    assert!(check_new_sound(&[], m.len() as u64, walked, &lim()).is_err());
+    // Opus: a last granule of one second over 400 packets of 20 ms (8 s).
+    let o = opus_packets(400, 48_000);
+    assert_eq!(ms(&o), Some(8000));
+    assert!(check_new_sound(&[], o.len() as u64, ms(&o).unwrap(), &lim()).is_err());
+    // Honest files measure as before.
+    assert_eq!(ms(&opus_packets(250, 250 * 960)), Some(5000));
+    assert_eq!(ms(&opus_packets(50, 48_000)), Some(1000));
+}
+
+#[test]
+fn opus_packet_lengths_follow_the_toc_byte() {
+    use sr_chat::settings::soundboard::inspect_sound as measure;
+    // SILK 20 ms in two frames (code 1) is 40 ms; a code 3 packet reads its frame count (3 x 20 ms).
+    let mut head = b"OpusHead\x01\x01".to_vec();
+    head.extend_from_slice(&[0, 0, 0x80, 0xBB, 0, 0, 0, 0, 0]);
+    let mut v = ogg_page(0, 0x02, &head);
+    v.extend(ogg_page(0, 0, b"OpusTags"));
+    v.extend(ogg_packets_page(
+        0,
+        &[vec![0x09, 0, 0], vec![0x0B, 3, 0, 0]],
+    ));
+    assert_eq!(measure(&v).map(|i| i.duration_ms), Some(40 + 60));
 }
