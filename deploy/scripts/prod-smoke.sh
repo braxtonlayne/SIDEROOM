@@ -17,6 +17,7 @@
 #   SMOKE_WEB_DIR   absolute path of the built web app, apps/web/dist (install)
 #   SMOKE_DOMAIN    default smoke.localhost: Caddy issues .localhost names from its own CA, and the name has a dot
 #                   as install.sh requires. install adds it to /etc/hosts (sudo) so browsers and curl resolve it.
+#   SMOKE_SKIP_HOSTS=1  do not touch /etc/hosts (the name already resolves)
 #   SMOKE_WORK      scratch folder for the Owner password, the CA certificate and the host-side dumps
 #   SR_CLI          sr-cli binary for cli-backups (the static one taken out of the image)
 set -eu
@@ -56,7 +57,7 @@ stage_install() {
     need openssl
     openssl rand -hex 16 >"$pwfile"
   fi
-  if ! grep -q "[[:space:]]$domain\$" /etc/hosts 2>/dev/null; then
+  if [ "${SMOKE_SKIP_HOSTS:-0}" != "1" ] && ! grep -q "[[:space:]]$domain\$" /etc/hosts 2>/dev/null; then
     log "adding $domain to /etc/hosts"
     echo "127.0.0.1 $domain" | sudo_run tee -a /etc/hosts >/dev/null
   fi
@@ -144,7 +145,7 @@ stage_backups() {
   unit_cmd=$(sed -n 's/^ExecStart=.* exec -T postgres sh -c "\(.*\)"$/\1/p' "$repo/deploy/systemd/sideroom-basebackup.service")
   [ -n "$unit_cmd" ] || die "could not read the command out of sideroom-basebackup.service"
   dc exec -T postgres sh -c "$unit_cmd"
-  pg_user 'ls /var/backups/sideroom/base/base-*/backup.json' >/dev/null || die "no base backup was written"
+  dc exec -T postgres sh -c 'ls /var/backups/sideroom/base/base-*/backup.json' >/dev/null || die "no base backup was written"
 
   log "3/6 restore.sh into a second database"
   q postgres "drop database if exists sideroom_restored"
