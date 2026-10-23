@@ -284,7 +284,10 @@ test('starter packs under packages/starter-packs are seeded after the Owner exis
   const owner = calls.findIndex((c) => c.includes('sr-cli sr-server bootstrap'));
   assert.ok(seed > owner && owner !== -1, calls.join('\n'));
   assert.ok(calls[seed].includes(':/starter-packs:ro'), 'the folder is mounted read-only');
-  assert.ok(calls.findLastIndex((c) => / up -d$/.test(c)) > seed, 'the stack starts after the packs');
+  assert.ok(
+    calls.findLastIndex((c) => / up -d$/.test(c)) > seed,
+    'the stack starts after the packs',
+  );
 });
 
 test('the electrs payments profile is off unless asked for (M-02, D-288)', () => {

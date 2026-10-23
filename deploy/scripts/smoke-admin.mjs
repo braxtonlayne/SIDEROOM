@@ -26,7 +26,9 @@ const { positionals, values } = parseArgs({
 });
 const mode = positionals[0];
 if (!['signin', 'backup-time'].includes(mode ?? '')) {
-  console.error('usage: smoke-admin.mjs signin | backup-time [--dir D] [--max-age-min N] [--expect-verify]');
+  console.error(
+    'usage: smoke-admin.mjs signin | backup-time [--dir D] [--max-age-min N] [--expect-verify]',
+  );
   process.exit(2);
 }
 const base = (process.env.SMOKE_URL ?? '').replace(/\/$/, '');
@@ -87,18 +89,28 @@ async function system() {
 let sys = await system();
 console.log(`Admin > System: version ${sys.version}`);
 const bad = (sys.probes ?? []).filter((p) => !p.ok);
-for (const p of sys.probes ?? []) console.log(`  probe ${p.name}: ${p.ok ? 'ok' : `FAILED ${p.error ?? ''}`}`);
+for (const p of sys.probes ?? [])
+  console.log(`  probe ${p.name}: ${p.ok ? 'ok' : `FAILED ${p.error ?? ''}`}`);
 if (bad.length) throw new Error(`readiness probes failing: ${bad.map((p) => p.name).join(', ')}`);
 
 if (mode === 'backup-time') {
-  await call('PATCH', '/admin/settings', { values: { 'ops.backup_dir': values.dir } }, { 'X-SR-CSRF': token });
+  await call(
+    'PATCH',
+    '/admin/settings',
+    { values: { 'ops.backup_dir': values.dir } },
+    { 'X-SR-CSRF': token },
+  );
   sys = await system();
   const last = sys.backups?.last_run_ms;
   if (typeof last !== 'number') {
-    throw new Error(`Admin > System shows no backup time for ${values.dir}: ${JSON.stringify(sys.backups)}`);
+    throw new Error(
+      `Admin > System shows no backup time for ${values.dir}: ${JSON.stringify(sys.backups)}`,
+    );
   }
   const ageMin = (Date.now() - last) / 60000;
-  console.log(`Admin > System: last backup ${new Date(last).toISOString()} (${ageMin.toFixed(1)} min ago)`);
+  console.log(
+    `Admin > System: last backup ${new Date(last).toISOString()} (${ageMin.toFixed(1)} min ago)`,
+  );
   if (ageMin > Number(values['max-age-min']) || ageMin < -5) {
     throw new Error(`last backup time is implausible (${ageMin.toFixed(1)} min ago)`);
   }
