@@ -100,7 +100,7 @@ jobs:
           docker cp "$id:/usr/local/bin/sr-cli" "$RUNNER_TEMP/bin/sr-cli"
           docker rm "$id" >/dev/null
           chmod +x "$RUNNER_TEMP/bin/sr-cli"
-          echo "SR_CLI=$RUNNER_TEMP/bin/sr-cli" >> "$GITHUB_ENV"
+          echo "SMOKE_CLI_BIN=$RUNNER_TEMP/bin/sr-cli" >> "$GITHUB_ENV"
       # pg_dump refuses to dump a newer server, and the runner ships the 16 client: same fix as backup-drill.yml.
       - name: Install the PostgreSQL 17 client tools (sr-cli backup and restore run on the host)
         run: |
@@ -191,8 +191,8 @@ jobs:
           docker cp "$id:/usr/local/bin/sr-cli" "$RUNNER_TEMP/bin/sr-cli"
           docker rm "$id" >/dev/null
           chmod +x "$RUNNER_TEMP/bin/sr-server" "$RUNNER_TEMP/bin/sr-cli"
-          echo "SR_SERVER=$RUNNER_TEMP/bin/sr-server" >> "$GITHUB_ENV"
-          echo "SR_CLI=$RUNNER_TEMP/bin/sr-cli" >> "$GITHUB_ENV"
+          echo "SMOKE_SERVER_BIN=$RUNNER_TEMP/bin/sr-server" >> "$GITHUB_ENV"
+          echo "SMOKE_CLI_BIN=$RUNNER_TEMP/bin/sr-cli" >> "$GITHUB_ENV"
       - name: systemd-analyze verify over deploy/systemd
         run: deploy/scripts/smoke-systemd.sh verify
       - name: Static-binary install, started as a systemd user service

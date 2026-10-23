@@ -21,7 +21,7 @@
 #                   as install.sh requires. install adds it to /etc/hosts (sudo) so browsers and curl resolve it.
 #   SMOKE_SKIP_HOSTS=1  do not touch /etc/hosts (the name already resolves)
 #   SMOKE_WORK      scratch folder for the Owner password, the CA certificate and the host-side dumps
-#   SR_CLI          sr-cli binary for cli-backups (the static one taken out of the image)
+#   SMOKE_CLI_BIN          sr-cli binary for cli-backups (the static one taken out of the image)
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
@@ -195,7 +195,7 @@ stage_backups() {
 # The host-side sr-cli (the static one taken out of the image) with the stack's configuration, reaching Postgres
 # and Garage by their container addresses. `cli <database> <args>`.
 host_cli_setup() {
-  : "${SR_CLI:?set SR_CLI to the sr-cli binary}"
+  : "${SMOKE_CLI_BIN:?set SMOKE_CLI_BIN to the sr-cli binary}"
   need docker
   pgip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(dc ps -q postgres)")
   garageip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(dc ps -q garage)")
@@ -213,7 +213,7 @@ cli() {
     "SR_STORAGE__SECRET_KEY=$(env_value GARAGE_SECRET_KEY)" \
     "SR_SMTP__HOST=$(env_value SMTP_HOST)" "SR_SMTP__PORT=$(env_value SMTP_PORT)" \
     "SR_SMTP__TLS=$(env_value SMTP_TLS)" "SR_SMTP__FROM=SIDE ROOM <no-reply@example.test>" \
-    "$SR_CLI" "$@"
+    "$SMOKE_CLI_BIN" "$@"
 }
 
 # RDY-OPS-004 in the smoke: sr-cli preflight from the host, where smoke.localhost resolves to Caddy (the one-off
@@ -226,6 +226,8 @@ cli() {
 #   esplora     payments are off on the smoke stack, so the row is PASS ("payments are off") and the private-address
 #               rule (D-358) never applies; it must stay PASS
 #   turn        prod.yml runs no coturn: WARN ("no TURN configured") is expected; a FAIL is not
+#   disk        the host-side run sees the runner's disk, not the containers' volumes, so data paths such as
+#               data/search read as unreadable (WARN); a FAIL (a full disk) still fails the stage
 # Anything else that is not PASS fails the stage. The command's exit code is not used (the smtp row fails it).
 stage_preflight() {
   need node
@@ -237,7 +239,7 @@ stage_preflight() {
   cli sideroom preflight --insecure-tls --json >"$json" || true
   node -e '
     const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const allowed = { "public-url": ["warn"], smtp: ["pass", "warn", "fail"], turn: ["pass", "warn"] };
+    const allowed = { "public-url": ["warn"], smtp: ["pass", "warn", "fail"], turn: ["pass", "warn"], disk: ["pass", "warn"] };
     const bad = r.checks.filter((c) => !(allowed[c.id] ?? ["pass"]).includes(c.status));
     for (const c of r.checks) console.log(`${c.status.padEnd(4)}  ${c.id.padEnd(12)}  ${c.detail}`);
     for (const id of ["database", "migrations", "storage", "public-url", "vapid", "secrets"]) {

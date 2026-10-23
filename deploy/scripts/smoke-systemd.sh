@@ -8,7 +8,7 @@
 #   deploy/scripts/smoke-systemd.sh verify         systemd-analyze verify over deploy/systemd/*
 #   deploy/scripts/smoke-systemd.sh user-service   the static-binary install under a prefix, started as a user service
 #
-#   SR_SERVER, SR_CLI            the static binaries (the musl ones that ship in the server image)
+#   SMOKE_SERVER_BIN, SMOKE_CLI_BIN            the static binaries (the musl ones that ship in the server image)
 #   SMOKE_DATABASE_URL           an empty, reachable Postgres database for user-service, e.g.
 #                                postgres://sideroom:secret@127.0.0.1:5432/sideroom?sslmode=disable
 #   SMOKE_PREFIX                 where the tree is built (default $RUNNER_TEMP/sr-systemd/prefix); /etc/sideroom,
@@ -37,10 +37,10 @@ stage_verify() {
   if [ "${CI:-}" != "true" ] && [ "${SMOKE_ALLOW_SUDO:-0}" != "1" ]; then
     die "verify installs a user and files under /opt/sideroom with sudo; set SMOKE_ALLOW_SUDO=1 to allow it"
   fi
-  : "${SR_SERVER:?set SR_SERVER}"
+  : "${SMOKE_SERVER_BIN:?set SMOKE_SERVER_BIN}"
   getent passwd sideroom >/dev/null 2>&1 || sudo_run useradd --system --no-create-home --shell /usr/sbin/nologin sideroom
   sudo_run install -d -m 755 /opt/sideroom/bin
-  sudo_run install -m 755 "$SR_SERVER" /opt/sideroom/bin/sr-server
+  sudo_run install -m 755 "$SMOKE_SERVER_BIN" /opt/sideroom/bin/sr-server
   # The units run /opt/sideroom/deploy/scripts/*.sh and name /opt/sideroom/deploy/compose/prod.yml.
   sudo_run ln -sfn "$repo/deploy" /opt/sideroom/deploy
   systemd-analyze --version | head -n 1
@@ -81,8 +81,8 @@ start_user_manager() {
 }
 
 stage_user_service() {
-  : "${SR_SERVER:?set SR_SERVER}"
-  : "${SR_CLI:?set SR_CLI}"
+  : "${SMOKE_SERVER_BIN:?set SMOKE_SERVER_BIN}"
+  : "${SMOKE_CLI_BIN:?set SMOKE_CLI_BIN}"
   : "${SMOKE_DATABASE_URL:?set SMOKE_DATABASE_URL}"
   need curl
   need openssl
@@ -91,8 +91,8 @@ stage_user_service() {
   mkdir -p "$prefix/opt/sideroom/bin" "$prefix/var/lib/sideroom"
   mkdir -p "$prefix/etc/sideroom"
   chmod 700 "$prefix/etc/sideroom" || true
-  install -m 755 "$SR_SERVER" "$prefix/opt/sideroom/bin/sr-server"
-  install -m 755 "$SR_CLI" "$prefix/opt/sideroom/bin/sr-cli"
+  install -m 755 "$SMOKE_SERVER_BIN" "$prefix/opt/sideroom/bin/sr-server"
+  install -m 755 "$SMOKE_CLI_BIN" "$prefix/opt/sideroom/bin/sr-cli"
 
   log "config.toml from the template in INSTALL.md section 4"
   config_template >"$prefix/etc/sideroom/config.toml"
