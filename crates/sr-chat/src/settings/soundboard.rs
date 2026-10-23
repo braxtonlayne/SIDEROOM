@@ -267,7 +267,8 @@ fn ogg_duration(d: &[u8]) -> Option<u32> {
         return None;
     }
     let samples = granule.saturating_sub(pre_skip);
-    u32::try_from(samples * 1000 / rate).ok()
+    // A hostile granule position near 2^64 must not wrap into a short duration (RDY-SEC-008).
+    u32::try_from(samples.checked_mul(1000)? / rate).ok()
 }
 
 /// MPEG audio: the frame count of a Xing/Info header when there is one, otherwise the
