@@ -69,4 +69,17 @@ describe('CSP reports card', () => {
     openAdmin('system');
     expect(await screen.findByText('No reports yet.')).toBeInTheDocument();
   });
+
+  it('shows a quiet note, not an alert, when the counters cannot be read', async () => {
+    asStaff({ perms: [], owner: true });
+    server.use(
+      http.get('*/api/v1/admin/system', () => HttpResponse.json(SYSTEM)),
+      http.get('*/api/v1/admin/system/csp-reports', () =>
+        HttpResponse.json({ code: 900001, message: 'broken' }, { status: 500 }),
+      ),
+    );
+    openAdmin('system');
+    expect(await screen.findByText(/counters could not be loaded/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

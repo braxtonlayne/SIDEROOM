@@ -2,7 +2,7 @@ import { Badge, Button } from '@sideroom/ui';
 import { useId } from 'react';
 import * as api from '../api';
 import { formatNumber, useT } from '../../i18n';
-import { Async, fmtMs, useResource } from '../ui';
+import { fmtMs, useResource } from '../ui';
 
 /**
  * Admin > System "Blocked content reports" card (RDY-SEC-009): the counters behind `POST /internal/csp-report`.
@@ -41,19 +41,22 @@ export function CspReportsCard() {
           {t('admin.csp.refresh')}
         </Button>
       </div>
-      <Async res={res} label={t('admin.system.loading')}>
-        {(s) =>
-          s.directives.length + s.origins.length + s.paths.length === 0 ? (
-            <p className="ss-meta">{t('admin.csp.none')}</p>
-          ) : (
-            <>
-              {group(t('admin.csp.directives'), s.directives)}
-              {group(t('admin.csp.origins'), s.origins)}
-              {group(t('admin.csp.paths'), s.paths)}
-            </>
-          )
-        }
-      </Async>
+      {res.data ? (
+        res.data.directives.length + res.data.origins.length + res.data.paths.length === 0 ? (
+          <p className="ss-meta">{t('admin.csp.none')}</p>
+        ) : (
+          <>
+            {group(t('admin.csp.directives'), res.data.directives)}
+            {group(t('admin.csp.origins'), res.data.origins)}
+            {group(t('admin.csp.paths'), res.data.paths)}
+          </>
+        )
+      ) : res.error ? (
+        // A failing optional card must not look like a failing page: no alert role.
+        <p className="ss-meta">{t('admin.csp.unavailable')}</p>
+      ) : (
+        <p className="ss-meta">{t('admin.csp.loading')}</p>
+      )}
     </section>
   );
 }

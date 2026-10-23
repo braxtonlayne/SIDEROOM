@@ -3,6 +3,8 @@ export default {
   'admin.csp.title': 'Blocked content reports',
   'admin.csp.description':
     'Browsers report what the Content-Security-Policy blocked. Only counts are kept: the directive, the blocked origin and the page path. No addresses, queries or browser details are stored.',
+  'admin.csp.loading': 'Loading counters…',
+  'admin.csp.unavailable': 'The counters could not be loaded. Use Refresh counters to try again.',
   'admin.csp.none': 'No reports yet.',
   'admin.csp.directives': 'By directive',
   'admin.csp.origins': 'Top blocked origins',
