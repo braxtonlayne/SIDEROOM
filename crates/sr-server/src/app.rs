@@ -1303,7 +1303,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             pool.clone(),
             storage.clone(),
             &cfg,
-        )))
+        )?))
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())

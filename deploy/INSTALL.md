@@ -123,6 +123,63 @@ Do not run `sr-cli seed` on an installation you care about. It refuses unless `s
 
 Backups: `sr-cli backup` takes a one-off dump with a checksum manifest and `sr-cli restore` loads one back (both need the PostgreSQL client tools); the scripts in `deploy/scripts` add the schedule, retention, object snapshots, WAL archiving and the restore drill. See [BACKUP.md](BACKUP.md). Keep the `server.secret_key` value with the backups, because the TOTP secrets in the database cannot be read without it.
 
+### Plain binary with systemd (no Docker)
+
+The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service` walks them in CI (RDY-OPS-003). The units in `deploy/systemd/` expect this layout:
+
+| Path | What goes there |
+|---|---|
+| `/opt/sideroom/bin/sr-server`, `/opt/sideroom/bin/sr-cli` | the static musl binaries (take them out of the server image with `docker cp`, or build them), mode 0755 |
+| `/etc/sideroom/config.toml` | the template of section 4, edited for your host (folder mode 0700) |
+| `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below) |
+| `/var/lib/sideroom` | the server's state and search index (`StateDirectory=sideroom` creates it) |
+
+1. **Create the service user and copy the binaries:**
+
+   ```
+   useradd --system --no-create-home --shell /usr/sbin/nologin sideroom
+   install -d -m 755 /opt/sideroom/bin
+   install -m 755 sr-server sr-cli /opt/sideroom/bin/
+   install -d -m 700 /etc/sideroom
+   ```
+
+2. **Write `/etc/sideroom/config.toml`** from section 4.
+
+3. **Write `/etc/sideroom/server.env`** (mode 0600). It is the unit's `EnvironmentFile`, so it holds `SR_CONFIG` and the secrets that are not in `config.toml`:
+
+   ```
+   SR_CONFIG=/etc/sideroom/config.toml
+   SR_SERVER__SECRET_KEY=<64 hex characters, openssl rand -hex 32>
+   SR_DATABASE__URL=postgres://sideroom:<password>@127.0.0.1:5432/sideroom?sslmode=disable
+   SR_STORAGE__ACCESS_KEY=<bucket key id>
+   SR_STORAGE__SECRET_KEY=<bucket secret>
+   SR_SMTP__PASSWORD=<relay password>
+   ```
+
+4. **Migrate and bootstrap** with the same environment (steps 3 and 4 above):
+
+   ```
+   set -a; . /etc/sideroom/server.env; set +a
+   /opt/sideroom/bin/sr-cli migrate
+   /opt/sideroom/bin/sr-cli bootstrap --owner-username <name> --owner-email <email>
+   /opt/sideroom/bin/sr-cli storage ensure-cors --origin https://chat.example.org
+   ```
+
+5. **Install and start the unit:**
+
+   ```
+   install -m 644 deploy/systemd/sr-server.service /etc/systemd/system/
+   systemctl daemon-reload
+   systemctl enable --now sr-server
+   curl -fsS http://127.0.0.1:8080/healthz
+   ```
+
+   `systemctl stop sr-server` sends SIGTERM and waits up to `TimeoutStopSec=60` for the drain (step 7). Logs: `journalctl -u sr-server`.
+
+6. **Run the preflight** with the same environment: `/opt/sideroom/bin/sr-cli preflight` prints the table (`deploy/RUNBOOK.md`); fix every FAIL row before the first invite ([GO-LIVE.md](GO-LIVE.md)).
+
+The backup units (`sideroom-backup`, `sideroom-basebackup`, `sideroom-restore-drill`, with their timers) are described in [BACKUP.md](BACKUP.md). Put the reverse proxy in front as in step 6. The smoke runs this route as a systemd *user* service, so it drops the lines of the unit that need root (`User=`, `ProtectSystem=` and the like) and moves the paths under a prefix; on a real host use the unit as shipped.
+
 ## 6. Reverse proxy and client IP
 
 The server takes the client address from the connection, which behind a proxy is the proxy's address. Set `server.trust_forwarded_for = true` only when the proxy sets `X-Forwarded-For` and no client can reach the server directly. The server then uses the last `X-Forwarded-For` entry. Rate limits and login throttles depend on this address. (Q57, Q143)

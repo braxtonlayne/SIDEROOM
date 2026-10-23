@@ -6,7 +6,6 @@ exclude = ["e2e/sdk-compat/serenity-bot"]
 
 [workspace.package]
 edition = "2024"
-license = "LicenseRef-Proprietary"
 publish = false
 
 [workspace.lints.rust]

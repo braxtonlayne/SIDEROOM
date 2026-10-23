@@ -370,20 +370,30 @@ pub(crate) async fn public_url(net: &dyn NetProbe, s: &Settings) -> Check {
             ),
         );
     }
+    // D-357: a run that skipped certificate verification never claims a PASS for this row.
+    let unverified = if s.insecure_tls {
+        "; certificate not verified (insecure TLS)"
+    } else {
+        ""
+    };
     if reply.status >= 400 {
         return Check::new(
             "public-url",
             t,
             Status::Warn,
-            format!("{url} answered {}", reply.status),
+            format!("{url} answered {}{unverified}", reply.status),
         );
     }
     Check::new(
         "public-url",
         t,
-        Status::Pass,
+        if s.insecure_tls {
+            Status::Warn
+        } else {
+            Status::Pass
+        },
         format!(
-            "{url} answered {} with HSTS, CSP and frame-ancestors",
+            "{url} answered {} with HSTS, CSP and frame-ancestors{unverified}",
             reply.status
         ),
     )
@@ -971,6 +981,21 @@ mod tests {
         assert_eq!(public_url(&csp_only, &local).await.status, Status::Warn);
         local.public_url = "http://sr.example.org".into();
         assert_eq!(public_url(&csp_only, &local).await.status, Status::Fail);
+
+        // Insecure TLS (D-357): a good answer is at most WARN and says the certificate was not verified;
+        // a missing header still fails.
+        let mut insecure = settings();
+        insecure.insecure_tls = true;
+        let c = public_url(&net, &insecure).await;
+        assert_eq!(c.status, Status::Warn);
+        assert!(
+            c.detail
+                .ends_with("; certificate not verified (insecure TLS)"),
+            "{}",
+            c.detail
+        );
+        assert_eq!(public_url(&no_hsts, &insecure).await.status, Status::Fail);
+        assert_eq!(public_url(&err, &insecure).await.status, Status::Fail);
     }
 
     #[tokio::test]
@@ -1110,6 +1135,48 @@ mod tests {
         assert_eq!(host_port("ws://h/voice"), Some(("h".into(), 80)));
         assert_eq!(host_port("wss://[::1]:9/x"), Some(("::1".into(), 9)));
         assert_eq!(host_port("nonsense"), None);
+    }
+
+    /// D-356: the id set is part of the contract. If this fails, the rename is deliberate: update
+    /// `report::CHECK_IDS`, `docs/dev/server.md` and `deploy/scripts/prod-smoke.sh` together.
+    #[tokio::test]
+    async fn check_ids_are_stable() {
+        let db = FakeDb::default();
+        let st = ObjectStoreStorage::in_memory();
+        let net = FakeNet::default();
+        let host = FakeHost::default();
+        let s = settings();
+        let r = run(&Ctx {
+            db: &db,
+            storage: &st,
+            net: &net,
+            host: &host,
+            settings: &s,
+        })
+        .await;
+        let ids: Vec<_> = r.checks.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, crate::report::CHECK_IDS);
+        assert_eq!(
+            crate::report::CHECK_IDS,
+            [
+                "database",
+                "migrations",
+                "clock",
+                "storage",
+                "smtp",
+                "public-url",
+                "turn",
+                "vapid",
+                "disk",
+                "secrets",
+                "esplora",
+                "voice",
+            ]
+        );
+        assert_eq!(
+            crate::report::CLI_EXTRA_IDS,
+            ["mail-send", "alert-card", "alert-mail"]
+        );
     }
 
     #[tokio::test]

@@ -4,7 +4,9 @@ name: Production smoke
 # with Caddy on its internal CA, waits for /healthz through Caddy, signs in, runs the entrance-smoke spec, and drills
 # backup.sh, restore.sh, wal-drill.sh, sr-cli backup / restore --force / upgrade --dry-run against the running containers.
 # The systemd job runs `systemd-analyze verify` over deploy/systemd and the static-binary install of deploy/INSTALL.md as
-# a user service. Manual dispatch plus weekly; it is not a pull-request check (it needs a cold Docker host and ~20 minutes).
+# a user service. Manual dispatch, weekly, and on pull requests that touch the install surface (D-354: deploy/**, this
+# workflow, crates/sr-cli/**, crates/sr-preflight/**). It is not a required check until it has been green on the default
+# branch at least twice; then the owner adds it in branch protection (docs/dev/owner-checklist.md).
 # The steps live in deploy/scripts/prod-smoke.sh and deploy/scripts/smoke-systemd.sh so they can be read and run by hand.
 on:
   workflow_dispatch:
@@ -15,6 +17,14 @@ on:
         default: false
   schedule:
     - cron: "41 5 * * 2"
+  # D-354. inputs.systemd_user_fallback is absent here, so SMOKE_SYSTEMD_USER_FALLBACK evaluates to 0: a PR run proves the
+  # real unit or fails.
+  pull_request:
+    paths:
+      - "deploy/**"
+      - ".github/workflows/prod-smoke.yml"
+      - "crates/sr-cli/**"
+      - "crates/sr-preflight/**"
 concurrency:
   group: prod-smoke-${{ github.ref }}
   cancel-in-progress: true

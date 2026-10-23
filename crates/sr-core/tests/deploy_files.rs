@@ -725,6 +725,22 @@ fn the_server_sees_the_backup_folder_read_only() {
 fn the_prod_smoke_workflow_calls_things_that_exist() {
     let wf = read(".github/workflows/prod-smoke.yml");
     assert!(wf.contains("workflow_dispatch:") && wf.contains("schedule:"));
+    // D-354: pull requests that touch the install surface run it too.
+    assert!(
+        wf.contains("pull_request:"),
+        "prod-smoke.yml runs on pull requests (D-354)"
+    );
+    for path in [
+        "\"deploy/**\"",
+        "\".github/workflows/prod-smoke.yml\"",
+        "\"crates/sr-cli/**\"",
+        "\"crates/sr-preflight/**\"",
+    ] {
+        assert!(
+            wf.contains(path),
+            "prod-smoke.yml pull_request paths lack {path}"
+        );
+    }
     let smoke = read("deploy/scripts/prod-smoke.sh");
     let systemd = read("deploy/scripts/smoke-systemd.sh");
     let mut stages = 0;

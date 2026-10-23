@@ -218,10 +218,13 @@ cli() {
 
 # RDY-OPS-004 in the smoke: sr-cli preflight from the host, where smoke.localhost resolves to Caddy (the one-off
 # container install.sh runs it in cannot resolve that name, so its public URL row fails there). --insecure-tls
-# accepts Caddy's internal CA. Every row must pass, except the ones this stack cannot pass by construction:
-#   mail   the smoke has no mail relay (SMTP_HOST=mail.example.org is a placeholder): FAIL is expected
-#   turn   prod.yml runs no coturn: WARN ("no TURN configured") is expected; a FAIL is not
-# Anything else that is not PASS fails the stage.
+# accepts Caddy's internal CA. Every row must pass, except the ones this stack cannot pass by construction (row ids
+# are stable, D-356):
+#   public-url  must be WARN: the certificate was not verified (--insecure-tls never yields PASS, D-357); the
+#               headers are still checked, so a missing HSTS or CSP is a FAIL and fails the stage
+#   smtp        the smoke has no mail relay (SMTP_HOST=mail.example.org is a placeholder): any status
+#   turn        prod.yml runs no coturn: WARN ("no TURN configured") is expected; a FAIL is not
+# Anything else that is not PASS fails the stage. The command's exit code is not used (the smtp row fails it).
 stage_preflight() {
   need node
   host_cli_setup
@@ -232,7 +235,7 @@ stage_preflight() {
   cli sideroom preflight --insecure-tls --json >"$json" || true
   node -e '
     const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const allowed = { mail: ["pass", "warn", "fail"], turn: ["pass", "warn"] };
+    const allowed = { "public-url": ["warn"], smtp: ["pass", "warn", "fail"], turn: ["pass", "warn"] };
     const bad = r.checks.filter((c) => !(allowed[c.id] ?? ["pass"]).includes(c.status));
     for (const c of r.checks) console.log(`${c.status.padEnd(4)}  ${c.id.padEnd(12)}  ${c.detail}`);
     for (const id of ["database", "migrations", "storage", "public-url", "vapid", "secrets"]) {

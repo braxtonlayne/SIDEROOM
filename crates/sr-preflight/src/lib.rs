@@ -15,5 +15,5 @@ pub mod turn;
 pub use checks::{
     Ctx, DbProbe, HostProbe, HttpReply, MigrationState, ModeResult, NetProbe, database_checks, run,
 };
-pub use report::{Check, Report, Status};
+pub use report::{CHECK_IDS, CLI_EXTRA_IDS, Check, Report, Status};
 pub use settings::{Settings, SmtpTarget};

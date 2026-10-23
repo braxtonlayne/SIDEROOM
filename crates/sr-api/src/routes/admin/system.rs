@@ -519,11 +519,14 @@ pub enum PreflightStatusView {
 /// One row of the preflight table.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct PreflightCheckView {
-    /// Stable id such as `database`, `storage` or `turn`.
+    /// Stable id; clients may key strings on it (D-356). One of `database`, `migrations`, `clock`, `storage`,
+    /// `smtp`, `public-url`, `turn`, `vapid`, `disk`, `secrets`, `esplora`, `voice`.
     pub id: String,
+    /// English operator text, not localized (D-356).
     pub title: String,
     pub status: PreflightStatusView,
-    /// One sentence: what was seen, or what to do about it. Never contains a secret.
+    /// English operator text, not localized (D-356): one sentence, what was seen or what to do about it. Never
+    /// contains a secret.
     pub detail: String,
 }
 

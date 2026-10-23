@@ -21,14 +21,38 @@ impl Status {
     }
 }
 
+/// The ids of the rows [`crate::run`] returns, in table order (D-356). They are stable: clients, scripts
+/// (`deploy/scripts/prod-smoke.sh`) and a future title catalog (`admin.preflight.row.<id>`) key on them, so a
+/// rename is a deliberate, breaking change (the `check_ids_are_stable` test pins the set).
+pub const CHECK_IDS: &[&str] = &[
+    "database",
+    "migrations",
+    "clock",
+    "storage",
+    "smtp",
+    "public-url",
+    "turn",
+    "vapid",
+    "disk",
+    "secrets",
+    "esplora",
+    "voice",
+];
+
+/// The extra rows of `sr-cli preflight`: `--send-to` adds `mail-send`, `--alert-test` adds `alert-card` and
+/// `alert-mail`. Stable in the same way as [`CHECK_IDS`].
+pub const CLI_EXTRA_IDS: &[&str] = &["mail-send", "alert-card", "alert-mail"];
+
 /// One row of the table.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Check {
-    /// Stable id such as `database`, `storage` or `turn`.
+    /// Stable id, one of [`CHECK_IDS`] or [`CLI_EXTRA_IDS`] (D-356).
     pub id: String,
+    /// English operator text, not localized (D-356).
     pub title: String,
     pub status: Status,
-    /// One sentence: what was seen, or what to do about it. Never contains a secret.
+    /// English operator text, not localized (D-356): one sentence, what was seen or what to do about it. Never
+    /// contains a secret.
     pub detail: String,
 }
 
