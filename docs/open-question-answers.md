@@ -2924,9 +2924,11 @@ The questions `feat/p18-modules` left in its handoff (`docs/dev/handoff/feat-p18
 
 | Status | Count |
 |---|---|
-| ADOPTED (owner-delegated) | 5 |
+| ADOPTED (owner-delegated) | 6 |
 | NEEDS-OWNER | 0 |
 | NO-CODE | 0 |
+
+P20-6 was added the same day from the integration handoff (`feat-p20-integration.md`, "What is left for the owner or the coordinator" item 3); it is D-358 and Q-06.
 
 ### Channel scope (P18-MOD, branch `feat/p18-modules`)
 
@@ -3181,6 +3183,12 @@ Status: `ADOPTED` (D-356). Follow-up: Q-04.
 **P20-5 (preflight handoff decision 4). `SR_PREFLIGHT_INSECURE_TLS=1` lets the server-side card accept a private CA. Acceptable in production, or refused when `server.public_url` is not localhost?**
 Decision: refused. The server honours the variable only when `server.public_url` is a development host (loopback literal, `localhost`, or a `*.localhost` name, which the smoke stack uses) and otherwise refuses to start naming the variable, following the `server.secret_key` precedent in `sr-core` config and the rule wave 21 sets for `SR_ADMIN_REQUIRE_REAUTH=0`. A real host with the variable left over from a rehearsal would otherwise report "public URL ok" with no certificate check, from a card any `OPERATOR` can press. On both paths (env var and the CLI's `--insecure-tls`, which stays available since it is explicit per run) a run that skipped verification reports the public-URL row as at most WARN, "reachable, certificate not verified"; the smoke's exit code is unchanged.
 Status: `ADOPTED` (D-357). Follow-up: Q-05.
+
+### Dependency policy (P20-6, branch `integration/phase20`)
+
+**P20-6 (integration handoff item 3; D-203, D-357). `cargo deny check bans` failed on the merged tree because `sr-preflight` depends on `reqwest` directly, and D-203 limits `reqwest` to the listed wrappers. It is grandfathered in `deny.toml` so that `bans` passes, marked "pending an owner decision". Should it stay on the wrapper list, or route through `SafeClient` with an operator allow-list?**
+Decision: stay, with conditions. The addresses the preflight contacts are all the operator's own configuration (`server.public_url`, `SR_PAYMENTS_ESPLORA_URL`, `voice.endpoints`, `smtp.host`, `voice.turn.urls`); nothing comes from a request body (`POST /admin/system/preflight` has none and is `OPERATOR` only, D-355), a message or a stored user value, so the SSRF case D-203 guards against does not arise, and the crate joins `sr-push`, `sr-storage` and `sr-transcoder` as an operator-fixed-endpoint exception rather than changing D-203. `SafeClient` refuses exactly the targets a preflight is meant to prove: a box reaches its own public URL by loopback or a Docker-internal name (the smoke's `smoke.localhost`) and the Compose electrs is `http://electrs:3000`; using it would mean `allow_private_hosts` on every call (no policy left), a status-and-headers GET `SafeClient` does not offer (the public-URL row reads HSTS and CSP), no-redirect semantics its `get` lacks, and an insecure-TLS switch in the client the whole server shares, which D-357 confines to development hosts; SMTP, voice and TURN are raw TCP and UDP it cannot carry anyway. Conditions: `reqwest` stays confined to `probes::RealNet::http_get` (no redirects, 8-second timeout, 256-byte read, fixed user agent); every address stays operator configuration; and the esplora row must agree with payments, which today it does not (a direct GET passes an electrs address `sr-payments` will refuse at runtime unless `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1` is set): the row resolves the host and applies `sr_net::policy::is_forbidden_ip`, failing with the variable named when the opt-in is missing. Revisit when a preflight check first takes an address that is not operator configuration; that check goes through `SafeClient`.
+Status: `ADOPTED` (D-358). Follow-up: Q-06 (deny.toml comment, esplora row).
 
 ### Still with the owner
 
