@@ -32,16 +32,20 @@ export function ModerationSection() {
   const signals = viewer.can('MANAGE_ACCOUNTS');
   const search = useLocation({ select: (l) => l.searchStr });
   const wantSignals = signals && /(^|[?&])tab=signals/.test(search);
+  // `?tab=dashboard` opens the Dashboard (the Review hub's Reports tile).
+  const wantDashboard = dashboard && /(^|[?&])tab=dashboard/.test(search);
   const [tab, setTab] = useState(
     wantSignals
       ? 'signals'
-      : cases
-        ? 'cases'
-        : takedowns
-          ? 'takedowns'
-          : signals
-            ? 'signals'
-            : 'dashboard',
+      : wantDashboard
+        ? 'dashboard'
+        : cases
+          ? 'cases'
+          : takedowns
+            ? 'takedowns'
+            : signals
+              ? 'signals'
+              : 'dashboard',
   );
   // A deep link `?case=<id>` opens that case (the suspicion panel's "folded into case n", D-351).
   const [caseId, setCaseId] = useState<string | null>(
