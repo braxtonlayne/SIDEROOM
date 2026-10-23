@@ -40,7 +40,51 @@ The `jobs_processed_total{outcome="failed|dead"}` series names the `kind`. Faile
 
 ## Lost or suspect secret key
 
-See BACKUP.md "Secrets rotation". If the key leaked, rotate it and ask members to re-enroll TOTP only if the dump also leaked.
+`server.secret_key` seals every TOTP secret and every application's interactions signing seed. If it leaked, or you only suspect it, rotate it; ask members to re-enroll TOTP only if a database dump leaked as well (the key alone opens nothing without the database). See BACKUP.md "Secrets rotation" for the backups.
+
+This drill is run end to end by `drill_lost_or_suspect_secret_key` in `crates/sr-cli/tests/drills.rs` (Postgres); the commands below are the ones it ran.
+
+1. Make a new key (64 hex characters, mode 0600 file or `SR_SERVER__SECRET_KEY_FILE`). Put the **old** value in `server.secret_key_previous` (`SR_SERVER__SECRET_KEY_PREVIOUS_FILE`, one key per line) and the new one in `server.secret_key`. Do not restart the server yet.
+2. Re-encrypt everything under the new key:
+
+   ```
+   sr-cli rotate-secret-key
+   ```
+
+   Expected: `re-encrypted N TOTP secret(s) under the current key` and `re-encrypted M interactions signing seed(s) under the current key`. If you forgot step 1 the command stops with `re-encrypting TOTP secrets (is the old key still listed in server.secret_key_previous?)` and exit code 1, and changes nothing (one transaction).
+3. Restart the server with the same configuration. Every TOTP secret and signing seed now opens under the new key alone.
+4. Remove the old key from `server.secret_key_previous` and restart again. From then on the old key opens nothing in the database. Running `sr-cli rotate-secret-key` again is harmless.
+5. Keep both keys with the backups made before the rotation: an older dump needs the key that was current when it was made.
+
+## Compromised staff account
+
+Use this when a staff member's password, session or authenticator may be in someone else's hands. It is run end to end by `drill_compromised_staff_account` and `drill_verify_access_log_detects_tampering` in `crates/sr-cli/tests/drills.rs` (Postgres); the commands are the ones they ran.
+
+1. **End every session.** Admin > Accounts > the account > Revoke sessions (`POST /admin/accounts/{id}/force-logout`). The sessions stop working at once.
+2. **Remove the second factors**, so that an authenticator the intruder enrolled cannot be used to come back. On the host:
+
+   ```
+   sr-cli user reset-2fa <user>
+   ```
+
+   Expected: `reset 2FA for account <id>: N TOTP, N recovery codes, N passkeys removed; N trusted devices and N sessions revoked`, a platform audit row `user.reset_2fa`, and a notice mail to the account's address.
+3. **Take the staff roles away** until the person is back in control of the account:
+
+   ```
+   sr-cli staff list
+   sr-cli staff revoke <user> --reason "compromised account"
+   ```
+
+   The account no longer appears in `staff list`.
+4. **Check what the account did.** Admin > Access log filtered by the account, from the earliest time the credentials may have leaked. Then prove the log itself is intact:
+
+   ```
+   sr-cli verify-access-log
+   ```
+
+   Expected: `access log OK: N rows, head <hash>`. A broken chain prints `ACCESS LOG BROKEN at row N: ...` on stderr and exits 1 (an edited row reads `row contents do not match its hash`, a removed row `sequence gap`). Treat that as a database compromise, not an account compromise: stop, keep a copy of the database, and follow "Lost or suspect secret key" as well.
+5. **Rotate what the account could read.** The account holder signs in again (password reset first, then a fresh authenticator) and replaces every bot token and client secret of their applications in the developer portal (`POST /applications/{id}/bot/reset-token` and `/reset-secret`, both ask for the password). The old token stops authenticating the moment the new one is issued. If the account was the Owner, also run the "Lost or suspect secret key" drill.
+6. **Give the roles back** only after the person confirms the new authenticator: `sr-cli staff appoint <user> --role <Role> --reason "<why>"` (or the offer flow in Admin > Staff).
 
 ## Locked-out owner
 
@@ -58,7 +102,7 @@ The Staff Server's `#alerts`, `#new-members` and `#donations` channels are fed b
 | `alerts.backup_max_age_hours` | 36 | A backup (`*.dump` or manifest `*.json`) older than this raises an alert. |
 | `alerts.email_to_owner` | off | Also email each alert to the Staff Server owner, at most one mail per kind every 30 minutes. Needs `[smtp]`. |
 
-Sensitive admin actions (reading private content, changing an account's email, forcing a password reset, resetting 2FA, appointing or revoking staff, announcements) need a second factor checked on the session in the last 15 minutes. Staff without TOTP or a passkey cannot use them until they enroll. For local development and end-to-end tests set `SR_ADMIN_REQUIRE_REAUTH=0` to switch the check off; never do that on a real installation.
+Sensitive admin actions (reading private content, changing an account's email, forcing a password reset, resetting 2FA, appointing or revoking staff, announcements) need a second factor checked on the session in the last 15 minutes. Staff without TOTP or a passkey cannot use them until they enroll. The full list of gated actions is in doc 07 section 6 (`SENSITIVE_ACTIONS` in `crates/sr-api/src/sensitive.rs`). For local development and end-to-end tests set `SR_ADMIN_REQUIRE_REAUTH=0` to switch the check off; the server refuses to start with it unless `server.public_url` is a localhost address (RDY-SEC-010).
 
 ## Upgrade note: legacy download fallback is off
 
