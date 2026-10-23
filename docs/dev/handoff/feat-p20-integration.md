@@ -21,7 +21,7 @@ RDY-OPS-004 itself stays ticked (the preflight branch's local proof). Its note n
 
 1. Push `integration/phase20` and open the PR when the owner agrees. Then watch `Production smoke` and `E2E / live`.
 2. Approve the `ctutils` 0.4.4 download (RUSTSEC-2026-0385), or decide to ignore the advisory in `deny.toml` with a reason. The advisory is for `ctutils` reached through `digest` 0.11 (`hmac`, `openmls_rust_crypto`, `argon2`).
-3. ~~Decide on `sr-preflight` as a `reqwest` wrapper in `deny.toml`~~ Decided: it stays (D-358, P20-6); the `deny.toml` comment rewording and the esplora-row parity check are Q-06 in `answers-followups-p16.md`.
+3. ~~Decide on `sr-preflight` as a `reqwest` wrapper in `deny.toml`~~ Decided: it stays (D-358, P20-6). Done as Q-06: the `deny.toml` comment cites D-358, the esplora row resolves the host and applies `sr_net::policy::is_forbidden_ip` unless `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS` is set.
 
 **How to rerun the browser tests locally:** as in `feat-p19-integration.md`. That means:
 
@@ -126,7 +126,7 @@ Recorded CLI run, `sr-cli preflight` on the scratch DB (memory storage, no relay
 ## Open issues
 
 - **RUSTSEC-2026-0385** (`ctutils` < 0.4.4): needs the owner's yes for the crate download (`cargo update -p ctutils --precise 0.4.4`). It is on main as well.
-- **`sr-preflight` in the `reqwest` wrapper list:** decided, it stays (D-358); Q-06 rewords the `deny.toml` comment and makes the esplora row agree with `sr-payments`' private-host opt-in.
+- **`sr-preflight` in the `reqwest` wrapper list:** decided, it stays (D-358); Q-06 (done) reworded the `deny.toml` comment and made the esplora row agree with the `sr-payments` private-host opt-in.
 - **CI proofs not run:** RDY-OPS-001, 002 and 003, and the CI part of 004 (the table above). `prod-smoke.yml` has never executed. The first run will likely need fix-ups, especially the image build time, `systemctl --user` on the runner, and `systemd-analyze verify` output.
 - The `vapid` row says "sr-server creates it on its first start". That is true with a `server.secret_key`. A dev server with an empty key keeps an ephemeral key and never stores one, so locally the row stays WARN after the server has started. This is harmless in production (the key is required there). The wording could say so.
 - The Reports tile was checked with the `moderation.reports` flag turned on by hand in the scratch DB; the flag is off by default.

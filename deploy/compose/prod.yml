@@ -98,7 +98,8 @@ services:
       # These are read from the process environment by sr-server (payments_jobs.rs), not by the config loader.
       SR_PAYMENTS_ESPLORA_URL: ${SR_PAYMENTS_ESPLORA_URL:-}
       SR_PAYMENTS_RATE_SOURCES: ${SR_PAYMENTS_RATE_SOURCES:-}
-      # Needed when the endpoint is the private electrs container (the SSRF client refuses private addresses).
+      # Needed when the endpoint is the private electrs container (the SSRF client refuses private addresses); the
+      # preflight Esplora row fails on a private electrs address until this is 1 (D-358).
       SR_PAYMENTS_ALLOW_PRIVATE_HOSTS: ${SR_PAYMENTS_ALLOW_PRIVATE_HOSTS:-}
     # Group 999 is the postgres group of the postgres:17 image: it lets the server read the backup folder below.
     group_add: ["999"]

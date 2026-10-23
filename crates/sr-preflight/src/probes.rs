@@ -3,7 +3,10 @@
 use crate::checks::{DbProbe, HostProbe, HttpReply, MigrationState, ModeResult, NetProbe};
 use async_trait::async_trait;
 use sqlx::PgPool;
-use std::{net::SocketAddr, time::Duration};
+use std::{
+    net::{IpAddr, SocketAddr},
+    time::Duration,
+};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::{TcpStream, lookup_host},
@@ -76,6 +79,18 @@ impl NetProbe for RealNet {
             .map_err(|_| "timed out".to_owned())?
     }
 
+    async fn resolve(&self, host: &str) -> Result<Vec<IpAddr>, String> {
+        let addrs = tokio::time::timeout(NET_TIMEOUT, lookup_host((host, 0)))
+            .await
+            .map_err(|_| "timed out".to_owned())?
+            .map_err(|e| format!("cannot resolve {host}: {e}"))?;
+        Ok(addrs.map(|a| a.ip()).collect())
+    }
+
+    // D-358: the one place sr-preflight uses reqwest instead of SafeClient. The URL is always operator
+    // configuration (server.public_url, SR_PAYMENTS_ESPLORA_URL), never a request or stored user value, and
+    // SafeClient would refuse the loopback and Docker-internal addresses these rows exist to prove. No
+    // redirects, 8 s timeout, 256-byte read.
     async fn http_get(&self, url: &str, insecure: bool) -> Result<HttpReply, String> {
         let client = reqwest::Client::builder()
             .timeout(NET_TIMEOUT)

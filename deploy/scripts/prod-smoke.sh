@@ -223,6 +223,8 @@ cli() {
 #   public-url  must be WARN: the certificate was not verified (--insecure-tls never yields PASS, D-357); the
 #               headers are still checked, so a missing HSTS or CSP is a FAIL and fails the stage
 #   smtp        the smoke has no mail relay (SMTP_HOST=mail.example.org is a placeholder): any status
+#   esplora     payments are off on the smoke stack, so the row is PASS ("payments are off") and the private-address
+#               rule (D-358) never applies; it must stay PASS
 #   turn        prod.yml runs no coturn: WARN ("no TURN configured") is expected; a FAIL is not
 # Anything else that is not PASS fails the stage. The command's exit code is not used (the smtp row fails it).
 stage_preflight() {

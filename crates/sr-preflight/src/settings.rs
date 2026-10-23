@@ -28,6 +28,9 @@ pub struct Settings {
     pub voice_endpoints: Vec<String>,
     /// `SR_PAYMENTS_ESPLORA_URL`, when payments are on.
     pub esplora_url: Option<String>,
+    /// `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS` is `1` or `true`: `sr-payments` then accepts a private esplora address
+    /// (the self-hosted electrs), so the esplora row does too (D-358).
+    pub esplora_allow_private: bool,
     /// Folders whose free space matters: the data folder, the search index, every ingest root.
     pub disk_paths: Vec<String>,
     /// `(environment variable, path)` of every `SR_*_FILE` secret that is set.
@@ -76,6 +79,8 @@ impl Settings {
             esplora_url: env("SR_PAYMENTS_ESPLORA_URL")
                 .map(|u| u.trim().to_owned())
                 .filter(|u| !u.is_empty()),
+            esplora_allow_private: env("SR_PAYMENTS_ALLOW_PRIVATE_HOSTS")
+                .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
             disk_paths,
             secret_files,
             config_file: config_file.map(str::to_owned),
@@ -92,11 +97,14 @@ mod tests {
         let cfg = Config::default();
         let env = |k: &str| match k {
             "SR_PAYMENTS_ESPLORA_URL" => Some(" https://esplora.test/api ".to_owned()),
+            "SR_PAYMENTS_ALLOW_PRIVATE_HOSTS" => Some("TRUE".to_owned()),
             "SR_DATABASE__URL_FILE" => Some("/run/secrets/db".to_owned()),
             _ => None,
         };
         let s = Settings::from_config(&cfg, Some("/etc/sideroom/config.toml"), &env);
         assert_eq!(s.esplora_url.as_deref(), Some("https://esplora.test/api"));
+        assert!(s.esplora_allow_private);
+        assert!(!Settings::from_config(&cfg, None, &|_| None).esplora_allow_private);
         assert_eq!(
             s.secret_files,
             vec![(

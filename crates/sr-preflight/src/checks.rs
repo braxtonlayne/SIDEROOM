@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use sr_core::{UserId, config::SmtpTls};
 use sr_storage::{ObjectStorage, storage::PresignMethod};
-use std::time::Duration;
+use std::{net::IpAddr, time::Duration};
 
 const GIB: u64 = 1 << 30;
 
@@ -57,6 +57,8 @@ pub trait NetProbe: Send + Sync {
     /// Connect over TCP; with `banner`, also return the first line the server sends.
     async fn tcp(&self, host: &str, port: u16, banner: bool) -> Result<Option<String>, String>;
     async fn http_get(&self, url: &str, insecure: bool) -> Result<HttpReply, String>;
+    /// The addresses a host name resolves to (a literal address resolves to itself).
+    async fn resolve(&self, host: &str) -> Result<Vec<IpAddr>, String>;
     /// A TURN allocation over UDP, released again.
     async fn turn_allocate(
         &self,
@@ -580,6 +582,26 @@ pub(crate) async fn esplora(net: &dyn NetProbe, s: &Settings) -> Check {
             "payments are off (SR_PAYMENTS_ESPLORA_URL is not set)",
         );
     };
+    // D-358: report what sr-payments will do. It refuses a private, loopback or link-local esplora address
+    // unless SR_PAYMENTS_ALLOW_PRIVATE_HOSTS is set, so a direct GET that passes would be a false PASS.
+    let mut private_ok = false;
+    if let Some((host, _)) = host_port(base)
+        && let Ok(ips) = net.resolve(&host).await
+        && ips.iter().any(|ip| sr_net::policy::is_forbidden_ip(*ip))
+    {
+        if !s.esplora_allow_private {
+            return Check::new(
+                "esplora",
+                t,
+                Status::Fail,
+                format!(
+                    "{base} resolves to a private address; sr-payments will refuse it unless SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1 is set"
+                ),
+            );
+        }
+        private_ok = true;
+    }
+    // A host that does not resolve falls through: the GET reports the failure in its own words.
     let url = format!("{}/blocks/tip/height", base.trim_end_matches('/'));
     match net.http_get(&url, false).await {
         Err(e) => Check::new(
@@ -592,7 +614,15 @@ pub(crate) async fn esplora(net: &dyn NetProbe, s: &Settings) -> Check {
             "esplora",
             t,
             Status::Pass,
-            format!("{base} answers, chain tip {}", r.body.trim()),
+            format!(
+                "{base} answers, chain tip {}{}",
+                r.body.trim(),
+                if private_ok {
+                    " (private host, opted in)"
+                } else {
+                    ""
+                }
+            ),
         ),
         Ok(r) => Check::new(
             "esplora",
@@ -735,6 +765,9 @@ mod tests {
         tcp_err: Option<String>,
         banner: Option<String>,
         http: Option<Result<HttpReply, String>>,
+        /// What `resolve` returns; `None` is a public address.
+        resolved: Option<Vec<IpAddr>>,
+        gets: Mutex<usize>,
         turn: Option<Result<(), String>>,
     }
     #[async_trait]
@@ -749,7 +782,14 @@ mod tests {
                 None => Ok(self.banner.clone()),
             }
         }
+        async fn resolve(&self, _: &str) -> Result<Vec<IpAddr>, String> {
+            Ok(self
+                .resolved
+                .clone()
+                .unwrap_or_else(|| vec!["93.184.216.34".parse().unwrap()]))
+        }
         async fn http_get(&self, _: &str, _: bool) -> Result<HttpReply, String> {
+            *self.gets.lock().unwrap() += 1;
             self.http.clone().unwrap_or(Err("no fake".into()))
         }
         async fn turn_allocate(&self, _: &str, _: u16, _: &str, _: &str) -> Result<(), String> {
@@ -767,6 +807,7 @@ mod tests {
             voice_enabled: false,
             voice_endpoints: vec![],
             esplora_url: None,
+            esplora_allow_private: false,
             disk_paths: vec!["/data".into()],
             secret_files: vec![],
             config_file: None,
@@ -1105,6 +1146,67 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(esplora(&down, &s).await.status, Status::Fail);
+        let c = esplora(&net, &s).await;
+        assert!(!c.detail.contains("private host"), "{}", c.detail);
+    }
+
+    #[tokio::test]
+    async fn esplora_private_hosts_follow_the_payments_opt_in() {
+        let mut s = settings();
+        s.esplora_url = Some("http://electrs:3000".into());
+        let mut ok = reply(200, &[]);
+        ok.body = "845123".into();
+        let private = || FakeNet {
+            http: Some(Ok(ok.clone())),
+            resolved: Some(vec!["172.18.0.5".parse().unwrap()]),
+            ..Default::default()
+        };
+
+        // Without the opt-in: FAIL naming the variable, and no GET is sent.
+        let net = private();
+        let c = esplora(&net, &s).await;
+        assert_eq!(c.status, Status::Fail);
+        assert!(
+            c.detail.contains("SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1"),
+            "{}",
+            c.detail
+        );
+        assert!(
+            c.detail
+                .contains("http://electrs:3000 resolves to a private address")
+        );
+        assert_eq!(*net.gets.lock().unwrap(), 0);
+
+        // One private address among several is enough.
+        let mixed = FakeNet {
+            resolved: Some(vec![
+                "93.184.216.34".parse().unwrap(),
+                "127.0.0.1".parse().unwrap(),
+            ]),
+            ..private()
+        };
+        assert_eq!(esplora(&mixed, &s).await.status, Status::Fail);
+
+        // With the opt-in: the GET proceeds and the PASS says so.
+        s.esplora_allow_private = true;
+        let net = private();
+        let c = esplora(&net, &s).await;
+        assert_eq!(c.status, Status::Pass);
+        assert!(
+            c.detail.ends_with(" (private host, opted in)"),
+            "{}",
+            c.detail
+        );
+        assert_eq!(*net.gets.lock().unwrap(), 1);
+
+        // A public host with the opt-in on is a plain PASS.
+        let public = FakeNet {
+            resolved: None,
+            ..private()
+        };
+        let c = esplora(&public, &s).await;
+        assert_eq!(c.status, Status::Pass);
+        assert!(!c.detail.contains("opted in"));
     }
 
     #[tokio::test]
