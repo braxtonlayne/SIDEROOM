@@ -75,3 +75,7 @@ and commit `packages/api-client`; CI fails when the generated client drifts.
 `deploy/docker/{server,voice,transcoder}.Dockerfile` build from the repo root, e.g.
 `docker build -f deploy/docker/server.Dockerfile -t sideroom-server .` (static musl
 binary on distroless). The release workflow publishes them.
+
+## Preflight (RDY-OPS-004 to 006)
+
+`crates/sr-preflight` holds the checks as functions over small probe traits (`DbProbe`, `NetProbe`, `HostProbe`, the `ObjectStorage` trait); `probes` has the real implementations, tests use fakes. Two callers: `sr-cli preflight` (`crates/sr-cli/src/ops.rs`) and `POST /admin/system/preflight` (`PreflightRunner` in `AdminDeps`, implemented by `sr_server::preflight::LivePreflight`). `--alert-test` calls `sr_server::staff_feed::alert_test`, which builds a minimal `StaffFeed` over the pool and runs `deliver_alert` with the new `StaffAlertKind::AlertTest`. TURN allocation is a small RFC 5766 client in `sr_preflight::turn` (MD5 is implemented locally for the long-term credential key; no new dependency).
