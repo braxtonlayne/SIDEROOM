@@ -104,6 +104,20 @@ pub const RATE_BOT: &str = "limits.rate.bot";
 pub const RATE_MESSAGES: &str = "limits.rate.messages";
 pub const RATE_UPLOADS: &str = "limits.rate.uploads";
 
+/// Abuse limits on member-writable surfaces (RDY-SEC-006). Each is read live by the limiter (HTTP
+/// ones) or by the domain code (the last two) and listed in doc 05 "Abuse limits". The group is `abuse`.
+pub const ABUSE_FRIEND_REQUESTS: &str = "abuse.friend_requests_per_hour";
+pub const ABUSE_DM_OPENS: &str = "abuse.dm_opens_per_hour";
+pub const ABUSE_WEBHOOK_EXECUTE: &str = "abuse.webhook_execute_per_minute";
+pub const ABUSE_OAUTH_AUTHORIZE: &str = "abuse.oauth_authorize_per_minute";
+pub const ABUSE_INTERACTION_CALLBACKS: &str = "abuse.interaction_callbacks_per_minute";
+pub const ABUSE_WATCH_PARTY_JOINS: &str = "abuse.watch_party_joins_per_minute";
+pub const ABUSE_EMOJI_UPLOADS: &str = "abuse.emoji_uploads_per_hour";
+pub const ABUSE_STICKER_UPLOADS: &str = "abuse.sticker_uploads_per_hour";
+pub const ABUSE_APPEAL_ATTEMPTS: &str = "abuse.appeal_attempts_per_hour";
+pub const ABUSE_COUNTER_NOTICES: &str = "abuse.counter_notices_per_day";
+pub const ABUSE_DATA_EXPORT_COOLDOWN: &str = "abuse.data_export_cooldown_hours";
+
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
 pub const ALERTS_DISK_PERCENT: &str = "alerts.disk_percent";
@@ -164,6 +178,94 @@ pub const CATALOG: &[SettingDef] = &[
         6_000,
         240,
         "Upload slot requests one member may make per minute in one channel (applies on the next request).",
+    ),
+    int(
+        ABUSE_FRIEND_REQUESTS,
+        "abuse",
+        1,
+        1000,
+        60,
+        "Friend requests (and blocks) one member may send per hour (applies on the next request).",
+    ),
+    int(
+        ABUSE_DM_OPENS,
+        "abuse",
+        1,
+        1000,
+        40,
+        "Direct-message and group conversations one member may open per hour (applies on the next request).",
+    ),
+    int(
+        ABUSE_WEBHOOK_EXECUTE,
+        "abuse",
+        12,
+        6000,
+        60,
+        "Executions per minute of one webhook, counted per webhook token across all callers (applies on the next request).",
+    ),
+    int(
+        ABUSE_OAUTH_AUTHORIZE,
+        "abuse",
+        1,
+        600,
+        20,
+        "OAuth2 authorize approvals one member (or address) may make per minute (applies on the next request).",
+    ),
+    int(
+        ABUSE_INTERACTION_CALLBACKS,
+        "abuse",
+        12,
+        6000,
+        60,
+        "Interaction callbacks per minute from one address (applies on the next request).",
+    ),
+    int(
+        ABUSE_WATCH_PARTY_JOINS,
+        "abuse",
+        1,
+        120,
+        20,
+        "Watch-party joins one member may make per minute (applies on the next request).",
+    ),
+    int(
+        ABUSE_EMOJI_UPLOADS,
+        "abuse",
+        1,
+        1000,
+        50,
+        "Custom emoji uploads per hour by one member in one server, or by one application (applies on the next request).",
+    ),
+    int(
+        ABUSE_STICKER_UPLOADS,
+        "abuse",
+        1,
+        1000,
+        20,
+        "Sticker uploads per hour by one member in one server (applies on the next request).",
+    ),
+    int(
+        ABUSE_APPEAL_ATTEMPTS,
+        "abuse",
+        1,
+        1000,
+        10,
+        "Ban appeals per hour from one address, whatever the account (one appeal per ban besides, D-215).",
+    ),
+    int(
+        ABUSE_COUNTER_NOTICES,
+        "abuse",
+        1,
+        10000,
+        50,
+        "Counter-notices one staff member may record per day (each notice takes one besides).",
+    ),
+    int(
+        ABUSE_DATA_EXPORT_COOLDOWN,
+        "abuse",
+        1,
+        720,
+        24,
+        "Hours a member must wait between data-package requests (one open request at a time besides).",
     ),
     int(
         "invites.initial_credits",
@@ -427,6 +529,18 @@ mod tests {
             assert!(d.validate(&json!(floor - 1)).is_err(), "{key}");
             assert!(d.validate(&json!(ceiling + 1)).is_err(), "{key}");
             assert!(d.validate(&json!(0)).is_err(), "{key}");
+        }
+    }
+
+    #[test]
+    fn abuse_limits_are_in_their_own_group_with_a_floor_of_one() {
+        let abuse: Vec<_> = CATALOG.iter().filter(|d| d.group == "abuse").collect();
+        assert_eq!(abuse.len(), 11);
+        for d in abuse {
+            assert!(d.key.starts_with("abuse."), "{}", d.key);
+            assert!(d.min >= 1.0 && d.max > d.min, "{}", d.key);
+            assert!(d.validate(&json!(0)).is_err(), "{}", d.key);
+            assert!(d.validate(&d.default_value()).is_ok(), "{}", d.key);
         }
     }
 

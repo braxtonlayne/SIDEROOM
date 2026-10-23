@@ -92,6 +92,140 @@ const MESSAGES_ROUTE: &str = "POST /channels/{channel_id}/messages";
 /// The route key of an upload slot request.
 const UPLOADS_ROUTE: &str = "POST /channels/{channel_id}/attachments";
 
+/// The abuse limits that ride the HTTP limiter (RDY-SEC-006). Each one is a platform setting in the
+/// `abuse` group of the Admin > Limits catalog (`sr_admin::settings`), read live like the message
+/// limit, so an edit applies on the next request. Scope is per process, like every limiter here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Abuse {
+    /// Friend requests and blocks, per credential per hour.
+    FriendRequests,
+    /// Opening direct or group conversations (Message Requests), per credential per hour.
+    DmOpens,
+    /// Executions of one webhook token, per minute, across every caller.
+    WebhookExecute,
+    /// OAuth2 authorize approvals, per credential or address per minute.
+    OauthAuthorize,
+    /// Interaction callbacks, per address per minute.
+    InteractionCallbacks,
+    /// Watch-party joins, per credential per minute.
+    WatchPartyJoins,
+    /// Custom emoji uploads, per credential per server per hour.
+    EmojiUploads,
+    /// Sticker uploads, per credential per server per hour.
+    StickerUploads,
+    /// Ban appeals, per address per hour.
+    AppealAttempts,
+}
+
+impl Abuse {
+    /// Every limit, in the order of [`RateConfig::abuse`].
+    pub const ALL: [Abuse; 9] = [
+        Abuse::FriendRequests,
+        Abuse::DmOpens,
+        Abuse::WebhookExecute,
+        Abuse::OauthAuthorize,
+        Abuse::InteractionCallbacks,
+        Abuse::WatchPartyJoins,
+        Abuse::EmojiUploads,
+        Abuse::StickerUploads,
+        Abuse::AppealAttempts,
+    ];
+
+    /// The index into [`RateConfig::abuse`].
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    /// The platform setting that holds the figure.
+    pub const fn key(self) -> &'static str {
+        use sr_admin::settings as k;
+        match self {
+            Abuse::FriendRequests => k::ABUSE_FRIEND_REQUESTS,
+            Abuse::DmOpens => k::ABUSE_DM_OPENS,
+            Abuse::WebhookExecute => k::ABUSE_WEBHOOK_EXECUTE,
+            Abuse::OauthAuthorize => k::ABUSE_OAUTH_AUTHORIZE,
+            Abuse::InteractionCallbacks => k::ABUSE_INTERACTION_CALLBACKS,
+            Abuse::WatchPartyJoins => k::ABUSE_WATCH_PARTY_JOINS,
+            Abuse::EmojiUploads => k::ABUSE_EMOJI_UPLOADS,
+            Abuse::StickerUploads => k::ABUSE_STICKER_UPLOADS,
+            Abuse::AppealAttempts => k::ABUSE_APPEAL_ATTEMPTS,
+        }
+    }
+
+    /// The window the setting is counted in, in seconds (per hour or per minute).
+    pub const fn window_secs(self) -> u64 {
+        match self {
+            Abuse::FriendRequests
+            | Abuse::DmOpens
+            | Abuse::EmojiUploads
+            | Abuse::StickerUploads
+            | Abuse::AppealAttempts => 3600,
+            Abuse::WebhookExecute
+            | Abuse::OauthAuthorize
+            | Abuse::InteractionCallbacks
+            | Abuse::WatchPartyJoins => 60,
+        }
+    }
+
+    /// How much of the window may be spent at once: webhooks and interaction callbacks allow a burst
+    /// of five seconds' worth (Discord's shape), the rest the whole window's figure.
+    const fn burst_secs(self) -> u64 {
+        match self {
+            Abuse::WebhookExecute | Abuse::InteractionCallbacks => 5,
+            other => other.window_secs(),
+        }
+    }
+
+    /// The catalog default (the one source of the figure; doc 05 repeats it and a test compares).
+    pub fn default_figure(self) -> u32 {
+        sr_admin::settings::find(self.key())
+            .and_then(|d| u32::try_from(d.default_int).ok())
+            .unwrap_or(1)
+    }
+
+    /// The bucket for `figure` events per window.
+    fn spec(self, figure: u32) -> BucketSpec {
+        let burst = (u64::from(figure.max(1)) * self.burst_secs() / self.window_secs()).max(1);
+        BucketSpec::new(u32::try_from(burst).unwrap_or(u32::MAX), self.burst_secs())
+    }
+}
+
+/// The routes each abuse limit guards: `"METHOD /pattern"` as the limiter keys them (the same
+/// strings as `route_matrix.tsv`, which a test checks).
+pub const ABUSE_ROUTES: &[(&str, Abuse)] = &[
+    ("POST /users/@me/relationships", Abuse::FriendRequests),
+    (
+        "PUT /users/@me/relationships/{user_id}",
+        Abuse::FriendRequests,
+    ),
+    ("POST /users/@me/channels", Abuse::DmOpens),
+    ("POST /webhooks/{webhook_id}/{token}", Abuse::WebhookExecute),
+    ("POST /oauth2/authorize", Abuse::OauthAuthorize),
+    (
+        "POST /interactions/{interaction_id}/{token}/callback",
+        Abuse::InteractionCallbacks,
+    ),
+    (
+        "POST /watch-parties/{party_id}/join",
+        Abuse::WatchPartyJoins,
+    ),
+    ("POST /guilds/{guild_id}/emojis", Abuse::EmojiUploads),
+    (
+        "POST /applications/{application_id}/emojis",
+        Abuse::EmojiUploads,
+    ),
+    ("POST /guilds/{guild_id}/stickers", Abuse::StickerUploads),
+    ("POST /moderation/appeals", Abuse::AppealAttempts),
+];
+
+/// The limit that guards `route_key`, if any.
+pub fn abuse_for(route_key: &str) -> Option<Abuse> {
+    ABUSE_ROUTES
+        .iter()
+        .find(|(k, _)| *k == route_key)
+        .map(|(_, a)| *a)
+}
+
 /// The live HTTP limits, all requests (or sends) per minute. Gateway and voice limits stay static.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RateConfig {
@@ -105,6 +239,8 @@ pub struct RateConfig {
     pub messages: u32,
     /// Upload slot requests per minute in one channel by one caller.
     pub uploads: u32,
+    /// The abuse limits, indexed by [`Abuse::index`] (RDY-SEC-006); each in its own unit (see [`Abuse`]).
+    pub abuse: [u32; Abuse::ALL.len()],
 }
 
 impl Default for RateConfig {
@@ -115,6 +251,7 @@ impl Default for RateConfig {
             bot: 3000,
             messages: 60,
             uploads: 240,
+            abuse: Abuse::ALL.map(Abuse::default_figure),
         }
     }
 }
@@ -136,6 +273,7 @@ impl RateConfig {
                 .routes
                 .get(UPLOADS_ROUTE)
                 .map_or_else(|| per_minute(&cfg.default_bucket), per_minute),
+            abuse: Self::default().abuse,
         }
     }
 
@@ -159,6 +297,7 @@ impl RateConfig {
             bot: get(k::RATE_BOT, d.bot),
             messages: get(k::RATE_MESSAGES, d.messages),
             uploads: get(k::RATE_UPLOADS, d.uploads),
+            abuse: Abuse::ALL.map(|a| get(a.key(), d.abuse[a.index()])),
         }
     }
 
@@ -219,12 +358,8 @@ impl Default for RateLimitConfig {
             ),
             ("POST /oauth2/introspect (client)", BucketSpec::new(60, 60)),
             ("POST /oauth2/introspect (address)", BucketSpec::new(60, 60)),
-            ("POST /oauth2/authorize", BucketSpec::new(20, 60)),
+            // `POST /oauth2/authorize` and the interaction callback follow the live `abuse.*` settings.
             ("POST /interactions", BucketSpec::new(20, 10)),
-            (
-                "POST /interactions/{interaction_id}/{token}/callback",
-                BucketSpec::new(5, 5),
-            ),
             ("POST /applications", BucketSpec::new(5, 3600)),
             ("POST /developers/apply", BucketSpec::new(3, 86_400)),
             (
@@ -374,6 +509,11 @@ impl RateLimiter {
         let spec = match route_key {
             MESSAGES_ROUTE if self.cfg.live.is_some() => now.messages_spec(),
             UPLOADS_ROUTE if self.cfg.live.is_some() => now.uploads_spec(),
+            // An explicit static override wins (tests); otherwise the abuse figure, live.
+            _ if abuse_for(route_key).is_some() && !self.cfg.routes.contains_key(route_key) => {
+                abuse_for(route_key)
+                    .map_or(self.cfg.default_bucket, |a| a.spec(now.abuse[a.index()]))
+            }
             _ => self
                 .cfg
                 .routes
@@ -398,6 +538,19 @@ impl RateLimiter {
     /// Count one request. `route_key` is `"METHOD /pattern"`, `resource` the
     /// major-parameter value (or empty), `identity` the caller.
     pub fn check(&self, route_key: &str, resource: &str, identity: &str) -> Decision {
+        self.check_scoped(route_key, resource, identity, identity)
+    }
+
+    /// Like [`check`](Self::check), but the bucket is keyed by `bucket_identity` while the global
+    /// limiter still sees `identity`: a limit that belongs to a resource (one webhook token) and not
+    /// to whoever calls it.
+    pub fn check_scoped(
+        &self,
+        route_key: &str,
+        resource: &str,
+        identity: &str,
+        bucket_identity: &str,
+    ) -> Decision {
         if !self.cfg.enabled {
             return Decision::Allowed(RateInfo {
                 limit: u32::MAX,
@@ -420,7 +573,7 @@ impl RateLimiter {
             };
         }
         let bucket = self.bucket(route_key, now);
-        let key = format!("{identity}|{resource}");
+        let key = format!("{bucket_identity}|{resource}");
         let limit = bucket.spec.limit.max(1);
         // Emission interval is window / limit, so a bucket with `used` spent
         // cells refills completely after `used` intervals.
@@ -515,6 +668,19 @@ fn major_resource<'a>(pattern: &str, path: &'a str) -> &'a str {
     }
 }
 
+/// `<webhook id>/<hash of the token>` for `/api/vN/webhooks/{id}/{token}`: the key of a webhook's own
+/// bucket. The token is hashed so it never sits in the limiter's memory in the clear.
+fn webhook_token_resource(path: &str) -> String {
+    let mut segs = path.trim_start_matches('/').split('/');
+    if segs.next() == Some("api") {
+        segs.next();
+    }
+    let _webhooks = segs.next();
+    let id = segs.next().unwrap_or("");
+    let token = segs.next().unwrap_or("");
+    format!("{id}/{}", hash_hex(token))
+}
+
 /// The caller's address: the socket peer, or, when the proxy is trusted, the
 /// last `X-Forwarded-For` entry (the one Caddy appended). Open question 57.
 pub fn client_ip(req: &Request, trust_forwarded_for: bool) -> Option<IpAddr> {
@@ -552,9 +718,23 @@ pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next)
     };
     let pattern = normalise(matched.as_str()).to_owned();
     let route_key = format!("{} {}", req.method(), pattern);
-    let resource = major_resource(&pattern, req.uri().path()).to_owned();
     let who = identity(&req, state.settings().trust_forwarded_for);
-    match state.rate_limiter().check(&route_key, &resource, &who) {
+    // A webhook token's limit belongs to the token, whoever calls it (RDY-SEC-006).
+    let (resource, bucket_who) = if abuse_for(&route_key) == Some(Abuse::WebhookExecute) {
+        (
+            webhook_token_resource(req.uri().path()),
+            "webhook-token".to_owned(),
+        )
+    } else {
+        (
+            major_resource(&pattern, req.uri().path()).to_owned(),
+            who.clone(),
+        )
+    };
+    match state
+        .rate_limiter()
+        .check_scoped(&route_key, &resource, &who, &bucket_who)
+    {
         Decision::Allowed(info) => {
             let mut resp = next.run(req).await;
             if info.limit != u32::MAX {
@@ -705,6 +885,137 @@ mod tests {
             }
         }
         assert_eq!(limited, Some(true));
+    }
+
+    // ---- abuse limits (RDY-SEC-006) -------------------------------------------------------------
+
+    fn live_limiter() -> (tokio::sync::watch::Sender<RateConfig>, RateLimiter) {
+        let (tx, rx) = tokio::sync::watch::channel(RateConfig::default());
+        let rl = RateLimiter::new(RateLimitConfig {
+            live: Some(rx),
+            ..RateLimitConfig::default()
+        });
+        (tx, rl)
+    }
+
+    #[test]
+    fn abuse_defaults_come_from_the_catalog_and_every_limit_has_a_route() {
+        let d = RateConfig::default();
+        let mut keys = std::collections::HashSet::new();
+        for a in Abuse::ALL {
+            let def = sr_admin::settings::find(a.key()).expect("limit is in the catalog");
+            assert_eq!(def.group, "abuse", "{}", a.key());
+            assert_eq!(d.abuse[a.index()], a.default_figure());
+            assert_eq!(i64::from(a.default_figure()), def.default_int);
+            assert!(keys.insert(a.key()), "duplicate {}", a.key());
+            assert!(
+                ABUSE_ROUTES.iter().any(|(_, x)| *x == a),
+                "{a:?} guards no route"
+            );
+        }
+        assert_eq!(Abuse::ALL.len(), 9);
+        assert_eq!(RateConfig::of(&RateLimitConfig::default()), d);
+    }
+
+    #[test]
+    fn abuse_routes_exist_in_the_route_matrix() {
+        let matrix = include_str!("../tests/route_matrix.tsv");
+        let routes: std::collections::HashSet<String> = matrix
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+            .filter_map(|l| {
+                let mut c = l.split('\t');
+                Some(format!("{} {}", c.next()?, c.next()?))
+            })
+            .collect();
+        for (key, _) in ABUSE_ROUTES {
+            assert!(routes.contains(*key), "{key} is not an API route");
+        }
+    }
+
+    #[test]
+    fn every_abuse_route_limits_at_its_figure_and_follows_a_live_change() {
+        for (route, abuse) in ABUSE_ROUTES {
+            let (tx, rl) = live_limiter();
+            let def = sr_admin::settings::find(abuse.key()).unwrap();
+            let floor = def.min as u32;
+            tx.send_modify(|c| c.abuse[abuse.index()] = floor);
+            let burst = abuse.spec(floor).limit;
+            // The webhook limit is per token; every other one is per caller.
+            let go = |who: &str| rl.check_scoped(route, "7", "sess:a", who);
+            for i in 0..burst {
+                assert!(matches!(go("sess:a"), Decision::Allowed(_)), "{route} #{i}");
+            }
+            assert!(
+                matches!(go("sess:a"), Decision::Limited { global: false, .. }),
+                "{route} did not limit after {burst}"
+            );
+            // Another caller (or another resource) is unaffected.
+            assert!(matches!(
+                rl.check_scoped(route, "8", "sess:a", "sess:a"),
+                Decision::Allowed(_)
+            ));
+            // Raising the setting applies on the next request.
+            tx.send_modify(|c| c.abuse[abuse.index()] = def.max as u32);
+            assert!(matches!(go("sess:a"), Decision::Allowed(_)), "{route} live");
+        }
+    }
+
+    #[test]
+    fn the_figures_mean_what_the_catalog_says() {
+        // Per hour: the whole figure may be spent at once.
+        assert_eq!(Abuse::FriendRequests.spec(60), BucketSpec::new(60, 3600));
+        assert_eq!(Abuse::EmojiUploads.spec(50), BucketSpec::new(50, 3600));
+        // Per minute: the whole figure for authorize and watch parties.
+        assert_eq!(Abuse::OauthAuthorize.spec(20), BucketSpec::new(20, 60));
+        assert_eq!(Abuse::WatchPartyJoins.spec(20), BucketSpec::new(20, 60));
+        // Webhooks and callbacks: 60 a minute is a burst of five (the former callback bucket, 5 per 5 s).
+        assert_eq!(Abuse::WebhookExecute.spec(60), BucketSpec::new(5, 5));
+        assert_eq!(Abuse::InteractionCallbacks.spec(60), BucketSpec::new(5, 5));
+    }
+
+    #[test]
+    fn a_webhook_limit_belongs_to_the_token_not_the_caller() {
+        let (tx, rl) = live_limiter();
+        tx.send_modify(|c| c.abuse[Abuse::WebhookExecute.index()] = 12); // a burst of one
+        let route = "POST /webhooks/{webhook_id}/{token}";
+        let a = webhook_token_resource("/api/v1/webhooks/5/tok-a");
+        let b = webhook_token_resource("/api/v10/webhooks/5/tok-b");
+        assert_ne!(a, b);
+        assert!(!a.contains("tok-a"), "the token is hashed");
+        assert!(matches!(
+            rl.check_scoped(route, &a, "ip:1.1.1.1", "webhook-token"),
+            Decision::Allowed(_)
+        ));
+        // Same token from another address: the same bucket.
+        assert!(matches!(
+            rl.check_scoped(route, &a, "ip:2.2.2.2", "webhook-token"),
+            Decision::Limited { global: false, .. }
+        ));
+        // Another token of the same webhook id is untouched.
+        assert!(matches!(
+            rl.check_scoped(route, &b, "ip:2.2.2.2", "webhook-token"),
+            Decision::Allowed(_)
+        ));
+    }
+
+    #[test]
+    fn forwarded_for_is_trusted_only_behind_a_proxy_and_only_its_last_entry() {
+        let mut req = Request::builder()
+            .header("x-forwarded-for", "9.9.9.9, 1.2.3.4")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        req.extensions_mut()
+            .insert(ConnectInfo(SocketAddr::from(([10, 0, 0, 7], 5555))));
+        // Behind Caddy the entry it appended (the last) is the client; a spoofed first entry is ignored.
+        assert_eq!(client_ip(&req, true), Some("1.2.3.4".parse().unwrap()));
+        // Not behind a proxy: the header is attacker-controlled, so the socket peer is the identity.
+        assert_eq!(client_ip(&req, false), Some("10.0.0.7".parse().unwrap()));
+        let bare = Request::builder()
+            .header("x-forwarded-for", "1.2.3.4")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        assert_eq!(client_ip(&bare, false), None);
     }
 
     #[test]
