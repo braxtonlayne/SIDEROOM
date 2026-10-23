@@ -303,6 +303,10 @@ pub fn router() -> Router<AppState> {
         .route("/moderation/dashboard", get(dashboard::get))
         .route("/moderation/dashboard/inbox", get(dashboard::inbox))
         .route(
+            "/moderation/dashboard/inbox/count",
+            get(dashboard::inbox_count),
+        )
+        .route(
             "/moderation/dashboard/inbox/dismiss",
             post(dashboard::dismiss),
         )
@@ -380,6 +384,7 @@ pub fn router() -> Router<AppState> {
         takedowns::item_status,
         dashboard::get,
         dashboard::inbox,
+        dashboard::inbox_count,
         dashboard::dismiss,
         suspicion::panel,
         suspicion::scan,

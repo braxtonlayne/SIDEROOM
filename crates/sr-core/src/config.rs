@@ -519,12 +519,22 @@ fn url_host(url: &str) -> Option<&str> {
     authority.split(':').next()
 }
 
-/// Whether the public URL points at a loopback development host.
-fn is_local_host(public_url: &str) -> bool {
-    matches!(
-        url_host(public_url),
-        Some("localhost" | "127.0.0.1" | "[::1]")
-    )
+/// Whether the public URL points at a development host (D-357): `localhost`, a `127.*` loopback literal,
+/// `[::1]`, or a name ending in `.localhost` (RFC 6761 reserves those for loopback). The empty secret key and
+/// `SR_PREFLIGHT_INSECURE_TLS` are tolerated only there.
+pub fn is_development_host(public_url: &str) -> bool {
+    let Some(host) = url_host(public_url) else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+    let host = host.trim_end_matches('.');
+    host == "localhost"
+        || host == "[::1]"
+        || host.ends_with(".localhost")
+        || (host.starts_with("127.")
+            && host
+                .parse::<std::net::Ipv4Addr>()
+                .is_ok_and(|ip| ip.is_loopback()))
 }
 
 fn is_hex_key(key: &str) -> bool {
@@ -649,7 +659,7 @@ impl Config {
         }
         // An ephemeral key loses every stored TOTP secret on restart, so it is
         // only tolerated on a loopback development host.
-        if key.is_empty() && !is_local_host(&self.server.public_url) {
+        if key.is_empty() && !is_development_host(&self.server.public_url) {
             return Err(bad(
                 "server.secret_key is required unless server.public_url is a localhost address",
             ));
@@ -880,6 +890,30 @@ secret_key = \"abc\"
         assert_eq!(url_host("https://a.b:8443/x"), Some("a.b"));
         assert_eq!(url_host("http://[::1]:80"), Some("[::1]"));
         assert_eq!(url_host("http://u:p@localhost"), Some("localhost"));
+    }
+
+    #[test]
+    fn development_hosts() {
+        for url in [
+            "http://localhost:5173",
+            "http://127.0.0.1:8080",
+            "http://127.1.2.3",
+            "http://[::1]:80",
+            "https://smoke.localhost",
+            "https://a.b.LOCALHOST/x",
+        ] {
+            assert!(is_development_host(url), "{url}");
+        }
+        for url in [
+            "https://chat.example.org",
+            "https://localhost.example.org",
+            "https://evil-localhost",
+            "http://127.0.0.1.example.org",
+            "http://10.0.0.1",
+            "",
+        ] {
+            assert!(!is_development_host(url), "{url}");
+        }
     }
 
     #[test]

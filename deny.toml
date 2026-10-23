@@ -61,6 +61,11 @@ deny = [
     # user supplied (D-234: only the base host and allow-listed hosts are followed).
     # sr-push, sr-storage, sr-transcoder and sr-unfurl are grandfathered: operator-configured
     # fixed endpoints (push services, S3, transcoder worker) or SafeClient transports.
+    # sr-preflight (RDY-OPS-004) is an operator-fixed-endpoint exception like sr-push, sr-storage and sr-transcoder
+    # (D-358): reqwest is used only in probes::RealNet::http_get (no redirects, 8 s timeout, 256-byte read) against
+    # server.public_url and SR_PAYMENTS_ESPLORA_URL. SafeClient would refuse the loopback, Docker-internal and private
+    # addresses those rows exist to prove. The first check that takes an address which is not operator configuration
+    # goes through SafeClient.
     { crate = "reqwest", wrappers = [
         "sr-net",
         "sr-unfurl",
@@ -68,6 +73,7 @@ deny = [
         "sr-sdk",
         "sr-storage",
         "sr-transcoder",
+        "sr-preflight",
         "oauth2",
         "object_store",
     ] },

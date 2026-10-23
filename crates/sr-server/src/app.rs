@@ -1206,6 +1206,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             audit: audit_sink.clone(),
             pool: pool.clone(),
         }))
+        .with_item_index_sink(Arc::new(crate::moderation_index::CatalogIndexSink {
+            library: library_service.clone(),
+            cinema: cinema_service.clone(),
+        }))
         .with_blocklist(media_blocklist.clone())
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),
@@ -1295,6 +1299,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )))
         .with_reauth(require_reauth)
         .with_storage(storage.clone())
+        .with_preflight(Arc::new(crate::preflight::LivePreflight::new(
+            pool.clone(),
+            storage.clone(),
+            &cfg,
+        )?))
         .with_gateway_sessions({
             let gw = gateway.clone();
             Arc::new(move || gw.session_count())

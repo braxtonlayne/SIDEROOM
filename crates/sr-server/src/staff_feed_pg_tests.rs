@@ -1072,3 +1072,58 @@ async fn a_package_version_gets_a_review_queue_card_that_closes_once() {
     assert_eq!(embeds[0]["fields"].as_array().unwrap().len(), 1);
     f.db.cleanup().await.unwrap();
 }
+
+/// RDY-OPS-006: `alert_test` (what `sr-cli preflight --alert-test` runs) goes through the real staff feed: a
+/// stored alert, a card in #alerts that names the host and the time, and the Owner mail when that is on.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_alert_test_posts_a_card_and_mails_the_owner_when_on() {
+    use crate::staff_feed::{MailOutcome, alert_test, alert_test_detail};
+    let f = fx().await;
+    let mut cfg = sr_core::config::Config::default();
+    cfg.server.secret_key = serde_json::from_value(serde_json::json!("ab".repeat(32))).unwrap();
+    cfg.server.public_url = "https://sr.test".into();
+    let detail = alert_test_detail("box-1", "https://sr.test", "20261023T101500Z");
+    let alerts = f.channels["alerts"];
+
+    // Owner email off (the default): the card appears, no mail.
+    let mailer = Arc::new(MemoryMailer::new());
+    let out = alert_test(f.pool.clone(), &cfg, mailer.clone(), &detail)
+        .await
+        .unwrap();
+    assert!(out.posted);
+    assert_eq!(out.mail, MailOutcome::NotSent);
+    assert!(mailer.sent().is_empty());
+    let cards = messages_in(&f.pool, alerts).await;
+    assert_eq!(cards.len(), 1);
+    let embeds: Value = cards[0].get("embeds");
+    assert_eq!(embeds[0]["title"], "Alert path test");
+    let text = embeds[0]["description"].as_str().unwrap();
+    assert!(
+        text.contains("box-1") && text.contains("20261023T101500Z"),
+        "{text}"
+    );
+    let stored = f.repo.recent_alerts(10).await.unwrap();
+    assert_eq!(stored[0].kind, "alert_test");
+
+    // Owner email on: the same path also mails the Owner.
+    let c = f.admin.resolve(f.owner, None).await.unwrap();
+    f.admin
+        .patch_settings(
+            &c,
+            &[("alerts.email_to_owner".to_owned(), serde_json::json!(true))],
+            Some("test"),
+        )
+        .await
+        .unwrap();
+    let out = alert_test(f.pool.clone(), &cfg, mailer.clone(), &detail)
+        .await
+        .unwrap();
+    assert!(out.posted);
+    assert_eq!(out.mail, MailOutcome::Sent("owner@example.test".into()));
+    let sent = mailer.sent();
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0].subject.contains("Alert path test"));
+    assert!(sent[0].text.contains("box-1"));
+    assert_eq!(messages_in(&f.pool, alerts).await.len(), 2);
+}

@@ -19,6 +19,10 @@ export function ReviewHubSection() {
   const signalCount = useResource(`review-signals:${viewer.can('MANAGE_ACCOUNTS')}`, async () =>
     viewer.can('MANAGE_ACCOUNTS') ? (await moderation.countEvasionSignals()).open : null,
   );
+  // Unattached reports (D-339): reports nobody has picked up, for `MANAGE_CASES`; a failed count hides the tile.
+  const reportCount = useResource(`review-reports:${viewer.can('MANAGE_CASES')}`, async () =>
+    viewer.can('MANAGE_CASES') ? (await moderation.getInboxCount()).reports : null,
+  );
   // A `#review-queue` card links to `?submission=<id>` (G-68): that is a Library submission, so open its tab.
   const search = useLocation({ select: (l) => l.searchStr }).replace(/^\?/, '');
   const linked = /(^|&)submission=\d+/.test(search);
@@ -54,6 +58,13 @@ export function ReviewHubSection() {
         <Notice variant="info" role="status">
           <a href="/admin/moderation?tab=signals">
             {t('admin.suspicion.hubTile', { n: signalCount.data })}
+          </a>
+        </Notice>
+      )}
+      {reportCount.data != null && reportCount.data > 0 && (
+        <Notice variant="info" role="status">
+          <a href="/admin/moderation?tab=dashboard">
+            {t('admin.reviewHub.reportsTile', { n: reportCount.data })}
           </a>
         </Notice>
       )}

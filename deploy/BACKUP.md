@@ -63,6 +63,45 @@ With Docker Compose, run the same script from the host against the published or 
 
 `sr-cli backup [--dir ./backups]` writes the same file and manifest as `backup.sh` (`db/sideroom-<stamp>.dump` + `.dump.json`), using `pg_dump` from `PATH` and the database in `SR_DATABASE__URL`; the password is passed in the environment, never as an argument. `sr-cli restore <dump> [--force]` verifies the manifest, refuses a non-empty database unless `--force`, and runs `pg_restore`. `sr-cli upgrade` takes this backup automatically before it migrates. Retention pruning stays with `backup.sh`.
 
+## On the Compose stack
+
+The postgres container of `deploy/compose/prod.yml` has the scripts at `/opt/sideroom/scripts` and the backup folder as the `pg-backups` volume at `/var/backups/sideroom`, so the packaged route needs nothing on the host but Docker:
+
+```
+cd /opt/sideroom/deploy/compose
+dc="docker compose -f prod.yml --env-file .env.prod"
+$dc exec -T -u postgres postgres sh -c 'SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom SR_BACKUP_DIR_MODE=750 sh /opt/sideroom/scripts/backup.sh'
+```
+
+(The URL has no host and no password: the container's own socket is trusted. The same shape is in `deploy/systemd/sideroom-basebackup.service`.) Copy `/var/lib/docker/volumes/<project>_pg-backups/_data` off the host, or `docker cp` from the container.
+
+**Admin > System shows the last backup.** sr-server mounts the `pg-backups` volume read-only at the same path and is in the postgres group (`group_add: ["999"]`), and the folder is mode 750 (`SR_BACKUP_DIR_MODE=750`, which `backup.sh` and `basebackup.sh` honour; the default stays 700). Point the platform setting at it once, in Admin > Limits (group `alerts`) or with `PATCH /admin/settings`:
+
+```
+ops.backup_dir = /var/backups/sideroom
+```
+
+Then Admin > System reports the newest `*.dump` or manifest time, the `restore-drill.ok` time (run `restore-drill.sh` the same way) and, when objects are snapshotted, `snapshot.ok`. The folder is readable by the server because the server can already read the whole database; do not widen it further.
+
+### Script path and `sr-cli` path
+
+Both write the same dump format and manifest, and both verify the checksum before restoring. They differ in where they run and what else they do:
+
+| | `backup.sh` / `restore.sh` | `sr-cli backup` / `restore` |
+|---|---|---|
+| Runs | where `pg_dump` / `pg_restore` / `psql` and a shell are: in the postgres container (Compose), or on the host with the client tools | where `sr-cli` runs and `pg_dump` / `pg_restore` are on `PATH`. The server image is distroless, so there is **no** `sr-cli backup` inside it: use the static binary on the host and reach Postgres over its container address, or publish it on loopback |
+| Database named by | `SR_DATABASE_URL` (backup) and the target URL argument (restore) | `SR_DATABASE__URL` / `SR_CONFIG`, the same configuration as the server; restore always targets the configured database |
+| Folder | `SR_BACKUP_DIR`, mode `SR_BACKUP_DIR_MODE` (default 700) | `--dir`, always 700 |
+| Retention (14 daily, 8 weekly, 12 monthly) | yes | no |
+| Object snapshot (`rustic` / `restic`), `snapshot.ok` | yes | no |
+| Non-empty target | refused unless `SR_RESTORE_FORCE=1` | refused unless `--force` |
+| `--clean --if-exists` before restoring | with `SR_RESTORE_FORCE=1` | with `--force` |
+| Tampered dump | refused (`checksum mismatch`) | refused |
+| After restoring | prints a reminder to run `sr-cli migrate` | prints the same reminder |
+| Also does | nothing else | `sr-cli upgrade` takes this backup before it migrates; `upgrade --dry-run` only lists the pending migrations |
+
+`.github/workflows/prod-smoke.yml` runs both paths against a freshly installed Compose stack (`deploy/scripts/prod-smoke.sh backups` and `cli-backups`): `backup.sh`, the base backup of the systemd unit, `restore.sh` into a second database (and a refused second restore), `restore-drill.sh`, `wal-drill.sh`, a live WAL segment reaching the archive, then `sr-cli upgrade --dry-run`, `backup`, `restore`, `restore --force` and a refused tampered dump. `wal-drill.sh` itself builds a scratch cluster inside the postgres image; it proves the archive scripts, not the live archive, which the last check covers.
+
 ## Retention
 
 `backup.sh` keeps the newest dump of each of the last 14 days, 8 ISO weeks and 12 months (`SR_BACKUP_KEEP=14,8,12`), and deletes the rest with their manifests. Run it more often than daily and only the newest of each day survives.

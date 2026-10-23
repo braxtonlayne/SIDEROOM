@@ -549,6 +549,8 @@ export interface InboxDismissOutcome {
 }
 export const listInbox = (p: { cursor?: string | null; limit?: number } = {}) =>
   get<InboxPage>(`/moderation/dashboard/inbox${qs(p)}`);
+/** Just the size of the inbox (the Review hub tile), without building the dashboard. */
+export const getInboxCount = () => get<DashInbox>('/moderation/dashboard/inbox/count');
 export const dismissInbox = (caseIds: string[], reason: string) =>
   send<InboxDismissOutcome>('/moderation/dashboard/inbox/dismiss', 'POST', {
     case_ids: caseIds,

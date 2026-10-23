@@ -17462,6 +17462,52 @@
         ]
       }
     },
+    "/admin/system/preflight": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Run the preflight checks now (`OPERATOR`; the same checks as `sr-cli preflight`, minus the ones that send\nmail or post cards). The run is written to the access log with the counts and the ids that failed.",
+        "operationId": "preflight",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreflightView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/transcode/jobs": {
       "get": {
         "tags": [
@@ -50684,6 +50730,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/moderation/dashboard/inbox/count": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "How many reports wait in the inbox, how many cases they make up and how old the oldest is (`MANAGE_CASES`).\nThe same figures as the dashboard's inbox section, for the Review hub tile.",
+        "operationId": "inbox_count",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashInbox"
                 }
               }
             }
@@ -86800,6 +86892,86 @@
             "items": {
               "$ref": "#/components/schemas/UserRef"
             }
+          }
+        }
+      },
+      "PreflightCheckView": {
+        "type": "object",
+        "description": "One row of the preflight table.",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string",
+            "description": "English operator text, not localized (D-356): one sentence, what was seen or what to do about it. Never\ncontains a secret."
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable id; clients may key strings on it (D-356). One of `database`, `migrations`, `clock`, `storage`,\n`smtp`, `public-url`, `turn`, `vapid`, `disk`, `secrets`, `esplora`, `voice`."
+          },
+          "status": {
+            "$ref": "#/components/schemas/PreflightStatusView"
+          },
+          "title": {
+            "type": "string",
+            "description": "English operator text, not localized (D-356)."
+          }
+        }
+      },
+      "PreflightStatusView": {
+        "type": "string",
+        "description": "Outcome of one preflight check.",
+        "enum": [
+          "pass",
+          "warn",
+          "fail"
+        ]
+      },
+      "PreflightView": {
+        "type": "object",
+        "description": "The preflight table.",
+        "required": [
+          "checks",
+          "ran_at_ms",
+          "passed",
+          "warned",
+          "failed",
+          "ok"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreflightCheckView"
+            }
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "`true` when nothing failed; warnings do not fail a preflight."
+          },
+          "passed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "ran_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds when the run finished."
+          },
+          "warned": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },

@@ -5,6 +5,7 @@ import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
+import { AgeRestrictionButton } from '../moderation/AgeRestrictionButton';
 import { ReportButton } from '../moderation/reports';
 import { followSeries, getChapters, getSeries, keys, markReadUpTo, unfollowSeries } from './api';
 import { pickContinue, progressOf, readMark, type ProgressMap } from './continue';
@@ -277,6 +278,12 @@ function Actions({
         />
       )}
       <ReportButton target={{ kind: 'library', id: series.id }} />
+      <AgeRestrictionButton
+        kind="library_series"
+        id={series.id}
+        restricted={series.age_restricted}
+        onChanged={() => void qc.invalidateQueries({ queryKey: ['library'] })}
+      />
       {toggle.isError && <Notice variant="danger">{t('library.series.followError')}</Notice>}
     </div>
   );

@@ -8,6 +8,7 @@
 
 use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
+use sr_api::routes::auth::mail::{LogMailer, Mailer, SmtpMailer};
 use sr_core::config::Config;
 use sr_db::PgPool;
 use std::{
@@ -15,6 +16,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::Command,
+    sync::Arc,
 };
 
 /// Connection settings split out of a `postgres://` URL, for the libpq environment variables.
@@ -250,11 +252,27 @@ pub async fn restore(cfg: &Config, pool: &PgPool, dump: &Path, force: bool) -> R
         env.database,
         env.host
     );
+    if tables > 0 {
+        // `pg_restore --clean` drops objects one by one and fails on partitioned tables ("cannot drop
+        // inherited constraint" on a partition's primary key), so empty the schema in one step instead.
+        // The dump recreates its extensions, so dropping them with the schema is fine.
+        let mut tx = pool.begin().await?;
+        sqlx::query("DROP SCHEMA public CASCADE")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("CREATE SCHEMA public")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("GRANT USAGE ON SCHEMA public TO PUBLIC")
+            .execute(&mut *tx)
+            .await?;
+        tx.commit()
+            .await
+            .context("emptying the database before the restore")?;
+        println!("dropped the existing objects in {} (--force)", env.database);
+    }
     let mut cmd = env.command("pg_restore");
     cmd.args(["--no-owner", "--no-privileges", "--exit-on-error"]);
-    if force {
-        cmd.args(["--clean", "--if-exists"]);
-    }
     cmd.arg("-d").arg(&env.database).arg(dump);
     run_tool(cmd, "the restore")?;
     println!(
@@ -351,9 +369,203 @@ pub async fn reindex(pool: &PgPool, job_id: i64) -> Result<()> {
     Ok(())
 }
 
-/// The job kind `sr-server` registers for the rebuild (`sr_server::search_jobs::REINDEX_KIND`; sr-cli does not
+/// The job kind `sr-server` registers for the rebuild (`sr_server::search_jobs::REINDEX_KIND`; sr-cli did not
 /// depend on the server crate, a test in sr-server pins the two together).
 pub const REINDEX_JOB: &str = "search.reindex";
+
+// ---- preflight (RDY-OPS-004, RDY-OPS-006) -----------------------------------------------------------------
+
+/// What `sr-cli preflight` was asked to do besides the checks.
+#[derive(Debug, Clone)]
+pub struct PreflightOptions {
+    pub send_to: Option<String>,
+    pub alert_test: bool,
+    pub insecure_tls: bool,
+    pub json: bool,
+    pub config_file: Option<String>,
+}
+
+/// The name of this machine, for the alert test card.
+fn host_name() -> String {
+    for var in ["HOSTNAME", "COMPUTERNAME"] {
+        if let Ok(v) = std::env::var(var)
+            && !v.trim().is_empty()
+        {
+            return v.trim().to_owned();
+        }
+    }
+    fs::read_to_string("/etc/hostname")
+        .map(|s| s.trim().to_owned())
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown host".to_owned())
+}
+
+/// The table rows for the alert test: the card, then the mail.
+pub fn alert_test_rows(o: &sr_server::staff_feed::AlertOutcome) -> Vec<sr_preflight::Check> {
+    use sr_preflight::{Check, Status};
+    use sr_server::staff_feed::MailOutcome;
+    let card = if o.posted {
+        Check::new(
+            "alert-card",
+            "Alert card",
+            Status::Pass,
+            "the test card was posted to #alerts of the Staff Server (open it there to see it)",
+        )
+    } else {
+        Check::new(
+            "alert-card",
+            "Alert card",
+            Status::Fail,
+            "no card reached #alerts: there is no Staff Server (run sr-cli bootstrap) or posting failed, see the log",
+        )
+    };
+    let mail = match &o.mail {
+        MailOutcome::Sent(to) => Check::new(
+            "alert-mail",
+            "Alert mail",
+            Status::Pass,
+            format!("sent to the Owner ({})", mask_email(to)),
+        ),
+        MailOutcome::NotSent => Check::new(
+            "alert-mail",
+            "Alert mail",
+            Status::Pass,
+            "not sent: Admin > Settings has the Owner email for alerts off (turn it on to test the mail)",
+        ),
+        MailOutcome::Failed(e) => Check::new(
+            "alert-mail",
+            "Alert mail",
+            Status::Fail,
+            format!("the mailer refused: {e}"),
+        ),
+    };
+    vec![card, mail]
+}
+
+fn mask_email(a: &str) -> String {
+    match a.split_once('@') {
+        Some((l, d)) => format!(
+            "{}***@{d}",
+            l.chars().next().map(String::from).unwrap_or_default()
+        ),
+        None => "***".to_owned(),
+    }
+}
+
+/// Run the checks, print the table (or JSON) and say whether nothing failed.
+pub async fn preflight(cfg: &Config, opts: &PreflightOptions) -> Result<bool> {
+    use sr_preflight::{
+        Check, Ctx, Report, Settings, Status,
+        probes::{PgDb, RealHost, RealNet},
+    };
+    // A lazy pool: an unreachable database becomes a failed row instead of ending the command.
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .acquire_timeout(std::time::Duration::from_secs(5))
+        .connect_lazy(cfg.database.url.expose())
+        .context("database.url is not usable")?;
+    let storage: Arc<dyn sr_storage::ObjectStorage> = if cfg.storage.endpoint == "memory:" {
+        Arc::new(sr_storage::ObjectStoreStorage::in_memory())
+    } else {
+        let s = &cfg.storage;
+        Arc::new(
+            sr_storage::ObjectStoreStorage::s3(
+                &s.endpoint,
+                &s.bucket,
+                &s.region,
+                s.access_key.expose(),
+                s.secret_key.expose(),
+            )
+            .context("configuring object storage")?,
+        )
+    };
+    let mut settings =
+        Settings::from_config(cfg, opts.config_file.as_deref(), &|k| std::env::var(k).ok());
+    settings.insecure_tls = opts.insecure_tls;
+    let db = PgDb(pool.clone());
+    let ctx = Ctx {
+        db: &db,
+        storage: storage.as_ref(),
+        net: &RealNet,
+        host: &RealHost,
+        settings: &settings,
+    };
+    let mut report = sr_preflight::run(&ctx).await;
+    let mut extra: Vec<Check> = Vec::new();
+
+    let mailer: Arc<dyn Mailer> = if cfg.smtp.host.trim().is_empty() {
+        Arc::new(LogMailer)
+    } else {
+        Arc::new(SmtpMailer::from_config(&cfg.smtp).context("configuring [smtp]")?)
+    };
+    if let Some(to) = &opts.send_to {
+        let mail = sr_api::routes::auth::mail::OutgoingMail {
+            to: to.clone(),
+            subject: "[SIDE ROOM] preflight test mail".into(),
+            text: format!("This mail came from sr-cli preflight on {}.\n", host_name()),
+            html: format!(
+                "<p>This mail came from sr-cli preflight on {}.</p>",
+                host_name()
+            ),
+        };
+        extra.push(if cfg.smtp.host.trim().is_empty() {
+            Check::new(
+                "mail-send",
+                "Test mail",
+                Status::Warn,
+                "smtp.host is empty, so nothing was sent",
+            )
+        } else {
+            match mailer.send(mail).await {
+                Ok(()) => Check::new(
+                    "mail-send",
+                    "Test mail",
+                    Status::Pass,
+                    format!("handed to the relay for {}", mask_email(to)),
+                ),
+                Err(e) => Check::new(
+                    "mail-send",
+                    "Test mail",
+                    Status::Fail,
+                    format!("the relay refused it: {e}"),
+                ),
+            }
+        });
+    }
+    if opts.alert_test {
+        let detail = sr_server::staff_feed::alert_test_detail(
+            &host_name(),
+            &cfg.server.public_url,
+            &stamp(now_ms()),
+        );
+        match sr_server::staff_feed::alert_test(pool.clone(), cfg, mailer, &detail).await {
+            Ok(o) => extra.extend(alert_test_rows(&o)),
+            Err(e) => extra.push(Check::new(
+                "alert-card",
+                "Alert card",
+                Status::Fail,
+                format!("could not run the alert path: {e:#}"),
+            )),
+        }
+    }
+    if !extra.is_empty() {
+        let mut checks = std::mem::take(&mut report.checks);
+        checks.extend(extra);
+        report = Report::new(checks, report.ran_at_ms);
+    }
+    if opts.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print!("{}", report.table());
+    }
+    Ok(report.ok)
+}
+
+fn now_ms() -> i64 {
+    use sr_core::Clock;
+    sr_core::SystemClock.now_unix_ms()
+}
 
 #[cfg(test)]
 mod tests {
@@ -465,5 +677,60 @@ mod tests {
                 .to_string()
                 .contains("failed")
         );
+    }
+}
+
+#[cfg(test)]
+mod preflight_tests {
+    use super::*;
+    use sr_preflight::Status;
+    use sr_server::staff_feed::{AlertOutcome, MailOutcome};
+
+    #[test]
+    fn alert_rows_report_the_card_and_the_mail() {
+        let ok = alert_test_rows(&AlertOutcome {
+            posted: true,
+            mail: MailOutcome::Sent("owner@example.org".into()),
+        });
+        assert_eq!(ok[0].status, Status::Pass);
+        assert_eq!(ok[1].status, Status::Pass);
+        assert!(ok[1].detail.contains("o***@example.org"));
+        assert!(!ok[1].detail.contains("owner@"));
+
+        let off = alert_test_rows(&AlertOutcome {
+            posted: true,
+            mail: MailOutcome::NotSent,
+        });
+        assert!(off[1].detail.contains("Owner email"));
+
+        let bad = alert_test_rows(&AlertOutcome {
+            posted: false,
+            mail: MailOutcome::Failed("550".into()),
+        });
+        assert_eq!(bad[0].status, Status::Fail);
+        assert_eq!(bad[1].status, Status::Fail);
+    }
+
+    #[test]
+    fn the_command_parses() {
+        use clap::Parser;
+        let c = crate::Cli::try_parse_from([
+            "sr-cli",
+            "preflight",
+            "--alert-test",
+            "--send-to",
+            "a@b.test",
+            "--json",
+        ])
+        .unwrap();
+        assert!(matches!(
+            c.command,
+            crate::Command::Preflight {
+                alert_test: true,
+                json: true,
+                insecure_tls: false,
+                send_to: Some(_)
+            }
+        ));
     }
 }

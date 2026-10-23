@@ -36,6 +36,8 @@ echo "$*" >> "${posix(log)}"
 case "$*" in
   *"node id"*) echo "abc123def@127.0.0.1:3901" ;;
   *"/garage status"*) echo "abc123def  host  dc1  1G" ;;
+  *"ps -q sr-server"*) echo "c0ffee" ;;
+  "inspect -f"*) echo "healthy" ;;
 esac
 exit 0
 `,
@@ -199,21 +201,26 @@ test('the full run brings the stack up in dependency order and keeps the Owner p
     idx('sr-cli sr-server migrate'),
     idx('storage ensure-cors --origin https://chat.example.org'),
     idx('sr-cli sr-server bootstrap --owner-username boss --owner-email boss@example.org'),
-    calls.length - 1, // the final `up -d`
+    calls.findLastIndex((c) => / up -d$/.test(c)), // the final `up -d`
+    calls.length - 1, // and last of all the preflight (RDY-OPS-004)
   ];
   assert.deepEqual(
     [...order].sort((a, b) => a - b),
     order,
     'steps ran out of order',
   );
-  assert.match(calls.at(-1), / up -d$/);
+  assert.match(calls.at(-1), /--entrypoint \/usr\/local\/bin\/sr-cli sr-server preflight$/);
   assert.ok(
     calls.every((c) => !c.includes(answers.SR_OWNER_PASSWORD)),
     'the Owner password reached a command line',
   );
   assert.ok(
     calls.every(
-      (c) => c === 'compose version' || !c.startsWith('compose') || c.includes('--env-file'),
+      (c) =>
+        c === 'compose version' ||
+        c.startsWith('inspect') ||
+        !c.startsWith('compose') ||
+        c.includes('--env-file'),
     ),
     'every compose call reads .env.prod',
   );
@@ -277,7 +284,10 @@ test('starter packs under packages/starter-packs are seeded after the Owner exis
   const owner = calls.findIndex((c) => c.includes('sr-cli sr-server bootstrap'));
   assert.ok(seed > owner && owner !== -1, calls.join('\n'));
   assert.ok(calls[seed].includes(':/starter-packs:ro'), 'the folder is mounted read-only');
-  assert.match(calls.at(-1), / up -d$/);
+  assert.ok(
+    calls.findLastIndex((c) => / up -d$/.test(c)) > seed,
+    'the stack starts after the packs',
+  );
 });
 
 test('the electrs payments profile is off unless asked for (M-02, D-288)', () => {
@@ -294,4 +304,54 @@ test('the electrs payments profile is off unless asked for (M-02, D-288)', () =>
   assert.match(envOn, /^SR_PAYMENTS_ESPLORA_URL=http:\/\/electrs:3000$/m);
   assert.match(envOn, /^SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1$/m);
   assert.match(envOn, /^COMPOSE_PROFILES=payments$/m);
+});
+
+test('SR_INSTALL_SKIP_PULL=1 skips the image pull and nothing else (RDY-OPS-001)', () => {
+  const sb = sandbox();
+  const r = run(sb, ['--yes'], { SR_INSTALL_SKIP_PULL: '1' });
+  assert.equal(r.status, 0, r.out);
+  const calls = readFileSync(sb.log, 'utf8').trim().split('\n');
+  assert.ok(!calls.some((c) => / pull/.test(c)), `a pull ran:\n${calls.join('\n')}`);
+  assert.ok(calls.some((c) => c.includes('sr-cli sr-server migrate')));
+  assert.ok(calls.at(-1).endsWith(' sr-server preflight'));
+  assert.match(r.out, /skipping the image pull/);
+});
+
+test('sr-cli preflight runs last, after sr-server is healthy, and only strict mode fails the install (RDY-OPS-004)', () => {
+  const sb = sandbox();
+  const r = run(sb, ['--yes'], { SR_INSTALL_PREFLIGHT_ARGS: '--insecure-tls' });
+  assert.equal(r.status, 0, r.out);
+  const calls = readFileSync(sb.log, 'utf8').trim().split('\n');
+  const up = calls.findLastIndex((c) => / up -d$/.test(c));
+  const health = calls.findIndex((c) => c.startsWith('inspect -f'));
+  assert.ok(up !== -1 && health > up, calls.join('\n'));
+  assert.match(calls.at(-1), /sr-server preflight --insecure-tls$/);
+  assert.match(r.out, /==> sr-cli preflight/);
+
+  // A failing preflight (the fake docker exits 1 for it) is reported; only strict mode fails the install.
+  const failing = (box) =>
+    writeFileSync(
+      join(box.bin, 'docker'),
+      readFileSync(join(box.bin, 'docker'), 'utf8').replace(
+        'esac',
+        '  *" preflight"*) echo "FAIL  mail" ; exit 1 ;;\nesac',
+      ),
+    );
+  const warn = sandbox();
+  failing(warn);
+  const rw = run(warn, ['--yes']);
+  assert.equal(rw.status, 0, rw.out);
+  assert.match(rw.out, /preflight reported a FAIL row/);
+  const strict = sandbox();
+  failing(strict);
+  const rs = run(strict, ['--yes'], { SR_INSTALL_PREFLIGHT: 'strict' });
+  assert.equal(rs.status, 3, rs.out);
+
+  const skip = sandbox();
+  const rk = run(skip, ['--yes'], { SR_INSTALL_PREFLIGHT: 'skip' });
+  assert.equal(rk.status, 0, rk.out);
+  assert.ok(!readFileSync(skip.log, 'utf8').includes(' preflight'));
+
+  const bad = sandbox();
+  assert.notEqual(run(bad, ['--yes'], { SR_INSTALL_PREFLIGHT: 'maybe' }).status, 0);
 });

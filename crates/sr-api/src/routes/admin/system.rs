@@ -504,3 +504,109 @@ pub async fn verify_access_log(ctx: StaffCtx) -> ApiResult<Json<ChainReport>> {
         .map(Json)
         .map_err(map_err)
 }
+
+// ---- preflight (RDY-OPS-005) ----------------------------------------------
+
+/// Outcome of one preflight check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum PreflightStatusView {
+    Pass,
+    Warn,
+    Fail,
+}
+
+/// One row of the preflight table.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PreflightCheckView {
+    /// Stable id; clients may key strings on it (D-356). One of `database`, `migrations`, `clock`, `storage`,
+    /// `smtp`, `public-url`, `turn`, `vapid`, `disk`, `secrets`, `esplora`, `voice`.
+    pub id: String,
+    /// English operator text, not localized (D-356).
+    pub title: String,
+    pub status: PreflightStatusView,
+    /// English operator text, not localized (D-356): one sentence, what was seen or what to do about it. Never
+    /// contains a secret.
+    pub detail: String,
+}
+
+/// The preflight table.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PreflightView {
+    pub checks: Vec<PreflightCheckView>,
+    /// Unix milliseconds when the run finished.
+    pub ran_at_ms: i64,
+    pub passed: u32,
+    pub warned: u32,
+    pub failed: u32,
+    /// `true` when nothing failed; warnings do not fail a preflight.
+    pub ok: bool,
+}
+
+impl From<sr_preflight::Report> for PreflightView {
+    fn from(r: sr_preflight::Report) -> Self {
+        use sr_preflight::Status;
+        Self {
+            checks: r
+                .checks
+                .into_iter()
+                .map(|c| PreflightCheckView {
+                    id: c.id,
+                    title: c.title,
+                    status: match c.status {
+                        Status::Pass => PreflightStatusView::Pass,
+                        Status::Warn => PreflightStatusView::Warn,
+                        Status::Fail => PreflightStatusView::Fail,
+                    },
+                    detail: c.detail,
+                })
+                .collect(),
+            ran_at_ms: r.ran_at_ms,
+            passed: r.passed,
+            warned: r.warned,
+            failed: r.failed,
+            ok: r.ok,
+        }
+    }
+}
+
+/// Run the preflight checks now (`OPERATOR`; the same checks as `sr-cli preflight`, minus the ones that send
+/// mail or post cards). The run is written to the access log with the counts and the ids that failed.
+#[utoipa::path(
+    post, path = "/admin/system/preflight",
+    responses((status = 200, body = PreflightView), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn preflight(ctx: StaffCtx) -> ApiResult<Json<PreflightView>> {
+    ctx.svc()
+        .authorize(&ctx.caller, P::OPERATOR, "system.preflight")
+        .await
+        .map_err(map_err)?;
+    let runner = ctx
+        .deps
+        .preflight
+        .clone()
+        .ok_or_else(|| crate::HttpError::from(ErrorCode::SrInternal))?;
+    let report = runner.run().await;
+    let failing: Vec<&str> = report
+        .checks
+        .iter()
+        .filter(|c| c.status == sr_preflight::Status::Fail)
+        .map(|c| c.id.as_str())
+        .collect();
+    ctx.svc()
+        .record_action(
+            &ctx.caller,
+            "system.preflight",
+            None,
+            json!({
+                "passed": report.passed,
+                "warned": report.warned,
+                "failed": report.failed,
+                "failing": failing,
+            }),
+        )
+        .await
+        .map_err(map_err)?;
+    Ok(Json(report.into()))
+}

@@ -3464,6 +3464,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the preflight checks now (`OPERATOR`; the same checks as `sr-cli preflight`, minus the ones that send
+         *     mail or post cards). The run is written to the access log with the counts and the ids that failed.
+         */
+        post: operations["preflight"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/transcode/jobs": {
         parameters: {
             query?: never;
@@ -9701,6 +9721,26 @@ export interface paths {
          *     part of the answer.
          */
         get: operations["inbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/moderation/dashboard/inbox/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How many reports wait in the inbox, how many cases they make up and how old the oldest is (`MANAGE_CASES`).
+         *     The same figures as the dashboard's inbox section, for the Review hub tile.
+         */
+        get: operations["inbox_count"];
         put?: never;
         post?: never;
         delete?: never;
@@ -20019,6 +20059,44 @@ export interface components {
         /** @description Users who picked one answer. */
         PollVoters: {
             users: components["schemas"]["UserRef"][];
+        };
+        /** @description One row of the preflight table. */
+        PreflightCheckView: {
+            /**
+             * @description English operator text, not localized (D-356): one sentence, what was seen or what to do about it. Never
+             *     contains a secret.
+             */
+            detail: string;
+            /**
+             * @description Stable id; clients may key strings on it (D-356). One of `database`, `migrations`, `clock`, `storage`,
+             *     `smtp`, `public-url`, `turn`, `vapid`, `disk`, `secrets`, `esplora`, `voice`.
+             */
+            id: string;
+            status: components["schemas"]["PreflightStatusView"];
+            /** @description English operator text, not localized (D-356). */
+            title: string;
+        };
+        /**
+         * @description Outcome of one preflight check.
+         * @enum {string}
+         */
+        PreflightStatusView: "pass" | "warn" | "fail";
+        /** @description The preflight table. */
+        PreflightView: {
+            checks: components["schemas"]["PreflightCheckView"][];
+            /** Format: int32 */
+            failed: number;
+            /** @description `true` when nothing failed; warnings do not fail a preflight. */
+            ok: boolean;
+            /** Format: int32 */
+            passed: number;
+            /**
+             * Format: int64
+             * @description Unix milliseconds when the run finished.
+             */
+            ran_at_ms: number;
+            /** Format: int32 */
+            warned: number;
         };
         PrefsBody: {
             hide_amount?: boolean | null;
@@ -35243,6 +35321,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MailTestResult"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preflight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreflightView"];
                 };
             };
             401: {
@@ -56011,6 +56124,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inbox_count: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashInbox"];
                 };
             };
             401: {

@@ -57,10 +57,16 @@ describe('LNG-RAIL-011 Server Directory', () => {
     expect(await axeViolations(container)).toEqual([]);
 
     await userEvent.type(within(dlg).getByRole('searchbox'), 'jazz');
-    await waitFor(() => expect(within(list).queryByText('Chess Club')).toBeNull(), {
-      timeout: 4000,
-    });
-    expect(calls.some((c) => c.key.includes('query=jazz'))).toBe(true);
+    // The search is debounced (250 ms): under load the keystrokes can be far enough apart that an earlier
+    // query ('j') already hides Chess Club before 'jazz' is sent, so wait for the full query, not only the list.
+    await waitFor(
+      () => {
+        expect(calls.some((c) => c.key.includes('query=jazz'))).toBe(true);
+        expect(within(list).queryByText('Chess Club')).toBeNull();
+        expect(within(list).getByText('Jazz Hands')).toBeInTheDocument();
+      },
+      { timeout: 4000 },
+    );
   });
 
   it('filters by category and shows the empty state', async () => {

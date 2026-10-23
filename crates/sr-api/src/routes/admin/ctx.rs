@@ -59,6 +59,12 @@ pub trait SystemProbe: Send + Sync {
     fn disks(&self, data_dir: &str) -> Vec<DiskView>;
 }
 
+/// Runs the preflight checks with the live configuration (implemented in `sr-server`).
+#[async_trait::async_trait]
+pub trait PreflightRunner: Send + Sync {
+    async fn run(&self) -> sr_preflight::Report;
+}
+
 /// Collaborators of the admin endpoints.
 pub struct AdminDeps {
     pub service: AdminService,
@@ -77,6 +83,8 @@ pub struct AdminDeps {
     pub rate_config: Option<tokio::sync::watch::Sender<crate::rate_limit::RateConfig>>,
     /// Backup times and disk space for the System page (K-10).
     pub system_probe: Option<Arc<dyn SystemProbe>>,
+    /// The preflight checks for `POST /admin/system/preflight` (RDY-OPS-005).
+    pub preflight: Option<Arc<dyn PreflightRunner>>,
 }
 
 impl AdminDeps {
@@ -91,7 +99,14 @@ impl AdminDeps {
             storage: None,
             rate_config: None,
             system_probe: None,
+            preflight: None,
         }
+    }
+
+    /// The preflight runner behind the System page card.
+    pub fn with_preflight(mut self, p: Arc<dyn PreflightRunner>) -> Self {
+        self.preflight = Some(p);
+        self
     }
 
     /// The source of the backup times and disk space on the System page.

@@ -19,6 +19,7 @@ import { lazy, Suspense, useState } from 'react';
 import { ApiError } from '../api/client';
 import { ShareToLoungeDialog } from '../lib/ShareToLounge';
 import { useT } from '../i18n';
+import { AgeRestrictionButton } from '../moderation/AgeRestrictionButton';
 import { ReportButton } from '../moderation/reports';
 import {
   getEpisodes,
@@ -196,6 +197,12 @@ function Header({
             <Icon name="download" size={16} /> {tr('cinema.title.download')}
           </Button>
           <ReportButton target={{ kind: 'cinema', id: t.id }} />
+          <AgeRestrictionButton
+            kind="cinema_title"
+            id={t.id}
+            restricted={t.age_restricted}
+            onChanged={refresh}
+          />
           {(t.trailer_url || t.has_trailer) && (
             <Button
               variant="secondary"

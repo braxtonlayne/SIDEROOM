@@ -235,6 +235,7 @@ async fn staff_routes_refuse_members_and_staff_without_the_bit() {
         (Method::GET, "/moderation/holds", None),
         (Method::GET, "/moderation/dashboard", None),
         (Method::GET, "/moderation/dashboard/inbox", None),
+        (Method::GET, "/moderation/dashboard/inbox/count", None),
         (
             Method::POST,
             "/moderation/dashboard/inbox/dismiss",
@@ -1272,6 +1273,7 @@ async fn the_dashboard_needs_one_of_its_bits_and_the_inbox_needs_manage_cases() 
     );
     for (m, p, b) in [
         (Method::GET, "/moderation/dashboard/inbox", None),
+        (Method::GET, "/moderation/dashboard/inbox/count", None),
         (
             Method::POST,
             "/moderation/dashboard/inbox/dismiss",
@@ -1299,6 +1301,7 @@ async fn the_dashboard_needs_one_of_its_bits_and_the_inbox_needs_manage_cases() 
     for (action, actor) in [
         ("moderation.dashboard", BASIC),
         ("moderation.inbox.list", CLERK),
+        ("moderation.inbox.count", CLERK),
         ("moderation.inbox.dismiss", CLERK),
     ] {
         assert!(

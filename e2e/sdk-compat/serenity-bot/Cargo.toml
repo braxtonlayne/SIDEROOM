@@ -7,7 +7,6 @@
 name = "sideroom-serenity-bot"
 version = "0.0.0"
 edition = "2024"
-license = "LicenseRef-Proprietary"
 publish = false
 
 [workspace]

@@ -133,6 +133,7 @@ fn alert_meta(kind: StaffAlertKind) -> (&'static str, u32, &'static str) {
         StaffAlertKind::DiskLow => ("Disk is filling up", RED, "/admin/system"),
         StaffAlertKind::BackupFailed => ("Backup problem", RED, "/admin/system"),
         StaffAlertKind::TranscodeFailed => ("Transcode job failed", AMBER, "/admin/transcoding"),
+        StaffAlertKind::AlertTest => ("Alert path test", BLUE, "/admin/system"),
     }
 }
 
@@ -914,6 +915,96 @@ impl MailThrottle {
     }
 }
 
+/// What became of the Owner email of an alert.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MailOutcome {
+    /// Not sent: the Owner email setting is off, the kind was mailed recently, or there is no Owner address.
+    NotSent,
+    /// Handed to the mailer, addressed to this address.
+    Sent(String),
+    /// The mailer refused.
+    Failed(String),
+}
+
+/// What [`StaffFeed::deliver_alert`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlertOutcome {
+    /// The card is in `#alerts` (false: no Staff Server or posting failed).
+    pub posted: bool,
+    pub mail: MailOutcome,
+}
+
+/// The text of the test card: it names the host, the instance and the time so a human can tell which box spoke.
+pub fn alert_test_detail(host: &str, public_url: &str, stamp: &str) -> String {
+    format!(
+        "Alert path test from host {host} ({public_url}) at {stamp} UTC. If you can read this in #alerts, cards from this box reach the Staff Server."
+    )
+}
+
+/// `sr-cli preflight --alert-test` (RDY-OPS-006): post a test alert through the real [`StaffFeed`] path (the stored
+/// alert, the `#alerts` card, and the Owner email when that setting is on) from a process that is not the server.
+/// The card is stored like any message; clients that are connected to the running server see it when they next load
+/// the channel, because this process has no gateway to push it live.
+pub async fn alert_test(
+    pool: PgPool,
+    cfg: &sr_core::config::Config,
+    mailer: Arc<dyn Mailer>,
+    detail: &str,
+) -> anyhow::Result<AlertOutcome> {
+    use anyhow::Context;
+    let clock: Arc<dyn sr_core::Clock> = Arc::new(sr_core::SystemClock);
+    let bus: Arc<dyn EventBus> = Arc::new(sr_events::InProcessBus::new());
+    // A process id the server does not use, so message ids cannot collide with the running server's.
+    const CLI_PROCESS_ID: u8 = 31;
+    let messages = Arc::new(
+        MessagesDeps::new(
+            sr_db::chat_repo::PgChatRepo::new(pool.clone()),
+            Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
+            Arc::new(sr_storage::ObjectStoreStorage::in_memory()),
+            bus.clone(),
+            Arc::new(sr_api::routes::messages::FixedEntitlements(
+                sr_storage::upload::SizePolicy::default().standard_limit,
+            )),
+            Arc::new(sr_db::chat_repo::PgChatRepo::new(pool.clone())),
+            None,
+            clock,
+            cfg.server.worker_id,
+            CLI_PROCESS_ID,
+        )
+        .context("message id generator")?
+        .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+            sr_db::auth_repo::parse_secret_key(cfg.server.secret_key.expose())
+                .map_err(|e| anyhow::anyhow!("server.secret_key: {e}"))?
+                .to_vec(),
+        )),
+    );
+    let ids = Arc::new(
+        sr_core::SnowflakeGenerator::new(
+            sr_core::SystemClock,
+            cfg.server.worker_id,
+            CLI_PROCESS_ID,
+        )
+        .map_err(|e| anyhow::anyhow!("snowflake generator: {e}"))?,
+    );
+    let repo = Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+        pool.clone(),
+        Arc::new(move || ids.generate().get() as i64),
+    ));
+    let voice = Arc::new(StaffVoice::new(pool, messages, &cfg.server.public_url));
+    let admin = AdminService::new(repo.clone())
+        .with_extras(repo)
+        .with_notifier(voice.clone())
+        .with_bus(bus.clone());
+    let feed = StaffFeed {
+        voice,
+        admin,
+        mailer,
+        bus,
+        throttle: MailThrottle::default(),
+    };
+    Ok(feed.deliver_alert(StaffAlertKind::AlertTest, detail).await)
+}
+
 /// Everything the consumer needs.
 pub struct StaffFeed {
     pub voice: Arc<StaffVoice>,
@@ -931,6 +1022,11 @@ impl StaffFeed {
     /// in #alerts the decision is made. The mail itself goes out after the card so a slow mail server does not
     /// delay it.
     pub async fn on_alert(&self, kind: StaffAlertKind, detail: &str) {
+        self.deliver_alert(kind, detail).await;
+    }
+
+    /// [`Self::on_alert`] that says what happened: whether the card reached `#alerts` and what became of the mail.
+    pub async fn deliver_alert(&self, kind: StaffAlertKind, detail: &str) -> AlertOutcome {
         let id = match self.admin.record_alert(kind.as_str(), detail).await {
             Ok(r) => r.id,
             Err(e) => {
@@ -940,12 +1036,21 @@ impl StaffFeed {
         };
         let mail = self.owner_mail(kind, detail).await;
         let card = alert_card(kind, detail, id, self.voice.base_url());
-        self.voice.post("alerts", card).await;
-        if let Some(mail) = mail
-            && let Err(e) = self.mailer.send(mail).await
-        {
-            tracing::warn!(error = %e, "could not email a staff alert");
-        }
+        let posted = self.voice.post("alerts", card).await;
+        let mail = match mail {
+            None => MailOutcome::NotSent,
+            Some(mail) => {
+                let to = mail.to.clone();
+                match self.mailer.send(mail).await {
+                    Ok(()) => MailOutcome::Sent(to),
+                    Err(e) => {
+                        tracing::warn!(error = %e, "could not email a staff alert");
+                        MailOutcome::Failed(e.to_string())
+                    }
+                }
+            }
+        };
+        AlertOutcome { posted, mail }
     }
 
     /// The mail to the Owner for this alert, when the setting is on and the kind was not mailed recently.

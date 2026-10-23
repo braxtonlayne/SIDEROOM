@@ -36,6 +36,28 @@ pub async fn run(cli: Cli) -> Result<()> {
         return package_validate(dir, *json);
     }
     let cfg = Config::load(cli.config.as_deref()).context("loading configuration")?;
+    if let Command::Preflight {
+        send_to,
+        alert_test,
+        insecure_tls,
+        json,
+    } = &cli.command
+    {
+        let opts = crate::ops::PreflightOptions {
+            send_to: send_to.clone(),
+            alert_test: *alert_test,
+            insecure_tls: *insecure_tls,
+            json: *json,
+            config_file: cli
+                .config
+                .as_deref()
+                .map(|p| p.to_string_lossy().into_owned()),
+        };
+        if !crate::ops::preflight(&cfg, &opts).await? {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
     // Storage administration talks to the bucket only; no database needed.
     if let Command::Storage(StorageCmd::EnsureCors { origins }) = &cli.command {
         return ensure_cors(&cfg, origins).await;
@@ -115,7 +137,9 @@ pub async fn run(cli: Cli) -> Result<()> {
         }
         Command::Package(PackageCmd::Seed { dir }) => package_seed(&pool, &cfg, ids, &dir).await?,
         // Handled before the database connection above.
-        Command::Storage(_) | Command::Package(PackageCmd::Validate { .. }) => {}
+        Command::Storage(_)
+        | Command::Preflight { .. }
+        | Command::Package(PackageCmd::Validate { .. }) => {}
     }
     Ok(())
 }

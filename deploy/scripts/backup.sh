@@ -8,6 +8,8 @@
 #   SR_BACKUP_OBJECTS_DIR  directory holding Garage data; snapshotted when a repository is set
 #   SR_BACKUP_REPOSITORY   rustic/restic repository (for example sftp:u123@u123.your-storagebox.de:/sideroom)
 #   RUSTIC_PASSWORD_FILE   password file for the repository (never pass the password on the command line)
+#   SR_BACKUP_DIR_MODE     mode of the backup folders (default 700; the Compose stack uses 750 so sr-server can
+#                          list the folder read-only, see BACKUP.md)
 #
 # Secrets come from the environment or files, never from arguments.
 set -eu
@@ -22,7 +24,7 @@ need psql
 pg_env_from_url "$SR_DATABASE_URL"
 
 mkdir -p "$dir/db"
-chmod 700 "$dir" "$dir/db" 2>/dev/null || true
+chmod "${SR_BACKUP_DIR_MODE:-700}" "$dir" "$dir/db" 2>/dev/null || true
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 out="$dir/db/sideroom-$stamp.dump"
 tmp="$out.partial"

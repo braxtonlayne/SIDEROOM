@@ -227,6 +227,11 @@ async fn the_inbox_groups_duplicates_hides_reporters_and_skips_guild_cases() {
         assert!(!json.contains(&needle), "{needle} leaked into the inbox");
     }
 
+    // The hub tile's count matches the list: two cases, three reports (the guild case is not counted).
+    let n = w.m.inbox_count(&who).await.unwrap();
+    assert_eq!((n.groups, n.reports), (2, 3));
+    assert!(n.oldest_seconds.is_some());
+
     // Paging is oldest first.
     let first = w.m.inbox(&who, None, 1).await.unwrap();
     assert_eq!(first.items.len(), 1);
@@ -246,6 +251,16 @@ async fn the_inbox_groups_duplicates_hides_reporters_and_skips_guild_cases() {
     let nobody = caller(&w, P::MANAGE_TAKEDOWNS);
     assert_eq!(
         w.m.inbox(&Who::Staff(&nobody), None, 25).await.unwrap_err(),
+        ModError::MissingPermission("MANAGE_CASES")
+    );
+    let n = w.m.inbox_count(&who).await.unwrap();
+    assert_eq!(
+        (n.groups, n.reports),
+        (1, 2),
+        "a claimed case leaves the count"
+    );
+    assert_eq!(
+        w.m.inbox_count(&Who::Staff(&nobody)).await.unwrap_err(),
         ModError::MissingPermission("MANAGE_CASES")
     );
     let gm = Who::GuildMod {

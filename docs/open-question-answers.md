@@ -2924,9 +2924,11 @@ The questions `feat/p18-modules` left in its handoff (`docs/dev/handoff/feat-p18
 
 | Status | Count |
 |---|---|
-| ADOPTED (owner-delegated) | 5 |
+| ADOPTED (owner-delegated) | 6 |
 | NEEDS-OWNER | 0 |
 | NO-CODE | 0 |
+
+P20-6 was added the same day from the integration handoff (`feat-p20-integration.md`, "What is left for the owner or the coordinator" item 3); it is D-358 and Q-06.
 
 ### Channel scope (P18-MOD, branch `feat/p18-modules`)
 
@@ -3145,3 +3147,49 @@ Status: `ADOPTED` (D-351). Follow-up: P-21.
 ### Still with the owner
 
 Nothing. No lawyer check is added by this round.
+
+## Phase 20 round (answered 2026-10-23, delegated)
+
+The five questions the wave-20 branches left open in their handoffs (`feat-p20-ops-smoke.md` "Not done, and decisions"; `feat-p20-preflight.md` "Decisions / owner questions"; `feat-p20-owner-packet.md` "Open questions for the owner"), answered by the owner's proxy under the standing delegation, which covers legal and licensing questions (the answers are project defaults, not legal advice): decide and document only (no code, build or push). Decisions are D-353 to D-357 in [01-decisions-log.md](01-decisions-log.md); follow-ups are Q-01 to Q-05 under "Phase 20 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md). The README change of P20-1 was made on `feat/p20-owner-packet`; everything else is a follow-up.
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 5 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Licence (P20-1, branch `feat/p20-owner-packet`)
+
+**P20-1 (owner-packet handoff question 1; D-297, D-309, D-314). The README License section says "To be decided, all rights reserved" and `Cargo.toml` says `LicenseRef-Proprietary`, while D-309 says the code is unpublished rather than proprietary and GPL dependencies are fine. What should the README and the Cargo and package licence fields say, and should "Repository layout (target)" lose "(target)"?**
+Decision: the position is "unpublished, not proprietary, no licence chosen yet", stated in the README in those words: no licence file exists, so no licence is granted to anyone outside the project until one is added, and nothing is labelled proprietary. The `license` field is removed from `Cargo.toml` (workspace and the serenity sample bot) rather than replaced: `publish = false` already prevents publishing, `deny.toml` already treats workspace crates as carrying no expression, and an invented `LicenseRef-*` would imply a text that does not exist. The `package.json` files already say `"private": true` with no licence field and stay so. The README section also carries, in one place, the caveat of D-309 and D-314: the web bundle contains GPL-3.0 `rvfc-polyfill` and LGPL-2.1 JASSUB, their obligations attach when the bundle is distributed, serving the app to people outside the operator counts, and the operator should then offer the corresponding source of the web bundle with the notices. The heading becomes "Repository layout": the five directories exist. Not legal advice; the lawyer brief already asks the copyleft questions (Q2 to Q4).
+Status: `ADOPTED` (D-353). README done on this branch; follow-up Q-01 (integrator: `Cargo.toml` fields).
+
+### Production smoke (P20-2, branch `feat/p20-ops-smoke`)
+
+**P20-2 (ops-smoke handoff open question b). `prod-smoke.yml` runs on manual dispatch and weekly on Tuesdays; a new workflow can be dispatched only once it is on the default branch. Should it also run on pull requests touching `deploy/**`, and which other paths, so the phase-20 PR proves the install itself?**
+Decision: yes. Add `pull_request` with `paths`: `deploy/**`, `.github/workflows/prod-smoke.yml`, `crates/sr-cli/**`, `crates/sr-preflight/**`. That is the install surface and the commands the job calls; the server image is cached from `release-dry-run.yml`, so a Rust change elsewhere does not need a Docker rehearsal per PR (the weekly run catches drift). The `systemd_user_fallback` input is absent on a pull request and already evaluates to `0`, so a PR run proves the real unit or fails. The weekly Tuesday schedule stays. Not a required check until it has been green on the default branch twice (branch protection is an owner-checklist row).
+Status: `ADOPTED` (D-354). Follow-up: Q-02.
+
+### Preflight (P20-3 to P20-5, branch `feat/p20-preflight`)
+
+**P20-3 (preflight handoff decision 1). The roadmap names `MANAGE_PLATFORM`, which does not exist; the route uses `OPERATOR`, matching Admin > System. Confirm?**
+Decision: confirmed. The card sits on a page gated by `OPERATOR`, reveals nothing beyond that page's class of facts and writes nothing; the access-log row is the audit. The roadmap and inventory wording is corrected to `OPERATOR`.
+Status: `ADOPTED` (D-355). Follow-up: Q-03 (docs wording).
+
+**P20-4 (preflight handoff decision 3). Row titles and details come from the server in English and are not localized. Accept, or localize, and how?**
+Decision: accept for now, and keep the hook. The preflight is operator tooling (the same table prints in a terminal and is read against English runbooks), Admin > System already shows server-sent English for probes and integrations, and no second locale exists; wave 23's i18n item does not cover Admin. `Check.id` is the stable key: the OpenAPI schema and `docs/dev/server.md` say so, and a unit test pins the id set. When a second locale lands, titles become client strings `admin.preflight.row.<id>` with the server title as the fallback; details stay English (they carry hostnames, counts, header names and upstream errors).
+Status: `ADOPTED` (D-356). Follow-up: Q-04.
+
+**P20-5 (preflight handoff decision 4). `SR_PREFLIGHT_INSECURE_TLS=1` lets the server-side card accept a private CA. Acceptable in production, or refused when `server.public_url` is not localhost?**
+Decision: refused. The server honours the variable only when `server.public_url` is a development host (loopback literal, `localhost`, or a `*.localhost` name, which the smoke stack uses) and otherwise refuses to start naming the variable, following the `server.secret_key` precedent in `sr-core` config and the rule wave 21 sets for `SR_ADMIN_REQUIRE_REAUTH=0`. A real host with the variable left over from a rehearsal would otherwise report "public URL ok" with no certificate check, from a card any `OPERATOR` can press. On both paths (env var and the CLI's `--insecure-tls`, which stays available since it is explicit per run) a run that skipped verification reports the public-URL row as at most WARN, "reachable, certificate not verified"; the smoke's exit code is unchanged.
+Status: `ADOPTED` (D-357). Follow-up: Q-05.
+
+### Dependency policy (P20-6, branch `integration/phase20`)
+
+**P20-6 (integration handoff item 3; D-203, D-357). `cargo deny check bans` failed on the merged tree because `sr-preflight` depends on `reqwest` directly, and D-203 limits `reqwest` to the listed wrappers. It is grandfathered in `deny.toml` so that `bans` passes, marked "pending an owner decision". Should it stay on the wrapper list, or route through `SafeClient` with an operator allow-list?**
+Decision: stay, with conditions. The addresses the preflight contacts are all the operator's own configuration (`server.public_url`, `SR_PAYMENTS_ESPLORA_URL`, `voice.endpoints`, `smtp.host`, `voice.turn.urls`); nothing comes from a request body (`POST /admin/system/preflight` has none and is `OPERATOR` only, D-355), a message or a stored user value, so the SSRF case D-203 guards against does not arise, and the crate joins `sr-push`, `sr-storage` and `sr-transcoder` as an operator-fixed-endpoint exception rather than changing D-203. `SafeClient` refuses exactly the targets a preflight is meant to prove: a box reaches its own public URL by loopback or a Docker-internal name (the smoke's `smoke.localhost`) and the Compose electrs is `http://electrs:3000`; using it would mean `allow_private_hosts` on every call (no policy left), a status-and-headers GET `SafeClient` does not offer (the public-URL row reads HSTS and CSP), no-redirect semantics its `get` lacks, and an insecure-TLS switch in the client the whole server shares, which D-357 confines to development hosts; SMTP, voice and TURN are raw TCP and UDP it cannot carry anyway. Conditions: `reqwest` stays confined to `probes::RealNet::http_get` (no redirects, 8-second timeout, 256-byte read, fixed user agent); every address stays operator configuration; and the esplora row must agree with payments, which today it does not (a direct GET passes an electrs address `sr-payments` will refuse at runtime unless `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1` is set): the row resolves the host and applies `sr_net::policy::is_forbidden_ip`, failing with the variable named when the opt-in is missing. Revisit when a preflight check first takes an address that is not operator configuration; that check goes through `SafeClient`.
+Status: `ADOPTED` (D-358). Follow-up: Q-06 (deny.toml comment, esplora row).
+
+### Still with the owner
+
+Nothing new. The licence answer is a project default under D-309; the lawyer brief (Q2 to Q4) already carries the copyleft questions a lawyer should check.

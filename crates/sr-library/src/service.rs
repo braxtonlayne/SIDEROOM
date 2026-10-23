@@ -554,6 +554,16 @@ impl LibraryService {
         }
     }
 
+    /// Refresh one series in the search index from the database, after something changed it outside this
+    /// service (staff set its age flag). A series that is gone, unpublished or merged away leaves the index.
+    pub async fn reindex_one(&self, id: i64) -> LibraryResult<()> {
+        match self.repo.get_series(id, Scope::Staff).await? {
+            Some(rec) => self.sync_index(&rec),
+            None => self.drop_from_index(id),
+        }
+        Ok(())
+    }
+
     /// Rebuild the index from the database. Run at startup.
     pub async fn reindex_all(&self) -> LibraryResult<usize> {
         let Some(ix) = &self.index else { return Ok(0) };

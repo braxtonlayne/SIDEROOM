@@ -133,6 +133,23 @@ struct Env {
 /// Fixed answers for the System page probes.
 struct FakeProbe;
 
+struct FakePreflight;
+
+#[async_trait::async_trait]
+impl crate::routes::admin::PreflightRunner for FakePreflight {
+    async fn run(&self) -> sr_preflight::Report {
+        use sr_preflight::{Check, Report, Status};
+        Report::new(
+            vec![
+                Check::new("database", "Database", Status::Pass, "reachable"),
+                Check::new("turn", "TURN", Status::Warn, "no TURN configured"),
+                Check::new("storage", "Object storage", Status::Fail, "put failed"),
+            ],
+            1_700_000_000_000,
+        )
+    }
+}
+
 impl crate::routes::admin::SystemProbe for FakeProbe {
     fn backups(&self, _dir: &str) -> crate::routes::admin::BackupsView {
         crate::routes::admin::BackupsView {
@@ -253,6 +270,7 @@ async fn env_with(reauth: bool) -> Env {
         .with_features(features)
         .with_gateway_sessions(Arc::new(|| 7))
         .with_system_probe(Arc::new(FakeProbe))
+        .with_preflight(Arc::new(FakePreflight))
         .with_reauth(reauth)
         .with_rate_config(rate_tx)
         .with_storage(Arc::new(sr_storage::ObjectStoreStorage::in_memory()));
@@ -570,6 +588,12 @@ fn endpoints() -> Vec<(Method, String, Option<&'static str>, Option<Value>)> {
         (
             Method::POST,
             "/admin/system/email-test".into(),
+            Some("OPERATOR"),
+            None,
+        ),
+        (
+            Method::POST,
+            "/admin/system/preflight".into(),
             Some("OPERATOR"),
             None,
         ),
@@ -3076,4 +3100,46 @@ async fn an_erasure_run_can_queue_the_members_message_delete() {
             .unwrap()
             .contains("Messages deleted at the member's request")
     );
+}
+
+#[tokio::test]
+async fn the_preflight_card_runs_the_checks_for_operators_and_the_access_log_records_it() {
+    let e = env().await;
+    // OPERATOR only.
+    let (s, _) = e
+        .call(Some(MODER), Method::POST, "/admin/system/preflight", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    let (s, v) = e
+        .call(Some(OWNER), Method::POST, "/admin/system/preflight", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["ok"], false);
+    assert_eq!(
+        (
+            v["passed"].as_u64(),
+            v["warned"].as_u64(),
+            v["failed"].as_u64()
+        ),
+        (Some(1), Some(1), Some(1))
+    );
+    assert_eq!(v["checks"][0]["id"], "database");
+    assert_eq!(v["checks"][0]["status"], "pass");
+    assert_eq!(v["checks"][2]["status"], "fail");
+
+    // The run is in the access log, with the failing ids and nothing else.
+    let (s, b) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            "/admin/access-log?action=system.preflight&kind=admin_action",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["items"].as_array().map(Vec::len), Some(1), "{b}");
+    assert_eq!(b["items"][0]["actor_id"], OWNER.to_string());
+    let detail = b["items"][0]["detail"].as_str().unwrap();
+    assert!(detail.contains("\"failing\":[\"storage\"]"), "{detail}");
 }

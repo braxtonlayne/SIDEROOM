@@ -38,7 +38,13 @@
 [docs/adr/](adr/), the architecture decision records.
 
 ## Component inventory
-[docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered in a follow-up PR).
+[docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered: files 01 to 19 are ticked bar three items; file 20 is the launch-readiness list).
+
+## Roadmap after the inventory
+[dev/roadmap-p20.md](dev/roadmap-p20.md): waves 20 to 24 (launch readiness, D-352), with their work items in [inventory/20-launch-readiness.md](inventory/20-launch-readiness.md).
+
+## For the owner
+[Owner's action checklist](dev/owner-checklist.md), [questions for a lawyer](legal/lawyer-brief.md) and the [go-live checklist](../deploy/GO-LIVE.md).
 
 ## Mockups
 [docs/assets/mockups/](assets/mockups/README.md)
