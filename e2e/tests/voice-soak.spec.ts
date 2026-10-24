@@ -24,13 +24,16 @@ import {
  *   - a tone is heard at the end: inbound audio bytes and decrypted frames both grow over a closing window.
  *
  * Inputs (environment; voice-soak.yml maps its dispatch inputs to them): SOAK_COUNT, SOAK_MINUTES (may be
- * fractional), SOAK_MAX_DROP_RATIO. Needs the voice stack with E2EE: SR_E2E_VOICE=1 SR_E2E_SOAK=1 against an
+ * fractional), SOAK_MAX_DROP_RATIO, SOAK_CAMERA ("0" skips the camera on/off step). Owner (2026-10-24): the soak
+ * stays on the standard runner, and the camera step is the first thing to drop if the runner struggles. Needs the voice stack with E2EE: SR_E2E_VOICE=1 SR_E2E_SOAK=1 against an
  * sr-server with SR_VOICE__ENABLED=true. A summary is attached to the report and printed.
  */
 const SOAK = process.env.SR_E2E_VOICE === '1' && process.env.SR_E2E_SOAK === '1';
 const COUNT = Math.max(2, Number(process.env.SOAK_COUNT ?? 10));
 const MINUTES = Math.max(0.25, Number(process.env.SOAK_MINUTES ?? 10));
 const MAX_DROP = Number(process.env.SOAK_MAX_DROP_RATIO ?? 0.02);
+/** The first thing to drop on a struggling runner (owner, 2026-10-24): SOAK_CAMERA=0. */
+const CAMERA = process.env.SOAK_CAMERA !== '0';
 const DURATION_MS = MINUTES * 60_000;
 const TAIL_MS = Math.min(20_000, DURATION_MS * 0.25); // quiet steady state at the end
 
@@ -112,7 +115,7 @@ test.describe('Voice soak', () => {
   );
   test.setTimeout(DURATION_MS + COUNT * 120_000 + 10 * 60_000);
 
-  test(`${COUNT} members, ${MINUTES} min: mute, camera, one reconnect each, E2EE on`, async ({
+  test(`${COUNT} members, ${MINUTES} min: mute, ${CAMERA ? 'camera, ' : ''}one reconnect each, E2EE on`, async ({
     browser,
     browserName,
     playwright,
@@ -198,7 +201,7 @@ test.describe('Voice soak', () => {
           ).toBeVisible({ timeout: 60_000 });
         };
         await cycle(0.1 + 0.15 * lane);
-        await camera(0.28 + 0.2 * lane);
+        if (CAMERA) await camera(0.28 + 0.2 * lane);
         await reconnect(0.52 + 0.2 * lane);
         // More mute cycles until the tail starts.
         for (let f = 0.78; f < 1 - TAIL_MS / DURATION_MS - 0.05; f += 0.12)
