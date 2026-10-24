@@ -71,7 +71,8 @@ describe('Entrance pages editor', () => {
     fireEvent.change(box, { target: { value: 'x'.repeat(16 * 1024 + 1) } });
     expect(await screen.findByText('Too long: the limit is 16 KiB.')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Save' })[0]).toBeDisabled();
-  });
+    // The test's own budget must exceed the 10 s it allows the editor to appear (CI timed it out at 5 s).
+  }, 20_000);
 
   it('is not offered to staff who hold only MANAGE_FEATURES (D-239)', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_FEATURES'] });

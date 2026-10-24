@@ -662,7 +662,12 @@ pub fn sprite_vtt(
         if start >= duration_ms {
             break;
         }
-        let end = (start + interval_ms).min(duration_ms);
+        // The last thumbnail covers the rest of the source (the plan stops short of a sliver at the end).
+        let end = if i + 1 == sprite.thumbs_total {
+            duration_ms.max(start + 1)
+        } else {
+            (start + interval_ms).min(duration_ms)
+        };
         let sheet = i / per_sheet + 1;
         let slot = i % per_sheet;
         let (col, row) = (slot % sprite.columns, slot / sprite.columns);
@@ -879,5 +884,16 @@ mod tests {
         // The last cue is clamped to the duration.
         assert!(vtt.contains("00:17:20.000 --> 00:17:23.000\nsheet-002.jpg#xywh=640,0,160,90\n"));
         assert_eq!(vtt.matches("-->").count(), 105);
+        // Two thumbnails for a source probed at 20.021 s: the last cue runs to its end.
+        let two = SpritePlan {
+            thumbs_total: 2,
+            sheets: 1,
+            ..sprite
+        };
+        let vtt = sprite_vtt(&two, 20.021, &|n| format!("sheet-{n:03}.jpg"));
+        assert!(
+            vtt.ends_with("00:00:10.000 --> 00:00:20.021\nsheet-001.jpg#xywh=160,0,160,90\n\n")
+        );
+        assert_eq!(vtt.matches("-->").count(), 2);
     }
 }

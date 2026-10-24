@@ -639,10 +639,20 @@ fn select_fonts(
     out
 }
 
+/// A thumbnail is only planned at `t` when the source runs at least this long past `t`. The container's
+/// duration includes the audio, which AAC encoder priming makes a few tens of milliseconds longer than the
+/// video, and ffmpeg's `fps` filter makes no frame for a time the video never reaches: a 20 s source probed
+/// as 20.021 s gets thumbnails at 0 s and 10 s, not a third one at 20 s that would point at an empty tile.
+pub const SPRITE_TAIL_SECS: f64 = 0.5;
+
+/// Thumbnails at 0, `interval`, 2 `interval`, ... up to the end of the source (less [`SPRITE_TAIL_SECS`]),
+/// at least one. The sprite step (`sr-transcoder` `sprite_step`, `fps=1/interval:eof_action=pass`) makes
+/// at least this many frames: one per started interval of the video.
 fn plan_sprite(duration: f64, aspect: f64, s: &TranscodeSettings) -> SpritePlan {
     let per_sheet = (s.sprite_columns * s.sprite_rows).max(1);
     let interval = s.sprite_interval_secs.max(1);
-    let total = ((duration / f64::from(interval)).ceil() as u32).max(1);
+    let total =
+        (((duration - SPRITE_TAIL_SECS).max(0.0) / f64::from(interval)).ceil() as u32).max(1);
     SpritePlan {
         interval_secs: interval,
         thumb_width: s.sprite_thumb_width,
@@ -1078,6 +1088,26 @@ mod tests {
         };
         let p = plan_ladder_job(&probe_no_ass, &TranscodeSettings::default()).unwrap();
         assert!(p.fonts.is_empty());
+    }
+
+    #[test]
+    fn sprite_thumbnails_stop_where_the_video_does() {
+        let s = TranscodeSettings::default();
+        let total = |d: f64| plan_sprite(d, 16.0 / 9.0, &s).thumbs_total;
+        // The media.yml source: 20 s of video, the container says 20.021 s (AAC priming). ffmpeg makes
+        // frames at 0 s and 10 s only; a third thumbnail pointed at an empty tile (CI run of f1e89b77).
+        assert_eq!(total(20.021), 2);
+        assert_eq!(total(20.0), 2);
+        // The 4 s clips of the resilience stage still get their one thumbnail (and so one sheet).
+        assert_eq!(total(4.021), 1);
+        assert_eq!(total(0.2), 1);
+        assert_eq!(plan_sprite(4.021, 16.0 / 9.0, &s).sheets, 1);
+        // A real frame past a boundary is still planned.
+        assert_eq!(total(20.6), 3);
+        assert_eq!(total(25.0), 3);
+        // 1001 thumbnails need 11 sheets of 100.
+        assert_eq!(total(10_001.0), 1001);
+        assert_eq!(plan_sprite(10_001.0, 16.0 / 9.0, &s).sheets, 11);
     }
 
     #[test]

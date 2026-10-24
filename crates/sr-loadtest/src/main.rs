@@ -524,10 +524,14 @@ mod tests {
             (a.sessions, a.msg_rate as u32, a.p95_ms as u32),
             (2000, 200, 100)
         );
-        assert!(
-            Args::try_parse_from(["sr-loadtest"]).is_err(),
-            "the database URL is required"
-        );
+        // clap falls back to SR_DATABASE__URL, so "required" is only observable without it (a shell that
+        // runs the Postgres suites usually exports it).
+        if std::env::var_os("SR_DATABASE__URL").is_none() {
+            assert!(
+                Args::try_parse_from(["sr-loadtest"]).is_err(),
+                "the database URL is required"
+            );
+        }
     }
 
     #[test]

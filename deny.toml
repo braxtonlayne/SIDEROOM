@@ -11,6 +11,12 @@ ignore = [
   # approved MLS provider, D-249) needs; it never ends up in the shipped binary. Revisit when
   # hpke-rs or libcrux drop it.
   { id = "RUSTSEC-2026-0173", reason = "build-time proc-macro of the MLS crypto provider; no safe upgrade" },
+  # crypto-bigint timing side channels (owner-approved exception, 2026-10-24). The 0.7 line is fixed
+  # (0.7.7 in Cargo.lock); this ignore exists only for crypto-bigint 0.5.5, which elliptic-curve 0.13 pulls in
+  # for str0m's DTLS (voice), openmls_rust_crypto/hpke-rs (call E2EE) and sr-push (VAPID signing). There is no
+  # fixed 0.5.x release; it goes away when those crates move to elliptic-curve 0.14. Review weekly
+  # (`cargo tree -i crypto-bigint@0.5.5`) and remove this line as soon as the 0.5 copy leaves the lockfile.
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 via elliptic-curve 0.13 (str0m, openmls, sr-push) has no fixed release; 0.7 is updated; review weekly" },
 ]
 
 [licenses]

@@ -1,0 +1,142 @@
+name: Media pipeline (real ffmpeg)
+
+# RDY-MED-003, 004, 005. Runs the whole Cinema and Live TV media path with a real ffmpeg on the runner:
+# a lavfi source (video, two audio tracks, one subtitle) is uploaded as the Owner, probed by the server, turned
+# into a review proxy and an HLS ladder by a real `sr-transcoder` worker (CPU path) over the Worker API, played
+# back and checked with ffprobe; then the slate, a scheduled channel with the slate around the episode, a
+# re-transcode, the Patron download, and the resilience scenarios (corrupt source, two workers, a killed worker).
+# The stage logic lives in deploy/scripts/media-smoke.mjs; docs/dev/media-pipeline-test.md says how to run it
+# by hand and how to dry-walk it with fakes.
+#
+# ffmpeg comes from apt on the runner (owner-approved, wave 22); nothing is installed anywhere else.
+# The e2e-stack composite action is not used: it also installs pnpm, wasm-pack and the WASM bundle, which this
+# job does not need. The compose services and the server start are the same as storage.yml.
+on:
+  schedule:
+    - cron: "29 3 * * 3"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "crates/sr-transcoder/**"
+      - "crates/sr-media/**"
+      - "crates/sr-tv/**"
+      - "crates/sr-cli/src/tv.rs"
+      - "deploy/scripts/media-*"
+      - "deploy/compose/**"
+      - ".github/workflows/media.yml"
+
+concurrency:
+  group: media-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Dev-only values from deploy/compose/.env.example (compose database, the Garage key pair that
+  # garage/bootstrap.sh imports) and a throwaway Owner password. Nothing here is a real secret.
+  DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  SR_TEST_DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sr_media
+  SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sr_media
+  SR_TEST_S3_ENDPOINT: http://127.0.0.1:3900
+  SR_TEST_S3_REGION: garage
+  SR_OWNER_PASSWORD: ci-owner-Passw0rd-not-a-secret
+  SR_SERVER__BIND: 127.0.0.1:8092
+  SR_SERVER__METRICS_BIND: 127.0.0.1:9192
+  SR_SERVER__PUBLIC_URL: http://localhost:8092
+  MEDIA_SMOKE_BASE: http://127.0.0.1:8092
+  MEDIA_SMOKE_ORIGIN: http://localhost:8092
+
+jobs:
+  media:
+    # 24.04 ships ffmpeg 6.1, which the transcoder's arguments assume (-fps_mode needs 5.1 or newer).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -version | head -n 1
+          ffprobe -hide_banner -version | head -n 1
+          ffmpeg -hide_banner -encoders | grep -E ' (libx264|aac) '
+          ffmpeg -hide_banner -filters | grep -E ' (tile|fps|split|scale) '
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Driver self-checks (no ffmpeg needed)
+        run: |
+          node --test deploy/scripts/media-lib.test.mjs
+          MEDIA_SMOKE_DRY=1 MEDIA_SMOKE_DIR="$RUNNER_TEMP/media-dry" node deploy/scripts/media-smoke.mjs
+
+      - name: Start Postgres and Garage
+        run: |
+          docker compose -f deploy/compose/dev.yml up -d --wait postgres
+          docker compose -f deploy/compose/dev.yml up -d garage
+          ./deploy/compose/garage/bootstrap.sh
+
+      - name: Export the dev Garage credentials and a server secret to later steps
+        run: |
+          set -a; . deploy/compose/.env.example; set +a
+          {
+            echo "SR_TEST_S3_BUCKET=$GARAGE_BUCKET"
+            echo "SR_TEST_S3_ACCESS_KEY=$GARAGE_ACCESS_KEY"
+            echo "SR_TEST_S3_SECRET_KEY=$GARAGE_SECRET_KEY"
+            echo "SR_STORAGE__ENDPOINT=$SR_TEST_S3_ENDPOINT"
+            echo "SR_STORAGE__REGION=$SR_TEST_S3_REGION"
+            echo "SR_STORAGE__BUCKET=$GARAGE_BUCKET"
+            echo "SR_STORAGE__ACCESS_KEY=$GARAGE_ACCESS_KEY"
+            echo "SR_STORAGE__SECRET_KEY=$GARAGE_SECRET_KEY"
+            echo "SR_SERVER__SECRET_KEY=$(openssl rand -hex 32)"
+            echo "SR_SEARCH__DIR=$RUNNER_TEMP/search"
+            echo "MEDIA_SMOKE_DIR=$RUNNER_TEMP/media-smoke"
+          } >> "$GITHUB_ENV"
+
+      - name: Build sr-server, sr-cli and sr-transcoder
+        run: cargo build -p sr-server -p sr-cli -p sr-transcoder
+
+      - name: Unit tests that pin the ffmpeg arguments
+        run: cargo test -p sr-transcoder
+
+      - name: What the worker sees in this ffmpeg
+        run: ./target/debug/sr-transcoder --check --force-cpu
+
+      - name: Create the database, migrate, bootstrap the Owner, start sr-server
+        run: |
+          PGPASSWORD=sideroom_dev psql -h 127.0.0.1 -U sideroom -d postgres -c 'CREATE DATABASE sr_media'
+          ./target/debug/sr-cli migrate
+          ./target/debug/sr-cli bootstrap --owner-username owner --owner-email owner@example.test
+          nohup ./target/debug/sr-server > "$RUNNER_TEMP/server.log" 2>&1 &
+          timeout 90 bash -c 'until curl -fs http://127.0.0.1:8092/readyz >/dev/null; do sleep 1; done' || {
+            echo "sr-server did not become ready; server.log:" >&2
+            cat "$RUNNER_TEMP/server.log" >&2
+            exit 1
+          }
+
+      - name: Media pipeline smoke
+        env:
+          SR_TRANSCODER_BIN: ${{ github.workspace }}/target/debug/sr-transcoder
+          SR_CLI_BIN: ${{ github.workspace }}/target/debug/sr-cli
+        run: node deploy/scripts/media-smoke.mjs
+
+      - name: Server log
+        if: always()
+        run: tail -n 300 "$RUNNER_TEMP/server.log" || true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: media-smoke-logs
+          path: |
+            ${{ runner.temp }}/server.log
+            ${{ runner.temp }}/media-smoke/worker-*.log
+            ${{ runner.temp }}/media-smoke/*.m3u8
+          if-no-files-found: ignore
+          retention-days: 7

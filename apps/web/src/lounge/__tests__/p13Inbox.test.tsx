@@ -53,10 +53,11 @@ describe('Inbox For You tab (LNG-NTF-006)', () => {
       http.get('*/api/v1/submissions', () =>
         HttpResponse.json({
           items: [
-            { id: 's1', title: 'My Comic', state: 'approved' },
-            { id: 's2', title: 'Still Draft', state: 'draft' },
+            { id: 's1', title: 'My Comic', state: 'approved', kind: 'library.series' },
+            { id: 's2', title: 'Still Draft', state: 'draft', kind: 'library.series' },
+            { id: 's3', title: 'My Film', state: 'published', kind: 'cinema.title' },
           ],
-          total: 2,
+          total: 3,
           limit: 20,
           offset: 0,
         }),
@@ -91,6 +92,12 @@ describe('Inbox For You tab (LNG-NTF-006)', () => {
     await user.click(screen.getByText('Blue Hour'));
     expect(navigate).toHaveBeenCalledWith({ to: '/library/r/90' });
     expect(onGo).toHaveBeenCalled();
+
+    // D-367: a decision opens in its own section, picked by the kind prefix.
+    await user.click(screen.getByText('My Comic'));
+    expect(navigate).toHaveBeenCalledWith({ to: '/library/submissions/s1' });
+    await user.click(screen.getByText('My Film'));
+    expect(navigate).toHaveBeenCalledWith({ to: '/cinema/submit/s3' });
 
     await user.click(screen.getByRole('button', { name: 'Accept the friend request from bob' }));
     await waitFor(() => expect(accepted).toBe(true));

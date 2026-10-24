@@ -18,6 +18,9 @@ on:
       - "crates/sr-db/**"
       - "deploy/compose/**"
       - "e2e/support/**"
+      - "e2e/tests/storage-composer.spec.ts"
+      - "apps/web/src/lounge/msg/**"
+      - "apps/web/src/lib/uploadLedger.ts"
       - ".github/workflows/storage.yml"
       - "Cargo.lock"
   workflow_dispatch:
@@ -111,3 +114,73 @@ jobs:
       - name: Server log
         if: always()
         run: cat "$RUNNER_TEMP/server.log" || true
+
+  # RDY-STO-001 / RDY-STO-002: the browser half. A chat attachment above the 64 MiB part size through the real
+  # composer against Garage: an abort, a resume from the IndexedDB ledger after a reload (its confirmed parts must
+  # equal S3's ListParts), and a throttled reattach with an sr-server restart in the middle.
+  composer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+      SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-stack
+      - name: Install the browser
+        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      - name: Migrate and write the server start and restart scripts
+        run: |
+          ./target/debug/sr-cli migrate
+          set -a; . deploy/compose/.env.example; set +a
+          {
+            echo "SR_TEST_S3_ENDPOINT=http://127.0.0.1:3900"
+            echo "SR_TEST_S3_REGION=garage"
+            echo "SR_TEST_S3_BUCKET=$GARAGE_BUCKET"
+            echo "SR_TEST_S3_ACCESS_KEY=$GARAGE_ACCESS_KEY"
+            echo "SR_TEST_S3_SECRET_KEY=$GARAGE_SECRET_KEY"
+            echo "SR_TEST_DATABASE_URL=$DATABASE_URL"
+          } >> "$GITHUB_ENV"
+          # One script starts the server (same settings as deploy/compose/e2e-run.sh, a fixed secret key so a
+          # restart keeps sessions); the restart script stops it, starts it again and waits for /readyz.
+          cat > "$RUNNER_TEMP/sr-start.sh" <<SCRIPT
+          #!/usr/bin/env bash
+          cd "$GITHUB_WORKSPACE"
+          export SR_DATABASE__URL="$DATABASE_URL"
+          export SR_SERVER__PUBLIC_URL=http://localhost:5173
+          export SR_SERVER__SECRET_KEY=$(openssl rand -hex 32)
+          export SR_STORAGE__ENDPOINT=http://127.0.0.1:3900
+          export SR_STORAGE__REGION=garage
+          export SR_STORAGE__BUCKET="$GARAGE_BUCKET"
+          export SR_STORAGE__ACCESS_KEY="$GARAGE_ACCESS_KEY"
+          export SR_STORAGE__SECRET_KEY="$GARAGE_SECRET_KEY"
+          export SR_SEARCH__DIR="$RUNNER_TEMP/search"
+          nohup ./target/debug/sr-server >> "$RUNNER_TEMP/server.log" 2>&1 &
+          echo \$! > "$RUNNER_TEMP/sr-server.pid"
+          timeout 60 bash -c 'until curl -fs http://127.0.0.1:8080/readyz >/dev/null; do sleep 1; done'
+          SCRIPT
+          cat > "$RUNNER_TEMP/sr-restart.sh" <<SCRIPT
+          #!/usr/bin/env bash
+          kill "\$(cat "$RUNNER_TEMP/sr-server.pid")" || true
+          sleep 3
+          exec "$RUNNER_TEMP/sr-start.sh"
+          SCRIPT
+          chmod +x "$RUNNER_TEMP/sr-start.sh" "$RUNNER_TEMP/sr-restart.sh"
+          "$RUNNER_TEMP/sr-start.sh"
+          echo "SR_E2E_RESTART_CMD=$RUNNER_TEMP/sr-restart.sh" >> "$GITHUB_ENV"
+      - name: Composer multipart specs (Chromium)
+        run: pnpm --filter @sideroom/e2e exec playwright test --project=chromium tests/storage-composer.spec.ts --retries=0
+        env:
+          CI: "true"
+          SR_E2E_STORAGE_LIVE: "1"
+      - name: Server log
+        if: always()
+        run: cat "$RUNNER_TEMP/server.log" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-composer
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
