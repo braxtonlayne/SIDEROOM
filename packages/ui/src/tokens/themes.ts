@@ -99,6 +99,8 @@ export const loungeLight: ThemeDefinition = {
     "--ui-warning": "#a96b00",
     "--ui-info": "#0068c9",
     "--ui-focus": "#0068c9",
+    // Amber on white is 1.9:1; the dot needs 3:1 against the surface it sits on.
+    "--ui-status-idle": "#b07800",
     "--ui-shadow-overlay": "0 8px 24px rgb(0 0 0 / 0.18)",
     "--ui-backdrop": "rgb(0 0 0 / 0.55)",
   },
@@ -123,6 +125,8 @@ export const loungeAsh: ThemeDefinition = {
     "--ui-text": "#e0e1e5",
     "--ui-text-muted": "#aeb2ba",
     "--ui-text-faint": "#a6acb6",
+    // #949ba4 is 4.05:1 on this theme's #383a40 (tokens-contrast.test.ts walks every theme).
+    "--text-muted": "#a2a8b2",
   },
 };
 

@@ -1,5 +1,6 @@
 import { useRef, type HTMLAttributes, type ReactNode } from "react";
 import { cx } from "../util/cx";
+import { prefersReducedMotion } from "../theme/runtime";
 import { ProgressBar } from "../primitives/Progress/ProgressBar";
 import { ArrowLink } from "./Editorial";
 import styles from "./Poster.module.css";
@@ -70,7 +71,10 @@ export function PosterRow({ title, exploreHref, exploreLabel = "Explore all", cl
   const scroller = useRef<HTMLDivElement>(null);
   const page = (dir: 1 | -1) => {
     const el = scroller.current;
-    el?.scrollBy?.({ left: dir * (el?.clientWidth ?? 0) * 0.9, behavior: "smooth" });
+    // Smooth scrolling is motion: honour the OS setting and the in-app one (data-reduced-motion on the themed root).
+    const reduced =
+      prefersReducedMotion() || el?.closest("[data-reduced-motion='true']") != null;
+    el?.scrollBy?.({ left: dir * (el?.clientWidth ?? 0) * 0.9, behavior: reduced ? "auto" : "smooth" });
   };
   return (
     <section {...rest} className={cx(styles.row, className)}>
