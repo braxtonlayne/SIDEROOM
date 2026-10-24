@@ -213,3 +213,27 @@ fn remux_copies_streams_from_the_local_playlists() {
          -c copy -sn -dn -movflags +faststart -f mp4 /work/j/out/remux/video.mp4"
     );
 }
+
+/// Real ffprobe output for an x264 Matroska made by ffmpeg carries no `field_order` and tags the audio
+/// with `BPS`/`DURATION` statistics; none of that changes the plan.
+#[test]
+fn ci_source_plan_does_not_depend_on_optional_ffprobe_fields() {
+    let lean = CI_SOURCE.replace(r#""field_order":"progressive","#, "");
+    let noisy = lean.replace(
+        r#""tags":{"language":"eng","title":"English"}},
+  {"index":2"#,
+        r#""tags":{"language":"eng","title":"English","BPS":"96000","DURATION":"00:00:20.000000000","NUMBER_OF_FRAMES":"940"}},
+  {"index":2"#,
+    );
+    assert_ne!(lean, CI_SOURCE);
+    assert_ne!(noisy, lean);
+    let reference = plan_ladder_job(&probe(), &TranscodeSettings::default()).unwrap();
+    for json in [&lean, &noisy] {
+        let p = parse_ffprobe_json(json.as_bytes()).unwrap();
+        let plan = plan_ladder_job(&p, &TranscodeSettings::default()).unwrap();
+        assert!(!plan.video.deinterlace);
+        assert_eq!(plan.rungs, reference.rungs);
+        assert_eq!(plan.audio, reference.audio);
+        assert_eq!(plan.subtitles, reference.subtitles);
+    }
+}

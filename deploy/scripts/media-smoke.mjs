@@ -213,16 +213,44 @@ const owner = new Client();
 const urlOf = (u, from) => new URL(u, new URL(from, `${BASE}/`)).toString();
 
 // ---- ffmpeg and ffprobe ----------------------------------------------------------------------------------------
+/**
+ * ffprobe as JSON. A fragmented MP4 (an HLS init segment with one media segment) often reports no duration
+ * (N/A), so `duration` falls back to the span of the packets: last presentation time plus its duration,
+ * minus the first, of the first video stream, else of the first audio stream.
+ */
 function ffprobe(file) {
-  const r = io.run(FFPROBE, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file]);
+  const r = io.run(FFPROBE, [
+    '-v',
+    'error',
+    '-show_streams',
+    '-show_format',
+    '-show_packets',
+    '-of',
+    'json',
+    file,
+  ]);
   if (r.status !== 0) throw new Error(`ffprobe ${file}: ${r.stderr.slice(0, 300)}`);
   const j = JSON.parse(r.stdout);
   const streams = j.streams ?? [];
+  let duration = Number(j.format?.duration);
+  if (!(duration > 0)) {
+    const packets = j.packets ?? [];
+    const type = streams.some((s) => s.codec_type === 'video') ? 'video' : 'audio';
+    const first = packets.find((x) => x.codec_type === type);
+    const mine = packets.filter(
+      (x) => x.codec_type === type && x.stream_index === first?.stream_index,
+    );
+    const pts = mine.map((x) => Number(x.pts_time)).filter(Number.isFinite);
+    const last = mine[mine.length - 1];
+    duration = pts.length
+      ? Math.max(...pts) + (Number(last?.duration_time) || 0) - Math.min(...pts)
+      : 0;
+  }
   return {
     streams,
     format: j.format ?? {},
     of: (type) => streams.filter((s) => s.codec_type === type),
-    duration: Number(j.format?.duration ?? 0),
+    duration,
   };
 }
 function ffmpeg(args) {
