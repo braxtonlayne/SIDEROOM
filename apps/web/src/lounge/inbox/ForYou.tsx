@@ -152,7 +152,14 @@ export function ForYou({ onGo }: { onGo: () => void }) {
                 <button
                   type="button"
                   className="lng-inbox-item"
-                  onClick={() => go(`/library/submissions/${encodeURIComponent(s.id)}`)}
+                  onClick={() =>
+                    go(
+                      // D-367: each section opens its own submissions.
+                      s.kind.startsWith('cinema.')
+                        ? `/cinema/submit/${encodeURIComponent(s.id)}`
+                        : `/library/submissions/${encodeURIComponent(s.id)}`,
+                    )
+                  }
                 >
                   <strong>{s.title}</strong>
                   <span className="lng-muted">

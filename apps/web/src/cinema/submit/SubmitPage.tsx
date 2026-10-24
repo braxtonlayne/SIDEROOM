@@ -4,7 +4,7 @@
 import { Button, EmptyState, Notice, Select, Spinner, TextArea, TextInput } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import * as rv from '../../review/api';
 import { errorMessages } from '../../review/api';
@@ -33,12 +33,16 @@ function Problems({ messages }: { messages: string[] }) {
   );
 }
 
-export function CinemaSubmitPage() {
+export function CinemaSubmitPage({ startCreating = false }: { startCreating?: boolean } = {}) {
   const t = useT();
   const qc = useQueryClient();
   useSubmissionUpdates(() => void qc.invalidateQueries({ queryKey: ['cinema-submit'] }));
   const [filter, setFilter] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
+  // "Upload" in the avatar menu while this list is already open only changes the search (D-367).
+  useEffect(() => {
+    if (startCreating) setCreating(true);
+  }, [startCreating]);
   const list = useQuery({
     queryKey: ['cinema-submit', 'list', filter],
     queryFn: () =>

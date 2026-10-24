@@ -167,6 +167,8 @@ describe('Library submissions list', () => {
     renderAt('/library/submissions');
     expect(await screen.findByText('No submissions yet')).toBeInTheDocument();
     expect(log.lists[0]).toContain('sort=updated');
+    // D-367: only the Library kinds; cinema submissions live under /cinema/submit.
+    expect(log.lists[0]).toContain('kind=library.series%2Clibrary.items');
     await user.click(screen.getByRole('combobox', { name: 'Filter submissions' }));
     await user.click(await screen.findByRole('option', { name: 'Changes requested' }));
     await waitFor(() => expect(log.lists.at(-1)).toContain('state=changes_requested'));

@@ -217,6 +217,32 @@ describe('Cinema > Submit list', () => {
     await waitFor(() => expect(log.lists.at(-1)).toContain('state=changes_requested'));
   });
 
+  it('opens with the new-submission form when the URL says ?new=1 (D-367)', async () => {
+    useSubmitApi({ list: [] });
+    renderAt('/cinema/submit?new=1');
+    expect(await screen.findByRole('form', { name: 'New submission' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close form' })).toBeInTheDocument();
+  });
+
+  it('the avatar menu sends "My uploads" to the list and "Upload" to the open form (D-367)', async () => {
+    useSubmitApi({ list: [] });
+    const user = userEvent.setup();
+    const { router } = renderAt('/cinema/movies');
+    const pick = async (name: string) => {
+      await user.click(await screen.findByRole('button', { name: 'Account menu' }));
+      const menu = await screen.findByRole('menu', { name: 'Account' });
+      await user.click(within(menu).getByRole('menuitem', { name }));
+    };
+    await pick('My uploads');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/cinema/submit'));
+    expect(router.state.location.search).toEqual({});
+    expect(await screen.findByText('No video submissions yet')).toBeInTheDocument();
+    expect(screen.queryByRole('form', { name: 'New submission' })).toBeNull();
+    await pick('Upload');
+    await waitFor(() => expect(router.state.location.search).toEqual({ new: 1 }));
+    expect(await screen.findByRole('form', { name: 'New submission' })).toBeInTheDocument();
+  });
+
   it('starts a series draft and opens it', async () => {
     const log = useSubmitApi({ list: [] });
     const user = userEvent.setup();

@@ -66,7 +66,12 @@ export function createCinemaRoutes(root: AnyRoute) {
   const submit = createRoute({
     getParentRoute: () => layout,
     path: 'submit',
-    component: SubmitPage,
+    // D-367: the avatar menu's "Upload" opens the list with the new-submission form open (?new=1).
+    validateSearch: (s: Record<string, unknown>): { new?: 1 } =>
+      s.new === 1 || s.new === '1' ? { new: 1 } : {},
+    component: function SubmitRoute() {
+      return <SubmitPage startCreating={submit.useSearch().new === 1} />;
+    },
   });
   const submission = createRoute({
     getParentRoute: () => layout,

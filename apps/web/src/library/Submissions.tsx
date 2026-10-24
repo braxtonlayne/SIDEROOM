@@ -113,6 +113,8 @@ export function SubmissionsPage({ series }: { series?: string | undefined }) {
     queryKey: key.list(filter),
     queryFn: () =>
       rv.listMine({
+        // D-367: cinema submissions live under /cinema/submit; this list opens the chapter editor.
+        kind: 'library.series,library.items',
         sort: 'updated',
         order: 'desc',
         limit: 50,

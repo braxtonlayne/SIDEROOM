@@ -3,7 +3,7 @@
 Phase 5 · Theme `sideroom` · Mockups `cinema-discover.jpg`, `cinema-movies.jpg` · Decisions: D-075, D-080–D-086, D-089, D-120.
 
 ## 1. Navigation
-Top bar: `SIDE ROOM / The lounge · **The cinema** · The library`. Cinema header: door mark + `SIDE ROOM` / `C I N E M A` · **Discover · Movies · Series · Anime ✦ · Live TV • · My list** · search · avatar (menu: Profile, My uploads, Upload, Requests, Settings, Back to Lounge). Footer: "Side Room *Cinema*" · "A little further from the ordinary." · About this library.
+Top bar: `SIDE ROOM / The lounge · **The cinema** · The library`. Cinema header: door mark + `SIDE ROOM` / `C I N E M A` · **Discover · Movies · Series · Anime ✦ · Live TV • · My list** · search · avatar (menu: Profile, My uploads, Upload, Requests, Settings, Back to Lounge; "My uploads" and "Upload" go to `/cinema/submit`, Upload with the new-submission form open, and "Requests" goes to the Library board for now, D-367). Footer: "Side Room *Cinema*" · "A little further from the ordinary." · About this library.
 
 ## 2. Pages
 
@@ -31,7 +31,7 @@ Backdrop + logo or title, metadata row (year, runtime or seasons count, content 
 Saved titles + Continue watching + Watch history (pause/clear) + custom lists (shareable, visibility private/friends/everyone).
 
 ### 2.5 Requests, Upload, My uploads
-See the submissions spec.
+See the submissions spec. Upload and My uploads: `/cinema/submit` (RDY-MED-002, D-367); Upload is `/cinema/submit?new=1`.
 
 ### 2.6 Live TV
 See the cinema-live-tv spec.
