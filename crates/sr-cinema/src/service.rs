@@ -1119,6 +1119,23 @@ impl CinemaService {
         Ok(self.staff_title(&rec))
     }
 
+    /// [`Self::update_title`] for a member's draft (RDY-MED-001): the artwork keys already stored
+    /// stay as they are, whatever the input says, so a metadata edit never drops a poster that a
+    /// reviewer or the artwork route set.
+    pub async fn update_title_keep_artwork(
+        &self,
+        a: Actor,
+        id: i64,
+        mut input: TitleInput,
+    ) -> CinemaResult<Title> {
+        a.publish()?;
+        let rec = self.staff_get(id).await?;
+        input.poster_key = rec.poster_key;
+        input.backdrop_key = rec.backdrop_key;
+        input.logo_key = rec.logo_key;
+        self.update_title(a, id, input).await
+    }
+
     /// Publish (`PUBLISH_MEDIA`, needs something playable) or unpublish (`PUBLISH_MEDIA` or
     /// `DELETE_CONTENT`). A title without an asset or a published episode stays a draft.
     pub async fn set_title_published(
