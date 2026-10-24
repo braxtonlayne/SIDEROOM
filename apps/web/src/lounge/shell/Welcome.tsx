@@ -309,10 +309,13 @@ export function Welcome() {
           )}
         </div>
       </Modal>
-      {wizard && (
+      {/* Mounted closed and opened by the button: the wizard asks the server for a new secret every time it
+          opens, and mounting it already open runs that request twice under StrictMode, so the key on screen
+          could be the one the server no longer holds. */}
+      {wanted && needsMfa && (
         <Suspense fallback={null}>
           <TotpWizard
-            open
+            open={wizard}
             onClose={() => setWizard(false)}
             onEnabled={() => setMfaOn(true)}
           />
