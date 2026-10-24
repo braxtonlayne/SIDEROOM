@@ -25,7 +25,8 @@ if grep -v '^[[:space:]]*#' "$out/turnserver.conf" | grep -q CHANGE_ME; then
   exit 1
 fi
 printf '\n# e2e only: the SFU under test announces this address, which is inside a denied private range.\nallowed-peer-ip=%s\n' "$ip" >> "$out/turnserver.conf"
-openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=chat.example.org" \
+# Git Bash (MSYS) would rewrite "/CN=..." into a Windows path; the variable is ignored everywhere else.
+MSYS2_ARG_CONV_EXCL="/CN=" openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=chat.example.org" \
   -keyout "$out/tls/privkey.pem" -out "$out/tls/fullchain.pem" 2>/dev/null
 # coturn runs as an unprivileged user in the image: let it read the key.
 chmod 644 "$out/tls/privkey.pem" "$out/tls/fullchain.pem" "$out/turnserver.conf"
