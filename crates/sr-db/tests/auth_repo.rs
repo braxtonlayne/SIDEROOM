@@ -642,6 +642,22 @@ async fn login_devices_are_remembered_per_account() {
     assert!(store.login_alerts_enabled(a).await.unwrap());
 }
 
+/// RDY-ONB-001: a new account starts with the first run open; closing and re-opening are stored per account.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_first_run_flag_starts_open_and_is_stored_per_account() {
+    use sr_auth::store::AuthStore;
+    let pool = pool().await;
+    let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
+    let (a, b) = (account(&pool).await, account(&pool).await);
+    assert!(!store.first_run_done(a).await.unwrap());
+    store.set_first_run_done(a, true).await.unwrap();
+    assert!(store.first_run_done(a).await.unwrap());
+    assert!(!store.first_run_done(b).await.unwrap());
+    store.set_first_run_done(a, false).await.unwrap();
+    assert!(!store.first_run_done(a).await.unwrap());
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn the_declared_minimum_age_is_recorded_once_and_bounded() {

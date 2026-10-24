@@ -203,6 +203,11 @@ impl AuthService {
         self.store.set_locale(id, locale).await
     }
 
+    /// Whether the account closed or finished the platform first run (`GET /users/@me`).
+    pub async fn first_run_done(&self, id: i64) -> Result<bool, sr_auth::store::StoreError> {
+        self.store.first_run_done(id).await
+    }
+
     /// The account row of `id` and whether TOTP is confirmed on it (for `GET /users/@me`).
     pub async fn account_overview(
         &self,

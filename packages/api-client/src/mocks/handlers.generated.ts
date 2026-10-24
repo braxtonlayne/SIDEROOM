@@ -779,6 +779,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"unlink","method":"post","path":"/sr/auth/discord/unlink","status":204,"body":null},
   {"id":"cancel_change_email","method":"post","path":"/sr/auth/email/cancel","status":204,"body":null},
   {"id":"change_email","method":"post","path":"/sr/auth/email/change","status":204,"body":null},
+  {"id":"put","method":"put","path":"/sr/auth/first-run","status":204,"body":null},
   {"id":"list","method":"get","path":"/sr/auth/passkeys","status":200,"body":[{"backup_eligible":false,"created_at":"2026-01-01T00:00:00.000Z","id":"1","name":"string"}]},
   {"id":"remove","method":"delete","path":"/sr/auth/passkeys/:id","status":204,"body":null},
   {"id":"rename","method":"patch","path":"/sr/auth/passkeys/:id","status":200,"body":{"backup_eligible":false,"created_at":"2026-01-01T00:00:00.000Z","id":"1","name":"string"}},

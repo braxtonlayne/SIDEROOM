@@ -62,6 +62,10 @@ pub struct CurrentUser {
     /// BCP 47 locale (session callers).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
+    /// Whether the person closed or finished the platform first run; `false` for a new account
+    /// (session callers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_run_done: Option<bool>,
 }
 
 /// Body of `GET /sr/csrf`.
@@ -153,6 +157,7 @@ pub async fn current_user(
         mfa_enabled: None,
         flags: None,
         locale: None,
+        first_run_done: None,
     };
     if let Some(social) = social
         && let Ok(u) = social
@@ -196,6 +201,7 @@ pub async fn current_user(
             me.mfa_enabled = Some(mfa);
             me.flags = Some(account.flags);
             me.locale = Some(account.locale);
+            me.first_run_done = Some(auth.first_run_done(p.user_id).await.unwrap_or(true));
         }
     }
     Ok(Json(me))

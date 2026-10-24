@@ -27,6 +27,7 @@ mod mfa;
 mod passkeys;
 mod recovery;
 mod register;
+mod first_run;
 mod self_delete;
 mod sessions;
 mod store;
@@ -104,6 +105,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(discord::DiscordApiDoc::openapi());
     doc.merge(member_invites::MemberInvitesApiDoc::openapi());
     doc.merge(self_delete::SelfDeleteApiDoc::openapi());
+    doc.merge(first_run::FirstRunApiDoc::openapi());
     doc
 }
 
@@ -142,6 +144,7 @@ pub fn router() -> Router<AppState> {
             "/sr/auth/discord/pending",
             get(discord::pending).delete(discord::forget),
         )
+        .route("/sr/auth/first-run", put(first_run::put))
         .route("/sr/auth/login-alerts", get(alerts::get).put(alerts::put))
         .route("/sr/auth/trusted-devices", get(trusted::list))
         .route("/sr/auth/trusted-devices/{id}", delete(trusted::revoke))

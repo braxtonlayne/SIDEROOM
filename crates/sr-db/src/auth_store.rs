@@ -895,6 +895,26 @@ impl AuthStore for PgAuthStore {
         Ok(on.unwrap_or(true))
     }
 
+    async fn first_run_done(&self, account: i64) -> StoreResult<bool> {
+        let done: Option<bool> =
+            sqlx::query_scalar("SELECT first_run_done FROM accounts WHERE id = $1")
+                .bind(account)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(store_err)?;
+        Ok(done.unwrap_or(true))
+    }
+
+    async fn set_first_run_done(&self, account: i64, done: bool) -> StoreResult<()> {
+        sqlx::query("UPDATE accounts SET first_run_done = $2, updated_at = now() WHERE id = $1")
+            .bind(account)
+            .bind(done)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
     async fn set_login_alerts(&self, account: i64, enabled: bool) -> StoreResult<()> {
         sqlx::query("UPDATE accounts SET login_alerts = $2, updated_at = now() WHERE id = $1")
             .bind(account)
