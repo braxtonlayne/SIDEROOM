@@ -6,7 +6,7 @@ import { MemoryLedger, UploadManager } from '../../review/uploadManager';
 import { http, HttpResponse, server } from '../../test/server';
 import type { Draft, DraftItem, DraftVideo } from '../submit/api';
 import { cinemaUploadApi, setCinemaUploadManager } from '../submit/uploads';
-import { renderAt, useCinemaApi } from './harness';
+import { renderAt, SHOW, useCinemaApi } from './harness';
 
 const video = (o: Partial<DraftVideo> = {}): DraftVideo => ({
   asset_id: '500',
@@ -241,6 +241,11 @@ describe('Cinema > Submit list', () => {
 
   it('adds episodes to a series that is already in the catalog', async () => {
     const log = useSubmitApi({ list: [] });
+    server.use(
+      http.get('*/api/v1/cinema/search', () =>
+        HttpResponse.json({ titles: [SHOW], people: [], genres: [], tags: [] }),
+      ),
+    );
     const user = userEvent.setup();
     renderAt('/cinema/submit');
     await user.click(await screen.findByRole('button', { name: 'New submission' }));
