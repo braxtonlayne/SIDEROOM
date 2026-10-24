@@ -156,34 +156,44 @@ pub fn normalize_origin(raw: &str) -> Result<String> {
     Ok(format!("{scheme}://{}", rest.to_ascii_lowercase()))
 }
 
-/// The `CORSConfiguration` document for `origins` (one rule, D-175).
+/// The `CORSConfiguration` document for `origins` (D-175): one rule per origin. Garage answers a preflight with
+/// the matching rule's `AllowedOrigin` values joined into one header, and a browser refuses an
+/// `Access-Control-Allow-Origin` that lists more than one origin, so a rule must never carry two.
 pub fn cors_xml(origins: &[String]) -> Result<String> {
     if origins.is_empty() {
         return Err(StorageError::Backend(
             "at least one origin is required".into(),
         ));
     }
-    let mut xml = String::from(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?><CORSConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><CORSRule>",
-    );
+    let mut normalized: Vec<String> = Vec::with_capacity(origins.len());
     for o in origins {
+        let n = normalize_origin(o)?;
+        if !normalized.contains(&n) {
+            normalized.push(n);
+        }
+    }
+    let mut xml = String::from(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?><CORSConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">",
+    );
+    for o in &normalized {
         xml.push_str(&format!(
-            "<AllowedOrigin>{}</AllowedOrigin>",
-            xml_escape(&normalize_origin(o)?)
+            "<CORSRule><AllowedOrigin>{}</AllowedOrigin>",
+            xml_escape(o)
+        ));
+        for m in CORS_METHODS {
+            xml.push_str(&format!("<AllowedMethod>{m}</AllowedMethod>"));
+        }
+        for h in CORS_ALLOWED_HEADERS {
+            xml.push_str(&format!("<AllowedHeader>{h}</AllowedHeader>"));
+        }
+        for h in CORS_EXPOSE_HEADERS {
+            xml.push_str(&format!("<ExposeHeader>{h}</ExposeHeader>"));
+        }
+        xml.push_str(&format!(
+            "<MaxAgeSeconds>{CORS_MAX_AGE_SECONDS}</MaxAgeSeconds></CORSRule>"
         ));
     }
-    for m in CORS_METHODS {
-        xml.push_str(&format!("<AllowedMethod>{m}</AllowedMethod>"));
-    }
-    for h in CORS_ALLOWED_HEADERS {
-        xml.push_str(&format!("<AllowedHeader>{h}</AllowedHeader>"));
-    }
-    for h in CORS_EXPOSE_HEADERS {
-        xml.push_str(&format!("<ExposeHeader>{h}</ExposeHeader>"));
-    }
-    xml.push_str(&format!(
-        "<MaxAgeSeconds>{CORS_MAX_AGE_SECONDS}</MaxAgeSeconds></CORSRule></CORSConfiguration>"
-    ));
+    xml.push_str("</CORSConfiguration>");
     Ok(xml)
 }
 
@@ -410,6 +420,24 @@ mod tests {
             cors_xml(&["https://chat.example.org/".into()]).unwrap()
         );
         assert!(cors_xml(&[]).is_err());
+    }
+
+    #[test]
+    fn each_origin_gets_its_own_rule() {
+        // Garage joins a rule's origins into one Access-Control-Allow-Origin header, which browsers refuse
+        // (the p22 composer run): every origin must be alone in its rule, and duplicates collapse.
+        let xml = cors_xml(&[
+            "http://localhost:5173".into(),
+            "http://localhost:8080".into(),
+            "http://localhost:5173/".into(),
+        ])
+        .unwrap();
+        assert_eq!(xml.matches("<CORSRule>").count(), 2);
+        for rule in xml.split("<CORSRule>").skip(1) {
+            assert_eq!(rule.matches("<AllowedOrigin>").count(), 1, "{rule}");
+            assert!(rule.contains("<AllowedMethod>PUT</AllowedMethod>"));
+            assert!(rule.contains("<ExposeHeader>ETag</ExposeHeader>"));
+        }
     }
 
     #[test]
