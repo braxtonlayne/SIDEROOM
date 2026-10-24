@@ -431,7 +431,9 @@ pub fn sprite_step(plan: &JobPlan, ctx: &BuildCtx) -> Result<Step, BuildError> {
     if plan.video.deinterlace {
         f.push("yadif=mode=send_frame:parity=auto:deint=all".to_string());
     }
-    f.push(format!("fps=1/{}", sp.interval_secs));
+    // `eof_action=pass`: a source shorter than half an interval still gets its frame at 0 s (with the default
+    // rounding the fps filter made none for the 4 s clips of media.yml, so no sheet was written).
+    f.push(format!("fps=1/{}:eof_action=pass", sp.interval_secs));
     f.push(format!(
         "scale={}:{}:flags=bilinear",
         sp.thumb_width, sp.thumb_height
@@ -962,7 +964,10 @@ pub(crate) mod tests {
         let s = sprite_step(&plan, &c).unwrap();
         assert!(has_seq(
             &s.args,
-            &["-vf", "fps=1/10,scale=160:90:flags=bilinear,tile=10x10"]
+            &[
+                "-vf",
+                "fps=1/10:eof_action=pass,scale=160:90:flags=bilinear,tile=10x10"
+            ]
         ));
         assert_eq!(
             s.args.last().unwrap(),

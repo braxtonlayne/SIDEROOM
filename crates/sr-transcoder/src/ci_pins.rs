@@ -114,7 +114,7 @@ fn ci_source_step_list_and_argument_shape() {
     // 20 s at one frame per 10 s, 10 x 10 tiles of 160 x 90 in one sheet.
     let sprite = steps[4].args.join(" ");
     assert!(
-        sprite.contains("-vf fps=1/10,scale=160:90:flags=bilinear,tile=10x10"),
+        sprite.contains("-vf fps=1/10:eof_action=pass,scale=160:90:flags=bilinear,tile=10x10"),
         "{sprite}"
     );
     assert!(
@@ -236,4 +236,56 @@ fn ci_source_plan_does_not_depend_on_optional_ffprobe_fields() {
         assert_eq!(plan.audio, reference.audio);
         assert_eq!(plan.subtitles, reference.subtitles);
     }
+}
+
+/// The resilience stage's 4 s clips (640x360; the container says 4.021 s because of AAC priming). On
+/// f1e89b77 every ladder failed with "expected 1 sprite sheets, found 0": `fps=1/10` rounds the end of a 4 s
+/// stream to output frame 0, so it made no frame and `tile` wrote no sheet. `eof_action=pass` keeps the
+/// frame at 0 s, and the plan asks for exactly that one thumbnail.
+#[test]
+fn ci_short_clip_plans_one_thumbnail_and_the_sprite_step_keeps_it() {
+    let json = CI_SOURCE
+        .replace(
+            "\"width\":1280,\"height\":720",
+            "\"width\":640,\"height\":360",
+        )
+        .replace("\"duration\":\"20.000000\"", "\"duration\":\"4.021000\"");
+    let probe = parse_ffprobe_json(json.as_bytes()).expect("the short clip probe parses");
+    let plan = plan_ladder_job(&probe, &TranscodeSettings::default()).unwrap();
+    assert_eq!(
+        (plan.sprite.thumbs_total, plan.sprite.sheets),
+        (1, 1),
+        "{:?}",
+        plan.sprite
+    );
+    let caps = caps();
+    let out = PathBuf::from("/work/j/out");
+    let ctx = BuildCtx {
+        input: "/work/j/in/source.mkv",
+        out_dir: &out,
+        encoder: Encoder::Libx264,
+        caps: &caps,
+        duration_secs: 4.021,
+    };
+    let steps = ladder_steps(&plan, &ctx).unwrap();
+    let sprite = steps
+        .iter()
+        .find(|s| s.kind == StepKind::Sprites)
+        .expect("a sprite step")
+        .args
+        .join(" ");
+    assert!(
+        sprite.contains("-vf fps=1/10:eof_action=pass,scale=160:90:flags=bilinear,tile=10x10"),
+        "{sprite}"
+    );
+    assert!(sprite.contains("-fps_mode vfr"), "{sprite}");
+    // The 20 s source: a frame at 0 s and at 10 s, two cues, even though the container says 20.021 s.
+    let json = CI_SOURCE.replace("\"duration\":\"20.000000\"", "\"duration\":\"20.021000\"");
+    let probe = parse_ffprobe_json(json.as_bytes()).unwrap();
+    let plan = plan_ladder_job(&probe, &TranscodeSettings::default()).unwrap();
+    assert_eq!(plan.sprite.thumbs_total, 2);
+    let vtt =
+        sr_media::subtitles::sprite_vtt(&plan.sprite, 20.021, &|n| format!("sheet-{n:03}.jpg"));
+    assert_eq!(vtt.matches(" --> ").count(), 2, "{vtt}");
+    assert!(vtt.contains("00:00:10.000 --> 00:00:20.021"), "{vtt}");
 }
