@@ -450,6 +450,76 @@ describe('Cinema > Submit draft', () => {
     expect(await screen.findByRole('region', { name: 'Uploads' })).toBeInTheDocument();
   });
 
+  it('shows the episode a picked file creates once its upload has begun (e2e live job)', async () => {
+    // The server creates the draft episode when the upload slot opens, which happens after the picker has
+    // already asked for a refresh: the draft must be fetched again when the upload starts.
+    let begun = false;
+    useSubmitApi({ draft: draft([]) });
+    server.use(
+      http.get('*/api/v1/submissions/:id/cinema/draft', () =>
+        HttpResponse.json(draft(begun ? [{ ...row(1, null), label: 'S01E01 Pilot' }] : [], {})),
+      ),
+      http.post('*/api/v1/submissions/naming/parse', async ({ request }) => {
+        const b = (await request.json()) as { section: string; names: string[] };
+        return HttpResponse.json({
+          items: b.names.map((name) => ({
+            name,
+            library: null,
+            cinema: {
+              role: 'video',
+              title: 'Night Shift',
+              year: null,
+              season: 1,
+              episodes: [1],
+              episode_title: 'Pilot',
+              variant: null,
+              language: null,
+              warnings: [],
+            },
+          })),
+        });
+      }),
+    );
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    setCinemaUploadManager(
+      new UploadManager(
+        {
+          ...cinemaUploadApi,
+          async begin() {
+            // The slot opens after the draft was fetched for the picker's refresh.
+            await new Promise((r) => setTimeout(r, 50));
+            begun = true;
+            return {
+              upload: { id: 'a1' },
+              multipart: {
+                part_size: 4,
+                part_count: 1,
+                parts: [{ part_number: 1, url: 'https://s.test/p1' }],
+              },
+            } as never;
+          },
+          complete: async () => ({}) as never,
+        },
+        new MemoryLedger(),
+        // The part stays in flight: only the start of the upload can bring the row in.
+        { put: () => held },
+      ),
+    );
+    const user = userEvent.setup();
+    renderAt('/cinema/submit/1');
+    fireEvent.change(await screen.findByLabelText('Video files'), {
+      target: {
+        files: [new File(['0123'], 'Night Shift - s01e01 - Pilot.mp4', { type: 'video/mp4' })],
+      },
+    });
+    const proposal = await screen.findByRole('region', { name: 'How your files were read' });
+    await user.click(within(proposal).getByRole('button', { name: /Upload 1 video/ }));
+    const list = await screen.findByRole('list', { name: 'Videos of this submission' });
+    expect(within(list).getByText(/S01E01 Pilot/)).toBeInTheDocument();
+    release();
+  });
+
   it('does not send two files to the same episode', async () => {
     useSubmitApi({ draft: draft([]) });
     server.use(

@@ -15,7 +15,7 @@ import {
 } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import * as rv from '../../review/api';
 import { errorMessages } from '../../review/api';
@@ -135,6 +135,27 @@ export function CinemaDraftPage({ id }: { id: string }) {
       return busy ? 4000 : false;
     },
   });
+  // A picked file's episode is created when its upload slot opens (POST .../cinema/files), which is after the
+  // picker handed the file to the manager and asked for a refresh; the draft fetched then had no row for it and
+  // nothing fetched it again (the e2e live job: no "S01E01 Pilot" row). So the draft is fetched again whenever
+  // one of this submission's uploads appears or changes state (started, failed, done), not on every part.
+  useEffect(() => {
+    const manager = getCinemaUploadManager();
+    const states = () =>
+      manager
+        .snapshot()
+        .filter((u) => u.submissionId === id)
+        .map((u) => `${u.id}:${u.state}`)
+        .join(',');
+    let last = states();
+    return manager.subscribe(() => {
+      const now = states();
+      if (now === last) return;
+      last = now;
+      void qc.invalidateQueries({ queryKey: key.draft(id) });
+      void qc.invalidateQueries({ queryKey: key.detail(id) });
+    });
+  }, [id, qc]);
   const [confirm, setConfirm] = useState(false);
   const put = (d: Awaited<ReturnType<typeof rv.submit>>) => {
     qc.setQueryData(key.detail(id), d);
