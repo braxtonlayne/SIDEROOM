@@ -108,6 +108,20 @@ test('chat multipart: abort, reload resume and a server restart, ledger equals L
   test.skip(browserName !== 'chromium', 'CDP network throttling is Chromium only.');
   const S3 = s3FromEnv();
   const sha = expectedSha();
+  const appOrigin = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173').origin;
+
+  // The page PUTs the parts straight to the bucket, so the bucket must allow the app origin (D-175; the
+  // e2e-stack action runs `sr-cli storage ensure-cors`). Asked from Node: Playwright answers the preflight of a
+  // routed request itself, so in the page a missing rule only shows as a part that S3 holds and the composer
+  // never counted (the first CI run: "ledger= s3=1").
+  const preflight = await fetch(`${S3.endpoint}/${S3.bucket}/cors-probe`, {
+    method: 'OPTIONS',
+    headers: { Origin: appOrigin, 'Access-Control-Request-Method': 'PUT' },
+  });
+  expect(
+    [appOrigin, '*'],
+    `the bucket has a CORS rule for ${appOrigin} (sr-cli storage ensure-cors)`,
+  ).toContain(preflight.headers.get('access-control-allow-origin'));
 
   // --- A user with the 500 MiB Patron upload limit (granted before the first limit lookup), a server, a channel.
   const req = await playwright.request.newContext({
