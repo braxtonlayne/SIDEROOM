@@ -61,6 +61,7 @@ export const NAV: NavItem[] = [
   { href: '/cinema/anime', label: 'cinema.shell.navAnime', mark: 'sparkle', anime: true },
   { href: '/cinema/tv', label: 'cinema.shell.navLiveTv', mark: 'dot' },
   { href: '/cinema/my-list', label: 'cinema.shell.navMyList' },
+  { href: '/cinema/submit', label: 'cinema.submit.nav' },
 ];
 
 const isActive = (path: string, i: NavItem) =>
@@ -106,9 +107,9 @@ function AvatarMenu() {
     { label: t('cinema.shell.profile'), onSelect: () => openSettings() },
     {
       label: t('cinema.shell.myUploads'),
-      onSelect: () => void navigate({ to: '/library/submissions' }),
+      onSelect: () => void navigate({ to: '/cinema/submit' }),
     },
-    { label: t('cinema.shell.upload'), onSelect: () => void navigate({ to: '/library/upload' }) },
+    { label: t('cinema.shell.upload'), onSelect: () => void navigate({ to: '/cinema/submit' }) },
     {
       label: t('cinema.shell.requests'),
       onSelect: () => void navigate({ to: '/library/requests' }),
