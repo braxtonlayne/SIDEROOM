@@ -298,8 +298,10 @@ test.describe('with a real ffmpeg', () => {
       await apiPost(staff.context.request, `/admin/review/submissions/${id}/claim`, {
         takeover: false,
       });
-      await staff.page.goto('/admin/review');
-      await staff.page.getByText(name).first().click();
+      // Submissions of every kind are reviewed in the hub's submissions panel (the "Library" tab); the Cinema
+      // tab is the report queue. ?submission= is the link staff cards use (G-68) and opens that panel.
+      await staff.page.goto(`/admin/review?submission=${id}`);
+      await expect(staff.page.getByText(name).first()).toBeVisible({ timeout: 30_000 });
       await expect(staff.page.getByRole('heading', { name: 'Review proxy' })).toBeVisible();
       await expect(staff.page.locator('video').first()).toHaveAttribute('src', /\/cdn\//);
     } finally {
