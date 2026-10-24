@@ -3,6 +3,8 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  parseSearchWith,
+  stringifySearchWith,
   useRouterState,
   type RouterHistory,
 } from '@tanstack/react-router';
@@ -133,12 +135,32 @@ function NotFoundPage() {
   return <p>{t('app.router.notFound')}</p>;
 }
 
+/**
+ * Search values are JSON-parsed like the router's default, except integers a JS number cannot hold exactly:
+ * a snowflake such as `?submission=107586859906891776` stays a string. The default turned it into a number and
+ * rounded it (…891780), so staff card links (G-68) opened a submission that does not exist.
+ */
+const isUnsafeInteger = (raw: string) => /^-?\d+$/.test(raw) && !Number.isSafeInteger(Number(raw));
+
+export function parseSearchValue(raw: string): unknown {
+  if (isUnsafeInteger(raw)) return raw;
+  return JSON.parse(raw);
+}
+
+/** The inverse: such an id is written back as bare digits, not as a quoted JSON string. */
+export function stringifySearchValue(value: unknown): string {
+  if (typeof value === 'string' && isUnsafeInteger(value)) return value;
+  return JSON.stringify(value);
+}
+
 export const createAppRouter = (history?: RouterHistory) =>
   createRouter({
     routeTree,
     history,
     pathParamsAllowedCharacters: ['@'],
     defaultNotFoundComponent: NotFoundPage,
+    parseSearch: parseSearchWith(parseSearchValue),
+    stringifySearch: stringifySearchWith(stringifySearchValue, parseSearchValue),
   });
 
 declare module '@tanstack/react-router' {
