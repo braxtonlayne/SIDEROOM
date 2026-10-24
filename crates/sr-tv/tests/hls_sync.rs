@@ -234,6 +234,19 @@ fn asset_with(id: i64, n: usize, seg_secs: f64) -> PlaybackAsset {
     a
 }
 
+/// The asset's audio renditions end in a 21 ms sliver segment the video does not have, as ffmpeg cuts an AAC
+/// track that runs past the video by its encoder priming.
+fn with_audio_sliver(a: &mut PlaybackAsset) {
+    for au in &mut a.media.audios {
+        let dir = au.playlist_path.rsplit_once('/').unwrap().0.to_owned();
+        let k = au.segments.len();
+        au.segments.push(Segment {
+            path: format!("{dir}/seg_{k:05}.m4s"),
+            duration_secs: 0.021,
+        });
+    }
+}
+
 /// One entry of a parsed playlist: (sequence, discontinuity counter, asset id, segment file).
 type Seg = (i64, i64, String, String);
 
@@ -275,7 +288,12 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
         }
         // The slate: 2..=5 segments of 1, 2, 2.5 or 4 s, whatever the programmes use.
         let slate_secs = [1.0, 2.0, 2.5, 4.0][rng.range(0, 3) as usize];
-        let slate = asset_with(slate_id, rng.range(2, 5) as usize, slate_secs);
+        let mut slate = asset_with(slate_id, rng.range(2, 5) as usize, slate_secs);
+        // As ffmpeg cuts a real slate: the AAC track runs 21 ms past the video (encoder priming), so its
+        // rendition ends in a sliver segment the video does not have (CI run of f1e89b77).
+        if rng.range(0, 1) == 0 {
+            with_audio_sliver(&mut slate);
+        }
         let seg_ms = (slate_secs * 1000.0) as i64;
         let n_slate = slate.media.videos[0].segments.len() as i64;
         let cycle_ms = seg_ms * n_slate;
@@ -303,6 +321,9 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
             let n = ((len + offset) as f64 / (seg * 1000.0)).ceil() as usize + 2;
             let mut b = block(id, cursor, cursor + len, 0, 0, n);
             b.asset = asset_with(id * 100, n, seg);
+            if rng.range(0, 2) == 0 {
+                with_audio_sliver(&mut b.asset);
+            }
             b.block.offset_ms = offset;
             b.block.seq_base = None;
             b.block.disc_base = None;
@@ -316,7 +337,9 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
             cursor += len;
         }
         let t_end = cursor + 60_000;
-        for track in [Track::Video(720), Track::Video(480), Track::Audio] {
+        // Every track is asked at the same moments, so the tracks can be compared with each other.
+        const TRACKS: [Track; 3] = [Track::Video(720), Track::Video(480), Track::Audio];
+        {
             // The channel as the service keeps it: bases per block, assigned when first viewed (and the block
             // before a viewed one, when contiguous), and the chain anchor.
             let mut live = proto.clone();
@@ -371,10 +394,13 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
                     }
                     go(live, anchor, &slate, i, &gone, t);
                 };
-            // Every number maps to one segment and one discontinuity counter, whoever asks and when.
-            let mut seen: HashMap<i64, (i64, String, String)> = HashMap::new();
-            let (mut last_head, mut last_disc, mut last_edge) = (i64::MIN, i64::MIN, i64::MIN);
-            let mut last_text = String::new();
+            // Every number maps to one segment and one discontinuity counter, whoever asks and when (per track).
+            let mut seen: [HashMap<i64, (i64, String, String)>; 3] = Default::default();
+            let mut last = [(i64::MIN, i64::MIN, i64::MIN); 3];
+            let mut last_text: [String; 3] = Default::default();
+            // Across the tracks: a number names the same segment of the same asset on the video and the audio
+            // playlists (the player keeps them in step by number), whoever asks and when.
+            let mut across: HashMap<i64, (i64, String, String)> = HashMap::new();
             let mut t = t0 - 5_000;
             while t < t_end {
                 // Long gaps: look at their start and their end, not at the middle.
@@ -400,7 +426,7 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
                     t += rng.range(400, 3_500);
                     continue;
                 }
-                let (text, expect): (String, (String, String)) = match playable {
+                let rendered: Vec<(String, (String, String))> = match playable {
                     Some(c) => {
                         assign(&mut live, &mut anchor, c, t);
                         let mut blocks = Vec::new();
@@ -438,13 +464,25 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
                             asset: &slate,
                             chain: Some(chain),
                         };
-                        let text = render_media_with_lead(&blocks, track, t, Some(&lead), &Sig, 0)
-                            .unwrap();
                         let b = &live[c];
                         let bseg =
                             (b.asset.media.videos[0].segments[0].duration_secs * 1000.0) as i64;
                         let k = (t - b.block.start_ms + b.block.offset_ms) / bseg;
-                        (text, (b.asset.id.to_string(), format!("seg_{k:05}.m4s")))
+                        TRACKS
+                            .iter()
+                            .map(|track| {
+                                let text = render_media_with_lead(
+                                    &blocks,
+                                    *track,
+                                    t,
+                                    Some(&lead),
+                                    &Sig,
+                                    0,
+                                )
+                                .unwrap();
+                                (text, (b.asset.id.to_string(), format!("seg_{k:05}.m4s")))
+                            })
+                            .collect()
                     }
                     None => {
                         // The slate counts on from the stored anchor; one in the future (its programme was cut
@@ -466,57 +504,147 @@ fn random_schedules_with_a_slate_never_move_the_sequence_backwards() {
                                 .then(|| live[i].clone())
                         });
                         let chain = anchor.map(|a| SlateChain::from_anchor(&a, tail.as_ref()));
-                        let text =
-                            render_slate_media(&slate, track, t, chain.as_ref(), &Sig, 0).unwrap();
                         let g = (t % cycle_ms) / seg_ms;
                         assert!(g < n_slate);
-                        (text, (slate_id.to_string(), format!("seg_{g:05}.m4s")))
+                        TRACKS
+                            .iter()
+                            .map(|track| {
+                                let text =
+                                    render_slate_media(&slate, *track, t, chain.as_ref(), &Sig, 0)
+                                        .unwrap();
+                                (text, (slate_id.to_string(), format!("seg_{g:05}.m4s")))
+                            })
+                            .collect()
                     }
                 };
-                let es = entries(&text);
-                let ctx = format!("case {case} {track:?} t0+{} ms", t - t0);
-                // The window always holds the segment on air, last.
-                let tail = es.last().unwrap();
-                assert_eq!((tail.2.clone(), tail.3.clone()), expect, "{ctx}\n{text}");
-                // Neither counter nor the live edge ever decreases between two reloads.
-                let (head, disc, edge) = (es[0].0, es[0].1, es.last().unwrap().0);
-                assert!(
-                    head >= last_head,
-                    "{ctx}: media sequence {head} < {last_head}
+                let mut edges = Vec::new();
+                for (ti, (track, (text, expect))) in TRACKS.iter().zip(rendered).enumerate() {
+                    let (last_head, last_disc, last_edge) = last[ti];
+                    let seen = &mut seen[ti];
+                    let prev_text = last_text[ti].clone();
+                    let es = entries(&text);
+                    let ctx = format!("case {case} {track:?} t0+{} ms", t - t0);
+                    // The window always holds the segment on air, last.
+                    let tail = es.last().unwrap();
+                    assert_eq!((tail.2.clone(), tail.3.clone()), expect, "{ctx}\n{text}");
+                    // Neither counter nor the live edge ever decreases between two reloads.
+                    let (head, disc, edge) = (es[0].0, es[0].1, es.last().unwrap().0);
+                    assert!(
+                        head >= last_head,
+                        "{ctx}: media sequence {head} < {last_head}
 {text}
 PREVIOUS:
-{last_text}
+{prev_text}
 ANCHOR {anchor:?}
 BLOCKS {:?}
 GONE {gone_at:?} UNVIEWED {unviewed:?}",
-                    live.iter()
-                        .map(|b| (
-                            b.block.id,
-                            b.block.start_ms - t0,
-                            b.block.end_ms - t0,
-                            b.block.seq_base,
-                            b.block.disc_base
-                        ))
-                        .collect::<Vec<_>>()
-                );
-                assert!(
-                    disc >= last_disc,
-                    "{ctx}: discontinuity sequence {disc} < {last_disc}"
-                );
-                assert!(edge >= last_edge, "{ctx}: live edge {edge} < {last_edge}");
-                // A number is one segment with one counter, for every client.
-                for (s, d, a, f) in es {
-                    let prev = seen.entry(s).or_insert((d, a.clone(), f.clone()));
-                    assert_eq!(
-                        *prev,
-                        (d, a, f),
-                        "{ctx}: sequence {s} changed meaning\n{text}"
+                        live.iter()
+                            .map(|b| (
+                                b.block.id,
+                                b.block.start_ms - t0,
+                                b.block.end_ms - t0,
+                                b.block.seq_base,
+                                b.block.disc_base
+                            ))
+                            .collect::<Vec<_>>()
                     );
+                    assert!(
+                        disc >= last_disc,
+                        "{ctx}: discontinuity sequence {disc} < {last_disc}"
+                    );
+                    assert!(edge >= last_edge, "{ctx}: live edge {edge} < {last_edge}");
+                    // A number is one segment with one counter, for every client, and the same on every track.
+                    for (s, d, a, f) in es {
+                        let prev = seen.entry(s).or_insert((d, a.clone(), f.clone()));
+                        assert_eq!(
+                            *prev,
+                            (d, a.clone(), f.clone()),
+                            "{ctx}: sequence {s} changed meaning\n{text}"
+                        );
+                        let other = across.entry(s).or_insert((d, a.clone(), f.clone()));
+                        assert_eq!(
+                            *other,
+                            (d, a, f),
+                            "{ctx}: sequence {s} names another segment on another track\n{text}"
+                        );
+                    }
+                    last[ti] = (head, disc, edge);
+                    last_text[ti] = text;
+                    edges.push(edge);
                 }
-                (last_head, last_disc, last_edge) = (head, disc, edge);
-                last_text = text.clone();
+                // Audio and video agree on the number on air.
+                let (lo, hi) = (edges.iter().min().unwrap(), edges.iter().max().unwrap());
+                assert!(
+                    hi - lo <= 1,
+                    "case {case} t0+{} ms: live edges {edges:?} of {TRACKS:?}",
+                    t - t0
+                );
                 t += rng.range(400, 3_500);
             }
         }
+    }
+}
+
+/// The CI run of f1e89b77: a 12 s slate made by `sr-cli tv slate` has video segments of 6 + 6 s, and its AAC
+/// track is cut 6 + 6 + 0.021 s. The audio loop used its own segment count and cycle, so with no programme
+/// before it the audio playlist was numbered 447024435 while the video said 298811000.
+#[test]
+fn a_slate_whose_audio_ends_in_a_sliver_has_the_numbers_of_its_video() {
+    let mut slate = asset_with(9999, 2, 6.0);
+    with_audio_sliver(&mut slate);
+    let t0 = 1_792_887_000_000_i64;
+    for chain in [
+        None,
+        Some(SlateChain::after(&block(1, 0, t0 - 30_000, 70, 3, 1000)).unwrap()),
+    ] {
+        let mut t = t0;
+        while t < t0 + 120_000 {
+            let v =
+                render_slate_media(&slate, Track::Video(720), t, chain.as_ref(), &Sig, 0).unwrap();
+            let a = render_slate_media(&slate, Track::Audio, t, chain.as_ref(), &Sig, 0).unwrap();
+            let (ev, ea) = (entries(&v), entries(&a));
+            assert_eq!(live_edge(&v), live_edge(&a), "at {t}\n{v}\n{a}");
+            // Same numbers, same counters, same segment files; the sliver is never listed.
+            let key = |e: &Vec<Seg>| {
+                e.iter()
+                    .map(|s| (s.0, s.1, s.3.clone()))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(key(&ev), key(&ea), "at {t}\n{v}\n{a}");
+            assert!(!a.contains("seg_00002.m4s"), "{a}");
+            t += 700;
+        }
+    }
+}
+
+/// A programme whose asset has the same sliver on its audio, aired to its last millisecond and followed by
+/// the slate: the audio never lists a segment the chain did not count, so the slate's first number is not
+/// given twice.
+#[test]
+fn a_programme_whose_audio_ends_in_a_sliver_hands_the_slate_the_same_numbers_on_every_track() {
+    let mut b = block(1, 0, 12_021, 500, 2, 2);
+    with_audio_sliver(&mut b.asset);
+    let slate = asset_with(9999, 2, 6.0);
+    let chain = SlateChain::after(&b).unwrap();
+    let blocks = [b.clone()];
+    let mut across: HashMap<i64, (i64, String, String)> = HashMap::new();
+    let mut t = 0;
+    while t < 60_000 {
+        for track in [Track::Video(720), Track::Audio] {
+            let text = if t < 12_021 {
+                render_media(&blocks, track, t, &Sig, 0).unwrap()
+            } else {
+                render_slate_media(&slate, track, t, Some(&chain), &Sig, 0).unwrap()
+            };
+            for (s, d, a, f) in entries(&text) {
+                let prev = across.entry(s).or_insert((d, a.clone(), f.clone()));
+                assert_eq!(
+                    *prev,
+                    (d, a, f),
+                    "{track:?} at {t}: {s} changed meaning\n{text}"
+                );
+            }
+        }
+        t += 7;
     }
 }
