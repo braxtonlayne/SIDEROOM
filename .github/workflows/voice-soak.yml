@@ -1,0 +1,96 @@
+name: Voice soak
+
+# RDY-VOX-002: N Chromium contexts in one E2EE voice channel for D minutes, each muting, unmuting, turning the
+# camera on and off and reconnecting once (e2e/tests/voice-soak.spec.ts). Dispatch only: it competes for CPU and
+# its pass criterion is "no failure", not latency. The defaults are the wave-22 gate (ten members, ten minutes);
+# the phase 2 gate (ten people, two hours) is this workflow with minutes=120. Nothing here pushes or commits.
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: Chromium contexts (members) in the voice channel
+        default: "10"
+        type: string
+      minutes:
+        description: How long the soak runs after everyone has joined (minutes, may be fractional)
+        default: "10"
+        type: string
+      max_drop_ratio:
+        description: Largest tolerated share of dropped E2EE frames per member (0.02 = 2 percent)
+        default: "0.02"
+        type: string
+
+concurrency:
+  group: voice-soak-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(inputs.minutes) * 1 + 60 }}
+    env:
+      SR_VOICE__ENABLED: "true"
+      # Voice E2EE is on by default (D-249); stated here so the soak never silently runs in the clear.
+      SR_VOICE__E2EE: "true"
+      SR_ADMIN_REQUIRE_REAUTH: "0"
+      SR_E2E_VOICE: "1"
+      SR_E2E_SOAK: "1"
+      SOAK_COUNT: ${{ inputs.count }}
+      SOAK_MINUTES: ${{ inputs.minutes }}
+      SOAK_MAX_DROP_RATIO: ${{ inputs.max_drop_ratio }}
+      SR_LOG__FILTER: "info,sr_voice=debug"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-stack
+      - name: Install the browser
+        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      - name: Start sr-server
+        run: |
+          ./target/debug/sr-cli migrate
+          set -a; . deploy/compose/.env.example; set +a
+          export SR_SERVER__PUBLIC_URL=http://localhost:5173
+          export SR_STORAGE__ENDPOINT=http://127.0.0.1:3900
+          export SR_STORAGE__REGION=garage
+          export SR_STORAGE__BUCKET="$GARAGE_BUCKET"
+          export SR_STORAGE__ACCESS_KEY="$GARAGE_ACCESS_KEY"
+          export SR_STORAGE__SECRET_KEY="$GARAGE_SECRET_KEY"
+          nohup ./target/debug/sr-server > server.log 2>&1 &
+          echo "$!" > sr-server.pid
+          timeout 60 bash -c 'until curl -fs http://127.0.0.1:8080/readyz >/dev/null; do sleep 1; done' || {
+            cat server.log
+            exit 1
+          }
+          echo "sr-server pid $(cat sr-server.pid)"
+      - name: Soak (${{ inputs.count }} members, ${{ inputs.minutes }} minutes)
+        run: pnpm --filter @sideroom/e2e exec playwright test --project=chromium tests/voice-soak.spec.ts --retries=0 --reporter=list,html
+        env:
+          CI: "true"
+      # No SFU restart: the process the soak started is still the one answering, and it did not panic.
+      - name: The SFU was not restarted
+        if: always()
+        run: |
+          pid="$(cat sr-server.pid)"
+          if ! kill -0 "$pid" 2>/dev/null; then echo "sr-server (pid $pid) is gone"; exit 1; fi
+          curl -fs http://127.0.0.1:8080/readyz >/dev/null
+          if grep -Ei 'panicked|thread .* panicked' server.log; then echo "sr-server panicked"; exit 1; fi
+          echo "sr-server pid $pid is still running, readyz ok, no panic in server.log"
+      - name: Stop sr-server
+        if: always()
+        run: kill "$(cat sr-server.pid)" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voice-soak
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            server.log
+          if-no-files-found: ignore
