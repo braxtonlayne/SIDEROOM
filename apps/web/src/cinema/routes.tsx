@@ -10,6 +10,8 @@ const CinemaRoot = lazyNamed(() => import('./CinemaRoot'), 'CinemaRoot');
 const Browse = lazyNamed(() => import('./Browse'), 'Browse');
 const Discover = lazyNamed(() => import('./Discover'), 'Discover');
 const TitlePage = lazyNamed(() => import('./TitlePage'), 'TitlePage');
+const SubmitPage = lazyNamed(() => import('./submit/SubmitPage'), 'CinemaSubmitPage');
+const DraftPage = lazyNamed(() => import('./submit/DraftPage'), 'CinemaDraftPage');
 
 /**
  * Cinema routes (spec cinema-media section 2):
@@ -17,6 +19,7 @@ const TitlePage = lazyNamed(() => import('./TitlePage'), 'TitlePage');
  *   /cinema/movies|series|anime   Browse (filters live in the search string)
  *   /cinema/t/:id           Title detail
  *   /cinema/search?q=       Search results
+ *   /cinema/submit          My video submissions;  /cinema/submit/:submissionId  one submission (RDY-MED-002)
  * Not here (other agents): /cinema/watch/:id and /cinema/my-list (player agent). To add one, create the route
  * in its own file and append it to the `addChildren` list below; keep each child definition self-contained.
  * The player route renders without the section chrome: see CinemaRoot (`isPlayer`).
@@ -59,6 +62,27 @@ export function createCinemaRoutes(root: AnyRoute) {
   });
   // ---- end browse-agent routes ----
 
+  // ---- member video submissions (RDY-MED-002) ----
+  const submit = createRoute({
+    getParentRoute: () => layout,
+    path: 'submit',
+    // D-367: the avatar menu's "Upload" opens the list with the new-submission form open (?new=1).
+    validateSearch: (s: Record<string, unknown>): { new?: 1 } =>
+      s.new === 1 || s.new === '1' ? { new: 1 } : {},
+    component: function SubmitRoute() {
+      return <SubmitPage startCreating={submit.useSearch().new === 1} />;
+    },
+  });
+  const submission = createRoute({
+    getParentRoute: () => layout,
+    path: 'submit/$submissionId',
+    component: function SubmissionRoute() {
+      const { submissionId } = submission.useParams();
+      return <DraftPage key={submissionId} id={submissionId} />;
+    },
+  });
+  // ---- end member video submissions ----
+
   return layout.addChildren([
     index,
     browse('movies'),
@@ -66,6 +90,8 @@ export function createCinemaRoutes(root: AnyRoute) {
     browse('anime'),
     search,
     title,
+    submit,
+    submission,
     ...createPlayerRoutes(layout),
     ...createTvRoutes(layout),
     ...createWatchPartyRoutes(layout),

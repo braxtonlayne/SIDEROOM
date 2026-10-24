@@ -17,3 +17,6 @@ coverage/
 deploy/compose/garage/garage.prod.toml
 deploy/compose/coturn/turnserver.prod.conf
 e2e/test-results/
+
+# deploy/scripts/media-smoke.mjs scratch (worker token, logs, generated media)
+/media-smoke-work/

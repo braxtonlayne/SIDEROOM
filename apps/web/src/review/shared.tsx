@@ -4,7 +4,13 @@ import { Badge, type BadgeVariant } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { formatDateTime, t, type MessageKey, useT } from '../i18n';
 import { onDispatch } from '../store/events';
-import type { ItemState, LibraryPreview, SubmissionEvent, SubmissionState } from './types';
+import type {
+  CinemaPreview,
+  ItemState,
+  LibraryPreview,
+  SubmissionEvent,
+  SubmissionState,
+} from './types';
 import './review.css';
 
 // Getters, so the text is resolved when it is read (the locale is not known at module load).
@@ -192,6 +198,66 @@ export function seriesFacts(p: LibraryPreview['series']): [string, string][] {
     ],
     [t('review.shared.factSynopsis'), p.synopsis || t('review.shared.none')],
   ];
+}
+
+/** The Cinema counterpart of {@link PreviewFacts}: title details and the episodes this submission carries. */
+export function CinemaPreviewFacts({ preview }: { preview: CinemaPreview }) {
+  const t = useT();
+  const f = preview.title;
+  const rows: [string, string][] = [
+    [t('review.cinema.kind'), f.kind],
+    [t('review.cinema.title'), f.title],
+    ...(f.original_title
+      ? [[t('review.cinema.originalTitle'), f.original_title] as [string, string]]
+      : []),
+    ...(f.year ? [[t('review.cinema.year'), String(f.year)] as [string, string]] : []),
+    ...(f.runtime_min
+      ? [
+          [
+            t('review.cinema.runtime'),
+            t('review.cinema.runtimeMin', { minutes: f.runtime_min }),
+          ] as [string, string],
+        ]
+      : []),
+    ...(f.content_rating
+      ? [[t('review.cinema.rating'), f.content_rating] as [string, string]]
+      : []),
+    ...(f.genres?.length
+      ? [[t('review.cinema.genres'), f.genres.join(', ')] as [string, string]]
+      : []),
+    ...(f.languages?.length
+      ? [[t('review.cinema.languages'), f.languages.join(', ')] as [string, string]]
+      : []),
+    ...(f.synopsis ? [[t('review.cinema.synopsis'), f.synopsis] as [string, string]] : []),
+  ];
+  return (
+    <>
+      <dl className="rv-kv" aria-label={t('review.cinema.facts')}>
+        {rows.map(([k, v]) => (
+          <div key={k} className="rv-kv-row">
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="rv-muted">
+        {preview.new_title
+          ? t('review.cinema.newTitle')
+          : t('review.cinema.existingEpisodes', { count: preview.existing_episodes })}
+      </p>
+      {preview.episodes.length > 0 && (
+        <ul aria-label={t('review.cinema.episodes')}>
+          {preview.episodes.map((e) => (
+            <li key={e.id}>
+              {t('review.cinema.episode', { season: e.season, number: e.number })}
+              {e.title ? ` ${e.title}` : ''} (
+              {e.has_asset ? t('review.cinema.hasVideo') : t('review.cinema.noVideo')})
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
 }
 
 export function PreviewFacts({ preview }: { preview: LibraryPreview }) {

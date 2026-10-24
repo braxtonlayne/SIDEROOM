@@ -51,7 +51,8 @@ jobs:
   live:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 75: the cinema step installs ffmpeg, builds sr-transcoder and waits for a CPU proxy and ladder (RDY-MED-002).
+    timeout-minutes: 75
     env:
       SR_VOICE__ENABLED: "true"
       # Voice E2EE is on by default in sr-server and the web build (D-249), so the first step runs voice and Activities
@@ -127,6 +128,64 @@ jobs:
         env:
           CI: "true"
           SR_VOICE__E2EE: "true"
+      # RDY-VOX-001: voice through a TURN relay. coturn runs the PRODUCTION template (turnserver.prod.conf.example,
+      # rendered by deploy/compose/coturn/render-test-conf.sh) on the host network; sr-server hands out REST credentials
+      # derived from the same secret (voice.turn.secret) and the browsers are forced to `iceTransportPolicy: 'relay'`.
+      # The spec proves the relay with the selected candidate pair type in getStats. The dev `coturn` service of the
+      # preflight step below uses the same port, so this one is removed again at the end.
+      - name: Voice through TURN relay (Chromium)
+        if: always()
+        run: |
+          ip="$(node scripts/ice-announce.mjs | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8"))[0]')"
+          secret="$(openssl rand -hex 16)"
+          ./deploy/compose/coturn/render-test-conf.sh "$ip" "$secret"
+          docker compose -f deploy/compose/dev.yml --profile relay up -d coturn-relay
+          sleep 3
+          docker compose -f deploy/compose/dev.yml --profile relay logs coturn-relay | tail -20
+          export SR_VOICE__ANNOUNCE_IPS="[\"$ip\"]"
+          export SR_VOICE__TURN__SECRET="$secret"
+          export SR_VOICE__TURN__URLS="[\"turn:$ip:3478?transport=udp\"]"
+          status=0
+          ./deploy/compose/e2e-run.sh --project=chromium tests/voice-relay.spec.ts --retries=0 || status=$?
+          cp server.log server-relay.log || true
+          docker compose -f deploy/compose/dev.yml --profile relay logs coturn-relay > coturn-relay.log 2>&1 || true
+          docker compose -f deploy/compose/dev.yml --profile relay rm -sf coturn-relay || true
+          exit "$status"
+        env:
+          CI: "true"
+          SR_E2E_RELAY: "1"
+      # RDY-MED-002 needs a real ffmpeg for its reviewer-proxy test: ffmpeg from apt on this runner (owner-approved in
+      # wave 22, the same package media.yml installs), and the sr-transcoder worker that turns the upload into the
+      # review proxy and the ladder. Nothing else is downloaded.
+      - name: Install ffmpeg and build sr-transcoder
+        if: always()
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -version | head -n 1
+          ffprobe -hide_banner -version | head -n 1
+          cargo build -p sr-transcoder
+          ./target/debug/sr-transcoder --check --force-cpu
+      # RDY-MED-002: Cinema > Submit in the browser against this job's Garage (SR_E2E_LIVE=1 is set for the job). A
+      # member uploads a generated MP4 to a series draft through the presigned part PUT; a broken part PUT is
+      # finished from the IndexedDB ledger after a reload; and with SR_E2E_FFMPEG=1 a real four-second MP4 is probed
+      # by sr-server (it spawns ffprobe, SR_FFPROBE), transcoded by an sr-transcoder worker the spec starts with an
+      # Owner-minted token, sent for review, and the reviewer's proxy player opens it.
+      - name: Cinema submit over Garage (Chromium)
+        if: always()
+        run: |
+          SR_FFPROBE="$(command -v ffprobe)"
+          export SR_FFPROBE
+          echo "sr-server spawns $SR_FFPROBE"
+          status=0
+          ./deploy/compose/e2e-run.sh --project=chromium tests/cinema-submit.spec.ts --retries=0 || status=$?
+          cp server.log server-cinema.log || true
+          exit "$status"
+        env:
+          CI: "true"
+          SR_E2E_FFMPEG: "1"
+          SR_TRANSCODER_BIN: ${{ github.workspace }}/target/debug/sr-transcoder
+          SR_E2E_WORKER_LOG: ${{ github.workspace }}/worker-cinema.log
       # RDY-OPS-004: the preflight's TURN row against the dev stack's coturn (deploy/compose/dev.yml, same shared
       # secret as deploy/compose/coturn/turnserver.conf): credentials derive and a UDP allocation is granted. Only the
       # turn row is asserted; the other rows describe this runner, not a production box.
@@ -159,6 +218,10 @@ jobs:
             server-live.log
             server-e2ee-chromium.log
             server-e2ee-firefox.log
+            server-relay.log
+            server-cinema.log
+            worker-cinema.log
+            coturn-relay.log
             e2e/playwright-report-e2ee-firefox
             e2e/test-results-e2ee-firefox
 

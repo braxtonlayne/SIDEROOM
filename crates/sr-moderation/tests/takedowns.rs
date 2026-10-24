@@ -684,8 +684,8 @@ async fn a_counter_notice_schedules_the_restore_and_the_job_applies_it() {
         d.counter_noticed_at_ms.unwrap(),
         d.summary.restore_after_ms.unwrap(),
     );
-    // Ten business days: never fewer than 14 calendar days over a Saturday-Sunday week boundary pair, never more
-    // than 16, and exactly what the pure rule says.
+    // Ten business days: 12 calendar days from a Sunday, 13 from a Saturday, 14 from a weekday, never more than 16,
+    // and exactly what the pure rule says.
     assert_eq!(
         restore_ms / 1000,
         add_business_days(
@@ -694,7 +694,7 @@ async fn a_counter_notice_schedules_the_restore_and_the_job_applies_it() {
             sr_moderation::takedown_rules::Weekend::SAT_SUN
         ) / 1000
     );
-    assert!((14..=16).contains(&((restore_ms - counter_ms) / 86_400_000)));
+    assert!((12..=16).contains(&((restore_ms - counter_ms) / 86_400_000)));
     assert_eq!(
         log_count(w.pool(), "moderation.takedown.counter_notice").await,
         1

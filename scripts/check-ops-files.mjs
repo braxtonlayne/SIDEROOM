@@ -3,7 +3,8 @@
 //  - a Grafana dashboard is not valid JSON or queries a metric the server does not export,
 //  - an alert rule queries a metric the server does not export,
 //  - a shell script under deploy/scripts (or deploy/install.sh) does not parse (`sh -n`),
-//  - the production Caddyfile lost a security-critical line.
+//  - the production Caddyfile lost a security-critical line,
+//  - a tracked .sh, or a file a workflow or composite action runs as ./path, is not executable in git.
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -63,6 +64,41 @@ for (const f of shellScripts) {
   } catch (e) {
     problems.push(`${f}: ${e.stderr?.toString().trim() || 'does not parse'}`);
   }
+}
+
+// Executable bits. A script committed from Windows is mode 100644 and a workflow that runs it as `./path` stops
+// with "Permission denied" (exit 126; deploy/compose/coturn/render-test-conf.sh in the first Phase 22 CI run).
+// Every tracked `.sh`, and every tracked file a workflow or a composite action runs as `./path`, must be 100755
+// in git: `git update-index --chmod=+x <file>` fixes it.
+const modes = new Map(
+  execFileSync('git', ['ls-files', '-s'], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => {
+      const [meta, path] = l.split('\t');
+      return [path, meta.split(' ')[0]];
+    }),
+);
+const mustRun = new Map(
+  [...modes.keys()].filter((p) => p.endsWith('.sh')).map((p) => [p, 'a .sh']),
+);
+const runners = [
+  ...readdirSync(join(root, '.github/workflows'))
+    .filter((x) => /\.ya?ml$/.test(x))
+    .map((f) => `.github/workflows/${f}`),
+  ...readdirSync(join(root, '.github/actions'), { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => `.github/actions/${d.name}/action.yml`)
+    .filter((p) => modes.has(p)),
+];
+for (const w of runners) {
+  for (const m of read(w).matchAll(/(?:^|[\s;&|("'=])\.\/([A-Za-z0-9_][A-Za-z0-9_./-]*)/gm)) {
+    if (modes.has(m[1]) && !m[1].startsWith('.github/actions/')) mustRun.set(m[1], `run by ${w}`);
+  }
+}
+for (const [p, why] of mustRun) {
+  if (modes.get(p) !== '100755')
+    problems.push(`${p} (${why}) is not executable in git (mode ${modes.get(p)})`);
 }
 
 const caddy = read('deploy/compose/caddy/Caddyfile.prod');

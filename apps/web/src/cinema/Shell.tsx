@@ -61,6 +61,7 @@ export const NAV: NavItem[] = [
   { href: '/cinema/anime', label: 'cinema.shell.navAnime', mark: 'sparkle', anime: true },
   { href: '/cinema/tv', label: 'cinema.shell.navLiveTv', mark: 'dot' },
   { href: '/cinema/my-list', label: 'cinema.shell.navMyList' },
+  { href: '/cinema/submit', label: 'cinema.submit.nav' },
 ];
 
 const isActive = (path: string, i: NavItem) =>
@@ -100,15 +101,19 @@ function AvatarMenu() {
   const me = useQuery({ queryKey: keys.me(), queryFn: getMe, staleTime: 5 * 60_000 });
   const name =
     me.data?.global_name ?? me.data?.display_name ?? me.data?.username ?? t('cinema.shell.you');
-  // My uploads / Upload / Requests live in the submissions flow, which today is under /library.
+  // D-367: "My uploads" opens the Cinema's own submissions list and "Upload" the same list with the form open.
+  // "Requests" still goes to the Library board until the Cinema has a requests board of its own.
   const items: MenuEntry[] = [
     { type: 'label', label: name },
     { label: t('cinema.shell.profile'), onSelect: () => openSettings() },
     {
       label: t('cinema.shell.myUploads'),
-      onSelect: () => void navigate({ to: '/library/submissions' }),
+      onSelect: () => void navigate({ to: '/cinema/submit' }),
     },
-    { label: t('cinema.shell.upload'), onSelect: () => void navigate({ to: '/library/upload' }) },
+    {
+      label: t('cinema.shell.upload'),
+      onSelect: () => void navigate({ to: '/cinema/submit', search: { new: 1 } }),
+    },
     {
       label: t('cinema.shell.requests'),
       onSelect: () => void navigate({ to: '/library/requests' }),

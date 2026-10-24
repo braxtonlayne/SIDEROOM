@@ -24,6 +24,19 @@ runs:
     - name: Build sr-server and sr-cli
       shell: bash
       run: cargo build -p sr-server -p sr-cli
+    # D-175: the page PUTs uploads straight to the bucket, so the bucket needs a CORS rule for the origin the
+    # specs load the app from (Vite, :5173). bootstrap.sh runs before sr-cli is built and only names the dev
+    # origins, so it printed "sr-cli not found" and set no rule: on f1e89b77 the composer's part PUT reached
+    # Garage (Playwright answers the preflight of a routed request itself), but the browser refused the answer,
+    # so the part never counted as sent ("ledger= s3=1").
+    - name: Bucket CORS for the browser
+      shell: bash
+      run: |
+        set -a; . deploy/compose/.env.example; set +a
+        SR_STORAGE__ENDPOINT=http://127.0.0.1:3900 SR_STORAGE__REGION=garage SR_STORAGE__BUCKET="$GARAGE_BUCKET" \
+          SR_STORAGE__ACCESS_KEY="$GARAGE_ACCESS_KEY" SR_STORAGE__SECRET_KEY="$GARAGE_SECRET_KEY" \
+          ./target/debug/sr-cli storage ensure-cors \
+          --origin http://localhost:5173 --origin http://localhost:8080 --origin http://localhost:8088
     - name: Install dependencies
       shell: bash
       run: pnpm install --frozen-lockfile

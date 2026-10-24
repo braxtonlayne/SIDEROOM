@@ -57758,6 +57758,793 @@
         ]
       }
     },
+    "/submissions/{submission_id}/cinema/draft": {
+      "get": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "The draft: its title, seasons, draft episodes, and every video with its processing state.\nReadable by the submitter and by reviewers of the kind.",
+        "operationId": "submissions_cinema_draft",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionDraftView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/cinema/episodes": {
+      "post": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Add a draft episode (series only). Upload its video next, or let `files` create the episode from\nthe file name.",
+        "operationId": "submissions_cinema_add_episode",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionEpisodeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/cinema/episodes/{episode_id}": {
+      "put": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Edit a draft episode of the submission; its season and number may change within the season.",
+        "operationId": "submissions_cinema_update_episode",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Remove a draft episode and give up its video.",
+        "operationId": "submissions_cinema_delete_episode",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/cinema/files": {
+      "post": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Reserve the upload of one video file and get the presigned part URLs.",
+        "description": "The file must be a known video container within the operator's size limit\n(`cinema.upload.max_gb`), and it counts against the daily upload allowance (50 GB for members,\nstaff exempt). `PUT` every part to its URL, then call `complete`. A refreshed page asks `parts`\nwhich parts arrived and sends only the missing ones.",
+        "operationId": "submissions_cinema_begin_upload",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionVideoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionVideoSlot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not editable, the name clashes with a published episode, or the daily allowance is used up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/cinema/title": {
+      "put": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Edit the metadata of the draft title (new titles only). Artwork has its own route\n(`POST /submissions/{id}/artwork/{kind}`); the stored artwork stays.",
+        "operationId": "submissions_cinema_update_title",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TitleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Title"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/cinema/uploads/{asset_id}": {
+      "get": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Poll an upload of my submission: the asset state, from the upload through the probe and the\ntranscode.",
+        "operationId": "submissions_cinema_upload_status",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionVideo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Give an upload up: the parts the store holds are freed and the reserved video is discarded.",
+        "operationId": "submissions_cinema_abort_upload",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/cinema/uploads/{asset_id}/complete": {
+      "post": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "The parts are uploaded: complete the upload from what the store holds, attach the video to its\nfilm or episode (replacing, and giving up, a video it had) and queue the probe. Repeating the call\nfor a finished upload returns its state.",
+        "operationId": "submissions_cinema_complete_upload",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionVideo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/submissions/{submission_id}/cinema/uploads/{asset_id}/parts": {
+      "get": {
+        "tags": [
+          "cinema"
+        ],
+        "summary": "Resume an upload: which parts arrived and fresh URLs for the missing ones.",
+        "operationId": "submissions_cinema_upload_parts",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "description": "Submission snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadParts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/submissions/{submission_id}/comments": {
       "post": {
         "tags": [
@@ -92590,6 +93377,119 @@
           }
         }
       },
+      "SubmissionDraft": {
+        "type": "object",
+        "description": "The draft behind a submission, as its submitter edits it.",
+        "required": [
+          "new_title",
+          "title",
+          "seasons",
+          "episodes",
+          "published_episodes"
+        ],
+        "properties": {
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Episode"
+            },
+            "description": "The draft episodes of this submission, by season and number."
+          },
+          "new_title": {
+            "type": "boolean",
+            "description": "A new title (`cinema.title`) rather than new episodes for a published series."
+          },
+          "published_episodes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Published episodes the title already had (new episodes for a series only).",
+            "minimum": 0
+          },
+          "seasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Season"
+            }
+          },
+          "title": {
+            "$ref": "#/components/schemas/Title"
+          }
+        }
+      },
+      "SubmissionDraftView": {
+        "type": "object",
+        "description": "The whole draft with the state of every video.",
+        "required": [
+          "draft",
+          "items",
+          "pending"
+        ],
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/SubmissionDraft"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionVideoItem"
+            }
+          },
+          "pending": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionPendingUpload"
+            }
+          }
+        }
+      },
+      "SubmissionEpisodeInput": {
+        "type": "object",
+        "description": "An episode to add to the draft.",
+        "required": [
+          "number"
+        ],
+        "properties": {
+          "absolute_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "air_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`YYYY-MM-DD`."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Season number; default 1. A season that does not exist yet is created."
+          },
+          "synopsis": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "SubmissionEvent": {
         "type": "object",
         "description": "A row of the timeline.",
@@ -92707,6 +93607,38 @@
           }
         }
       },
+      "SubmissionPendingUpload": {
+        "type": "object",
+        "description": "An upload that has not completed yet.",
+        "required": [
+          "video",
+          "target_kind",
+          "target_id",
+          "part_size",
+          "part_count"
+        ],
+        "properties": {
+          "part_count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "target_kind": {
+            "type": "string"
+          },
+          "video": {
+            "$ref": "#/components/schemas/SubmissionVideo"
+          }
+        }
+      },
       "SubmissionState": {
         "type": "string",
         "description": "Where a submission is in its life (spec section 2).",
@@ -92720,6 +93652,204 @@
           "Published",
           "Withdrawn"
         ]
+      },
+      "SubmissionVideo": {
+        "type": "object",
+        "description": "A video of the draft and where its processing stands.",
+        "required": [
+          "asset_id",
+          "state",
+          "filename",
+          "size_bytes",
+          "has_proxy",
+          "playable"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it `failed`, in words for the member."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "has_proxy": {
+            "type": "boolean",
+            "description": "A review proxy exists: the reviewers can already watch it."
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "The ladder is published; the video can be played."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AssetState",
+            "description": "`awaiting_upload`, `uploaded`, `probing`, `proxy_ready`, `in_review`, `approved`,\n`transcoding`, `published` (the ladder is ready), or `failed`, `rejected`, `removed`, `expired`."
+          }
+        }
+      },
+      "SubmissionVideoItem": {
+        "type": "object",
+        "description": "One video slot of the draft: the film, or one episode.",
+        "required": [
+          "target_kind",
+          "target_id",
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "season_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "target_kind": {
+            "type": "string",
+            "description": "`title` (the film) or `episode`."
+          },
+          "video": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SubmissionVideo",
+                "description": "The attached video, once an upload completed."
+              }
+            ]
+          }
+        }
+      },
+      "SubmissionVideoRequest": {
+        "type": "object",
+        "description": "A video file to upload.",
+        "required": [
+          "filename",
+          "size_bytes"
+        ],
+        "properties": {
+          "episode": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Attach to this draft episode of the submission instead of reading the name."
+          },
+          "filename": {
+            "type": "string",
+            "description": "The file name on the member's disk. For a series the season and episode are read from it\n(`Show - s01e02.mkv`, the naming tester's rules) unless `season` and `episode` are given."
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "SubmissionVideoSlot": {
+        "type": "object",
+        "description": "The reserved upload.",
+        "required": [
+          "item",
+          "created",
+          "asset_id",
+          "part_size",
+          "part_count",
+          "parts",
+          "expires_in_secs",
+          "warnings",
+          "resumable"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "The draft episode was created for this file."
+          },
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "item": {
+            "$ref": "#/components/schemas/SubmissionVideoItem",
+            "description": "The film or episode the video will be attached to."
+          },
+          "part_count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Every part but the last has exactly this size.",
+            "minimum": 0
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartUrl"
+            },
+            "description": "One presigned `PUT` per part."
+          },
+          "resumable": {
+            "type": "boolean",
+            "description": "The storage resumes uploads: `parts` can be asked again after a refresh."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Things the file name made unclear (for example a file that covers two episodes)."
+          }
+        }
       },
       "SubmitBody": {
         "type": "object",

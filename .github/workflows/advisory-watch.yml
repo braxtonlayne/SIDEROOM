@@ -1,0 +1,35 @@
+# Weekly reminder for the temporary cargo-deny exceptions in deny.toml.
+# RUSTSEC-2026-0387: crypto-bigint 0.5.5 has no fixed release and stays only while elliptic-curve 0.13 is pulled in
+# by str0m (voice DTLS), openmls_rust_crypto/hpke-rs (call E2EE) and sr-push. This job prints whether newer
+# versions of those crates exist and fails once the 0.5 copy has left Cargo.lock, so the ignore gets removed.
+name: Advisory watch
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crypto-bigint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Newer versions of the crates that hold crypto-bigint 0.5 back
+        run: |
+          for p in str0m openmls_rust_crypto hpke-rs-rust-crypto p256@0.13.2; do
+            echo "== $p"
+            cargo update --dry-run -p "$p" --verbose 2>&1 | grep -E "Updating|Unchanged|Locking" || true
+          done
+      - name: The exception is still needed
+        run: |
+          if cargo tree -i crypto-bigint@0.5.5 --edges normal,build >/dev/null 2>&1; then
+            echo "crypto-bigint 0.5.5 is still in Cargo.lock; the RUSTSEC-2026-0387 ignore in deny.toml stays for now."
+          else
+            echo "::error::crypto-bigint 0.5.5 is gone from Cargo.lock: remove the RUSTSEC-2026-0387 ignore from deny.toml."
+            exit 1
+          fi

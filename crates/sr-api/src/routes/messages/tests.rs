@@ -1560,6 +1560,16 @@ async fn aborting_a_multipart_upload_frees_its_parts_and_small_files_stay_single
             .unwrap()
             .is_none()
     );
+    // The aborted slot itself is gone: asking for its parts (or aborting it again) is a 404, which tells the
+    // client to drop its resume ledger row (D-271).
+    assert_eq!(
+        e.get(&format!("/attachments/{up}/parts"), "owner").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        delete(&e, &format!("/attachments/{up}"), "owner").await,
+        StatusCode::NOT_FOUND
+    );
     // A single-PUT slot can be cancelled too.
     let small_id = small["upload_id"].as_str().unwrap();
     assert_eq!(

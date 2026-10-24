@@ -638,6 +638,18 @@ impl MessageStore for MemoryBackend {
         Ok(())
     }
 
+    async fn forget_pending_upload(&self, id: AttachmentId) -> StoreResult<()> {
+        let mut s = self.data();
+        s.multipart.remove(&id);
+        if s.attachments
+            .get(&id)
+            .is_some_and(|a| a.message_id.is_none())
+        {
+            s.attachments.remove(&id);
+        }
+        Ok(())
+    }
+
     async fn detach_attachment(
         &self,
         id: AttachmentId,

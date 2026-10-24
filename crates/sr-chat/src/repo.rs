@@ -416,6 +416,9 @@ pub trait MessageStore: Send + Sync {
     async fn attachment_multipart(&self, id: AttachmentId) -> StoreResult<Option<(String, u64)>>;
     /// Forget the multipart record (after completion or abort).
     async fn clear_attachment_multipart(&self, id: AttachmentId) -> StoreResult<()>;
+    /// Drop an aborted upload slot: the attachment row goes too, unless it is on a message or under a hold, so
+    /// every later call about it answers 404 (the client forgets its resume ledger row on 404, D-271).
+    async fn forget_pending_upload(&self, id: AttachmentId) -> StoreResult<()>;
     /// Take one attachment off `message` for a moderation case (N-21): it stops showing at once. An attachment no
     /// hold covers is reported `Detached { held: false }`, and the caller deletes the stored object and then calls
     /// [`Self::forget_removed_attachment`]; a held one (its own hold, or its message's: it then joins that hold)

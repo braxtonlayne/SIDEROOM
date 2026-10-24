@@ -90,6 +90,35 @@ fn track_of(asset: &PlaybackAsset, track: Track) -> Option<(&str, &[Segment])> {
     }
 }
 
+/// The segments the numbering chain counts: those of the lowest video rung (all rungs of an asset are cut
+/// at the same places). Every track of an asset is numbered by them, so a number names the same part of
+/// the asset on the video and on the audio playlist, even when the audio was cut a few milliseconds apart
+/// (AAC frames do not end on video frame boundaries).
+fn clock_segments(asset: &PlaybackAsset) -> Option<&[Segment]> {
+    asset
+        .media
+        .videos
+        .iter()
+        .min_by_key(|v| v.height)
+        .map(|v| v.segments.as_slice())
+}
+
+/// How many segments of its loop every track of a slate plays: the fewest any track has. ffmpeg's audio
+/// renditions can end in a sliver of a few milliseconds (encoder priming makes the AAC track 21 ms longer
+/// than the video), which would give the audio loop one segment more than the video loop; the sliver is
+/// dropped so that all tracks wrap together and count the same numbers (D-267, D-285).
+fn loop_len(asset: &PlaybackAsset) -> usize {
+    asset
+        .media
+        .videos
+        .iter()
+        .map(|v| v.segments.len())
+        .chain(default_audio(asset).map(|a| a.segments.len()))
+        .filter(|n| *n > 0)
+        .min()
+        .unwrap_or(0)
+}
+
 /// One on-air segment of a block: its index, wall-clock start and end (ms) and duration.
 #[derive(Debug, Clone, PartialEq)]
 struct OnAir {
@@ -168,10 +197,16 @@ struct Entry<'a> {
 fn block_entries(lb: &LiveBlock, track: Track, upto_ms: Option<i64>) -> Option<Vec<Entry<'_>>> {
     let (init, segs) = track_of(&lb.asset, track)?;
     let air = on_air(&lb.block, segs);
-    let first_k = air.first().map_or(0, |a| a.k);
+    // Numbered by the segments the chain counts (`on_air_count`): segment `k` has the same number on every
+    // track, and a track never lists more of the block than the chain counted.
+    let (first_k, count) = match clock_segments(&lb.asset).map(|c| on_air(&lb.block, c)) {
+        Some(c) if !c.is_empty() => (c[0].k, c.len()),
+        _ => (air.first().map_or(0, |a| a.k), air.len()),
+    };
     let (seq0, disc) = (lb.block.seq_base?, lb.block.disc_base?);
     Some(
         air.into_iter()
+            .filter(|a| a.k >= first_k && a.k < first_k + count)
             .take_while(|a| upto_ms.is_none_or(|t| a.wall_start <= t))
             .map(|a| Entry {
                 group: (false, lb.block.id),
@@ -221,7 +256,9 @@ fn emit(window: &[Entry<'_>], signer: &dyn UrlSigner, now_secs: u64) -> String {
 
 /// The slate loop of an asset on one track, laid on the wall clock (anchored at the unix epoch, so every
 /// client sees the same loop). Segment `k` of loop `c` starts at `c * cycle_ms + starts[k]`; the global
-/// index of that segment is `c * n + k`.
+/// index of that segment is `c * n + k`. The timing (`starts`, `cycle_ms`) and the length `n` come from the
+/// lowest video rung and [`loop_len`] whatever the track, so the audio loop wraps with the video loop and
+/// both count the same numbers.
 struct SlateLoop<'a> {
     asset_id: i64,
     init: &'a str,
@@ -231,19 +268,22 @@ struct SlateLoop<'a> {
 }
 
 impl<'a> SlateLoop<'a> {
-    fn of(asset_id: i64, init: &'a str, segs: &'a [Segment]) -> Option<Self> {
-        if segs.is_empty() {
+    fn of(asset: &'a PlaybackAsset, init: &'a str, segs: &'a [Segment]) -> Option<Self> {
+        let n = loop_len(asset).min(segs.len());
+        let clock = clock_segments(asset)?;
+        if n == 0 || clock.len() < n {
             return None;
         }
-        let mut starts = Vec::with_capacity(segs.len());
+        let segs = &segs[..n];
+        let mut starts = Vec::with_capacity(n);
         let mut acc = 0.0_f64;
-        for s in segs {
+        for s in &clock[..n] {
             starts.push((acc * 1000.0).round() as i64);
             acc += s.duration_secs;
         }
         let cycle_ms = (acc * 1000.0).round() as i64;
         (cycle_ms > 0).then_some(Self {
-            asset_id,
+            asset_id: asset.id,
             init,
             segs,
             starts,
@@ -253,13 +293,13 @@ impl<'a> SlateLoop<'a> {
 
     fn new(asset: &'a PlaybackAsset, track: Track) -> Option<Self> {
         let (init, segs) = track_of(asset, track)?;
-        Self::of(asset.id, init, segs)
+        Self::of(asset, init, segs)
     }
 
     /// The loop of the lowest video rung, which the numbering chain counts (as `on_air_count` does).
     fn lowest(asset: &'a PlaybackAsset) -> Option<Self> {
         let v = asset.media.videos.iter().min_by_key(|v| v.height)?;
-        Self::of(asset.id, &v.init_path, &v.segments)
+        Self::of(asset, &v.init_path, &v.segments)
     }
 
     fn n(&self) -> i64 {

@@ -58,6 +58,18 @@ services:
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
 
+  # RDY-VOX-001: the production template (coturn/turnserver.prod.conf.example) rendered by
+  # coturn/render-test-conf.sh, on the host network so the relay range is reachable from the browser and the SFU.
+  # Off by default; the E2E workflow starts it with `--profile relay`. Linux only (host networking).
+  coturn-relay:
+    image: coturn/coturn:4.6
+    profiles: ["relay"]
+    network_mode: host
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    volumes:
+      - ./coturn/rendered/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./coturn/rendered/tls:/etc/coturn/tls:ro
+
 volumes:
   pgdata:
   garage-meta:

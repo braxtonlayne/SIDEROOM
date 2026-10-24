@@ -40,8 +40,13 @@ describe('owner login link page (/login/link?token=)', () => {
         return HttpResponse.json({ status: 'ok' });
       }),
     );
-    at('/login/link?token=abc123');
+    const router = at('/login/link?token=abc123');
     expect(await screen.findByRole('status')).toHaveTextContent('One moment…');
+    // Let the exchange finish before the test ends: otherwise its navigation lands after the environment is
+    // torn down ("window is not defined", an unhandled rejection that fails the CI run).
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/channels/), {
+      timeout: 10_000,
+    });
   });
 
   it.each([

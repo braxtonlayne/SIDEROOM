@@ -3,7 +3,7 @@
 Phase 5 · Theme `sideroom` · Mockups `cinema-discover.jpg`, `cinema-movies.jpg` · Decisions: D-075, D-080–D-086, D-089, D-120.
 
 ## 1. Navigation
-Top bar: `SIDE ROOM / The lounge · **The cinema** · The library`. Cinema header: door mark + `SIDE ROOM` / `C I N E M A` · **Discover · Movies · Series · Anime ✦ · Live TV • · My list** · search · avatar (menu: Profile, My uploads, Upload, Requests, Settings, Back to Lounge). Footer: "Side Room *Cinema*" · "A little further from the ordinary." · About this library.
+Top bar: `SIDE ROOM / The lounge · **The cinema** · The library`. Cinema header: door mark + `SIDE ROOM` / `C I N E M A` · **Discover · Movies · Series · Anime ✦ · Live TV • · My list** · search · avatar (menu: Profile, My uploads, Upload, Requests, Settings, Back to Lounge; "My uploads" and "Upload" go to `/cinema/submit`, Upload with the new-submission form open, and "Requests" goes to the Library board for now, D-367). Footer: "Side Room *Cinema*" · "A little further from the ordinary." · About this library.
 
 ## 2. Pages
 
@@ -31,7 +31,7 @@ Backdrop + logo or title, metadata row (year, runtime or seasons count, content 
 Saved titles + Continue watching + Watch history (pause/clear) + custom lists (shareable, visibility private/friends/everyone).
 
 ### 2.5 Requests, Upload, My uploads
-See the submissions spec.
+See the submissions spec. Upload and My uploads: `/cinema/submit` (RDY-MED-002, D-367); Upload is `/cinema/submit?new=1`.
 
 ### 2.6 Live TV
 See the cinema-live-tv spec.
@@ -277,6 +277,34 @@ Staff session required (401/403). Every successful change is written to the staf
 ### 8.6 Plugging in user-data rows (`RowProvider`)
 
 Rows that need user data are produced by the social work through `sr_cinema::RowProvider` (`key()`, `async row(&RowContext) -> Option<ProvidedRow>`); register with `CinemaService::with_provider`. The provider returns ordered `RowEntry {title_id, episode_id?, progress_percent?, reason?}`; the service loads the titles through the viewer's scope (published, age filter), so a provider cannot leak a draft. Catalog changes that social tables must follow (a merge) reach them through `sr_cinema::CatalogObserver::title_merged`.
+
+### 8.7 Member video submissions (`/submissions/{id}/cinema/*`, RDY-MED-001)
+
+A member sends a film, a series or new episodes through the review pipeline (spec 11.7 for the kinds). `POST /submissions` with kind
+`cinema.title` (`{kind: movie|series|anime, title, year?, synopsis?, ...TitleInput}`) or `cinema.episodes` (`{title_id, season?, episodes?: []}`
+for a published series; the list may be empty, the member adds episodes afterwards) writes an unpublished draft through the catalog with the
+sponsored actor of the kind. The routes below build that draft. All need a session. Writes are the submitter's while the submission is a draft or
+has changes requested (409 otherwise); metadata writes (`title`, `episodes/{id}` `PUT`) are also open to the reviewer holding the claim (D-255)
+and show on the timeline as `metadata_edited`. Everything stays inside the one title of the submission: an episode the submission does not own, or a
+published one, answers 404, and a video must be an upload of the caller (400 otherwise).
+
+| Route | Result |
+|---|---|
+| `GET .../cinema/draft` | `{draft: {new_title, title, seasons, episodes, published_episodes}, items: [{target_kind, target_id, season_number?, number?, label, video?}], pending: [{video, target_kind, target_id, part_size, part_count}]}`; `video` is `{asset_id, state, error?, filename, size_bytes, duration_ms?, has_proxy, playable}` with the asset states of the media pipeline. Submitter or reviewer of the kind. |
+| `PUT .../cinema/title` | `TitleInput` -> `Title`. New titles only (409 for new episodes of a published series). Stored artwork keys stay; a key in the body is ignored. A film cannot become a series (or the other way) once it has a video. |
+| `POST .../cinema/episodes` | `{season?, number, title, synopsis, air_date?, runtime_min?}` -> 201 `Episode`; series only (409 for a film), 409 when the number is taken. |
+| `PUT\|DELETE .../cinema/episodes/{id}` | `EpisodeInput` -> `Episode`; 204 (the video it had is given up). |
+| `POST .../cinema/files` | `{filename, size_bytes, season?, episode?, episode_id?}` -> 201 `{item, created, asset_id, part_size, part_count, parts: [{part_number, url}], expires_in_secs, warnings, resumable}`. A film takes its video on the title. For a series the season and episode come from the body or from the file name (`sr_media::naming::parse_path`, the naming tester's rules; a multi-episode file warns and takes the first number); the draft episode is created when it is new, and a number that exists in the catalog (published) is a 409. The file must be a known video container (400 for subtitles, artwork and others), at most `cinema.upload.max_gb` (400), and counts against the daily upload allowance (409, staff exempt). A refused file leaves no empty episode behind. |
+| `GET .../cinema/uploads/{asset}` | The `video` object above (poll while it processes). |
+| `GET .../cinema/uploads/{asset}/parts` | `{part_size, part_count, received, missing: [{part_number, url}], expires_in_secs}`, from the store's `ListParts` (409 when the storage cannot resume, or the upload is complete). |
+| `POST .../cinema/uploads/{asset}/complete` | 202 `video`. Completes the multipart upload from the parts the store holds (the browser never needs the ETags; a missing or wrongly sized part is a 409 that names it), checks the object size against the announced size, queues the probe and attaches the video to its film or episode, replacing (and giving up) a video it had. Repeating it is harmless. |
+| `DELETE .../cinema/uploads/{asset}` | 204. Aborts the multipart upload and discards the reserved asset (409 once complete: upload another video to replace it). |
+
+The upload sessions (the object store's upload id, which the browser never sees) live in `cinema_submission_uploads` (migration 1240). An upload
+that is never completed expires with its media slot (24 h). Processing is the normal pipeline: probe, review proxy, ladder (`auto_ladder` stays on);
+the submission is ready when every video is `published` (spec 11.7), and reviewers watch the 480p proxy at `/admin/review/submissions/{id}/media`.
+Artwork keeps its own route (`POST /submissions/{id}/artwork/{poster|backdrop}`, new titles only). Reviewer decisions are written to the staff access
+log by the review routes as for every kind.
 
 ## 9. Social and progress API as built (phase 6, crate `sr-cinema-social`)
 
@@ -579,9 +607,7 @@ tracks into `remux/video.mp4`, no re-encode, subtitles not included); the prepar
 `cinema.title` (a film with `asset_id`, or a series with `seasons[].episodes[]`) and `cinema.episodes`
 (`{title_id, season, episodes[]}` for a published series) create unpublished drafts through `CinemaService` with a
 sponsored actor, ignore member-supplied artwork keys, accept only assets the submitter uploaded, are not ready until every
-item has a published ladder, and publish only the approved episodes (then the title). **The member upload and draft-edit
-HTTP routes (`/submissions/{id}/cinema/*`) are not built**: there is no member upload path for videos yet, so today only
-payloads referencing staff-uploaded assets can be submitted.
+item has a published ladder, and publish only the approved episodes (then the title). The member upload and draft-edit routes (`/submissions/{id}/cinema/*`) are section 8.7.
 
 ### 6.1 Share dialog (D-226)
 "Share to Lounge" on a title opens a dialog with a channel picker (channels where the person holds `SEND_MESSAGES` and `USE_LIBRARY_EMBEDS`; DMs and groups included), an optional comment, and posts the `<cinema:id>` rich card as the person's own message. "Copy link" is the second item.
