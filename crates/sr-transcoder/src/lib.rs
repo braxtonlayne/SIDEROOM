@@ -18,3 +18,6 @@ pub mod http_client;
 pub mod progress;
 pub mod slate;
 pub mod worker;
+
+#[cfg(test)]
+mod ci_pins;

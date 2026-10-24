@@ -5,12 +5,14 @@ spec: [docs/specs/cinema-media.md](../docs/specs/cinema-media.md) section 4). It
 it only makes **outgoing** HTTPS requests to your SIDE ROOM server, so it can run anywhere with
 no inbound ports, no VPN and no database access.
 
-> Status: the Admin, Transcoding pages (token creation, drain, queue view) and the Postgres
-> job store belong to the catalog and admin work and do not exist yet; this guide describes
-> the intended flow. The Dockerfiles in this folder were written without Docker or FFmpeg on the
-> authoring machine, so they have **not been built or run**. The first build should be followed
-> by `docker run --rm --gpus all <image> --check` (GPU) or `docker run --rm <image> --check`
-> (CPU). See "Verify the machine" below.
+> Status: the worker, the Worker API and the admin endpoints (`/admin/transcode/*`: tokens, workers,
+> drain, queue, job logs, cancel, retry, re-transcode) exist. The Dockerfiles in this folder were written
+> without Docker or FFmpeg on the authoring machine, so they have **not been built or run**; the first build
+> should be followed by `docker run --rm --gpus all <image> --check` (GPU) or `docker run --rm <image> --check`
+> (CPU). The worker binary itself, on the CPU path, is exercised end to end against a real ffmpeg by
+> `.github/workflows/media.yml` ([docs/dev/media-pipeline-test.md](../docs/dev/media-pipeline-test.md)); that
+> workflow is written but **has not run yet**, so treat everything below as unproven until its first green run.
+> The NVENC path has never run on a GPU. See "Verify the machine" below.
 
 ## Images
 
@@ -126,6 +128,12 @@ $0.20 and an episode about $0.02 to $0.04.
 - Uploads use presigned URLs scoped to one job's output paths; the worker holds no storage keys.
 - FFmpeg parses hostile media. Run the container as the default non-root user (the images do)
   and do not mount anything except the work directory.
+
+### What CI checks
+
+`media.yml` (weekly, on dispatch, and on pull requests that touch the transcoder, `sr-media`, `sr-tv` or the slate command) installs ffmpeg 6.1 from apt on an Ubuntu 24.04 runner, starts the stack and runs `deploy/scripts/media-smoke.mjs` with a real `sr-transcoder --force-cpu`: the ladder (720p and 480p for the 720p test source), two audio tracks, the WebVTT, the sprite sheet and its VTT, every segment of a rendition through ffprobe, the slate and Live TV numbering, a re-transcode, the Patron download, a corrupt source (fails once, with the ffmpeg log in the job), two workers claiming without overlap, and a killed worker whose job is retried after the lease runs out. To run it by hand, see [docs/dev/media-pipeline-test.md](../docs/dev/media-pipeline-test.md). The unit tests in `crates/sr-transcoder/src/ci_pins.rs` pin the exact ffmpeg arguments for that source without needing ffmpeg.
+
+Two numbers worth knowing when you watch a killed worker in Admin: a job's lease is 120 s and every progress report (about every 5 s) extends it; the server's reaper looks every 30 s. So a worker that dies mid-job leaves the job "running" for roughly two to two and a half minutes, then it goes back to the queue with the error "worker lease expired" and the next claim is attempt 2. A job that fails with a bad-input error ("the file could not be decoded") is not retried.
 
 ### Troubleshooting
 
