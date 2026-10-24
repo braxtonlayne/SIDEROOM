@@ -11533,6 +11533,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/submissions/{submission_id}/cinema/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The draft: its title, seasons, draft episodes, and every video with its processing state.
+         *     Readable by the submitter and by reviewers of the kind.
+         */
+        get: operations["submissions_cinema_draft"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/cinema/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a draft episode (series only). Upload its video next, or let `files` create the episode from
+         *     the file name.
+         */
+        post: operations["submissions_cinema_add_episode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/cinema/episodes/{episode_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit a draft episode of the submission; its season and number may change within the season. */
+        put: operations["submissions_cinema_update_episode"];
+        post?: never;
+        /** Remove a draft episode and give up its video. */
+        delete: operations["submissions_cinema_delete_episode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/cinema/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reserve the upload of one video file and get the presigned part URLs.
+         * @description The file must be a known video container within the operator's size limit
+         *     (`cinema.upload.max_gb`), and it counts against the daily upload allowance (50 GB for members,
+         *     staff exempt). `PUT` every part to its URL, then call `complete`. A refreshed page asks `parts`
+         *     which parts arrived and sends only the missing ones.
+         */
+        post: operations["submissions_cinema_begin_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/cinema/title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit the metadata of the draft title (new titles only). Artwork has its own route
+         *     (`POST /submissions/{id}/artwork/{kind}`); the stored artwork stays.
+         */
+        put: operations["submissions_cinema_update_title"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/cinema/uploads/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Poll an upload of my submission: the asset state, from the upload through the probe and the
+         *     transcode.
+         */
+        get: operations["submissions_cinema_upload_status"];
+        put?: never;
+        post?: never;
+        /** Give an upload up: the parts the store holds are freed and the reserved video is discarded. */
+        delete: operations["submissions_cinema_abort_upload"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/cinema/uploads/{asset_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The parts are uploaded: complete the upload from what the store holds, attach the video to its
+         *     film or episode (replacing, and giving up, a video it had) and queue the probe. Repeating the call
+         *     for a finished upload returns its state.
+         */
+        post: operations["submissions_cinema_complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/submissions/{submission_id}/cinema/uploads/{asset_id}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resume an upload: which parts arrived and fresh URLs for the missing ones. */
+        get: operations["submissions_cinema_upload_parts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions/{submission_id}/comments": {
         parameters: {
             query?: never;
@@ -21935,6 +22095,44 @@ export interface components {
             kind_label: string;
             submission: components["schemas"]["Submission"];
         };
+        /** @description The draft behind a submission, as its submitter edits it. */
+        SubmissionDraft: {
+            /** @description The draft episodes of this submission, by season and number. */
+            episodes: components["schemas"]["Episode"][];
+            /** @description A new title (`cinema.title`) rather than new episodes for a published series. */
+            new_title: boolean;
+            /**
+             * Format: int32
+             * @description Published episodes the title already had (new episodes for a series only).
+             */
+            published_episodes: number;
+            seasons: components["schemas"]["Season"][];
+            title: components["schemas"]["Title"];
+        };
+        /** @description The whole draft with the state of every video. */
+        SubmissionDraftView: {
+            draft: components["schemas"]["SubmissionDraft"];
+            items: components["schemas"]["SubmissionVideoItem"][];
+            pending: components["schemas"]["SubmissionPendingUpload"][];
+        };
+        /** @description An episode to add to the draft. */
+        SubmissionEpisodeInput: {
+            /** Format: int32 */
+            absolute_number?: number | null;
+            /** @description `YYYY-MM-DD`. */
+            air_date?: string | null;
+            /** Format: int32 */
+            number: number;
+            /** Format: int32 */
+            runtime_min?: number | null;
+            /**
+             * Format: int32
+             * @description Season number; default 1. A season that does not exist yet is created.
+             */
+            season?: number | null;
+            synopsis?: string;
+            title?: string;
+        };
         /** @description A row of the timeline. */
         SubmissionEvent: {
             actor_id?: string | null;
@@ -21976,11 +22174,92 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        /** @description An upload that has not completed yet. */
+        SubmissionPendingUpload: {
+            /** Format: int32 */
+            part_count: number;
+            /** Format: int64 */
+            part_size: number;
+            target_id: string;
+            target_kind: string;
+            video: components["schemas"]["SubmissionVideo"];
+        };
         /**
          * @description Where a submission is in its life (spec section 2).
          * @enum {string}
          */
         SubmissionState: "Draft" | "Submitted" | "InReview" | "ChangesRequested" | "Approved" | "Rejected" | "Published" | "Withdrawn";
+        /** @description A video of the draft and where its processing stands. */
+        SubmissionVideo: {
+            asset_id: string;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            /** @description Why it `failed`, in words for the member. */
+            error?: string | null;
+            filename: string;
+            /** @description A review proxy exists: the reviewers can already watch it. */
+            has_proxy: boolean;
+            /** @description The ladder is published; the video can be played. */
+            playable: boolean;
+            /** Format: int64 */
+            size_bytes: number;
+            /**
+             * @description `awaiting_upload`, `uploaded`, `probing`, `proxy_ready`, `in_review`, `approved`,
+             *     `transcoding`, `published` (the ladder is ready), or `failed`, `rejected`, `removed`, `expired`.
+             */
+            state: components["schemas"]["AssetState"];
+        };
+        /** @description One video slot of the draft: the film, or one episode. */
+        SubmissionVideoItem: {
+            label: string;
+            /** Format: int32 */
+            number?: number | null;
+            /** Format: int32 */
+            season_number?: number | null;
+            target_id: string;
+            /** @description `title` (the film) or `episode`. */
+            target_kind: string;
+            video?: null | components["schemas"]["SubmissionVideo"];
+        };
+        /** @description A video file to upload. */
+        SubmissionVideoRequest: {
+            /** Format: int32 */
+            episode?: number | null;
+            /** @description Attach to this draft episode of the submission instead of reading the name. */
+            episode_id?: string | null;
+            /**
+             * @description The file name on the member's disk. For a series the season and episode are read from it
+             *     (`Show - s01e02.mkv`, the naming tester's rules) unless `season` and `episode` are given.
+             */
+            filename: string;
+            /** Format: int32 */
+            season?: number | null;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        /** @description The reserved upload. */
+        SubmissionVideoSlot: {
+            asset_id: string;
+            /** @description The draft episode was created for this file. */
+            created: boolean;
+            /** Format: int64 */
+            expires_in_secs: number;
+            /** @description The film or episode the video will be attached to. */
+            item: components["schemas"]["SubmissionVideoItem"];
+            /** Format: int32 */
+            part_count: number;
+            /**
+             * Format: int64
+             * @description Every part but the last has exactly this size.
+             */
+            part_size: number;
+            /** @description One presigned `PUT` per part. */
+            parts: components["schemas"]["PartUrl"][];
+            /** @description The storage resumes uploads: `parts` can be asked again after a refresh. */
+            resumable: boolean;
+            /** @description Things the file name made unclear (for example a file that covers two episodes). */
+            warnings: string[];
+        };
         SubmitBody: {
             answers?: components["schemas"]["AnswerBody"][];
         };
@@ -60867,6 +61146,523 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionDraftView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_add_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmissionEpisodeInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_update_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_delete_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_begin_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmissionVideoRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionVideoSlot"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not editable, the name clashes with a published episode, or the daily allowance is used up. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_update_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TitleInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Title"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_upload_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionVideo"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_abort_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_complete_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmissionVideo"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submissions_cinema_upload_parts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission snowflake */
+                submission_id: string;
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadParts"];
                 };
             };
             401: {

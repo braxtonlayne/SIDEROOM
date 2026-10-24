@@ -896,6 +896,29 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )),
     );
 
+    // Member video uploads of Cinema submissions (RDY-MED-001): the draft operations, the upload
+    // sessions in Postgres and, with the S3 API, resumable parts (the same condition as the media
+    // originals above).
+    let cinema_submit_deps = {
+        let d = routes::submissions::CinemaSubmitDeps::new(
+            sr_cinema::drafts::DraftOps::new(cinema_service.clone(), media_repo.clone()),
+            Arc::new(sr_db::cinema_uploads::PgUploadSessions::new(pool.clone())),
+        );
+        if single_put || s.endpoint == "memory:" {
+            d
+        } else {
+            let s3 = sr_storage::s3multipart::S3Multipart::new(
+                &s.endpoint,
+                &s.bucket,
+                &s.region,
+                s.access_key.expose(),
+                s.secret_key.expose(),
+            )
+            .context("configuring cinema submission uploads")?;
+            d.with_parts(Arc::new(s3))
+        }
+    };
+
     // Watched folders and storage imports (REV-UP-005/006): draft submissions of staff-owned
     // sources. Local folders are limited to the roots in `[ingest] roots`.
     let source_scanner = sr_library::sources::SourceScanner::new(
@@ -1391,6 +1414,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .with_chat_slot(payments.chat.clone()),
         ))
         .extension(review_deps.clone())
+        .extension(Arc::new(cinema_submit_deps))
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
             routes::cdn::CdnDeps::new(storage.clone(), cdn_signer)

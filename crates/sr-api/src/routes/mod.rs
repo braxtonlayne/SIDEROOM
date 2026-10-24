@@ -62,6 +62,7 @@ pub mod review;
 pub mod search;
 pub mod settings;
 pub mod social;
+pub mod submissions;
 pub mod threads;
 pub mod tv;
 pub mod userfeat;
@@ -126,6 +127,7 @@ pub fn all() -> Router<AppState> {
         .merge(cinema::router())
         .merge(cinema_media::router())
         .merge(review::router())
+        .merge(submissions::router())
         .merge(voice::router())
         .merge(cinema_social::router())
         .merge(tv::router())
@@ -170,6 +172,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(cinema::openapi());
     doc.merge(cinema_media::openapi());
     doc.merge(review::openapi());
+    doc.merge(submissions::openapi());
     doc.merge(voice::openapi());
     doc.merge(cinema_social::openapi());
     doc.merge(tv::openapi());

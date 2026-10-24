@@ -100,6 +100,8 @@ DELETE	/requests/{request_id}/vote	authenticated	self	allow	-	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
 DELETE	/sr/invites/{code}	authenticated	self	deny	-	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
+DELETE	/submissions/{submission_id}/cinema/episodes/{episode_id}	authenticated	author	allow	-	-
+DELETE	/submissions/{submission_id}/cinema/uploads/{asset_id}	authenticated	author	allow	-	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-	-
 DELETE	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	author	allow	-	-
 DELETE	/tv/favorites/{channel_id}	authenticated	self	allow	-	-
@@ -461,6 +463,9 @@ GET	/submissions/lookup	authenticated	user	allow	-	-
 GET	/submissions/lookup/providers	authenticated	user	allow	-	-
 GET	/submissions/quota	authenticated	self	allow	-	-
 GET	/submissions/{submission_id}	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/cinema/draft	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/cinema/uploads/{asset_id}	authenticated	author	allow	-	-
+GET	/submissions/{submission_id}/cinema/uploads/{asset_id}/parts	authenticated	author	allow	-	-
 GET	/submissions/{submission_id}/credits	authenticated	author	allow	-	-
 GET	/submissions/{submission_id}/duplicates	authenticated	author	allow	-	-
 GET	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-	-
@@ -832,6 +837,9 @@ POST	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
 POST	/submissions	authenticated	self	allow	-	-
 POST	/submissions/naming/parse	authenticated	user	allow	-	-
 POST	/submissions/{submission_id}/artwork/{kind}	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/cinema/episodes	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/cinema/files	authenticated	author	allow	-	-
+POST	/submissions/{submission_id}/cinema/uploads/{asset_id}/complete	authenticated	author	allow	-	-
 POST	/submissions/{submission_id}/comments	authenticated	author	allow	-	-
 POST	/submissions/{submission_id}/library/chapters	authenticated	author	allow	-	-
 POST	/submissions/{submission_id}/library/chapters/{chapter_id}/uploads	authenticated	author	allow	-	-
@@ -943,6 +951,8 @@ PUT	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-	-
 PUT	/requests/{request_id}/claim	authenticated	user	allow	-	-
 PUT	/requests/{request_id}/vote	authenticated	self	allow	-	-
 PUT	/sr/auth/username	authenticated	self	deny	-	-
+PUT	/submissions/{submission_id}/cinema/episodes/{episode_id}	authenticated	author	allow	-	-
+PUT	/submissions/{submission_id}/cinema/title	authenticated	author	allow	-	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-	-
 PUT	/submissions/{submission_id}/library/series	authenticated	author	allow	-	-
 PUT	/tv/favorites/{channel_id}	authenticated	self	allow	-	-

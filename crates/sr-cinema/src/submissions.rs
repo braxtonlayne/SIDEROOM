@@ -81,7 +81,7 @@ impl AssetLookup for NoAssets {
     }
 }
 
-fn sponsor(user_id: i64) -> Actor {
+pub(crate) fn sponsor(user_id: i64) -> Actor {
     Actor {
         user_id,
         permissions: P::PUBLISH_MEDIA | P::DELETE_CONTENT,
@@ -127,6 +127,8 @@ struct EpisodesDraft {
     title_id: i64,
     #[serde(default = "first_season")]
     season: i32,
+    /// May be empty: the member adds episodes (and their videos) to the draft afterwards.
+    #[serde(default)]
     episodes: Vec<EpisodeDraft>,
 }
 
@@ -389,9 +391,9 @@ impl SubmissionKind for CinemaKind {
         } else {
             let draft: EpisodesDraft =
                 serde_json::from_value(payload.clone()).map_err(|e| parse_err("episodes", e))?;
-            if draft.episodes.is_empty() || draft.episodes.len() > MAX_EPISODES {
+            if draft.episodes.len() > MAX_EPISODES {
                 return Err(ReviewError::Invalid(format!(
-                    "send between 1 and {MAX_EPISODES} episodes"
+                    "at most {MAX_EPISODES} episodes per submission"
                 )));
             }
             let detail = self.svc.admin_title(a, draft.title_id).await?;
@@ -419,6 +421,8 @@ impl SubmissionKind for CinemaKind {
             }
             let season = match detail.seasons.iter().find(|s| s.number == draft.season) {
                 Some(s) => s.id,
+                // Nothing to put in it yet: the draft creates its seasons as episodes arrive.
+                None if draft.episodes.is_empty() => 0,
                 None => {
                     self.svc
                         .create_season(
@@ -457,7 +461,7 @@ impl SubmissionKind for CinemaKind {
     async fn items(
         &self,
         s: &Submission,
-        _current: &[SubmissionItem],
+        current: &[SubmissionItem],
     ) -> ReviewResult<Vec<NewItem>> {
         let detail = self.detail(s).await?;
         let mut rows: Vec<(i64, String)> = Vec::new();
@@ -468,7 +472,7 @@ impl SubmissionKind for CinemaKind {
                 rows.extend(detail.episodes.iter().map(|e| (e.id, label(e))));
             }
         } else {
-            let ids: Vec<i64> = s
+            let mut ids: Vec<i64> = s
                 .payload
                 .get("episode_ids")
                 .and_then(Value::as_array)
@@ -478,6 +482,8 @@ impl SubmissionKind for CinemaKind {
                         .collect()
                 })
                 .unwrap_or_default();
+            // Episodes the member added to the draft afterwards are registered as items.
+            ids.extend(current.iter().map(|i| i.ref_id));
             rows.extend(
                 detail
                     .episodes

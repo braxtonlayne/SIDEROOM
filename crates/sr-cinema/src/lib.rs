@@ -1,5 +1,6 @@
 //! sr-cinema: the Cinema catalog (docs/specs/cinema-media.md, inventory 14, CIN-DATA).
 //!
+//! * [`drafts`]: what a member may do to the draft behind a Cinema submission (RDY-MED-001).
 //! * [`model`]: wire and domain types.
 //! * [`rules`]: validation and normalisation of publisher input, cursors.
 //! * [`repo`]: the storage port; `sr-db` implements it over Postgres.
@@ -11,6 +12,7 @@
 //! The playable assets (renditions, tracks, transcoding) and everything a viewer does (progress,
 //! lists, ratings) live elsewhere and refer to titles and episodes by plain ids.
 
+pub mod drafts;
 pub mod error;
 pub mod model;
 pub mod repo;
