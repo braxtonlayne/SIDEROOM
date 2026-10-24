@@ -155,7 +155,10 @@ test('a member uploads a generated MP4 to a series draft and Garage holds the by
 
   // Without a real ffprobe the video is not playable, so the server says why it cannot be sent yet.
   await page.getByRole('button', { name: 'Send for review' }).click();
-  await expect(page.getByRole('alert')).toContainText(/still being processed|no video yet/i);
+  // The shell's (empty) assertive live region is also role=alert; match the notice that carries the reason.
+  await expect(
+    page.getByRole('alert').filter({ hasText: /still being processed|no video yet/i }),
+  ).toBeVisible();
 });
 
 test('an interrupted upload continues from the browser ledger after a refresh', async ({
@@ -270,7 +273,9 @@ test.describe('with a real ffmpeg', () => {
     signedIn,
     owner,
   }) => {
-    test.setTimeout(420_000);
+    // A CPU proxy plus ladder on a standard runner takes minutes: the first CI run used up a 7-minute budget in
+    // the "Ready" wait and closed the page as the reviewer opened the queue.
+    test.setTimeout(900_000);
     const name = `E2E Proxy ${stamp()}`;
     const fileName = `${name} - s01e01 - Pilot.mp4`;
     const dir = mkdtempSync(join(tmpdir(), 'sr-e2e-cinema-'));
@@ -280,7 +285,7 @@ test.describe('with a real ffmpeg', () => {
       const member = await signedIn(await seedUser('proxy'));
       await startSeries(member.page, name);
       await pickEpisode(member.page, fileName, realMp4(dir));
-      await expect(row(member.page, /S01E01 Pilot/)).toContainText('Ready', { timeout: 300_000 });
+      await expect(row(member.page, /S01E01 Pilot/)).toContainText('Ready', { timeout: 600_000 });
       await member.page.getByRole('button', { name: 'Send for review' }).click();
       await expect(member.page.getByText('Waiting for review').first()).toBeVisible();
 

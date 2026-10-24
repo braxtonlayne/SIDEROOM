@@ -51,8 +51,8 @@ jobs:
   live:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # 60, not 45: the cinema step installs ffmpeg, builds sr-transcoder and transcodes one short clip (RDY-MED-002).
-    timeout-minutes: 60
+    # 75: the cinema step installs ffmpeg, builds sr-transcoder and waits for a CPU proxy and ladder (RDY-MED-002).
+    timeout-minutes: 75
     env:
       SR_VOICE__ENABLED: "true"
       # Voice E2EE is on by default in sr-server and the web build (D-249), so the first step runs voice and Activities
@@ -178,7 +178,7 @@ jobs:
           export SR_FFPROBE
           echo "sr-server spawns $SR_FFPROBE"
           status=0
-          ./deploy/compose/e2e-run.sh --project=chromium tests/cinema-submit.spec.ts || status=$?
+          ./deploy/compose/e2e-run.sh --project=chromium tests/cinema-submit.spec.ts --retries=0 || status=$?
           cp server.log server-cinema.log || true
           exit "$status"
         env:
