@@ -184,16 +184,48 @@ export const isUserSettingsSection = (v: string): v is UserSettingsSectionId =>
 export const USER_SETTINGS_PATH = '/settings/user';
 const FALLBACK = '/channels';
 let returnTo: string | null = null;
+/** The accessible name of the control that had focus when Settings opened (RDY-A11Y-003, flow 8). */
+let openerName: string | null = null;
 
-/** Remembers where ESC / Close should go back to (an in-app path). */
+/** Remembers where ESC / Close should go back to (an in-app path), and which control had focus. */
 export function setSettingsReturn(href: string | null) {
   returnTo = href && href.startsWith('/') && !href.startsWith(USER_SETTINGS_PATH) ? href : null;
+  openerName =
+    (typeof document !== 'undefined' &&
+      (document.activeElement as HTMLElement | null)?.getAttribute?.('aria-label')) ||
+    null;
 }
 
 export function takeSettingsReturn(): string {
   const href = returnTo ?? FALLBACK;
   returnTo = null;
+  const name = openerName;
+  openerName = null;
+  restoreFocusAfterNavigation(name);
   return href;
+}
+
+/**
+ * Settings is a separate full-screen route, so the page that opened it is gone when it closes and focus falls to
+ * <body>. Once the page is back, focus the control that opened Settings (by its accessible name), or else the
+ * page's main region. Gives up quietly after about a second.
+ */
+export function restoreFocusAfterNavigation(name: string | null, tries = 0): void {
+  if (typeof document === 'undefined' || typeof requestAnimationFrame === 'undefined') return;
+  const opener = name
+    ? Array.from(document.querySelectorAll<HTMLElement>('[aria-label]')).find(
+        (el) => el.getAttribute('aria-label') === name && !el.closest('[role="dialog"]'),
+      )
+    : undefined;
+  // While the URL is still Settings, <main> is Settings' own: keep waiting for the page we came from.
+  const left = !location.pathname.startsWith(USER_SETTINGS_PATH);
+  const target = opener ?? (left && tries >= 6 ? document.querySelector<HTMLElement>('main') : null);
+  if (target) {
+    if (!opener && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+    return;
+  }
+  if (tries < 90) requestAnimationFrame(() => restoreFocusAfterNavigation(name, tries + 1));
 }
 
 /** Opens the full-screen User Settings, remembering the current location so ESC returns to it. */
