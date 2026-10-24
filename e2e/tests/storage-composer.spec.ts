@@ -248,14 +248,19 @@ test('chat multipart: abort, reload resume and a server restart, ledger equals L
     hold.delayMs = 4000; // every part waits, on top of the bandwidth limit below
     seen.length = 0;
     await cdp.send('Network.enable');
+    // Only the upload side is slowed: the 4 s hold per part above plus the bandwidth cap. Added latency also
+    // applied to every module the Vite dev server serves on reload, and the page did not come back within the
+    // wait (the CI run after the CORS fix).
     await cdp.send('Network.emulateNetworkConditions', {
       offline: false,
-      latency: 150,
+      latency: 0,
       downloadThroughput: -1,
       uploadThroughput: 3 * MIB,
     });
     await page.reload();
-    await expect(page.getByRole('heading', { level: 1, name: 'general' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'general' })).toBeVisible({
+      timeout: 60_000,
+    });
     await expect(card('restart.bin')).toBeVisible();
     await expect.poll(() => seen.length, { timeout: 60_000 }).toBeGreaterThan(0);
     // sr-server goes away and comes back while the parts still travel to S3, before the upload is completed.
