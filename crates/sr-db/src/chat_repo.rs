@@ -1714,6 +1714,22 @@ impl MessageStore for PgMessageStore {
         Ok(())
     }
 
+    async fn forget_pending_upload(&self, id: AttachmentId) -> StoreResult<()> {
+        sqlx::query("DELETE FROM attachment_multipart WHERE attachment_id = $1")
+            .bind(i(id.get()))
+            .execute(&self.pool)
+            .await
+            .map_err(sdb)?;
+        sqlx::query(
+            "DELETE FROM attachments WHERE id = $1 AND message_id IS NULL AND hold_id IS NULL",
+        )
+        .bind(i(id.get()))
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(())
+    }
+
     async fn detach_attachment(
         &self,
         id: AttachmentId,

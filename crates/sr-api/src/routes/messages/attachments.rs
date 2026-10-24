@@ -583,8 +583,8 @@ pub async fn abort_upload(
     {
         tracing::warn!(upload = %att.id, error = %e, "aborting a multipart upload failed");
     }
-    deps.store.clear_attachment_multipart(att.id).await?;
     let _ = deps.storage.delete(&att.key).await;
+    deps.store.forget_pending_upload(att.id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
