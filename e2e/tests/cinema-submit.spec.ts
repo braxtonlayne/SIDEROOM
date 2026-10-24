@@ -1,5 +1,9 @@
 import type { APIRequestContext, Page } from '@playwright/test';
-import { runCli } from '../support/cli';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { mkdtempSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { repoRoot, runCli } from '../support/cli';
 import { apiPost, expect, test } from '../support/fixtures';
 
 /**
@@ -9,10 +13,12 @@ import { apiPost, expect, test } from '../support/fixtures';
  * attaches the video to the draft episode, and the owner's asset list shows the stored bytes. A second test
  * breaks the part PUT, reloads the page and lets the IndexedDB ledger finish the upload.
  *
- * Runs in the `live` CI job (SR_E2E_LIVE=1: the real Garage stack). The sr-server of that job has no ffprobe,
- * so the video stops at "Failed" or "Checking the file" and the submission cannot be sent; the third test goes
- * on to the reviewer's proxy player and only runs where a real ffmpeg is installed (SR_E2E_FFMPEG=1, the
- * media pipeline job).
+ * Runs in the `live` CI job (SR_E2E_LIVE=1: the real Garage stack). The first two tests use a tiny MP4 with no
+ * decodable track, so where ffprobe is present the video ends "Failed" and, without it, at "Checking the file"; the
+ * submission cannot be sent either way. The third test needs SR_E2E_FFMPEG=1 (the live job installs ffmpeg from
+ * apt and builds sr-transcoder): it writes a real four-second MP4 with ffmpeg, starts an sr-transcoder worker
+ * (SR_TRANSCODER_BIN) with an Owner-minted token, waits for "Ready", sends the submission and opens the
+ * reviewer's proxy player.
  */
 
 test.skip(
@@ -93,11 +99,11 @@ async function startSeries(page: Page, name: string) {
 }
 
 /** Put the generated file on the picker and start its upload. */
-async function pickEpisode(page: Page, fileName: string) {
+async function pickEpisode(page: Page, fileName: string, buffer: Buffer = tinyMp4()) {
   await page.getByLabel('Video files').setInputFiles({
     name: fileName,
     mimeType: 'video/mp4',
-    buffer: tinyMp4(),
+    buffer,
   });
   const proposal = page.getByRole('region', { name: 'How your files were read' });
   // The naming tester read season 1, episode 1 from "s01e01".
@@ -183,36 +189,117 @@ test('an interrupted upload continues from the browser ledger after a refresh', 
   await expect(resumed).not.toContainText('No video yet', { timeout: 60_000 });
 });
 
+/**
+ * A real four-second MP4 (H.264 and AAC) from ffmpeg's lavfi sources, so the probe, the review proxy and the
+ * ladder all have something to decode. Only called where SR_E2E_FFMPEG=1 says ffmpeg is installed.
+ */
+function realMp4(dir: string): Buffer {
+  const out = join(dir, 'source.mp4');
+  const r = spawnSync(
+    process.env.SR_FFMPEG ?? 'ffmpeg',
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc=size=640x360:rate=25:duration=4',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=4',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-shortest',
+      '-movflags',
+      '+faststart',
+      out,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (r.status !== 0)
+    throw new Error(`ffmpeg could not write the source: ${r.stderr || String(r.error)}`);
+  return readFileSync(out);
+}
+
+/**
+ * A real sr-transcoder worker (CPU path) for the duration of one test: the review proxy and the ladder are
+ * transcode jobs, and sr-server only plans them. The worker token is minted by the Owner over the admin API.
+ */
+async function startWorker(staff: APIRequestContext, dir: string): Promise<ChildProcess> {
+  const t = await apiPost<{ secret: string }>(staff, '/admin/transcode/tokens', {
+    name: `e2e-cinema-${stamp()}`,
+  });
+  const tokenFile = join(dir, 'worker.token');
+  writeFileSync(tokenFile, t.secret, { mode: 0o600 });
+  const exe = process.platform === 'win32' ? '.exe' : '';
+  const bin =
+    process.env.SR_TRANSCODER_BIN ?? resolve(repoRoot, 'target', 'debug', `sr-transcoder${exe}`);
+  const log = openSync(process.env.SR_E2E_WORKER_LOG ?? join(dir, 'worker.log'), 'a');
+  return spawn(
+    bin,
+    [
+      '--server',
+      process.env.SR_E2E_WORKER_SERVER ?? 'http://127.0.0.1:8080',
+      '--token-file',
+      tokenFile,
+      '--work-dir',
+      join(dir, 'work'),
+      '--name',
+      'e2e-cinema',
+      '--force-cpu',
+    ],
+    { stdio: ['ignore', log, log] },
+  );
+}
+
 test.describe('with a real ffmpeg', () => {
-  test.skip(process.env.SR_E2E_FFMPEG !== '1', 'Needs ffmpeg on the runner (SR_E2E_FFMPEG=1).');
+  test.skip(
+    process.env.SR_E2E_FFMPEG !== '1',
+    'Needs ffmpeg and ffprobe on the runner and sr-transcoder built (SR_E2E_FFMPEG=1).',
+  );
 
   test('the reviewer opens the proxy player of a submitted video', async ({
     seedUser,
     signedIn,
     owner,
   }) => {
+    test.setTimeout(420_000);
     const name = `E2E Proxy ${stamp()}`;
     const fileName = `${name} - s01e01 - Pilot.mp4`;
-    const member = await signedIn(await seedUser('proxy'));
-    await startSeries(member.page, name);
-    await pickEpisode(member.page, fileName);
-    await expect(row(member.page, /S01E01 Pilot/)).toContainText('Ready', { timeout: 240_000 });
-    await member.page.getByRole('button', { name: 'Send for review' }).click();
-    await expect(member.page.getByText('Waiting for review').first()).toBeVisible();
-
+    const dir = mkdtempSync(join(tmpdir(), 'sr-e2e-cinema-'));
     const staff = await signedIn(owner);
-    const queue = await apiGet<{ items: { id: string; title: string }[] }>(
-      staff.context.request,
-      `/admin/review/queue?q=${encodeURIComponent(name)}`,
-    );
-    const id = queue.items[0]?.id;
-    expect(id).toBeTruthy();
-    await apiPost(staff.context.request, `/admin/review/submissions/${id}/claim`, {
-      takeover: false,
-    });
-    await staff.page.goto('/admin/review');
-    await staff.page.getByText(name).first().click();
-    await expect(staff.page.getByRole('heading', { name: 'Review proxy' })).toBeVisible();
-    await expect(staff.page.locator('video').first()).toHaveAttribute('src', /\/cdn\//);
+    const worker = await startWorker(staff.context.request, dir);
+    try {
+      const member = await signedIn(await seedUser('proxy'));
+      await startSeries(member.page, name);
+      await pickEpisode(member.page, fileName, realMp4(dir));
+      await expect(row(member.page, /S01E01 Pilot/)).toContainText('Ready', { timeout: 300_000 });
+      await member.page.getByRole('button', { name: 'Send for review' }).click();
+      await expect(member.page.getByText('Waiting for review').first()).toBeVisible();
+
+      const queue = await apiGet<{ items: { id: string; title: string }[] }>(
+        staff.context.request,
+        `/admin/review/queue?q=${encodeURIComponent(name)}`,
+      );
+      const id = queue.items[0]?.id;
+      expect(id).toBeTruthy();
+      await apiPost(staff.context.request, `/admin/review/submissions/${id}/claim`, {
+        takeover: false,
+      });
+      await staff.page.goto('/admin/review');
+      await staff.page.getByText(name).first().click();
+      await expect(staff.page.getByRole('heading', { name: 'Review proxy' })).toBeVisible();
+      await expect(staff.page.locator('video').first()).toHaveAttribute('src', /\/cdn\//);
+    } finally {
+      // The worker never outlives the test, even when an assertion fails.
+      worker.kill();
+    }
   });
 });

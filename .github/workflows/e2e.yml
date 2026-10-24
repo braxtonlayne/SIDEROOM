@@ -51,7 +51,8 @@ jobs:
   live:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 60, not 45: the cinema step installs ffmpeg, builds sr-transcoder and transcodes one short clip (RDY-MED-002).
+    timeout-minutes: 60
     env:
       SR_VOICE__ENABLED: "true"
       # Voice E2EE is on by default in sr-server and the web build (D-249), so the first step runs voice and Activities
@@ -153,19 +154,38 @@ jobs:
         env:
           CI: "true"
           SR_E2E_RELAY: "1"
+      # RDY-MED-002 needs a real ffmpeg for its reviewer-proxy test: ffmpeg from apt on this runner (owner-approved in
+      # wave 22, the same package media.yml installs), and the sr-transcoder worker that turns the upload into the
+      # review proxy and the ladder. Nothing else is downloaded.
+      - name: Install ffmpeg and build sr-transcoder
+        if: always()
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -hide_banner -version | head -n 1
+          ffprobe -hide_banner -version | head -n 1
+          cargo build -p sr-transcoder
+          ./target/debug/sr-transcoder --check --force-cpu
       # RDY-MED-002: Cinema > Submit in the browser against this job's Garage (SR_E2E_LIVE=1 is set for the job). A
-      # member uploads a generated MP4 to a series draft through the presigned part PUT, and a broken part PUT is
-      # finished from the IndexedDB ledger after a reload. The reviewer-proxy test needs ffprobe (SR_E2E_FFMPEG=1,
-      # not set here) and skips itself.
+      # member uploads a generated MP4 to a series draft through the presigned part PUT; a broken part PUT is
+      # finished from the IndexedDB ledger after a reload; and with SR_E2E_FFMPEG=1 a real four-second MP4 is probed
+      # by sr-server (it spawns ffprobe, SR_FFPROBE), transcoded by an sr-transcoder worker the spec starts with an
+      # Owner-minted token, sent for review, and the reviewer's proxy player opens it.
       - name: Cinema submit over Garage (Chromium)
         if: always()
         run: |
+          SR_FFPROBE="$(command -v ffprobe)"
+          export SR_FFPROBE
+          echo "sr-server spawns $SR_FFPROBE"
           status=0
           ./deploy/compose/e2e-run.sh --project=chromium tests/cinema-submit.spec.ts || status=$?
           cp server.log server-cinema.log || true
           exit "$status"
         env:
           CI: "true"
+          SR_E2E_FFMPEG: "1"
+          SR_TRANSCODER_BIN: ${{ github.workspace }}/target/debug/sr-transcoder
+          SR_E2E_WORKER_LOG: ${{ github.workspace }}/worker-cinema.log
       # RDY-OPS-004: the preflight's TURN row against the dev stack's coturn (deploy/compose/dev.yml, same shared
       # secret as deploy/compose/coturn/turnserver.conf): credentials derive and a UDP allocation is granted. Only the
       # turn row is asserted; the other rows describe this runner, not a production box.
@@ -200,6 +220,7 @@ jobs:
             server-e2ee-firefox.log
             server-relay.log
             server-cinema.log
+            worker-cinema.log
             coturn-relay.log
             e2e/playwright-report-e2ee-firefox
             e2e/test-results-e2ee-firefox

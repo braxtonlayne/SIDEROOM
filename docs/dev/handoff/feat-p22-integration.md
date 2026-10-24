@@ -14,8 +14,8 @@ Main checkout `C:\Users\braxt\Desktop\SIDEROOM_repo`, branch `integration/phase2
 | RDY-MED-004 | `media.yml`, stages `retranscode`, `download`, `tv` | same run |
 | RDY-MED-005 | `media.yml`, stage `resilience` | same run |
 | RDY-VOX-001 | `e2e.yml` job `live`, step "Voice through TURN relay (Chromium)" | `e2e.yml` runs on every pull request |
-| RDY-MED-002 (browser part) | `e2e.yml` job `live`, step "Cinema submit over Garage (Chromium)" (added here) | same |
-| RDY-STO-001, RDY-STO-002 | `storage.yml` jobs `live-s3` (section 13 of `storage-live.mjs`) and `composer` | `storage.yml` has `pull_request` paths (`e2e/support/**`, `e2e/tests/storage-composer.spec.ts`, `apps/web/src/lounge/msg/**`, `crates/sr-server/**`, ...) and `composer` has no `if:`, so it **does** run on this PR. It is not dispatch-only, whatever the brief said |
+| RDY-MED-002 | `e2e.yml` job `live`, steps "Install ffmpeg and build sr-transcoder" and "Cinema submit over Garage (Chromium)" (both added here), all three tests including the reviewer proxy player (`SR_E2E_FFMPEG=1`) | same |
+| RDY-STO-001, RDY-STO-002 | `storage.yml` jobs `live-s3` (section 13 of `storage-live.mjs`) and `composer` | `storage.yml` has `pull_request` paths (`e2e/support/**`, `e2e/tests/storage-composer.spec.ts`, `apps/web/src/lounge/msg/**`, `crates/sr-server/**`, ...) and `composer` has no `if:`, so it runs on this PR. **Intentional** (coordinator, 2026-10-24): that is how its first proof lands on this PR |
 
 **What waits on a manual dispatch:**
 
@@ -23,13 +23,25 @@ Main checkout `C:\Users\braxt\Desktop\SIDEROOM_repo`, branch `integration/phase2
 |---|---|
 | RDY-VOX-002 | `voice-soak.yml` once on the merged tree with the defaults (10 members, 10 minutes, `camera` on). Attach its log to this handoff. It runs on `ubuntu-latest` (owner, 2026-10-24: no larger runner). If it struggles, dispatch again with `camera` off; the camera step is the first thing to drop. |
 
-**Not covered by any job yet:** RDY-MED-002's "the review page's proxy player opens it". That test (`cinema-submit.spec.ts`, "with a real ffmpeg") needs `SR_E2E_FFMPEG=1` and ffprobe next to `sr-server`. The `live` job has no ffmpeg, and `media.yml` has no browser. RDY-MED-002 can tick only with this part waived, or when a job has both. That is a coordinator call.
+**The reviewer proxy player (RDY-MED-002) now runs in the `live` job** (follow-up, coordinator 2026-10-24, inside the owner's ffmpeg approval). Before the cinema step, the job installs ffmpeg with `apt-get`, the same package `media.yml` installs, and builds `sr-transcoder` (`cargo build`, from the lockfile like every other CI build). The cinema step exports `SR_FFPROBE=$(command -v ffprobe)`; `sr-server`, started by `e2e-run.sh`, inherits it and spawns that ffprobe. The step sets `SR_E2E_FFMPEG=1`, `SR_TRANSCODER_BIN` and `SR_E2E_WORKER_LOG`. The spec's third test then:
+
+- writes a real four-second H.264/AAC MP4 with ffmpeg (lavfi);
+- mints a worker token as the Owner (`POST /admin/transcode/tokens`);
+- starts `sr-transcoder --force-cpu` for the length of the test;
+- waits for "Ready" (the proxy and the ladder);
+- sends the submission and opens the reviewer's proxy player.
+
+The job timeout goes from 45 to 60 minutes, and `worker-cinema.log` joins the artifact. Not run locally (no ffmpeg on this machine). Checked here: YAML parses, `bash -n` passes on every workflow `run:` block and on the compose scripts, e2e `tsc` passes, and Playwright lists all three tests. Likely first-run snags:
+
+- the draft may need more metadata before "Send for review" accepts it;
+- the worker's `--server` is `http://127.0.0.1:8080` (`SR_E2E_WORKER_SERVER` overrides it);
+- the 300 s wait for "Ready" covers the proxy plus the ladder on the CPU path.
 
 **For the owner or the coordinator:**
 
 1. Push `integration/phase22` and open the PR when the owner agrees. Then read, in order: `Media pipeline` (`media.yml`), `E2E / live` (relay and cinema steps), and `Storage (live S3)` (`live-s3` and `composer`). The branch handoffs list the likely first-run failures: `feat-p22-ffmpeg-ci.md` (9 items) and `feat-p22-voice-storage.md` (9 items).
 2. Dispatch `voice-soak.yml` once the PR is green.
-3. Decide how RDY-MED-002 ticks (see above).
+3. Tick RDY-MED-002 when the `live` job's cinema step is green with all three tests.
 
 **How to rerun the browser tests locally:** as in `feat-p21-integration.md`, with these settings:
 
@@ -134,7 +146,7 @@ Run the E2EE spec on a **restarted** `sr-server`. The full suite uses up the dai
   - read season 1, episode 1 from the file name (`POST /submissions/naming/parse` 200; the spec's season and episode assertions passed).
   - They stopped at `POST /submissions/{id}/cinema/files`, which answered 503: "cinema upload could not be presigned", because memory storage has no multipart presign. `sr-cli storage ensure-cors` also fails without a bucket.
   - Waits for CI (`live` job): everything from the part PUT onwards.
-- **Not run anywhere yet:** every ffmpeg stage of `media.yml`, Garage multipart (`live-s3` section 13 and `composer`), the TURN relay, the reviewer proxy player.
+- **Not run anywhere yet:** every ffmpeg stage of `media.yml`, Garage multipart (`live-s3` section 13 and `composer`), the TURN relay, and the reviewer proxy player (now in the `live` job with ffmpeg and a worker).
 
 ## Clean-up
 
@@ -143,7 +155,7 @@ Run the E2EE spec on a **restarted** `sr-server`. The full suite uses up the dai
 
 ## Open issues
 
-- RDY-MED-002's proxy-player part has no CI job (see "Resume here").
-- The brief says the `storage.yml` `composer` job is dispatch-only, but it runs on pull requests through the workflow's `pull_request` paths. It is listed above under the first CI run. If dispatch-only was intended, it needs `if: github.event_name == 'workflow_dispatch'`; this pass did not add one.
+- RDY-MED-002's proxy-player test is now in the `live` job and waits for its first run (see "Resume here").
+- The `storage.yml` `composer` job runs on pull requests on purpose (coordinator, 2026-10-24), so its first proof lands on this PR.
 - The e2e registration throttle makes a local full suite followed by the E2EE spec on the same server fail with a 429. CI starts a new server per step, so this is local only.
 - CI has not run on this tree.
