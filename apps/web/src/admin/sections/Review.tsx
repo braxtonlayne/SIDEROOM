@@ -26,6 +26,7 @@ import {
 } from '../../review/ReviewExtras';
 import {
   ChangeList,
+  CinemaPreviewFacts,
   ItemChip,
   PreviewFacts,
   StateChip,
@@ -37,7 +38,9 @@ import {
   snapshots,
   useSubmissionUpdates,
 } from '../../review/shared';
+import { isLibraryPreview } from '../../review/types';
 import type {
+  CinemaPreview,
   LibraryPreview,
   ReviewPage,
   Submission,
@@ -438,6 +441,10 @@ function ReviewDetail({
         const snaps = snapshots(d.events);
         const last = snaps.at(-1);
         const prev = snaps.at(-2);
+        // Cinema submissions share this workspace but carry a title preview, not a Library series: every
+        // series- or chapter-shaped panel below is for the Library kinds only (the p22 CI run crashed here).
+        const library = s.kind.startsWith('library.');
+        const libraryPreview = library && isLibraryPreview(preview.data) ? preview.data : undefined;
         const items = [...d.items].sort((a, b) => a.position - b.position);
         const pendingLeft = items.filter((i) => i.state === 'pending').length;
         const approveCount = items.filter((i) => i.state !== 'rejected').length;
@@ -550,8 +557,10 @@ function ReviewDetail({
 
             <section className="rv-panel" aria-labelledby="rv-changes-h">
               <h3 id="rv-changes-h">{t('admin.review.whatChanged')}</h3>
-              {last && prev ? (
+              {last && prev && library && isLibraryPreview(last) && isLibraryPreview(prev) ? (
                 <ChangeList changes={previewDiff(prev, last)} />
+              ) : last && prev ? (
+                <p className="rv-muted">{t('review.cinema.resubmitted')}</p>
               ) : (
                 <p className="rv-muted">{t('admin.review.firstSubmission')}</p>
               )}
@@ -560,21 +569,25 @@ function ReviewDetail({
             <section className="rv-panel" aria-labelledby="rv-meta-h">
               <h3 id="rv-meta-h">{t('admin.review.metadata')}</h3>
               <Async res={preview} label={t('admin.review.loadingPreview')}>
-                {(p: LibraryPreview) => (
-                  <>
-                    <PreviewFacts preview={p} />
-                    {!p.new_series && (
-                      <p className="rv-muted">
-                        {t('admin.review.existingChapters', { count: p.existing_chapters })}
-                      </p>
-                    )}
-                  </>
-                )}
+                {(p: LibraryPreview | CinemaPreview) =>
+                  isLibraryPreview(p) ? (
+                    <>
+                      <PreviewFacts preview={p} />
+                      {!p.new_series && (
+                        <p className="rv-muted">
+                          {t('admin.review.existingChapters', { count: p.existing_chapters })}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <CinemaPreviewFacts preview={p} />
+                  )
+                }
               </Async>
             </section>
 
             {canDecide && s.kind.startsWith('library.') && (
-              <ReviewerEdit submission={s} preview={preview.data} onChanged={reload} />
+              <ReviewerEdit submission={s} preview={libraryPreview} onChanged={reload} />
             )}
             <DuplicatePanel id={id} canResolve={canDecide} />
             <VideoProxyPlayer id={id} />
@@ -605,7 +618,7 @@ function ReviewDetail({
                         <ItemRow
                           key={it.id}
                           item={it}
-                          preview={preview.data}
+                          preview={libraryPreview}
                           canDecide={canDecide}
                           busy={action.busy}
                           onDecide={(state, note) =>

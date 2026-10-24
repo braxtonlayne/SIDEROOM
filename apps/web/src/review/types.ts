@@ -74,6 +74,38 @@ export interface KindInfo {
   label: string;
 }
 
+/** The reviewer preview of a Cinema submission (`sr-cinema` `submissions.rs` `preview`). */
+export interface CinemaPreview {
+  title_id: string;
+  new_title: boolean;
+  title: {
+    kind: string;
+    title: string;
+    original_title?: string | null;
+    year?: number | null;
+    runtime_min?: number | null;
+    content_rating?: string | null;
+    synopsis?: string | null;
+    genres?: string[];
+    languages?: string[];
+  };
+  seasons: { number: number; name: string | null }[];
+  existing_episodes: number;
+  episodes: {
+    id: string;
+    season: number;
+    number: number;
+    title: string | null;
+    has_asset: boolean;
+    published: boolean;
+  }[];
+}
+
+/** True when a preview is a Library one (it has the series facts the Library panels read). */
+export function isLibraryPreview(p: unknown): p is LibraryPreview {
+  return typeof p === 'object' && p !== null && 'series' in p && 'chapters' in p;
+}
+
 /** What the Library kinds show a reviewer (crates/sr-library/src/submissions.rs `preview`). */
 export interface LibraryPreview {
   series_id: string;

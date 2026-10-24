@@ -454,3 +454,44 @@ describe('review page', () => {
     expect(await screen.findByText('Another reviewer holds the claim.')).toBeInTheDocument();
   });
 });
+
+describe('review detail of a Cinema submission (RDY-MED-002)', () => {
+  beforeEach(() => asStaff({ perms: ['STAFF_BASIC', 'REVIEW_MEDIA'] }));
+
+  it('shows the title details and episodes instead of the Library series panels', async () => {
+    useReviewApi({
+      detail: () =>
+        detail({
+          id: '9',
+          title: 'Night Shift',
+          kind: 'cinema.series',
+          state: 'in_review',
+          ...lease(),
+        }),
+    });
+    // A Cinema preview has no `series` or `chapters`: the page used to crash reading `series.title`.
+    server.use(
+      http.get('*/api/v1/admin/review/submissions/:id/preview', () =>
+        HttpResponse.json({
+          preview: {
+            title_id: '50',
+            new_title: true,
+            title: { kind: 'series', title: 'Night Shift', year: 2026, genres: ['Drama'] },
+            seasons: [{ number: 1, name: null }],
+            existing_episodes: 0,
+            episodes: [
+              { id: '51', season: 1, number: 1, title: 'Pilot', has_asset: true, published: false },
+            ],
+          },
+        }),
+      ),
+    );
+    openAdmin('review?submission=9');
+    expect(await screen.findByRole('heading', { name: 'Night Shift' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Title details')).toHaveTextContent('Drama');
+    expect(screen.getByLabelText('Episodes in this submission')).toHaveTextContent(
+      'S1E1 Pilot (video attached)',
+    );
+    expect(screen.queryByText('Something went wrong!')).not.toBeInTheDocument();
+  });
+});
