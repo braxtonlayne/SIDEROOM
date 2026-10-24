@@ -52,6 +52,36 @@ The job timeout goes from 45 to 60 minutes, and `worker-cinema.log` joins the ar
 
 Run the E2EE spec on a **restarted** `sr-server`. The full suite uses up the daily registration throttle of 127.0.0.1, and the E2EE spec then fails at `POST /sr/register` with a 429. A restart clears it.
 
+## CI fixes after the first PR run (head f1e89b77, 2026-10-24)
+
+The first run of the PR failed in `media.yml` (16 checks), `storage.yml` `composer`, and `e2e.yml` `live` (relay step and `cinema-submit.spec.ts`). Each failure was traced to a root cause and fixed on the side that was wrong. Local commits only, nothing pushed:
+
+| Failure | Root cause | Side | Fix and test | Commit |
+|---|---|---|---|---|
+| media `tv`: during the slate, audio said #447024435 and video #298811000 | A 12 s slate is cut 6 + 6 s on video, but its AAC track is 21 ms longer (encoder priming), so ffmpeg cuts the audio 6 + 6 + 0.021 s. Each slate track used its own segment count and cycle, so the audio loop had 3 segments per pass and drifted on the wall clock. It agreed during the episode only because there both tracks had 4 segments. | product, `sr-tv` | Every slate track runs on the lowest video rung's timing, with the length of the shortest track (the sliver is dropped). Programme tracks are numbered by the lowest rung's on-air segments. `hls_sync.rs`: the random schedules now render all three tracks at the same moments, give audio slivers to some slates and programmes, and assert that a number names the same segment on every track and that the live edges agree. There are also two direct reproductions. All failed before the fix. | `f95b2baa` |
+| media `resilience`: "expected 1 sprite sheets, found 0" (it was the 4 s clips of the two-worker scenario, not the long source) | `fps=1/10` rounds a 4 s stream's end to output frame 0, so it made no frame and `tile` wrote no sheet | product, `sr-transcoder` args | `fps=1/10:eof_action=pass` keeps the frame at 0 s. `ci_pins` pins the 4 s clip: one thumbnail, one sheet, the filter string | `0f290df6` |
+| media `pipeline`: `thumbs_total: 3`, 3 VTT cues for the 20 s source | The source is probed as 20.021 s (AAC), so the plan put a thumbnail at 20 s, where the video has no frame; the driver's expectation (2) matches the spec | product, `sr-media` plan | A thumbnail is planned at t only if the source runs 0.5 s past t (`SPRITE_TAIL_SECS`). The last cue runs to the end of the source. Tests in `plan.rs`, `subtitles.rs` and `ci_pins` | `0f290df6` |
+| media: "segment durations add up to the source" said 56.04 / 56.085 | For init + one fMP4 fragment, ffprobe's `format.duration` is the fragment's end time, so the driver summed 6 + 12 + 18 + 20 | test | `probeDuration` in `media-lib.mjs` uses the packet span, else duration minus `start_time`. Covered by `node --test`, and the fakes now answer the way the real ffprobe does | `77705a88` |
+| media: "ladder is 720p and 480p" saw `[480,720]`; audio and subtitle LANGUAGE checks failed | The spec (cinema-media.md 4.6) orders variants by ascending bandwidth, and HLS LANGUAGE values are RFC 5646 (`en`, `es`) | test | Driver, fakes and `media-pipeline-test.md` updated | `77705a88` |
+| storage `composer`: "ledger= s3=1" at the first still point (before any reload) | The bucket had no CORS rule. `bootstrap.sh` runs before sr-cli is built (the log says "sr-cli not found") and names only :8088/:8080. Playwright answers the preflight of a routed request itself, so the PUT reached Garage, but the browser refused the answer. The XHR failed and the part never counted. The composer and its ledger are fine. | CI | The `e2e-stack` action runs `sr-cli storage ensure-cors` for :5173, :8080 and :8088 after the build, which the live job's cinema uploads need too. The spec first checks the bucket's CORS answer from Node, so this fails at once with its cause | `2704a599` |
+| (C) composer abort after `be82a1d4` | consistent: the spec cancels, then expects the ledger row gone, the S3 upload gone and `GET .../parts` 404, which is what `abort_upload` now gives | none | none | - |
+| live relay step: `render-test-conf.sh: Permission denied` (still failing at head cbc205c6, which predates this fix) | The script was committed with mode 100644 | repo | Mode 100755 (also `scripts/new-feature.sh`). `check-ops-files.mjs` (repo-checks) now fails for any tracked `.sh`, and any tracked file a workflow or composite action runs as `./path`, that is not 100755 | `19f58174` |
+| live `cinema-submit.spec.ts`: no "S01E01 Pilot" row, in all three tests | The label is right: the server names the episode from the file name. The episode is created when the upload slot opens (`POST .../cinema/files`), but the picker asked for a refresh before that, so the draft came back without the row. With no pending upload in that answer nothing polled again. | product, web | `DraftPage` refetches the draft whenever one of the submission's uploads appears or changes state. Vitest case (fails without the fix) in `cinema/__tests__/submit.test.tsx` | `506cd1de` |
+
+Local proofs:
+- `cargo fmt --check` and `clippy -D warnings` are clean on sr-tv, sr-media and sr-transcoder;
+- `cargo test` passes: sr-tv 87 + 6 hls_sync, plus 4 Postgres tests on the scratch DB `sr_p22_cifix` (dropped afterwards); sr-media 110; sr-transcoder 57;
+- `node --test` passes on `media-lib.test.mjs` (7) and on `scripts/*.test.mjs` (35); `MEDIA_SMOKE_DRY=1` walks every stage green;
+- Vitest passes: `submit.test.tsx` 15 and `uploadMultipart.test.ts` 15;
+- web `tsc` and eslint on the touched files are clean, and e2e `tsc` is clean;
+- prettier and `check-ops-files.mjs` pass, and YAML parses.
+
+Still waits for CI: every ffmpeg assertion and the TURN relay. Specifically:
+- whether `eof_action=pass` gives exactly one frame per started interval on ffmpeg 6.1;
+- whether Garage answers the CORS preflight probe with the origin;
+- whether the composer then reaches "equal";
+- whether the cinema rows appear (if `POST .../cinema/files` itself fails, the server log in `server-cinema.log` shows it).
+
 ## Merges (all `--no-ff`, in this order)
 
 | Branch (head) | Conflicts and resolution |
