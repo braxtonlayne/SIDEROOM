@@ -109,9 +109,7 @@ test('numbering problems are named', () => {
   const hole = [ok[0], ok[1], ok[6], ok[7]];
   assert.ok(checkLiveNumbering(hole, kindOf).some((p) => p.includes('jump')));
   // The same number names another object later.
-  const renamed = parseMedia(
-    '#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:9\n#EXTINF:6,\n/cdn/other/seg9.m4s\n',
-  );
+  const renamed = parseMedia('#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:9\n#EXTINF:6,\n/cdn/other/seg9.m4s\n');
   assert.ok(
     checkLiveNumbering([ok[0], { at: 1, media: renamed }], kindOf).some((p) => p.includes('named')),
   );
@@ -132,8 +130,32 @@ test('mp4 atoms and webvtt', () => {
   };
   const faststart = Buffer.concat([box('ftyp', 24), box('moov', 100), box('mdat', 500)]);
   assert.deepEqual(topLevelBoxes(faststart), ['ftyp', 'moov', 'mdat']);
-  const cues = parseVtt('WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello\n\n00:00:05.000 --> 00:00:06.000\nBye\n');
+  const cues = parseVtt(
+    'WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nHello\n\n00:00:05.000 --> 00:00:06.000\nBye\n',
+  );
   assert.equal(cues.length, 2);
   assert.equal(cues[0].text, 'Hello');
   assert.throws(() => parseVtt('1\n00:00:01,000 --> 00:00:02,000\nx'));
+});
+
+test('the media workflow calls files and stages that exist', async () => {
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const root = fileURLToPath(new URL('../../', import.meta.url));
+  const wf = readFileSync(`${root}.github/workflows/media.yml`, 'utf8');
+  for (const m of wf.matchAll(/deploy\/scripts\/[\w./-]+\.mjs/g)) {
+    assert.ok(existsSync(`${root}${m[0]}`), `${m[0]} is referenced by media.yml but missing`);
+  }
+  assert.match(wf, /workflow_dispatch:/);
+  assert.match(wf, /schedule:/);
+  assert.match(wf, /apt-get install -y --no-install-recommends ffmpeg/);
+  const driver = readFileSync(`${root}deploy/scripts/media-smoke.mjs`, 'utf8');
+  for (const stage of ['pipeline', 'retranscode', 'download', 'tv', 'resilience']) {
+    assert.ok(
+      driver.includes(`async function stage${stage[0].toUpperCase()}${stage.slice(1)}`),
+      stage,
+    );
+  }
+  // The packages the job builds are the ones it runs.
+  for (const bin of ['sr-server', 'sr-cli', 'sr-transcoder']) assert.ok(wf.includes(bin), bin);
 });

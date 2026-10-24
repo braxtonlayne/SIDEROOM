@@ -66,7 +66,8 @@ export function parseMedia(text) {
     else if (l === '#EXT-X-DISCONTINUITY') {
       discTag = true;
       disc += 1;
-    } else if (l.startsWith('#EXT-X-MAP:')) map = parseAttrs(l.slice('#EXT-X-MAP:'.length)).URI ?? null;
+    } else if (l.startsWith('#EXT-X-MAP:'))
+      map = parseAttrs(l.slice('#EXT-X-MAP:'.length)).URI ?? null;
     else if (l.startsWith('#EXTINF:')) pending = Number(l.slice('#EXTINF:'.length).split(',')[0]);
     else if (l && !l.startsWith('#') && pending !== null) {
       segments.push({
@@ -126,7 +127,12 @@ export function checkLiveNumbering(samples, kindOf) {
       if (prev && prev.key !== key) {
         problems.push(`number ${g.seq} named ${prev.key} and then ${key}`);
       } else if (!prev) {
-        seen.set(g.seq, { key, kind: kindOf(g), disc: g.disc, afterDiscontinuity: g.afterDiscontinuity });
+        seen.set(g.seq, {
+          key,
+          kind: kindOf(g),
+          disc: g.disc,
+          afterDiscontinuity: g.afterDiscontinuity,
+        });
       } else if (g.afterDiscontinuity) {
         prev.afterDiscontinuity = true;
       }
@@ -139,8 +145,15 @@ export function checkLiveNumbering(samples, kindOf) {
     }
     const a = seen.get(nums[i - 1]);
     const b = seen.get(nums[i]);
-    if (nums[i] === nums[i - 1] + 1 && a.kind !== b.kind && !b.afterDiscontinuity && b.disc <= a.disc) {
-      problems.push(`no discontinuity between ${a.kind} (${nums[i - 1]}) and ${b.kind} (${nums[i]})`);
+    if (
+      nums[i] === nums[i - 1] + 1 &&
+      a.kind !== b.kind &&
+      !b.afterDiscontinuity &&
+      b.disc <= a.disc
+    ) {
+      problems.push(
+        `no discontinuity between ${a.kind} (${nums[i - 1]}) and ${b.kind} (${nums[i]})`,
+      );
     }
   }
   return problems;
