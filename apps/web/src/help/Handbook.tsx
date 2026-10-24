@@ -1,9 +1,9 @@
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { apiFetch } from '../../api/client';
-import { useT, type MessageKey } from '../../i18n';
-import { useCompliancePublic } from '../../lib/compliancePublic';
-import { saveFirstRunDone } from '../../lounge/shell/firstRun';
+import { apiFetch } from '../api/client';
+import { useT, type MessageKey } from '../i18n';
+import { useCompliancePublic } from '../lib/compliancePublic';
+import { saveFirstRunDone } from '../lounge/shell/firstRun';
 
 /**
  * The member handbook (RDY-ONB-002), the body of `/help`. All words live in the i18n catalog
@@ -118,7 +118,14 @@ function AppLink({ href, children }: { href: string; children: ReactNode }) {
     <a
       href={href}
       onClick={(e) => {
-        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+        if (
+          e.defaultPrevented ||
+          e.button !== 0 ||
+          e.metaKey ||
+          e.ctrlKey ||
+          e.shiftKey ||
+          e.altKey
+        )
           return;
         e.preventDefault();
         router.history.push(href);
@@ -214,7 +221,9 @@ export function Handbook() {
               ))}
             </ul>
           )}
-          {s.after?.map((k) => <p key={k}>{t(k)}</p>)}
+          {s.after?.map((k) => (
+            <p key={k}>{t(k)}</p>
+          ))}
           {s.id === 'privacy' && (country || contact) && (
             <>
               {country && <p>{t('entrance.houseNotes.privacy.operatorCountry', { country })}</p>}

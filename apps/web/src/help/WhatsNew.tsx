@@ -1,10 +1,10 @@
 import { Link } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { EntranceShell } from '../../components/EntranceShell';
-import { useT } from '../../i18n/react';
-import { markNewsSeen } from '../../lib/whatsNew';
-import changelog from '../../../../../CHANGELOG.md?raw';
-import { EntranceMarkdown } from './entranceCopy';
+import { EntranceShell } from '../components/EntranceShell';
+import { useT } from '../i18n/react';
+import { markNewsSeen } from '../lib/whatsNew';
+import changelog from '../../../../CHANGELOG.md?raw';
+import { EntranceMarkdown } from '../routes/entrance/entranceCopy';
 
 /**
  * The part of CHANGELOG.md the page shows: from the first `##` heading on (the lines above are a note to the

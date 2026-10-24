@@ -29,7 +29,8 @@ import { LoginLink } from './routes/entrance/LoginLink';
 import { Forgot, Reset } from './routes/entrance/PasswordReset';
 import { Register } from './routes/entrance/Register';
 import { ServerInvite } from './routes/entrance/ServerInvite';
-import { Help, HouseNotes, NoInvitation } from './routes/entrance/Static';
+import { Help } from './help/HelpPage';
+import { HouseNotes, NoInvitation } from './routes/entrance/Static';
 import { TwoFactor } from './routes/entrance/TwoFactor';
 import { DiscordCallback } from './routes/entrance/DiscordCallback';
 import { VerifyEmail } from './routes/entrance/VerifyEmail';
@@ -37,7 +38,7 @@ import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
 import { ServerTemplate } from './routes/entrance/ServerTemplate';
 
 // /help/whats-new carries the whole changelog text, so it is its own chunk (RDY-ONB-003).
-const WhatsNew = lazyNamed(() => import('./routes/entrance/WhatsNew'), 'WhatsNew');
+const WhatsNew = lazyNamed(() => import('./help/WhatsNew'), 'WhatsNew');
 
 // The re-auth dialog (ADM-STF-009) lives at the root so staff-card buttons in the Lounge can open the
 // second-factor window too; it is its own chunk and renders nothing until asked.

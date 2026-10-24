@@ -30,9 +30,12 @@ const extra = {
  */
 function changelogVersion(): string {
   try {
-    const text = readFileSync(fileURLToPath(new URL('../../CHANGELOG.md', import.meta.url)), 'utf8');
-    const heading = /^## (.+?)s*$/m.exec(text)?.[1] ?? '';
-    return heading.replace(/s+-s+d{4}-d{2}-d{2}$/, '') || 'dev';
+    const text = readFileSync(
+      fileURLToPath(new URL('../../CHANGELOG.md', import.meta.url)),
+      'utf8',
+    );
+    const heading = /^## (.+?)\s*$/m.exec(text)?.[1] ?? '';
+    return heading.replace(/\s+-\s+\d{4}-\d{2}-\d{2}$/, '') || 'dev';
   } catch {
     return 'dev';
   }

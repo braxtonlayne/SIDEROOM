@@ -12,7 +12,8 @@ export default {
   'lounge.firstRun.intro.title': 'Three rooms, one door',
   'lounge.firstRun.intro.body':
     'You are in. SIDE ROOM has three sections, and the left rail takes you between them.',
-  'lounge.firstRun.intro.lounge': 'The Lounge: chat, voice and video with your servers and friends.',
+  'lounge.firstRun.intro.lounge':
+    'The Lounge: chat, voice and video with your servers and friends.',
   'lounge.firstRun.intro.library': 'The Library: manga, comics and books to read in the browser.',
   'lounge.firstRun.intro.cinema':
     'The Cinema: films, shows, anime and Live TV, on your own or in a watch party.',
@@ -31,7 +32,8 @@ export default {
     'Nothing will ask for permission now. When you want alerts, open Settings, Notifications, or press a bell, and your browser will ask then.',
   'lounge.firstRun.notify.open': 'Open notification settings',
   'lounge.firstRun.server.title': 'About {name}',
-  'lounge.firstRun.server.body': 'This server has a guide for newcomers. Have a look when you are ready.',
+  'lounge.firstRun.server.body':
+    'This server has a guide for newcomers. Have a look when you are ready.',
   'lounge.firstRun.server.guide': 'Open the server guide',
   'lounge.firstRun.server.questions': 'Choose channels and roles',
   'lounge.helpMenu.whatsNew': "What's new",
