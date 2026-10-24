@@ -12,7 +12,7 @@ import { lazy, Suspense } from 'react';
 import { useT } from './i18n';
 import { CatalogGate } from './i18n/CatalogGate';
 import { isCorePath } from './i18n/corePaths';
-import { RouteFallback } from './lib/lazyRoute';
+import { lazyNamed, RouteFallback } from './lib/lazyRoute';
 import { createCinemaRoutes } from './cinema/routes';
 import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
@@ -35,6 +35,9 @@ import { DiscordCallback } from './routes/entrance/DiscordCallback';
 import { VerifyEmail } from './routes/entrance/VerifyEmail';
 import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
 import { ServerTemplate } from './routes/entrance/ServerTemplate';
+
+// /help/whats-new carries the whole changelog text, so it is its own chunk (RDY-ONB-003).
+const WhatsNew = lazyNamed(() => import('./routes/entrance/WhatsNew'), 'WhatsNew');
 
 // The re-auth dialog (ADM-STF-009) lives at the root so staff-card buttons in the Lounge can open the
 // second-factor window too; it is its own chunk and renders nothing until asked.
@@ -116,6 +119,7 @@ const routeTree = root.addChildren([
   r('/no-invitation', NoInvitation),
   r('/house-notes', HouseNotes),
   r('/help', Help),
+  r('/help/whats-new', WhatsNew),
   r('/invite/$code', ServerInvite),
   r('/template/$code', ServerTemplate),
   createLoungeRoutes(root),

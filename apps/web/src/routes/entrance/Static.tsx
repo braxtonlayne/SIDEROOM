@@ -4,6 +4,7 @@ import { EntranceShell } from '../../components/EntranceShell';
 import { useT } from '../../i18n/react';
 import { useCompliancePublic } from '../../lib/compliancePublic';
 import { EntranceMarkdown, useEntranceCopy } from './entranceCopy';
+import { Handbook } from './Handbook';
 
 export function NoInvitation() {
   const t = useT();
@@ -148,6 +149,7 @@ export function Help() {
     <EntranceShell nav="member-access" footerRight="House notes">
       <main className="ent-prose ent-notes">
         <h1>{t('entrance.support.title')}</h1>
+        <Handbook />
         <p>{t('entrance.support.intro')}</p>
         <HelpSections />
         <section aria-labelledby="help-notices">

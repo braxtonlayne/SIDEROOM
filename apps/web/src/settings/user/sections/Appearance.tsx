@@ -164,7 +164,7 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
             className="us-compact-sample"
             data-compact={prefs.messageDisplay === 'compact' || undefined}
           >
-            <strong>Alex</strong> <span className="us-muted">12:04</span>
+            <strong>{t('settings.appearance.sampleName')}</strong> <span className="us-muted">12:04</span>
             <br />
             <span className="us-sample-line">{t('settings.appearance.sample')}</span>
           </p>
