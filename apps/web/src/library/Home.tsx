@@ -1,4 +1,5 @@
 // Library home (LIB-HOME-001..009), laid out as docs/assets/mockups/library-home.jpg.
+import { RovingScope } from '../a11y/RovingNav';
 import {
   ArrowLink,
   DisplayHeading,
@@ -268,15 +269,17 @@ function SeriesRow({
   const items = query.data?.items ?? [];
   if (items.length === 0) return <p className="lib-muted">{empty}</p>;
   return (
-    <div className="lib-poster-row">
-      {items.map((s, i) => (
-        <SeriesCard
-          key={s.id}
-          series={s}
-          tag={tagFirst && i === 0 ? t('library.home.row.trendingTag') : undefined}
-        />
-      ))}
-    </div>
+    <RovingScope selector="[data-poster-link]" orientation="horizontal">
+      <div className="lib-poster-row">
+        {items.map((s, i) => (
+          <SeriesCard
+            key={s.id}
+            series={s}
+            tag={tagFirst && i === 0 ? t('library.home.row.trendingTag') : undefined}
+          />
+        ))}
+      </div>
+    </RovingScope>
   );
 }
 
@@ -304,11 +307,13 @@ function Because() {
           <div className="lib-section-head">
             <h2 className="lib-h2">{t('library.home.because.title', { title: r.seed_title })}</h2>
           </div>
-          <div className="lib-poster-row">
-            {r.items.map((i) => (
-              <SeriesCard key={i.series.id} series={i.series} />
-            ))}
-          </div>
+          <RovingScope selector="[data-poster-link]" orientation="horizontal">
+            <div className="lib-poster-row">
+              {r.items.map((i) => (
+                <SeriesCard key={i.series.id} series={i.series} />
+              ))}
+            </div>
+          </RovingScope>
         </section>
       ))}
     </>

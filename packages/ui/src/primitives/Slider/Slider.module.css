@@ -1,5 +1,8 @@
 .slider { display: flex; flex-direction: column; gap: 6px; font-family: var(--ui-font-body); color: var(--ui-text); }
-.slider[data-disabled] { opacity: 0.5; }
+/* Dim the track and the marks, not the text: half-transparent text fails 4.5:1 (axe color-contrast). */
+.slider[data-disabled] .input,
+.slider[data-disabled] .marks { opacity: 0.5; }
+.slider[data-disabled] .label { color: var(--ui-text-muted); }
 .head { display: flex; justify-content: space-between; gap: 12px; font-size: 0.875rem; }
 .value { color: var(--ui-text-muted); font-variant-numeric: tabular-nums; }
 .input {

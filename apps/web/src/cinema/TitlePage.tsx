@@ -1,5 +1,6 @@
 // Title detail (CIN-TTL-001..004): header with actions, variant picker, tabs (Episodes, Details, Reviews,
 // Comments, More like this, Contributors), season selector with episode list.
+import { RovingScope } from '../a11y/RovingNav';
 import {
   Button,
   DisplayHeading,
@@ -452,13 +453,15 @@ function Related({ title }: { title: Title }) {
   return (
     <>
       <h2 className="cin-sr-only">{tr('cinema.title.moreLikeThis')}</h2>
-      <ul className="cin-grid">
-        {items.map((it) => (
-          <li key={it.id}>
-            <TitleCard title={it} />
-          </li>
-        ))}
-      </ul>
+      <RovingScope selector="[data-poster-link]" orientation="grid">
+        <ul className="cin-grid">
+          {items.map((it) => (
+            <li key={it.id}>
+              <TitleCard title={it} />
+            </li>
+          ))}
+        </ul>
+      </RovingScope>
     </>
   );
 }

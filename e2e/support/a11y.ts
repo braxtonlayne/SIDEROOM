@@ -60,3 +60,18 @@ export const blocking = (f: Finding[]) =>
 
 export const describe = (f: Finding[]) =>
   f.map((v) => `[${v.impact}] ${v.id}: ${v.help} -> ${v.targets.slice(0, 4).join(' | ')}`);
+
+/** Waits until finite CSS animations and transitions have ended, so axe measures settled colours. */
+export async function settle(page: Page): Promise<void> {
+  await page
+    .waitForFunction(
+      () =>
+        document
+          .getAnimations()
+          .every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity),
+      undefined,
+      { timeout: 4000 },
+    )
+    .catch(() => undefined);
+  await page.waitForTimeout(150);
+}

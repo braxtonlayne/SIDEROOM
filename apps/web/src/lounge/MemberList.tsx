@@ -1,4 +1,5 @@
 import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
+import { RovingScope } from '../a11y/RovingNav';
 import { useMemo, useRef } from 'react';
 import { useT } from '../i18n';
 import { nameStyle } from '../lib/roleGradient';
@@ -214,30 +215,32 @@ export function MemberList({
     [members, roles, presence],
   );
   return (
-    <VirtualList
-      className="lng-members"
-      aria-label={t('lounge.memberList.members')}
-      role="list"
-      count={rows.length}
-      estimateSize={44}
-      getItemKey={(i) => rows[i]?.key ?? i}
-      renderItem={(i) => {
-        const r = rows[i];
-        if (!r) return null;
-        return r.kind === 'header' ? (
-          <h3 className="lng-member-group">
-            {t('lounge.memberList.groupHeader', { label: r.label, count: r.count })}
-          </h3>
-        ) : (
-          <MemberRowView
-            entry={r.entry}
-            guildId={guildId}
-            channelId={channelId}
-            ownerId={guild?.ownerId}
-            viewer={viewer}
-          />
-        );
-      }}
-    />
+    <RovingScope selector=".lng-member">
+      <VirtualList
+        className="lng-members"
+        aria-label={t('lounge.memberList.members')}
+        role="list"
+        count={rows.length}
+        estimateSize={44}
+        getItemKey={(i) => rows[i]?.key ?? i}
+        renderItem={(i) => {
+          const r = rows[i];
+          if (!r) return null;
+          return r.kind === 'header' ? (
+            <h3 className="lng-member-group">
+              {t('lounge.memberList.groupHeader', { label: r.label, count: r.count })}
+            </h3>
+          ) : (
+            <MemberRowView
+              entry={r.entry}
+              guildId={guildId}
+              channelId={channelId}
+              ownerId={guild?.ownerId}
+              viewer={viewer}
+            />
+          );
+        }}
+      />
+    </RovingScope>
   );
 }

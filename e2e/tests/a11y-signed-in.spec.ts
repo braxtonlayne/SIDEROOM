@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { test, expect } from '../support/fixtures';
-import { blocking, describe, runAxe, type Finding } from '../support/a11y';
+import { blocking, describe, runAxe, settle, type Finding } from '../support/a11y';
 import { buildWorld, type World } from '../support/world';
 
 /**
@@ -56,7 +56,7 @@ const ROWS: Row[] = [
   { name: 'cinema movies', path: () => '/cinema/movies', ready: (p) => p.getByRole('main') },
   { name: 'cinema title', path: (w) => `/cinema/t/${w.titleId}`, ready: (p) => p.getByRole('main') },
   { name: 'cinema player', path: (w) => `/cinema/watch/${w.titleId}`, ready: (p) => p.locator('body') },
-  { name: 'cinema watch party', path: (w) => `/cinema/party/${w.partyId}`, ready: (p) => p.getByRole('main') },
+  { name: 'cinema watch party', path: (w) => `/cinema/party/${w.partyId}`, ready: (p) => p.getByRole('tab', { name: 'Chat' }) },
   { name: 'cinema tv guide', path: () => '/cinema/tv', ready: (p) => p.getByRole('main') },
   { name: 'cinema my list', path: () => '/cinema/my-list', ready: (p) => p.getByRole('main') },
   { name: 'admin home', path: () => '/admin', ready: (p) => p.getByRole('main') },
@@ -88,7 +88,8 @@ test.describe('axe on signed-in routes', () => {
       test.skip(row.name.includes('watch party') && !world.partyId, 'no watch party in this world');
       await page.goto(row.path(world));
       await expect(row.ready(page).first()).toBeVisible({ timeout: 20_000 });
-      await page.waitForLoadState('networkidle').catch(() => undefined);
+      await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => undefined);
+      await settle(page);
       const found = await runAxe(page);
       const rest = found.filter((v) => v.impact !== 'serious' && v.impact !== 'critical');
       writeFileSync(`${OUT}/${slug(row.name)}.json`, JSON.stringify({ route: row.name, found }, null, 1));

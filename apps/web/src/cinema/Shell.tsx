@@ -1,5 +1,6 @@
 // Cinema section chrome (CIN-UI-001/002/004/005): section top bar, cinema header with nav, search and avatar
 // menu, footer, and the phone layout (hamburger drawer).
+import { SkipLink } from '../components/SkipLink';
 import {
   Avatar,
   Drawer,
@@ -168,9 +169,7 @@ export function CinemaHeader({ onSearch, onMenu }: { onSearch: () => void; onMen
         <DoorLogo size={32} />
         <span className="cin-logo-text">
           <span className="cin-logo-name">SIDE ROOM</span>
-          <span className="cin-logo-sub" aria-hidden="true">
-            C I N E M A
-          </span>
+          <span className="cin-logo-sub" aria-hidden="true" data-text="C I N E M A" />
         </span>
       </a>
       {!onMenu && (
@@ -236,6 +235,7 @@ export function CinemaShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="cin-frame" data-mobile={mobile || undefined}>
+      <SkipLink />
       <SectionBar />
       <CinemaHeader
         onSearch={() => setSearch(true)}

@@ -190,7 +190,11 @@ function GuildIcon({
             {guild.iconUrl ? (
               <img src={guild.iconUrl} alt="" draggable={false} />
             ) : (
-              <span aria-hidden="true">{acronym(guild.name)}</span>
+              <span
+                className="lng-guild-acronym"
+                aria-hidden="true"
+                data-text={acronym(guild.name)}
+              />
             )}
             {voice && (
               <span className="lng-guild-voice" title={t('lounge.guildRail.connectedToVoice')}>
@@ -198,9 +202,11 @@ function GuildIcon({
               </span>
             )}
             {guild.isStaff && (
-              <span className="lng-staff-badge" aria-hidden="true">
-                {t('lounge.platformAdmin.badge')}
-              </span>
+              <span
+                className="lng-staff-badge"
+                aria-hidden="true"
+                data-text={t('lounge.platformAdmin.badge')}
+              />
             )}
             {guild.isNew && <span className="lng-new-badge">{t('lounge.guildRail.newBadge')}</span>}
           </GuildLink>

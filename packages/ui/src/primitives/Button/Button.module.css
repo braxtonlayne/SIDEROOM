@@ -52,13 +52,15 @@
 
 .link {
   background: transparent;
-  color: var(--ui-accent);
+  /* The raw accent (#5865f2) is 3:1 on the dark Lounge surfaces; pulling it toward the text colour keeps the hue
+     and reaches 4.5:1 on every theme (RDY-A11Y-001). */
+  color: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-text));
   min-height: 0;
   padding: 0;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.link:hover:not(:disabled) { color: var(--ui-accent-hover); }
+.link:hover:not(:disabled) { color: color-mix(in srgb, var(--ui-accent-hover) 60%, var(--ui-text)); }
 
 .label { display: inline-flex; align-items: center; gap: 8px; }
 .hidden { visibility: hidden; }

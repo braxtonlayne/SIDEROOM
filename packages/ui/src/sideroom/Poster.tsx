@@ -37,7 +37,7 @@ export function PosterCard({ title, subtitle, meta, src, href, tag, progress, ra
     <article {...rest} className={cx(styles.card, className)}>
       <div className={styles.frame}>
         {href ? (
-          <a href={href} className={styles.link} aria-label={title}>
+          <a href={href} className={styles.link} aria-label={title} data-poster-link="">
             {art}
           </a>
         ) : (
