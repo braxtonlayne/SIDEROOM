@@ -616,7 +616,12 @@ async fn a_member_series_goes_from_draft_to_a_published_title() {
     // A reviewer of the kind may read the draft; a plain member may not (the harness has no staff
     // sessions, so this is checked on the service the routes call).
     w.review.readable_for(w.reviewer, sid).await.unwrap();
-    assert!(w.review.readable_for(Caller::member(w.other), sid).await.is_err());
+    assert!(
+        w.review
+            .readable_for(Caller::member(w.other), sid)
+            .await
+            .is_err()
+    );
     assert!(w.cinema.title_detail(w.viewer(), title).await.is_err());
     w.review.claim(w.reviewer, sid, false).await.unwrap();
     let d = w
