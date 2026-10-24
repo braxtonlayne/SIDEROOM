@@ -77,6 +77,47 @@ export const RESUME_ROUNDS = 4;
 const defaultWait = (attempt: number) =>
   new Promise<void>((r) => setTimeout(r, Math.min(500 * 2 ** attempt, 8000)));
 
+/** How many times a call to our own server is retried while it is down or restarting (about 15 s in all). */
+export const SERVER_RETRIES = 6;
+
+/** A failure worth retrying: the request never got an answer (network, server restarting) or a gateway said so. */
+export function isTransient(e: unknown): boolean {
+  if (e instanceof ApiError) return e.status === 502 || e.status === 503 || e.status === 504;
+  return e instanceof TypeError; // fetch rejects with a TypeError when the connection fails
+}
+
+/**
+ * Runs `call` and retries it with a pause while the server is unreachable (a restart in the middle of an
+ * upload, RDY-STO-002). Other errors, and a cancelled upload, surface at once. `call` must be safe to repeat:
+ * listing parts and completing an upload both are.
+ */
+async function whileServerDown<T>(
+  call: () => Promise<T>,
+  h: Pick<UploadHandlers, 'signal' | 'wait'>,
+): Promise<T> {
+  const wait = h.wait ?? defaultWait;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await call();
+    } catch (e) {
+      if (h.signal.aborted || !isTransient(e) || attempt + 1 >= SERVER_RETRIES) throw e;
+      await wait(attempt);
+      await whenOnline(h.signal);
+    }
+  }
+}
+
+const completeUpload = (channelId: string, uploadId: string, h: UploadHandlers) =>
+  whileServerDown(
+    () =>
+      apiFetch(`/channels/${channelId}/attachments/${uploadId}/complete`, {
+        method: 'POST',
+        json: {},
+        retries: 0,
+      }),
+    h,
+  );
+
 /** Resolves when the browser is online again (at once when it already is or cannot tell). */
 function whenOnline(signal: AbortSignal): Promise<void> {
   if (typeof navigator === 'undefined' || navigator.onLine !== false) return Promise.resolve();
@@ -332,7 +373,9 @@ export async function uploadFiles(
     const rec = f.resume ?? saved[resumeKey(channelId, f.file)];
     if (!rec) continue;
     try {
-      const parts = stateFromParts(await fetchParts(channelId, rec.uploadId));
+      const parts = stateFromParts(
+        await whileServerDown(() => fetchParts(channelId, rec.uploadId), h),
+      );
       plans.set(f.id, {
         slot: {
           id: f.id,
@@ -454,11 +497,7 @@ export async function uploadFiles(
         } else if (slot.upload_url) {
           await putFile(slot.upload_url, f.file, (p) => onUpdate(f.id, { progress: p }), signal);
         }
-        await apiFetch(`/channels/${channelId}/attachments/${slot.upload_id}/complete`, {
-          method: 'POST',
-          json: {},
-          retries: 0,
-        });
+        await completeUpload(channelId, slot.upload_id, h);
         forgetResume(key);
         dropRow(slot.upload_id);
       } catch (e) {
@@ -545,7 +584,7 @@ async function continueRow(
   try {
     let parts: PartState;
     try {
-      parts = stateFromParts(await fetchParts(channelId, row.id));
+      parts = stateFromParts(await whileServerDown(() => fetchParts(channelId, row.id), own));
     } catch (e) {
       if (slotGone(e)) {
         // 404: the slot is gone. 403: the channel is no longer open to this user; free the slot if we still can.
@@ -572,11 +611,7 @@ async function continueRow(
       (p) => h.onUpdate(f.id, { progress: p }),
       trackParts(row.id),
     );
-    await apiFetch(`/channels/${channelId}/attachments/${row.id}/complete`, {
-      method: 'POST',
-      json: {},
-      retries: 0,
-    });
+    await completeUpload(channelId, row.id, own);
     dropRow(row.id);
     const ref: UploadedFile = {
       id: f.id,

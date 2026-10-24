@@ -127,6 +127,32 @@ jobs:
         env:
           CI: "true"
           SR_VOICE__E2EE: "true"
+      # RDY-VOX-001: voice through a TURN relay. coturn runs the PRODUCTION template (turnserver.prod.conf.example,
+      # rendered by deploy/compose/coturn/render-test-conf.sh) on the host network; sr-server hands out REST credentials
+      # derived from the same secret (voice.turn.secret) and the browsers are forced to `iceTransportPolicy: 'relay'`.
+      # The spec proves the relay with the selected candidate pair type in getStats. The dev `coturn` service of the
+      # preflight step below uses the same port, so this one is removed again at the end.
+      - name: Voice through TURN relay (Chromium)
+        if: always()
+        run: |
+          ip="$(node scripts/ice-announce.mjs | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8"))[0]')"
+          secret="$(openssl rand -hex 16)"
+          ./deploy/compose/coturn/render-test-conf.sh "$ip" "$secret"
+          docker compose -f deploy/compose/dev.yml --profile relay up -d coturn-relay
+          sleep 3
+          docker compose -f deploy/compose/dev.yml --profile relay logs coturn-relay | tail -20
+          export SR_VOICE__ANNOUNCE_IPS="[\"$ip\"]"
+          export SR_VOICE__TURN__SECRET="$secret"
+          export SR_VOICE__TURN__URLS="[\"turn:$ip:3478?transport=udp\"]"
+          status=0
+          ./deploy/compose/e2e-run.sh --project=chromium tests/voice-relay.spec.ts --retries=0 || status=$?
+          cp server.log server-relay.log || true
+          docker compose -f deploy/compose/dev.yml --profile relay logs coturn-relay > coturn-relay.log 2>&1 || true
+          docker compose -f deploy/compose/dev.yml --profile relay rm -sf coturn-relay || true
+          exit "$status"
+        env:
+          CI: "true"
+          SR_E2E_RELAY: "1"
       # RDY-OPS-004: the preflight's TURN row against the dev stack's coturn (deploy/compose/dev.yml, same shared
       # secret as deploy/compose/coturn/turnserver.conf): credentials derive and a UDP allocation is granted. Only the
       # turn row is asserted; the other rows describe this runner, not a production box.
@@ -159,6 +185,8 @@ jobs:
             server-live.log
             server-e2ee-chromium.log
             server-e2ee-firefox.log
+            server-relay.log
+            coturn-relay.log
             e2e/playwright-report-e2ee-firefox
             e2e/test-results-e2ee-firefox
 

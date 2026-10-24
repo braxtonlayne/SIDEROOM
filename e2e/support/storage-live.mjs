@@ -35,6 +35,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listParts } from './s3-sign.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
@@ -620,6 +621,129 @@ const textBytes = Buffer.from('hello from the live storage test\n'.repeat(2000))
     ef.r.status,
   );
   await A.call('DELETE', `/guilds/${guild}/emojis/${em.body?.id}`);
+}
+
+// 13. RDY-STO-001: a chat attachment above the part size, as the composer sends it (slot with a multipart plan,
+// parts straight to S3, GET .../parts, complete), with an abort and a resume. After every step what the server
+// says it holds is compared with S3's own ListParts. The browser half (composer, IndexedDB ledger, reload) is
+// e2e/tests/storage-composer.spec.ts.
+{
+  const B = new Client();
+  const rb = await B.register(newInvite(), 'mp' + sfx);
+  check('multipart: register user', rb.status < 300, rb);
+  // A multipart file needs the 500 MiB Patron limit: grant it before the first limit lookup is cached.
+  sql(
+    `INSERT INTO entitlement_grants (id, kind, user_id, source, permanent, starts_ms, reason) ` +
+      `VALUES (floor(random() * 9e15)::bigint, 'patron', ${B.id}, 'admin', true, 0, 'storage-live')`,
+  );
+  const gb = await B.call('POST', '/guilds', { name: 'Multipart Guild' });
+  const chB = (await B.call('GET', `/guilds/${gb.body?.id}/channels`)).body?.find(
+    (c) => c.type === 0,
+  )?.id;
+  check('multipart: have a text channel', !!chB, gb);
+
+  const PART = 64 * MIB;
+  const big = randomBytes(2 * PART + 12 * MIB); // 3 parts: 64 + 64 + 12 MiB
+  const slotReq = () =>
+    B.call('POST', `/channels/${chB}/attachments`, {
+      files: [
+        {
+          id: '1',
+          filename: 'big.bin',
+          file_size: big.length,
+          content_type: 'application/octet-stream',
+        },
+      ],
+    });
+  const putPart = async (p) => {
+    const start = (p.part_number - 1) * PART;
+    const res = await fetch(p.url, {
+      method: 'PUT',
+      body: big.subarray(start, Math.min(start + PART, big.length)),
+    });
+    return res.status;
+  };
+  const store = async (uploadId) => ({
+    key: sql(`SELECT storage_key FROM attachments WHERE id = ${uploadId}`),
+    mp: sql(`SELECT multipart_id FROM attachment_multipart WHERE attachment_id = ${uploadId}`),
+  });
+  /** What the server reports (GET .../parts) next to what S3 holds (ListParts). */
+  const compare = async (label, uploadId) => {
+    const { key, mp } = await store(uploadId);
+    const api = await B.call('GET', `/channels/${chB}/attachments/${uploadId}/parts`);
+    const s3 = await listParts(S3, key, mp);
+    const apiParts = (api.body?.received ?? []).map((x) => `${x.part_number}:${x.size}`).join(',');
+    const s3Parts = (s3 ?? []).map((x) => `${x.part}:${x.size}`).join(',');
+    check(
+      `multipart: ${label}: server parts match S3 ListParts`,
+      api.status === 200 && apiParts === s3Parts,
+      {
+        api: apiParts,
+        s3: s3Parts,
+      },
+    );
+    return { api: api.body, key, mp };
+  };
+
+  // First slot: send part 1 only, compare, abort.
+  let r1 = await slotReq();
+  let slot = r1.body?.attachments?.[0];
+  check(
+    'multipart: slot above the part size carries a 3-part plan',
+    r1.status === 200 && slot?.multipart?.part_count === 3 && slot.multipart.part_size === PART,
+    r1,
+  );
+  check('multipart: part 1 accepted by S3', (await putPart(slot.multipart.parts[0])) === 200);
+  const first = await compare('after part 1', slot.upload_id);
+  check(
+    'multipart: one part received, two missing',
+    first.api?.received?.length === 1 && first.api?.missing?.length === 2,
+    first.api,
+  );
+  const gone = await B.call('DELETE', `/channels/${chB}/attachments/${slot.upload_id}`);
+  check('multipart: abort answers 2xx', gone.status >= 200 && gone.status < 300, gone);
+  check(
+    'multipart: S3 no longer knows the aborted upload',
+    (await listParts(S3, first.key, first.mp)) === null,
+  );
+  check(
+    'multipart: aborted slot is gone from the server',
+    (await B.call('GET', `/channels/${chB}/attachments/${slot.upload_id}/parts`)).status === 404,
+  );
+
+  // Second slot: parts 1 and 3 out of order, then resume with the missing one, then complete.
+  r1 = await slotReq();
+  slot = r1.body?.attachments?.[0];
+  check('multipart: a fresh slot after the abort', r1.status === 200 && !!slot?.multipart, r1);
+  check('multipart: part 3 accepted', (await putPart(slot.multipart.parts[2])) === 200);
+  check('multipart: part 1 accepted', (await putPart(slot.multipart.parts[0])) === 200);
+  const mid = await compare('before the resume', slot.upload_id);
+  const missing = mid.api?.missing ?? [];
+  check(
+    'multipart: only part 2 is missing',
+    missing.length === 1 && missing[0].part_number === 2,
+    mid.api,
+  );
+  check('multipart: the missing part is accepted', (await putPart(missing[0])) === 200);
+  const full = await compare('after the resume', slot.upload_id);
+  check(
+    'multipart: all three parts held',
+    full.api?.received?.length === 3 && full.api?.missing?.length === 0,
+    full.api,
+  );
+  const done = await B.call('POST', `/channels/${chB}/attachments/${slot.upload_id}/complete`, {});
+  check('multipart: complete answers 2xx', done.status >= 200 && done.status < 300, done);
+  const obj = await s3Get(full.key);
+  check(
+    'multipart: assembled object has the original bytes',
+    obj.exists && obj.body.length === big.length && sha(obj.body) === sha(big),
+    obj.exists ? obj.body.length : obj,
+  );
+  check(
+    'multipart: the multipart record is cleared',
+    sql(`SELECT count(*) FROM attachment_multipart WHERE attachment_id = ${slot.upload_id}`) ===
+      '0',
+  );
 }
 
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');

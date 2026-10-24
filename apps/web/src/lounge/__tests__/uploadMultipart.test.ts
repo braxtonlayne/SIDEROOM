@@ -365,4 +365,83 @@ describe('IndexedDB ledger for chat uploads (D-271)', () => {
     expect(out).toEqual([{ id: 'f1', uploadedFilename: '77/film.bin' }]);
     expect(calls).toEqual([]);
   });
+
+  // RDY-STO-002: the API server restarts while an upload is going on (the parts go straight to storage).
+  it('waits for a restarting server when a reattached upload asks which parts arrived', async () => {
+    const ledger = useLedger();
+    await ledger.put(storedRow());
+    let asked = 0;
+    const calls: string[] = [];
+    server.use(
+      http.get('*/api/v1/channels/c1/attachments/77/parts', () => {
+        asked++;
+        if (asked <= 2) return HttpResponse.error(); // connection refused while the server restarts
+        return HttpResponse.json(partsBody());
+      }),
+      http.post('*/api/v1/channels/c1/attachments/77/complete', () => {
+        calls.push('complete');
+        return HttpResponse.json({ id: '77' });
+      }),
+    );
+    const put = vi.fn<(u: string) => Promise<void>>(async () => undefined);
+    const patches: Record<string, unknown>[] = [];
+    await reattachUploads('c1', {
+      ...handlers(put),
+      onAdd: () => undefined,
+      onUpdate: (_id, p) => patches.push(p),
+    });
+    expect(asked).toBe(3);
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(['complete']);
+    expect(patches.at(-1)).toMatchObject({ status: 'done' });
+    expect(await ledger.all()).toEqual([]);
+  });
+
+  it('retries the completion across a restart (503, then ok) and gives up on a real refusal', async () => {
+    const ledger = useLedger();
+    await ledger.put(storedRow());
+    let completes = 0;
+    server.use(
+      http.get('*/api/v1/channels/c1/attachments/77/parts', () =>
+        HttpResponse.json({
+          part_size: 4,
+          part_count: 3,
+          received: [1, 2, 3].map((n) => ({ part_number: n, size: 4 })),
+          missing: [],
+        }),
+      ),
+      http.post('*/api/v1/channels/c1/attachments/77/complete', () => {
+        completes++;
+        return completes === 1
+          ? HttpResponse.json({ message: 'restarting' }, { status: 503 })
+          : HttpResponse.json({ id: '77' });
+      }),
+    );
+    const patches: Record<string, unknown>[] = [];
+    await reattachUploads('c1', {
+      ...handlers(vi.fn()),
+      onAdd: () => undefined,
+      onUpdate: (_id, p) => patches.push(p),
+    });
+    expect(completes).toBe(2);
+    expect(patches.at(-1)).toMatchObject({ status: 'done' });
+
+    // A 400 is the server's answer, not an outage: no retry, the row stays for the user to decide.
+    await ledger.put(storedRow());
+    completes = 0;
+    server.use(
+      http.post('*/api/v1/channels/c1/attachments/77/complete', () => {
+        completes++;
+        return HttpResponse.json({ message: 'bad parts' }, { status: 400 });
+      }),
+    );
+    const again: Record<string, unknown>[] = [];
+    await reattachUploads('c1', {
+      ...handlers(vi.fn()),
+      onAdd: () => undefined,
+      onUpdate: (_id, p) => again.push(p),
+    });
+    expect(completes).toBe(1);
+    expect(again.at(-1)).toMatchObject({ status: 'error' });
+  });
 });

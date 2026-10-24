@@ -46,12 +46,12 @@ Same conventions as the other files: tick in the PR that completes the item; an 
 - [ ] **RDY-MED-005** [BE][TEST] Transcoder resilience with the real worker: lease expiry and retry on a killed worker, corrupt source fails with logs in Admin > Transcoding, two workers claim without overlap · dep: RDY-MED-003 *(wave 22: written, not yet run: stage `resilience` of `media-smoke.mjs`)*
 
 ### RDY-VOX — Voice proofs
-- [ ] **RDY-VOX-001** [TEST] Voice through TURN relay: `voice-relay.spec.ts` with `iceTransportPolicy: 'relay'` against the e2e stack's coturn running the rendered prod template with the REST secret; relay proven from `getStats` → `e2e/tests/voice-relay.spec.ts`
-- [ ] **RDY-VOX-002** [TEST] Voice soak: `voice-soak.yml` (dispatch), ten Chromium contexts, ten minutes, mute/camera/reconnect churn, E2EE on, no SFU restart, every member hears the tone at the end; count and duration are inputs for the phase 2 gate by hand
+- [ ] **RDY-VOX-001** [TEST] Voice through TURN relay: `voice-relay.spec.ts` with `iceTransportPolicy: 'relay'` against the e2e stack's coturn running the rendered prod template with the REST secret; relay proven from `getStats` → `e2e/tests/voice-relay.spec.ts` *(p22: written, not yet run; first proof is the e2e `live` job, step "Voice through TURN relay". `deploy/compose/coturn/render-test-conf.sh` renders the prod template.)*
+- [ ] **RDY-VOX-002** [TEST] Voice soak: `voice-soak.yml` (dispatch), ten Chromium contexts, ten minutes, mute/camera/reconnect churn, E2EE on, no SFU restart, every member hears the tone at the end; count and duration are inputs for the phase 2 gate by hand *(p22: written, not yet run; dispatch `voice-soak.yml`. Spec `e2e/tests/voice-soak.spec.ts`.)*
 
 ### RDY-STO — Storage proofs
-- [ ] **RDY-STO-001** [TEST] Chat multipart over real S3 in `storage.yml`: an attachment above the part size through the composer path, abort, resume from the IndexedDB ledger after reload against Garage; confirmed parts equal `ListParts` → `e2e/support/storage-live.mjs`
-- [ ] **RDY-STO-002** [TEST] Composer reattach over a throttled network and across a server restart; fixes in `lounge/uploads` with unit tests · dep: RDY-STO-001
+- [ ] **RDY-STO-001** [TEST] Chat multipart over real S3 in `storage.yml`: an attachment above the part size through the composer path, abort, resume from the IndexedDB ledger after reload against Garage; confirmed parts equal `ListParts` → `e2e/support/storage-live.mjs` *(p22: API half in `storage-live.mjs` and browser half `e2e/tests/storage-composer.spec.ts` + `storage.yml` job `composer` written, not yet run.)*
+- [ ] **RDY-STO-002** [TEST] Composer reattach over a throttled network and across a server restart; fixes in `lounge/uploads` with unit tests · dep: RDY-STO-001 *(p22: retry across a server restart added to `lounge/msg/upload.ts` with unit tests, which pass; the throttled and restart run is in the same unrun spec. Note the code lives in `lounge/msg`, there is no `lounge/uploads` directory.)*
 
 ## Wave 23 — People readiness
 
