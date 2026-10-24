@@ -1,4 +1,33 @@
-import { apiPost, type Scenario } from './fixtures';
+import { apiPost, type SeededUser, type SignedIn } from './fixtures';
+
+/** What a spec needs from a one-person server (the Owner, who is already registered: no new account). */
+export interface SoloWorld {
+  a: SignedIn;
+  guildId: string;
+  channelId: string;
+  guildName: string;
+}
+
+/**
+ * The Owner signs in and creates a server through the API. Registration allows 20 accounts per address and day, and
+ * the keyboard specs do not need a second person, so they spend none.
+ */
+export async function soloServer(
+  signedIn: (u: SeededUser) => Promise<SignedIn>,
+  owner: SeededUser,
+  label = 'Kbd',
+): Promise<SoloWorld> {
+  const a = await signedIn(owner);
+  const guildName = `${label} ${Date.now().toString(36)}`;
+  const guild = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(
+    a.context.request,
+    '/guilds',
+    { name: guildName },
+  );
+  const channel = guild.channels.find((c) => c.type === 0);
+  if (!channel) throw new Error('new server has no text channel');
+  return { a, guildId: guild.id, channelId: channel.id, guildName };
+}
 
 /**
  * The fixture world of the a11y specs (RDY-A11Y-001): a server with a few messages and a thread, a published
@@ -14,7 +43,7 @@ export interface World {
   partyId: string | null;
 }
 
-export async function buildWorld(s: Scenario): Promise<World> {
+export async function buildWorld(s: SoloWorld): Promise<World> {
   const r = s.a.context.request;
   let messageId = '';
   for (const text of [
@@ -27,10 +56,6 @@ export async function buildWorld(s: Scenario): Promise<World> {
     });
     messageId = m.id;
   }
-  // Member reply so the list has two authors.
-  await apiPost(s.b.context.request, `/channels/${s.channelId}/messages`, {
-    content: 'A reply from the second member.',
-  });
   const thread = await apiPost<{ id: string }>(
     r,
     `/channels/${s.channelId}/messages/${messageId}/threads`,
