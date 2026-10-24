@@ -203,3 +203,33 @@ export function parseVtt(text) {
   }
   return cues;
 }
+
+/**
+ * How long the media in one `ffprobe -show_streams -show_format -show_packets -of json` report lasts: the span
+ * of the packets of its first video stream (else its first audio stream), else the container's duration less
+ * its start time. For `init + segment` of a fragmented MP4, ffprobe's `format.duration` is the END time of the
+ * fragment (its `tfdt` start plus its length), not its length: summed over the four segments of a 20 s
+ * rendition it gave 56 s on the first media.yml run, while the joined file said 20 s.
+ */
+export function probeDuration(report) {
+  const streams = report.streams ?? [];
+  const packets = report.packets ?? [];
+  const type = streams.some((s) => s.codec_type === 'video') ? 'video' : 'audio';
+  const first = packets.find((x) => x.codec_type === type);
+  const mine = packets.filter(
+    (x) => x.codec_type === type && x.stream_index === first?.stream_index,
+  );
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const p of mine) {
+    const pts = Number(p.pts_time);
+    if (!Number.isFinite(pts)) continue;
+    lo = Math.min(lo, pts);
+    hi = Math.max(hi, pts + (Number(p.duration_time) || 0));
+  }
+  if (hi > lo) return hi - lo;
+  const d = Number(report.format?.duration);
+  const start = Number(report.format?.start_time);
+  if (!(d > 0)) return 0;
+  return Number.isFinite(start) && start > 0 ? d - start : d;
+}

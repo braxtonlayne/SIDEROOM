@@ -49,6 +49,7 @@ import {
   parseMaster,
   parseMedia,
   parseVtt,
+  probeDuration,
   stable,
   topLevelBoxes,
 } from './media-lib.mjs';
@@ -232,20 +233,8 @@ function ffprobe(file) {
   if (r.status !== 0) throw new Error(`ffprobe ${file}: ${r.stderr.slice(0, 300)}`);
   const j = JSON.parse(r.stdout);
   const streams = j.streams ?? [];
-  let duration = Number(j.format?.duration);
-  if (!(duration > 0)) {
-    const packets = j.packets ?? [];
-    const type = streams.some((s) => s.codec_type === 'video') ? 'video' : 'audio';
-    const first = packets.find((x) => x.codec_type === type);
-    const mine = packets.filter(
-      (x) => x.codec_type === type && x.stream_index === first?.stream_index,
-    );
-    const pts = mine.map((x) => Number(x.pts_time)).filter(Number.isFinite);
-    const last = mine[mine.length - 1];
-    duration = pts.length
-      ? Math.max(...pts) + (Number(last?.duration_time) || 0) - Math.min(...pts)
-      : 0;
-  }
+  // Not `format.duration`: for init + one fMP4 fragment that is the fragment's end time (media-lib.mjs).
+  const duration = probeDuration(j);
   return {
     streams,
     format: j.format ?? {},
@@ -575,9 +564,10 @@ async function validateVod(playback) {
   const masterUrl = urlOf(playback.master_url, BASE);
   const master = parseMaster(await owner.text(masterUrl));
   const heights = master.variants.map((v) => v.height);
+  // Ascending by bandwidth, so playback starts on the smallest rung (cinema-media.md section 4.6).
   check(
-    'master: the ladder is 720p and 480p (1080p is never made for a 720p source)',
-    JSON.stringify(heights) === '[720,480]',
+    'master: the ladder is 480p then 720p (1080p is never made for a 720p source)',
+    JSON.stringify(heights) === '[480,720]',
     heights,
   );
   check(
@@ -585,21 +575,22 @@ async function validateVod(playback) {
     master.variants.every((v) => v.attrs.CODECS && v.bandwidth > 0 && v.attrs.AUDIO),
     master.variants.map((v) => v.attrs),
   );
+  // HLS wants RFC 5646 tags in LANGUAGE, so the source's ISO 639-2 eng/spa are written as en/es.
   const audio = master.media.filter((m) => m.TYPE === 'AUDIO');
   check(
-    'master: two audio renditions, eng and spa, exactly one default',
+    'master: two audio renditions, en and es, exactly one default',
     audio.length === 2 &&
       audio
         .map((a) => a.LANGUAGE)
         .sort()
-        .join() === 'eng,spa' &&
+        .join() === 'en,es' &&
       audio.filter((a) => a.DEFAULT === 'YES').length === 1,
     audio,
   );
   const subs = master.media.filter((m) => m.TYPE === 'SUBTITLES');
   check(
-    'master: one subtitle rendition (eng)',
-    subs.length === 1 && subs[0].LANGUAGE === 'eng',
+    'master: one subtitle rendition (en)',
+    subs.length === 1 && subs[0].LANGUAGE === 'en',
     subs,
   );
   check(

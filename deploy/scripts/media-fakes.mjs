@@ -228,13 +228,13 @@ export async function startFakeServer() {
           200,
           `#EXTM3U
 #EXT-X-VERSION:7
-#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",LANGUAGE="eng",DEFAULT=YES,URI="a/00-eng-stereo/index.m3u8?sig=1"
-#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Spanish",LANGUAGE="spa",DEFAULT=NO,URI="a/01-spa-stereo/index.m3u8?sig=1"
-#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",LANGUAGE="eng",URI="subs/00-eng.m3u8?sig=1"
-#EXT-X-STREAM-INF:BANDWIDTH=3500000,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2",AUDIO="aud",SUBTITLES="subs"
-v/720p/index.m3u8?sig=1
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",LANGUAGE="en",DEFAULT=YES,URI="a/00-eng-stereo/index.m3u8?sig=1"
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Spanish",LANGUAGE="es",DEFAULT=NO,URI="a/01-spa-stereo/index.m3u8?sig=1"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",LANGUAGE="en",URI="subs/00-eng.m3u8?sig=1"
 #EXT-X-STREAM-INF:BANDWIDTH=1800000,RESOLUTION=854x480,CODECS="avc1.64001e,mp4a.40.2",AUDIO="aud",SUBTITLES="subs"
 v/480p/index.m3u8?sig=1
+#EXT-X-STREAM-INF:BANDWIDTH=3500000,RESOLUTION=1280x720,CODECS="avc1.64001f,mp4a.40.2",AUDIO="aud",SUBTITLES="subs"
+v/720p/index.m3u8?sig=1
 `,
         );
       }
@@ -565,6 +565,14 @@ export function fakeIo(server) {
         const s = { codec_type: 'subtitle', codec_name: 'subrip' };
         let streams;
         let duration = 5;
+        let startTime;
+        // As the real ffprobe reports init + fragment i of a fragmented MP4: the container duration is the
+        // fragment's end time, not its length (the first media.yml run summed 56 s for a 20 s rendition).
+        const seg = /^seg-.*-(\d+)\.mp4$/.exec(file);
+        if (seg) {
+          startTime = Number(seg[1]) * 5;
+          duration = startTime + 5;
+        }
         if (/^seg-audio/.test(file)) streams = [a];
         else if (/^seg-video/.test(file)) streams = [v(1280, 720)];
         else if (/^whole-/.test(file)) {
@@ -581,7 +589,13 @@ export function fakeIo(server) {
         }
         return {
           status: 0,
-          stdout: JSON.stringify({ streams, format: { duration: String(duration) } }),
+          stdout: JSON.stringify({
+            streams,
+            format: {
+              duration: String(duration),
+              ...(startTime === undefined ? {} : { start_time: String(startTime) }),
+            },
+          }),
           stderr: '',
         };
       }

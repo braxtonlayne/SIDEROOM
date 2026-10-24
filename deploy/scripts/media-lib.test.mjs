@@ -8,6 +8,7 @@ import {
   parseMaster,
   parseMedia,
   parseVtt,
+  probeDuration,
   topLevelBoxes,
 } from './media-lib.mjs';
 
@@ -158,4 +159,46 @@ test('the media workflow calls files and stages that exist', async () => {
   }
   // The packages the job builds are the ones it runs.
   for (const bin of ['sr-server', 'sr-cli', 'sr-transcoder']) assert.ok(wf.includes(bin), bin);
+});
+
+test('probe durations of fMP4 fragments are their span, not their end time', () => {
+  // init + fragment 2 of a 20 s, 25 fps rendition: ffprobe reports the fragment's end as the duration.
+  const packets = Array.from({ length: 150 }, (_, i) => ({
+    codec_type: 'video',
+    stream_index: 0,
+    pts_time: (12 + i * 0.04).toFixed(6),
+    duration_time: '0.040000',
+  }));
+  const report = {
+    streams: [{ codec_type: 'video', codec_name: 'h264' }],
+    format: { duration: '18.000000', start_time: '12.000000' },
+    packets,
+  };
+  assert.ok(Math.abs(probeDuration(report) - 6) < 1e-6);
+  // Without packets: the container duration less its start time.
+  assert.ok(Math.abs(probeDuration({ ...report, packets: [] }) - 6) < 1e-6);
+  // The four fragments of the CI rendition add up to the source, not to 56 s.
+  const ends = [6, 12, 18, 20.04];
+  const sum = ends
+    .map((end, i) =>
+      probeDuration({
+        streams: report.streams,
+        format: { duration: String(end), start_time: String(i * 6) },
+      }),
+    )
+    .reduce((a, b) => a + b, 0);
+  assert.ok(Math.abs(sum - 20.04) < 1e-6, String(sum));
+  // A whole file starting at 0, and an audio-only one.
+  assert.equal(probeDuration({ streams: [], format: { duration: '20.021' } }), 20.021);
+  assert.equal(
+    probeDuration({
+      streams: [{ codec_type: 'audio' }],
+      packets: [
+        { codec_type: 'audio', stream_index: 0, pts_time: '6.0', duration_time: '0.021333' },
+        { codec_type: 'audio', stream_index: 0, pts_time: '6.021333', duration_time: '0.021333' },
+      ],
+    }).toFixed(6),
+    '0.042666',
+  );
+  assert.equal(probeDuration({}), 0);
 });
