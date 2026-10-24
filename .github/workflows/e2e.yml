@@ -153,6 +153,19 @@ jobs:
         env:
           CI: "true"
           SR_E2E_RELAY: "1"
+      # RDY-MED-002: Cinema > Submit in the browser against this job's Garage (SR_E2E_LIVE=1 is set for the job). A
+      # member uploads a generated MP4 to a series draft through the presigned part PUT, and a broken part PUT is
+      # finished from the IndexedDB ledger after a reload. The reviewer-proxy test needs ffprobe (SR_E2E_FFMPEG=1,
+      # not set here) and skips itself.
+      - name: Cinema submit over Garage (Chromium)
+        if: always()
+        run: |
+          status=0
+          ./deploy/compose/e2e-run.sh --project=chromium tests/cinema-submit.spec.ts || status=$?
+          cp server.log server-cinema.log || true
+          exit "$status"
+        env:
+          CI: "true"
       # RDY-OPS-004: the preflight's TURN row against the dev stack's coturn (deploy/compose/dev.yml, same shared
       # secret as deploy/compose/coturn/turnserver.conf): credentials derive and a UDP allocation is granted. Only the
       # turn row is asserted; the other rows describe this runner, not a production box.
@@ -186,6 +199,7 @@ jobs:
             server-e2ee-chromium.log
             server-e2ee-firefox.log
             server-relay.log
+            server-cinema.log
             coturn-relay.log
             e2e/playwright-report-e2ee-firefox
             e2e/test-results-e2ee-firefox
