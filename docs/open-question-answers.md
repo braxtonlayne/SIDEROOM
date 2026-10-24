@@ -3269,3 +3269,23 @@ Status: `ADOPTED` (D-365). Follow-up: R-13 (doc 12 sentence, handoff marked answ
 ### Still with the owner
 
 Nothing new. P21-5 declines the only download these questions could have asked for.
+
+## Phase 22 cinema-submit round (answered 2026-10-24, delegated)
+
+Decided by the owner's delegate under the standing delegation. One question, from the wave-22 handoff `feat-p22-cinema-submit.md` ("Owner question"). Decision D-367; code follow-up S-01 under "Phase 22 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 1 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Cinema avatar menu (P22-1, branch `feat/p22-cinema-submit`)
+
+**P22-1 (handoff "Owner question"; RDY-MED-002). The Cinema shell's avatar menu entries "My uploads" and "Upload" used to link to `/library/submissions` and `/library/upload`; the branch repointed both at the new `/cinema/submit`. Keep that, link both sections (a submenu, or "Upload to Cinema / Upload to Library"), or revert?**
+Decision: keep the repoint; no submenu, no revert. The menu is the Cinema header's own (spec `cinema-media.md` section 1) and section 2.5 hands the screens to the submissions spec, which defines shared mechanics only and keeps per-kind metadata and the requests board inside each section; so the section a member stands in decides what "Upload" means, and in the Cinema that is a film or new episodes. What the entries pointed at before was never a design: `/library/upload` is still a `SoonPage`, and `/library/submissions` showed cinema kinds only because its `listMine` call passes no `kind` filter, while every row of it opens the Library's chapter editor, which cannot edit a cinema draft. Two tidy-ups come with the decision: the two entries should not be the same link ("Upload" opens the submit screen with the new-submission form open, `/cinema/submit?new=1`; "My uploads" opens the list), and the Library's list narrows to `library.series,library.items`, exactly as the Cinema's list narrows to `cinema.title,cinema.episodes`, with the Lounge inbox's "For you" decision link choosing the section by kind prefix. Cross-section travel is the section bar's job ("The library" sits in the same header, one click away), which is also why the Library's menu does not link to the Cinema. "Requests" stays on `/library/requests`: the Cinema requests board is not built (submissions spec, "Not built yet"), and a dead entry is worse than a Library one.
+Status: `ADOPTED` (D-367). Follow-up: S-01.
+
+### Still with the owner
+
+Nothing. No download, push or licence question is involved.
