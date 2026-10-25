@@ -23,8 +23,10 @@ type HmacSha256 = Hmac<Sha256>;
 
 /// Methods the app origin may use against the bucket (D-175).
 pub const CORS_METHODS: [&str; 3] = ["PUT", "GET", "HEAD"];
-/// Request headers the browser may send on a presigned upload.
-pub const CORS_ALLOWED_HEADERS: [&str; 1] = ["Content-Type"];
+/// Request headers the browser may send on a presigned upload. Lowercase: browsers send preflight header names
+/// lowercased (Fetch spec), and with Garage `Content-Type` refused a ZIP's `application/zip`
+/// PUT (the p24 library gate); the composer never noticed because its part PUTs carry no content type.
+pub const CORS_ALLOWED_HEADERS: [&str; 1] = ["content-type"];
 /// Response headers the page may read.
 pub const CORS_EXPOSE_HEADERS: [&str; 1] = ["ETag"];
 const CORS_MAX_AGE_SECONDS: u32 = 3600;
@@ -411,7 +413,7 @@ mod tests {
         for m in ["PUT", "GET", "HEAD"] {
             assert!(xml.contains(&format!("<AllowedMethod>{m}</AllowedMethod>")));
         }
-        assert!(xml.contains("<AllowedHeader>Content-Type</AllowedHeader>"));
+        assert!(xml.contains("<AllowedHeader>content-type</AllowedHeader>"));
         assert!(xml.contains("<ExposeHeader>ETag</ExposeHeader>"));
         assert!(!xml.contains("DELETE"));
         // Deterministic, so repeated calls send identical documents.
