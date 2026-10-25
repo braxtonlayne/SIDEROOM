@@ -2,6 +2,8 @@
 
 This guide installs a single-node instance: one `sr-server` process behind a TLS reverse proxy, with Postgres, S3-compatible object storage and an SMTP server. The steps follow [docs/dev/server.md](../docs/dev/server.md), which describes the commands and configuration keys in more detail. Doc 12 covers the production architecture.
 
+Running the instance after the install (daily checks, settings, Admin > System, the playbooks): [OPERATOR.md](OPERATOR.md).
+
 ## Quick install (Docker Compose, one host)
 
 `deploy/install.sh` does sections 3 to 5 for the Compose stack. It asks for the domain, the mail server and the Owner account, generates every secret fresh (`deploy/compose/.env.prod` and `garage.prod.toml`, mode 0600), then starts Postgres and Garage, creates the bucket and key, applies the migrations and the bucket CORS rule, creates the Owner and brings the whole stack up. The server image carries `sr-cli`, so no host binary is needed.

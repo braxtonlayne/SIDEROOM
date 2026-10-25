@@ -26,6 +26,8 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 
 **Going live.** What only the owner can do is in [docs/dev/owner-checklist.md](docs/dev/owner-checklist.md), the ordered install and launch steps are in [deploy/GO-LIVE.md](deploy/GO-LIVE.md), and the questions for a lawyer are in [docs/legal/lawyer-brief.md](docs/legal/lawyer-brief.md). Everything you need to work on the code is in [`docs/`](docs/README.md).
 
+**Running it.** The operator handbook, the one page to start from once the instance is up, is [deploy/OPERATOR.md](deploy/OPERATOR.md).
+
 ## Start here
 
 - **Humans:** read [docs/00-vision-and-scope.md](docs/00-vision-and-scope.md), then [docs/02-architecture.md](docs/02-architecture.md).
