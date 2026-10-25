@@ -495,16 +495,33 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
 
 async fn udp_reader(sock: Arc<UdpSocket>, dst: SocketAddr, tx: mpsc::Sender<Packet>) {
     let mut buf = vec![0u8; 2048];
+    // Datagrams dropped since the last warning: a full queue means the shard cannot keep up, and a
+    // newcomer's ICE checks are lost with the media (RDY-VOX-002).
+    let mut dropped: u64 = 0;
+    let mut warned: Option<Instant> = None;
     loop {
         match sock.recv_from(&mut buf).await {
             Ok((n, src)) => {
                 // A full queue drops the datagram: UDP semantics, and better than unbounded memory.
-                let _ = tx.try_send(Packet {
+                let sent = tx.try_send(Packet {
                     proto: Protocol::Udp,
                     src,
                     dst,
                     data: buf[..n].to_vec(),
                 });
+                if matches!(sent, Err(mpsc::error::TrySendError::Full(_))) {
+                    dropped += 1;
+                    let now = Instant::now();
+                    if warned.is_none_or(|t| now.saturating_duration_since(t) >= DROP_WARN_EVERY) {
+                        tracing::warn!(
+                            port = dst.port(),
+                            dropped,
+                            "voice packet queue full: datagrams dropped"
+                        );
+                        warned = Some(now);
+                        dropped = 0;
+                    }
+                }
             }
             // Windows reports ICMP port-unreachable as a recv error on UDP sockets.
             Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
@@ -515,6 +532,9 @@ async fn udp_reader(sock: Arc<UdpSocket>, dst: SocketAddr, tx: mpsc::Sender<Pack
         }
     }
 }
+
+/// At most one "packet queue full" warning per UDP socket this often.
+const DROP_WARN_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// How long a flag change for a not-yet-joined participant is remembered (the token lifetime).
 const PENDING_FLAGS_TTL: std::time::Duration = std::time::Duration::from_secs(60);
@@ -875,10 +895,13 @@ impl Actor {
                 match self.core.handle_offer(now, pid, &sdp) {
                     // Sent before the core's own follow-up offer is drained, so the client sees
                     // the answer first.
-                    Ok(answer) => self.send_ws(
-                        pid,
-                        WsOut::Msg(Message::new(op::SDP_ANSWER, wire::Sdp { sdp: answer })),
-                    ),
+                    Ok(answer) => {
+                        tracing::debug!(pid = pid.0, "voice client offer answered");
+                        self.send_ws(
+                            pid,
+                            WsOut::Msg(Message::new(op::SDP_ANSWER, wire::Sdp { sdp: answer })),
+                        );
+                    }
                     Err(e) => {
                         tracing::debug!(error = %e, "rejected client offer");
                         self.send_ws(pid, WsOut::Close(close::DECODE_ERROR, "bad offer"));
@@ -886,11 +909,14 @@ impl Actor {
                 }
             }
             Cmd::Answer { pid, conn_id, sdp } => {
-                if self.is_current(pid, conn_id)
-                    && let Err(e) = self.core.handle_answer(now, pid, &sdp)
-                {
-                    tracing::debug!(error = %e, "rejected client answer");
-                    self.send_ws(pid, WsOut::Close(close::DECODE_ERROR, "bad answer"));
+                if self.is_current(pid, conn_id) {
+                    match self.core.handle_answer(now, pid, &sdp) {
+                        Ok(()) => tracing::debug!(pid = pid.0, "voice client answer applied"),
+                        Err(e) => {
+                            tracing::debug!(error = %e, "rejected client answer");
+                            self.send_ws(pid, WsOut::Close(close::DECODE_ERROR, "bad answer"));
+                        }
+                    }
                 }
             }
             Cmd::Candidate { pid, conn_id, line } => {

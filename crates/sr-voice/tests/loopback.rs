@@ -37,6 +37,8 @@ struct World {
     start: Instant,
     clients: Vec<Client>,
     closed: Vec<(UserId, CloseReason)>,
+    /// Feed each tick's datagrams as the node's actor does: queue them all, then flush once.
+    batched: bool,
 }
 
 fn sfu_addr() -> SocketAddr {
@@ -52,6 +54,7 @@ impl World {
             start: now,
             clients: Vec::new(),
             closed: Vec::new(),
+            batched: false,
         }
     }
 
@@ -132,8 +135,16 @@ impl World {
             }
         }
         for (from, data) in to_core {
-            self.core
-                .handle_input(now, Protocol::Udp, from, sfu_addr(), &data);
+            if self.batched {
+                self.core
+                    .queue_input(now, Protocol::Udp, from, sfu_addr(), &data);
+            } else {
+                self.core
+                    .handle_input(now, Protocol::Udp, from, sfu_addr(), &data);
+            }
+        }
+        if self.batched {
+            self.core.flush(now);
         }
         self.core.handle_timeout(now);
         while let Some(out) = self.core.poll() {
@@ -310,6 +321,34 @@ fn both_directions_and_a_late_joiner() {
         "B heard {} from C",
         w.frames_from(b, c)
     );
+}
+
+/// RDY-VOX-002: the actor queues a batch of datagrams and runs the room once, instead of once per
+/// datagram. Members joining one by one (each join renegotiates everyone already there) must still
+/// all hear each other.
+#[test]
+fn a_room_fed_in_batches_connects_late_joiners_and_forwards_everyone() {
+    let mut w = World::new();
+    w.batched = true;
+    let n = 6;
+    for user in 1..=n {
+        w.join(user, World::flags());
+        w.connect_all();
+    }
+    for speaker in 0..n as usize {
+        w.talk(speaker, 300, -30);
+    }
+    w.run(Duration::from_millis(200));
+    for listener in 0..n as usize {
+        for speaker in 0..n as usize {
+            let heard = w.frames_from(listener, speaker);
+            if listener == speaker {
+                assert_eq!(heard, 0, "{listener} heard itself");
+            } else {
+                assert!(heard >= 8, "{listener} heard {heard} frames from {speaker}");
+            }
+        }
+    }
 }
 
 #[test]
