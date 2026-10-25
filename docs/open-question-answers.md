@@ -3289,3 +3289,53 @@ Status: `ADOPTED` (D-367). Follow-up: S-01.
 ### Still with the owner
 
 Nothing. No download, push or licence question is involved.
+
+## Phase 23 round (answered 2026-10-24, delegated)
+
+Decided by the owner's delegate under the standing delegation. Six questions, from the wave-23 handoffs `feat-p23-operator-handbook.md` (questions 1 to 3) and `feat-p23-first-run.md` (questions 4 to 6). Decisions D-368 to D-373; code follow-ups T-01 to T-08 under "Phase 23 round" in [dev/answers-followups-p16.md](dev/answers-followups-p16.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED (owner-delegated) | 6 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 0 |
+
+### Exit gates without an RDY item (P23-1, branch `feat/p23-operator-handbook`)
+
+**P23-1 (handoff "Decisions and questions for the owner" 1; RDY-DOC-005). Four exit gates in the doc 13 status table have no RDY item behind them: phase 3 (a signet or regtest payment end to end, DON-PAY-009 being "won't build in CI" under D-257), phase 4 (the 10-chapter Library run) and phases 6 and 7 (no gate written). For each: add an RDY item (which wave), waive it with a reason, or write the gate.**
+Decision: none is waived. Phase 3: RDY-PAY-001 in wave 24, `[OWN][DOC]`, a hand-walked signet payment on the first real host (or the prod-smoke stack with the owner's signet Esplora) that unlocks Patron and a server level, recorded in the inventory with the transaction id; the steps extend `payments-live-test.md`, and the funded signet wallet becomes an owner-checklist row. CI is unchanged (D-257). Phase 4: RDY-LIB-001 in wave 24, `[TEST]`, `e2e/tests/library-gate.spec.ts` in `e2e.yml` on the pattern of `exit-gate.spec.ts`: submit a 10-chapter ZIP, approve nine and request changes on one, read an RTL chapter in a phone-sized viewport while a second context sees the position sync; the real-device half stays human. Phases 6 and 7: gates written (the wording is in D-368) and scoped to what is built, so phase 7 can be met without the lawyer; the lawyer items stay RDY-OWN-001. Phase 6 stays "Not yet" (RDY-DEV-003 and 004 and the first green `sdk-compat` run), phase 7 becomes "Partly" with the moderation Postgres tests and `drills.rs` as the links. Why wave 24: the wave-23 split is fixed and no wave-23 agent owns payments or the Library e2e; wave 24 may run after the first invites, which is when the real host exists.
+Status: `ADOPTED` (D-368). Follow-up: T-01, T-02.
+
+### Where the playbook links go (P23-2, branch `feat/p23-operator-handbook`)
+
+**P23-2 (handoff "Admin > System tile links", "Honest limits"; RDY-DOC-003). The System tiles link to `https://github.com/braxtonlayne/SIDEROOM/blob/main/deploy/RUNBOOK.md#anchor`. The repository is private and unpublished (D-309), so operators and staff without GitHub access cannot open them. Keep the GitHub links, serve an in-app copy (`/admin/runbook` rendered from the shipped file), or point at the copy in the server image?**
+Decision: an in-app copy. `/admin/runbook` (OPERATOR permission) renders `deploy/RUNBOOK.md` imported at build time with `?raw` as a lazy chunk, through the restricted Markdown renderer `/help/whats-new` already uses; heading ids follow the slug rule of `scripts/lib/playbooks.mjs`, and a test pins the required anchors in both. Tiles link to `/admin/runbook#anchor` in the same tab; the GitHub URL goes. A private repository link is dead for everyone but the owner, and it shows `main` rather than the version that raised the tile; the build's own copy is the runbook for the running build. The image is distroless and carries no documents, and the install checkout is a path on a host, not something a browser link can open. `check-ops-files.mjs` keeps checking the `deploy/RUNBOOK.md#...` literals.
+Status: `ADOPTED` (D-369). Follow-up: T-03.
+
+### Metrics for the new playbooks (P23-3, branch `feat/p23-operator-handbook`)
+
+**P23-3 (handoff "Honest limits"; RDY-DOC-003). The server exports nine Prometheus metrics, so the job backlog, voice egress, invoice, storage, WAL, restore drill and suspicion playbooks have no metric and no alert rule and are driven by Admin tiles and the `#alerts` health job. Should a later wave add a queue-depth gauge, a backup-age gauge and the like, and which ones in which wave?**
+Decision: yes, wave 24, as RDY-OBS-001 on the scale agent. Gauges: `sr_jobs_queued{kind}` and `sr_jobs_oldest_queued_age_seconds`; `sr_backup_last_success_timestamp_seconds` and `sr_restore_check_last_success_timestamp_seconds`; `sr_wal_archive_last_success_timestamp_seconds` and `sr_wal_archive_failed_total`; `sr_disk_free_ratio{path}`; `sr_invoices_pending` and `sr_invoice_oldest_pending_age_seconds`; `sr_storage_bytes{bucket}` (no rule); `sr_csp_reports_total{directive}`. Rules JobBacklog, BackupMissingOrStale, RestoreDrillFailed, WalArchiveLag, DiskPressure, InvoiceStuck, CspReportsSpike, each annotated with its existing playbook anchor. Voice egress needs only a `sr-voice` scrape job in `prometheus.yml` and a VoiceEgress rule on the node's existing `sr_voice_egress_bits_per_second`, with the check taught the `sr_voice_*` series. No suspicion gauge (the `#alerts` post is the alert). Values are written by the health job from figures it already has, never computed on scrape. Timestamps rather than ages, so "never" is a zero and Prometheus does `time() - x`.
+Status: `ADOPTED` (D-370). Follow-up: T-04.
+
+### `/help` for signed-out visitors (P23-4, branch `feat/p23-first-run`)
+
+**P23-4 (handoff "Open owner questions" 1; RDY-ONB-002). `/help` left the first-paint core, so a signed-out visitor waits for the full catalog (a brief blank). Keep a tiny first-paint help page for signed-out visitors?**
+Decision: no second page. The route gets a `Suspense` fallback (the entrance skeleton, not a blank) and the entrance's help link prefetches the catalog chunk on pointer-enter and focus. Two help pages drift; the handbook's doc-09 agreement test exists once. The cost is one request on a cold cache, which the skeleton and prefetch cover, and the entrance's own first paint is untouched.
+Status: `ADOPTED` (D-371). Follow-up: T-05.
+
+### Invite credits in the handbook (P23-5, branch `feat/p23-first-run`)
+
+**P23-5 (handoff "Open owner questions" 2; RDY-ONB-002). The handbook says every account starts with "five, unless your operator changed it" invite credits (the doc 06 default). Keep the fixed wording, or read the live setting? And should credits be mentioned at all?**
+Decision: mention them, and read the number live. `GET /sr/compliance/public` gains `invite_initial_credits` (from `invites.initial_credits`); the handbook says "every account starts with N invite credits", falling back to "a handful of invite credits (five by default)" while loading or on failure, and links the Invites screen for the member's own balance. Credits are how a new member's friends get in, so the handbook must say it; and a sentence that tells the reader to go and find out what the server could tell them is not an answer. The public compliance object already carries the operator-set facts the handbook reads. No new route.
+Status: `ADOPTED` (D-372). Follow-up: T-06.
+
+### The old settings "What's New" (P23-6, branch `feat/p23-first-run`)
+
+**P23-6 (handoff "Still open / not done"; RDY-ONB-003). The `settings.whatsNew` dialog in User Settings (three lines about phase 9) now duplicates `/help/whats-new`. Remove it, or keep it?**
+Decision: remove the dialog; keep the settings entry and point it at `/help/whats-new`. Two "What's new" surfaces with different contents is a defect waiting to be read; the dialog's text is frozen in the i18n catalog and nothing in the integration checklist updates it, while `CHANGELOG.md` is the one file every wave must touch (AGENTS.md section 4). Discord has the entry in settings, so the entry stays.
+Status: `ADOPTED` (D-373). Follow-up: T-07.
+
+### Still with the owner
+
+Nothing new. The funded signet wallet for RDY-PAY-001 is already an owner-checklist matter (electrs and node); no download, push or licence question is involved.
