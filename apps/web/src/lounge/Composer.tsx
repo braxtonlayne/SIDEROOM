@@ -12,6 +12,7 @@ import {
 } from 'react';
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react';
 import { ApiError, apiFetch } from '../api/client';
+import { announce } from '../a11y/announcer';
 import { formatDateTime, formatTime, useT } from '../i18n';
 import { useStore } from '../store';
 import { usePrefsStore, useSavedPrefs } from '../settings/user/prefs';
@@ -463,6 +464,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           ...base,
           attachments: refs,
         });
+        // The tray is cleared in the same update as each file's 'done', so it never sees that state and
+        // cannot announce it (the CI run of keyboard flow 5): say it here, once per uploaded file.
+        for (const f of files) announce(t('a11y.announce.uploadDone', { name: f.name }));
         finishSend();
       })
       .catch((e: unknown) => {

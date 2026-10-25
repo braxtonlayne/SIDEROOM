@@ -38,8 +38,17 @@ test('sign in: fields, passkey button, second factor, keyboard only', async ({
   await page.keyboard.type(user.password);
   await tabTo(page, submit, { max: 4 });
   // The passkey button is a tab stop of the same form (it is not activated here: that needs an authenticator).
-  await tabTo(page, passkey, { max: 6 });
-  await tabTo(page, submit, { max: 6, back: true });
+  // The page offers it only where the browser has WebAuthn (lib/webauthn.ts `passkeysSupported`); Playwright's
+  // Linux WebKit has none, so there the button is rightly absent (the CI run that tabbed for it until timeout).
+  const webauthn = await page.evaluate(
+    () => typeof window.PublicKeyCredential === 'function' && !!navigator.credentials,
+  );
+  if (webauthn) {
+    await tabTo(page, passkey, { max: 6 });
+    await tabTo(page, submit, { max: 6, back: true });
+  } else {
+    await expect(passkey).toHaveCount(0);
+  }
   await page.keyboard.press('Enter');
 
   // Second factor: focus lands on the first digit, the code types across the boxes, Enter is not needed.
