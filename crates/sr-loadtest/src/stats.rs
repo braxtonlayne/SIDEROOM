@@ -133,6 +133,9 @@ pub struct FirstPaint {
     pub requests: usize,
     pub rate_limited: usize,
     pub failed: usize,
+    /// READY never arrived (within the probe's wait); counted apart from the REST calls, which run 40226523570
+    /// reported as "1 of 3 requests failed".
+    pub ready_missing: bool,
 }
 
 impl Measured {
@@ -208,6 +211,12 @@ impl Measured {
                     p.rate_limited + p.failed,
                     p.requests,
                     p.rate_limited
+                ));
+            }
+            if p.ready_missing {
+                out.push(format!(
+                    "first paint with {} servers: no READY arrived",
+                    p.guilds
                 ));
             }
             if p.millis > t.max_first_paint_ms {
@@ -317,6 +326,7 @@ mod tests {
             requests: 3,
             rate_limited,
             failed: 0,
+            ready_missing: false,
         };
         let mut m = passing();
         m.first_paint = Some(probe(900.0, 0));
@@ -325,6 +335,14 @@ mod tests {
         assert!(m.failures(&t)[0].contains("took 1800 ms"));
         m.first_paint = Some(probe(100.0, 2));
         assert!(m.failures(&t)[0].contains("2 of 3 requests failed (2 were 429)"));
+        m.first_paint = Some(FirstPaint {
+            ready_missing: true,
+            ..probe(100.0, 0)
+        });
+        assert_eq!(
+            m.failures(&t),
+            vec!["first paint with 60 servers: no READY arrived".to_owned()]
+        );
     }
 
     #[test]

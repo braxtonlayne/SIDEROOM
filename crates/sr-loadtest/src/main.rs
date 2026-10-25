@@ -187,6 +187,11 @@ async fn run(args: Args) -> Result<bool> {
     Ok(failures.is_empty())
 }
 
+/// After the steady state, how long without a new delivery ends the wait for stragglers.
+const DRAIN_QUIET: Duration = Duration::from_secs(3);
+/// The longest the run waits for stragglers after the steady state.
+const DRAIN_MAX: Duration = Duration::from_secs(30);
+
 /// A small xorshift generator: the workers only need cheap, uncorrelated choices.
 struct Rng(u64);
 
@@ -399,8 +404,35 @@ async fn scenario(args: &Args, client: Arc<Client>, seeded: Arc<Seeded>) -> Resu
     for r in readers {
         let _ = r.await;
     }
-    // Let the last dispatches arrive before the sessions are closed.
-    sleep(Duration::from_secs(3)).await;
+    // Let the last dispatches arrive before the sessions are closed: until every expected one is in, or none
+    // arrived for DRAIN_QUIET, at most DRAIN_MAX. A fixed 3 s here counted the backlog of a slow run as lost
+    // (run 40226523570: fan-out p50 19 s, "76% delivered"); late ones still count against the fan-out p95.
+    let expected_now = || -> u64 {
+        sent_per_guild
+            .iter()
+            .enumerate()
+            .map(|(g, n)| {
+                n.load(Ordering::Relaxed) * ready.per_guild[g].load(Ordering::Relaxed) as u64
+            })
+            .sum()
+    };
+    let drain_started = Instant::now();
+    let (mut last_seen, mut last_change) =
+        (ready.delivered.load(Ordering::Relaxed), Instant::now());
+    while ready.delivered.load(Ordering::Relaxed) < expected_now()
+        && last_change.elapsed() < DRAIN_QUIET
+        && drain_started.elapsed() < DRAIN_MAX
+    {
+        sleep(Duration::from_millis(100)).await;
+        let now = ready.delivered.load(Ordering::Relaxed);
+        if now != last_seen {
+            (last_seen, last_change) = (now, Instant::now());
+        }
+    }
+    eprintln!(
+        "drained for {:.1}s after the steady state",
+        drain_started.elapsed().as_secs_f64()
+    );
     let _ = stop_tx.send(true);
 
     // ---- collect --------------------------------------------------------------------------------------
@@ -428,11 +460,7 @@ async fn scenario(args: &Args, client: Arc<Client>, seeded: Arc<Seeded>) -> Resu
     {
         eprintln!("first failed request: {f}");
     }
-    let expected: u64 = sent_per_guild
-        .iter()
-        .enumerate()
-        .map(|(g, n)| n.load(Ordering::Relaxed) * ready.per_guild[g].load(Ordering::Relaxed) as u64)
-        .sum();
+    let expected = expected_now();
     let rest = Arc::try_unwrap(rest).map_or_else(
         |a| a.lock().unwrap_or_else(|p| p.into_inner()).clone(),
         |m| m.into_inner().unwrap_or_else(|p| p.into_inner()),
@@ -496,9 +524,7 @@ async fn first_paint(
     while ready.total.load(Ordering::Relaxed) == 0 && Instant::now() < deadline {
         sleep(Duration::from_millis(5)).await;
     }
-    if ready.total.load(Ordering::Relaxed) == 0 {
-        out.failed += 1;
-    }
+    out.ready_missing = ready.total.load(Ordering::Relaxed) == 0;
     out.millis = started.elapsed().as_secs_f64() * 1000.0;
     let _ = stop_tx.send(true);
     if let Ok(rep) = session.await {
@@ -541,10 +567,11 @@ fn print_report(args: &Args, m: &Measured, failures: &[String]) {
     );
     if let Some(p) = &m.first_paint {
         println!(
-            "  first paint  {} servers: {:.0} ms, READY frame {} bytes, {} of {} requests failed ({} were 429)",
+            "  first paint  {} servers: {:.0} ms, READY frame {} bytes{}, {} of {} requests failed ({} were 429)",
             p.guilds,
             p.millis,
             p.ready_bytes,
+            if p.ready_missing { " (no READY)" } else { "" },
             p.rate_limited + p.failed,
             p.requests,
             p.rate_limited
@@ -578,6 +605,7 @@ fn report_json(args: &Args, m: &Measured, failures: &[String]) -> String {
         "first_paint": m.first_paint.as_ref().map(|p| serde_json::json!({
             "guilds": p.guilds, "ms": p.millis, "ready_bytes": p.ready_bytes,
             "requests": p.requests, "rate_limited": p.rate_limited, "failed": p.failed,
+            "ready_missing": p.ready_missing,
         })),
         "passed": failures.is_empty(),
         "failures": failures,

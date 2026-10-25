@@ -51,12 +51,13 @@ jobs:
       - name: Table sizes after the seed
         if: ${{ inputs.seed_scale }}
         run: |
-          psql "$SR_DATABASE__URL" -c "select relname, n_live_tup from pg_stat_user_tables where relname in ('accounts','guilds','guild_members','messages','attachments','reactions','reading_chapters','video_titles') order by 1" | tee tables.txt
+          # messages is partitioned by month: its rows live in messages_YYYY_MM, so those are summed.
+          psql "$SR_DATABASE__URL" -c "select case when relname ~ '^messages_[0-9]{4}_[0-9]{2}$' then 'messages' else relname end as relname, sum(n_live_tup) as n_live_tup from pg_stat_user_tables where relname in ('accounts','guilds','guild_members','attachments','reactions','reading_chapters','video_titles') or relname ~ '^messages_[0-9]{4}_[0-9]{2}$' group by 1 order by 1" | tee tables.txt
       - name: Start the server
         run: |
           SR_SERVER__BIND=127.0.0.1:8080 \
           SR_STORAGE__ENDPOINT=http://127.0.0.1:1 SR_STORAGE__ACCESS_KEY=x SR_STORAGE__SECRET_KEY=y SR_STORAGE__BUCKET=lt \
-          SR_SEARCH__DIR=$RUNNER_TEMP/search ./target/release/sr-server > server.log 2>&1 &
+          SR_SEARCH__DIR=$RUNNER_TEMP/search SR_LOG__FILTER=info,tantivy=warn ./target/release/sr-server > server.log 2>&1 &
           echo $! > server.pid
           for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
       - name: Load test
