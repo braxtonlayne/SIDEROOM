@@ -95,7 +95,7 @@ All against the scratch database `sr_p24_parity`, one cargo command at a time wi
 
 ## Open owner questions
 
-- Is "three different link hosts in a stranger's first message" the right strictness for the spam filter (it is deliberately lower than the automod rule's five)? It is one constant, `DM_SPAM_LINK_HOSTS`.
+- Is "three different link hosts in the messages of a still-pending request" the right strictness for the spam filter (it is deliberately lower than the automod rule's five)? It is one constant, `DM_SPAM_LINK_HOSTS`. *Answered (Fable, wave-24 integration): P24-PAR-1 to 5 kept; `DM_SPAM_LINK_HOSTS` stays 3. The other two questions are backlog rows in `dev/answers-followups-p16.md`.*
 - Should the emoji picker also list emoji from the member's other servers ("use anywhere") with a server icon per section? Today it shows this server's emoji only.
 - Should the Lounge preview also hide the members and messages the previewed role cannot see? Today only the channel list is narrowed.
 
