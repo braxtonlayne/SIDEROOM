@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       seed_scale:
-        description: Load the 20,000-account dataset first (false: skip, for a quick check)
+        description: "Load the 20,000-account dataset first (false: skip, for a quick check)"
         type: boolean
         default: true
       sessions: { description: Gateway sessions, default: "2000" }

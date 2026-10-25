@@ -40,7 +40,8 @@ jobs:
   soak:
     # Owner (2026-10-24): the standard runner, no larger one. If it struggles, dispatch with camera=false first.
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(inputs.minutes) * 1 + 60 }}
+    # Workflow expressions have no arithmetic, so the timeout is fixed: room for the two-hour phase 2 gate plus setup.
+    timeout-minutes: 200
     env:
       SR_VOICE__ENABLED: "true"
       # Voice E2EE is on by default (D-249); stated here so the soak never silently runs in the clear.
