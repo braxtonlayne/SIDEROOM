@@ -160,6 +160,9 @@ importers:
 
   packages/bot:
     dependencies:
+      '@sideroom/wasm':
+        specifier: workspace:*
+        version: link:../wasm
       werift:
         specifier: 0.25.0
         version: 0.25.0
