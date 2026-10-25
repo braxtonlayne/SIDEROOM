@@ -19,8 +19,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::lag_bus::TapItem;
-use futures::StreamExt;
 use futures::stream::BoxStream;
+use futures::{FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sr_api::routes::search::SearchDeps;
@@ -156,23 +156,39 @@ pub async fn enqueue_reindex(pool: &PgPool, id: i64) -> DbResult<()> {
 /// Mints job ids (snowflakes).
 pub type JobIds = Arc<dyn Fn() -> i64 + Send + Sync>;
 
-/// Sees one event on the firehose: refreshes the search access caches and
-/// enqueues its index jobs. `dedup` collapses the copies a multi-topic publish
-/// produces; the cache refresh is idempotent so it runs on every copy.
-async fn consume_event(
-    pool: &PgPool,
+/// Sees one event on the firehose: refreshes the search access caches and adds its index jobs to `out`.
+/// `dedup` collapses the copies a multi-topic publish produces; the cache refresh is idempotent so it runs
+/// on every copy.
+fn consume_event(
     next_id: &JobIds,
     search: &SearchDeps,
     dedup: &mut FirehoseDedup,
     ev: &DomainEvent,
+    out: &mut Vec<NewJob>,
 ) {
     search.apply_event(ev);
-    if jobs_for_event(ev).is_empty() || !dedup.is_new(ev) {
+    let payloads = jobs_for_event(ev);
+    if payloads.is_empty() || !dedup.is_new(ev) {
         return;
     }
-    if let Err(e) = enqueue_for_event(pool, || next_id(), ev).await {
-        tracing::error!(error = %e, "enqueueing search index jobs failed");
+    for p in &payloads {
+        let payload = serde_json::to_value(p).unwrap_or_else(|_| json!({}));
+        out.push(NewJob::new(next_id(), INDEX_MESSAGE_KIND, payload));
     }
+}
+
+/// Events the firehose consumer takes in one go when they are already waiting (RDY-PERF-002).
+const FIREHOSE_BATCH: usize = 512;
+
+/// Insert the index jobs gathered from a batch of events, in one statement.
+async fn flush_jobs(pool: &PgPool, pending: &mut Vec<NewJob>) {
+    if pending.is_empty() {
+        return;
+    }
+    if let Err(e) = jobs::enqueue_many(pool, pending).await {
+        tracing::error!(error = %e, jobs = pending.len(), "enqueueing search index jobs failed");
+    }
+    pending.clear();
 }
 
 /// Minimum time between two lag-triggered `search.reindex` jobs.
@@ -234,13 +250,27 @@ pub fn spawn_firehose_consumer(
     tokio::spawn(async move {
         let mut dedup = FirehoseDedup::new();
         let mut limiter = LagRecovery::default();
-        while let Some(item) = events.next().await {
-            match item {
-                Ok(ev) => consume_event(&pool, &next_id, &search, &mut dedup, &ev).await,
-                Err(BroadcastStreamRecvError::Lagged(missed)) => {
-                    recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
+        let mut pending = Vec::new();
+        while let Some(first) = events.next().await {
+            // Take what is already waiting too, so a slow database costs one insert per batch instead of one
+            // per message; one insert per message is what let the tap overflow under load (RDY-PERF-002).
+            let mut batch = vec![first];
+            while batch.len() < FIREHOSE_BATCH {
+                match events.next().now_or_never() {
+                    Some(Some(item)) => batch.push(item),
+                    _ => break,
                 }
             }
+            for item in batch {
+                match item {
+                    Ok(ev) => consume_event(&next_id, &search, &mut dedup, &ev, &mut pending),
+                    Err(BroadcastStreamRecvError::Lagged(missed)) => {
+                        flush_jobs(&pool, &mut pending).await;
+                        recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
+                    }
+                }
+            }
+            flush_jobs(&pool, &mut pending).await;
         }
     })
 }
@@ -940,5 +970,65 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
+    }
+
+    /// RDY-PERF-002: a burst on the firehose becomes index jobs through batched inserts, one job per message
+    /// (the copies a multi-topic publish makes are collapsed).
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_firehose_burst_is_queued_in_batches() {
+        use crate::lag_bus::LagTapBus;
+        use sr_events::{EventBus, InProcessBus};
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let bus = LagTapBus::new(Arc::new(InProcessBus::new()));
+        let next = Arc::new(std::sync::atomic::AtomicI64::new(
+            i64::try_from(std::process::id()).unwrap_or(1) * 1_000_000_000 + 8_000_000,
+        ));
+        let first_job = next.load(std::sync::atomic::Ordering::Relaxed);
+        let ids: JobIds = {
+            let next = next.clone();
+            Arc::new(move || next.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        };
+        let task = spawn_firehose_consumer(
+            bus.tap(),
+            pool.clone(),
+            ids,
+            Arc::new(SearchDeps::new(Arc::new(MessageIndex::in_ram().unwrap()))),
+        );
+        let base = 9_100_000_000u64 + u64::from(std::process::id()) * 1000;
+        for n in 0..300u64 {
+            let ev = ev_sent(77, base + n);
+            for t in ev.topics() {
+                bus.publish(t, ev.clone()).await.unwrap();
+            }
+        }
+        let mut queued = 0i64;
+        for _ in 0..100 {
+            queued = sqlx::query_scalar(
+                "SELECT count(*) FROM jobs WHERE kind = $1 AND id >= $2 AND id < $3",
+            )
+            .bind(INDEX_MESSAGE_KIND)
+            .bind(first_job)
+            .bind(first_job + 10_000)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            if queued >= 300 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        task.abort();
+        sqlx::query("DELETE FROM jobs WHERE id >= $1 AND id < $2")
+            .bind(first_job)
+            .bind(first_job + 10_000)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(queued, 300, "one index job per message, none lost");
     }
 }

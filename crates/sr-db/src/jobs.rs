@@ -79,6 +79,33 @@ pub async fn enqueue<'e>(ex: impl PgExecutor<'e>, job: &NewJob) -> DbResult<()> 
     Ok(())
 }
 
+/// [`enqueue`] for several jobs in one statement (a producer that batches, such as the search firehose
+/// consumer). Nothing is inserted when it fails.
+pub async fn enqueue_many<'e>(ex: impl PgExecutor<'e>, jobs: &[NewJob]) -> DbResult<()> {
+    if jobs.is_empty() {
+        return Ok(());
+    }
+    sqlx::query(
+        "INSERT INTO jobs (id, kind, payload, priority, max_attempts, run_at) \
+         SELECT id, kind, payload, priority, max_attempts, now() + make_interval(secs => delay) \
+         FROM UNNEST($1::bigint[], $2::text[], $3::jsonb[], $4::smallint[], $5::int[], $6::float8[]) \
+              AS t(id, kind, payload, priority, max_attempts, delay)",
+    )
+    .bind(jobs.iter().map(|j| j.id).collect::<Vec<_>>())
+    .bind(jobs.iter().map(|j| j.kind.clone()).collect::<Vec<_>>())
+    .bind(jobs.iter().map(|j| j.payload.clone()).collect::<Vec<_>>())
+    .bind(jobs.iter().map(|j| j.priority).collect::<Vec<_>>())
+    .bind(jobs.iter().map(|j| j.max_attempts).collect::<Vec<_>>())
+    .bind(
+        jobs.iter()
+            .map(|j| j.delay.as_secs_f64())
+            .collect::<Vec<_>>(),
+    )
+    .execute(ex)
+    .await?;
+    Ok(())
+}
+
 /// Atomically claim up to `limit` due jobs of the given kinds for `worker`.
 pub async fn claim<'e>(
     ex: impl PgExecutor<'e>,
