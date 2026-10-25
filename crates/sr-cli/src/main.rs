@@ -6,6 +6,7 @@ mod guilds;
 mod library_seed;
 mod ops;
 mod packages;
+mod seed_scale;
 mod tv;
 
 use std::path::PathBuf;
@@ -116,6 +117,29 @@ pub enum Command {
         password: String,
         #[arg(long)]
         force: bool,
+        /// Load the sizing-claim dataset instead of the dev data (RDY-PERF-001): 20,000 accounts, 500 guilds,
+        /// 5 million messages with attachments and reactions, 2,000 library chapters and 300 cinema titles,
+        /// through COPY in one transaction. Safe to run again with the same --seed-name (it stops).
+        #[arg(long)]
+        scale: bool,
+        /// Name of the scale dataset (lower-case letters and digits). Different names load side by side.
+        #[arg(long, default_value = "scale", requires = "scale")]
+        seed_name: String,
+        /// Override the number of accounts (default 20000).
+        #[arg(long, requires = "scale")]
+        scale_accounts: Option<u32>,
+        /// Override the number of guilds (default 500).
+        #[arg(long, requires = "scale")]
+        scale_guilds: Option<u32>,
+        /// Override the number of messages (default 5000000).
+        #[arg(long, requires = "scale")]
+        scale_messages: Option<u64>,
+        /// Override the number of library chapters (default 2000).
+        #[arg(long, requires = "scale")]
+        scale_chapters: Option<u32>,
+        /// Override the number of cinema titles (default 300).
+        #[arg(long, requires = "scale")]
+        scale_titles: Option<u32>,
     },
 }
 
