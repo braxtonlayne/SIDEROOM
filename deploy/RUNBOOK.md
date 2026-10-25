@@ -169,6 +169,8 @@ _Raised by:_ the "Storage used" figure on the Admin Dashboard, the Disk space ca
 
 _Raised by:_ the `BackupMissingOrStale` rule (`sr_backup_last_success_timestamp_seconds` older than 26 hours, or 0 when there is no backup), a `backup_failed` card in `#alerts`, the Backups card of Admin > System showing "none" or an old time, or `restore-drill.sh` refusing an old dump.
 
+A fresh install pages here (and under Restore drill failed) until the first backup and the first restore-drill marker exist: both gauges are 0 for "never" on purpose, so a server that was never backed up is not silent. Run `deploy/scripts/backup.sh` and then `deploy/scripts/restore-drill.sh` once after installing.
+
 1. Is the setting pointing at the right folder? `ops.backup_dir` must be the `SR_BACKUP_DIR` of the backup job ([BACKUP.md](BACKUP.md), "On the Compose stack"). Empty switches the alert off.
 2. Did the timer run? `systemctl list-timers 'sideroom-*'` and `journalctl -u sideroom-backup.service -n 100`. Run it by hand: `deploy/scripts/backup.sh`.
 3. `pg_dump` errors (permission, version mismatch, disk full) are printed there. Disk full: see Disk pressure.
@@ -186,7 +188,7 @@ _Raised by:_ WAL files piling up in the `wal-archive` volume, a Postgres log ful
 
 ## Restore drill failed
 
-_Raised by:_ the `RestoreDrillFailed` rule (`sr_restore_check_last_success_timestamp_seconds` older than 8 days), the `sideroom-restore-drill.service` unit failing (wire it to `OnFailure=`, see BACKUP.md), a failed `drill` or `wal-drill` job in the weekly `backup-drill.yml` workflow, or the restore-check line of the Admin > System Backups card going stale.
+_Raised by:_ the `RestoreDrillFailed` rule (`sr_restore_check_last_success_timestamp_seconds` older than 8 days, or 0 when no drill marker exists yet), the `sideroom-restore-drill.service` unit failing (wire it to `OnFailure=`, see BACKUP.md), a failed `drill` or `wal-drill` job in the weekly `backup-drill.yml` workflow, or the restore-check line of the Admin > System Backups card going stale.
 
 1. `journalctl -u sideroom-restore-drill.service -n 100`. The script says which check failed: no dump, dump older than `SR_DRILL_MAX_AGE_HOURS` (default 36), checksum mismatch, a migration without success, a missing table.
 2. Old dump: this is Backup missing or stale; fix that first. Checksum mismatch: the file or its manifest is damaged; the next backup replaces it, and copies off the host should be compared.

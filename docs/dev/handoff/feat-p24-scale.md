@@ -38,8 +38,8 @@ fmt check; clippy `-D warnings` on sr-api, sr-chat, sr-db, sr-search, sr-gateway
 
 ## Open questions for the owner
 
-1. Dispatch `load-test.yml` (it runs about an hour); is a standard runner enough for the 20,000-account seed plus 2,000 sessions, or should the first run use fewer sessions?
-2. Should `sr_storage_bytes` also cover the object store buckets (needs a listing API call per run), or is attachments-in-the-database enough?
+1. Dispatch `load-test.yml` (it runs about an hour); is a standard runner enough for the 20,000-account seed plus 2,000 sessions, or should the first run use fewer sessions? *Decided (Fable, wave-24 integration): the first dispatch uses `seed_scale=true`, `sessions=1000`, `msg_rate=100`, `rest_rps=150`, `duration=120`, then the defaults (`load-testing.md`, "The CI run").*
+2. Should `sr_storage_bytes` also cover the object store buckets (needs a listing API call per run), or is attachments-in-the-database enough? *Decided: database-only for now; the buckets and media through a bounded daily job are backlog row U-04 in `answers-followups-p16.md`. The backup and restore gauges stay 0 on "never" (RUNBOOK says a fresh install pages until the first backup and drill).*
 3. `promtool check rules` in `prod-smoke.yml`: added, approved by owner (the integrator's `rules` job).
 
 ## Note on commits
