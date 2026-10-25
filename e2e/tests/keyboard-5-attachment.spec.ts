@@ -68,7 +68,9 @@ test('attachment: add by keyboard, send, hear the upload, focus returns to the c
   await page.keyboard.type('here is the file');
   await page.keyboard.press('Enter');
 
-  await expectHeard(page, 'Uploading keyboard-note.txt');
+  // The completion must be heard. The start is heard only when the upload outlasts the announcer's 50 ms
+  // settle time: an unspoken message is replaced by a newer one, so a tiny file that finishes at once is
+  // announced as "Uploaded" alone (Firefox in CI). Saying "Uploading" for an upload already done helps nobody.
   await expectHeard(page, 'Uploaded keyboard-note.txt');
   await expect(page.getByRole('log').getByText('keyboard-note.txt')).toBeVisible();
   await expect(composer).toBeFocused();
