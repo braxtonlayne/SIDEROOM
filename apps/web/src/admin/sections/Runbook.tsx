@@ -54,7 +54,10 @@ export function RunbookSection() {
   }, []);
   return (
     <>
-      <SectionHeader title={t('admin.runbook.title')} description={t('admin.runbook.description')} />
+      <SectionHeader
+        title={t('admin.runbook.title')}
+        description={t('admin.runbook.description')}
+      />
       <div ref={ref} className="adm-runbook" data-testid="runbook">
         <EntranceMarkdown source={runbookBody(runbook)} headingId={runbookSlug} />
       </div>

@@ -47,7 +47,9 @@ describe('runbook anchors', () => {
     expect(container.querySelector('blockquote')).not.toBeNull();
     const table = container.querySelector('table');
     expect(table).not.toBeNull();
-    expect(within(table as HTMLElement).getByRole('columnheader', { name: 'Setting' })).toBeTruthy();
+    expect(
+      within(table as HTMLElement).getByRole('columnheader', { name: 'Setting' }),
+    ).toBeTruthy();
     expect(container.textContent).not.toContain('```');
     expect(container.textContent).not.toContain('|---');
     // Same-page links work; links to other files of the checkout stay text.
