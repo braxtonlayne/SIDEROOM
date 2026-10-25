@@ -59,18 +59,26 @@ test('voice: join, mute, unmute and leave by keyboard, each one announced', asyn
   await expectHeard(page, /Joined voice channel/);
   await expect(voice).toBeFocused();
 
-  // Mute and unmute from the user panel.
-  const mute = page.getByRole('button', { name: 'Mute', exact: true });
+  // Mute and unmute from the user panel. Once connected, the call view in the main pane has its own "Mute" in
+  // its toolbar, so the name alone matches two buttons (a strict-mode error that `tabTo` read as "not focused");
+  // the user panel's comes first in the document and in the Tab order.
+  const mute = page.getByRole('button', { name: 'Mute', exact: true }).first();
   await tabTo(page, mute, { max: 30 });
   await page.keyboard.press('Space');
   await expectHeard(page, 'Microphone muted');
-  await expect(mute).toBeFocused();
+  // The toggle is renamed "Unmute" (pressed) while muted; focus stays on it.
+  const unmute = page.getByRole('button', { name: 'Unmute', exact: true }).first();
+  await expect(unmute).toBeFocused();
+  await expect(unmute).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Space');
   await expectHeard(page, 'Microphone unmuted');
+  await expect(mute).toBeFocused();
 
   // Leave.
+  // The voice connection panel's Disconnect sits just above the user panel, so it is a few Shift+Tabs back from
+  // the mute toggle. (Thirty Tabs forward first would leave focus deep in the main pane, out of reach.)
   const leave = page.getByRole('button', { name: 'Disconnect' }).first();
-  await tabTo(page, leave, { max: 30 }).catch(() => tabTo(page, leave, { max: 30, back: true }));
+  await tabTo(page, leave, { max: 30, back: true });
   await page.keyboard.press('Enter');
   await expectHeard(page, 'Left the voice channel');
 });
