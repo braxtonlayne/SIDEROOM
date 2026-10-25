@@ -92,6 +92,7 @@ mod tests {
             .await;
         assert!(blocked.is_err(), "the delete should hit the lock timeout");
         assert!(started.elapsed() < std::time::Duration::from_secs(3));
+        batch.rollback().await.unwrap();
         // SKIP LOCKED passes the same row by.
         let mut batch = begin_with(&pool, 200, 5_000).await.unwrap();
         let free: Vec<i32> = sqlx::query_scalar("SELECT id FROM bounded_t FOR UPDATE SKIP LOCKED")
@@ -99,6 +100,7 @@ mod tests {
             .await
             .unwrap();
         assert!(free.is_empty());
+        batch.rollback().await.unwrap();
         holder.rollback().await.unwrap();
         db.cleanup().await.unwrap();
     }
