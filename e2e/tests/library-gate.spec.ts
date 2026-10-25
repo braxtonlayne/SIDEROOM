@@ -22,7 +22,9 @@ import { apiPost, expect, test, type SignedIn } from '../support/fixtures';
 
 const API = '/api/v1';
 const CHAPTERS = 10;
-const PAGES = 3;
+// Four, not three: the follow-along ends on page 3, and the last page marks the chapter read (Reader.tsx
+// `completed: i >= count - 1`), so a fresh visit to a read chapter rightly opens at page 1 (the third CI run).
+const PAGES = 4;
 /** Chapter 10 is the one the reviewer sends back. */
 const SENT_BACK = CHAPTERS;
 const PHONE = { width: 390, height: 844 };
