@@ -257,8 +257,9 @@ async fn staff_people_views_link_unlink_notes_and_freeze() {
     repo.set_person_notes(a_person, "same flat", &audit(staff, "person.notes"))
         .await
         .unwrap();
+    // An id no Person can have: other suites seed `persons (id) VALUES (1)` into the shared database.
     assert!(matches!(
-        repo.set_person_notes(1, "x", &audit(staff, "person.notes"))
+        repo.set_person_notes(-1, "x", &audit(staff, "person.notes"))
             .await,
         Err(AdminError::NotFound("person"))
     ));
