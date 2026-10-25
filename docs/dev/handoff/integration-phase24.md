@@ -19,7 +19,7 @@ Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\p24-integ`, branch `integration/pha
 **What waits on the owner:**
 
 - **RDY-PERF-002**: dispatch `load-test.yml`. First run with `seed_scale=true`, `sessions=1000`, `msg_rate=100`, `rest_rps=150`, `duration=120`; then the defaults. Paste the numbers into `docs/dev/load-testing.md` "Results" and tick after a run at the defaults.
-- **The `rules` job's sha256 TODO**: `prod-smoke.yml` checks the tarball against the release's own `sha256sums.txt`. The checksum could not be verified offline, so `PROM_SHA256` is empty and marked TODO. A human reads the hash once from the release page and fills it in.
+- **The `rules` job's first run**: `prod-smoke.yml` pins Prometheus 3.5.0 with `PROM_SHA256` hard-coded (filled in by the commander from the release's `sha256sums.txt` and the GitHub asset digest, which agree). It has not run on CI yet.
 
 ## Merges
 

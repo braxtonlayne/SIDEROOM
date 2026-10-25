@@ -208,10 +208,9 @@ jobs:
     timeout-minutes: 10
     env:
       PROM_VERSION: "3.5.0"
-      # TODO(RDY-OBS-001): hard-code the sha256 of prometheus-3.5.0.linux-amd64.tar.gz here (from the release's
-      # sha256sums.txt, read once by a human) and check against it instead of the downloaded list. Until then the
-      # tarball is checked against the sha256sums.txt published with the same GitHub release.
-      PROM_SHA256: ""
+      # sha256 of prometheus-3.5.0.linux-amd64.tar.gz, from the release's sha256sums.txt and the GitHub asset digest
+      # (both agree). Bump both lines together.
+      PROM_SHA256: "e811827af26d822afb09a4f28314f61b618b12cff5369835a67f674d8b46f39a"
     steps:
       - uses: actions/checkout@v4
       - name: Download promtool (pinned Prometheus release, sha256 checked)
@@ -221,12 +220,7 @@ jobs:
           base="https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}"
           cd "$RUNNER_TEMP"
           curl -fsSLO "$base/${name}.tar.gz"
-          if [ -n "$PROM_SHA256" ]; then
-            echo "${PROM_SHA256}  ${name}.tar.gz" | sha256sum -c -
-          else
-            curl -fsSLO "$base/sha256sums.txt"
-            grep " ${name}.tar.gz\$" sha256sums.txt | sha256sum -c -
-          fi
+          echo "${PROM_SHA256}  ${name}.tar.gz" | sha256sum -c -
           tar -xzf "${name}.tar.gz" "${name}/promtool"
           echo "$RUNNER_TEMP/${name}" >> "$GITHUB_PATH"
       - name: promtool check rules
