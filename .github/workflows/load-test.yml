@@ -60,6 +60,9 @@ jobs:
           echo $! > server.pid
           for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
       - name: Load test
+        # `shell: bash` adds -o pipefail: without it `| tee` hid sr-loadtest's exit code and the first run
+        # (every target missed) reported success.
+        shell: bash
         run: >-
           ./target/release/sr-loadtest --base-url http://127.0.0.1:8080
           --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --rest-rps ${{ inputs.rest_rps }}
