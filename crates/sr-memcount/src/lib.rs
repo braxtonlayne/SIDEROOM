@@ -1,12 +1,17 @@
 //! A counting global allocator for memory budget tests (RDY-PERF-004).
 //!
-//! ```ignore
+//! ```
 //! #[global_allocator]
 //! static ALLOC: sr_memcount::Counting = sr_memcount::Counting;
 //!
-//! let before = sr_memcount::live_bytes();
-//! let thing = build_it();
-//! let held = sr_memcount::live_bytes() - before;
+//! # fn build_it() -> Vec<u8> { vec![0; 4096] }
+//! fn main() {
+//!     let before = sr_memcount::live_bytes();
+//!     let thing = build_it();
+//!     let held = sr_memcount::live_bytes() - before;
+//!     assert!(held >= 4096);
+//! #   drop(thing);
+//! }
 //! ```
 //!
 //! The count is per thread: an allocation adds to the counter of the thread that made it and a free subtracts
