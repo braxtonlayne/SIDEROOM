@@ -892,6 +892,49 @@ describe('end-to-end encryption (VOX-E2E-003)', () => {
     expect(stop).toHaveBeenCalled();
   });
 
+  it('a timed-out first connect re-joins, restarts E2EE and ends connected (RDY-VOX-002)', async () => {
+    const h = harness();
+    const stops: ReturnType<typeof vi.fn>[] = [];
+    const hooks = { peerConfig: {}, attachSender: vi.fn(), attachReceiver: vi.fn() };
+    let starts = 0;
+    h.c.configure({
+      e2ee: () => {
+        starts++;
+        const stop = vi.fn();
+        stops.push(stop);
+        return Promise.resolve({
+          engine: hooks,
+          call: { onMessage: vi.fn(), onRosterChanged: vi.fn() } as never,
+          stop,
+        });
+      },
+    });
+    joinAndServe(h, target, encrypted);
+    await flushAll();
+    expect(h.engines).toHaveLength(1);
+    h.last().fail(new VoiceConnectError({ code: 'connect-timeout', message: 'Timed out.' }));
+    await flushAll();
+    expect(sess().status).toBe('reconnecting');
+    expect(stops[0]).toHaveBeenCalled();
+    // The gateway's answers to the re-join: our leave, our join, a new voice server (still encrypted).
+    h.emit('VOICE_STATE_UPDATE', { guild_id: 'g1', channel_id: null, user_id: 'me' });
+    h.emit('VOICE_STATE_UPDATE', { guild_id: 'g1', channel_id: 'c1', user_id: 'me' });
+    h.emit('VOICE_SERVER_UPDATE', {
+      guild_id: 'g1',
+      endpoint: 'n1.test',
+      token: 't2',
+      ...encrypted,
+    });
+    await flushAll();
+    expect(starts).toBe(2);
+    expect(h.engines).toHaveLength(2);
+    expect(h.last().connectParams!.e2ee).toBe(hooks);
+    h.last().ok();
+    await flushAll();
+    expect(sess().status).toBe('connected');
+    expect(sess().error).toBeNull();
+  });
+
   it('refuses to join when the browser cannot transform frames', async () => {
     const h = harness();
     h.c.configure({ e2ee: () => Promise.resolve('unsupported') });

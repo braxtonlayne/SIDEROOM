@@ -111,16 +111,23 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Where a member's join is stuck (run 40229221042: the ninth member's ICE never reached the SFU): every peer
  * connection's signalling / ICE / connection state, whether it has a remote description, and the voice sockets'
- * ready states. Printed, and attached to the report, when a join times out.
+ * ready states. Printed, and attached to the report, when a join times out. A starved page can take seconds to
+ * answer (run 40237146331: 4 s), so both times are recorded: the state may be newer than the timeout.
  */
 async function joinDiagnostics(page: Page): Promise<unknown> {
+  const timedOutAt = new Date().toISOString();
   return page
-    .evaluate(() => {
+    .evaluate((timedOutAt) => {
       const g = globalThis as unknown as {
         __pcs?: RTCPeerConnection[];
         __voiceSockets?: WebSocket[];
       };
       return {
+        timedOutAt,
+        readAt: new Date().toISOString(),
+        callBar:
+          document.querySelector('[role="region"][aria-label="Voice connection"]')?.textContent ??
+          null,
         peers: (g.__pcs ?? []).map((pc) => ({
           signaling: pc.signalingState,
           ice: pc.iceConnectionState,
@@ -131,7 +138,7 @@ async function joinDiagnostics(page: Page): Promise<unknown> {
         })),
         voiceSockets: (g.__voiceSockets ?? []).map((w) => w.readyState),
       };
-    })
+    }, timedOutAt)
     .catch((e: unknown) => ({ error: String(e) }));
 }
 
