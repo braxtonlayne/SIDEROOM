@@ -377,6 +377,9 @@ struct Participant {
     pending: Option<SdpPendingOffer>,
     /// The client has sent at least one offer, so server offers are possible.
     negotiated: bool,
+    /// Some line in `out` may be waiting to be offered or stopped. Lets the per-pump
+    /// [`SfuCore::negotiate`] skip everyone else without scanning their lines.
+    offer_due: bool,
     detector: crate::speaking::SpeakingDetector,
     /// Last push-to-talk state the client reported (`speaking` bitmask) and when it last dropped to 0.
     ptt_bits: u8,
@@ -739,6 +742,7 @@ impl SfuCore {
                 told_reduced: false,
                 pending: None,
                 negotiated: false,
+                offer_due: false,
                 detector: crate::speaking::SpeakingDetector::default(),
                 ptt_bits: 0,
                 ptt_released_at: None,
@@ -877,6 +881,7 @@ impl SfuCore {
                     s => s,
                 };
             }
+            p.offer_due = true;
         }
         let answer = p
             .rtc
@@ -955,6 +960,7 @@ impl SfuCore {
                     s => s,
                 };
             }
+            p.offer_due = true;
         }
     }
 
@@ -1105,6 +1111,24 @@ impl SfuCore {
         destination: SocketAddr,
         data: &[u8],
     ) -> bool {
+        let taken = self.queue_input(now, proto, source, destination, data);
+        if taken {
+            self.pump(now);
+        }
+        taken
+    }
+
+    /// Hand a datagram to its participant without running the room yet; [`Self::flush`] does that
+    /// once for a whole batch. Every pump visits every participant, so pumping after each packet of
+    /// a batch made a room's per-second cost grow with the cube of its size (RDY-VOX-002).
+    pub fn queue_input(
+        &mut self,
+        now: Instant,
+        proto: Protocol,
+        source: SocketAddr,
+        destination: SocketAddr,
+        data: &[u8],
+    ) -> bool {
         let Ok(contents) = data.try_into() else {
             return false;
         };
@@ -1137,8 +1161,12 @@ impl SfuCore {
         {
             p.dead = Some(CloseReason::Connection);
         }
-        self.pump(now);
         true
+    }
+
+    /// Run the room after [`Self::queue_input`]: forward what arrived, negotiate, drop the dead.
+    pub fn flush(&mut self, now: Instant) {
+        self.pump(now);
     }
 
     /// Advance time for everyone whose timer is due.
@@ -1427,6 +1455,7 @@ impl SfuCore {
                 _ => {}
             }
         }
+        q.offer_due = true;
         self.apply_hints(id);
     }
 
@@ -1902,12 +1931,13 @@ impl SfuCore {
 
     /// Start a server offer for `id` if its subscriptions changed. Returns whether it did.
     fn negotiate(&mut self, id: ParticipantId) -> bool {
-        let users: HashMap<ParticipantId, UserId> =
-            self.parts.iter().map(|(k, v)| (*k, v.user)).collect();
+        // Called for every participant on every pump: decide in O(1) that there is nothing to do. It
+        // used to build a map of the room and scan every line first, so each pump cost O(room size
+        // squared) (RDY-VOX-002).
         let Some(p) = self.parts.get_mut(&id) else {
             return false;
         };
-        if !p.negotiated || p.pending.is_some() {
+        if !p.offer_due || !p.negotiated || p.pending.is_some() {
             return false;
         }
         if !p
@@ -1915,8 +1945,15 @@ impl SfuCore {
             .values()
             .any(|t| matches!(t.state, OutState::ToOpen | OutState::ToStop(_)))
         {
+            p.offer_due = false;
             return false;
         }
+        let users: HashMap<ParticipantId, UserId> =
+            self.parts.iter().map(|(k, v)| (*k, v.user)).collect();
+        let Some(p) = self.parts.get_mut(&id) else {
+            return false;
+        };
+        p.offer_due = false;
         let mut change = p.rtc.sdp_api();
         for ((publisher, source), t) in p.out.iter_mut() {
             match t.state {

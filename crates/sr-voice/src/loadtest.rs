@@ -225,10 +225,12 @@ impl Net {
 
         // Only this block is timed.
         let started = Instant::now();
+        // As the node's actor does: queue a batch, then run the room once.
         for (from, data) in &to_core {
             self.core
-                .handle_input(now, Protocol::Udp, *from, sfu_addr(), data);
+                .queue_input(now, Protocol::Udp, *from, sfu_addr(), data);
         }
+        self.core.flush(now);
         self.core.handle_timeout(now);
         let mut outs = Vec::new();
         while let Some(out) = self.core.poll() {

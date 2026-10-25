@@ -729,11 +729,12 @@ impl Actor {
                 },
                 Some(p) = pkts.recv() => {
                     self.input(&p);
-                    // Batch whatever else is already queued before draining output.
+                    // Batch whatever else is already queued, then run the room once for all of it.
                     for _ in 0..64 {
                         let Ok(p) = pkts.try_recv() else { break };
                         self.input(&p);
                     }
+                    self.core.flush(Instant::now());
                 }
                 () = tokio::time::sleep(wait) => self.core.handle_timeout(Instant::now()),
                 _ = tick.tick() => self.on_tick(),
@@ -745,7 +746,7 @@ impl Actor {
     fn input(&mut self, p: &Packet) {
         let taken = self
             .core
-            .handle_input(Instant::now(), p.proto, p.src, p.dst, &p.data);
+            .queue_input(Instant::now(), p.proto, p.src, p.dst, &p.data);
         // An ICE-TCP peer is offered to every shard until one's participant accepts it.
         if taken && p.proto == Protocol::Tcp && self.shards > 1 {
             locked(&self.shared.tcp_shard).insert(p.src, self.shard);
