@@ -35,7 +35,6 @@ describe('first paint with only the core catalog', () => {
     ['/reset/tok', 'Choose a new one.'],
     ['/no-invitation', 'No invitation?'],
     ['/house-notes', 'House notes'],
-    
   ])('renders the entrance route %s without the rest catalog', async (path, heading) => {
     const { store } = await freshApp(path);
     expect(store.isRestLoaded()).toBe(false);

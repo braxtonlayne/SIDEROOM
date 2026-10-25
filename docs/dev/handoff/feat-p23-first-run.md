@@ -31,7 +31,7 @@ Everything below is built and its proof ran locally unless "Not run" says otherw
 
 ### RDY-I18N-001
 
-- `scripts/i18n-audit.mjs` no longer skips `routes/entrance`, and two false-positive classes were closed (the `>` of an arrow function such as `() => Promise<void>`, and text between two generics that contains `;`). Before: 462 (456 at phase 18 plus later waves) with the heuristic noise inside; after: **0** in `routes/entrance`, `lounge/shell` and `settings`, **42** in the rest of the app (see the table below). The five real strings found were extracted (`p23-first-run-2.ts`). `i18n-verify-diff` against `integration/phase23`: MISSING 0.
+- `scripts/i18n-audit.mjs` no longer skips `routes/entrance`, and two false-positive classes were closed (the `>` of an arrow function such as `() => Promise<void>`, and text between two generics that contains `;`). Before: 462 in the script's own count, with the entrance not counted and heuristic noise inside; after: **0** in `routes/entrance`, `lounge/shell` and `settings`, **42** in the rest of the app (table below). The five real strings found were extracted (`p23-first-run-2.ts`). `i18n-verify-diff` against `integration/phase23`: MISSING 0.
 
 ### ReviewHub rename
 
@@ -39,7 +39,20 @@ Everything below is built and its proof ran locally unless "Not run" says otherw
 
 ## Tests run
 
-RESULTS_PLACEHOLDER
+All against the scratch database `sr_p23_firstrun` (both `SR_TEST_DATABASE_URL` and `DATABASE_URL`), one cargo command at a time with `-j 2`.
+
+- **Rust.** `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` clean on sr-auth, sr-db, sr-api. `cargo test -p sr-auth -p sr-db -- --include-ignored --test-threads=1`: 336 passed, 0 failed (includes the new `the_first_run_flag_starts_open_and_is_stored_per_account`, Postgres). `cargo test -p sr-api -- --include-ignored --test-threads=1`: 781 passed, 0 failed (includes `the_first_run_flag_is_reported_on_me_and_can_be_reopened`, `route_matrix` with the new row, `openapi_names` with `KNOWN_CLASHES` empty). `cargo build -p sr-server -p sr-cli` ok. Generated: `openapi.json`, the api-client schema and the MSW mocks (971 operations) and `route_matrix.tsv` (one new row, no `?`).
+- **Web.** `tsc --noEmit`, eslint (`--max-warnings=0`) and prettier (local copy) clean. Full Vitest once with `--maxWorkers=2` after the wasm build: 287 files, 2557 tests passed. New: `lounge/__tests__/firstRun.test.tsx` (13: one per step, the guards, reopening), `help/handbook.test.tsx` (handbook, links against the router, doc 09 figures, What's new, version and badge), `lounge/__tests__/helpButton.test.tsx` (6), the `ReviewHub` tab tests (3). `i18n-verify-diff integration/phase23`: MISSING 0. `check-doc-links`: ok. `pnpm build` and `scripts/check-bundle-budget.mjs`: all budgets ok (entrance 230.5 of 300 KB gzip, lounge 428.3 of 600).
+- **Playwright** `e2e/tests/first-run.spec.ts` (5 tests: register, skip, first message and no return after a reload; Escape from a later step; the full walk with two-step sign-in set up in place and no notification permission requested; the handbook button; What's new from the help menu): 10 passed, 5 on Chromium and 5 on WebKit, against `sr-server` on 8082 (metrics 9182) and Vite on 5175, both stopped by PID afterwards. Firefox does not launch on this machine (VC runtime), so it is not run here; CI's `e2e.yml` runs all three projects. The run exposed one real defect, fixed: the authenticator wizard asks the server for a new secret every time it opens, and mounting it already open sent that request twice under StrictMode, so the key on screen was not the one the server held. The welcome now mounts it closed and opens it from the button.
+
+### i18n audit, before and after
+
+| Where | Before | After |
+|---|---|---|
+| `routes/entrance` (was skipped by the script) | 5 | 0 |
+| `lounge/shell` | 20 | 0 |
+| `settings` | 85 (5 real, the rest the script reading TypeScript generics as text) | 0 |
+| rest of the app | 42 | 42 (admin 16, lounge outside shell 11, cinema 7, developers 7, watchparty 1) |
 
 ## Still open / not done
 

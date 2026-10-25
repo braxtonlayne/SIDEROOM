@@ -259,7 +259,9 @@ function EmojiRow({
       <td>
         {/* The image key uses a separate id, so the CDN URL cannot be derived from the emoji id. */}
         <span className="ss-emoji-img" aria-hidden="true" />
-        {emoji.animated && <Badge variant="accent">{t('settings.expressions.animatedBadge')}</Badge>}
+        {emoji.animated && (
+          <Badge variant="accent">{t('settings.expressions.animatedBadge')}</Badge>
+        )}
       </td>
       <td>
         <span className="ss-actions">
