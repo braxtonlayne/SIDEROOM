@@ -20,7 +20,7 @@ Nothing is half-done. The one open piece is the owner-dispatched run of `.github
 
 - **RDY-PERF-002 stays unticked: "written, not yet run".** `load-test.yml` now seeds the dataset, runs 2,000 sessions / 200 msg/s / 300 REST/s, adds a fan-out p95 < 250 ms target and a first-paint probe (a 60-server member opens the Lounge mid-run: READY plus the three shell requests, first paint < 1.5 s, zero 429s; `sr-loadtest` options `--first-paint-guilds`, `--first-paint-ms`, `--fanout-p95-ms`), and records `VmRSS`. Numbers need the dispatch.
 - The 5 million message figures in `load-testing.md` are extrapolated from the 300k local seed; the 30-minute seed target at full size, resident memory per session on the real server and the live "no 429 at 60 servers" check come from that run.
-- `promtool check rules` in `prod-smoke.yml` (the OBS-001 acceptance) is a change in a workflow another agent owns; not added, not run.
+- `promtool check rules` in `prod-smoke.yml` (the OBS-001 acceptance): added, approved by owner. The integrator added a standalone `rules` job (Prometheus 3.5.0 downloaded on the CI runner only, sha256 checked against the release's `sha256sums.txt`; a TODO pins the hash once a human has read it). It runs for the first time in CI.
 - No Playwright check at 60 servers (no browsers on 8080/5173 for this agent); the load-test probe covers it at the API level.
 
 ## Tests run
@@ -40,7 +40,7 @@ fmt check; clippy `-D warnings` on sr-api, sr-chat, sr-db, sr-search, sr-gateway
 
 1. Dispatch `load-test.yml` (it runs about an hour); is a standard runner enough for the 20,000-account seed plus 2,000 sessions, or should the first run use fewer sessions?
 2. Should `sr_storage_bytes` also cover the object store buckets (needs a listing API call per run), or is attachments-in-the-database enough?
-3. `promtool check rules` in `prod-smoke.yml`: the wave-20 owner of that workflow should add it.
+3. `promtool check rules` in `prod-smoke.yml`: added, approved by owner (the integrator's `rules` job).
 
 ## Note on commits
 
