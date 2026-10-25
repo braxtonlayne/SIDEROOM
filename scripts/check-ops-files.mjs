@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import {
   REQUIRED_PLAYBOOKS,
   gateTableProblems,
+  knownMetrics,
   operatorMapProblems,
   playbookProblems,
 } from './lib/playbooks.mjs';
@@ -22,13 +23,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
 const problems = [];
 
-// Metrics the server exports: string constants in observability.rs plus the dispatch histogram.
-const obs = read('crates/sr-api/src/observability.rs');
-const exported = new Set(
-  [...obs.matchAll(/pub const [A-Z_]+: &str = "([a-z_]+)";/g)].map((m) => m[1]),
-);
-const derived = (name) => [name, `${name}_bucket`, `${name}_sum`, `${name}_count`];
-const known = new Set([...exported].flatMap(derived));
+// Metrics the server exports: string constants in observability.rs, plus (RDY-OBS-001) the SFU's own in
+// crates/sr-voice/src/metrics.rs.
+const known = knownMetrics([
+  read('crates/sr-api/src/observability.rs'),
+  read('crates/sr-voice/src/metrics.rs'),
+]);
 
 const metricsIn = (expr) =>
   [...expr.matchAll(/\b([a-z][a-z0-9_]*)\s*(?:\{|\[|\)|,|$|\s)/g)]

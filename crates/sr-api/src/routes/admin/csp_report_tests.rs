@@ -24,6 +24,7 @@ const LEGACY: &str = r#"{"csp-report":{"document-uri":"https://chat.example.org/
 
 #[tokio::test]
 async fn a_report_is_counted_without_credentials_and_read_by_an_operator() {
+    let metrics = crate::observability::Metrics::global();
     let e = env().await;
     assert_eq!(
         post(&e, "application/csp-report", LEGACY.as_bytes().to_vec()).await,
@@ -34,6 +35,13 @@ async fn a_report_is_counted_without_credentials_and_read_by_an_operator() {
         post(&e, "application/reports+json", api.as_bytes().to_vec()).await,
         StatusCode::NO_CONTENT
     );
+    // RDY-OBS-001: each report also moves the per-directive counter on /metrics.
+    let text = metrics.render();
+    assert!(
+        text.contains("sr_csp_reports_total{directive=\"script-src-elem\"}"),
+        "{text}"
+    );
+    assert!(text.contains("sr_csp_reports_total{directive=\"style-src-elem\"}"));
     let (s, b) = e
         .call(Some(OWNER), Method::GET, "/admin/system/csp-reports", None)
         .await;

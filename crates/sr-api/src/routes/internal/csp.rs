@@ -195,6 +195,7 @@ pub async fn csp_report(
         return StatusCode::BAD_REQUEST.into_response();
     }
     for v in &found {
+        crate::observability::record_csp_report(&v.directive);
         reports.store.record(v).await;
     }
     StatusCode::NO_CONTENT.into_response()

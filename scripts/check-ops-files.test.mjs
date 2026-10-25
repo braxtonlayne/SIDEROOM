@@ -2,12 +2,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   alertRules,
   gateTableProblems,
   headingSlugs,
+  knownMetrics,
   metricsNamedIn,
   operatorMapProblems,
   playbookProblems,
@@ -127,6 +129,19 @@ test('the gate table: proven needs a link, not yet needs an RDY id', () => {
     /must be Proven, Partly or Not yet/,
   );
   assert.match(gateTableProblems('# nothing').join('\n'), /no "## Exit gate status" section/);
+});
+
+test('the known metric set also reads the SFU metrics file (RDY-OBS-001)', () => {
+  const obs = 'pub const JOBS_TOTAL: &str = "jobs_processed_total";';
+  const voice = 'pub const EGRESS_BPS: &str = "sr_voice_egress_bits_per_second";';
+  assert.ok(!knownMetrics([obs]).has('sr_voice_egress_bits_per_second'));
+  assert.ok(knownMetrics([obs, voice]).has('sr_voice_egress_bits_per_second'));
+  assert.ok(knownMetrics([obs, voice]).has('jobs_processed_total_bucket'));
+  // The real tree: the alert rules name an SFU series and the check still passes.
+  assert.match(
+    readFileSync(join(ROOT, 'deploy/monitoring/alerts.yml'), 'utf8'),
+    /sr_voice_egress_bits_per_second/,
+  );
 });
 
 test('the real tree passes the whole check', () => {
