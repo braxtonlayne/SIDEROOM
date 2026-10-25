@@ -315,7 +315,10 @@ impl VoiceSession {
             .map(|a| a.iter().filter_map(user_of).collect())
             .unwrap_or_default();
         let session_id = ready["session_id"].as_str().unwrap_or_default().to_owned();
-        let resume_token = ready["resume_token"].as_str().unwrap_or_default().to_owned();
+        let resume_token = ready["resume_token"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
         Ok(Self {
             ws,
             endpoint: update.endpoint.clone(),

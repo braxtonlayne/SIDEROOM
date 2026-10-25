@@ -111,12 +111,17 @@ async fn main() -> Result<()> {
     let (mut joined, mut resumed) = (false, false);
     loop {
         if stop_after.is_some_and(|s| started.elapsed() >= s) {
-            println!("done after {:?}: connected={joined} resumed={resumed}", started.elapsed());
+            println!(
+                "done after {:?}: connected={joined} resumed={resumed}",
+                started.elapsed()
+            );
             link.session().set_speaking(false);
             return if joined && (drop_after.is_none() || resumed) {
                 Ok(())
             } else {
-                Err(sr_sdk::Error::Transport("the call was not joined or resumed".into()))
+                Err(sr_sdk::Error::Transport(
+                    "the call was not joined or resumed".into(),
+                ))
             };
         }
         if drop_after.is_some_and(|d| started.elapsed() >= d) {

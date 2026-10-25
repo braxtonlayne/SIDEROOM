@@ -222,8 +222,7 @@ async fn a_session_the_sfu_forgot_is_joined_again_with_the_transform_kept() {
     for _ in 0..400 {
         let (ea, _) = run(&mut a, &mut b, 1).await;
         assert!(
-            !ea.iter()
-                .any(|e| matches!(e, VoiceEvent::Resumed { .. })),
+            !ea.iter().any(|e| matches!(e, VoiceEvent::Resumed { .. })),
             "the session was gone, a resume must not succeed"
         );
         if ea
