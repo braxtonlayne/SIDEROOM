@@ -73,6 +73,35 @@ pub trait GuildDirectory: Send + Sync {
         false
     }
 
+    /// Of `users`, those a guild dispatch may reach: each can view `channel` (when set) and holds `needed`
+    /// at guild level (when set), exactly as [`Self::can_view_channel`] and [`Self::has_guild_permission`]
+    /// decide. The hub asks once per dispatch. The default asks per user; a store should read the channel,
+    /// guild, roles and overwrites once and the members in one query (RDY-PERF-002: the per-recipient
+    /// lookups were about two thirds of the database work under load).
+    async fn dispatch_audience(
+        &self,
+        guild: GuildId,
+        channel: Option<ChannelId>,
+        needed: Option<Permissions>,
+        users: &[UserId],
+    ) -> std::collections::HashSet<UserId> {
+        let checks = users.iter().map(|&u| async move {
+            let mut ok = true;
+            if let Some(ch) = channel {
+                ok = self.can_view_channel(u, guild, ch).await;
+            }
+            if ok && let Some(p) = needed {
+                ok = self.has_guild_permission(u, guild, p).await;
+            }
+            ok.then_some(u)
+        });
+        futures::future::join_all(checks)
+            .await
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+
     /// Body of `GUILD_CREATE` for `user`. Default is a bare stub.
     async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
         json!({ "id": guild })

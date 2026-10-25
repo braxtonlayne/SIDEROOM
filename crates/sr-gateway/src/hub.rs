@@ -1000,29 +1000,22 @@ impl Gateway {
         };
         let needs = required_guild_permission(name);
         let users: HashSet<UserId> = targets.iter().map(|s| s.user).collect();
-        let checks = users.into_iter().map(|u| {
-            let dir = self.inner.dir.clone();
-            async move {
-                let mut ok = true;
-                if let Some(ch) = channel {
-                    ok = dir.can_view_channel(u, guild, ch).await;
-                }
-                if ok && let Some(p) = needs {
-                    ok = dir.has_guild_permission(u, guild, p).await;
-                }
-                (u, ok)
-            }
-        });
-        let allowed: HashMap<UserId, bool> = futures::future::join_all(checks)
-            .await
-            .into_iter()
-            .collect();
+        // One directory call for the whole audience, not one per recipient (RDY-PERF-002).
+        let allowed: HashSet<UserId> = if channel.is_none() && needs.is_none() {
+            users
+        } else {
+            let users: Vec<UserId> = users.into_iter().collect();
+            self.inner
+                .dir
+                .dispatch_audience(guild, channel, needs, &users)
+                .await
+        };
         let gate = match channel {
             Some(ch) if age_gated(name) => self.inner.dir.channel_age_restricted(ch).await,
             _ => false,
         };
         for s in targets {
-            if !allowed.get(&s.user).copied().unwrap_or(false) {
+            if !allowed.contains(&s.user) {
                 continue;
             }
             if gate && !self.session_age_confirmed(&s).await {

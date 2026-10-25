@@ -41,6 +41,35 @@ pub async fn guild_channel_permissions<R: ChannelRepository + ?Sized>(
     Ok(thread_permissions(perms, channel, is_member))
 }
 
+/// Whether [`permissions_with_overwrites`] needs to know if the member joined `channel`: only a private
+/// thread asks (a public thread or a plain channel ignores membership).
+pub fn needs_thread_membership(channel: &Channel) -> bool {
+    channel.kind == crate::domain::ChannelType::PrivateThread
+}
+
+/// [`guild_channel_permissions`] with the reads done by the caller: `overwrites` are those of
+/// [`overwrite_source`] (the parent for a thread), and `is_thread_member` matters only when
+/// [`needs_thread_membership`]. Lets a caller that checks many members of one channel read the channel's
+/// data once (the gateway fan-out, RDY-PERF-002).
+pub fn permissions_with_overwrites(
+    guild: &Guild,
+    member: &Member,
+    roles: &[Role],
+    channel: &Channel,
+    overwrites: &[sr_core::permissions::Overwrite],
+    is_thread_member: bool,
+    now_ms: i64,
+) -> Permissions {
+    if overwrite_source(channel).is_none() {
+        return Permissions::empty();
+    }
+    let perms = channel_permissions(guild, member, roles, overwrites, now_ms);
+    if !channel.kind.is_thread() {
+        return perms;
+    }
+    thread_permissions(perms, channel, is_thread_member)
+}
+
 /// Whether `user` is a member of a private thread (always true for other channels).
 pub async fn passes_thread_gate<R: ChannelRepository + ?Sized>(
     repo: &R,
