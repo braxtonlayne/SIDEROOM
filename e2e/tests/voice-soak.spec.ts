@@ -108,6 +108,33 @@ async function snapshot(page: Page): Promise<Snapshot> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Where a member's join is stuck (run 40229221042: the ninth member's ICE never reached the SFU): every peer
+ * connection's signalling / ICE / connection state, whether it has a remote description, and the voice sockets'
+ * ready states. Printed, and attached to the report, when a join times out.
+ */
+async function joinDiagnostics(page: Page): Promise<unknown> {
+  return page
+    .evaluate(() => {
+      const g = globalThis as unknown as {
+        __pcs?: RTCPeerConnection[];
+        __voiceSockets?: WebSocket[];
+      };
+      return {
+        peers: (g.__pcs ?? []).map((pc) => ({
+          signaling: pc.signalingState,
+          ice: pc.iceConnectionState,
+          gathering: pc.iceGatheringState,
+          connection: pc.connectionState,
+          remoteDescription: pc.remoteDescription?.type ?? null,
+          transceivers: pc.getTransceivers().length,
+        })),
+        voiceSockets: (g.__voiceSockets ?? []).map((w) => w.readyState),
+      };
+    })
+    .catch((e: unknown) => ({ error: String(e) }));
+}
+
 test.describe('Voice soak', () => {
   test.skip(
     !SOAK,
@@ -144,7 +171,19 @@ test.describe('Voice soak', () => {
     );
 
     try {
-      for (const m of members) await joinVoice(m.page, server);
+      for (const [i, m] of members.entries()) {
+        try {
+          await joinVoice(m.page, server);
+        } catch (e) {
+          const diag = JSON.stringify(await joinDiagnostics(m.page), null, 2);
+          console.log(`member ${i} did not connect:\n${diag}`);
+          await test.info().attach(`join-${i}-diagnostics.json`, {
+            body: diag,
+            contentType: 'application/json',
+          });
+          throw e;
+        }
+      }
       for (const [i, m] of members.entries()) {
         await expect
           .poll(async () => (await snapshot(m.page)).members, {

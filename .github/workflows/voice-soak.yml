@@ -58,6 +58,12 @@ jobs:
       # a participant whose drop clears its voice state is logged at info ("voice participant lost"). The
       # gateway and /voice/ws upgrades bypass the tower_http trace layer, so they never appear as requests.
       SR_LOG__FILTER: "info,sr_voice=debug"
+      # Environment allowance (RDY-VOX-002, run 40229221042): the e2e stack builds sr-server in the dev profile,
+      # and an unoptimised SFU (str0m, SRTP) costs far more CPU than a deployed (release) one: in the local load
+      # harness, nine audio-only talkers took 40-75 % of one core in the debug build, and the runner has 4 vCPU
+      # shared with ten Chromium contexts. The soak measures the SFU as operators run it, so this job optimises the dev build
+      # (same ./target/debug paths; debug assertions stay on). This raises only this job's build time.
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
