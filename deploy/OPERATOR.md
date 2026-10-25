@@ -95,7 +95,7 @@ The values for the lawyer-dependent ones are open questions: [lawyer brief](../d
 
 ## 4. What the tiles on Admin > System mean
 
-Open Admin > System. Anything red or empty where it should not be carries a "Playbook" link to the section of [RUNBOOK.md](RUNBOOK.md) named below.
+Open Admin > System. Anything red or empty where it should not be carries a "Playbook" link to the section of [RUNBOOK.md](RUNBOOK.md) named below. Playbook opens the runbook inside Admin (Admin > Runbook, `/admin/runbook`: the copy shipped with this build); the file is also `deploy/RUNBOOK.md` in the install checkout.
 
 | Tile | Healthy | When it is red or wrong | Playbook |
 |---|---|---|---|

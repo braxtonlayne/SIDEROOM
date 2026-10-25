@@ -1,4 +1,5 @@
-// RDY-DOC-003: red tiles on Admin > System link to their section of deploy/RUNBOOK.md; healthy tiles show no link.
+// RDY-DOC-003: red tiles on Admin > System link to their section of deploy/RUNBOOK.md, opened in Admin (T-03);
+// healthy tiles show no link.
 import { screen } from '@testing-library/react';
 import { asStaff, http, HttpResponse, openAdmin, server } from './helpers';
 
@@ -53,12 +54,12 @@ describe('System tile playbooks', () => {
     });
     await screen.findByText('Readiness probes');
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
-    expect(href('Playbook for storage')).toMatch(/deploy\/RUNBOOK\.md#server-down$/);
-    expect(href('Playbook for Dead jobs')).toMatch(/deploy\/RUNBOOK\.md#jobs-failing$/);
-    expect(href('Playbook for Last backup')).toMatch(/#backup-missing-or-stale$/);
-    expect(href('Playbook for Last restore check')).toMatch(/#restore-drill-failed$/);
-    expect(href('Playbook for /var/lib')).toMatch(/#disk-pressure$/);
-    expect(href('Playbook for /srv/ingest')).toMatch(/#disk-pressure$/);
+    expect(href('Playbook for storage')).toBe('/admin/runbook#server-down');
+    expect(href('Playbook for Dead jobs')).toBe('/admin/runbook#jobs-failing');
+    expect(href('Playbook for Last backup')).toBe('/admin/runbook#backup-missing-or-stale');
+    expect(href('Playbook for Last restore check')).toBe('/admin/runbook#restore-drill-failed');
+    expect(href('Playbook for /var/lib')).toBe('/admin/runbook#disk-pressure');
+    expect(href('Playbook for /srv/ingest')).toBe('/admin/runbook#disk-pressure');
     // The object snapshot is optional: "none" there is not red.
     expect(screen.queryByRole('link', { name: 'Playbook for Last object snapshot' })).toBeNull();
   });

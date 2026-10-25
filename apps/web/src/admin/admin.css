@@ -444,3 +444,41 @@
   text-align: end;
   font-variant-numeric: tabular-nums;
 }
+
+/* Admin > Runbook (T-03): deploy/RUNBOOK.md rendered by the restricted Markdown renderer. */
+.adm-runbook {
+  max-inline-size: 72ch;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.adm-runbook h2 {
+  margin-block: 1.75rem 0.5rem;
+  font-size: 1.125rem;
+  scroll-margin-block-start: 1rem;
+}
+.adm-runbook h2:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.adm-runbook pre {
+  padding: 8px 12px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-bg-sunken);
+  overflow-x: auto;
+}
+.adm-runbook blockquote {
+  margin-inline: 0;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--ui-border);
+}
+.adm-runbook table {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.adm-runbook th,
+.adm-runbook td {
+  padding: 4px 8px;
+  border: 1px solid var(--ui-border);
+  text-align: start;
+  vertical-align: top;
+}

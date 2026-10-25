@@ -13,7 +13,7 @@ import {
   type SettingsSection,
 } from '@sideroom/ui';
 import { Navigate, useNavigate, useParams } from '@tanstack/react-router';
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { ApiError } from '../api/client';
 import { t as translate, useT } from '../i18n';
 import * as api from './api';
@@ -50,6 +50,18 @@ import { PrivateContentSection } from './sections/PrivateContent';
 import { ModerationSection } from './moderation/ModerationSection';
 import { JobsSection, SystemSection } from './sections/System';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
+
+// T-03 (D-369): the runbook carries the 34 KB deploy/RUNBOOK.md, so it is its own chunk.
+const RunbookLazy = lazy(() =>
+  import('./sections/Runbook').then((m) => ({ default: m.RunbookSection })),
+);
+function RunbookRoute() {
+  return (
+    <Suspense fallback={<Loading label={translate('admin.runbook.loading')} />}>
+      <RunbookLazy />
+    </Suspense>
+  );
+}
 
 interface SectionDef {
   id: string;
@@ -260,6 +272,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('OPERATOR'),
     component: SystemSection,
+  },
+  {
+    id: 'runbook',
+    label: 'admin.adminApp.section.runbook',
+    group: 'admin.adminApp.group.platform',
+    visible: (v) => v.can('OPERATOR'),
+    component: RunbookRoute,
   },
   {
     id: 'audit-log',

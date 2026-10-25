@@ -1,4 +1,5 @@
 import { Badge, Button, ConfirmDialog, EmptyState, Select } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import * as api from '../api';
 import { formatNumber, type MessageKey, useT } from '../../i18n';
@@ -33,7 +34,8 @@ const INTEGRATION_LABELS: Record<string, MessageKey> = {
 const REDIRECT_ID = 'discord_connections_redirect';
 
 // RDY-DOC-003: a red tile links to its section of deploy/RUNBOOK.md. scripts/check-ops-files.mjs reads these
-// literals and fails when a heading is missing there.
+// literals and fails when a heading is missing there. T-03 (D-369): the link opens the copy shipped with this
+// build at /admin/runbook#<anchor>.
 const PLAYBOOKS = {
   probe: 'deploy/RUNBOOK.md#server-down',
   deadJobs: 'deploy/RUNBOOK.md#jobs-failing',
@@ -41,7 +43,6 @@ const PLAYBOOKS = {
   restoreCheckMissing: 'deploy/RUNBOOK.md#restore-drill-failed',
   disk: 'deploy/RUNBOOK.md#disk-pressure',
 } as const;
-const REPO_BLOB = 'https://github.com/braxtonlayne/SIDEROOM/blob/main';
 
 /** Free space below this share is red: the default of `alerts.disk_percent` (80 percent full). */
 const DISK_RED_FREE_SHARE = 0.2;
@@ -49,15 +50,15 @@ const DISK_RED_FREE_SHARE = 0.2;
 function PlaybookLink({ to, what }: { to: string; what: string }) {
   const t = useT();
   return (
-    <a
+    <Link
       className="ss-meta"
-      href={`${REPO_BLOB}/${to}`}
-      target="_blank"
-      rel="noreferrer noopener"
+      to="/admin/$section"
+      params={{ section: 'runbook' }}
+      hash={to.replace(/^deploy\/RUNBOOK\.md#/, '')}
       aria-label={t('admin.system.playbookAria', { what })}
     >
       {t('admin.system.playbook')}
-    </a>
+    </Link>
   );
 }
 
