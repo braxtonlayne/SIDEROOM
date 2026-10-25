@@ -186,6 +186,20 @@ jobs:
           SR_E2E_FFMPEG: "1"
           SR_TRANSCODER_BIN: ${{ github.workspace }}/target/debug/sr-transcoder
           SR_E2E_WORKER_LOG: ${{ github.workspace }}/worker-cinema.log
+      # RDY-LIB-001 (D-368, T-02): the Library exit gate on all three browsers, against this job's Garage. A member
+      # sends ten chapters (ZIPs built by the spec from generated pages), a reviewer approves nine and sends one back
+      # with a reason the member sees, the chapter is fixed and published, and a reader opens the RTL chapter at a phone
+      # size while a second context of the same member follows the page position. One server run for the three
+      # projects (registration is limited per address and day). The device half stays in dev/owner-checklist.md.
+      - name: Library exit gate over Garage (Chromium, Firefox, WebKit)
+        if: always()
+        run: |
+          status=0
+          ./deploy/compose/e2e-run.sh --project=chromium --project=firefox --project=webkit tests/library-gate.spec.ts --retries=0 || status=$?
+          cp server.log server-library.log || true
+          exit "$status"
+        env:
+          CI: "true"
       # RDY-OPS-004: the preflight's TURN row against the dev stack's coturn (deploy/compose/dev.yml, same shared
       # secret as deploy/compose/coturn/turnserver.conf): credentials derive and a UDP allocation is granted. Only the
       # turn row is asserted; the other rows describe this runner, not a production box.
@@ -220,6 +234,7 @@ jobs:
             server-e2ee-firefox.log
             server-relay.log
             server-cinema.log
+            server-library.log
             worker-cinema.log
             coturn-relay.log
             e2e/playwright-report-e2ee-firefox
