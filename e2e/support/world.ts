@@ -1,5 +1,13 @@
-import type { APIRequestContext } from '@playwright/test';
-import { apiPost, test as base, type SeededUser, type SignedIn } from './fixtures';
+import type { APIRequestContext, Browser } from '@playwright/test';
+import { PUBLIC_URL } from './cli';
+import {
+  apiPost,
+  bootstrapState,
+  signIn,
+  test as base,
+  type SeededUser,
+  type SignedIn,
+} from './fixtures';
 
 /** DELETE with the session cookie and CSRF token; the Owner's servers are removed again after each spec. */
 export async function apiDelete(request: APIRequestContext, path: string): Promise<void> {
@@ -12,7 +20,7 @@ export async function apiDelete(request: APIRequestContext, path: string): Promi
 }
 
 /**
- * Every spec that creates a server as the (shared) Owner removes it again. The web app asks for one settings
+ * Every spec that creates a server as the (shared) Owner removes it again, and the solo fixture makes only one per worker. The web app asks for one settings
  * document per server on every page load, and the API rate-limits that: a few dozen leftover servers made later
  * specs fail with 429 on a long local run.
  */
@@ -20,12 +28,49 @@ export async function dropServer(w: { a: SignedIn; guildId: string }): Promise<v
   await apiDelete(w.a.context.request, `guilds/${w.guildId}`).catch(() => undefined);
 }
 
-/** `solo`: a one-person server of the Owner, signed in, removed when the test ends. */
-export const test = base.extend<{ solo: SoloWorld }>({
-  solo: async ({ owner, signedIn }, use) => {
-    const w = await soloServer(signedIn, owner);
-    await use(w);
-    await dropServer(w);
+let ownerState: Awaited<ReturnType<SignedIn['context']['storageState']>> | null = null;
+
+/**
+ * The Owner's session, logged in once per worker and then reused through its cookies: the API allows 50 logins per
+ * account and hour, and the Owner is the account every spec in this suite uses.
+ */
+export async function ownerSession(browser: Browser, owner: SeededUser): Promise<SignedIn> {
+  if (!ownerState) {
+    const s = await signIn(browser, owner);
+    ownerState = await s.context.storageState();
+    return s;
+  }
+  const context = await browser.newContext({ baseURL: PUBLIC_URL, storageState: ownerState });
+  return { user: owner, context, page: await context.newPage() };
+}
+
+interface SoloGuild {
+  guildId: string;
+  channelId: string;
+  guildName: string;
+}
+
+/**
+ * `solo`: a one-person server of the Owner and a signed-in page in it. The server is made once per worker (guild
+ * creation is rate-limited, and every server the Owner has costs a settings request on each page load) and removed
+ * when the worker ends; each test gets its own browser context.
+ */
+export const test = base.extend<{ solo: SoloWorld }, { soloGuild: SoloGuild }>({
+  soloGuild: [
+    async ({ browser }, use) => {
+      const { owner } = bootstrapState();
+      const user: SeededUser = { id: '', ...owner };
+      const w = await soloServer((u) => ownerSession(browser, u), user);
+      await use({ guildId: w.guildId, channelId: w.channelId, guildName: w.guildName });
+      await dropServer(w);
+      await w.a.context.close();
+    },
+    { scope: 'worker' },
+  ],
+  solo: async ({ soloGuild, owner, browser }, use) => {
+    const a = await ownerSession(browser, owner);
+    await use({ a, ...soloGuild });
+    await a.context.close();
   },
 });
 export { expect } from './fixtures';

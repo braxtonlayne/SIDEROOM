@@ -83,7 +83,8 @@ const ROWS: Row[] = [
   {
     name: 'cinema watch party',
     path: (w) => `/cinema/party/${w.partyId}`,
-    ready: (p) => p.getByRole('tab', { name: 'Chat' }),
+    // The room itself, or the "not available" page when the party has ended: both are audited.
+    ready: (p) => p.getByRole('tab', { name: 'Chat' }).or(p.getByRole('button', { name: 'Back' })),
   },
   { name: 'cinema tv guide', path: () => '/cinema/tv', ready: (p) => p.getByRole('main') },
   { name: 'cinema my list', path: () => '/cinema/my-list', ready: (p) => p.getByRole('main') },

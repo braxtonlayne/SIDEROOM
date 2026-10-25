@@ -9,6 +9,8 @@ import { runAxe, settle } from '../support/a11y';
  * apps/web/src/a11y/reducedMotion.test.ts.)
  */
 test.use({ bypassCSP: true });
+// Several page loads and an axe run each, on engines that are slower than Chromium.
+test.setTimeout(240_000);
 
 /** The longest animation or transition duration, in seconds, of any element on the page. */
 const longestMotion = () =>
@@ -75,20 +77,38 @@ test('high contrast: muted text becomes full-strength text and no contrast viola
 }) => {
   const { a, guildId, channelId } = solo;
   const page = a.page;
-  const toggle = async () => {
+  const toggle = async (on: boolean) => {
     await page.goto('/settings/user/accessibility');
     const sw = page.getByRole('switch', { name: /High contrast/ });
     await expect(sw).toBeVisible();
-    await sw.click();
-    await page.getByRole('button', { name: /^Save/ }).click();
-    await expect(page.getByRole('button', { name: /^Save/ })).toBeHidden();
+    // Space on the focused switch: a click or setChecked on the visually hidden input does not reach React on every engine.
+    if ((await sw.isChecked()) !== on) {
+      await sw.focus();
+      await page.keyboard.press('Space');
+    }
+    await expect(sw).toBeChecked({ checked: on });
+    const save = page.getByRole('button', { name: /^Save/ });
+    // Already in that state (a run that died before it could put the setting back): nothing to save.
+    if (await save.isVisible()) {
+      // Wait for the write to land: a navigation straight after would cancel it on some engines.
+      const saved = page.waitForResponse(
+        (r) => r.request().method() !== 'GET' && r.url().includes('/api/'),
+      );
+      await save.click();
+      await saved;
+      await expect(save).toBeHidden();
+    }
   };
-  await toggle();
+  await toggle(true);
   try {
     for (const route of [`/channels/${guildId}/${channelId}`, '/cinema', '/library/browse']) {
       await page.goto(route);
       await expect(page.getByRole('main').first()).toBeVisible();
       await settle(page);
+      // The preference arrives with the first settings fetch; slower engines paint the page before it.
+      await expect(page.locator('[data-contrast="high"]').first()).toBeAttached({
+        timeout: 15_000,
+      });
       const colours = await page.evaluate(() => {
         const root = document.querySelector('[data-contrast="high"]') as HTMLElement | null;
         if (!root) return null;
@@ -115,6 +135,6 @@ test('high contrast: muted text becomes full-strength text and no contrast viola
       ).toEqual([]);
     }
   } finally {
-    await toggle();
+    await toggle(false);
   }
 });
