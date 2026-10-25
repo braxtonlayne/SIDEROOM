@@ -70,7 +70,7 @@ No scheduled run has happened yet: the first one is the Monday after the workflo
 | A session the SFU forgot (resume window passed) is joined again with the frame transform kept, `VoiceEvent::Reconnected` | same file |
 | A moderator removal (close 4014) is final | same file |
 
-`examples/voice_bot.rs` runs for a minute against a live server and SFU in the `live` job of `e2e.yml` (`e2e/sdk-compat/voice-bot-live.mjs`), dropping its SFU socket once to show the resume.
+`examples/voice_bot.rs` runs for a minute against a live server and SFU in the `live` job of `e2e.yml` (`e2e/sdk-compat/voice-bot-live.mjs`), in an encrypted call: it answers the MLS handshake, sends frames under the epoch key and drops its SFU socket once to show the resume. The same driver with `--ts` (RDY-DEV-001) runs the TypeScript bot of `packages/bot` (`voice.live.test.ts`, werift) with the Rust bot as a partner in the call: each implementation must decrypt the other's frames, and the TypeScript one must also resume after its own drop. `packages/bot/src/voice.test.ts` covers the key agreement on the real wasm bundle without a server.
 
 ## Tier 3: conformance fixtures (planned)
 

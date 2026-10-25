@@ -205,11 +205,11 @@ jobs:
           SR_STORAGE__ENDPOINT: "memory:"
           SR_VOICE__TURN__SECRET: dev-turn-shared-secret
           SR_VOICE__TURN__URLS: '["turn:127.0.0.1:3478?transport=udp"]'
-      # RDY-DEV-002: the sr-sdk voice bot (crates/sr-sdk/examples/voice_bot.rs) for one minute against this job's
+      # RDY-DEV-002, RDY-DEV-001: the first-party voice bots for one minute each against this job's
       # sr-server and its SFU. The bot joins a voice channel, drops its own SFU WebSocket once and must resume it
       # (VoiceLink); e2e/sdk-compat/voice-bot-live.mjs makes the server and the channel, runs the example and checks
       # its output. The server's public URL is the loopback one, so the bot reaches the gateway and the SFU directly.
-      - name: sr-sdk voice bot (one minute, live server and SFU)
+      - name: First-party voice bots (sr-sdk, then @sideroom/bot with sr-sdk as partner; one minute each)
         if: always()
         timeout-minutes: 25
         run: |
@@ -226,7 +226,11 @@ jobs:
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           timeout 60 bash -c 'until curl -fs http://127.0.0.1:8080/readyz >/dev/null; do sleep 1; done'
           cargo build -j 2 -p sr-sdk --example voice_bot
-          SR_VOICE_BOT_BIN="$PWD/target/debug/examples/voice_bot" node e2e/sdk-compat/voice-bot-live.mjs --seconds 60
+          export SR_VOICE_BOT_BIN="$PWD/target/debug/examples/voice_bot"
+          node e2e/sdk-compat/voice-bot-live.mjs --seconds 60
+          # RDY-DEV-001: the TypeScript bot (packages/bot, werift) joins the same kind of call with the Rust bot as
+          # a partner; each must decrypt the other's frames.
+          node e2e/sdk-compat/voice-bot-live.mjs --ts --seconds 60
         env:
           # Voice E2EE stays on (the default, D-249): the example answers with the MLS hello and commit loop, as
           # D-263 requires, and the driver checks that frames went out under an epoch key.

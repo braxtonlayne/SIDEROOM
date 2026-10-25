@@ -248,6 +248,8 @@ export class VoiceSession {
   private seq = 0;
   private readonly started = Date.now();
   private pendingOffer = false;
+  /** Which user speaks on each of the SFU's audio lines, by mid (read from its offers). */
+  private readonly userByMid = new Map<string, string>();
   private negotiating: Promise<void> = Promise.resolve();
   private sessionId: string;
   private resumeToken: string;
@@ -353,8 +355,12 @@ export class VoiceSession {
   }
 
   private onTrack(track: MediaStreamTrack): void {
-    // The SFU names each incoming audio line after its speaker's user id.
-    const user = track.streamId ?? '';
+    // The SFU names each incoming audio line after its speaker's user id (the stream id of the line's msid in
+    // its offer). werift does not copy that onto the track, so find the line by its transceiver and read the
+    // id from the offer we saw.
+    const line = this.pc.getTransceivers().find((t) => t.sender.trackId === track.id);
+    const mid = line?.mid ?? null;
+    const user = (mid !== null ? this.userByMid.get(mid) : undefined) ?? track.streamId ?? '';
     if (!/^\d+$/.test(user)) return;
     track.onReceiveRtp.subscribe((rtp: RtpPacket) => {
       const data = new Uint8Array(rtp.payload);
@@ -395,6 +401,7 @@ export class VoiceSession {
       case OP.SDP_OFFER:
         if (typeof d.sdp === 'string') {
           const sdp = d.sdp;
+          this.noteLines(sdp);
           this.negotiating = this.negotiating
             .then(async () => {
               await this.pc.setRemoteDescription({ type: 'offer', sdp });
@@ -424,6 +431,15 @@ export class VoiceSession {
       }
     }
     return Promise.resolve();
+  }
+
+  /** Remember `a=msid:<user> <track>` of each media section of an SFU offer. */
+  private noteLines(sdp: string): void {
+    for (const section of sdp.split(/\r?\nm=/).slice(1)) {
+      const mid = /a=mid:(\S+)/.exec(section)?.[1];
+      const user = /a=msid:(\d+)\s/.exec(section)?.[1];
+      if (mid !== undefined && user !== undefined) this.userByMid.set(mid, user);
+    }
   }
 
   private sendWs(m: unknown): void {
@@ -457,11 +473,11 @@ export class VoiceSession {
   }
 
   /**
-   * Publish one Opus frame (20 ms). `audioLevel` is accepted for parity with the Rust SDK; this transport does
+   * Publish one Opus frame (20 ms). Unlike the Rust SDK there is no audio level argument: this transport does
    * not negotiate the audio-level header extension, so the speaking indicator follows `setSpeaking`. In an
    * encrypted call this fails without a transform.
    */
-  async sendOpus(frame: Uint8Array, _audioLevel = -30): Promise<void> {
+  async sendOpus(frame: Uint8Array): Promise<void> {
     if (!this.isConnected()) throw new TransportError('not-connected', 'the connection is not up yet');
     let payload: Uint8Array;
     if (this.transform) {
