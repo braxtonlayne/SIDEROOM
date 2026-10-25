@@ -24,6 +24,7 @@ import { useVoicePerms } from './voice/perms';
 import { useStreamPreview } from './voice/useStreamPreview';
 import { useVoiceUserMenu } from './voice/useVoiceUserMenu';
 import { dropVoiceUser, isVoiceDrag, readVoiceDrag, startVoiceDrag } from './voice/voiceDrag';
+import { useViewAsChannels } from '../settings/server/viewAsMode';
 import { groupChannels, isVoiceLike } from './channels';
 import {
   useChannels,
@@ -560,7 +561,8 @@ function ChannelsAndRolesRow({ guildId }: { guildId: string }) {
 export function ChannelSidebar({ guildId }: { guildId: string }) {
   const t = useT();
   const guild = useGuild(guildId);
-  const channels = useChannels(guildId);
+  // View Server As Role (RDY-PAR-005) narrows the list to what the previewed roles can see.
+  const channels = useViewAsChannels(guildId, useChannels(guildId));
   const { channelId } = useLoungeRoute();
   const collapsed = useLoungeUi((s) => s.collapsedCategories);
   const hideMuted = useLoungeUi((s) => !!s.hideMutedChannels[guildId]);
