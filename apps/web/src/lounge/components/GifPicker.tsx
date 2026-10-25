@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
+import { useGifAutoplay } from '../../settings/user/gifAutoplay';
+import { useAnimatedSrc } from '../msg/staticFrame';
 
 /** A GIF as the server's provider proxy returns it (`/gifs/*`, LNG-EXP-005). */
 export interface Gif {
@@ -21,6 +23,38 @@ interface GifCategory {
   name: string;
   search_term: string;
   image_url: string;
+}
+
+/** A result thumbnail: plays on its own only while GIF autoplay allows it (RDY-PAR-006), else on hover or focus. */
+function GifThumb({ url, width }: { url: string; width: number | undefined }) {
+  const autoplay = useGifAutoplay();
+  const [pointed, setPointed] = useState(false);
+  const src = useAnimatedSrc(url, autoplay ? 'always' : 'hover', pointed) ?? url;
+  const ref = useRef<HTMLImageElement>(null);
+  // Keyboard focus on the button around the thumbnail plays it too.
+  useEffect(() => {
+    const btn = ref.current?.parentElement;
+    if (!btn) return;
+    const on = () => setPointed(true);
+    const off = () => setPointed(false);
+    btn.addEventListener('focus', on);
+    btn.addEventListener('blur', off);
+    return () => {
+      btn.removeEventListener('focus', on);
+      btn.removeEventListener('blur', off);
+    };
+  }, []);
+  return (
+    <img
+      ref={ref}
+      src={src}
+      alt=""
+      loading="lazy"
+      width={width}
+      onMouseEnter={() => setPointed(true)}
+      onMouseLeave={() => setPointed(false)}
+    />
+  );
 }
 
 const FAVORITES_KEY = 'sr.gif.favorites';
@@ -209,7 +243,7 @@ export function GifPicker({ onPick }: { onPick: (gif: Gif) => void }) {
                   aria-label={t('lounge.gifPicker.send', { title: g.title || g.id })}
                   onClick={() => onPick(g)}
                 >
-                  <img src={g.preview_url} alt="" loading="lazy" width={g.width || undefined} />
+                  <GifThumb url={g.preview_url} width={g.width || undefined} />
                 </button>
                 <button
                   type="button"
