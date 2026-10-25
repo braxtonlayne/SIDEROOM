@@ -286,18 +286,43 @@ Conflict watch: a11y and first-run both touch `apps/web`; a11y stays out of `rou
 
 **RDY-DEV-004 [DOC] Developer docs pass.** The developer portal's docs content (`developers/docsContent.ts`) checked against the built API for every route and event it names; the SDK compatibility list (`docs/dev/sdk-compat.md`) updated from the weekly run. Acceptance: a test that every route the docs name exists in OpenAPI.
 
+**RDY-PAY-001 [OWN][DOC] Signet payment walk** (D-368, T-02). On the first real host, or the prod-smoke stack with `SR_PAYMENTS_ESPLORA_URL` pointed at the owner's signet Esplora: a member opens a Patron invoice, pays it from a signet wallet, the watcher confirms it, Patron and a server level unlock, the invoice appears under Admin and in the member's export. Acceptance: `docs/dev/payments-live-test.md` gains the end-to-end steps (after the existing client check) and a "Recorded runs" table with date, host and transaction id; the inventory row ticks on the first recorded run; CI unchanged (D-257).
+
+**RDY-LIB-001 [TEST] Library exit gate on Playwright** (D-368, T-02). `e2e/tests/library-gate.spec.ts` in `e2e.yml`, three browsers: a member submits a 10-chapter ZIP (built in the test from generated pages), a reviewer approves nine and requests changes on one with a reason the member then sees, a reader opens an RTL chapter at a phone-sized viewport and a second browser context signed in as the same member sees the page position move. Acceptance: green on all three browsers; the device half (real phone, real screen reader) stays in `dev/owner-checklist.md`.
+
+**RDY-OBS-001 [BE][OPS] Gauges behind the playbooks** (D-370, T-04).
+- (a) `crates/sr-api/src/observability.rs`: constants and registration, with doc comments in the style of the existing nine, for `sr_jobs_queued{kind}`, `sr_jobs_oldest_queued_age_seconds`, `sr_backup_last_success_timestamp_seconds`, `sr_restore_check_last_success_timestamp_seconds`, `sr_wal_archive_last_success_timestamp_seconds`, `sr_wal_archive_failed_total`, `sr_disk_free_ratio{path}`, `sr_invoices_pending`, `sr_invoice_oldest_pending_age_seconds`, `sr_storage_bytes{bucket}` (for Grafana, no rule) and `sr_csp_reports_total{directive}`. No gauge for suspicion cases: the `#alerts` post when a case opens is the alert.
+- (b) The health job sets the job, backup, restore, WAL (`pg_stat_archiver`: `last_archived_time`, `failed_count`; the series is absent when `archive_mode` is off, so its rule cannot fire), disk and storage gauges on each run from the figures the System probe already produces. The invoice watcher sets the two invoice gauges; the CSP report handler increments the counter. Nothing is computed on scrape.
+- (c) `deploy/monitoring/alerts.yml`, each rule with the `runbook: deploy/RUNBOOK.md#<existing anchor>` annotation:
+  - JobBacklog: `sr_jobs_oldest_queued_age_seconds > 600` for 10m;
+  - BackupMissingOrStale: `time() - sr_backup_last_success_timestamp_seconds > 93600`;
+  - RestoreDrillFailed: `time() - sr_restore_check_last_success_timestamp_seconds` over 8 days;
+  - WalArchiveLag: `time() - sr_wal_archive_last_success_timestamp_seconds > 900` or `increase(sr_wal_archive_failed_total[15m]) > 0`;
+  - DiskPressure: `sr_disk_free_ratio < 0.2` for 15m, with a comment that `alerts.disk_percent` is the live setting the health job uses;
+  - InvoiceStuck: `sr_invoice_oldest_pending_age_seconds > 86400`;
+  - CspReportsSpike: `sum(rate(sr_csp_reports_total[5m])) * 300 > 50`;
+  - VoiceEgress: `sr_voice_egress_bits_per_second > <budget>` for 10m, the budget a comment pointing at `voice.egress_budget_mbps` (`sr-voice` already exports the metric).
+- (d) `deploy/monitoring/prometheus.yml`: an `sr-voice` scrape job on the node's metrics port (as `deploy/compose/prod.yml` exposes it).
+- (e) `scripts/check-ops-files.mjs`: the known metric set also reads `crates/sr-voice/src/metrics.rs`; `check-ops-files.test.mjs` gains a case.
+- (f) The `RUNBOOK.md` "Raised by" lines and the monitoring section of `OPERATOR.md` name the rule where one now exists; the Grafana dashboard gets a panel per gauge.
+
+Acceptance: `cargo test -p sr-api` with a test that each gauge is present on `/metrics` after one health-job run; `check-ops-files.mjs` ok; `promtool check rules` in `prod-smoke.yml` passes.
+
+**RDY-SCALE-002 [FE][BE] Server settings without a request per server** (phase-23 integrator). On every page load the web app sends one settings request per server the account is in (`GET /users/@me/guilds/{id}/settings`, cached by `apps/web/src/lounge/shell/notifSettings.ts` for the rail and channel-list mute state), so an account in many servers (K-22's 60, or RDY-PERF-004's 100) can hit the REST rate limit and see 429s before the Lounge is usable. Fix: batch them (one request for all of the account's servers, or the values carried in `READY`), or load a server's settings lazily when that server is first opened. Acceptance: a Vitest that a session in 100 servers sends a constant number of settings requests at load, not one per server; a check at K-22's 60 servers with no 429 (Playwright or the load test); if a batch route is added, OpenAPI and its route matrix row.
+
 ### Split
 
 | Agent | Worktree / branch | Items | Migrations | Owns |
 |---|---|---|---|---|
-| **scale** | `p24-scale` / `feat/p24-scale` | RDY-PERF-001 to 004 | 1300 to 1309 (indexes) | `crates/sr-cli/src/seed*.rs`, `crates/sr-loadtest`, `.github/workflows/load-test.yml`, `docs/dev/load-testing.md`, the job batching it changes (one job per commit, named), `crates/sr-gateway` memory budget test |
-| **parity** | `p24-parity` / `feat/p24-parity` | RDY-PAR-001 to 006 | 1310 to 1319 | `crates/sr-chat` invites and DM routing, `crates/sr-userfeat` profile fields, `apps/web/src/lounge/components/EmojiPicker.tsx`, `apps/web/src/lounge/profile/*`, `apps/web/src/settings/user/*` (privacy, profiles, accessibility sections), `apps/web/src/lounge/settings/ViewAsRole.tsx` |
+| **scale** | `p24-scale` / `feat/p24-scale` | RDY-PERF-001 to 004, RDY-OBS-001, RDY-SCALE-002 | 1300 to 1309 (indexes) | `crates/sr-cli/src/seed*.rs`, `crates/sr-loadtest`, `.github/workflows/load-test.yml`, `docs/dev/load-testing.md`, the job batching it changes (one job per commit, named), `crates/sr-gateway` memory budget test; for RDY-OBS-001 `crates/sr-api/src/observability.rs`, `deploy/monitoring/alerts.yml`, `deploy/monitoring/prometheus.yml`, `scripts/check-ops-files.mjs`; for RDY-SCALE-002 the web settings loader it changes and its batch route if one is added |
+| **parity** | `p24-parity` / `feat/p24-parity` | RDY-PAR-001 to 006, RDY-LIB-001 | 1310 to 1319 | `crates/sr-chat` invites and DM routing, `crates/sr-userfeat` profile fields, `apps/web/src/lounge/components/EmojiPicker.tsx`, `apps/web/src/lounge/profile/*`, `apps/web/src/settings/user/*` (privacy, profiles, accessibility sections), `apps/web/src/lounge/settings/ViewAsRole.tsx`, `e2e/tests/library-gate.spec.ts` |
 | **devplat** | `p24-devplat` / `feat/p24-devplat` | RDY-DEV-001 to 004 | 1320 to 1329 (none expected) | `packages/bot`, `crates/sr-sdk`, `e2e/sdk-compat/*`, `.github/workflows/sdk-compat.yml`, `apps/web/src/developers/docsContent.ts`, `docs/dev/sdk-compat.md`, `docs/specs/developer-platform.md` |
 
 Conflict watch: scale touches job code in several crates; it names each job it changes and parity stays out of jobs. Ports 8080/5173: devplat (live SDK runs); scale runs its server on 8082.
 
 ### Needs the owner
 
+- **RDY-PAY-001:** a funded signet wallet (and the signet Esplora URL) for one recorded payment walk before the first paid invite; the integrator writes its doc steps at wave-24 planning (XS).
 - Pushes and dispatches: `load-test.yml` (release build on CI), the first `sdk-compat` run.
 - **Downloads, optional:** discord.py (`pip`, into `e2e/sdk-compat/`) and twilight (a crate in the nested Cargo project), only if D-306's condition holds. Both are flagged as the only new libraries this roadmap proposes.
 - Nothing legal.
