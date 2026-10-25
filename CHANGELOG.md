@@ -8,6 +8,24 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 23 - 2026-10-25
+
+- **A welcome after your first sign-in.** A short tour of the Lounge, the Library and the Cinema, then the
+  appearance, a nudge to turn on two-factor sign-in, the app install where your browser offers it and the home
+  server's own onboarding. Every step can be skipped, and Help reopens it. Notifications are only asked for when you
+  open Settings > Notifications or press a bell.
+- **Help is a handbook.** `/help` covers invites and credits, two-factor and passkeys, installing the app on iOS and
+  Android, the Lounge for people who know Discord, submitting to the Library and the Cinema, watch parties, Live TV
+  and privacy. This page is "What's new"; the help button shows a badge once when there is news, and Settings >
+  What's New opens it too.
+- **Keyboard and screen readers.** Every section has a skip link to its content; arrow keys move through the member
+  list, the messages, the Library and Cinema grids and the TV guide; Settings and menus hand focus back to what
+  opened them. Reduced motion and high contrast now reach every section.
+- **Operators:** one handbook, `deploy/OPERATOR.md`, maps every deploy page and the daily, weekly and monthly checks.
+  Every alert and every red Admin > System tile has a playbook, and the runbook opens inside Admin (Admin >
+  Runbook). Incident playbooks cover takedown notices, data requests, a compromised staff account, a lost owner
+  second factor, a full disk, a restore and a CSAM report (the lawyer-dependent steps are marked).
+
 ## Phase 22 - 2026-10-24
 
 - **Submit a show or film from the browser.** Cinema has a new Submit page (`/cinema/submit`): start a draft, add
