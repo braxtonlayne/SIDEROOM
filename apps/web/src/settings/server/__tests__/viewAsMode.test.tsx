@@ -31,14 +31,12 @@ describe('View Server As Role, Lounge mode (RDY-PAR-005)', () => {
     });
     expect(result.current).toBe(all);
     act(() =>
-      useViewAs
-        .getState()
-        .start({
-          guildId: 'g1',
-          guildName: 'Club',
-          roleNames: ['Mod'],
-          visibleIds: new Set(['c1', 'cat']),
-        }),
+      useViewAs.getState().start({
+        guildId: 'g1',
+        guildName: 'Club',
+        roleNames: ['Mod'],
+        visibleIds: new Set(['c1', 'cat']),
+      }),
     );
     expect(result.current.map((c) => c.id)).toEqual(['c1', 'cat']);
     rerender({ g: 'g2' });
@@ -54,14 +52,12 @@ describe('View Server As Role, Lounge mode (RDY-PAR-005)', () => {
     render(<RouterProvider router={router} />);
     expect(screen.queryByTestId('view-as-banner')).toBeNull();
     act(() =>
-      useViewAs
-        .getState()
-        .start({
-          guildId: 'g1',
-          guildName: 'Club',
-          roleNames: ['Mod', 'Helper'],
-          visibleIds: new Set(),
-        }),
+      useViewAs.getState().start({
+        guildId: 'g1',
+        guildName: 'Club',
+        roleNames: ['Mod', 'Helper'],
+        visibleIds: new Set(),
+      }),
     );
     expect(await screen.findByTestId('view-as-banner')).toHaveTextContent(
       'Previewing Club as Mod, Helper.',
