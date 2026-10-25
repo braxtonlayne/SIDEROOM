@@ -50,8 +50,7 @@ All against the scratch database `sr_p23_firstrun` (both `SR_TEST_DATABASE_URL` 
 | Where | Before | After |
 |---|---|---|
 | `routes/entrance` (was skipped by the script) | 5 | 0 |
-| `lounge/shell` | 20 | 0 |
-| `settings` | 85 (5 real, the rest the script reading TypeScript generics as text) | 0 |
+| `lounge/shell` and `settings` together | 105 (5 real strings, the rest the script reading TypeScript generics and arrows as text) | 0 |
 | rest of the app | 42 | 42 (admin 16, lounge outside shell 11, cinema 7, developers 7, watchparty 1) |
 
 ## Still open / not done
