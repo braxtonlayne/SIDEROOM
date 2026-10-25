@@ -228,10 +228,8 @@ jobs:
           cargo build -j 2 -p sr-sdk --example voice_bot
           SR_VOICE_BOT_BIN="$PWD/target/debug/examples/voice_bot" node e2e/sdk-compat/voice-bot-live.mjs --seconds 60
         env:
-          # The example wires the media side only (no MLS handshake), and an encrypted call removes a member who does not
-          # send `hello` within 10 s (D-263), so this server runs the call in the clear. The encrypted path of the SDK is
-          # tested by crates/sr-sdk/tests/voice_e2ee.rs and voice_transport.rs.
-          SR_VOICE__E2EE: "false"
+          # Voice E2EE stays on (the default, D-249): the example answers with the MLS hello and commit loop, as
+          # D-263 requires, and the driver checks that frames went out under an epoch key.
           SDK_COMPAT_BASE: http://127.0.0.1:8080
           SDK_COMPAT_OWNER: owner
           # The same dev-only Owner password as e2e/global-setup.ts: the Owner already exists in this job's database.

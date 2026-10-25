@@ -112,6 +112,38 @@ impl FrameTransform for crate::voice::E2eeMedia {
     }
 }
 
+/// An [`E2eeMedia`](crate::voice::E2eeMedia) that the key agreement and the session share: install a clone with
+/// [`VoiceSession::set_transform`] (a `VoiceLink` keeps it across rejoins) and keep the other to `prepare` and
+/// `execute` epochs as `E2eeCall` reports them.
+#[cfg(feature = "voice-e2ee")]
+#[derive(Clone)]
+pub struct SharedMedia(std::sync::Arc<std::sync::Mutex<crate::voice::E2eeMedia>>);
+
+#[cfg(feature = "voice-e2ee")]
+impl SharedMedia {
+    pub fn new(media: crate::voice::E2eeMedia) -> Self {
+        Self(std::sync::Arc::new(std::sync::Mutex::new(media)))
+    }
+
+    /// Access to the media for `prepare`, `execute`, `sending_epoch` and `clear`.
+    pub fn lock(&self) -> std::sync::MutexGuard<'_, crate::voice::E2eeMedia> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+#[cfg(feature = "voice-e2ee")]
+impl FrameTransform for SharedMedia {
+    fn encrypt(&mut self, frame: &[u8]) -> Result<Vec<u8>, String> {
+        FrameTransform::encrypt(&mut *self.lock(), frame)
+    }
+
+    fn decrypt(&mut self, sender: u64, frame: &[u8]) -> Result<Vec<u8>, String> {
+        FrameTransform::decrypt(&mut *self.lock(), sender, frame)
+    }
+}
+
 /// The gateway op 4 `d` body that joins (or, with `channel_id: None`, leaves) a voice channel. Declares
 /// `sr_e2ee: true`, which is what a call that is end-to-end encrypted expects of every member.
 pub fn voice_state_body(

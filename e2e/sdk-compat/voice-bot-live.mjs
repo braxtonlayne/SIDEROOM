@@ -31,6 +31,15 @@ export function verdict(output, code) {
   if (!/^dropping the SFU WebSocket$/m.test(output)) problems.push('it did not drop its socket');
   if (!/^resumed \(/m.test(output)) problems.push('the dropped socket was not resumed');
   if (/^closed \(/m.test(output)) problems.push('the call was closed under the bot');
+  // An encrypted call (the default, D-249) must have been joined with the MLS handshake and sent under a key.
+  if (/^joining .*\(e2ee: true\)$/m.test(output)) {
+    if (!/^encrypting under epoch \d+$/m.test(output)) {
+      problems.push('no encryption epoch was executed');
+    }
+    if (!/encrypted_epochs=[1-9]/.test(output) || !/frames=[1-9]/.test(output)) {
+      problems.push('no frame was sent under an epoch key');
+    }
+  }
   return problems;
 }
 
