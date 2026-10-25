@@ -255,13 +255,14 @@ impl PgGuildDirectory {
                 json!(self.visible_threads(user, guild).await?.0),
             );
             if member_ids.len() as u64 <= LARGE_THRESHOLD_DEFAULT {
-                let mut found = Vec::with_capacity(member_ids.len());
-                for id in member_ids {
-                    let user = UserId::new(id as u64);
-                    if let Some(m) = self.chat.get_member(guild, user).await? {
-                        found.push(m);
-                    }
-                }
+                // One query for the member rows, in the list's user id order (RDY-PERF-002: one per member
+                // made READY of a member of 60 servers cost thousands of queries).
+                let ids: Vec<UserId> = member_ids
+                    .iter()
+                    .map(|&id| UserId::new(id as u64))
+                    .collect();
+                let mut found = self.chat.get_members(guild, &ids).await?;
+                found.sort_by_key(|m| m.user_id);
                 // Name fields for the member objects (open question 157).
                 let ids: Vec<UserId> = found.iter().map(|m| m.user_id).collect();
                 let users: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> = self

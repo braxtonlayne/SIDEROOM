@@ -26,6 +26,9 @@ pub const LARGE_THRESHOLD_DEFAULT: u64 = 50;
 /// Discord's maximum `large_threshold`.
 pub const LARGE_THRESHOLD_MAX: u64 = 250;
 
+/// GUILD_CREATE bodies built at once while a session identifies (each is a dozen or more directory reads).
+const GUILD_CREATE_CONCURRENCY: usize = 4;
+
 #[derive(Clone)]
 pub struct GatewayConfig {
     /// Sent in HELLO. Docs/05 6.4: 41250 ms.
@@ -653,12 +656,18 @@ impl Gateway {
         if let Some((id, n)) = shard {
             guilds.retain(|g| (g.get() >> 22) % u64::from(n.max(1)) == u64::from(id));
         }
-        let mut syncs = Vec::new();
-        let mut payloads = Vec::with_capacity(guilds.len());
-        for g in &guilds {
-            payloads.push(self.guild_create_body(user.user_id, *g).await);
-            syncs.push(self.inner.dir.thread_list_sync(user.user_id, *g).await);
-        }
+        // A few guilds at a time, in order (RDY-PERF-002: one after the other, READY of a member of 60
+        // servers waited for every GUILD_CREATE to be read in turn).
+        let built: Vec<(Value, Option<Value>)> = futures::stream::iter(guilds.iter().copied())
+            .map(|g| async move {
+                let body = self.guild_create_body(user.user_id, g).await;
+                let sync = self.inner.dir.thread_list_sync(user.user_id, g).await;
+                (body, sync)
+            })
+            .buffered(GUILD_CREATE_CONCURRENCY)
+            .collect()
+            .await;
+        let (payloads, syncs): (Vec<Value>, Vec<Option<Value>>) = built.into_iter().unzip();
         let extras = self.inner.dir.ready_extras(user.user_id).await;
         let mut fresh = Session::new(
             Self::new_session_id(),
