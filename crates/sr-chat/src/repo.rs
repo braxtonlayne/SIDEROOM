@@ -97,6 +97,19 @@ pub trait ChannelRepository: Send + Sync {
         Ok(Vec::new())
     }
     async fn get_overwrites(&self, channel: ChannelId) -> RepoResult<Vec<Overwrite>>;
+    /// The overwrites of several channels; a channel without any maps to an empty list. GUILD_CREATE reads a
+    /// guild's channels with it in one query (RDY-PERF-002). The default asks [`Self::get_overwrites`] per
+    /// channel; stores should override it.
+    async fn get_overwrites_of(
+        &self,
+        channels: &[ChannelId],
+    ) -> RepoResult<HashMap<ChannelId, Vec<Overwrite>>> {
+        let mut out = HashMap::with_capacity(channels.len());
+        for &c in channels {
+            out.insert(c, self.get_overwrites(c).await?);
+        }
+        Ok(out)
+    }
     async fn insert_channel(&self, channel: &Channel, overwrites: &[Overwrite]) -> RepoResult<()>;
     async fn update_channel(&self, channel: &Channel) -> RepoResult<()>;
     /// Delete the channel; children of a category are orphaned, not deleted.

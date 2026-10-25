@@ -228,11 +228,14 @@ impl PgGuildDirectory {
             return Ok(json!({ "id": guild, "unavailable": true }));
         };
         let roles = self.chat.list_roles(guild).await?;
-        let mut channels = Vec::new();
-        for c in self.chat.list_guild_channels(guild).await? {
-            let overwrites = self.chat.get_overwrites(c.id).await?;
-            channels.push(ChannelObject::new(&c, &overwrites));
-        }
+        // Every channel's overwrites in one query (RDY-PERF-002).
+        let list = self.chat.list_guild_channels(guild).await?;
+        let ids: Vec<ChannelId> = list.iter().map(|c| c.id).collect();
+        let mut overwrites = self.chat.get_overwrites_of(&ids).await?;
+        let channels: Vec<ChannelObject> = list
+            .iter()
+            .map(|c| ChannelObject::new(c, &overwrites.remove(&c.id).unwrap_or_default()))
+            .collect();
         let mut body = serde_json::to_value(GuildObject::new(
             &g,
             Some(roles.as_slice()),
@@ -249,11 +252,14 @@ impl PgGuildDirectory {
         .bind(LARGE_THRESHOLD_DEFAULT as i64 + 1)
         .fetch_all(&self.pool)
         .await?;
+        // The viewer's own row, read once for the threads they can see and `joined_at` (RDY-PERF-002).
+        let me = self.chat.get_member(guild, user).await?;
         if let Some(obj) = body.as_object_mut() {
-            obj.insert(
-                "threads".into(),
-                json!(self.visible_threads(user, guild).await?.0),
-            );
+            let threads = match &me {
+                Some(m) => self.visible_threads_of(user, guild, &g, m, &roles).await?.0,
+                None => Vec::new(),
+            };
+            obj.insert("threads".into(), json!(threads));
             if member_ids.len() as u64 <= LARGE_THRESHOLD_DEFAULT {
                 // One query for the member rows, in the list's user id order (RDY-PERF-002: one per member
                 // made READY of a member of 60 servers cost thousands of queries).
@@ -322,11 +328,7 @@ impl PgGuildDirectory {
                 );
             }
             let member_count = self.chat.count_members(guild).await?;
-            let joined_at = self
-                .chat
-                .get_member(guild, user)
-                .await?
-                .map(|m| iso8601(m.joined_at_ms));
+            let joined_at = me.as_ref().map(|m| iso8601(m.joined_at_ms));
             fill_guild_create_fields(obj, member_count, joined_at);
         }
         Ok(body)
@@ -346,10 +348,23 @@ impl PgGuildDirectory {
             return Ok((Vec::new(), Vec::new()));
         };
         let roles = self.chat.list_roles(guild).await?;
+        self.visible_threads_of(user, guild, &g, &member, &roles)
+            .await
+    }
+
+    /// [`Self::visible_threads`] with the guild, the viewer's member row and the roles already read.
+    async fn visible_threads_of(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        g: &sr_chat::domain::Guild,
+        member: &sr_chat::domain::Member,
+        roles: &[sr_chat::domain::Role],
+    ) -> BuildResult<(Vec<Value>, Vec<Value>)> {
         let now = self.clock.now_unix_ms();
         let mut seen = Vec::new();
         for t in self.chat.list_active_threads(guild).await? {
-            let perms = guild_channel_permissions(&self.chat, &g, &member, &roles, &t, now).await?;
+            let perms = guild_channel_permissions(&self.chat, g, member, roles, &t, now).await?;
             if perms.contains(Permissions::VIEW_CHANNEL) {
                 seen.push(t);
             }
@@ -1584,6 +1599,26 @@ mod tests {
             .await;
         assert_eq!(closed, set(&[owner, modr]));
         assert_eq!(closed, per_user(general).await);
+        // The batched overwrite read (GUILD_CREATE) agrees with the per-channel one.
+        let others: Vec<ChannelId> = bp.channels.iter().map(|c| c.id).collect();
+        let batched = dir.chat.get_overwrites_of(&others).await.unwrap();
+        assert_eq!(batched.len(), others.len());
+        for c in &others {
+            let mut one = dir.chat.get_overwrites(*c).await.unwrap();
+            let mut many = batched[c].clone();
+            one.sort_by_key(|o| o.id);
+            many.sort_by_key(|o| o.id);
+            assert_eq!(one, many);
+        }
+        assert_eq!(batched[&general].len(), 2);
+        let payload = dir.guild_payload(owner, guild).await;
+        let ch = payload["channels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == general.to_string())
+            .unwrap();
+        assert_eq!(ch["permission_overwrites"].as_array().unwrap().len(), 2);
 
         // A guild-level permission, with and without a channel.
         let manage = dir

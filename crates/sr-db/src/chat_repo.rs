@@ -854,6 +854,39 @@ impl ChannelRepository for PgChatRepo {
             .collect()
     }
 
+    async fn get_overwrites_of(
+        &self,
+        channels: &[ChannelId],
+    ) -> RepoResult<HashMap<ChannelId, Vec<Overwrite>>> {
+        let mut out: HashMap<ChannelId, Vec<Overwrite>> =
+            channels.iter().map(|&c| (c, Vec::new())).collect();
+        if channels.is_empty() {
+            return Ok(out);
+        }
+        let rows = sqlx::query(
+            "SELECT channel_id, target_id, target_type::text AS target_type, allow, deny              FROM permission_overwrites WHERE channel_id = ANY($1)",
+        )
+        .bind(channels.iter().map(|c| i(c.get())).collect::<Vec<_>>())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        for r in &rows {
+            let kind = match r.try_get::<String, _>("target_type").map_err(db)?.as_str() {
+                "role" => OverwriteKind::Role,
+                "member" => OverwriteKind::Member,
+                _ => return Err(bad("target_type")),
+            };
+            let channel = ChannelId::new(u(r.try_get("channel_id").map_err(db)?));
+            out.entry(channel).or_default().push(Overwrite {
+                id: Snowflake::new(u(r.try_get("target_id").map_err(db)?)),
+                kind,
+                allow: Permissions::from_bits_truncate(u(r.try_get("allow").map_err(db)?)),
+                deny: Permissions::from_bits_truncate(u(r.try_get("deny").map_err(db)?)),
+            });
+        }
+        Ok(out)
+    }
+
     async fn insert_channel(&self, channel: &Channel, overwrites: &[Overwrite]) -> RepoResult<()> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         bind_channel(sqlx::query(INSERT_CHANNEL), channel)
