@@ -10832,6 +10832,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/first-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark the first run done, or re-open it. */
+        put: operations["put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/passkeys": {
         parameters: {
             query?: never;
@@ -16267,6 +16284,11 @@ export interface components {
             /** @description The caller's own email (session callers only). */
             email?: string | null;
             /**
+             * @description Whether the person closed or finished the platform first run; `false` for a new account
+             *     (session callers).
+             */
+            first_run_done?: boolean | null;
+            /**
              * Format: int64
              * @description Public account flags (session callers).
              */
@@ -17329,6 +17351,11 @@ export interface components {
              * @description Images and videos: pixel size (1 to 16384 each, both or neither).
              */
             width?: number | null;
+        };
+        /** @description Body of `PUT /sr/auth/first-run`. */
+        FirstRunBody: {
+            /** @description `true` once the welcome is closed or finished, `false` to show it again. */
+            done: boolean;
         };
         /** @description Pages that share a folder inside the archive (a chapter folder, a volume folder, the root). */
         FolderGroup: {
@@ -20712,6 +20739,11 @@ export interface components {
         };
         /** @description What visitors may know about the instance's compliance settings (M-06, D-293 to D-295). */
         PublicComplianceObject: {
+            /**
+             * Format: int32
+             * @description Invite credits a new account is granted (`invites.initial_credits`).
+             */
+            invite_initial_credits: number;
             /**
              * Format: int32
              * @description Years invoices stay linked to a member after the year of payment (D-325).
@@ -59398,6 +59430,36 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirstRunBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

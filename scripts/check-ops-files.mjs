@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Cheap structural checks for the operations files (XC-OPS-007, XC-OPS-001). Fails CI when
 //  - a Grafana dashboard is not valid JSON or queries a metric the server does not export,
-//  - an alert rule queries a metric the server does not export,
+//  - an alert rule queries a metric the server does not export, has no RUNBOOK.md playbook, or a playbook names a metric
+//    the server does not export; an Admin > System tile points at a playbook that does not exist (RDY-DOC-003),
+//  - deploy/OPERATOR.md does not link every deploy doc (RDY-DOC-002); the docs/13 gate table claims a gate without a link,
 //  - a shell script under deploy/scripts (or deploy/install.sh) does not parse (`sh -n`),
 //  - the production Caddyfile lost a security-critical line,
 //  - a tracked .sh, or a file a workflow or composite action runs as ./path, is not executable in git.
@@ -9,6 +11,12 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  REQUIRED_PLAYBOOKS,
+  gateTableProblems,
+  operatorMapProblems,
+  playbookProblems,
+} from './lib/playbooks.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -111,6 +119,35 @@ for (const needle of [
 ]) {
   if (!caddy.includes(needle)) problems.push(`Caddyfile.prod is missing: ${needle}`);
 }
+
+// A playbook behind every alert (RDY-DOC-003), the handbook map (RDY-DOC-002) and the exit-gate table (RDY-DOC-005).
+function tileSources(dir) {
+  const out = [];
+  for (const e of readdirSync(join(root, dir), { withFileTypes: true })) {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory()) {
+      if (e.name !== '__tests__') out.push(...tileSources(p));
+    } else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name))
+      out.push({ file: p, text: read(p) });
+  }
+  return out;
+}
+const operatorMd = read('deploy/OPERATOR.md');
+problems.push(
+  ...playbookProblems({
+    alertsYml: read('deploy/monitoring/alerts.yml'),
+    runbookMd: read('deploy/RUNBOOK.md'),
+    docsMd: [operatorMd],
+    tileSources: tileSources('apps/web/src/admin'),
+    known,
+    required: REQUIRED_PLAYBOOKS,
+  }),
+  ...operatorMapProblems(
+    operatorMd,
+    readdirSync(join(root, 'deploy')).filter((f) => f.endsWith('.md')),
+  ),
+  ...gateTableProblems(read('docs/13-roadmap-and-phases.md')),
+);
 
 // The go-live checklist must exist and be reachable from the install guide (RDY-OWN-003).
 if (!read('deploy/GO-LIVE.md').includes('## 9. The first invites'))

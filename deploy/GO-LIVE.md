@@ -2,6 +2,8 @@
 
 The steps from an empty server to the first invites, in order. Each step names the command and what "done" looks like. Do not skip ahead: every step assumes the ones before it are done. The owner-side actions (accounts, GitHub, downloads) are in [docs/dev/owner-checklist.md](../docs/dev/owner-checklist.md); the questions for a lawyer are in [docs/legal/lawyer-brief.md](../docs/legal/lawyer-brief.md). Reference pages: [INSTALL.md](INSTALL.md), [BACKUP.md](BACKUP.md), [RUNBOOK.md](RUNBOOK.md), [UPGRADE.md](UPGRADE.md).
 
+After go-live, the operator handbook is [OPERATOR.md](OPERATOR.md): the map of every deploy page and the daily, weekly and monthly checks.
+
 Status: the shipped files have not yet booted on a real host (see the README "Status"). The first run of this list is the proof; write down what breaks.
 
 `dc` below stands for `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod`, and `sr-cli` for `dc run --rm --no-deps --entrypoint /usr/local/bin/sr-cli sr-server` (the server image carries `sr-cli`; this is how `install.sh` calls it). For the plain-binary route, `sr-cli` is the binary itself.

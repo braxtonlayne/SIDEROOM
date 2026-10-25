@@ -1199,8 +1199,12 @@
 .lng-member:hover {
   background: var(--ui-bg-hover);
 }
-.lng-member[data-offline] {
+/* Offline members: dim the avatar, not the name (a half-transparent name is 3.8:1; RDY-A11Y-001). */
+.lng-member[data-offline] > :first-child {
   opacity: 0.5;
+}
+.lng-member[data-offline] .lng-member-name {
+  color: var(--ui-text-muted);
 }
 .lng-member-text {
   display: flex;
@@ -1839,6 +1843,11 @@
   }
 }
 
+/* Rail text is generated content so the link's visible text does not have to repeat its name (axe 2.5.3). */
+.lng-guild-acronym::before,
+.lng-staff-badge::before {
+  content: attr(data-text);
+}
 .lng-staff-badge {
   position: absolute;
   inset-inline-start: 50%;

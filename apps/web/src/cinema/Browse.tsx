@@ -1,6 +1,7 @@
 // Movies / Series / Anime browse pages and search results (CIN-BRW-001..006): header per kind, genre chips,
 // collections dropdown, filters drawer, count and poster grid. Filters live in the URL and use the catalog's own
 // query names (`GET /cinema/titles`), so a view can be shared and the back button works.
+import { RovingScope } from '../a11y/RovingNav';
 import {
   Button,
   Drawer,
@@ -403,13 +404,15 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
       {items.length > 0 && (
         <>
           <h2 className="cin-sr-only">{t('cinema.browse.titlesHeading')}</h2>
-          <ul className="cin-grid">
-            {items.map((it) => (
-              <li key={it.id}>
-                <TitleCard title={it} />
-              </li>
-            ))}
-          </ul>
+          <RovingScope selector="[data-poster-link]" orientation="grid">
+            <ul className="cin-grid">
+              {items.map((it) => (
+                <li key={it.id}>
+                  <TitleCard title={it} />
+                </li>
+              ))}
+            </ul>
+          </RovingScope>
         </>
       )}
       {!searching && list.hasNextPage && (

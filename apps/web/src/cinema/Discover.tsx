@@ -1,4 +1,5 @@
 // Discover (CIN-DISC-001..009): hero "Tonight's feature", curated and generated rows, the animation banner.
+import { RovingScope } from '../a11y/RovingNav';
 import {
   ArrowLink,
   DisplayHeading,
@@ -224,24 +225,26 @@ function RowView({
           onValueChange={(v) => v && onScope(v as TrendingScope)}
         />
       )}
-      <PosterRow
-        className="cin-row"
-        title={heading}
-        exploreHref={row.explore_href ?? undefined}
-        aria-label={row.title}
-      >
-        {row.titles.map((t) => (
-          <TitleCard
-            key={t.id}
-            title={t}
-            subtitle={
-              continuing && t.my?.position_s
-                ? tr('cinema.discover.resumeAt', { time: formatClock(t.my.position_s) })
-                : undefined
-            }
-          />
-        ))}
-      </PosterRow>
+      <RovingScope selector="[data-poster-link]" orientation="horizontal">
+        <PosterRow
+          className="cin-row"
+          title={heading}
+          exploreHref={row.explore_href ?? undefined}
+          aria-label={row.title}
+        >
+          {row.titles.map((t) => (
+            <TitleCard
+              key={t.id}
+              title={t}
+              subtitle={
+                continuing && t.my?.position_s
+                  ? tr('cinema.discover.resumeAt', { time: formatClock(t.my.position_s) })
+                  : undefined
+              }
+            />
+          ))}
+        </PosterRow>
+      </RovingScope>
     </div>
   );
 }
@@ -284,6 +287,8 @@ export function Discover() {
 
   return (
     <>
+      {/* The feature hero carries the page's h1; without one, keep a heading for the page (axe page-has-heading-one). */}
+      {hero.length === 0 && <h1 className="cin-sr-only">{tr('cinema.shell.cinema')}</h1>}
       <Hero titles={hero} />
       <div className="cin-page cin-rows">
         {visible.map((r) => (

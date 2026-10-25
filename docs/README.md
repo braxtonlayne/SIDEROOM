@@ -46,5 +46,7 @@
 ## For the owner
 [Owner's action checklist](dev/owner-checklist.md), [questions for a lawyer](legal/lawyer-brief.md) and the [go-live checklist](../deploy/GO-LIVE.md).
 
+The operator handbook, for running the instance once it is live: [deploy/OPERATOR.md](../deploy/OPERATOR.md).
+
 ## Mockups
 [docs/assets/mockups/](assets/mockups/README.md)

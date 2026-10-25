@@ -128,7 +128,7 @@ export function RssPanel({ guildId }: { guildId: string }) {
         <TextInput
           label={t('settings.rss.url')}
           type="url"
-          placeholder="https://example.com/feed.xml"
+          placeholder={t('settings.rss.urlPlaceholder')}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />

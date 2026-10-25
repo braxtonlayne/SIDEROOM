@@ -54,6 +54,8 @@ Settings → Data & Privacy → **Request my data**. A Discord-style package (JS
 
 The due date of a data-subject request is computed from the `compliance.data_request_deadline_days` setting (default 30, `platform.compliance`, M-06, D-295) when the request is created (Admin, Data requests, M-25 step c; one documented extension of up to 60 days (days, not calendar months, D-316) may be added once, with a reason that the member is sent by system DM when reachable (`member_notified_at`; an extension granted after the original due date is marked late, D-317), and the queue marks requests past their date as overdue; `data_requests` rows are kept forever like the Person record, D-124); the operator's country and contact address, when set there, appear on the privacy summary (`/house-notes#privacy`) and on `/help`.
 
+**The member handbook (RDY-ONB-002).** `/help` repeats the figures of this document in plain words: 30 days to purge a deleted message, 7 days for a file over 30 MB, 180 days for sign-in addresses, 7 days for the export link, and what stays after an account is deleted. `apps/web/src/help/handbook.test.tsx` reads this file and fails when a figure drifts, so change both together.
+
 ## 5. Future: moderation & compliance (Phase 7)
 
 Not built now (D-126); the full Phase 7 design is `docs/specs/moderation-compliance.md`. Reserved now so nothing needs a painful migration later:

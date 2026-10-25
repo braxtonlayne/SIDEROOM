@@ -10,6 +10,13 @@ import { resetComposerDrafts } from '../Composer';
 import { useLoungeUi } from '../store';
 import { resetStickerCache } from '../msg/Sticker';
 import { holdInteractions } from '../../test/interactions';
+import { announce } from '../../a11y/announcer';
+
+// The real announcer, wrapped so a test can see what was said.
+vi.mock('../../a11y/announcer', async (orig) => {
+  const m = await orig<typeof import('../../a11y/announcer')>();
+  return { ...m, announce: vi.fn(m.announce) };
+});
 import { warmLoungeRoute } from '../../test/warmRoutes';
 
 warmLoungeRoute();
@@ -769,6 +776,8 @@ describe('composer', () => {
     expect(post.attachments).toHaveLength(1);
     expect(post.attachments[0]).toMatchObject({ uploaded_filename: 'abc/cat.png' });
     await waitFor(() => expect(screen.queryByRole('list', { name: 'Files to upload' })).toBeNull());
+    // The tray is gone before it could see 'done', so the composer says it (keyboard flow 5 in CI).
+    expect(vi.mocked(announce)).toHaveBeenCalledWith('Uploaded cat.png');
   });
 
   it('creates a poll from the plus menu', async () => {

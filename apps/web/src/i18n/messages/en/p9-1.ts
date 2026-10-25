@@ -46,14 +46,6 @@ export default {
   'settings.userNav.keybinds': 'Keybinds',
   'settings.userNav.language': 'Language',
   'settings.userNav.advanced': 'Advanced',
-  'settings.whatsNew.filledIn.title': 'Settings, filled in',
-  'settings.whatsNew.filledIn.item1':
-    'Edit your display name, username, avatar and banner, and set a nickname per server.',
-  'settings.whatsNew.filledIn.item2':
-    'Appearance, accessibility, text and images, notifications and keybinds are saved to your account and follow you between devices.',
-  'settings.whatsNew.filledIn.item3':
-    'Choose who can send you friend requests and direct messages.',
-  'settings.whatsNew.filledIn.item4': 'Search settings from the box above the list.',
   'lounge.time.todayAt': 'Today at {time}',
   'lounge.time.yesterdayAt': 'Yesterday at {time}',
   'lounge.msgFormat.minutesLeft': '{n, plural, one {# minute left} other {# minutes left}}',

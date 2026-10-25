@@ -785,3 +785,60 @@
   block-size: 100%;
   object-fit: cover;
 }
+
+/* Handbook and What's new (RDY-ONB-002/003) */
+.ent-notes nav[aria-labelledby] h2 {
+  margin-block-start: 1.5rem;
+}
+.ent-notes .ent-links {
+  list-style: none;
+  padding-inline-start: 0;
+}
+.ent-notes code {
+  font-family: var(--sr-font-mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.ent-notes .ent-button {
+  padding: 0.4em 1.1em;
+  font: inherit;
+  color: var(--sr-text);
+  background: transparent;
+  border: 1px solid var(--sr-line);
+  border-radius: var(--sr-radius);
+  cursor: pointer;
+}
+.ent-notes .ent-button:hover {
+  border-color: var(--sr-gold);
+}
+.ent-changelog h2 {
+  font-size: 1.5rem;
+}
+.ent-changelog ul {
+  padding-inline-start: 1.2em;
+}
+.ent-skeleton {
+  block-size: 1.1em;
+  margin-block: 1rem;
+  border-radius: 4px;
+  background: var(--sr-line);
+  opacity: 0.6;
+  animation: ent-skeleton-pulse 1.4s ease-in-out infinite;
+}
+.ent-skeleton-title {
+  inline-size: 40%;
+  block-size: 2.4rem;
+}
+.ent-skeleton-short {
+  inline-size: 60%;
+}
+@keyframes ent-skeleton-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ent-skeleton {
+    animation: none;
+  }
+}

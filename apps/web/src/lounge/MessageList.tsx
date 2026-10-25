@@ -4,6 +4,7 @@ import {
   type Rect,
   type Virtualizer,
 } from '@tanstack/react-virtual';
+import { useRovingTabindex } from '../a11y/useRovingTabindex';
 import { hasKeyword, useKeywordMatcher } from './keywords';
 import { CustomEmoji } from './msg/CustomEmoji';
 import type { Resolvers } from '@sideroom/markdown-react';
@@ -187,6 +188,8 @@ export function MessageList({
   );
 
   const scroller = useRef<HTMLDivElement | null>(null);
+  // Messages are one Tab stop with Up/Down/Home/End between them (a11y/useRovingTabindex.ts); their own buttons stay tabbable.
+  useRovingTabindex(scroller, { selector: '.lng-msg' });
   const v = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
@@ -557,7 +560,6 @@ export function MessageList({
         aria-label={t('lounge.messageList.messagesIn', { title })}
         aria-live="polite"
         aria-relevant="additions"
-        tabIndex={0}
         onScroll={onScroll}
       >
         <div className="lng-messages-sizer" style={{ height: v.getTotalSize() }}>

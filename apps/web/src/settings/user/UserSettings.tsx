@@ -1,7 +1,6 @@
 import {
   Button,
   ConfirmDialog,
-  Modal,
   Notice,
   SettingsLayout,
   ThemeProvider,
@@ -9,13 +8,15 @@ import {
   useMediaQuery,
   useToast,
 } from '@sideroom/ui';
+import { useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import pkg from '../../../package.json';
 import { useT } from '../../i18n';
 import { ApiError } from '../../api/client';
 import { useStoreThemes, useStoreThemeStyle } from '../../packages/themes';
 import { errorText, getMe, logout, useResource } from './api';
-import { USER_SETTINGS_SECTIONS, type UserSettingsSectionId } from './nav';
+import { markNewsSeen } from '../../lib/whatsNew';
+import { setSettingsReturn, USER_SETTINGS_SECTIONS, type UserSettingsSectionId } from './nav';
 import { applyPrefs, prefsEqual, usePrefsStore, useSavedPrefs, type UserPrefs } from './prefs';
 import { usePlatformThemeDefaults } from './platformThemes';
 import { usePrefsSync } from './prefsSync';
@@ -38,7 +39,6 @@ import { PrivacySection } from './sections/Privacy';
 import { ProfileSection, useProfileForm } from './sections/Profile';
 import { TextImagesSection } from './sections/TextImages';
 import { SettingsSearch } from './SettingsSearch';
-import { WHATS_NEW } from './whatsNew';
 import { SupportSection } from '../../support/SupportPanel';
 
 export interface UserSettingsProps {
@@ -72,7 +72,14 @@ function Body({
   const [confirmOut, setConfirmOut] = useState(false);
   const [outBusy, setOutBusy] = useState(false);
   const [outError, setOutError] = useState<string | null>(null);
-  const [news, setNews] = useState(false);
+  const router = useRouter();
+  // T-07 (D-373): What's New is the changelog page now. Leaving Settings for it drops the return target (the
+  // page has its own way back) and clears the help button's badge.
+  const openNews = () => {
+    setSettingsReturn(null);
+    markNewsSeen();
+    void router.navigate({ to: '/help/whats-new' });
+  };
   const [scrollTo, setScrollTo] = useState<string | null>(null);
 
   // A 401 means the session ended (expired, revoked elsewhere): go to sign-in.
@@ -148,7 +155,7 @@ function Body({
         sidebarHeader={<SettingsSearch onPick={onSearchPick} />}
         sidebarFooter={
           <>
-            <Button variant="secondary" onClick={() => setNews(true)}>
+            <Button variant="secondary" onClick={openNews}>
               {t('settings.userSettings.whatsNew')}
             </Button>
             <Button variant="danger" className="us-logout" onClick={() => setConfirmOut(true)}>
@@ -178,23 +185,6 @@ function Body({
         {section === 'streamer' && <StreamerSection {...prefsProps} />}
         {section === 'advanced' && <AdvancedSection {...prefsProps} />}
       </SettingsLayout>
-      <Modal
-        open={news}
-        onClose={() => setNews(false)}
-        title={t('settings.userSettings.whatsNew')}
-        size="md"
-      >
-        {WHATS_NEW.map((n) => (
-          <section key={n.title}>
-            <h3>{n.title}</h3>
-            <ul>
-              {n.items.map((i) => (
-                <li key={i}>{i}</li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </Modal>
       <ConfirmDialog
         open={confirmOut}
         danger

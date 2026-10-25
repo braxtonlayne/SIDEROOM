@@ -52,6 +52,7 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 - **Migrations** are forward-only SQL files in `crates/sr-db/migrations/`. Never edit a merged migration.
 - **The API contract** is generated from Rust (`utoipa` → OpenAPI → TypeScript client). Never hand-edit `packages/api-client/src/generated`.
 - **Review:** the repository owner reviews and merges. Agents never merge their own PRs.
+- **Integrator's checklist:** when a wave is merged, add its section to the top of `CHANGELOG.md` (user-facing lines written from the wave's handoffs). The first `##` heading is the version the web build embeds, so a new heading shows members the one-time "What's new" badge on the help button.
 
 ## 5. Definition of done
 

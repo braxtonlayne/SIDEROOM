@@ -1,4 +1,5 @@
 import { Badge, Button, ConfirmDialog, EmptyState, Select } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import * as api from '../api';
 import { formatNumber, type MessageKey, useT } from '../../i18n';
@@ -32,6 +33,35 @@ const INTEGRATION_LABELS: Record<string, MessageKey> = {
 
 const REDIRECT_ID = 'discord_connections_redirect';
 
+// RDY-DOC-003: a red tile links to its section of deploy/RUNBOOK.md. scripts/check-ops-files.mjs reads these
+// literals and fails when a heading is missing there. T-03 (D-369): the link opens the copy shipped with this
+// build at /admin/runbook#<anchor>.
+const PLAYBOOKS = {
+  probe: 'deploy/RUNBOOK.md#server-down',
+  deadJobs: 'deploy/RUNBOOK.md#jobs-failing',
+  backupMissing: 'deploy/RUNBOOK.md#backup-missing-or-stale',
+  restoreCheckMissing: 'deploy/RUNBOOK.md#restore-drill-failed',
+  disk: 'deploy/RUNBOOK.md#disk-pressure',
+} as const;
+
+/** Free space below this share is red: the default of `alerts.disk_percent` (80 percent full). */
+const DISK_RED_FREE_SHARE = 0.2;
+
+function PlaybookLink({ to, what }: { to: string; what: string }) {
+  const t = useT();
+  return (
+    <Link
+      className="ss-meta"
+      to="/admin/$section"
+      params={{ section: 'runbook' }}
+      hash={to.replace(/^deploy\/RUNBOOK\.md#/, '')}
+      aria-label={t('admin.system.playbookAria', { what })}
+    >
+      {t('admin.system.playbook')}
+    </Link>
+  );
+}
+
 export function SystemSection() {
   const t = useT();
   const res = useResource('admin:system', api.getSystem);
@@ -62,7 +92,15 @@ export function SystemSection() {
                 value={s.counts.jobs_queued}
                 hint={t('admin.system.jobsRunning', { count: s.counts.jobs_running })}
               />
-              <Stat label={t('admin.system.deadJobs')} value={s.counts.jobs_dead} />
+              <Stat
+                label={t('admin.system.deadJobs')}
+                value={s.counts.jobs_dead}
+                hint={
+                  s.counts.jobs_dead > 0 ? (
+                    <PlaybookLink to={PLAYBOOKS.deadJobs} what={t('admin.system.deadJobs')} />
+                  ) : undefined
+                }
+              />
             </div>
             <section className="ss-card" aria-labelledby="sys-probes">
               <h2 id="sys-probes">{t('admin.system.probesTitle')}</h2>
@@ -73,6 +111,7 @@ export function SystemSection() {
                       <div className="ss-name">{p.name}</div>
                       {!p.ok && p.error && <div className="ss-meta">{p.error}</div>}
                     </div>
+                    {!p.ok && <PlaybookLink to={PLAYBOOKS.probe} what={p.name} />}
                     <Badge variant={p.ok ? 'success' : 'danger'}>
                       {p.ok ? t('admin.system.probeOk') : t('admin.system.probeFailing')}
                     </Badge>
@@ -100,6 +139,16 @@ export function SystemSection() {
                       <span className="ss-meta">
                         {at ? fmtMs(at) : t('admin.system.backupsNone')}
                       </span>
+                      {!at && label !== 'admin.system.backupSnapshot' && (
+                        <PlaybookLink
+                          to={
+                            label === 'admin.system.backupLastRun'
+                              ? PLAYBOOKS.backupMissing
+                              : PLAYBOOKS.restoreCheckMissing
+                          }
+                          what={t(label)}
+                        />
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -117,6 +166,11 @@ export function SystemSection() {
                         <div className="ss-grow">
                           <div className="ss-name">{d.path}</div>
                         </div>
+                        {(d.total_bytes == null ||
+                          d.free_bytes == null ||
+                          d.free_bytes < d.total_bytes * DISK_RED_FREE_SHARE) && (
+                          <PlaybookLink to={PLAYBOOKS.disk} what={d.path} />
+                        )}
                         <span className="ss-meta">
                           {d.total_bytes == null || d.free_bytes == null
                             ? t('admin.system.diskUnreadable')

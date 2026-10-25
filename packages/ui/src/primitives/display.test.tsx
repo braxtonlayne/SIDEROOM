@@ -61,14 +61,16 @@ describe("Avatar", () => {
   });
   it("falls back to initials when there is no image or it fails", () => {
     const { rerender } = render(<Avatar name="Ada Lovelace" />);
-    expect(screen.getByRole("img", { name: "Ada Lovelace" })).toHaveTextContent("AL");
+    // The initials are generated content (CSS ::before from data-initials), not text of the control.
+    expect(screen.getByRole("img", { name: "Ada Lovelace" })).toHaveAttribute("data-initials", "AL");
     rerender(<Avatar name="Ada Lovelace" src="/broken.png" />);
     const img = screen.getByRole("img", { name: "Ada Lovelace" });
     expect(img.tagName).toBe("IMG");
     act(() => {
       img.dispatchEvent(new Event("error"));
     });
-    expect(screen.getByRole("img", { name: "Ada Lovelace" })).toHaveTextContent("AL");
+    // The initials are generated content (CSS ::before from data-initials), not text of the control.
+    expect(screen.getByRole("img", { name: "Ada Lovelace" })).toHaveAttribute("data-initials", "AL");
   });
   it("draws the Patron ring only when asked (D-256)", () => {
     render(<Avatar name="Bo" ring data-testid="r" />);

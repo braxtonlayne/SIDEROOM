@@ -3,8 +3,11 @@ import { useEffect, type RefObject } from 'react';
 export interface RovingOptions {
   /** CSS selector for the focusable items inside the container. */
   selector: string;
-  /** Which arrow keys move between items. `both` accepts all four (grids move by row with up/down). */
-  orientation?: 'vertical' | 'horizontal' | 'both';
+  /**
+   * Which arrow keys move between items. `both` accepts all four with up/down as one step; `grid` is a wrapping
+   * layout of equal cells where up/down move by one row (the column count is read from the item positions).
+   */
+  orientation?: 'vertical' | 'horizontal' | 'both' | 'grid';
 }
 
 /** Pure: the index to move to, or null if the key is not a navigation key. */
@@ -13,19 +16,45 @@ export function nextIndex(
   index: number,
   count: number,
   orientation: NonNullable<RovingOptions['orientation']>,
+  /** Items per row, for `grid`. */
+  columns = 1,
 ): number | null {
   if (count === 0) return null;
+  if (key === 'Home') return 0;
+  if (key === 'End') return count - 1;
+  if (orientation === 'grid') {
+    const cols = Math.max(1, columns);
+    if (key === 'ArrowLeft') return Math.max(0, index - 1);
+    if (key === 'ArrowRight') return Math.min(count - 1, index + 1);
+    if (key === 'ArrowUp') return index - cols >= 0 ? index - cols : index;
+    if (key === 'ArrowDown') {
+      if (index + cols < count) return index + cols;
+      // A short last row: the item below is missing, so go to the last item if there is a row below.
+      return Math.floor(index / cols) < Math.floor((count - 1) / cols) ? count - 1 : index;
+    }
+    return null;
+  }
   const prev =
     (orientation !== 'horizontal' && key === 'ArrowUp') ||
     (orientation !== 'vertical' && key === 'ArrowLeft');
   const next =
     (orientation !== 'horizontal' && key === 'ArrowDown') ||
     (orientation !== 'vertical' && key === 'ArrowRight');
-  if (key === 'Home') return 0;
-  if (key === 'End') return count - 1;
   if (prev) return Math.max(0, index - 1);
   if (next) return Math.min(count - 1, index + 1);
   return null;
+}
+
+/** Items per row of a wrapping layout: how many items share the first item's top edge. */
+export function columnsOf(items: HTMLElement[]): number {
+  if (items.length === 0) return 1;
+  const top = items[0]!.offsetTop;
+  let n = 0;
+  for (const el of items) {
+    if (el.offsetTop !== top) break;
+    n++;
+  }
+  return Math.max(1, n);
 }
 
 /**
@@ -68,7 +97,13 @@ export function useRovingTabindex(
       const el = (e.target as HTMLElement | null)?.closest<HTMLElement>(selector);
       if (!el || el !== e.target) return;
       const all = items();
-      const to = nextIndex(e.key, all.indexOf(el), all.length, orientation);
+      const to = nextIndex(
+        e.key,
+        all.indexOf(el),
+        all.length,
+        orientation,
+        orientation === 'grid' ? columnsOf(all) : 1,
+      );
       if (to === null) return;
       e.preventDefault();
       const target = all[to];

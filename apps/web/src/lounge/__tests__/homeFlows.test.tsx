@@ -645,7 +645,10 @@ describe('platform admin entry points (ADM-STF-010, ADM-STF-011)', () => {
     });
     at('/channels/g1/c1');
     const rail = await screen.findByRole('navigation', { name: /servers/i });
-    expect(await within(rail).findByText('STAFF')).toBeInTheDocument();
+    // The badge text is generated content (data-text), so a link's name need not repeat its visible text.
+    await waitFor(() =>
+      expect(rail.querySelector('.lng-staff-badge')).toHaveAttribute('data-text', 'STAFF'),
+    );
     await userEvent.click(await screen.findByRole('button', { name: 'Staff Server' }));
     expect(await screen.findByRole('menuitem', { name: 'Platform Admin' })).toBeInTheDocument();
   });

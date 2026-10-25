@@ -114,6 +114,7 @@ describe('admin shell', () => {
       'Entrance pages',
       'Announcements',
       'System',
+      'Runbook',
       'Platform audit log',
       'Private content',
       'Access log',

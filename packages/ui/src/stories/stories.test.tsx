@@ -5,11 +5,12 @@ import { axeViolations } from "../test-axe";
 import { ThemeProvider } from "../theme/ThemeProvider";
 import * as Kit from "./Kit.stories";
 import * as Misc from "./Misc.stories";
+import * as Modes from "./Modes.stories";
 import * as Primitives from "./Primitives.stories";
 
 // Q72: every story is rendered inside the theme provider and must pass axe (contrast off, see test-axe.ts).
 const stories = Object.fromEntries(
-  Object.entries({ ...Kit, ...Misc, ...Primitives }).filter((entry): entry is [string, () => ReactElement] => typeof entry[1] === "function"),
+  Object.entries({ ...Kit, ...Misc, ...Modes, ...Primitives }).filter((entry): entry is [string, () => ReactElement] => typeof entry[1] === "function"),
 );
 
 describe("stories (Q72)", () => {

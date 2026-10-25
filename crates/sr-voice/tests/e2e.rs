@@ -793,9 +793,15 @@ async fn start_sharded(shards: usize, tcp: bool) -> Server {
             shards,
             ..SfuConfig::default()
         })
-        .await
-        .unwrap();
+        .await;
         attempt += 1;
+        // When another test took both ports of the pair, `start` binds none and answers NoUdpPort:
+        // that is the same race, so it gets a fresh pair too.
+        let handle = match handle {
+            Ok(h) => h,
+            Err(sr_voice::StartError::NoUdpPort(..)) if attempt < 20 => continue,
+            Err(e) => panic!("voice server did not start: {e:?}"),
+        };
         if handle.shard_count() == shards || attempt >= 20 {
             break handle;
         }

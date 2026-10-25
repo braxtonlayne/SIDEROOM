@@ -1,5 +1,6 @@
 // Library section chrome (LIB-UI-001..005): section bar, sidebar, top search row with the bell and avatar menu,
 // and the mobile layout (sidebar becomes a drawer, bottom navigation).
+import { SkipLink } from '../components/SkipLink';
 import {
   Avatar,
   Drawer,
@@ -359,6 +360,7 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="lib-frame" data-mobile={mobile || undefined}>
+      <SkipLink />
       <SectionBar />
       <div className="lib-body">
         {!mobile && (
@@ -367,7 +369,7 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
           </aside>
         )}
         <div className="lib-main">
-          <div className="lib-topbar">
+          <div className="lib-topbar" role="region" aria-label={t('a11y.landmark.libraryToolbar')}>
             {mobile && (
               <button
                 type="button"

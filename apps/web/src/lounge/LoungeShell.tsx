@@ -1,4 +1,5 @@
 import { ThemeProvider, ToastProvider, Icon } from '@sideroom/ui';
+import { SkipLink } from '../components/SkipLink';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
@@ -307,6 +308,7 @@ function Shell() {
       data-pane={isMobile ? pane : undefined}
     >
       <ToastProvider>
+        <SkipLink />
         <DmToasts />
         <Welcome />
         <JoinGate />

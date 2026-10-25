@@ -192,7 +192,7 @@ function LinkForm({
         <TextInput
           label={t('settings.connections.linkUrl')}
           type="url"
-          placeholder="https://"
+          placeholder={t('settings.connections.linkUrlPlaceholder')}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />

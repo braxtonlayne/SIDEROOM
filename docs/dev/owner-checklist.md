@@ -23,6 +23,7 @@ Do these in the order of [deploy/GO-LIVE.md](../../deploy/GO-LIVE.md); this list
 - [ ] **Decide the Bitcoin path** for payments (D-288, D-312): either run a non-pruned `bitcoind` on the host and the `electrs` Compose profile (replace the image placeholder in `deploy/compose/prod.yml` with the pinned digest you trust, point `SR_ELECTRS_DAEMON_RPC_ADDR` at the node), or keep the documented interim `SR_PAYMENTS_ESPLORA_URL=https://mempool.space/api`. **Unblocks:** live invoice addresses without third-party address leakage (the interim works but sends derived addresses to a third party).
 - [ ] **Set the lawyer settings** after the brief is answered (see section 4). **Unblocks:** the entrance pages and the privacy page showing the operator's country, contact and minimum age.
 - [ ] **A real device pass:** Safari voice E2EE and the installed iOS PWA on a Mac or iPhone; the manual screen-reader pass (NVDA on Windows is free). **Unblocks:** removing "untested on Safari" and the accessibility gate.
+- [ ] **Fund a signet wallet and run RDY-PAY-001 once before the first paid invite** (D-368): a Patron invoice paid on signet through the real watcher, recorded in `docs/dev/payments-live-test.md` "Recorded runs". **Unblocks:** the phase 3 exit gate in doc 13.
 - [ ] **Run the two real-use gates with friends:** two weeks of daily chat (phase 1) and a two-hour 10-person voice session (phase 2). **Unblocks:** those exit gates in doc 13.
 
 ## 3. GitHub

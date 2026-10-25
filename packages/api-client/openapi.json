@@ -55183,6 +55183,43 @@
         ]
       }
     },
+    "/sr/auth/first-run": {
+      "put": {
+        "tags": [],
+        "summary": "Mark the first run done, or re-open it.",
+        "operationId": "put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirstRunBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Saved"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/auth/passkeys": {
       "get": {
         "tags": [],
@@ -75224,6 +75261,13 @@
             ],
             "description": "The caller's own email (session callers only)."
           },
+          "first_run_done": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the person closed or finished the platform first run; `false` for a new account\n(session callers)."
+          },
           "flags": {
             "type": [
               "integer",
@@ -78322,6 +78366,19 @@
             "format": "int32",
             "description": "Images and videos: pixel size (1 to 16384 each, both or neither).",
             "minimum": 0
+          }
+        }
+      },
+      "FirstRunBody": {
+        "type": "object",
+        "description": "Body of `PUT /sr/auth/first-run`.",
+        "required": [
+          "done"
+        ],
+        "properties": {
+          "done": {
+            "type": "boolean",
+            "description": "`true` once the welcome is closed or finished, `false` to show it again."
           }
         }
       },
@@ -89043,9 +89100,15 @@
         "description": "What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).",
         "required": [
           "minimum_age",
-          "invoice_retention_years"
+          "invoice_retention_years",
+          "invite_initial_credits"
         ],
         "properties": {
+          "invite_initial_credits": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Invite credits a new account is granted (`invites.initial_credits`)."
+          },
           "invoice_retention_years": {
             "type": "integer",
             "format": "int32",

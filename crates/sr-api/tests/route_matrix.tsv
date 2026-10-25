@@ -950,6 +950,7 @@ PUT	/library/series/{series_id}/review	authenticated	self	allow	-	-
 PUT	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-	-
 PUT	/requests/{request_id}/claim	authenticated	user	allow	-	-
 PUT	/requests/{request_id}/vote	authenticated	self	allow	-	-
+PUT	/sr/auth/first-run	authenticated	self	deny	-	-
 PUT	/sr/auth/username	authenticated	self	deny	-	-
 PUT	/submissions/{submission_id}/cinema/episodes/{episode_id}	authenticated	author	allow	-	-
 PUT	/submissions/{submission_id}/cinema/title	authenticated	author	allow	-	-

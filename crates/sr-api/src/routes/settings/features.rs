@@ -190,6 +190,8 @@ pub struct PublicComplianceObject {
     /// The operator's contact address, also the copyright notice address, when set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operator_contact: Option<String>,
+    /// Invite credits a new account is granted (`invites.initial_credits`).
+    pub invite_initial_credits: i32,
 }
 
 /// The minimum registration age and the operator's country and contact (public: the entrance
@@ -201,13 +203,17 @@ pub struct PublicComplianceObject {
 )]
 pub async fn compliance_public(
     Ext(gf): Ext<GuildFeatures>,
+    crate::routes::MaybeExt(auth): crate::routes::MaybeExt<crate::routes::auth::AuthService>,
 ) -> ApiResult<Json<PublicComplianceObject>> {
     let s = compliance_settings(&gf).await;
+    // The same number registration grants (the default, 5, when no auth service is wired).
+    let invite_initial_credits = auth.map_or(5, |a| a.initial_credits());
     Ok(Json(PublicComplianceObject {
         minimum_age: s.minimum_age,
         invoice_retention_years: s.invoice_retention_years,
         operator_country: s.operator_country,
         operator_contact: s.operator_contact,
+        invite_initial_credits,
     }))
 }
 

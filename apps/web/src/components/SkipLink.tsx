@@ -1,4 +1,4 @@
-import { useEffect, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { useT } from '../i18n/react';
 
 const TARGET = 'main, [role="main"]';
@@ -10,10 +10,15 @@ const ID = 'main-content';
  */
 export function SkipLink() {
   const t = useT();
+  // The link points at the region's own id when it has one (cin-main, lib-content, lounge-main): a link to an id
+  // that does not exist is an axe `skip-link` finding and a dead link without scripting.
+  const [target, setTarget] = useState(ID);
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(TARGET);
-    if (el && !el.id) el.id = ID;
-  });
+    if (!el) return;
+    if (!el.id) el.id = ID;
+    setTarget(el.id);
+  }, []);
   const go = (e: MouseEvent) => {
     const el = document.querySelector<HTMLElement>(TARGET);
     if (!el) return;
@@ -23,7 +28,7 @@ export function SkipLink() {
     el.scrollIntoView?.({ block: 'start' });
   };
   return (
-    <a href={`#${ID}`} className="sr-skip-link" onClick={go}>
+    <a href={`#${target}`} className="sr-skip-link" onClick={go}>
       {t('a11y.skipToContent')}
     </a>
   );

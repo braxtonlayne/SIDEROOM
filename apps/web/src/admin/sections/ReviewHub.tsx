@@ -1,5 +1,5 @@
-// Review Queues hub (ADM-CNT-001): one tab per queue the staff member may work. Library submissions are the
-// full reviewer workspace; Cinema is the report queue; Apps is developer applications and versions.
+// Review Queues hub (ADM-CNT-001): one tab per queue the staff member may work. Submissions (Library and Cinema
+// submissions) are the full reviewer workspace; the Cinema tab is the report queue; Apps is developer applications and versions.
 // Directory is the Server Directory queue; Packages is the declarative package queue (EXT-PKG-003).
 import { Notice, Tabs, type TabItem } from '@sideroom/ui';
 import { useLocation } from '@tanstack/react-router';
@@ -23,7 +23,7 @@ export function ReviewHubSection() {
   const reportCount = useResource(`review-reports:${viewer.can('MANAGE_CASES')}`, async () =>
     viewer.can('MANAGE_CASES') ? (await moderation.getInboxCount()).reports : null,
   );
-  // A `#review-queue` card links to `?submission=<id>` (G-68): that is a Library submission, so open its tab.
+  // A `#review-queue` card links to `?submission=<id>` (G-68): that is a submission, so open its tab.
   const search = useLocation({ select: (l) => l.searchStr }).replace(/^\?/, '');
   const linked = /(^|&)submission=\d+/.test(search);
   // A package card links to `?package=<version id>` (D-258): open the Packages tab.
@@ -33,8 +33,8 @@ export function ReviewHubSection() {
     items.push({ id: 'cinema', label: t('admin.reviewHub.tabCinema'), content: <CinemaReports /> });
   if (viewer.can('REVIEW_READING') || viewer.can('REVIEW_MEDIA'))
     items.push({
-      id: 'library',
-      label: t('admin.reviewHub.tabLibrary'),
+      id: 'submissions',
+      label: t('admin.reviewHub.tabSubmissions'),
       content: <LibraryReviewPanel />,
     });
   if (viewer.can('REVIEW_APPS'))
@@ -71,8 +71,8 @@ export function ReviewHubSection() {
       <Tabs
         label={t('admin.reviewHub.tabsLabel')}
         items={items}
-        {...(linked && items.some((i) => i.id === 'library')
-          ? { defaultValue: 'library' }
+        {...(linked && items.some((i) => i.id === 'submissions')
+          ? { defaultValue: 'submissions' }
           : linkedPackage && items.some((i) => i.id === 'packages')
             ? { defaultValue: 'packages' }
             : {})}

@@ -42,7 +42,7 @@ export function TitleStrip({ title }: { title: string }) {
   const showSectionBar = useLoungeUi((s) => s.showSectionBar);
   const setShow = useLoungeUi((s) => s.setShowSectionBar);
   return (
-    <div className="lng-titlestrip">
+    <div className="lng-titlestrip" role="region" aria-label={t('a11y.landmark.titleStrip')}>
       <div className="lng-titlestrip-nav">
         <button
           type="button"

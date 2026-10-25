@@ -2,10 +2,12 @@
 // graph passes about 500 nodes. The layout comes from `sr-graph-wasm`; this draws it: pan (drag), zoom (wheel,
 // buttons, + and -), click to select, double click or Enter to collapse and expand a subtree, colour by account
 // state, a halo for suspicion and a cross for a banned account. The tree and list views stay as the accessible
-// alternative to the picture.
-import { Button, Notice } from '@sideroom/ui';
+// alternative to the picture. Reduced motion (the OS setting, or Settings > Accessibility): the picture is drawn
+// straight away on each change, never through requestAnimationFrame, and the layout is the static WASM one.
+import { Button, Notice, useMediaQuery } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../../i18n';
+import { usePrefsStore } from '../../../settings/user/prefs';
 import type { InviteNode } from '../../api';
 import {
   fitView,
@@ -22,6 +24,13 @@ import {
 import { layoutGraph } from './layout';
 
 const HEIGHT = 520;
+
+/** The reduced-motion choice as ThemeProvider resolves it: the in-app setting wins over the OS one. */
+export function useGraphReducedMotion(): boolean {
+  const system = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const pref = usePrefsStore((s) => s.prefs.reducedMotion);
+  return pref === 'on' || (pref === 'system' && system);
+}
 
 interface Props {
   root: InviteNode;
@@ -42,6 +51,7 @@ export function GraphCanvas({ root, nodes, selected, onSelect }: Props) {
   const view = useRef<View>({ x: 0, y: 0, k: 1 });
   const frame = useRef(0);
   const hidden = useMemo(() => hiddenBy(graph, collapsed), [graph, collapsed]);
+  const reduced = useGraphReducedMotion();
 
   // Layout in WASM (once per graph).
   useEffect(() => {
@@ -156,9 +166,18 @@ export function GraphCanvas({ root, nodes, selected, onSelect }: Props) {
   }, [graph, pos, hidden, collapsed, selected, size]);
 
   const schedule = useCallback(() => {
-    cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(draw);
-  }, [draw]);
+    if (frame.current) cancelAnimationFrame(frame.current);
+    frame.current = 0;
+    if (reduced) {
+      // No frame loop: one static redraw per change.
+      draw();
+      return;
+    }
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      draw();
+    });
+  }, [draw, reduced]);
 
   const fit = useCallback(() => {
     if (!pos) return;
@@ -172,7 +191,10 @@ export function GraphCanvas({ root, nodes, selected, onSelect }: Props) {
   }, [pos, size.w]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     schedule();
-    return () => cancelAnimationFrame(frame.current);
+    return () => {
+      if (frame.current) cancelAnimationFrame(frame.current);
+      frame.current = 0;
+    };
   }, [schedule]);
 
   // Wheel zoom needs a non-passive listener to keep the page from scrolling.
@@ -271,6 +293,7 @@ export function GraphCanvas({ root, nodes, selected, onSelect }: Props) {
         tabIndex={0}
         role="img"
         aria-label={t('admin.graph.canvasLabel', { n: graph.nodes.length })}
+        data-reduced-motion={reduced ? 'true' : undefined}
         onPointerDown={(e) => {
           drag.current = { x: e.clientX, y: e.clientY, moved: false };
           e.currentTarget.setPointerCapture?.(e.pointerId);

@@ -44,7 +44,7 @@ export function UserPanel() {
           })}
         >
           <span className="lng-user-text">
-            <span className="lng-user-name">{me.displayName}</span>
+            <span className="lng-user-name">{me.displayName}</span>{' '}
             <span className="lng-user-sub">
               {selfCustom ??
                 (presence.activity?.kind === 'custom'
