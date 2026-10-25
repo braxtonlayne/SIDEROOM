@@ -320,6 +320,32 @@ describe('Create DM', () => {
     expect(body).toEqual({ recipients: ['2', '3'] });
   });
 
+  it('offers the invite link of the new group and copies it (RDY-PAR-001)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    server.use(
+      http.post('*/api/v1/users/@me/channels', () =>
+        HttpResponse.json({ id: 'dm9', type: 3, recipients: [bob, cat], last_message_id: '300' }),
+      ),
+      http.post('*/api/v1/channels/dm9/invites', () => HttpResponse.json({ code: 'grp12345' })),
+    );
+    at('/channels/@me');
+    await userEvent.click(await screen.findByRole('button', { name: 'Create DM' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Select Friends' });
+    await userEvent.click(await within(dialog).findByRole('checkbox', { name: /Bob B/ }));
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /cat/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create Group DM' }));
+    const done = await screen.findByRole('dialog', { name: 'Group DM created' });
+    await userEvent.click(
+      within(done).getByRole('button', { name: 'Create and copy invite link' }),
+    );
+    const link = (await within(done).findByLabelText('Group invite link')) as HTMLInputElement;
+    expect(link.value).toMatch(/\/invite\/grp12345$/);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(link.value));
+    await userEvent.click(within(done).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog', { name: 'Group DM created' })).toBeNull();
+  });
+
   it('is disabled with nobody picked and shows the empty state without friends', async () => {
     quiet([]);
     at('/channels/@me');
