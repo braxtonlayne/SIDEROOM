@@ -49,11 +49,15 @@ for (const [path, ops] of Object.entries(openapi.paths)) {
 function namedRoutes(): { method?: string; path: string }[] {
   const found: { method?: string; path: string }[] = [];
   for (const t of texts()) {
-    for (const m of t.matchAll(/\b(GET|POST|PUT|PATCH|DELETE)\s+(\/[A-Za-z0-9_@{}$:/.-]*[A-Za-z0-9_@}])/g)) {
-      found.push({ method: m[1], path: m[2] });
+    for (const m of t.matchAll(
+      /\b(GET|POST|PUT|PATCH|DELETE)\s+(\/[A-Za-z0-9_@{}$:/.-]*[A-Za-z0-9_@}])/g,
+    )) {
+      found.push({ method: m[1] ?? '', path: m[2] ?? '' });
     }
-    for (const m of t.matchAll(/\{origin\}\/api\/v(?:1|10)(\/[A-Za-z0-9_@{}$:/.-]*[A-Za-z0-9_@}])/g)) {
-      found.push({ path: m[1] });
+    for (const m of t.matchAll(
+      /\{origin\}\/api\/v(?:1|10)(\/[A-Za-z0-9_@{}$:/.-]*[A-Za-z0-9_@}])/g,
+    )) {
+      found.push({ path: m[1] ?? '' });
     }
   }
   return found;
@@ -79,27 +83,35 @@ describe('the developer docs name only routes the API has (RDY-DEV-004)', () => 
     );
   });
 
-  it.each([...new Set(routes.map((r) => `${r.method ?? 'any'} ${r.path}`))])('%s is in OpenAPI', (key) => {
-    const [method, path] = key.split(' ');
-    if (NOT_IN_OPENAPI.has(path)) return;
-    const methods = known.get(shape(path));
-    expect(methods, `${path} is not a route of the generated OpenAPI document`).toBeDefined();
-    if (method !== 'any') {
-      expect(methods?.has(method), `${method} ${path} is not an operation of the API`).toBe(true);
-    }
-  });
+  it.each([...new Set(routes.map((r) => `${r.method ?? 'any'} ${r.path}`))])(
+    '%s is in OpenAPI',
+    (key) => {
+      const [method = '', path = ''] = key.split(' ');
+      if (NOT_IN_OPENAPI.has(path)) return;
+      const methods = known.get(shape(path));
+      expect(methods, `${path} is not a route of the generated OpenAPI document`).toBeDefined();
+      if (method !== 'any') {
+        expect(methods?.has(method), `${method} ${path} is not an operation of the API`).toBe(true);
+      }
+    },
+  );
 
   it('names only gateway events and opcodes the reference lists', () => {
     const names = new Set([...GATEWAY_EVENTS, ...GATEWAY_OPCODES.map((o) => o.name)]);
     const named = new Set<string>();
     for (const t of texts()) {
-      for (const m of t.matchAll(/\b([A-Z]+(?:_[A-Z]+)*_(?:CREATE|UPDATE|DELETE|CHUNK)|READY|RESUMED)\b/g)) {
-        named.add(m[1]);
+      for (const m of t.matchAll(
+        /\b([A-Z]+(?:_[A-Z]+)*_(?:CREATE|UPDATE|DELETE|CHUNK)|READY|RESUMED)\b/g,
+      )) {
+        named.add(m[1] ?? '');
       }
     }
     expect([...named]).toEqual(expect.arrayContaining(['GUILD_CREATE', 'INTERACTION_CREATE']));
     for (const n of named) {
-      expect(names.has(n) || n === 'READY' || n === 'RESUMED', `${n} is not a documented gateway event`).toBe(true);
+      expect(
+        names.has(n) || n === 'READY' || n === 'RESUMED',
+        `${n} is not a documented gateway event`,
+      ).toBe(true);
     }
   });
 });
