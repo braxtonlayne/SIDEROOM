@@ -200,3 +200,36 @@ jobs:
           SMOKE_DATABASE_URL: postgres://sideroom:sideroom_ci@127.0.0.1:5432/sideroom?sslmode=disable
           SMOKE_SYSTEMD_USER_FALLBACK: ${{ inputs.systemd_user_fallback && '1' || '0' }}
         run: deploy/scripts/smoke-systemd.sh user-service
+
+  # RDY-OBS-001: the alert rules parse and type-check. Standalone (no `needs`), so it runs alongside the jobs above.
+  # Downloads one pinned Prometheus release on the runner (owner-approved in wave 24, CI only) and runs promtool.
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROM_VERSION: "3.5.0"
+      # TODO(RDY-OBS-001): hard-code the sha256 of prometheus-3.5.0.linux-amd64.tar.gz here (from the release's
+      # sha256sums.txt, read once by a human) and check against it instead of the downloaded list. Until then the
+      # tarball is checked against the sha256sums.txt published with the same GitHub release.
+      PROM_SHA256: ""
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download promtool (pinned Prometheus release, sha256 checked)
+        run: |
+          set -euo pipefail
+          name="prometheus-${PROM_VERSION}.linux-amd64"
+          base="https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "$base/${name}.tar.gz"
+          if [ -n "$PROM_SHA256" ]; then
+            echo "${PROM_SHA256}  ${name}.tar.gz" | sha256sum -c -
+          else
+            curl -fsSLO "$base/sha256sums.txt"
+            grep " ${name}.tar.gz\$" sha256sums.txt | sha256sum -c -
+          fi
+          tar -xzf "${name}.tar.gz" "${name}/promtool"
+          echo "$RUNNER_TEMP/${name}" >> "$GITHUB_PATH"
+      - name: promtool check rules
+        run: |
+          promtool --version
+          promtool check rules deploy/monitoring/alerts.yml
