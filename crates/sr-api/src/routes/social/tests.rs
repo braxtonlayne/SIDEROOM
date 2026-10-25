@@ -872,6 +872,43 @@ async fn guild_notification_settings_and_channel_overrides() {
     assert!(is_empty_list(&v["channel_overrides"]));
 }
 
+/// RDY-SCALE-002: one request returns every stored scope with its overrides.
+#[tokio::test]
+async fn guild_settings_list_returns_all_scopes_in_one_request() {
+    let e = env().await;
+    let g = e.guild;
+    // Nothing stored yet: an empty list, not an error.
+    let (s, v) = e.get("/users/@me/guild-settings", BOB).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(is_empty_list(&v["settings"]));
+
+    let (s, _) = e
+        .patch(
+            &format!("/users/@me/guilds/{g}/settings"),
+            BOB,
+            json!({
+                "muted": true,
+                "mute_config": {"selected_time_window": 3600},
+                "channel_overrides": {e.ch.to_string(): {"muted": true}}
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, v) = e.get("/users/@me/guild-settings", BOB).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["settings"].as_array().unwrap().len(), 1);
+    assert_eq!(v["settings"][0]["guild_id"], g.to_string().as_str());
+    assert_eq!(v["settings"][0]["muted"], true);
+    assert_eq!(
+        v["settings"][0]["channel_overrides"][0]["channel_id"],
+        e.ch.to_string().as_str()
+    );
+    // Per user.
+    assert!(is_empty_list(
+        &e.get("/users/@me/guild-settings", CAROL).await.1["settings"]
+    ));
+}
+
 #[tokio::test]
 async fn notification_settings_validate_input_and_scope() {
     let e = env().await;

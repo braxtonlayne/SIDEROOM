@@ -12511,6 +12511,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/guild-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settings of every server (and the DM scope) the caller has changed anything in, with the
+         *     channel overrides, in one response. The web app loads this once instead of one request per
+         *     server (RDY-SCALE-002); a server missing from the list has the defaults.
+         */
+        get: operations["list_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/guilds": {
         parameters: {
             query?: never;
@@ -23467,6 +23488,13 @@ export interface components {
             section: string;
             /** @description The person's effective preferences (defaults plus what they chose). */
             settings: Record<string, never>;
+        };
+        /**
+         * @description Every scope the caller has stored settings for, in one response (`GET /users/@me/guild-settings`).
+         *     A guild missing from the list has the defaults.
+         */
+        UserGuildSettingsList: {
+            settings: components["schemas"]["UserGuildSettingsObject"][];
         };
         UserGuildSettingsObject: {
             channel_overrides: components["schemas"]["ChannelOverrideObject"][];
@@ -64039,6 +64067,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGuildSettingsList"];
                 };
             };
         };

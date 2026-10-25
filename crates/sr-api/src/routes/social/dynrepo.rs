@@ -232,6 +232,9 @@ impl NotificationRepository for DynRepo {
     async fn list_overrides(&self, user: UserId) -> RepoResult<Vec<ChannelOverride>> {
         self.0.list_overrides(user).await
     }
+    async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>> {
+        self.0.list_scopes(user).await
+    }
 }
 
 #[async_trait]

@@ -169,6 +169,9 @@ pub trait NotificationRepository: Send + Sync {
     async fn put_override(&self, o: &ChannelOverride) -> RepoResult<()>;
     async fn delete_override(&self, user: UserId, channel: ChannelId) -> RepoResult<()>;
     async fn list_overrides(&self, user: UserId) -> RepoResult<Vec<ChannelOverride>>;
+    /// Every stored scope row of the user (guilds and the DM scope), ordered by guild id. Scopes
+    /// the person never touched have no row; the caller treats a missing one as the defaults.
+    async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>>;
 }
 
 #[async_trait]

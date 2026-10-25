@@ -1085,6 +1085,36 @@ impl NotificationRepository for PgSocialRepo {
             .map_err(db)?;
         rows.iter().map(override_from_row).collect()
     }
+
+    async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>> {
+        let sql = format!(
+            "SELECT guild_id, level, suppress_everyone, suppress_roles, suppress_highlights, \
+             mute_scheduled_events, mobile_push, muted, {} AS mute_end_ms \
+             FROM notification_settings WHERE user_id = $1 ORDER BY guild_id",
+            ms("mute_end_at")
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(user.get()))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                let key: i64 = r.try_get("guild_id").map_err(db)?;
+                Ok(ScopeSettings {
+                    user,
+                    guild: (key != 0).then(|| GuildId::new(key as u64)),
+                    level: level_of(r)?,
+                    suppress_everyone: r.try_get("suppress_everyone").map_err(db)?,
+                    suppress_roles: r.try_get("suppress_roles").map_err(db)?,
+                    suppress_highlights: r.try_get("suppress_highlights").map_err(db)?,
+                    mute_scheduled_events: r.try_get("mute_scheduled_events").map_err(db)?,
+                    mobile_push: r.try_get("mobile_push").map_err(db)?,
+                    mute: mute_of(r)?,
+                })
+            })
+            .collect()
+    }
 }
 
 fn override_from_row(r: &PgRow) -> RepoResult<ChannelOverride> {
