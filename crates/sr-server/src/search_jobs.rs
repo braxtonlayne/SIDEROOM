@@ -923,7 +923,7 @@ mod tests {
             w.say("two queued").await,
             w.say("three queued").await,
         ];
-        let base = i64::try_from(std::process::id()).unwrap_or(1) * 1_000_000_000 + 7_000_000;
+        let base = i64::from(std::process::id()) * 1_000_000_000 + 7_000_000;
         let mut job_ids = Vec::new();
         for (n, id) in ids.iter().enumerate() {
             let job_id = base + i64::try_from(n).unwrap_or(0);
@@ -986,7 +986,7 @@ mod tests {
         sr_db::migrate(&pool).await.expect("migrate");
         let bus = LagTapBus::new(Arc::new(InProcessBus::new()));
         let next = Arc::new(std::sync::atomic::AtomicI64::new(
-            i64::try_from(std::process::id()).unwrap_or(1) * 1_000_000_000 + 8_000_000,
+            i64::from(std::process::id()) * 1_000_000_000 + 8_000_000,
         ));
         let first_job = next.load(std::sync::atomic::Ordering::Relaxed);
         let ids: JobIds = {
