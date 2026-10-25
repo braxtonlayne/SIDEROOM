@@ -1,3 +1,4 @@
+import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../test/server';
@@ -139,5 +140,13 @@ describe('EmojiPicker category sidebar (RDY-PAR-002)', () => {
     await user.type(screen.getByLabelText('Search emoji'), 'fire');
     expect(within(bar).queryByRole('button', { name: 'This server' })).toBeNull();
     expect(within(bar).getAllByRole('button').length).toBe(1);
+  });
+});
+
+describe('EmojiPicker axe (RDY-PAR-002)', () => {
+  it('has no axe violations with the sidebar', async () => {
+    localStorage.clear();
+    const { container } = render(<EmojiPicker onPick={vi.fn()} />);
+    expect(await axeViolations(container)).toEqual([]);
   });
 });
