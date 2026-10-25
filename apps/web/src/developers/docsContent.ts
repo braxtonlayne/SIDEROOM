@@ -148,7 +148,7 @@ export const DOC_PAGES: DocPage[] = [
       },
       {
         t: 'p',
-        text: 'Sharding is not supported yet: leave shard out of IDENTIFY (or send [0, 1]), and GET /gateway/bot reports one shard. SIDE ROOM adds events prefixed SR_ (for example SR_LIBRARY_UPDATE); ignore events you do not know.',
+        text: 'Sharding works as on Discord: send shard: [id, count] in IDENTIFY (leave it out for a single shard; an id at or above the count closes with 4010). GET /gateway/bot reports one shard per 1000 servers the application is installed in. If the connection drops, send RESUME with your session id and the last sequence number you saw; the server replays what you missed and answers RESUMED, or INVALID_SESSION when it cannot (identify again). SIDE ROOM adds events prefixed SR_ (for example SR_LIBRARY_UPDATE); ignore events you do not know.',
       },
     ],
   },

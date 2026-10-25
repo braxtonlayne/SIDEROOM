@@ -9,7 +9,7 @@ export const SDK_PAGES: DocPage[] = [
     blocks: [
       {
         t: 'p',
-        text: 'Both SDKs are small and typed. Each has a REST client with rate-limit retries, gateway shards (identify, resume, heartbeats, reconnect), a cache of guilds, channels and roles, and a command framework that registers your slash commands and routes interactions to handlers. They talk to the same API as any Discord library, so you can also keep using discord.js, discord.py, serenity or twilight.',
+        text: 'Both SDKs are small and typed. Each has a REST client with rate-limit retries, gateway shards (identify, resume with the missed events replayed, heartbeats, reconnect), a cache of guilds, channels and roles, and a command framework that registers your slash commands and routes interactions to handlers. They talk to the same API as any Discord library, so you can also keep using discord.js, discord.py, serenity or twilight.',
       },
       { t: 'h', text: 'Rust: sr-sdk' },
       {
@@ -32,7 +32,9 @@ export const SDK_PAGES: DocPage[] = [
           'A command handler that fails sends the person a short private error and reports the error to your handler.',
           'Sharding follows GET /gateway/bot by default; start one shard of many per process with an explicit shard id and count.',
           'File options (attachments) arrive in data.resolved.attachments with a signed download URL.',
-          'Bots in voice: calls are end-to-end encrypted with MLS. The Rust crate has that half behind the voice-e2ee feature (sr_sdk::voice: an identity key, the call state machine and the frame transform); joining the channel and the WebRTC audio transport are not built, so a bot brings its own and hands the frames to the SDK. The TypeScript package has no voice API.',
+          'Gateway reconnects: a shard that loses its connection resumes the session and gets the events it missed; when the server can no longer replay them it identifies again (the Rust SDK also joins the voice channel it was in again).',
+          'Bots in voice (Rust): sr_sdk::voice_transport joins the channel the gateway names in VOICE_SERVER_UPDATE and moves Opus frames (feature voice-transport, on by default); sr_sdk::voice is the MLS half (feature voice-e2ee, on by default): an identity key, the call state machine and the frame transform. Calls are end-to-end encrypted, so the SDK never sends audio into an encrypted call without a transform. VoiceLink reconnects: it re-attaches a dropped media WebSocket with RESUME, joins again when the SFU forgot the session, and stops when a moderator removes the bot. The SDK ships no Opus encoder; examples/voice_bot.rs joins, logs who speaks and can drop its own socket to show the resume.',
+          'Bots in voice (TypeScript): the package has no voice API yet; it waits on the choice of a WebRTC transport for Node.',
         ],
       },
     ],
@@ -59,7 +61,7 @@ export const SDK_PAGES: DocPage[] = [
           'Editing a posted interaction message changes its content only.',
           'Webhooks: username, avatar_url, wait and thread_id work. An executed message shows the webhook as its author.',
           'Application emojis can be uploaded in the portal; they cannot be used in messages yet.',
-          'Not available: teams, role connections, monetization, activities, bots in voice.',
+          'Not available: teams, role connections, monetization, activities, and bots in voice with a Discord library (voice needs the SIDE ROOM SDK: the media transport is not the Discord voice protocol).',
         ],
       },
     ],
