@@ -1,4 +1,4 @@
-import { DisplayHeading, Eyebrow, GoldButton } from '@sideroom/ui';
+import { DisplayHeading, Eyebrow, GoldButton, useMediaQuery } from '@sideroom/ui';
 import { EntranceMarkdown, useEntranceCopy, useEntranceHero } from './entranceCopy';
 import { Link, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
@@ -56,6 +56,8 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
   const [state, setState] = useState<CheckState>('idle');
   const [shakes, setShakes] = useState(0);
   const strip = useRef<HTMLElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const complete = isCompleteInviteCode(code);
 
@@ -91,6 +93,11 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
     }
   }, [initialCode, submit]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  // A refused code remounts the shaking input (and the button was disabled while checking), so focus would fall
+  // to the page body: put it back in the field, where the message is read and the code is corrected.
+  useEffect(() => {
+    if (state === 'invalid' || state === 'closed') input.current?.focus();
+  }, [state, shakes]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -130,6 +137,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
                 <KeyIcon aria-hidden="true" />
                 <input
                   id="invite-code"
+                  ref={input}
                   value={code}
                   onChange={(e) => {
                     setCode(formatInviteCode(e.target.value));
@@ -200,7 +208,9 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
             <button
               type="button"
               className="ent-glimpse"
-              onClick={() => strip.current?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() =>
+                strip.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' })
+              }
             >
               {t('entrance.landing.glimpse')} <span aria-hidden="true">↓</span>
             </button>
