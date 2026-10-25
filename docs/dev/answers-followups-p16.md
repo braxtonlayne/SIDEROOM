@@ -432,3 +432,31 @@ From D-368 to D-373 (the `feat/p23-operator-handbook` and `feat/p23-first-run` h
 ### Recording
 
 - [x] **T-08 (P23-1 to P23-6) Handoffs marked answered.** Integrator on `integration/phase23`. `docs/dev/handoff/feat-p23-operator-handbook.md` ("Decisions and questions for the owner" 1, "Honest limits", "Admin > System tile links") and `docs/dev/handoff/feat-p23-first-run.md` ("Open owner questions", "Still open / not done"): one line each, "Answered: P23-n (D-36x), follow-up T-nn". Size: XS. *(integrator: "Answered: P23-n (D-36x), follow-up T-nn" lines in both handoffs)*
+
+## Phase 24 round
+
+From the wave-24 handoffs (`feat-p24-scale.md`, `feat-p24-parity.md`, `feat-p24-devplat.md`), decided 2026-10-25 by Fable on the owner's behalf at the wave-24 integration (P24-PAR-1 to 5 kept, `DM_SPAM_LINK_HOSTS` stays 3, backup and restore gauges stay 0 on "never", `sr_storage_bytes` stays database-only for now). Ids U-01 onward. These are backlog rows: none is assigned to a wave yet.
+
+### Emoji picker
+
+- [ ] **U-01 (RDY-PAR-002 follow-up) External emoji in the picker.** The picker lists this server's custom emoji only. Parity needs: a guild-independent route listing the emoji of every server the member is in (one request, not one per server); a send-side check of `USE_EXTERNAL_EMOJIS` for `<:name:id>` from another server (refused or rendered as `:name:` text, as Discord does); the renderer resolving emoji of servers the reader is not in; one picker section per server with its icon in the category sidebar. Who may use them (Patron perk or everyone) is a product call for the owner before the build. Size: M.
+
+### View Server As Role
+
+- [ ] **U-02 (RDY-PAR-005 follow-up, P24-PAR-5) View as Role also filters the member list and the thread list.** Today the Lounge preview narrows only the channel sidebar. The member list should show only the members who can see the open channel under the previewed roles, and the thread list only threads of channels those roles can read, both through the same `sr-permissions` WASM (`viewAs.ts`). Still client-side, no server state. Size: S.
+
+### DM spam filter
+
+- [ ] **U-03 (RDY-PAR-004 follow-up, P24-PAR-1) The filter level "All" screens friends too.** `screen_dm_message` skips friends at every level, so "All" behaves as "Non-friends"; Discord's "Filter all" also scans messages from friends. Make "All" screen friends' messages (friends' DMs are not message requests, so decide where a flagged friend message goes: Discord hides it behind a "likely spam" notice in the conversation) and pin both levels in the `sr-chat` safety tests. Size: S.
+
+### Storage gauge
+
+- [ ] **U-04 (RDY-OBS-001 follow-up) `sr_storage_bytes` for the object-store buckets and media.** The gauge covers `attachments` (sum of `attachments.size_bytes`) only. Add the object-store buckets and the Library and Cinema media through a bounded daily job (one listing walk per bucket with a page and time cap, figures stored and exported), never in the 15-minute `admin.health.check` run. Size: S.
+
+### Backups
+
+- [x] **U-05 (RDY-OBS-001 follow-up) A failed `pg_dump` must not refresh the backup age.** `backup.sh` should write to a temporary name and rename, so a failed dump leaves no fresh `.dump` behind. *Checked at the wave-24 integration: already so. `deploy/scripts/backup.sh` dumps to `sideroom-<stamp>.dump.partial` and renames after `pg_dump` succeeds (`set -eu` stops before the rename), `sr-cli backup` (`crates/sr-cli/src/ops.rs`) does the same, and `newest_backup_modified` (`crates/sr-server/src/admin_jobs.rs`) only counts `.dump` and `.json` files, so a leftover `.partial` does not count. Not cleaned up: a stale `.partial` from a failed run stays on disk until removed by hand.*
+
+### Bot SDKs
+
+- [ ] **U-06 (RDY-DEV-001 / RDY-DEV-002 follow-up) TypeScript voice rejoin and an Opus encoder.** (a) `packages/bot`: after a fresh session (not a resume) the TypeScript shard does not send the last op 4 join again; the Rust shard does (`crates/sr-sdk/src/gateway.rs`). Remember the join, clear it on leave, send it after `READY`, with a test like `gateway_resume.rs`. (b) Neither SDK has an Opus encoder; the bots send fixed 60-byte test frames. Adding one is a new dependency in each SDK (owner approval and a licence check first). Size: S for (a), M for (b).
