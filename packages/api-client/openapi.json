@@ -77039,7 +77039,7 @@
               "string",
               "null"
             ],
-            "description": "With `is_message_request`: `server_filter` or `new_account` when a server's Protection\nsettings sent the conversation there (D-224). SIDE ROOM extension."
+            "description": "With `is_message_request`: `server_filter` or `new_account` when a server's Protection\nsettings sent the conversation there (D-224), or `spam` when the recipient's DM spam\nfilter flagged it or the recipient filed it as spam (it then lists under \"Likely spam\").\nSIDE ROOM extension."
           },
           "type": {
             "type": "integer",

@@ -27,6 +27,12 @@ export function AccessibilitySection({ prefs, setPrefs }: PrefsFormProps) {
           ]}
         />
         <div className="us-stack us-after">
+          <Switch
+            label={t('settings.accessibility.gifAutoplay')}
+            description={t('settings.accessibility.gifAutoplayDesc')}
+            checked={prefs.gifAutoplay}
+            onChange={(e) => setPrefs({ gifAutoplay: e.target.checked })}
+          />
           <SegmentedControl
             label={t('settings.accessibility.stickers')}
             value={prefs.stickerAnimation}

@@ -675,7 +675,62 @@ impl<R: SocialRepository> SocialService<R> {
             ));
         }
         self.get_dm_for(user, channel).await?;
-        Ok(self.repo.set_request_state(user, channel, state).await?)
+        self.repo.set_request_state(user, channel, state).await?;
+        // "Likely spam" lists everything the recipient filed as spam, and says so (RDY-PAR-004).
+        if state == RequestState::Spam {
+            self.repo
+                .set_request_reason(user, channel, Some(RequestReason::Spam))
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// RDY-PAR-004: the DM spam filter looks at what a stranger sends, not only who they are.
+    /// Called after a message is stored in a 1:1 DM. When the recipient's filter is on
+    /// (`non_friends` or `all`), the sender is not their friend, the conversation still sits in their
+    /// Message Requests as pending, and the message trips the spam heuristics
+    /// ([`super::safety::dm_spam_reason`]), the request moves to "Likely spam" (state `Spam`, reason
+    /// `spam`). It stays out of the recipient's DM list and notifications as every unaccepted request
+    /// does. Returns the heuristic that fired.
+    pub async fn screen_dm_message(
+        &self,
+        channel: ChannelId,
+        author: UserId,
+        content: &str,
+    ) -> SocialResult<Option<&'static str>> {
+        let Some(dm) = self.repo.get_dm(channel).await? else {
+            return Ok(None);
+        };
+        if dm.kind != DmKind::Dm || !dm.has(author) {
+            return Ok(None);
+        }
+        let Some(reason) = super::safety::dm_spam_reason(content) else {
+            return Ok(None);
+        };
+        for other in dm.recipients.iter().copied().filter(|u| *u != author) {
+            if self.repo.get_request_state(other, channel).await? != Some(RequestState::Pending) {
+                continue;
+            }
+            if self.repo.get_privacy(other).await?.safety.dm_spam_filter
+                == super::safety::SpamFilter::Off
+            {
+                continue;
+            }
+            let st = self.pair_state(author, other).await?;
+            let friends = st.mine == Some(RelationshipKind::Friend)
+                && st.theirs == Some(RelationshipKind::Friend);
+            if friends {
+                continue;
+            }
+            self.repo
+                .set_request_state(other, channel, RequestState::Spam)
+                .await?;
+            self.repo
+                .set_request_reason(other, channel, Some(RequestReason::Spam))
+                .await?;
+            return Ok(Some(reason));
+        }
+        Ok(None)
     }
 
     /// Reopen for every recipient who closed it (called when a message arrives).

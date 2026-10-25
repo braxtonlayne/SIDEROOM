@@ -18,6 +18,7 @@ import {
   getMyMember,
   getOwnProfile,
   getPresence,
+  getPrimaryGuild,
   getProfileCatalog,
   listGuilds,
   patchMyNick,
@@ -32,6 +33,9 @@ import { imageProblem, readAsDataUri } from '../imageCrop';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
 import { StaffBadgeCard } from './AccountSwitchCards';
 import { BirthdayCard } from './BirthdayCard';
+import { ServerTagChip } from '../../../lounge/components/ServerTagChip';
+import { profileTheme } from '../../../lounge/profile/theme';
+import { ProfileBio } from '../../../lounge/profile/profileMarkdown';
 import { ServerTagCard } from './ServerTagCard';
 
 /**
@@ -251,6 +255,21 @@ export function useProfileForm(active: boolean): ProfileForm {
 
 function PreviewCard({ form }: { form: ProfileForm }) {
   const t = useT();
+  // The same pieces the popout and the full profile use: the theme gradient, About Me through the profile
+  // markdown subset, and the chosen server tag (RDY-PAR-003).
+  const [tag, setTag] = useState<{ tag: string; badge: number; color: number } | null>(null);
+  useEffect(() => {
+    let live = true;
+    getPrimaryGuild().then(
+      (g) => live && setTag(g && g.identity_enabled ? g : null),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  const colors = form.draft.themeColors;
+  const theme = colors ? profileTheme([fromHex(colors[0]), fromHex(colors[1])], null) : null;
   const u = form.profile?.user;
   const name = form.draft.displayName.trim() || u?.username || t('settings.profile.you');
   const accent = form.draft.accent;
@@ -267,7 +286,12 @@ function PreviewCard({ form }: { form: ProfileForm }) {
         ? cdnUrl('avatars', u.id, u.banner, { size: 512 })
         : null;
   return (
-    <aside className="us-preview" aria-label={t('settings.profile.previewAria')}>
+    <aside
+      className="us-preview"
+      aria-label={t('settings.profile.previewAria')}
+      data-themed={theme ? theme.tone : undefined}
+      style={theme?.style}
+    >
       <div
         className="us-preview-banner"
         style={
@@ -280,7 +304,15 @@ function PreviewCard({ form }: { form: ProfileForm }) {
       />
       <div className="us-preview-body">
         <Avatar name={name} src={avatar} size={80} className="us-preview-avatar" />
-        <p className="us-preview-name">{name}</p>
+        <p className="us-preview-name">
+          {name}
+          {tag && (
+            <>
+              {' '}
+              <ServerTagChip user={{ tag: tag.tag, tagBadge: tag.badge, tagColor: tag.color }} />
+            </>
+          )}
+        </p>
         <p className="us-preview-sub">
           {u?.username}
           {form.draft.pronouns && ` · ${form.draft.pronouns}`}
@@ -289,7 +321,7 @@ function PreviewCard({ form }: { form: ProfileForm }) {
         {form.draft.bio && (
           <>
             <h3>{t('settings.profile.aboutMe')}</h3>
-            <p>{form.draft.bio}</p>
+            <ProfileBio text={form.draft.bio} />
           </>
         )}
       </div>

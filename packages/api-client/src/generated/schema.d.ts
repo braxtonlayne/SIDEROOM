@@ -16955,7 +16955,9 @@ export interface components {
             sr_max_upload_bytes?: number | null;
             /**
              * @description With `is_message_request`: `server_filter` or `new_account` when a server's Protection
-             *     settings sent the conversation there (D-224). SIDE ROOM extension.
+             *     settings sent the conversation there (D-224), or `spam` when the recipient's DM spam
+             *     filter flagged it or the recipient filed it as spam (it then lists under "Likely spam").
+             *     SIDE ROOM extension.
              */
             sr_request_reason?: string | null;
             /**

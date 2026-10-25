@@ -41,6 +41,7 @@ import { MemberList } from './MemberList';
 import { useLoungeGoto, useLoungeRoute } from './nav';
 import { DmProfilePanel, HomeFriends, PickChannel } from './Panels';
 import { QuickSwitcher } from './QuickSwitcher';
+import { ViewAsBanner } from '../settings/server/viewAsMode';
 import { ConnectionBanner, NoticesBar } from './shell/Banners';
 import { useAgeCleared, useAgeGate } from './AgeGate';
 import { PopoutHost } from './profile/ProfilePopout';
@@ -317,6 +318,7 @@ function Shell() {
         {!isMobile && <TitleStrip title={title} />}
         <ConnectionBanner />
         <NoticesBar />
+        <ViewAsBanner />
         <div className="lng-body" {...(isMobile ? swipe : {})}>
           <div className="lng-left" data-pane="list">
             <GuildRail />

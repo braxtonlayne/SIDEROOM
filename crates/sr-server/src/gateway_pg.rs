@@ -11,7 +11,7 @@ use sr_chat::repo::UserLookup;
 use sr_chat::{
     repo::{ChannelRepository, GuildRepository},
     social::{
-        dm::RequestState,
+        dm::{RequestReason, RequestState},
         relationships::RelationshipKind,
         repo::{DmRepository, ReadStateRepository, RelationshipRepository},
     },
@@ -404,12 +404,14 @@ impl PgGuildDirectory {
         let mut private_channels: Vec<Value> = Vec::with_capacity(dms.len());
         for d in &dms {
             let mut obj = DmChannelObject::new(d, user, &users);
-            if self.social.get_request_state(user, d.id).await? == Some(RequestState::Pending) {
+            let state = self.social.get_request_state(user, d.id).await?;
+            if matches!(state, Some(RequestState::Pending | RequestState::Spam)) {
                 obj.is_message_request = Some(true);
                 obj.sr_request_reason = self
                     .social
                     .get_request_reason(user, d.id)
                     .await?
+                    .or((state == Some(RequestState::Spam)).then_some(RequestReason::Spam))
                     .map(|r| r.as_str().to_owned());
             }
             private_channels.push(json!(obj));

@@ -38,7 +38,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-HOME-002** [FE] Friends nav item (pending-count badge)
 - [x] **LNG-HOME-003** [FE] Message Requests nav item (count)
 - [x] **LNG-HOME-004** [FE] Optional "Support SIDE ROOM" nav item (operator toggle). **No Nitro / Shop / Quests** *(`HomeSidebar.tsx` shows it when `GET /donations/config` says `enabled`; opens User Settings > Support; test `p11ShellHome.test.tsx`)*
-- [x] **LNG-HOME-005** [FE] "Direct Messages" header + "+" Create DM picker (friend search, multi-select ≤ 9 others, "Create DM/Group DM", copy group invite link) *(group invite link not built; needs a backend route)*
+- [x] **LNG-HOME-005** [FE] "Direct Messages" header + "+" Create DM picker (friend search, multi-select ≤ 9 others, "Create DM/Group DM", copy group invite link) *(group invite link not built; needs a backend route)* *(p24 RDY-PAR-001: built, copy-link in the picker)*
 - [x] **LNG-HOME-006** [FE] DM row: avatar + status, name, server-tag chip, activity subline (custom status, game, watching/reading, "Glooping…"), close "×" on hover
 - [x] **LNG-HOME-007** [FE] Group DM row (icon or avatar collage, member count subline)
 - [x] **LNG-HOME-008** [FE] DM row context menu: Profile, Call, Add Note, Close DM, Invite to Server ▸, Remove Friend, Ignore, Block, Mute Conversation ▸, Mark as Read, Copy User ID *(Call stays disabled until voice ships)*

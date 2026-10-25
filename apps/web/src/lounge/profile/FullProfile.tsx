@@ -5,7 +5,7 @@ import { formatDate, useT } from '../../i18n';
 import { cdnUrl } from '../../store/cdn';
 import { useCurrentUser, useGuilds, useUsers } from '../data';
 import { snowflakeTime } from '../liveMap';
-import { Md } from '../msg/Md';
+import { ProfileBio } from './profileMarkdown';
 import { useOpenDm } from '../shell/dm';
 import { Badges } from './Badges';
 import { listUserLists, listUserReviews, type UserList, type UserReview } from './extras';
@@ -323,9 +323,7 @@ export function FullProfile({ target, onClose }: { target: ProfileTarget; onClos
             {view.bio && (
               <section>
                 <h3 className="lng-pop-h">{t('lounge.profilePopout.aboutMe')}</h3>
-                <div className="lng-pop-bio">
-                  <Md text={view.bio} />
-                </div>
+                <ProfileBio text={view.bio} />
               </section>
             )}
             <section>

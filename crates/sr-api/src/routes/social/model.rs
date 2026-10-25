@@ -178,7 +178,9 @@ pub struct DmChannelObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_message_request: Option<bool>,
     /// With `is_message_request`: `server_filter` or `new_account` when a server's Protection
-    /// settings sent the conversation there (D-224). SIDE ROOM extension.
+    /// settings sent the conversation there (D-224), or `spam` when the recipient's DM spam
+    /// filter flagged it or the recipient filed it as spam (it then lists under "Likely spam").
+    /// SIDE ROOM extension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sr_request_reason: Option<String>,
     /// The largest file the viewer may upload in this conversation, in bytes (D-233).

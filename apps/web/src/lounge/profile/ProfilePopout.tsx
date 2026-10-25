@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { formatDate, useT } from '../../i18n';
 import { useViewer } from '../../settings/server/hooks';
 import { useCurrentUser, useLoungeActions, useMembers, useRoles, useUsers } from '../data';
-import { Md } from '../msg/Md';
+import { ProfileBio } from './profileMarkdown';
 import { useOpenDm } from '../shell/dm';
 import { setMemberRole } from './memberRoles';
 import { usePopout, type ProfileTarget } from './popoutStore';
@@ -180,9 +180,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
             <h3 id="pop-about-h" className="lng-pop-h">
               {t('lounge.profilePopout.aboutMe')}
             </h3>
-            <div className="lng-pop-bio">
-              <Md text={view.bio} />
-            </div>
+            <ProfileBio text={view.bio} />
           </section>
         )}
         {!user?.bot && <MiniProfile userId={target.userId} />}

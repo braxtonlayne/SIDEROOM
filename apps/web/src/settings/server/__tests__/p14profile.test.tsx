@@ -6,6 +6,7 @@ import { loadPermissions } from '@sideroom/wasm';
 import { afterEach, beforeEach } from 'vitest';
 import { resetChannelStatus, useChannelStatus } from '../../../voice/channelStatus';
 import { setPermEngine } from '../../../lounge/permEngine';
+import { useViewAs } from '../viewAsMode';
 import {
   bits,
   capture,
@@ -261,6 +262,33 @@ describe.skipIf(!built)('View Server As Role dialog (J-09, LNG-SSET-036)', () =>
     expect(await within(dialog).findByText('2 of 2 channels visible.')).toBeVisible();
     expect(within(dialog).getByText('staff-only')).toBeInTheDocument();
     expect(within(dialog).getByText(/has Administrator/)).toBeVisible();
+  });
+
+  it('Preview in the Lounge hands the visible channels to the Lounge mode (RDY-PAR-005)', async () => {
+    seed({ perms: [MANAGE.roles] });
+    server.use(
+      http.get('*/api/v1/guilds/g1/roles', () => HttpResponse.json(restRoles())),
+      http.get('*/api/v1/guilds/g1/channels', () =>
+        HttpResponse.json([
+          ch('c1', 'general', 0, { position: 0 }),
+          ch('c2', 'staff-only', 0, {
+            position: 1,
+            permission_overwrites: [{ id: 'g1', type: 0, allow: '0', deny: bits(10) }],
+          }),
+        ]),
+      ),
+    );
+    useViewAs.getState().exit();
+    await openSettings('roles');
+    await userEvent.click(await screen.findByRole('button', { name: 'View Server As Role' }));
+    const dialog = await screen.findByRole('dialog', { name: 'View Server As Role' });
+    await within(dialog).findByRole('list', { name: 'Visible channels' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Preview in the Lounge' }));
+    const session = useViewAs.getState().session;
+    expect(session?.guildId).toBe('g1');
+    expect([...(session?.visibleIds ?? [])]).toEqual(['c1']);
+    expect(screen.queryByRole('dialog', { name: 'View Server As Role' })).toBeNull();
+    useViewAs.getState().exit();
   });
 });
 

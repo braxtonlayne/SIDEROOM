@@ -20,5 +20,6 @@ export function requestReasonText(
     return days === null ? null : t('lounge.requests.reasonNewAccount', { days });
   }
   if (dm.sr_request_reason === 'server_filter') return t('lounge.requests.reasonServerFilter');
+  if (dm.sr_request_reason === 'spam') return t('lounge.requests.reasonSpamFilter');
   return null;
 }
