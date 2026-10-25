@@ -33,7 +33,8 @@ const GUILD_CREATE_CONCURRENCY: usize = 4;
 pub struct GatewayConfig {
     /// Sent in HELLO. Docs/05 6.4: 41250 ms.
     pub heartbeat_interval: Duration,
-    /// Extra slack before a silent client is closed with 4009.
+    /// Extra slack before a silent client is closed with 4009: 30 s (P24-GW-1), so a stalled page or a
+    /// backgrounded tab whose timers Chrome aligns to one wake-up a minute is not timed out.
     pub heartbeat_grace: Duration,
     /// How long a disconnected session stays resumable (2 minutes).
     pub resume_window: Duration,
@@ -78,7 +79,7 @@ impl Default for GatewayConfig {
     fn default() -> Self {
         Self {
             heartbeat_interval: Duration::from_millis(41_250),
-            heartbeat_grace: Duration::from_secs(10),
+            heartbeat_grace: Duration::from_secs(30),
             resume_window: Duration::from_secs(120),
             resume_buffer: 5_000,
             resume_gateway_url: None,

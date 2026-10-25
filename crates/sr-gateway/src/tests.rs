@@ -324,6 +324,14 @@ async fn hello_identify_ready() {
     assert_eq!(gc["d"]["id"], "1");
 }
 
+/// P24-GW-1: Chrome's intensive throttling wakes a hidden tab's chained timers once a minute, so the default
+/// deadline (interval + grace) must clear 60 s with room for latency; tightening it should be deliberate.
+#[test]
+fn default_heartbeat_deadline_survives_a_once_a_minute_tab() {
+    let c = GatewayConfig::default();
+    assert!(c.heartbeat_interval + c.heartbeat_grace >= Duration::from_secs(70));
+}
+
 #[tokio::test(start_paused = true)]
 async fn heartbeat_ack_and_timeout() {
     let e = env_with(GatewayConfig {
