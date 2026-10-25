@@ -63,10 +63,36 @@ export async function waitReady(base, seconds = 60) {
 }
 
 /**
+ * Makes an application with its bot and installs it in `guildId` the way the consent screen does
+ * (POST /oauth2/authorize with guild_id). Call it again for a second bot in the same server.
+ * @returns {Promise<{ appId: string, token: string }>}
+ */
+export async function installBot(person, guildId, name, permissions) {
+  const created = await person.post('/applications', { name });
+  const appId = created.application.id;
+  await person.patch(`/applications/${appId}`, { bot_public: true });
+  await person.post('/oauth2/authorize', {
+    client_id: appId,
+    scope: 'bot applications.commands',
+    guild_id: guildId,
+    permissions,
+    authorize: true,
+  });
+  return { appId, token: created.bot_token };
+}
+
+/**
  * Creates the server, the application with its bot and the install.
  * @returns {Promise<{ person: Person, token: string, appId: string, guildId: string, channelId: string, enableMessageContent: () => Promise<void> }>}
  */
-export async function provision({ base, owner, password, stamp = Date.now().toString(36) }) {
+export async function provision({
+  base,
+  owner,
+  password,
+  stamp = Date.now().toString(36),
+  // VIEW_CHANNEL, SEND_MESSAGES, READ_MESSAGE_HISTORY unless a run needs more (the voice bot adds CONNECT, SPEAK).
+  permissions = String((1n << 10n) | (1n << 11n) | (1n << 16n)),
+}) {
   const person = new Person(base);
   await person.login(owner, password);
 
@@ -74,21 +100,7 @@ export async function provision({ base, owner, password, stamp = Date.now().toSt
   const channel = guild.channels.find((c) => c.type === 0);
   if (!channel) throw new Error('the new server has no text channel');
 
-  const created = await person.post('/applications', { name: `Compat bot ${stamp}` });
-  const appId = created.application.id;
-  const token = created.bot_token;
-  await person.patch(`/applications/${appId}`, { bot_public: true });
-
-  // Install the bot the way the consent screen does (POST /oauth2/authorize with guild_id).
-  // VIEW_CHANNEL, SEND_MESSAGES, READ_MESSAGE_HISTORY.
-  const permissions = String((1n << 10n) | (1n << 11n) | (1n << 16n));
-  await person.post('/oauth2/authorize', {
-    client_id: appId,
-    scope: 'bot applications.commands',
-    guild_id: guild.id,
-    permissions,
-    authorize: true,
-  });
+  const { appId, token } = await installBot(person, guild.id, `Compat bot ${stamp}`, permissions);
 
   return {
     person,
