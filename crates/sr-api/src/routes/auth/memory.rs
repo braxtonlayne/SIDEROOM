@@ -75,6 +75,8 @@ struct Inner {
     devices: HashMap<i64, HashSet<String>>,
     /// Accounts that turned new-device alerts off.
     login_alerts_off: HashSet<i64>,
+    /// Accounts whose first run was re-opened (the in-memory store starts every account as done).
+    first_run_open: HashSet<i64>,
     next_row_id: i64,
 }
 
@@ -215,6 +217,20 @@ impl AuthStore for MemoryAuthStore {
 
     async fn login_alerts_enabled(&self, account: i64) -> StoreResult<bool> {
         Ok(!self.lock().login_alerts_off.contains(&account))
+    }
+
+    async fn first_run_done(&self, account: i64) -> StoreResult<bool> {
+        Ok(!self.lock().first_run_open.contains(&account))
+    }
+
+    async fn set_first_run_done(&self, account: i64, done: bool) -> StoreResult<()> {
+        let mut g = self.lock();
+        if done {
+            g.first_run_open.remove(&account);
+        } else {
+            g.first_run_open.insert(account);
+        }
+        Ok(())
     }
 
     async fn set_login_alerts(&self, account: i64, enabled: bool) -> StoreResult<()> {

@@ -1,4 +1,6 @@
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { cspOptionsFromConfig, securityHeaders } from './src/security/csp';
 import { activityHostProxy } from './vite/activityHosts';
@@ -22,7 +24,25 @@ const extra = {
   extraMedia: list(process.env.SR_CSP_MEDIA),
 };
 
+/**
+ * RDY-ONB-003: the version the build embeds is the first `##` heading of the root CHANGELOG.md without its date
+ * ("Phase 22"). The help button shows a one-time badge when it differs from the one a browser last saw.
+ */
+function changelogVersion(): string {
+  try {
+    const text = readFileSync(
+      fileURLToPath(new URL('../../CHANGELOG.md', import.meta.url)),
+      'utf8',
+    );
+    const heading = /^## (.+?)\s*$/m.exec(text)?.[1] ?? '';
+    return heading.replace(/\s+-\s+\d{4}-\d{2}-\d{2}$/, '') || 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
 export default defineConfig({
+  define: { __SR_VERSION__: JSON.stringify(changelogVersion()) },
   plugins: [
     react(),
     pwaPlugin(),

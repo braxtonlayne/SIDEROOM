@@ -281,7 +281,7 @@ function RolesEditor({
                 >
                   {t('settings.roles.defaultPermissions')}
                 </button>
-                <span className="ss-meta"> @everyone</span>
+                <span className="ss-meta"> {t('settings.roles.everyoneName')}</span>
               </span>
               <span className="ss-meta">{t('settings.roles.allMembers')}</span>
             </li>

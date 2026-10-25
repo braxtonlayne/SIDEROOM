@@ -891,6 +891,45 @@ async fn new_device_alerts_can_be_switched_off_and_need_a_verified_address() {
 }
 
 #[tokio::test]
+async fn the_first_run_flag_is_reported_on_me_and_can_be_reopened() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let me = h.get("/api/v1/users/@me").session(&s).send().await;
+    assert_eq!(me.body["first_run_done"], true);
+
+    // /help re-opens it; the flag reads back as not done.
+    let reopen = h
+        .call(Method::PUT, "/api/v1/sr/auth/first-run")
+        .json(json!({"done": false}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(reopen.status, StatusCode::NO_CONTENT);
+    let me = h.get("/api/v1/users/@me").session(&s).send().await;
+    assert_eq!(me.body["first_run_done"], false);
+
+    // Closing it stores done again.
+    let close = h
+        .call(Method::PUT, "/api/v1/sr/auth/first-run")
+        .json(json!({"done": true}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(close.status, StatusCode::NO_CONTENT);
+    let me = h.get("/api/v1/users/@me").session(&s).send().await;
+    assert_eq!(me.body["first_run_done"], true);
+
+    // Signed out, the route is not reachable.
+    let anon = h
+        .call(Method::PUT, "/api/v1/sr/auth/first-run")
+        .json(json!({"done": true}))
+        .send()
+        .await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn login_lockout_and_recovery_over_time() {
     let h = harness();
     h.add_account(1, "alice", "alice@x.test", AccountState::Active);

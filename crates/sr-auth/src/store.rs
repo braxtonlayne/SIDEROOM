@@ -486,6 +486,17 @@ pub trait AuthStore: Send + Sync {
     async fn login_alerts_enabled(&self, _account: i64) -> StoreResult<bool> {
         Ok(true)
     }
+    /// Whether the account closed or finished the platform first run (RDY-ONB-001). Stores without the
+    /// column answer `true`, so nobody is shown a flow that cannot be remembered.
+    async fn first_run_done(&self, _account: i64) -> StoreResult<bool> {
+        Ok(true)
+    }
+    /// Remember (or, from `/help`, forget) that the first run is done.
+    async fn set_first_run_done(&self, _account: i64, _done: bool) -> StoreResult<()> {
+        Err(StoreError(
+            "the first run flag is not supported by this store".into(),
+        ))
+    }
     /// Turn new-device mails on or off.
     async fn set_login_alerts(&self, _account: i64, _enabled: bool) -> StoreResult<()> {
         Err(StoreError(

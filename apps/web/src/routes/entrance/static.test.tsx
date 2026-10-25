@@ -40,8 +40,12 @@ describe('static entrance pages', () => {
       ),
     );
     at('/help');
-    expect(await screen.findByRole('heading', { name: 'Copyright notices' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'legal@example.org' })).toBeVisible();
+    const heading = await screen.findByRole('heading', { name: 'Copyright notices' });
+    expect(heading).toBeVisible();
+    // The contact also shows in the handbook's privacy section, so look inside the notices section.
+    expect(
+      within(heading.closest('section')!).getByRole('link', { name: 'legal@example.org' }),
+    ).toBeVisible();
   });
 
   it('adds no operator lines while the operator has set none', async () => {

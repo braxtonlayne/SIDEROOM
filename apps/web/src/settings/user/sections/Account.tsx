@@ -167,7 +167,7 @@ export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () =
   );
 }
 
-function TotpWizard({
+export function TotpWizard({
   open,
   onClose,
   onEnabled,

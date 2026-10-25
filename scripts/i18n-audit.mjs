@@ -16,7 +16,8 @@ if (withTs) args.splice(tsIdx, 1);
 const root = args[0] ?? 'apps/web/src';
 
 const SKIP_DIRS = new Set(['__tests__', 'i18n', 'test', 'styles', 'node_modules']);
-const SKIP_PATHS = ['routes/entrance'];
+// RDY-I18N-001: the Entrance is counted like everything else (it was skipped while it was still being extracted).
+const SKIP_PATHS = [];
 const SKIP_FILE = /(^Entrance|^SkipLink|^Door|^icons?\b|Icons?\.tsx$)/i;
 
 function walk(dir, out = []) {
@@ -66,9 +67,11 @@ export function countFile(src) {
   for (const m of src.matchAll(ATTR)) if (letters(m[1] ?? m[2] ?? '') >= 3) n++;
   // JSX text: text between '>' and '<' outside braces, at least 3 letters.
   const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-  for (const m of noComments.matchAll(/>([^<>{}]*)(?=<)/g)) {
+  // `(?<!=)>` leaves out the `>` of an arrow (`() => Promise<void>`); a `;` never occurs in UI text but does between
+  // two generics (`useState<string>(null); const x = useRef<`), which the pattern would otherwise read as text.
+  for (const m of noComments.matchAll(/(?<!=)>([^<>{}]*)(?=<)/g)) {
     const text = m[1].replace(/&[a-z]+;/g, ' ');
-    if (letters(text) < 3) continue;
+    if (letters(text) < 3 || text.includes(';')) continue;
     // Skip TypeScript generics / arrows / comparisons that merely look like text.
     if (/[=;()]|=>/.test(text) && !/[A-Za-z]{3,}\s+[A-Za-z]{2,}/.test(text)) continue;
     n++;

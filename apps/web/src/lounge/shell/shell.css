@@ -570,3 +570,35 @@
   color: var(--ui-text-muted);
   font-size: 0.8125rem;
 }
+
+/* First run (RDY-ONB-001) */
+.lng-welcome-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.lng-welcome-flow h3 {
+  margin: 0 0 4px;
+}
+.lng-welcome-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lng-firstrun-list {
+  margin: 8px 0 0;
+  padding-inline-start: 1.2em;
+}
+.lng-firstrun-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  inline-size: 100%;
+}
+.lng-firstrun-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

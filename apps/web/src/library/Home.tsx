@@ -17,6 +17,7 @@ import { getRecommendations } from './p13api';
 import { progressApi, progressLine } from './progress';
 import { getFeaturedLists, getRankings, socialKeys, type RankingScope } from './social';
 import type { Series } from './types';
+import { prefetchHelp } from '../help/prefetch';
 import {
   AgeBadge,
   CardSkeletons,
@@ -516,7 +517,9 @@ export function HomeFooter() {
       <span className="lib-footer-brand">{t('library.home.footer.brand')}</span>
       <nav aria-label={t('library.home.footer.label')} className="lib-footer-links">
         <a href="/house-notes">{t('library.home.footer.about')}</a>
-        <a href="/help">{t('library.home.footer.help')}</a>
+        <a href="/help" onPointerEnter={prefetchHelp} onFocus={prefetchHelp}>
+          {t('library.home.footer.help')}
+        </a>
         <a href="/support/leaderboards?tab=chapters">
           {t('library.home.footer.contributorBoards')}
         </a>

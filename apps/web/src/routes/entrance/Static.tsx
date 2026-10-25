@@ -140,26 +140,3 @@ export function HelpSections() {
     </>
   );
 }
-
-/** `/help` (D-270): the public help answers; `/support` is the donation page and only links here. */
-export function Help() {
-  const t = useT();
-  return (
-    <EntranceShell nav="member-access" footerRight="House notes">
-      <main className="ent-prose ent-notes">
-        <h1>{t('entrance.support.title')}</h1>
-        <p>{t('entrance.support.intro')}</p>
-        <HelpSections />
-        <section aria-labelledby="help-notices">
-          <h2 id="help-notices">{t('entrance.support.notices.title')}</h2>
-          <p>
-            {t('entrance.support.notices.body')}{' '}
-            <a href="/THIRD_PARTY_NOTICES.md" target="_blank" rel="noreferrer">
-              {t('entrance.support.notices.link')}
-            </a>
-          </p>
-        </section>
-      </main>
-    </EntranceShell>
-  );
-}

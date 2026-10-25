@@ -102,6 +102,18 @@ fn add_role(e: &Env, name: &str, position: i32) -> RoleId {
 }
 
 #[tokio::test]
+async fn the_public_compliance_object_names_the_initial_invite_credits() {
+    let e = env_features().await;
+    let (s, v) = e
+        .call(Method::GET, "/sr/compliance/public", None, None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    // No auth service is wired in this world, so the default shows.
+    assert_eq!(v["invite_initial_credits"], 5);
+    assert_eq!(v["minimum_age"], 13);
+}
+
+#[tokio::test]
 async fn managers_list_modules_with_their_schema() {
     let e = env_features().await;
     let path = e.g("/sr/features");

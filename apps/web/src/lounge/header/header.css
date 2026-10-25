@@ -117,3 +117,17 @@
   background: var(--ui-bg-input, transparent);
   color: inherit;
 }
+
+/* One-time "there is news" dot on the help button (RDY-ONB-003). */
+.lng-help-trigger {
+  position: relative;
+}
+.lng-help-dot {
+  position: absolute;
+  inset-block-start: 4px;
+  inset-inline-end: 4px;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--danger, #d33);
+}
