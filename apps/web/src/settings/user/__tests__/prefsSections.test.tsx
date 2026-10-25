@@ -7,6 +7,7 @@ import { useStore } from '../../../store';
 import { http, HttpResponse, server } from '../../../test/server';
 import { DEFAULT_PREFS, usePrefsStore } from '../prefs';
 import { searchSettings } from '../searchIndex';
+import { APP_VERSION, hasUnseenNews } from '../../../lib/whatsNew';
 import { openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
 
 const themeRoot = () => document.querySelector<HTMLElement>('[data-theme]')!;
@@ -424,13 +425,17 @@ describe('Settings search', () => {
 });
 
 describe('What is new and the footer', () => {
-  it("shows the version and a What's New dialog", async () => {
+  it("shows the version, and What's New opens /help/whats-new and clears the badge (T-07)", async () => {
+    localStorage.setItem('sr.whatsNew.seen', 'Phase 1');
+    expect(hasUnseenNews()).toBe(true);
     const user = userEvent.setup();
-    openSettings('advanced');
+    const router = openSettings('advanced');
     expect(await screen.findByText(/^SIDE ROOM \d/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: "What's New" }));
-    const dialog = await screen.findByRole('dialog', { name: "What's New" });
-    expect(within(dialog).getByText('Settings, filled in')).toBeInTheDocument();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/help/whats-new'));
+    expect(screen.queryByRole('dialog', { name: "What's New" })).toBeNull();
+    expect(localStorage.getItem('sr.whatsNew.seen')).toBe(APP_VERSION);
+    expect(hasUnseenNews()).toBe(false);
   });
 });
 
