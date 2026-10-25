@@ -54,7 +54,12 @@ describe('Lounge keyboard lists', () => {
     const list = await screen.findByRole('list', { name: 'Members' });
     const members = () => Array.from(list.querySelectorAll<HTMLElement>('.lng-member'));
     await waitFor(() => expect(members().length).toBeGreaterThanOrEqual(2));
-    expect(members().map((m) => m.tabIndex)).toEqual([0, ...members().slice(1).map(() => -1)]);
+    expect(members().map((m) => m.tabIndex)).toEqual([
+      0,
+      ...members()
+        .slice(1)
+        .map(() => -1),
+    ]);
     members()[0]!.focus();
     await user.keyboard('{ArrowDown}');
     expect(members()[1]).toHaveFocus();

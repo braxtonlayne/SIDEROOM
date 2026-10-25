@@ -287,6 +287,8 @@ export function Discover() {
 
   return (
     <>
+      {/* The feature hero carries the page's h1; without one, keep a heading for the page (axe page-has-heading-one). */}
+      {hero.length === 0 && <h1 className="cin-sr-only">{tr('cinema.shell.cinema')}</h1>}
       <Hero titles={hero} />
       <div className="cin-page cin-rows">
         {visible.map((r) => (

@@ -154,7 +154,7 @@ export function useRequireSession() {
 export function CinemaHeader({ onSearch, onMenu }: { onSearch: () => void; onMenu?: () => void }) {
   const t = useT();
   return (
-    <div className="cin-header">
+    <div className="cin-header" role="region" aria-label={t('a11y.landmark.cinemaHeader')}>
       {onMenu && (
         <button
           type="button"

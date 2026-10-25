@@ -16,7 +16,14 @@ describe('Cinema keyboard navigation', () => {
     expect(rows.length).toBeGreaterThan(0);
     const row = rows[0]!;
     const cards = () => Array.from(row.querySelectorAll<HTMLElement>('[data-poster-link]'));
-    await waitFor(() => expect(tabStops(cards())).toEqual([0, ...cards().slice(1).map(() => -1)]));
+    await waitFor(() =>
+      expect(tabStops(cards())).toEqual([
+        0,
+        ...cards()
+          .slice(1)
+          .map(() => -1),
+      ]),
+    );
     cards()[0]!.focus();
     await user.keyboard('{ArrowRight}');
     expect(cards()[1]).toHaveFocus();
@@ -41,8 +48,7 @@ describe('Cinema keyboard navigation', () => {
     renderAt('/cinema/movies');
     await screen.findByText('Film a');
     const grid = document.querySelector<HTMLElement>('.cin-grid')!;
-    const cards = () =>
-      within(grid).getAllByRole('link', { name: /^Film / }) as HTMLElement[];
+    const cards = () => within(grid).getAllByRole('link', { name: /^Film / }) as HTMLElement[];
     await waitFor(() => expect(tabStops(cards())).toEqual([0, -1, -1, -1, -1]));
     cards()[0]!.focus();
     await user.keyboard('{ArrowDown}');

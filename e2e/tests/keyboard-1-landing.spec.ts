@@ -14,7 +14,9 @@ import {
  * the first tab stop and moves focus to the main region; the invite field has a label; a refused code is said in
  * the status line without moving focus; a valid one says "You're on the list." and goes on to /register.
  */
-test('landing: skip link, invite field, refusal and acceptance, keyboard only', async ({ page }) => {
+test('landing: skip link, invite field, refusal and acceptance, keyboard only', async ({
+  page,
+}) => {
   test.skip(!(await tabsToLinks(page)), LINKS_NOT_TABBABLE);
   await watchText(page, '#invite-msg', '__invite');
   await page.goto('/');
@@ -38,14 +40,17 @@ test('landing: skip link, invite field, refusal and acceptance, keyboard only', 
   // A refused code: the status line says so, the field is marked invalid, focus does not move.
   await page.keyboard.type('ZZZZZ-ZZZZZ');
   await page.keyboard.press('Enter');
-  await expect.poll(() => textHistory(page, '__invite')).toContain("That invitation doesn't open this door.");
+  await expect
+    .poll(() => textHistory(page, '__invite'))
+    .toContain("That invitation doesn't open this door.");
   await expect(field).toHaveAttribute('aria-invalid', 'true');
   // Finding (owned by the first-run agent, routes/entrance): the field is disabled while the code is checked, so
   // focus falls to <body> and does not come back. The spec records it and walks back to the field instead.
   if (!(await isFocused(field))) {
     test.info().annotations.push({
       type: 'finding',
-      description: 'Focus is lost from #invite-code after a refused code (field disabled while checking).',
+      description:
+        'Focus is lost from #invite-code after a refused code (field disabled while checking).',
     });
     await tabTo(page, field);
   }

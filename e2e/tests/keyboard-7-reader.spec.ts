@@ -1,4 +1,4 @@
-import { expect, test } from '../support/fixtures';
+import { expect, test } from '../support/world';
 import {
   LINKS_NOT_TABBABLE,
   focusWithin,
@@ -8,7 +8,6 @@ import {
   watchText,
   textHistory,
 } from '../support/keys';
-import { soloServer } from '../support/world';
 
 /**
  * RDY-A11Y-003, flow 7: the Library reader with the keyboard only. Arrows and End turn pages, the reader's
@@ -55,13 +54,14 @@ const manifest = (n: number) => ({
 });
 
 test('reader: turn pages, change chapter, open and close the settings, keyboard only', async ({
-  owner,
-  signedIn,
+  solo,
 }) => {
-  const { a } = await soloServer(signedIn, owner);
+  const { a } = solo;
   const page = a.page;
   test.skip(!(await tabsToLinks(page)), LINKS_NOT_TABBABLE);
-  await page.route('**/cdn/kb-*.png', (route) => route.fulfill({ contentType: 'image/png', body: PNG }));
+  await page.route('**/cdn/kb-*.png', (route) =>
+    route.fulfill({ contentType: 'image/png', body: PNG }),
+  );
   await page.route(/\/api\/v1\/library\/chapters\/kb(\d)\/pages$/, (route) => {
     const n = Number(/kb(\d)\/pages/.exec(route.request().url())?.[1]);
     return route.fulfill({ json: manifest(n) });
@@ -89,7 +89,9 @@ test('reader: turn pages, change chapter, open and close the settings, keyboard 
           created_at_ms: 1,
           updated_at_ms: 2,
         },
-        editions: [{ id: 'e1', series_id: 'kb1', language: 'en', label: 'Official', is_default: true }],
+        editions: [
+          { id: 'e1', series_id: 'kb1', language: 'en', label: 'Official', is_default: true },
+        ],
         follow: null,
       },
     }),

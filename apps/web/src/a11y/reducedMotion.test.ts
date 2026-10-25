@@ -34,7 +34,10 @@ const css: Record<string, string> = {
   ...walk(UI, /\.css$/),
 };
 const sources: Record<string, string> = {
-  ...Object.assign({}, ...['lounge', 'cinema', 'library'].map((d) => walk(resolve(SRC, d), /\.tsx?$/))),
+  ...Object.assign(
+    {},
+    ...['lounge', 'cinema', 'library'].map((d) => walk(resolve(SRC, d), /\.tsx?$/)),
+  ),
   ...walk(UI, /\.tsx?$/),
 };
 
@@ -44,9 +47,15 @@ const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 describe('reduced motion', () => {
   it('has one guard for the OS setting and one for the in-app setting', () => {
     const a11y = strip(files.find(([p]) => p.endsWith('/styles/a11y.css'))?.[1] ?? '');
-    const os = /@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*?animation-duration:\s*0\.01ms\s*!important[^@]*?transition-duration:\s*0\.01ms\s*!important/.exec(a11y);
+    const os =
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[^@]*?animation-duration:\s*0\.01ms\s*!important[^@]*?transition-duration:\s*0\.01ms\s*!important/.exec(
+        a11y,
+      );
     expect(os, 'the prefers-reduced-motion guard in styles/a11y.css').not.toBeNull();
-    const app = /\[data-reduced-motion='true'\]\s*\*[^{]*\{[^}]*animation-duration:\s*0\.01ms\s*!important[^}]*transition-duration:\s*0\.01ms\s*!important[^}]*scroll-behavior:\s*auto\s*!important/.exec(a11y);
+    const app =
+      /\[data-reduced-motion='true'\]\s*\*[^{]*\{[^}]*animation-duration:\s*0\.01ms\s*!important[^}]*transition-duration:\s*0\.01ms\s*!important[^}]*scroll-behavior:\s*auto\s*!important/.exec(
+        a11y,
+      );
     expect(app, "the [data-reduced-motion='true'] guard in styles/a11y.css").not.toBeNull();
     expect(a11y).toMatch(/animation-iteration-count:\s*1\s*!important/);
   });
@@ -66,7 +75,9 @@ describe('reduced motion', () => {
       const text = strip(raw);
       // An `!important` on a duration or iteration count beats the guard (which is also `!important` but earlier in
       // the cascade for author sheets with equal specificity); `animation-play-state: running !important` too.
-      for (const m of text.matchAll(/(animation(?:-[a-z-]+)?|transition(?:-[a-z-]+)?)\s*:[^;{}]*!important/g))
+      for (const m of text.matchAll(
+        /(animation(?:-[a-z-]+)?|transition(?:-[a-z-]+)?)\s*:[^;{}]*!important/g,
+      ))
         if (!/:\s*none\b/.test(m[0])) offenders.push(`${path}: ${m[0].trim()}`);
     }
     expect(offenders).toEqual([]);
@@ -76,23 +87,31 @@ describe('reduced motion', () => {
     // The guard sets iteration-count: 1 and duration: 0.01ms, so an infinite loop becomes one frame. The only
     // thing that would escape it is an animation driven by a JS timer, which the next test looks for.
     const infinite = files.flatMap(([path, raw]) =>
-      Array.from(strip(raw).matchAll(/animation[^;{}]*\binfinite\b[^;{}]*;/g)).map((m) => `${path}: ${m[0].trim()}`),
+      Array.from(strip(raw).matchAll(/animation[^;{}]*\binfinite\b[^;{}]*;/g)).map(
+        (m) => `${path}: ${m[0].trim()}`,
+      ),
     );
     expect(infinite.length).toBeGreaterThan(0); // the walk finds them; they are listed in the handoff
   });
 
   it('scripts only ask for smooth scrolling next to a reduced-motion check', () => {
     const offenders = Object.entries(sources)
-      .filter(([, text]) => /behavior:\s*['"]smooth['"]|behavior:\s*[^,}]*\?\s*['"]auto['"]\s*:\s*['"]smooth['"]/.test(text))
+      .filter(([, text]) =>
+        /behavior:\s*['"]smooth['"]|behavior:\s*[^,}]*\?\s*['"]auto['"]\s*:\s*['"]smooth['"]/.test(
+          text,
+        ),
+      )
       .filter(([, text]) => !/prefersReducedMotion|reduced|data-reduced-motion/i.test(text))
       .map(([path]) => path);
     expect(offenders).toEqual([]);
   });
 
   it('the Cinema guide and the UI kit poster row do check the preference', () => {
-    const guide = Object.entries(sources).find(([p]) => p.endsWith('/cinema/tv/Guide.tsx'))?.[1] ?? '';
+    const guide =
+      Object.entries(sources).find(([p]) => p.endsWith('/cinema/tv/Guide.tsx'))?.[1] ?? '';
     expect(guide).toMatch(/reduced \? 'auto' : 'smooth'/);
-    const poster = Object.entries(sources).find(([p]) => p.endsWith('/sideroom/Poster.tsx'))?.[1] ?? '';
+    const poster =
+      Object.entries(sources).find(([p]) => p.endsWith('/sideroom/Poster.tsx'))?.[1] ?? '';
     expect(poster).toMatch(/reduced \? "auto" : "smooth"/);
   });
 });

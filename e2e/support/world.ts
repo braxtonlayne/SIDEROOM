@@ -1,4 +1,34 @@
-import { apiPost, type SeededUser, type SignedIn } from './fixtures';
+import type { APIRequestContext } from '@playwright/test';
+import { apiPost, test as base, type SeededUser, type SignedIn } from './fixtures';
+
+/** DELETE with the session cookie and CSRF token; the Owner's servers are removed again after each spec. */
+export async function apiDelete(request: APIRequestContext, path: string): Promise<void> {
+  const origin = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173').origin;
+  const csrf = await request.get('/api/v1/sr/csrf', { headers: { Origin: origin } });
+  const token = ((await csrf.json()) as { token: string }).token;
+  await request.delete(`/api/v1/${path.replace(/^\//, '')}`, {
+    headers: { Origin: origin, 'X-SR-CSRF': token },
+  });
+}
+
+/**
+ * Every spec that creates a server as the (shared) Owner removes it again. The web app asks for one settings
+ * document per server on every page load, and the API rate-limits that: a few dozen leftover servers made later
+ * specs fail with 429 on a long local run.
+ */
+export async function dropServer(w: { a: SignedIn; guildId: string }): Promise<void> {
+  await apiDelete(w.a.context.request, `guilds/${w.guildId}`).catch(() => undefined);
+}
+
+/** `solo`: a one-person server of the Owner, signed in, removed when the test ends. */
+export const test = base.extend<{ solo: SoloWorld }>({
+  solo: async ({ owner, signedIn }, use) => {
+    const w = await soloServer(signedIn, owner);
+    await use(w);
+    await dropServer(w);
+  },
+});
+export { expect } from './fixtures';
 
 /** What a spec needs from a one-person server (the Owner, who is already registered: no new account). */
 export interface SoloWorld {

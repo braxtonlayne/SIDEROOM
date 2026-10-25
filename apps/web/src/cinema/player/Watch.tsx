@@ -116,7 +116,7 @@ function WatchLoader({
   if (query.isError && !declined) {
     const gone = query.error instanceof ApiError && query.error.status === 404;
     return (
-      <div className="cpl-player cpl-player-msg">
+      <div className="cpl-player cpl-player-msg" role="main">
         <EmptyState
           title={
             takenDown
@@ -143,7 +143,7 @@ function WatchLoader({
   }
   if (!info || declined) {
     return (
-      <div className="cpl-player cpl-player-msg">
+      <div className="cpl-player cpl-player-msg" role="main">
         <Spinner label={tr('cinema.watch.opening')} />
       </div>
     );

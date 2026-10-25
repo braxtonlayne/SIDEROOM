@@ -1,4 +1,4 @@
-import { expect, test } from '../support/fixtures';
+import { expect, test } from '../support/world';
 import {
   LINKS_NOT_TABBABLE,
   expectHeard,
@@ -7,7 +7,6 @@ import {
   tabsToLinks,
   watchLive,
 } from '../support/keys';
-import { soloServer } from '../support/world';
 
 /**
  * RDY-A11Y-003, flow 6: a voice call with the keyboard only. Join from the channel list with Enter, mute and
@@ -18,7 +17,10 @@ import { soloServer } from '../support/world';
  * Needs the voice stack (the `live` CI job: SR_VOICE__ENABLED and SR_E2E_VOICE=1) and Chromium's fake audio
  * device; set SR_E2E_VOICE=1 against a server that has voice on.
  */
-test.skip(process.env.SR_E2E_VOICE !== '1', 'Needs the voice stack of the live CI job; set SR_E2E_VOICE=1.');
+test.skip(
+  process.env.SR_E2E_VOICE !== '1',
+  'Needs the voice stack of the live CI job; set SR_E2E_VOICE=1.',
+);
 
 test.use({
   permissions: ['microphone'],
@@ -33,12 +35,11 @@ test.use({
 });
 
 test('voice: join, mute, unmute and leave by keyboard, each one announced', async ({
-  owner,
-  signedIn,
+  solo,
   browserName,
 }) => {
   test.skip(browserName !== 'chromium', 'Fake media flags are Chromium only.');
-  const { a, guildId, channelId } = await soloServer(signedIn, owner);
+  const { a, guildId, channelId } = solo;
   const page = a.page;
   test.skip(!(await tabsToLinks(page)), LINKS_NOT_TABBABLE);
   await watchLive(page);

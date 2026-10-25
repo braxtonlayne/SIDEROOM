@@ -1,5 +1,4 @@
-import { expect, test } from '../support/fixtures';
-import { soloServer } from '../support/world';
+import { expect, test } from '../support/world';
 import {
   LINKS_NOT_TABBABLE,
   focusWithin,
@@ -14,8 +13,10 @@ import {
  * the keyboard, focus lands inside and stays inside while Tab cycles, Escape closes it, and focus returns to the
  * control that opened it (to the control that had focus, for the shortcut).
  */
-test('modal, menu and quick switcher: focus goes in, stays in, and comes back', async ({ owner, signedIn }) => {
-  const { a, guildId, channelId } = await soloServer(signedIn, owner);
+test('modal, menu and quick switcher: focus goes in, stays in, and comes back', async ({
+  solo,
+}) => {
+  const { a, guildId, channelId } = solo;
   const page = a.page;
   test.skip(!(await tabsToLinks(page)), LINKS_NOT_TABBABLE);
   await page.goto(`/channels/${guildId}/${channelId}`);
@@ -43,7 +44,10 @@ test('modal, menu and quick switcher: focus goes in, stays in, and comes back', 
   await expect.poll(() => focusWithin(page, dialog)).toBe(true);
   for (let i = 0; i < 12; i++) {
     await page.keyboard.press('Tab');
-    expect(await focusWithin(page, dialog), `Tab ${i + 1} left the dialog: ${await focusedName(page)}`).toBe(true);
+    expect(
+      await focusWithin(page, dialog),
+      `Tab ${i + 1} left the dialog: ${await focusedName(page)}`,
+    ).toBe(true);
   }
   for (let i = 0; i < 12; i++) {
     await page.keyboard.press('Shift+Tab');

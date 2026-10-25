@@ -298,12 +298,14 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
   /* --------------------------------------------------- URL + progress */
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  const routerRef = useRef(router);
+  routerRef.current = router;
   const firstRender = useRef(true);
   useEffect(() => {
     if (firstRender.current) return;
     // A move to another chapter (Next chapter, from the keyboard too) is already in the address bar while this view
     // is still mounted: writing this chapter's address over it would undo the move (RDY-A11Y-003, flow 7).
-    const path = router.latestLocation.pathname;
+    const path = routerRef.current.latestLocation.pathname;
     const mine = `/library/r/${chapter.id}`;
     if (path !== mine && !path.startsWith(`${mine}/`)) return;
     // Keep the address in step with the page (replace: back leaves the reader, not the last page).

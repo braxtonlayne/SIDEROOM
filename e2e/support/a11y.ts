@@ -36,7 +36,11 @@ export async function runAxe(page: Page, include?: string): Promise<Finding[]> {
                 id: string;
                 impact: Impact;
                 help: string;
-                nodes: { target: unknown[]; any: { message: string }[]; none: { message: string }[] }[];
+                nodes: {
+                  target: unknown[];
+                  any: { message: string }[];
+                  none: { message: string }[];
+                }[];
               }[];
             }>;
           };
@@ -68,7 +72,10 @@ export async function settle(page: Page): Promise<void> {
       () =>
         document
           .getAnimations()
-          .every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity),
+          .every(
+            (a) =>
+              a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity,
+          ),
       undefined,
       { timeout: 4000 },
     )

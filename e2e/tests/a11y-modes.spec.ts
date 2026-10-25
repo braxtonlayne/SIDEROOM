@@ -1,6 +1,5 @@
-import { expect, test } from '../support/fixtures';
+import { expect, test } from '../support/world';
 import { runAxe, settle } from '../support/a11y';
-import { soloServer } from '../support/world';
 
 /**
  * RDY-A11Y-004 in a real browser: reduced motion (the OS preference and the in-app setting) collapses every
@@ -22,11 +21,15 @@ const longestMotion = () =>
         .map((p) => (p.endsWith('ms') ? parseFloat(p) / 1000 : parseFloat(p)))
         .reduce((a, b) => Math.max(a, Number.isFinite(b) ? b : 0), 0);
     const hasAnimation = cs.animationName && cs.animationName !== 'none';
-    return Math.max(max, secs(cs.transitionDuration), hasAnimation ? secs(cs.animationDuration) : 0);
+    return Math.max(
+      max,
+      secs(cs.transitionDuration),
+      hasAnimation ? secs(cs.animationDuration) : 0,
+    );
   }, 0);
 
-test('reduced motion: nothing animates in the Lounge, Cinema and Library', async ({ owner, signedIn }) => {
-  const { a, guildId, channelId } = await soloServer(signedIn, owner);
+test('reduced motion: nothing animates in the Lounge, Cinema and Library', async ({ solo }) => {
+  const { a, guildId, channelId } = solo;
   const page = a.page;
   const routes = [`/channels/${guildId}/${channelId}`, '/cinema', '/library'];
 
@@ -43,7 +46,10 @@ test('reduced motion: nothing animates in the Lounge, Cinema and Library', async
     await page.goto(route);
     await expect(page.getByRole('main').first()).toBeVisible();
     await settle(page);
-    expect(await page.evaluate(longestMotion), `${route} with prefers-reduced-motion`).toBeLessThanOrEqual(0.002);
+    expect(
+      await page.evaluate(longestMotion),
+      `${route} with prefers-reduced-motion`,
+    ).toBeLessThanOrEqual(0.002);
   }
 
   // The in-app setting: every themed root carries data-reduced-motion, whatever the OS says.
@@ -52,18 +58,22 @@ test('reduced motion: nothing animates in the Lounge, Cinema and Library', async
     await page.goto(route);
     await expect(page.getByRole('main').first()).toBeVisible();
     await page.evaluate(() =>
-      document.querySelectorAll('[data-reduced-motion]').forEach((el) => el.setAttribute('data-reduced-motion', 'true')),
+      document
+        .querySelectorAll('[data-reduced-motion]')
+        .forEach((el) => el.setAttribute('data-reduced-motion', 'true')),
     );
     await settle(page);
-    expect(await page.evaluate(longestMotion), `${route} with the in-app setting`).toBeLessThanOrEqual(0.002);
+    expect(
+      await page.evaluate(longestMotion),
+      `${route} with the in-app setting`,
+    ).toBeLessThanOrEqual(0.002);
   }
 });
 
 test('high contrast: muted text becomes full-strength text and no contrast violation is left', async ({
-  owner,
-  signedIn,
+  solo,
 }) => {
-  const { a, guildId, channelId } = await soloServer(signedIn, owner);
+  const { a, guildId, channelId } = solo;
   const page = a.page;
   const toggle = async () => {
     await page.goto('/settings/user/accessibility');
@@ -99,7 +109,10 @@ test('high contrast: muted text becomes full-strength text and no contrast viola
       // The legacy and Side Room tokens follow (they resolve to var(...) of the text colour).
       for (const key of ['sr2', 'sr3', 'legacy'] as const) expect(colours![key]).not.toBe('');
       const contrast = (await runAxe(page)).filter((v) => v.id === 'color-contrast');
-      expect(contrast.map((v) => `${v.id}: ${v.targets.slice(0, 3).join(' | ')}`), route).toEqual([]);
+      expect(
+        contrast.map((v) => `${v.id}: ${v.targets.slice(0, 3).join(' | ')}`),
+        route,
+      ).toEqual([]);
     }
   } finally {
     await toggle();

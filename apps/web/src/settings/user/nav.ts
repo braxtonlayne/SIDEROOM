@@ -219,7 +219,8 @@ export function restoreFocusAfterNavigation(name: string | null, tries = 0): voi
     : undefined;
   // While the URL is still Settings, <main> is Settings' own: keep waiting for the page we came from.
   const left = !location.pathname.startsWith(USER_SETTINGS_PATH);
-  const target = opener ?? (left && tries >= 6 ? document.querySelector<HTMLElement>('main') : null);
+  const target =
+    opener ?? (left && tries >= 6 ? document.querySelector<HTMLElement>('main') : null);
   if (target) {
     if (!opener && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
     target.focus({ preventScroll: true });

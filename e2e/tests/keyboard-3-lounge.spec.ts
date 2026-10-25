@@ -1,4 +1,5 @@
 import { apiPost, expect, test } from '../support/fixtures';
+import { dropServer } from '../support/world';
 import {
   LINKS_NOT_TABBABLE,
   expectHeard,
@@ -15,10 +16,18 @@ import {
  * channel list as roving lists (arrows move, Enter opens), the message list as a roving list, and a message from
  * someone else is announced politely without taking focus.
  */
+// The server is removed again whether the test passed or not (support/world.ts says why).
+let made: Parameters<typeof dropServer>[0] | null = null;
+test.afterEach(async () => {
+  if (made) await dropServer(made);
+  made = null;
+});
+
 test('lounge: servers, channels and messages by keyboard; a new message is announced and focus stays', async ({
   scenario,
 }) => {
   const { a, b, guildId, channelId, guildName } = await scenario.ownerAndMember();
+  made = { a, guildId };
   const page = a.page;
   test.skip(!(await tabsToLinks(page)), LINKS_NOT_TABBABLE);
   const second = await apiPost<{ id: string }>(a.context.request, `/guilds/${guildId}/channels`, {
@@ -91,7 +100,9 @@ test('lounge: servers, channels and messages by keyboard; a new message is annou
   await page.keyboard.press('ArrowDown');
   await expect(rows.nth(1)).toBeFocused();
   expect(await isFocused(rows.nth(1))).toBe(true);
-  await apiPost(b.context.request, `/channels/${channelId}/messages`, { content: 'hello from the second member' });
+  await apiPost(b.context.request, `/channels/${channelId}/messages`, {
+    content: 'hello from the second member',
+  });
   await expect(log.getByRole('article')).toHaveCount(before + 1);
   await expectHeard(page, /hello from the second member/);
   await expect(rows.nth(1)).toBeFocused();

@@ -1,10 +1,6 @@
 import { apiPost, expect, loginApi, test } from '../support/fixtures';
 import { PUBLIC_URL } from '../support/cli';
-import {
-  LINKS_NOT_TABBABLE,
-  tabTo,
-  tabsToLinks,
-} from '../support/keys';
+import { LINKS_NOT_TABBABLE, tabTo, tabsToLinks } from '../support/keys';
 import { nextWindowCode, secretFromOtpauth, totp } from '../support/totp';
 
 /**
@@ -50,7 +46,8 @@ test('sign in: fields, passkey button, second factor, keyboard only', async ({
   await expect(page).toHaveURL(/\/login\/2fa/);
   const digit = page.getByLabel('Digit 1');
   await expect(digit).toBeVisible();
-  if (!(await digit.evaluate((el) => el === document.activeElement))) await tabTo(page, digit, { max: 8 });
+  if (!(await digit.evaluate((el) => el === document.activeElement)))
+    await tabTo(page, digit, { max: 8 });
   await expect(digit).toBeFocused();
   await page.keyboard.type(await nextWindowCode(secret));
 

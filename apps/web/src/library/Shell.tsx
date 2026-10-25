@@ -369,7 +369,7 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
           </aside>
         )}
         <div className="lib-main">
-          <div className="lib-topbar">
+          <div className="lib-topbar" role="region" aria-label={t('a11y.landmark.libraryToolbar')}>
             {mobile && (
               <button
                 type="button"

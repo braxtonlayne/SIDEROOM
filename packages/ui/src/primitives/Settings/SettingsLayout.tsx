@@ -217,7 +217,14 @@ export function SettingsLayout({
             <span className={styles.srOnly}>settings</span>
           </button>
         </div>
-        <main ref={contentRef} tabIndex={scrollStop ? 0 : undefined} className={styles.content} aria-label={typeof active?.label === "string" ? active.label : title}>
+        <main
+          ref={contentRef}
+          // A scrolling region with nothing focusable in it is a tab stop so the keyboard can scroll it (axe scrollable-region-focusable).
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={scrollStop ? 0 : undefined}
+          className={styles.content}
+          aria-label={typeof active?.label === "string" ? active.label : title}
+        >
           {children}
         </main>
         {dirty && (

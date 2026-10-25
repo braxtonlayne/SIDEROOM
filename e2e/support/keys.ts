@@ -50,7 +50,7 @@ export const focusedName = (page: Page) =>
   });
 
 /** True when the focused element is inside `container`. */
-export const focusWithin = (page: Page, container: Locator) =>
+export const focusWithin = (_page: Page, container: Locator) =>
   container.evaluate((el) => el.contains(document.activeElement));
 
 /**
@@ -75,7 +75,11 @@ export async function watchLive(page: Page): Promise<void> {
         if (text && list[list.length - 1] !== text) list.push(text);
       }
     };
-    new MutationObserver(read).observe(document, { subtree: true, childList: true, characterData: true });
+    new MutationObserver(read).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
   });
 }
 
@@ -94,10 +98,16 @@ export async function expectHeard(
   region: Region = 'polite',
 ): Promise<void> {
   await expect
-    .poll(async () => (await heard(page, region)).some((h) => (typeof text === 'string' ? h.includes(text) : text.test(h))), {
-      message: `the ${region} live region should have said ${String(text)}; it said ${JSON.stringify(await heard(page, region))}`,
-      timeout: 15_000,
-    })
+    .poll(
+      async () =>
+        (await heard(page, region)).some((h) =>
+          typeof text === 'string' ? h.includes(text) : text.test(h),
+        ),
+      {
+        message: `the ${region} live region should have said ${String(text)}; it said ${JSON.stringify(await heard(page, region))}`,
+        timeout: 15_000,
+      },
+    )
     .toBe(true);
 }
 
@@ -111,7 +121,11 @@ export async function watchText(page: Page, selector: string, key: string): Prom
         const text = document.querySelector(selector)?.textContent?.trim();
         if (text && w[key]![w[key]!.length - 1] !== text) w[key]!.push(text);
       };
-      new MutationObserver(read).observe(document, { subtree: true, childList: true, characterData: true });
+      new MutationObserver(read).observe(document, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
     },
     { selector, key },
   );

@@ -1,4 +1,4 @@
-import { expect, test } from '../support/fixtures';
+import { expect, test } from '../support/world';
 import {
   LINKS_NOT_TABBABLE,
   expectHeard,
@@ -7,7 +7,6 @@ import {
   tabsToLinks,
   watchLive,
 } from '../support/keys';
-import { soloServer } from '../support/world';
 
 /**
  * RDY-A11Y-003, flow 5: send a message with an attachment with the keyboard only. The "Add to message" menu opens
@@ -16,14 +15,16 @@ import { soloServer } from '../support/world';
  * the composer. Needs object storage (the CI e2e stack runs Garage); it skips where the server cannot reach any.
  */
 test('attachment: add by keyboard, send, hear the upload, focus returns to the composer', async ({
-  owner,
-  signedIn,
+  solo,
 }) => {
-  const { a, guildId, channelId } = await soloServer(signedIn, owner);
+  const { a, guildId, channelId } = solo;
   const page = a.page;
   test.skip(!(await tabsToLinks(page)), LINKS_NOT_TABBABLE);
   const storage = await page.request.get('http://127.0.0.1:8080/readyz').catch(() => null);
-  test.skip(!storage?.ok(), 'The server has no object storage here (/readyz is not ok); CI runs Garage.');
+  test.skip(
+    !storage?.ok(),
+    'The server has no object storage here (/readyz is not ok); CI runs Garage.',
+  );
 
   await watchLive(page);
   await page.goto(`/channels/${guildId}/${channelId}`);
@@ -53,11 +54,14 @@ test('attachment: add by keyboard, send, hear the upload, focus returns to the c
   });
 
   // The tray lists it; focus returns to the composer for Enter. (A text message goes with it.)
-  await expect(page.getByRole('list', { name: 'Files to upload' })).toContainText('keyboard-note.txt');
+  await expect(page.getByRole('list', { name: 'Files to upload' })).toContainText(
+    'keyboard-note.txt',
+  );
   await tabTo(page, composer, { max: 12 }).catch(async () => {
     test.info().annotations.push({
       type: 'finding',
-      description: 'The composer was not reachable in 12 Tab presses after the file chooser closed.',
+      description:
+        'The composer was not reachable in 12 Tab presses after the file chooser closed.',
     });
     await composer.focus();
   });
