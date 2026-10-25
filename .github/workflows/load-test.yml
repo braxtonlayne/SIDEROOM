@@ -34,7 +34,7 @@ jobs:
           POSTGRES_DB: sr_loadtest
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U sideroom" --health-interval 5s
+          --health-cmd "pg_isready -U sideroom -d sr_loadtest" --health-interval 5s
           --health-timeout 3s --health-retries 20
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +48,20 @@ jobs:
           start=$(date +%s)
           ./target/release/sr-cli seed --scale --seed-name ci 2>&1 | tee seed.log
           echo "seed took $(( $(date +%s) - start )) s" | tee -a seed.log
+      - name: Settle the database after the bulk load
+        # A database that took 5 million rows a minute ago still owes autovacuum its first pass over every
+        # table (it sets hint bits and the visibility map) and has a WAL-triggered checkpoint in flight. In run
+        # 40239291091 Postgres logged "checkpoints are occurring too frequently" through the seed and started a
+        # spread checkpoint 11 s before the server that had not finished when the job ended; REST p95 went from
+        # ~110 ms to 1.4 s for 20 s, 45 s into the run, with nothing in server.log (autovacuum is not logged at
+        # the default log_autovacuum_min_duration, so that part is inferred). A live server is not measured
+        # seconds after a bulk load: the load test starts after VACUUM (ANALYZE) and a CHECKPOINT, timed apart
+        # from the seed target.
+        if: ${{ inputs.seed_scale }}
+        run: |
+          start=$(date +%s)
+          psql "$SR_DATABASE__URL" -c "VACUUM (ANALYZE)" -c "CHECKPOINT"
+          echo "vacuum and checkpoint took $(( $(date +%s) - start )) s" | tee -a seed.log
       - name: Table sizes after the seed
         if: ${{ inputs.seed_scale }}
         run: |
