@@ -13,29 +13,54 @@
 //! `tests/voice_e2ee.rs`). This example wires the media side only and sends nothing into an encrypted call
 //! until a transform is installed, which is the behaviour the transport enforces.
 //!
+//! Reconnects are handled by [`VoiceLink`] (RDY-DEV-002): a dropped SFU WebSocket is resumed and a forgotten
+//! session joined again, and the shard itself resumes the gateway session and re-sends the join after a fresh
+//! one. Two knobs make the example usable as a smoke test (`e2e.yml`, job `live`):
+//!
+//! * `SR_RUN_SECONDS=60` leaves after that long (exit code 0 only if the call was joined); default: run forever;
+//! * `SR_DROP_AFTER_SECONDS=20` drops the SFU WebSocket once after that long, to watch the resume.
+//!
 //! The "tone" is not Opus: a real bot encodes PCM with an Opus encoder (the SDK ships none) and passes each
 //! 20 ms packet to `send_opus`.
 
 use std::net::IpAddr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use sr_sdk::voice_transport::{VoiceEvent, VoiceServerUpdate, VoiceSession, voice_state_body};
+use sr_sdk::voice_transport::{
+    ReconnectPolicy, VoiceEvent, VoiceLink, VoiceServerUpdate, voice_state_body,
+};
 use sr_sdk::{Client, Context, Event, EventHandler, Result, intents};
 use tokio::sync::mpsc;
 
-struct Voice(mpsc::UnboundedSender<VoiceServerUpdate>);
+/// Hands the `VOICE_SERVER_UPDATE` dispatches to `main`.
+struct Voice {
+    updates: mpsc::UnboundedSender<VoiceServerUpdate>,
+    ready: mpsc::UnboundedSender<()>,
+}
 
 #[async_trait]
 impl EventHandler for Voice {
     async fn on_event(&self, _ctx: Context, _shard: u32, event: Event) {
-        if let Event::Other { name, data } = event
-            && name == "VOICE_SERVER_UPDATE"
-            && let Some(update) = VoiceServerUpdate::from_dispatch(&data)
-        {
-            let _ = self.0.send(update);
+        match event {
+            Event::Ready(_) => {
+                let _ = self.ready.send(());
+            }
+            Event::Other { name, data } if name == "VOICE_SERVER_UPDATE" => {
+                if let Some(update) = VoiceServerUpdate::from_dispatch(&data) {
+                    let _ = self.updates.send(update);
+                }
+            }
+            _ => {}
         }
     }
+}
+
+fn seconds(var: &str) -> Option<Duration> {
+    std::env::var(var)
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_secs)
 }
 
 #[tokio::main]
@@ -49,16 +74,20 @@ async fn main() -> Result<()> {
         .parse()
         .expect("SR_BIND_IP is an IP address");
 
-    let (tx, mut updates) = mpsc::unbounded_channel();
+    let (updates_tx, mut updates) = mpsc::unbounded_channel();
+    let (ready_tx, mut ready) = mpsc::unbounded_channel();
     let client = Client::builder(token, api)
         .intents(intents::DEFAULT)
-        .handler(Voice(tx))
+        .handler(Voice {
+            updates: updates_tx,
+            ready: ready_tx,
+        })
         .build()?;
     let gateway = client.gateway();
     tokio::spawn(client.start());
 
-    // Give the shard a moment to identify, then ask to join.
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    // Ask to join once the shard is identified.
+    ready.recv().await.expect("READY");
     gateway
         .voice_state_update(
             &guild,
@@ -67,18 +96,54 @@ async fn main() -> Result<()> {
         .await?;
     let update = updates.recv().await.expect("a VOICE_SERVER_UPDATE");
     println!("joining {} (e2ee: {})", update.endpoint, update.e2ee);
-    let mut session = VoiceSession::connect(&update, bind)
+    let mut link = VoiceLink::connect(update, bind, ReconnectPolicy::default())
         .await
         .map_err(|e| sr_sdk::Error::Transport(e.to_string()))?;
+
+    let started = Instant::now();
+    let stop_after = seconds("SR_RUN_SECONDS");
+    let mut drop_after = seconds("SR_DROP_AFTER_SECONDS");
+    let (mut joined, mut resumed) = (false, false);
     loop {
-        let events = session
+        if stop_after.is_some_and(|s| started.elapsed() >= s) {
+            println!("done after {:?}: connected={joined} resumed={resumed}", started.elapsed());
+            link.session().set_speaking(false);
+            return if joined && (drop_after.is_none() || resumed) {
+                Ok(())
+            } else {
+                Err(sr_sdk::Error::Transport("the call was not joined or resumed".into()))
+            };
+        }
+        if drop_after.is_some_and(|d| started.elapsed() >= d) {
+            println!("dropping the SFU WebSocket");
+            link.session().abandon_signalling().await;
+            drop_after = None;
+        }
+        // A newer VOICE_SERVER_UPDATE (a moved call, a refreshed token) replaces the join.
+        while let Ok(newer) = updates.try_recv() {
+            println!("rejoining {}", newer.endpoint);
+            link.rejoin(newer)
+                .await
+                .map_err(|e| sr_sdk::Error::Transport(e.to_string()))?;
+        }
+        let events = link
             .pump(Duration::from_millis(20))
             .await
             .map_err(|e| sr_sdk::Error::Transport(e.to_string()))?;
         for e in events {
             match e {
-                VoiceEvent::Connected => println!("connected"),
+                VoiceEvent::Connected => {
+                    joined = true;
+                    println!("connected");
+                }
                 VoiceEvent::Audio { user, frame } => println!("{user} spoke {} bytes", frame.len()),
+                VoiceEvent::Resumed { participants } => {
+                    resumed = true;
+                    println!("resumed ({} in the channel)", participants.len());
+                }
+                VoiceEvent::Reconnected { participants } => {
+                    println!("joined again ({} in the channel)", participants.len());
+                }
                 VoiceEvent::Closed(code) => {
                     println!("closed ({code})");
                     return Ok(());
@@ -86,6 +151,6 @@ async fn main() -> Result<()> {
                 other => println!("{other:?}"),
             }
         }
-        // `session.send_opus(&packet, -30)` publishes one 20 ms Opus packet once a transform is installed.
+        // `link.session().send_opus(&packet, -30)` publishes one 20 ms Opus packet once a transform is installed.
     }
 }
