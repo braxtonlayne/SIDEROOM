@@ -610,6 +610,39 @@ describe('server-driven changes', () => {
     expect(sess().error?.code).toBe('connect');
   });
 
+  it("a re-join after a slow first connect survives the gateway's echo of our own leave (RDY-VOX-002)", async () => {
+    // The voice soak's fifth member: the first connect timed out, the re-join's own leave came back as
+    // VOICE_STATE_UPDATE channel_id null, and the call ended with "You were disconnected from voice."
+    const h = harness();
+    joinAndServe(h);
+    h.last().fail(new VoiceConnectError({ code: 'connect-timeout', message: 'Timed out.' }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sess().status).toBe('reconnecting');
+    expect(h.sent.at(-2)!.d.channel_id).toBeNull();
+    expect(h.sent.at(-1)!.d.channel_id).toBe('c1');
+    // What the gateway answers, in order: our leave, our join, the new voice server.
+    h.emit('VOICE_STATE_UPDATE', { guild_id: 'g1', channel_id: null, user_id: 'me' });
+    expect(sess().status).toBe('reconnecting');
+    expect(sess().error).toBeNull();
+    h.emit('VOICE_STATE_UPDATE', {
+      guild_id: 'g1',
+      channel_id: 'c1',
+      user_id: 'me',
+      session_id: 'sess-1',
+    });
+    h.emit('VOICE_SERVER_UPDATE', { guild_id: 'g1', endpoint: 'n1.test', token: 't2' });
+    expect(h.engines).toHaveLength(2);
+    expect(h.last().connectParams?.endpoint).toBe('n1.test');
+    h.last().ok();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sess().status).toBe('connected');
+    // A real disconnect afterwards still ends the call.
+    h.emit('VOICE_STATE_UPDATE', { guild_id: 'g1', channel_id: null, user_id: 'me' });
+    expect(sess().error?.code).toBe('disconnected');
+  });
+
   it('4014 from the voice socket waits for the gateway instead of re-joining', async () => {
     const h = harness();
     await connected(h);
