@@ -4,7 +4,7 @@ Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\p24-parity`, branch `feat/p24-parit
 
 ## Resume here
 
-Everything below is built and its proof ran locally unless "Not run" says otherwise. No process of mine is running (the server and Vite of the Playwright run were stopped by PID). The scratch database `sr_p24_parity` still exists (drop it when done). The only item whose proof waits for CI is RDY-LIB-001 (see below).
+Everything below is built and its proof ran locally unless "Not run" says otherwise. No process of mine is running (the server and Vite of the Playwright run were stopped by PID). The scratch database `sr_p24_parity` was dropped at the end. The only item whose proof waits for CI is RDY-LIB-001 (see below).
 
 ## Method
 
