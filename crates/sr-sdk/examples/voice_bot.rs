@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! SR_BOT_TOKEN=... SR_API_URL=https://chat.example/api/v1 SR_GUILD_ID=... SR_VOICE_CHANNEL_ID=... \
-//!   SR_BIND_IP=192.168.1.20 \
+//!   SR_BIND_IP=192.168.1.20 SR_GATEWAY_URL=wss://chat.example/gateway \
 //!   cargo run -p sr-sdk --features voice-transport,voice-e2ee --example voice_bot
 //! ```
 //!
@@ -76,8 +76,13 @@ async fn main() -> Result<()> {
 
     let (updates_tx, mut updates) = mpsc::unbounded_channel();
     let (ready_tx, mut ready) = mpsc::unbounded_channel();
-    let client = Client::builder(token, api)
-        .intents(intents::DEFAULT)
+    let mut builder = Client::builder(token, api).intents(intents::DEFAULT);
+    // The gateway URL that `GET /gateway/bot` gives is built from the server's public URL; name another one
+    // (optional) when the bot reaches the server some other way.
+    if let Ok(url) = std::env::var("SR_GATEWAY_URL") {
+        builder = builder.gateway_url(url);
+    }
+    let client = builder
         .handler(Voice {
             updates: updates_tx,
             ready: ready_tx,

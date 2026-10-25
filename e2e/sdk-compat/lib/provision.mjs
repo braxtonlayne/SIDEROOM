@@ -66,7 +66,14 @@ export async function waitReady(base, seconds = 60) {
  * Creates the server, the application with its bot and the install.
  * @returns {Promise<{ person: Person, token: string, appId: string, guildId: string, channelId: string, enableMessageContent: () => Promise<void> }>}
  */
-export async function provision({ base, owner, password, stamp = Date.now().toString(36) }) {
+export async function provision({
+  base,
+  owner,
+  password,
+  stamp = Date.now().toString(36),
+  // VIEW_CHANNEL, SEND_MESSAGES, READ_MESSAGE_HISTORY unless a run needs more (the voice bot adds CONNECT, SPEAK).
+  permissions = String((1n << 10n) | (1n << 11n) | (1n << 16n)),
+}) {
   const person = new Person(base);
   await person.login(owner, password);
 
@@ -80,8 +87,6 @@ export async function provision({ base, owner, password, stamp = Date.now().toSt
   await person.patch(`/applications/${appId}`, { bot_public: true });
 
   // Install the bot the way the consent screen does (POST /oauth2/authorize with guild_id).
-  // VIEW_CHANNEL, SEND_MESSAGES, READ_MESSAGE_HISTORY.
-  const permissions = String((1n << 10n) | (1n << 11n) | (1n << 16n));
   await person.post('/oauth2/authorize', {
     client_id: appId,
     scope: 'bot applications.commands',
