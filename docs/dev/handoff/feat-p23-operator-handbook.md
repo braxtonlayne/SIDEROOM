@@ -26,9 +26,13 @@ The drilled sections (Lost or suspect secret key, Compromised staff account) alr
 
 ## Admin > System tile links
 
+Answered: P23-2 (D-369), follow-up T-03 (done on `integration/phase23`: the links now open `/admin/runbook#<anchor>` in the same tab; the GitHub URL is gone).
+
 `System.tsx` shows a "Playbook" link (new tab, to the file on the repository's `main` branch on GitHub) next to: a failing readiness probe (Server down), Dead jobs above 0 (Jobs failing), "none" for Last backup (Backup missing or stale) and Last restore check (Restore drill failed; "none" for the optional object snapshot is not red), a disk that is unreadable or has less than 20 percent free (Disk pressure; 20 percent is the default of `alerts.disk_percent`, the page does not know the live setting). The literals `deploy/RUNBOOK.md#...` in `System.tsx` are read by the check. Ran: `p23playbooks.test.tsx`, `admin.test.tsx`, `p10.test.tsx`, `p17redirectUri.test.tsx`, `p20preflight.test.tsx`, `p21cspReports.test.tsx` and `src/i18n` (all green), `tsc --noEmit` clean, eslint clean on the touched files, prettier clean.
 
 ## Honest limits
+
+Answered: P23-2 (D-369), follow-up T-03 (the in-app runbook), and P23-3 (D-370), follow-up T-04 (the gauges and rules are RDY-OBS-001 in wave 24).
 
 - **No Prometheus rule for most playbooks.** The server exports only nine metrics (`observability.rs`): request count and duration, in-flight, database pool, gateway sessions, job outcomes, rate limited, dispatch bytes. Job backlog, voice egress, invoice, storage, WAL, drill and suspicion have no metric, so I added no rules for them (a rule on a metric that does not exist is exactly what the check forbids). They are driven by Admin tiles and the `#alerts` health job; the playbooks and OPERATOR.md say so. A queue-depth gauge and a last-backup-age gauge would make "Job backlog" and "Backup missing or stale" real alerts; that is server work for a later wave.
 - **Not walked** (see above). Commands were checked against code, not executed.
@@ -37,9 +41,11 @@ The drilled sections (Lost or suspect secret key, Compromised staff account) alr
 
 ## Decisions and questions for the owner
 
+Answered: P23-1 (D-368), follow-ups T-01 (this branch) and T-02 (integrator: RDY-PAY-001 and RDY-LIB-001 in wave 24). Item 2 stays with the lawyer (RDY-OWN-001).
+
 1. **Answered: P23-1 (D-368), follow-up T-01 done on this branch (doc 13 gate lines and table rows; RDY-PAY-001 and RDY-LIB-001 are wave 24, phase 6 is Not yet, phase 7 is Partly).** Was: gates with no RDY item. Phase 3 (a signet payment end to end), phase 4 (the 10-chapter Library run) and phases 6 and 7 (no gate is written) are "Not yet" with no RDY item behind them. They need either an item in a later wave or an owner decision that the gate is waived. Phase 4's mobile half is in the owner checklist's real-device pass only.
 2. **Lawyer (D-336 (h)).** Still open (RDY-OWN-001). The CSAM playbook has steps 6 and 7 marked LAWYER and undefined (report where and when, preservation period, who may handle the material). Safe steps (do not copy the material, hold it in place, remove from view, ban with `child_safety`) are written. Ask the lawyer before the first invite.
-3. **Linking OPERATOR.md.** `deploy/INSTALL.md`, `deploy/GO-LIVE.md`, the README and `docs/README.md` do not yet link `deploy/OPERATOR.md` (not my files). One line each when the integrator merges.
+3. **Linking OPERATOR.md.** Done by the integrator on `integration/phase23` (one line each in `deploy/INSTALL.md`, `deploy/GO-LIVE.md`, the README and `docs/README.md`). Was: those files did not yet link `deploy/OPERATOR.md` (not my files).
 4. The integrator checklist should include running `node --test "scripts/*.test.mjs"`, which now covers `check-ops-files.test.mjs`.
 
 ## Gates run

@@ -55,6 +55,8 @@ All against the scratch database `sr_p23_firstrun` (both `SR_TEST_DATABASE_URL` 
 
 ## Still open / not done
 
+Answered: P23-6 (D-373), follow-up T-07 (done on `integration/phase23`: the settings dialog is removed and the entry opens `/help/whats-new`).
+
 - Nothing from the four items is left open. Not done on purpose: the audit's `--ts` mode (plain `.ts` label tables) is not part of the roadmap acceptance and was not touched.
 - The old `settings.whatsNew.*` dialog in User Settings (an in-app "What's New" with three lines about phase 9) is untouched; it could link to `/help/whats-new`. That file is outside this row.
 - iOS web push after installing: the handbook says notifications work once the app is on the Home Screen; not verified on a device.
@@ -66,6 +68,8 @@ All against the scratch database `sr_p23_firstrun` (both `SR_TEST_DATABASE_URL` 
 - `/help` moved out of the first-paint set (see above). The roadmap said content lives in i18n catalogs; the alternative, putting the handbook into the core `entrance.ts` fragment, would grow every entrance page's first paint.
 
 ## Open owner questions
+
+Answered: P23-4 (D-371), follow-up T-05, and P23-5 (D-372), follow-up T-06 (both built on this branch, see below).
 
 - Is it right that a signed-out visitor to `/help` now waits for the full catalog (a moment of a blank page) instead of seeing the short help instantly? The other choice is a second, tiny core-catalog help page for signed-out visitors.
 - Handbook wording on credits says "five, unless your operator changed it" (doc 06 default). Confirm the owner wants credits mentioned there at all.
