@@ -12,7 +12,7 @@ import { lazy, Suspense } from 'react';
 import { useT } from './i18n';
 import { CatalogGate } from './i18n/CatalogGate';
 import { isCorePath } from './i18n/corePaths';
-import { lazyNamed, RouteFallback } from './lib/lazyRoute';
+import { RouteFallback } from './lib/lazyRoute';
 import { createCinemaRoutes } from './cinema/routes';
 import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
@@ -30,6 +30,7 @@ import { Forgot, Reset } from './routes/entrance/PasswordReset';
 import { Register } from './routes/entrance/Register';
 import { ServerInvite } from './routes/entrance/ServerInvite';
 import { Help } from './help/HelpPage';
+import { HelpSkeleton } from './help/HelpSkeleton';
 import { HouseNotes, NoInvitation } from './routes/entrance/Static';
 import { TwoFactor } from './routes/entrance/TwoFactor';
 import { DiscordCallback } from './routes/entrance/DiscordCallback';
@@ -38,19 +39,32 @@ import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
 import { ServerTemplate } from './routes/entrance/ServerTemplate';
 
 // /help/whats-new carries the whole changelog text, so it is its own chunk (RDY-ONB-003).
-const WhatsNew = lazyNamed(() => import('./help/WhatsNew'), 'WhatsNew');
+const WhatsNewPage = lazy(() => import('./help/WhatsNew').then((m) => ({ default: m.WhatsNew })));
+function WhatsNew() {
+  return (
+    <Suspense fallback={<HelpSkeleton />}>
+      <WhatsNewPage />
+    </Suspense>
+  );
+}
 
 // The re-auth dialog (ADM-STF-009) lives at the root so staff-card buttons in the Lounge can open the
 // second-factor window too; it is its own chunk and renders nothing until asked.
 const ReauthHost = lazy(() =>
   import('./admin/ReauthHost').then((m) => ({ default: m.ReauthHost })),
 );
+// The handbook waits for the full catalog (it is not a first-paint path); it shows the entrance skeleton meanwhile.
+const isHelpPath = (p: string) => p === '/help' || p.startsWith('/help/');
+
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <>
       {/* Entrance routes paint from the core catalog; every other route waits for the full one. */}
-      <CatalogGate bypass={isCorePath(pathname)} fallback={<RouteFallback />}>
+      <CatalogGate
+        bypass={isCorePath(pathname)}
+        fallback={isHelpPath(pathname) ? <HelpSkeleton /> : <RouteFallback />}
+      >
         <Outlet />
       </CatalogGate>
       <CatalogGate>

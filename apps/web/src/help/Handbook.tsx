@@ -181,7 +181,12 @@ function WelcomeAgain() {
 export function Handbook() {
   const t = useT();
   const signedIn = useSignedIn();
-  const { operator_country: country, operator_contact: contact } = useCompliancePublic();
+  // The live number of credits a new account gets; the wording with "a handful" shows until it is known.
+  const {
+    operator_country: country,
+    operator_contact: contact,
+    invite_initial_credits: credits,
+  } = useCompliancePublic();
   return (
     <>
       <p>{t('help.handbook.intro')}</p>
@@ -203,7 +208,11 @@ export function Handbook() {
         <section key={s.id} id={s.id} aria-labelledby={`hb-${s.id}`}>
           <h2 id={`hb-${s.id}`}>{t(s.title)}</h2>
           {s.body.map((k) => (
-            <p key={k}>{t(k)}</p>
+            <p key={k}>
+              {k === 'help.handbook.joining.body1' && credits !== undefined
+                ? t('help.handbook.joining.body1Count', { count: credits })
+                : t(k)}
+            </p>
           ))}
           {s.list && (
             <ul>

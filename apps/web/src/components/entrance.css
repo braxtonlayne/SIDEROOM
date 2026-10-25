@@ -817,3 +817,28 @@
 .ent-changelog ul {
   padding-inline-start: 1.2em;
 }
+.ent-skeleton {
+  block-size: 1.1em;
+  margin-block: 1rem;
+  border-radius: 4px;
+  background: var(--sr-line);
+  opacity: 0.6;
+  animation: ent-skeleton-pulse 1.4s ease-in-out infinite;
+}
+.ent-skeleton-title {
+  inline-size: 40%;
+  block-size: 2.4rem;
+}
+.ent-skeleton-short {
+  inline-size: 60%;
+}
+@keyframes ent-skeleton-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ent-skeleton {
+    animation: none;
+  }
+}

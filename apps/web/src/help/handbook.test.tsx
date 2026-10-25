@@ -74,6 +74,30 @@ describe('the handbook', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/house-notes'));
   });
 
+  it('says how many credits a new account gets, live, with a fallback while it is not known', async () => {
+    server.use(
+      http.get('*/api/v1/sr/compliance/public', () =>
+        HttpResponse.json({ minimum_age: 13, invite_initial_credits: 8 }),
+      ),
+    );
+    at('/help');
+    expect(await screen.findByText(/every account starts with 8 invite credits/)).toBeVisible();
+  });
+
+  it('uses the plain wording while the number is unknown or the server is unreachable', async () => {
+    server.use(http.get('*/api/v1/sr/compliance/public', () => HttpResponse.error()));
+    at('/help');
+    expect(
+      await screen.findByText(/a handful of invite credits \(five by default\)/),
+    ).toBeVisible();
+    expect(screen.queryByText(/invite credits, and one credit lets/)).toBeNull();
+    // The sentence's screen: the Invites settings, which is a registered route.
+    expect(screen.getByRole('link', { name: 'Open Invites' })).toHaveAttribute(
+      'href',
+      '/settings/user/invites',
+    );
+  });
+
   it('agrees with doc 09 on what is stored and for how long', () => {
     const doc = readFileSync(resolve(root, 'docs/09-retention-and-privacy.md'), 'utf8');
     const privacy = [

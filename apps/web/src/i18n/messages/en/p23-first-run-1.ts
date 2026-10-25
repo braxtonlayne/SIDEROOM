@@ -53,7 +53,9 @@ export default {
   'help.handbook.welcome.failed': 'The welcome could not be reopened. Try again in a moment.',
   'help.handbook.joining.title': 'Joining, invitations and credits',
   'help.handbook.joining.body1':
-    'SIDE ROOM is invitation-only. You came in with a code from a member, and you can pass the favour on: every account starts with a handful of invite credits (five, unless your operator changed it), and one credit lets one more person in.',
+    'SIDE ROOM is invitation-only. You came in with a code from a member, and you can pass the favour on: every account starts with a handful of invite credits (five by default), and one credit lets one more person in.',
+  'help.handbook.joining.body1Count':
+    'SIDE ROOM is invitation-only. You came in with a code from a member, and you can pass the favour on: every account starts with {count, plural, one {# invite credit} other {# invite credits}}, and one credit lets one more person in.',
   'help.handbook.joining.body2':
     'Your codes, the credits you have left and, where your operator allows it, how to buy more are in Settings, Invites. A code is your word, so invite people you would be happy to answer for.',
   'help.handbook.joining.link': 'Open Invites',
