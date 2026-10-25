@@ -394,8 +394,10 @@ test.describe('Library exit gate', () => {
       const d = await apiGet<Detail>(staff, R);
       for (const item of d.items.filter((i) => i.state !== 'approved'))
         await apiPut(staff, `${R}/items/${item.id}`, { state: 'approved', note: null });
-      await apiPost(staff, `${R}/approve`, { reason: null });
-      await apiPost(staff, `${R}/publish`);
+      // Approve publishes too (sr-review `approve`); `publish` is only the retry after a failed publish, and on a
+      // published submission it answers 409 (the first CI run).
+      const approved = await apiPost<Detail>(staff, `${R}/approve`, { reason: null });
+      if (approved.submission.state !== 'published') await apiPost(staff, `${R}/publish`);
       await expect
         .poll(async () => (await detailOf(mine, created)).submission.state, { timeout: 60_000 })
         .toBe('published');
