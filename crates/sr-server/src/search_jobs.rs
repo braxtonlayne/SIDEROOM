@@ -324,8 +324,23 @@ impl Indexer {
 
     /// Apply one job payload to the index.
     pub async fn handle(&self, p: IndexPayload) -> Result<(), IndexError> {
+        self.handle_many(&[p]).await
+    }
+
+    /// Apply several job payloads, in order, with one index commit (RDY-PERF-002: a commit and reader
+    /// reload per message capped indexing at a few dozen messages per second).
+    pub async fn handle_many(&self, payloads: &[IndexPayload]) -> Result<(), IndexError> {
+        let mut events = Vec::with_capacity(payloads.len());
+        for &p in payloads {
+            events.push(self.event_of(p).await?);
+        }
+        self.apply(events).await
+    }
+
+    /// What one job payload does to the index, read from the stored message.
+    async fn event_of(&self, p: IndexPayload) -> Result<MessageEvent, IndexError> {
         let channel = ChannelId::new(p.channel_id);
-        let event = match p.op {
+        Ok(match p.op {
             IndexOp::DeleteChannel => MessageEvent::ChannelDeleted(channel),
             IndexOp::DeleteGuild => MessageEvent::GuildDeleted(GuildId::new(p.guild_id)),
             IndexOp::Delete => MessageEvent::Deleted(MessageId::new(p.message_id)),
@@ -342,8 +357,7 @@ impl Indexer {
                     None => MessageEvent::Deleted(id),
                 }
             }
-        };
-        self.apply(vec![event]).await
+        })
     }
 
     async fn apply(&self, events: Vec<MessageEvent>) -> Result<(), IndexError> {
@@ -418,10 +432,60 @@ impl Indexer {
     }
 }
 
-async fn index_handler(indexer: Arc<Indexer>, job: Job) -> Result<(), HandlerError> {
-    let payload: IndexPayload = serde_json::from_value(job.payload.clone())
-        .map_err(|e| IndexError::Payload(e.to_string()))?;
-    indexer.handle(payload).await?;
+/// Index jobs applied together: the runner's job plus up to this many minus one more that are already due.
+pub const INDEX_BATCH: i64 = 256;
+/// `locked_by` of the jobs an index handler claims on top of the runner's.
+const INDEX_BATCH_WORKER: &str = "search-index-batch";
+
+fn index_payload(job: &Job) -> Result<IndexPayload, IndexError> {
+    serde_json::from_value(job.payload.clone()).map_err(|e| IndexError::Payload(e.to_string()))
+}
+
+/// Runs one `search.index_message` job and, in the same index commit, the other index jobs already queued
+/// behind it (RDY-PERF-002). The runner completes or fails its own job from the result; this handler does the
+/// same for the ones it claimed. Jobs stay in queue order, so an edit after a delete still lands last.
+async fn index_handler(indexer: Arc<Indexer>, pool: PgPool, job: Job) -> Result<(), HandlerError> {
+    let first = index_payload(&job)?;
+    let more = jobs::claim(
+        &pool,
+        &[INDEX_MESSAGE_KIND.to_owned()],
+        INDEX_BATCH_WORKER,
+        INDEX_BATCH - 1,
+    )
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "claiming more search index jobs failed; indexing one");
+        Vec::new()
+    });
+    let mut payloads = vec![first];
+    let mut claimed = Vec::with_capacity(more.len());
+    for j in &more {
+        match index_payload(j) {
+            Ok(p) => {
+                payloads.push(p);
+                claimed.push(j.id);
+            }
+            Err(e) => {
+                let _ = jobs::fail(&pool, j.id, &e.to_string()).await;
+            }
+        }
+    }
+    let outcome = indexer.handle_many(&payloads).await;
+    match &outcome {
+        Ok(()) => {
+            if let Err(e) = jobs::complete_many(&pool, &claimed).await {
+                tracing::error!(error = %e, "recording batched search index jobs failed");
+            }
+        }
+        Err(err) => {
+            for &id in &claimed {
+                if let Err(e) = jobs::fail(&pool, id, &err.to_string()).await {
+                    tracing::error!(job_id = id, error = %e, "recording a search index job failed");
+                }
+            }
+        }
+    }
+    outcome?;
     Ok(())
 }
 
@@ -447,14 +511,19 @@ async fn reindex_handler(
     Ok(())
 }
 
-/// Register both search job kinds on `runner`. Message jobs run one at a time:
-/// the index has a single writer.
+/// Register both search job kinds on `runner`. Message jobs run one handler at a time (the index has a
+/// single writer); each takes the queued backlog with it, see [`INDEX_BATCH`].
 pub fn register(runner: JobRunner, pool: &PgPool, indexer: Arc<Indexer>) -> JobRunner {
     let for_messages = indexer.clone();
     let pool = pool.clone();
+    let messages_pool = pool.clone();
     runner
         .register(INDEX_MESSAGE_KIND, 1, move |job| {
-            Box::pin(index_handler(for_messages.clone(), job))
+            Box::pin(index_handler(
+                for_messages.clone(),
+                messages_pool.clone(),
+                job,
+            ))
         })
         .register(REINDEX_KIND, 1, move |job| {
             Box::pin(reindex_handler(indexer.clone(), pool.clone(), job))
@@ -780,5 +849,96 @@ mod tests {
         assert_eq!(w.hits("message"), 7);
         assert_eq!(w.hits("stale"), 0);
         assert_eq!(w.hits("delete"), 0);
+    }
+
+    /// RDY-PERF-002: several payloads go in with one commit, in order (a delete after an upsert wins).
+    #[tokio::test]
+    async fn a_batch_of_payloads_is_applied_in_order() {
+        let w = world().await;
+        let a = w.say("alpha batch").await;
+        let b = w.say("bravo batch").await;
+        let up = |id: MessageId| IndexPayload {
+            op: IndexOp::Upsert,
+            channel_id: w.channel.get(),
+            message_id: id.get(),
+            guild_id: 0,
+        };
+        let del_b = IndexPayload {
+            op: IndexOp::Delete,
+            ..up(b)
+        };
+        w.indexer.handle_many(&[up(a), up(b), del_b]).await.unwrap();
+        assert_eq!(w.hits("alpha"), 1);
+        assert_eq!(w.hits("bravo"), 0, "the later delete wins");
+        w.indexer.handle_many(&[]).await.unwrap();
+    }
+
+    /// RDY-PERF-002: one handler run takes the queued index jobs with it and marks them done.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn the_index_handler_drains_the_queue_in_one_commit() {
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let w = world().await;
+        let indexer = Arc::new(Indexer {
+            index: w.indexer.index.clone(),
+            repo: w.indexer.repo.clone(),
+            store: w.indexer.store.clone(),
+        });
+        let ids: Vec<MessageId> = vec![
+            w.say("one queued").await,
+            w.say("two queued").await,
+            w.say("three queued").await,
+        ];
+        let base = i64::try_from(std::process::id()).unwrap_or(1) * 1_000_000_000 + 7_000_000;
+        let mut job_ids = Vec::new();
+        for (n, id) in ids.iter().enumerate() {
+            let job_id = base + i64::try_from(n).unwrap_or(0);
+            let mut job = NewJob::new(
+                job_id,
+                INDEX_MESSAGE_KIND,
+                serde_json::to_value(IndexPayload {
+                    op: IndexOp::Upsert,
+                    channel_id: w.channel.get(),
+                    message_id: id.get(),
+                    guild_id: 0,
+                })
+                .unwrap(),
+            );
+            job.priority = i16::MAX; // ahead of anything another suite left queued
+            jobs::enqueue(&pool, &job).await.unwrap();
+            job_ids.push(job_id);
+        }
+        let first = jobs::claim(&pool, &[INDEX_MESSAGE_KIND.to_owned()], "runner", 1)
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(first.id, job_ids[0]);
+        index_handler(indexer, pool.clone(), first).await.unwrap();
+        assert_eq!(w.hits("queued"), 3, "all three in the index");
+        let states: Vec<(i64, String)> =
+            sqlx::query_as("SELECT id, state::text FROM jobs WHERE id = ANY($1) ORDER BY id")
+                .bind(&job_ids)
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        // The runner records its own job; the handler recorded the two it claimed.
+        assert_eq!(
+            states,
+            vec![
+                (job_ids[0], "running".to_owned()),
+                (job_ids[1], "succeeded".to_owned()),
+                (job_ids[2], "succeeded".to_owned()),
+            ]
+        );
+        sqlx::query("DELETE FROM jobs WHERE id = ANY($1)")
+            .bind(&job_ids)
+            .execute(&pool)
+            .await
+            .unwrap();
     }
 }

@@ -118,6 +118,23 @@ pub async fn complete<'e>(ex: impl PgExecutor<'e>, id: i64) -> DbResult<bool> {
     Ok(r.rows_affected() == 1)
 }
 
+/// [`complete`] for several running jobs in one statement (a handler that batched them). Returns how many were
+/// marked.
+pub async fn complete_many<'e>(ex: impl PgExecutor<'e>, ids: &[i64]) -> DbResult<u64> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let r = sqlx::query(
+        "UPDATE jobs SET state = 'succeeded', finished_at = now(), locked_at = NULL, \
+                locked_by = NULL, updated_at = now() \
+         WHERE id = ANY($1) AND state = 'running'",
+    )
+    .bind(ids)
+    .execute(ex)
+    .await?;
+    Ok(r.rows_affected())
+}
+
 /// Record a failure. Re-queues with exponential backoff, or dead-letters once
 /// `max_attempts` is reached. Returns the resulting state (`queued`/`dead`),
 /// or `None` if the job was not running.
