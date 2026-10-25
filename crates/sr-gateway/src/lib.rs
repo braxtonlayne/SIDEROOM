@@ -51,6 +51,8 @@ pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
 #[cfg(test)]
 mod members_request_tests;
 #[cfg(test)]
+mod memory_budget_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod voice_tests;
