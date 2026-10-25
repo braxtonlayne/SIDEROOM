@@ -292,7 +292,8 @@ describe('Leaderboards page', () => {
     const list = await screen.findByRole('list', { name: 'Top donors' });
     const img = list.querySelector('img');
     expect(img?.getAttribute('src')).toBe('/cdn/avatars/7/abc.png?size=64');
-    expect(within(list).getByText('AP')).toBeInTheDocument();
+    // The initials are generated content (data-initials), not text of the avatar.
+    expect(list.querySelector('[data-initials="AP"]')).not.toBeNull();
   });
 
   it('switches to the lifetime window and the servers tab', async () => {

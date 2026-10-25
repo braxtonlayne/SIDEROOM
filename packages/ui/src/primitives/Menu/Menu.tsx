@@ -118,13 +118,18 @@ function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCl
     [floating.ref],
   );
 
+  // The panel is `visibility: hidden` until the floating position is known, and a hidden element cannot take
+  // focus: the first attempt (at mount) fails in a real browser, so try again when the position arrives, until
+  // focus is inside. (jsdom has no visibility, which is why the unit tests never saw this.)
+  const placed = useRef(false);
   useLayoutEffect(() => {
     const p = panelRef.current;
-    if (!p) return;
+    if (!p || placed.current) return;
     if (focusFirst) (enabledItems(p)[0] ?? p).focus({ preventScroll: true });
     else p.focus({ preventScroll: true });
+    if (p.contains(document.activeElement)) placed.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portalTarget]);
+  }, [portalTarget, floating.position]);
 
   useEffect(() => {
     const t = typed.current;

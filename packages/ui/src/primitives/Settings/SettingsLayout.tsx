@@ -74,6 +74,30 @@ export function SettingsLayout({
   const [focusId, setFocusId] = useState<string | null>(null);
   const navRefs = useRef(new Map<string, HTMLButtonElement>());
   const navId = useId();
+  // A scrolling region with nothing focusable in it cannot be scrolled from the keyboard (axe
+  // scrollable-region-focusable): make the content area itself a tab stop in that case only.
+  const contentRef = useRef<HTMLElement>(null);
+  const [scrollStop, setScrollStop] = useState(false);
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    // The sections load their data after this layout rendered, so watch the content, not just our own renders.
+    const check = () => {
+      const need =
+        el.scrollHeight > el.clientHeight &&
+        !el.querySelector('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])');
+      setScrollStop((prev) => (prev === need ? prev : need));
+    };
+    check();
+    const mo = new MutationObserver(check);
+    mo.observe(el, { childList: true, subtree: true });
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    ro?.observe(el);
+    return () => {
+      mo.disconnect();
+      ro?.disconnect();
+    };
+  }, []);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const dirtyRef = useRef(dirty);
@@ -193,7 +217,14 @@ export function SettingsLayout({
             <span className={styles.srOnly}>settings</span>
           </button>
         </div>
-        <main className={styles.content} aria-label={typeof active?.label === "string" ? active.label : title}>
+        <main
+          ref={contentRef}
+          // A scrolling region with nothing focusable in it is a tab stop so the keyboard can scroll it (axe scrollable-region-focusable).
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={scrollStop ? 0 : undefined}
+          className={styles.content}
+          aria-label={typeof active?.label === "string" ? active.label : title}
+        >
           {children}
         </main>
         {dirty && (

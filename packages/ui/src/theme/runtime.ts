@@ -111,6 +111,14 @@ export function appearanceVars(settings: AppearanceSettings, systemReducedMotion
     vars["--ui-text-muted"] = "var(--ui-text)";
     vars["--ui-text-faint"] = "var(--ui-text)";
     vars["--ui-border"] = "var(--ui-text-muted)";
+    // The legacy and Side Room tokens that most of the Lounge, Cinema and Library CSS reads directly: without
+    // these the setting would only reach the primitives (RDY-A11Y-004). The fallbacks keep a theme that lacks
+    // a token (the Lounge has no --sr-*) from turning the property invalid.
+    vars["--text-muted"] = "var(--text-normal, var(--ui-text))";
+    vars["--interactive-normal"] = "var(--text-normal, var(--ui-text))";
+    vars["--sr-text-2"] = "var(--sr-text, var(--ui-text))";
+    vars["--sr-text-3"] = "var(--sr-text, var(--ui-text))";
+    vars["--sr-line"] = "var(--sr-text, var(--ui-text))";
   } else {
     vars["--ui-contrast-boost"] = "0";
   }

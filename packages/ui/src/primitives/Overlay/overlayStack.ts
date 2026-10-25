@@ -85,7 +85,12 @@ export function useFocusTrap({ open, containerRef, isTopmost, initialFocusRef }:
     const container = containerRef.current;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const target =
-      initialFocusRef?.current ?? container?.querySelector<HTMLElement>(`[data-autofocus], ${FOCUSABLE}`) ?? container;
+      initialFocusRef?.current ??
+      // One query per priority: a selector list returns the first match in document order, so the header's close
+      // button would beat a later `[data-autofocus]` field.
+      container?.querySelector<HTMLElement>("[data-autofocus]") ??
+      container?.querySelector<HTMLElement>(FOCUSABLE) ??
+      container;
     target?.focus();
 
     const onKey = (e: KeyboardEvent) => {

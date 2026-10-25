@@ -24,6 +24,9 @@
   font-weight: 600;
   user-select: none;
 }
+/* The initials are generated content: they are not text of the control, so a button that holds an avatar can
+   still carry a name that contains its visible text (WCAG 2.5.3, axe label-content-name-mismatch). */
+.fallback::before { content: attr(data-initials); }
 .status {
   position: absolute;
   inset-inline-end: -2px;

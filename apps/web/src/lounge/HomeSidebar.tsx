@@ -194,7 +194,12 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
     void navigate({ to: '/channels/$guildId', params: { guildId: HOME } });
   };
   return (
-    <div className="lng-sidebar" data-testid="home-sidebar">
+    <div
+      className="lng-sidebar"
+      data-testid="home-sidebar"
+      role="region"
+      aria-label={t('a11y.landmark.homeSidebar')}
+    >
       <div className="lng-sidebar-top">
         <button type="button" className="lng-find" onClick={onOpenSwitcher}>
           {t('lounge.homeSidebar.find')}

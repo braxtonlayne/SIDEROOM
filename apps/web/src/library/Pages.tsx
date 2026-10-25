@@ -1,5 +1,6 @@
 // The smaller Library pages: latest updates (LIB-BRW-003), My library (shelves), reading history, and the
 // placeholders for sections owned by later inventory items.
+import { RovingScope } from '../a11y/RovingNav';
 import {
   Button,
   EmptyState,
@@ -208,18 +209,20 @@ export function MyLibraryPage() {
           }
         />
       ) : (
-        <div className="lib-grid">
-          {items.map((f) => {
-            const n = counts.get(f.series.id)?.unread ?? 0;
-            return (
-              <SeriesCard
-                key={f.series.id}
-                series={f.series}
-                tag={n > 0 ? t('library.pages.myLibrary.unread', { n }) : undefined}
-              />
-            );
-          })}
-        </div>
+        <RovingScope selector="[data-poster-link]" orientation="grid">
+          <div className="lib-grid">
+            {items.map((f) => {
+              const n = counts.get(f.series.id)?.unread ?? 0;
+              return (
+                <SeriesCard
+                  key={f.series.id}
+                  series={f.series}
+                  tag={n > 0 ? t('library.pages.myLibrary.unread', { n }) : undefined}
+                />
+              );
+            })}
+          </div>
+        </RovingScope>
       )}
     </div>
   );

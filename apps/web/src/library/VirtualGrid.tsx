@@ -2,6 +2,7 @@
 // thousands of series keeps a few dozen cards in the DOM. Spacers above and below keep the scroll length.
 // The scroller is the nearest scrollable ancestor (the page body or the app shell). Where nothing can be
 // measured (width 0: tests, print) or the list is short, every item renders in a plain grid.
+import { useRovingTabindex } from '../a11y/useRovingTabindex';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 const MIN_COL = 150;
@@ -46,6 +47,8 @@ export function VirtualGrid<T>({
   render: (item: T) => ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  // Cards are one Tab stop with arrow keys; only mounted rows take part, focus scrolls the next ones in.
+  useRovingTabindex(host, { selector: '[data-poster-link]', orientation: 'grid' });
   const firstRow = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [rowH, setRowH] = useState(ROW_ESTIMATE);

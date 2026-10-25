@@ -3,6 +3,7 @@
  * Only sections the staff member's platform permissions allow are listed; the API enforces the same rules,
  * so a hidden section is a courtesy, never the security boundary.
  */
+import { SkipLink } from '../components/SkipLink';
 import {
   Button,
   EmptyState,
@@ -383,6 +384,7 @@ export function AdminShell({ section }: { section: string | undefined }) {
 
   return (
     <>
+      <SkipLink />
       <SettingsLayout
         title={t('admin.adminApp.title')}
         sections={navSections}

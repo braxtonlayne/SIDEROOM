@@ -10,7 +10,16 @@
 | Reduced motion, forced colours | same spec | animations collapse, focus outline survives Windows high contrast |
 | Focus trap, Escape, focus restore | `packages/ui/src/primitives/overlays.test.tsx`, `menus.test.tsx` | Modal, Drawer, Menu, Popover |
 
-Signed-in screens are covered in jsdom by `apps/web/src/a11y/signedInRoutes.test.tsx` (a table of routes with the API mocked by MSW; add a row per new route) and by the axe cases in the Library, Cinema, Admin and Developers suites. They are not in the real-browser run yet because that needs a session; add a route to `ROUTES` in `e2e/static/a11y.spec.ts` once a fixture user exists (XC-TEST-004), or stub `/api/v1/users/@me` in the spec.
+Signed-in screens are covered twice. In jsdom by `apps/web/src/a11y/signedInRoutes.test.tsx` (a table of routes with the API mocked by MSW; add a row per new route) and by the axe cases in the Library, Cinema, Admin and Developers suites. In a real browser by `e2e/tests/a11y-signed-in.spec.ts` (RDY-A11Y-001): axe, including colour contrast and landmarks, over a fixture world built through the API (`e2e/support/world.ts`: a server with messages and a thread, a published Cinema title, a watch party) and every route listed in the spec: Lounge channel, thread and home, 19 Settings sections, server settings, Library home and browse, Cinema home, movies, title, player, party, Live TV guide and My list, Admin home, Developers, Developers docs and Support. Serious and critical findings fail the test; the rest are written to `e2e/.state/a11y/<route>.json` and listed in the handoff. The `playwright` CI job runs it on Chromium, Firefox and WebKit.
+
+| Check | Where | Covers |
+|---|---|---|
+| Keyboard flows 1 to 8 of the manual pass below | `e2e/tests/keyboard-<n>-*.spec.ts` | keyboard-only (Tab, arrows, Enter, Space, Escape), focus position and live-region text at each step; flow 6 (voice) runs in the `live` job, flow 5 (attachment) needs object storage |
+| Reduced motion and High contrast in a browser | `e2e/tests/a11y-modes.spec.ts` | the OS preference and the in-app setting collapse every animation in the Lounge, Cinema and Library; the in-app High contrast setting lifts muted text and leaves no `color-contrast` violation |
+| The token set | `packages/ui/src/theme/tokens-contrast.test.ts` | every theme: text on surfaces 4.5:1, ink on fills, focus and status 3:1; High contrast resolves every text token to full strength (7:1) and borders to 3:1 |
+| The CSS guard | `apps/web/src/a11y/reducedMotion.test.ts` | the OS and in-app reduced-motion guards in `styles/a11y.css`, no `!important` motion that defeats them, no smooth scroll without a check |
+
+A WebKit build that does not Tab to links (the Safari default; Playwright's Windows WebKit is one) cannot walk the flows that cross a link: those specs probe for it and skip with a reason. On Linux (CI) Tab reaches links.
 
 ## Conventions
 
@@ -26,17 +35,17 @@ Tab moves between regions; arrow keys move inside a list. A list is one Tab stop
 
 | Section | Region | Keys |
 |---|---|---|
-| Everywhere | Skip link (entrance pages) | Tab once, Enter: focus moves to `main` |
+| Everywhere | Skip link (entrance pages, Lounge, Cinema, Library, Admin; Developers has its own) | Tab once, Enter: focus moves to `main` |
 | Everywhere | Dialogs, menus, popovers | Focus trapped and restored; Escape closes; arrows move in menus |
 | Lounge | Server rail | Roving: Up/Down move, Home/End ends, Enter opens. Ctrl+Alt+Up/Down switch server (Cmd on macOS) |
 | Lounge | Channel list | Roving across channels and category headers: Up/Down, Home/End, Enter/Space (category toggles). Alt+Up/Down previous or next channel, Alt+Shift+Up/Down next unread |
-| Lounge | Message list | Tab reaches each message's actions; the list itself is a log region (new messages are announced, focus never moves). Esc marks the channel read; typing a character focuses the composer. *Follow-up: arrow-key message cursor.* |
+| Lounge | Message list | One Tab stop (roving tabindex): Up/Down/Home/End move between messages, each message's own buttons stay tabbable. The list is a log region: new messages are announced and focus never moves. Esc marks the channel read; typing a character focuses the composer. |
 | Lounge | Composer | Enter sends, Shift+Enter newline, autocomplete popup: Up/Down/Tab/Enter/Esc |
-| Lounge | Member list | Tab per member (virtualised). *Follow-up: roving with virtual scroll.* |
+| Lounge | Member list | One Tab stop (roving tabindex): Up/Down/Home/End move between the members that are mounted; focus scrolls the next ones in. |
 | Lounge | Quick switcher | Ctrl+K opens (Cmd on macOS); Up/Down, Enter, Esc. Ctrl+/ opens the shortcut sheet, Ctrl+, user settings |
-| Library | Search results, series grid, reader | Tab per card; reader: arrows turn pages, Esc leaves. *Follow-up: roving grid.* |
-| Cinema | Browse rows, live guide grid | Tab per tile; guide grid has its own arrow-key grid navigation (`cinema/tv/GuideGrid.tsx`). *Follow-up: roving rows.* |
-| Settings and Admin | Section nav, forms | Tab through nav then content; section nav uses the `SettingsLayout` roving list; Esc closes settings |
+| Library | Search results, series grid, reader | Card grids and poster rows are one Tab stop: arrows move by card, Up/Down by row in a grid (`useRovingTabindex` with `orientation: 'grid'`), Home/End jump. Reader: arrows turn pages, Esc leaves. |
+| Cinema | Browse rows, live guide grid | Poster rows and the title grid are one Tab stop with arrows (as the Library). The live guide grid has its own arrow-key grid navigation (`cinema/tv/GuideGrid.tsx`, one Tab stop, tested in `cinema/tv/__tests__/guide.test.tsx`). |
+| Settings and Admin | Section nav, forms | Tab through nav then content; section nav uses the `SettingsLayout` roving list; Esc closes settings and focus returns to the control that opened them |
 | Share | Channel picker | Tab per channel, Enter picks |
 
 ## Manual screen-reader pass (before each phase exit)
@@ -61,3 +70,15 @@ Flows to walk:
 8. Settings: change a value, see "Settings saved" announced, close with Escape.
 
 Record any failure as an issue with the reader, browser, steps and what was heard.
+
+### Which pairs have been heard
+
+None yet. The keyboard half of every flow is automated (RDY-A11Y-003), and the live regions are asserted as text, but nobody has listened to them with a reader. All of these remain unheard and are a human action (docs/dev/roadmap-p20.md, "Needs the owner"):
+
+| Pair | Heard |
+|---|---|
+| NVDA + Firefox | no |
+| NVDA + Chrome | no |
+| VoiceOver + Safari (macOS) | no |
+| VoiceOver + Safari (iOS) | no |
+| TalkBack + Chrome (Android) | no |

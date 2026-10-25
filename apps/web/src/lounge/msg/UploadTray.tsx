@@ -1,5 +1,6 @@
 import { Button, Icon, Modal, ProgressBar } from '@sideroom/ui';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { announce } from '../../a11y/announcer';
 import { useT } from '../../i18n';
 import { fileIcon } from './Attachments';
 import { formatBytes } from './format';
@@ -44,6 +45,22 @@ export function UploadTray({
   const [alt, setAlt] = useState('');
   const [spoiler, setSpoiler] = useState(false);
   const limits = useUploadLimits(files.some((f) => f.file.size > CHECK_FROM));
+
+  // Say what the progress bars show: start, completion and failure of each file (RDY-A11Y-003).
+  const seen = useRef(new Map<string, string>());
+  useEffect(() => {
+    for (const f of files) {
+      const was = seen.current.get(f.id);
+      if (was === f.status) continue;
+      seen.current.set(f.id, f.status);
+      if (f.status === 'uploading') announce(t('a11y.announce.uploadStarted', { name: f.name }));
+      else if (f.status === 'done') announce(t('a11y.announce.uploadDone', { name: f.name }));
+      else if (f.status === 'error')
+        announce(t('a11y.announce.uploadFailed', { name: f.name }), 'assertive');
+    }
+    for (const id of seen.current.keys())
+      if (!files.some((f) => f.id === id)) seen.current.delete(id);
+  }, [files, t]);
 
   useEffect(() => {
     if (target) {

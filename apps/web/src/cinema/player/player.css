@@ -206,6 +206,14 @@
   border-color: rgba(236, 230, 214, 0.4);
 }
 
+/* `.cpl-root a { color: inherit }` and `.cin-root a` outrank the class rules above for anchors (gold on gold, 1.7:1). */
+.cpl-primary.cpl-primary {
+  color: var(--sr-gold-ink, #1a160e);
+}
+.cpl-secondary.cpl-secondary {
+  color: #ece6d6;
+}
+
 /* scrubber */
 .cpl-scrub {
   position: relative;
