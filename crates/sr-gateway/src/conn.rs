@@ -92,6 +92,21 @@ pub async fn run_connection(
         next_seen: Instant::now(),
     };
     let stop = c.run(&mut incoming, &mut session_rx).await;
+    // Which side ended a gateway connection, and why (RDY-VOX-002: run 40237146331 lost five members'
+    // gateways at once and nothing said why). A detached session keeps its voice state for the grace period.
+    let user = c.session.as_ref().map(|s| s.user.to_string());
+    match &stop {
+        Stop::Close(code, reason) => {
+            tracing::info!(
+                conn = id,
+                ?user,
+                code,
+                reason,
+                "gateway connection closed by the server"
+            );
+        }
+        Stop::Gone => tracing::debug!(conn = id, ?user, "gateway connection closed by the client"),
+    }
     if let Stop::Close(code, reason) = stop {
         let _ = c
             .out
