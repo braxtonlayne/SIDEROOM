@@ -178,7 +178,9 @@ test('the generated chapter ZIPs are well-formed archives of distinct PNG pages'
   const seen = new Set<string>();
   for (let n = 1; n <= CHAPTERS; n++) {
     const files = readZip(chapterZip(n));
-    expect(files.map((f) => f.name)).toEqual(['001.png', '002.png', '003.png']);
+    expect(files.map((f) => f.name)).toEqual(
+      Array.from({ length: PAGES }, (_, i) => `${String(i + 1).padStart(3, '0')}.png`),
+    );
     for (const f of files) {
       expect(f.crcOk, `${n}/${f.name} CRC`).toBe(true);
       expect(f.data.subarray(0, 8)).toEqual(
