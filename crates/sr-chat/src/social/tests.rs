@@ -1838,3 +1838,130 @@ async fn open_dm_refuses_with_50007_while_every_shared_server_pauses_dms() {
     f.svc.accept_friend_request(u(2), u(1)).await.unwrap();
     assert!(f.svc.open_dm(u(1), u(2)).await.is_ok());
 }
+
+#[tokio::test]
+async fn dm_spam_filter_reads_a_strangers_first_message() {
+    use super::dm::{RequestReason, RequestState};
+    use super::safety::SpamFilter;
+    let f = fx();
+    f.svc_repo()
+        .store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(1), u(2)));
+    // The default filter (non_friends) files the stranger's first DM as a pending request.
+    let id = f.svc.open_dm(u(1), u(2)).await.unwrap().channel.id;
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(RequestState::Pending)
+    );
+    // An ordinary hello stays pending...
+    assert_eq!(
+        f.svc
+            .screen_dm_message(id, u(1), "hi, found you via the book club")
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(RequestState::Pending)
+    );
+    // ...a message that looks like spam moves it to "Likely spam", with the reason.
+    let spam = "https://a.example.com https://b.example.org https://c.example.net win big";
+    assert_eq!(
+        f.svc.screen_dm_message(id, u(1), spam).await.unwrap(),
+        Some("several links")
+    );
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(RequestState::Spam)
+    );
+    assert_eq!(
+        f.svc.request_reason(u(2), id).await.unwrap(),
+        Some(RequestReason::Spam)
+    );
+    // The recipient can still accept it; accepted conversations are not screened again.
+    f.svc
+        .respond_to_request(u(2), id, RequestState::Accepted)
+        .await
+        .unwrap();
+    assert_eq!(f.svc.screen_dm_message(id, u(1), spam).await.unwrap(), None);
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(RequestState::Accepted)
+    );
+
+    // With the filter off nothing is read, and the sender's own messages never flag their own side.
+    f.svc
+        .update_privacy(
+            u(4),
+            super::user_settings::PrivacyUpdate {
+                dm_spam_filter: Some(SpamFilter::Off),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    f.svc
+        .repo()
+        .store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(3), u(4)));
+    let id2 = f.svc.open_dm(u(3), u(4)).await.unwrap().channel.id;
+    assert_eq!(
+        f.svc.screen_dm_message(id2, u(3), spam).await.unwrap(),
+        None
+    );
+    assert_eq!(f.svc.screen_dm_message(id, u(2), spam).await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn filing_a_request_as_spam_gives_it_the_spam_reason_and_friends_are_never_screened() {
+    use super::dm::{RequestReason, RequestState};
+    let f = fx();
+    f.svc_repo()
+        .store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(1), u(2)));
+    let id = f.svc.open_dm(u(1), u(2)).await.unwrap().channel.id;
+    f.svc
+        .respond_to_request(u(2), id, RequestState::Spam)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.svc.request_reason(u(2), id).await.unwrap(),
+        Some(RequestReason::Spam)
+    );
+    // Friends: the 'all' level routes even their first DM, but the heuristics never move it to spam.
+    befriend(&f, 5, 6).await;
+    f.svc
+        .update_privacy(
+            u(6),
+            super::user_settings::PrivacyUpdate {
+                dm_spam_filter: Some(super::safety::SpamFilter::All),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let id2 = f.svc.open_dm(u(5), u(6)).await.unwrap().channel.id;
+    assert_eq!(
+        f.svc.request_state(u(6), id2).await.unwrap(),
+        Some(RequestState::Pending)
+    );
+    let flood = "a".repeat(40);
+    assert_eq!(
+        f.svc.screen_dm_message(id2, u(5), &flood).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        f.svc.request_state(u(6), id2).await.unwrap(),
+        Some(RequestState::Pending)
+    );
+}

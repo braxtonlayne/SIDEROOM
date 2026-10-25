@@ -42,6 +42,60 @@ export function MessageRequestsPage() {
     }
   };
 
+  // "Likely spam": what the spam filter flagged or the person filed as spam (reason `spam`).
+  const spam = list.filter((dm) => dm.sr_request_reason === 'spam');
+  const requests = list.filter((dm) => dm.sr_request_reason !== 'spam');
+
+  const row = (dm: DmObject) => {
+    const from = dm.recipients[0];
+    const name = from ? wireName(from) : t('lounge.messageRequests.unknown');
+    const reason = requestReasonText(dm, t);
+    return (
+      <li key={dm.id} className="lng-friend-row">
+        <Avatar name={name} size={32} />
+        <span className="lng-friend-text">
+          <span className="lng-friend-name">{name}</span>
+          <span className="lng-friend-sub">{t('lounge.messageRequests.wantsToMessage')}</span>
+          {reason && <span className="lng-friend-sub">{reason}</span>}
+        </span>
+        <Button
+          size="sm"
+          loading={busy === dm.id}
+          aria-label={t('lounge.messageRequests.acceptLabel', { name })}
+          onClick={() => void answer(dm, 'accepted')}
+        >
+          {t('lounge.messageRequests.accept')}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          aria-label={t('lounge.messageRequests.ignoreLabel', { name })}
+          onClick={() => void answer(dm, 'ignored')}
+        >
+          {t('lounge.messageRequests.ignore')}
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          aria-label={t('lounge.messageRequests.spamLabel', { name })}
+          onClick={() => void answer(dm, 'spam')}
+        >
+          {t('lounge.messageRequests.spam')}
+        </Button>
+        {from && (
+          <Button
+            size="sm"
+            variant="danger"
+            aria-label={t('lounge.messageRequests.blockLabel', { name })}
+            onClick={() => void answer(dm, 'ignored', from.id)}
+          >
+            {t('lounge.messageRequests.block')}
+          </Button>
+        )}
+      </li>
+    );
+  };
+
   return (
     <section className="lng-channel-view" aria-label={t('lounge.messageRequests.title')}>
       <header className="lng-header">
@@ -62,58 +116,19 @@ export function MessageRequestsPage() {
           />
         )}
         <ul className="lng-friend-list" aria-label={t('lounge.messageRequests.list')}>
-          {list.map((dm) => {
-            const from = dm.recipients[0];
-            const name = from ? wireName(from) : t('lounge.messageRequests.unknown');
-            const reason = requestReasonText(dm, t);
-            return (
-              <li key={dm.id} className="lng-friend-row">
-                <Avatar name={name} size={32} />
-                <span className="lng-friend-text">
-                  <span className="lng-friend-name">{name}</span>
-                  <span className="lng-friend-sub">
-                    {t('lounge.messageRequests.wantsToMessage')}
-                  </span>
-                  {reason && <span className="lng-friend-sub">{reason}</span>}
-                </span>
-                <Button
-                  size="sm"
-                  loading={busy === dm.id}
-                  aria-label={t('lounge.messageRequests.acceptLabel', { name })}
-                  onClick={() => void answer(dm, 'accepted')}
-                >
-                  {t('lounge.messageRequests.accept')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  aria-label={t('lounge.messageRequests.ignoreLabel', { name })}
-                  onClick={() => void answer(dm, 'ignored')}
-                >
-                  {t('lounge.messageRequests.ignore')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  aria-label={t('lounge.messageRequests.spamLabel', { name })}
-                  onClick={() => void answer(dm, 'spam')}
-                >
-                  {t('lounge.messageRequests.spam')}
-                </Button>
-                {from && (
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    aria-label={t('lounge.messageRequests.blockLabel', { name })}
-                    onClick={() => void answer(dm, 'ignored', from.id)}
-                  >
-                    {t('lounge.messageRequests.block')}
-                  </Button>
-                )}
-              </li>
-            );
-          })}
+          {requests.map(row)}
         </ul>
+        {spam.length > 0 && (
+          <section aria-labelledby="mr-spam-h">
+            <h2 id="mr-spam-h" className="lng-friend-heading">
+              {t('lounge.messageRequests.spamHeading', { count: spam.length })}
+            </h2>
+            <p className="lng-muted">{t('lounge.messageRequests.spamHelp')}</p>
+            <ul className="lng-friend-list" aria-label={t('lounge.messageRequests.spamList')}>
+              {spam.map(row)}
+            </ul>
+          </section>
+        )}
       </div>
     </section>
   );

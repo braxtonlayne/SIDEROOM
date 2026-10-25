@@ -99,6 +99,24 @@ impl SpamFilter {
     }
 }
 
+/// Distinct link hosts in one stranger's message that make it look like spam (the automod
+/// `link flood` rule uses five; a first message from someone you do not know gets fewer).
+pub const DM_SPAM_LINK_HOSTS: usize = 3;
+
+/// RDY-PAR-004: why a first message from a stranger looks like spam, by the same heuristics
+/// the server automod uses (character flood, repeated word, link flood, see
+/// `settings::automod::spam_reason`) plus a lower link threshold for strangers.
+pub fn dm_spam_reason(content: &str) -> Option<&'static str> {
+    use crate::settings::automod::{extract_hosts, spam_reason};
+    if let Some(r) = spam_reason(content) {
+        return Some(r);
+    }
+    let mut hosts = extract_hosts(content);
+    hosts.sort();
+    hosts.dedup();
+    (hosts.len() >= DM_SPAM_LINK_HOSTS).then_some("several links")
+}
+
 /// Sensitive-media handling per source (Discord: friends, non-friends, servers).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SensitiveMedia {
@@ -132,6 +150,25 @@ pub struct SafetyPrefs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dm_spam_heuristics() {
+        assert_eq!(dm_spam_reason("hi, how are you?"), None);
+        assert_eq!(dm_spam_reason("see https://a.example.com/x"), None);
+        assert_eq!(dm_spam_reason(&"a".repeat(30)), Some("character flood"));
+        assert_eq!(dm_spam_reason(&"free ".repeat(9)), Some("repeated word"));
+        assert_eq!(
+            dm_spam_reason("https://a.example.com https://b.example.org https://c.example.net"),
+            Some("several links")
+        );
+        // The same host three times is one link target, not a flood.
+        assert_eq!(
+            dm_spam_reason(
+                "https://a.example.com/1 https://a.example.com/2 https://a.example.com/3"
+            ),
+            None
+        );
+    }
 
     #[test]
     fn filter_round_trips() {

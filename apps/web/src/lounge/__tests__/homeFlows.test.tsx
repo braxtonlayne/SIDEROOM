@@ -384,6 +384,26 @@ describe('Message Requests', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/channels/@me/dm7'));
   });
 
+  it('lists what the spam filter flagged under Likely spam (RDY-PAR-004)', async () => {
+    const flagged = {
+      id: 'dm8',
+      type: 1,
+      recipients: [cat],
+      is_message_request: true,
+      sr_request_reason: 'spam',
+    };
+    useStore.setState({ messageRequestDms: [request, flagged] });
+    at('/channels/@me');
+    await userEvent.click(await screen.findByRole('button', { name: /Message Requests/ }));
+    const main = await screen.findByRole('list', { name: 'Message requests' });
+    expect(within(main).getByText('dan')).toBeInTheDocument();
+    expect(within(main).queryByText('cat')).toBeNull();
+    const spam = await screen.findByRole('list', { name: 'Likely spam' });
+    expect(within(spam).getByText('cat')).toBeInTheDocument();
+    expect(within(spam).getByText('Filed as likely spam.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Likely spam (1)' })).toBeInTheDocument();
+  });
+
   it('ignores a request and shows the empty state', async () => {
     server.use(
       http.put(

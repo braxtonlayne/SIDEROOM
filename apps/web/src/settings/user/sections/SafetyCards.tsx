@@ -135,6 +135,7 @@ export function DmSafetyCard() {
               ]}
             />
             <p className="us-muted">{t('settings.safety.filterHelp')}</p>
+            <p className="us-muted">{t('settings.safety.filterHeuristics')}</p>
             <h3 id="us-dm-overrides-h" className="us-subhead">
               {t('settings.safety.overridesTitle')}
             </h3>

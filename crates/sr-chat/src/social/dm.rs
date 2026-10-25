@@ -213,6 +213,9 @@ pub enum RequestReason {
     ServerFilter,
     /// The sender's account is younger than a shared server's threshold.
     NewAccount,
+    /// The recipient's spam filter flagged a first message (RDY-PAR-004), or the recipient marked
+    /// the conversation as spam. These requests show under "Likely spam" in Message Requests.
+    Spam,
 }
 
 impl RequestReason {
@@ -220,6 +223,7 @@ impl RequestReason {
         match self {
             Self::ServerFilter => "server_filter",
             Self::NewAccount => "new_account",
+            Self::Spam => "spam",
         }
     }
 
@@ -227,6 +231,7 @@ impl RequestReason {
         Some(match s {
             "server_filter" => Self::ServerFilter,
             "new_account" => Self::NewAccount,
+            "spam" => Self::Spam,
             _ => return None,
         })
     }
