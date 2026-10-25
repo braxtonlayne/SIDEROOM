@@ -1,20 +1,30 @@
 name: Load test
-# XC-PERF-003: the full run (2,000 gateway sessions, 200 messages/s, REST p95 < 100 ms) against a release build.
-# Manual: it is long and wants a quiet runner. See docs/dev/load-testing.md.
+# XC-PERF-003 and RDY-PERF-002: the sizing claim on a release build over the seeded dataset.
+#   - sr-cli seed --scale: 20,000 accounts, 500 guilds, 5 million messages, 2,000 library chapters, 300 cinema titles
+#   - sr-loadtest: 2,000 gateway sessions, 200 messages/s, 300 REST/s, REST p95 < 100 ms, fan-out p95 < 250 ms,
+#     and one member of 60 servers loading the Lounge under that load (first paint < 1.5 s, no 429; K-22)
+# Manual only: it is long and wants a quiet standard runner. The numbers go into docs/dev/load-testing.md with the
+# link to the run. Written, not yet run (the owner dispatches it; the first run decides the numbers).
 on:
   workflow_dispatch:
     inputs:
+      seed_scale:
+        description: Load the 20,000-account dataset first (false: skip, for a quick check)
+        type: boolean
+        default: true
       sessions: { description: Gateway sessions, default: "2000" }
       msg_rate: { description: Messages per second, default: "200" }
-      duration: { description: Steady-state seconds, default: "60" }
+      rest_rps: { description: REST requests per second, default: "300" }
+      duration: { description: Steady-state seconds, default: "120" }
 permissions:
   contents: read
 env:
   SR_DATABASE__URL: postgres://sideroom:sideroom_ci@localhost:5432/sr_loadtest
+  SR_SERVER__PUBLIC_URL: http://127.0.0.1:8080
 jobs:
   load:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     services:
       postgres:
         image: postgres:17
@@ -30,23 +40,52 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p sr-server -p sr-cli -p sr-loadtest
+      - run: cargo build --release --locked -p sr-server -p sr-cli -p sr-loadtest
       - run: ./target/release/sr-cli migrate
+      - name: Seed the dataset (RDY-PERF-001, the target is under 30 minutes)
+        if: ${{ inputs.seed_scale }}
+        run: |
+          start=$(date +%s)
+          ./target/release/sr-cli seed --scale --seed-name ci 2>&1 | tee seed.log
+          echo "seed took $(( $(date +%s) - start )) s" | tee -a seed.log
+      - name: Table sizes after the seed
+        if: ${{ inputs.seed_scale }}
+        run: |
+          psql "$SR_DATABASE__URL" -c "select relname, n_live_tup from pg_stat_user_tables where relname in ('accounts','guilds','guild_members','messages','attachments','reactions','reading_chapters','video_titles') order by 1" | tee tables.txt
       - name: Start the server
         run: |
-          SR_SERVER__BIND=127.0.0.1:8080 SR_SERVER__PUBLIC_URL=http://127.0.0.1:8080 \
+          SR_SERVER__BIND=127.0.0.1:8080 \
           SR_STORAGE__ENDPOINT=http://127.0.0.1:1 SR_STORAGE__ACCESS_KEY=x SR_STORAGE__SECRET_KEY=y SR_STORAGE__BUCKET=lt \
           SR_SEARCH__DIR=$RUNNER_TEMP/search ./target/release/sr-server > server.log 2>&1 &
+          echo $! > server.pid
           for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
       - name: Load test
         run: >-
           ./target/release/sr-loadtest --base-url http://127.0.0.1:8080
-          --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --duration ${{ inputs.duration }}
-          --report load-report.json
+          --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --rest-rps ${{ inputs.rest_rps }}
+          --duration ${{ inputs.duration }} --guilds 100 --first-paint-guilds 60
+          --report load-report.json | tee load-output.txt
+      - name: Server memory after the run (resident set; per session = this over the sessions)
+        if: always()
+        run: |
+          grep -E 'VmRSS|VmHWM' /proc/$(cat server.pid)/status | tee server-memory.txt || true
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Load test'
+            echo '```'
+            cat load-output.txt seed.log tables.txt server-memory.txt 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: load-report
           path: |
             load-report.json
+            load-output.txt
+            seed.log
+            tables.txt
+            server-memory.txt
             server.log
