@@ -1,0 +1,10 @@
+[package]
+name = "sr-memcount"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "Test helper: a global allocator that counts the live heap bytes of the current thread (RDY-PERF-004)."
+
+# Deliberately no `[lints] workspace = true`: the workspace forbids `unsafe_code`, and a GlobalAlloc impl is
+# unsafe by definition. This is the only crate in the repository that needs it, and it is a dev-dependency of
+# test code only (never linked into sr-server or any other binary).

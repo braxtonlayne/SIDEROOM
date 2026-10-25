@@ -320,6 +320,90 @@ async fn failed_transcodes(pool: &PgPool, bus: &Arc<dyn EventBus>) {
     }
 }
 
+/// Statement timeout for the gauge queries: a slow count must never hold the health pass.
+const GAUGE_QUERY_TIMEOUT: &str = "3s";
+
+/// Set the job, backup, restore, WAL, disk and storage gauges (RDY-OBS-001). Each run sets them from the
+/// same figures the System page shows; nothing is computed on scrape. A query that fails leaves the old value.
+async fn record_gauges(pool: &PgPool, s: &AlertSettings) {
+    use sr_api::observability as obs;
+    // Jobs waiting, per kind, and the age of the oldest one that is already due.
+    if let Ok(rows) = sqlx::query_as::<_, (String, i64)>(
+        "SELECT kind, count(*) FROM jobs WHERE state = 'queued' GROUP BY kind",
+    )
+    .fetch_all(pool)
+    .await
+    {
+        let oldest: f64 = sqlx::query_scalar(
+            "SELECT COALESCE(EXTRACT(EPOCH FROM now() - min(run_at)), 0)::float8 \
+             FROM jobs WHERE state = 'queued' AND run_at <= now()",
+        )
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0.0);
+        obs::record_jobs_queued(&rows, oldest.max(0.0));
+    }
+    // Backup and restore drill: 0 when there is none, so the stale rule fires.
+    let dir = s.backup_dir.clone();
+    let (backup, restore) = tokio::task::spawn_blocking(move || {
+        if dir.is_empty() {
+            return (None, None);
+        }
+        let d = Path::new(&dir);
+        let secs = |ms: Option<i64>| ms.map(|m| m as f64 / 1000.0);
+        (
+            secs(newest_backup_modified(d).and_then(unix_ms)),
+            secs(marker_ms(&d.join("restore-drill.ok"))),
+        )
+    })
+    .await
+    .unwrap_or((None, None));
+    obs::record_backup_times(backup, restore);
+    // The WAL archiver; the series stays absent while archive_mode is off.
+    if let Ok((on, last, failed)) = sqlx::query_as::<_, (bool, Option<f64>, i64)>(
+        "SELECT current_setting('archive_mode') <> 'off', \
+                EXTRACT(EPOCH FROM last_archived_time)::float8, failed_count \
+         FROM pg_stat_archiver",
+    )
+    .fetch_one(pool)
+    .await
+        && on
+    {
+        obs::record_wal_archive(last, u64::try_from(failed).unwrap_or(0));
+    }
+    // The disk holding the data folder.
+    let path = if s.disk_path.is_empty() {
+        ".".to_owned()
+    } else {
+        s.disk_path.clone()
+    };
+    let p = path.clone();
+    if let Ok(Some((total, free))) = tokio::task::spawn_blocking(move || {
+        Some((fs4::total_space(&p).ok()?, fs4::available_space(&p).ok()?))
+    })
+    .await
+    {
+        obs::record_disk_free(&path, free, total);
+    }
+    // Stored attachment bytes, under a short statement timeout.
+    if let Ok(mut tx) = pool.begin().await {
+        let set = format!("SET LOCAL statement_timeout = '{GAUGE_QUERY_TIMEOUT}'");
+        if sqlx::query(sqlx::AssertSqlSafe(set))
+            .execute(&mut *tx)
+            .await
+            .is_ok()
+            && let Ok(bytes) = sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(size_bytes), 0)::bigint FROM attachments",
+            )
+            .fetch_one(&mut *tx)
+            .await
+        {
+            obs::record_storage_bytes("attachments", u64::try_from(bytes).unwrap_or(0));
+        }
+        let _ = tx.rollback().await;
+    }
+}
+
 /// One pass of the health check.
 pub async fn run_health(pool: &PgPool, admin: &AdminService, bus: &Arc<dyn EventBus>) {
     let settings = match admin.alert_settings().await {
@@ -347,6 +431,7 @@ pub async fn run_health(pool: &PgPool, admin: &AdminService, bus: &Arc<dyn Event
             alert_once(pool, bus, StaffAlertKind::BackupFailed, detail).await;
         }
     }
+    record_gauges(pool, &settings).await;
     failed_transcodes(pool, bus).await;
 }
 

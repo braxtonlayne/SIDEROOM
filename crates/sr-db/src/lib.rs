@@ -13,6 +13,7 @@ mod admin_repo_ext;
 pub mod apps_repo;
 pub mod auth_repo;
 pub mod auth_store;
+pub mod bounded;
 pub mod chat_repo;
 pub mod cinema_repo;
 pub mod cinema_uploads;

@@ -735,3 +735,39 @@ async fn soundboard_sounds_round_trip_and_follow_their_guild() {
         .unwrap();
     assert!(repo.list_sounds(g).await.unwrap().is_empty());
 }
+
+/// RDY-PERF-003 (job `audit.purge`): a purge over more rows than one batch removes all of them, in several
+/// bounded transactions, and keeps the newer ones.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn audit_purge_works_through_more_than_one_batch() {
+    let pool = pool().await;
+    let repo = PgSettingsRepo::new(pool.clone());
+    // Ids far above any snowflake a test makes; a guild id nothing else uses.
+    let guild_id: i64 = 8_100_000_000_000_001;
+    sqlx::query(
+        "INSERT INTO audit_log_entries (id, guild_id, actor_id, action, created_at) \
+         SELECT 8100000000100000 + n, $1, 1, 1, \
+                CASE WHEN n < 5100 THEN to_timestamp($2::double precision / 1000.0 - 86400) \
+                     ELSE to_timestamp($2::double precision / 1000.0 + 86400) END \
+         FROM generate_series(0, 5199) AS n",
+    )
+    .bind(guild_id)
+    .bind(NOW)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let purged = repo.purge_audit_before(NOW).await.unwrap();
+    assert!(purged >= 5100, "purged {purged}");
+    let left: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit_log_entries WHERE guild_id = $1")
+            .bind(guild_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(left, 100, "the newer rows stay");
+    // Clean up what this test inserted (the trigger allows deletes only inside the retention job).
+    repo.purge_audit_before(NOW + 10 * 86_400_000)
+        .await
+        .unwrap();
+}

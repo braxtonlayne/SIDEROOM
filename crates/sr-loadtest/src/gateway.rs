@@ -48,6 +48,8 @@ pub struct Report {
     pub ready: bool,
     /// Time from starting the connection to READY.
     pub ready_after: Option<Duration>,
+    /// Size of the READY frame in bytes (RDY-PERF-004: the payload of a member of many servers).
+    pub ready_bytes: usize,
     pub error: Option<String>,
     /// Load-test messages dispatched to this client.
     pub received: u64,
@@ -139,6 +141,7 @@ async fn session(
                             }
                             Some(0) => match v["t"].as_str() {
                                 Some("READY") => {
+                                    report.ready_bytes = t.as_str().len();
                                     report.ready = true;
                                     report.ready_after = Some(started.elapsed());
                                     ready.total.fetch_add(1, Ordering::Relaxed);

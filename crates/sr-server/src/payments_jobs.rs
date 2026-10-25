@@ -238,6 +238,7 @@ pub fn register(
                     Err(e) => status.last_error = Some(e.to_string()),
                 }
                 let _ = svc.repo().set_watcher_status(&status).await;
+                record_invoice_gauges(&pool).await;
                 jobs::reschedule_running(&pool, job.id, WATCH_INTERVAL).await?;
                 Ok(())
             })
@@ -252,6 +253,21 @@ pub fn register(
                 Ok::<(), HandlerError>(())
             })
         })
+}
+
+/// Set the two invoice gauges: how many invoices wait for payment and how long the oldest has waited
+/// (RDY-OBS-001). Cheap (the table holds one row per invoice); a failed query leaves the last figures.
+pub(crate) async fn record_invoice_gauges(pool: &PgPool) {
+    if let Ok((pending, oldest_created)) = sqlx::query_as::<_, (i64, Option<i64>)>(
+        "SELECT count(*), min(created_ms) FROM payment_invoices \
+         WHERE state IN ('open', 'seen', 'confirming')",
+    )
+    .fetch_one(pool)
+    .await
+    {
+        let age = oldest_created.map_or(0.0, |c| ((now_ms() - c).max(0)) as f64 / 1000.0);
+        sr_api::observability::record_invoices(pending, age);
+    }
 }
 
 /// Create or re-arm the periodic singletons. Call only when [`register`] is on the runner.

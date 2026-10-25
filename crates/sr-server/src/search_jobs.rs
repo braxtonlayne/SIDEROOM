@@ -41,7 +41,10 @@ pub const INDEX_MESSAGE_KIND: &str = "search.index_message";
 pub const REINDEX_KIND: &str = "search.reindex";
 
 /// Messages read per page during a reindex.
-const REINDEX_PAGE: usize = 500;
+const REINDEX_PAGE: usize = 1000;
+/// Documents added between two commits of a reindex (RDY-PERF-003): each commit writes a segment and reloads the
+/// reader, so committing per page made the job's time grow with the page count.
+const REINDEX_COMMIT_EVERY: u64 = 50_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -262,15 +265,44 @@ pub enum IndexError {
 impl Indexer {
     /// Build the event for one stored message, with attachment flags.
     async fn event_for(&self, msg: &Message) -> Result<MessageEvent, IndexError> {
-        let event = MessageEvent::from(msg);
         if msg.attachment_ids.is_empty() {
-            return Ok(event);
+            return Ok(MessageEvent::from(msg));
         }
         let found = self
             .store
             .attachments_of(&[msg.id])
             .await
             .map_err(|e| IndexError::Repo(e.to_string()))?;
+        Ok(Self::event_with(msg, &found))
+    }
+
+    /// The events of a page of messages, with one attachment lookup for the whole page instead of one per
+    /// message (RDY-PERF-003, `search.reindex`).
+    async fn events_for_page(&self, page: &[Message]) -> Result<Vec<MessageEvent>, IndexError> {
+        let with: Vec<MessageId> = page
+            .iter()
+            .filter(|m| !m.attachment_ids.is_empty())
+            .map(|m| m.id)
+            .collect();
+        let found = if with.is_empty() {
+            Default::default()
+        } else {
+            self.store
+                .attachments_of(&with)
+                .await
+                .map_err(|e| IndexError::Repo(e.to_string()))?
+        };
+        Ok(page.iter().map(|m| Self::event_with(m, &found)).collect())
+    }
+
+    fn event_with(
+        msg: &Message,
+        found: &std::collections::HashMap<MessageId, Vec<sr_chat::repo::Attachment>>,
+    ) -> MessageEvent {
+        let event = MessageEvent::from(msg);
+        if msg.attachment_ids.is_empty() {
+            return event;
+        }
         let types: Vec<String> = found
             .get(&msg.id)
             .into_iter()
@@ -283,11 +315,11 @@ impl Indexer {
             })
             .collect();
         let kinds = types.iter().map(String::as_str);
-        Ok(match event {
+        match event {
             MessageEvent::Created(i) => MessageEvent::Created(i.with_attachments(kinds)),
             MessageEvent::Updated(i) => MessageEvent::Updated(i.with_attachments(kinds)),
             other => other,
-        })
+        }
     }
 
     /// Apply one job payload to the index.
@@ -331,6 +363,7 @@ impl Indexer {
             .map_err(|e| IndexError::Search(e.to_string()))?
             .map_err(|e| IndexError::Search(e.to_string()))?;
         let mut total = 0u64;
+        let mut committed = 0u64;
         for &channel in channels {
             let mut after: Option<MessageId> = None;
             loop {
@@ -351,19 +384,37 @@ impl Indexer {
                     break;
                 };
                 let n = page.len();
-                let mut events = Vec::with_capacity(n);
-                for m in &page {
-                    events.push(self.event_for(m).await?);
-                }
+                let events = self.events_for_page(&page).await?;
                 total += n as u64;
-                self.apply(events).await?;
+                self.add_bulk(events).await?;
+                if total - committed >= REINDEX_COMMIT_EVERY {
+                    self.commit_bulk().await?;
+                    committed = total;
+                }
                 if n < REINDEX_PAGE {
                     break;
                 }
                 after = Some(last);
             }
         }
+        self.commit_bulk().await?;
         Ok(total)
+    }
+
+    async fn add_bulk(&self, events: Vec<MessageEvent>) -> Result<(), IndexError> {
+        let index = self.index.clone();
+        tokio::task::spawn_blocking(move || index.add_bulk(&events))
+            .await
+            .map_err(|e| IndexError::Search(e.to_string()))?
+            .map_err(|e| IndexError::Search(e.to_string()))
+    }
+
+    async fn commit_bulk(&self) -> Result<(), IndexError> {
+        let index = self.index.clone();
+        tokio::task::spawn_blocking(move || index.commit_bulk())
+            .await
+            .map_err(|e| IndexError::Search(e.to_string()))?
+            .map_err(|e| IndexError::Search(e.to_string()))
     }
 }
 

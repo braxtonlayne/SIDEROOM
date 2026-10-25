@@ -97,7 +97,33 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::Staff(cmd) => staff(&pool, &cfg.server, ids, cmd).await?,
         Command::VerifyAccessLog => verify_access_log(&pool, ids).await?,
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
-        Command::Seed { password, force } => seed(&pool, &cfg, ids, &password, force).await?,
+        Command::Seed {
+            password,
+            force,
+            scale: false,
+            ..
+        } => seed(&pool, &cfg, ids, &password, force).await?,
+        Command::Seed {
+            password,
+            force,
+            seed_name,
+            scale_accounts,
+            scale_guilds,
+            scale_messages,
+            scale_chapters,
+            scale_titles,
+            ..
+        } => {
+            let full = crate::seed_scale::ScaleProfile::FULL;
+            let profile = crate::seed_scale::ScaleProfile {
+                accounts: scale_accounts.unwrap_or(full.accounts),
+                guilds: scale_guilds.unwrap_or(full.guilds),
+                messages: scale_messages.unwrap_or(full.messages),
+                chapters: scale_chapters.unwrap_or(full.chapters),
+                titles: scale_titles.unwrap_or(full.titles),
+            };
+            seed_scale(&pool, &cfg, &password, force, &seed_name, profile).await?
+        }
         Command::Backup { dir } => {
             crate::ops::backup(&cfg, &pool, &dir, now_ms()).await?;
         }
@@ -644,6 +670,51 @@ fn is_local(public_url: &str) -> bool {
     let rest = public_url.split_once("://").map_or(public_url, |(_, r)| r);
     let host = rest.split(['/', ':']).next().unwrap_or("");
     matches!(host, "localhost" | "127.0.0.1" | "[::1]") || host.ends_with(".localhost")
+}
+
+/// `seed --scale` (RDY-PERF-001): refuse a non-local instance without --force, then load the dataset.
+async fn seed_scale(
+    pool: &PgPool,
+    cfg: &Config,
+    password: &str,
+    force: bool,
+    name: &str,
+    profile: crate::seed_scale::ScaleProfile,
+) -> Result<()> {
+    if !force && !is_local(&cfg.server.public_url) {
+        bail!(
+            "refusing to seed scale data: server.public_url ({}) is not local; use --force",
+            cfg.server.public_url
+        );
+    }
+    let hash = hasher()?
+        .hash(password)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let perms = i64::try_from(sr_chat::perms::default_everyone_permissions().bits()).unwrap_or(0);
+    let started = std::time::Instant::now();
+    let r = crate::seed_scale::seed_scale(pool, name, profile, &hash, perms, now_ms()).await?;
+    if r.skipped {
+        println!("scale seed \"{name}\" is already loaded; nothing to do");
+        return Ok(());
+    }
+    for (phase, secs) in &r.phases {
+        println!("  {phase}: {secs:.1} s");
+    }
+    println!(
+        "scale seed \"{name}\": {} accounts, {} guilds ({} members, {} channels), {} messages ({} attachments, {} reactions), {} library chapters in {} series, {} cinema titles in {:.1} s",
+        r.accounts,
+        r.guilds,
+        r.memberships,
+        r.channels,
+        r.messages,
+        r.attachments,
+        r.reactions,
+        r.chapters,
+        r.series,
+        r.titles,
+        started.elapsed().as_secs_f64()
+    );
+    Ok(())
 }
 
 async fn seed(

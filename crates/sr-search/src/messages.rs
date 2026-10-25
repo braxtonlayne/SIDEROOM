@@ -337,6 +337,29 @@ impl MessageIndex {
         Ok(())
     }
 
+    /// Add documents without deleting earlier versions and without committing (RDY-PERF-003, `search.reindex`).
+    /// For a rebuild into an emptied index only: the caller commits with [`Self::commit_bulk`] every few
+    /// thousand documents instead of once per page, which is what made a 5 million message reindex spend its time
+    /// writing segments.
+    pub fn add_bulk(&self, events: &[MessageEvent]) -> SearchResult<()> {
+        let w = self.lock()?;
+        for e in events {
+            if let MessageEvent::Created(m) | MessageEvent::Updated(m) = e {
+                w.add_document(self.document(m))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Commit what [`Self::add_bulk`] added and refresh the reader.
+    pub fn commit_bulk(&self) -> SearchResult<()> {
+        let mut w = self.lock()?;
+        w.commit()?;
+        drop(w);
+        self.reader.reload()?;
+        Ok(())
+    }
+
     /// Drop everything and index `messages` (full reindex command, LNG-SRC-002).
     pub fn rebuild(&self, messages: impl IntoIterator<Item = IndexedMessage>) -> SearchResult<()> {
         let mut w = self.lock()?;

@@ -354,6 +354,13 @@ impl UserGuildSettingsObject {
     }
 }
 
+/// Every scope the caller has stored settings for, in one response (`GET /users/@me/guild-settings`).
+/// A guild missing from the list has the defaults.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct UserGuildSettingsList {
+    pub settings: Vec<UserGuildSettingsObject>,
+}
+
 /// Mute window of a change that sets `muted: true`.
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct MuteConfigIn {

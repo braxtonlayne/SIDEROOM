@@ -33,6 +33,8 @@ pub struct Participant {
 
 #[derive(Debug, Clone)]
 pub struct GuildInfo {
+    /// The guild itself.
+    pub id: i64,
     /// `#general`, where the load test posts.
     pub channel: i64,
 }
@@ -41,6 +43,9 @@ pub struct GuildInfo {
 pub struct Seeded {
     pub people: Vec<Participant>,
     pub guilds: Vec<GuildInfo>,
+    /// A member of the first `probe_guilds` guilds, who loads the Lounge once while the rest of the load runs
+    /// (the K-22 first-paint probe). Not one of `people`: it opens no steady session.
+    pub probe: Option<(Participant, usize)>,
 }
 
 /// The CSRF token for a raw session token (mirrors `sr_api::auth::csrf::token_for`; a drift between the two
@@ -72,15 +77,77 @@ pub fn guild_of(i: usize, guilds: usize) -> usize {
     i % guilds.max(1)
 }
 
+/// One account with a ready session (no password login: argon2 would measure the wrong thing).
+async fn make_participant(
+    pool: &PgPool,
+    ids: &sr_db::auth_repo::IdSource,
+    sessions: &PgAuthRepo,
+    name: &str,
+    guild: usize,
+    now: i64,
+) -> Result<Participant> {
+    let id = ids();
+    let email = format!("{name}@loadtest.invalid");
+    let created = accounts::create_account(
+        pool,
+        &NewAccount {
+            id,
+            person_id: ids(),
+            username: name,
+            display_name: Some(name),
+            email: &email,
+            password_hash: "!",
+            state: "active",
+            email_verified: true,
+            initial_credits: 0,
+            flags: 0,
+        },
+        ids(),
+    )
+    .await
+    .with_context(|| format!("creating {name}"))?;
+    if !created {
+        bail!("{name} already exists: pick another --run-id");
+    }
+    let token = SessionToken::generate().map_err(|e| anyhow::anyhow!("{e}"))?;
+    sessions
+        .create(SessionRecord {
+            id: ids(),
+            user_id: id,
+            token_hash: token.hash(),
+            created_at: now,
+            last_seen_at: now,
+            expires_at: now + 7 * 86_400,
+            device_name: Some("sr-loadtest".into()),
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("creating a session: {e}"))?;
+    let raw = token.expose().to_owned();
+    Ok(Participant {
+        user_id: id,
+        csrf: csrf_for(&raw),
+        token: raw,
+        guild,
+    })
+}
+
+/// Seed `users` accounts over `guilds` guilds; with `probe_guilds > 0` also one extra account that is a
+/// member of the first `probe_guilds` guilds.
 pub async fn seed(
     pool: &PgPool,
     users: usize,
     guilds: usize,
+    probe_guilds: usize,
     run: &str,
     worker: u8,
 ) -> Result<Seeded> {
     if users == 0 || guilds == 0 || guilds > users {
         bail!("need at least one user per guild (users {users}, guilds {guilds})");
+    }
+    if probe_guilds > guilds {
+        bail!(
+            "--first-paint-guilds {probe_guilds} needs at least that many --guilds (have {guilds})"
+        );
     }
     let snow = Arc::new(
         SnowflakeGenerator::new(SystemClock, worker % 32, 7)
@@ -98,51 +165,19 @@ pub async fn seed(
 
     let mut people = Vec::with_capacity(users);
     for i in 0..users {
-        let id = ids();
         let name = format!("lt{run}u{i}");
-        let email = format!("{name}@loadtest.invalid");
-        let created = accounts::create_account(
-            pool,
-            &NewAccount {
-                id,
-                person_id: ids(),
-                username: &name,
-                display_name: Some(&name),
-                email: &email,
-                password_hash: "!",
-                state: "active",
-                email_verified: true,
-                initial_credits: 0,
-                flags: 0,
-            },
-            ids(),
-        )
-        .await
-        .with_context(|| format!("creating {name}"))?;
-        if !created {
-            bail!("{name} already exists: pick another --run-id");
-        }
-        let token = SessionToken::generate().map_err(|e| anyhow::anyhow!("{e}"))?;
-        sessions
-            .create(SessionRecord {
-                id: ids(),
-                user_id: id,
-                token_hash: token.hash(),
-                created_at: now,
-                last_seen_at: now,
-                expires_at: now + 7 * 86_400,
-                device_name: Some("sr-loadtest".into()),
-            })
-            .await
-            .map_err(|e| anyhow::anyhow!("creating a session: {e}"))?;
-        let raw = token.expose().to_owned();
-        people.push(Participant {
-            user_id: id,
-            csrf: csrf_for(&raw),
-            token: raw,
-            guild: guild_of(i, guilds),
-        });
+        people
+            .push(make_participant(pool, &ids, &sessions, &name, guild_of(i, guilds), now).await?);
     }
+    let probe = if probe_guilds > 0 {
+        let name = format!("lt{run}probe");
+        Some((
+            make_participant(pool, &ids, &sessions, &name, 0, now).await?,
+            probe_guilds,
+        ))
+    } else {
+        None
+    };
 
     let repo = PgChatRepo::new(pool.clone());
     let mut infos = Vec::with_capacity(guilds);
@@ -180,12 +215,27 @@ pub async fn seed(
             .context("adding a member")?;
         }
         infos.push(GuildInfo {
+            id: guild,
             channel: i64::try_from(channel.get()).unwrap_or(0),
         });
+    }
+    if let Some((p, n)) = &probe {
+        for g in infos.iter().take(*n) {
+            sqlx::query(
+                "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+                 ON CONFLICT (guild_id, user_id) DO NOTHING",
+            )
+            .bind(g.id)
+            .bind(p.user_id)
+            .execute(pool)
+            .await
+            .context("adding the probe member")?;
+        }
     }
     Ok(Seeded {
         people,
         guilds: infos,
+        probe,
     })
 }
 

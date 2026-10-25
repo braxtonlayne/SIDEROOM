@@ -85,6 +85,15 @@ struct Args {
     /// REST p95 limit in milliseconds.
     #[arg(long, default_value_t = 100.0)]
     p95_ms: f64,
+    /// Fan-out (POST to dispatch) p95 limit in milliseconds.
+    #[arg(long, default_value_t = 250.0)]
+    fanout_p95_ms: f64,
+    /// Servers the first-paint probe account is a member of (K-22: 60); 0 turns the probe off.
+    #[arg(long, default_value_t = 60)]
+    first_paint_guilds: usize,
+    /// First paint limit in milliseconds for that account.
+    #[arg(long, default_value_t = 1500.0)]
+    first_paint_ms: f64,
 }
 
 #[tokio::main]
@@ -150,6 +159,11 @@ async fn run(args: Args) -> Result<bool> {
             &pool,
             args.sessions,
             args.guilds,
+            if args.guilds >= args.first_paint_guilds {
+                args.first_paint_guilds
+            } else {
+                0
+            },
             &args.run_id,
             args.worker_id,
         )
@@ -159,6 +173,8 @@ async fn run(args: Args) -> Result<bool> {
 
     let targets = Targets {
         max_rest_p95_ms: args.p95_ms,
+        max_fanout_p95_ms: args.fanout_p95_ms,
+        max_first_paint_ms: args.first_paint_ms,
         ..Targets::default()
     };
     let measured = scenario(&args, client, seeded).await?;
@@ -368,7 +384,13 @@ async fn scenario(args: &Args, client: Arc<Client>, seeded: Arc<Seeded>) -> Resu
         "steady state for {}s ({} msg/s, {} REST/s) ...",
         args.duration, args.msg_rate, args.rest_rps
     );
-    sleep(Duration::from_secs(args.duration)).await;
+    // The first-paint probe loads the Lounge once, halfway through the steady state, under the full load.
+    sleep(Duration::from_secs(args.duration / 2)).await;
+    let first_paint = match &seeded.probe {
+        Some((p, guilds)) => Some(first_paint(&conn, &client, p, *guilds).await),
+        None => None,
+    };
+    sleep(Duration::from_secs(args.duration - args.duration / 2)).await;
     // The rate is what completed inside the window; stragglers still count for delivery below.
     let steady_secs = steady.elapsed().as_secs_f64();
     let sent_in_window = sent_ok.load(Ordering::Relaxed);
@@ -424,7 +446,65 @@ async fn scenario(args: &Args, client: Arc<Client>, seeded: Arc<Seeded>) -> Resu
         deliveries_expected: expected,
         deliveries_received: received,
         fanout,
+        first_paint,
     })
+}
+
+/// What opening the Lounge costs a member of `guilds` servers: the gateway READY and the REST calls of the shell
+/// (own user, server list, all server settings in one request) at the same time. Failures are counted, not raised.
+async fn first_paint(
+    conn: &Conn,
+    client: &Arc<Client>,
+    p: &Participant,
+    guilds: usize,
+) -> stats::FirstPaint {
+    let started = Instant::now();
+    let ready = Arc::new(Ready::new(1));
+    let (stop_tx, stop_rx) = watch::channel(false);
+    let session = {
+        let (conn, token, ready) = (conn.clone(), p.token.clone(), ready.clone());
+        tokio::spawn(async move { gateway::run(&conn, &token, 0, &ready, stop_rx).await })
+    };
+    let cookie = format!("sr_session={}", p.token);
+    let paths = [
+        "/api/v1/users/@me",
+        "/api/v1/users/@me/guilds",
+        "/api/v1/users/@me/guild-settings",
+    ];
+    let calls = paths.map(|path| {
+        let (client, cookie, csrf) = (client.clone(), cookie.clone(), p.csrf.clone());
+        async move {
+            let h = [("Cookie", cookie.as_str()), ("X-SR-CSRF", csrf.as_str())];
+            client.request("GET", path, &h, None).await
+        }
+    });
+    let answers = futures::future::join_all(calls).await;
+    let mut out = stats::FirstPaint {
+        guilds,
+        requests: paths.len(),
+        ..Default::default()
+    };
+    for a in &answers {
+        match a {
+            Ok(r) if r.status == 429 => out.rate_limited += 1,
+            Ok(r) if r.status < 300 => {}
+            _ => out.failed += 1,
+        }
+    }
+    // READY: wait for the session the probe opened (up to 10 s).
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while ready.total.load(Ordering::Relaxed) == 0 && Instant::now() < deadline {
+        sleep(Duration::from_millis(5)).await;
+    }
+    if ready.total.load(Ordering::Relaxed) == 0 {
+        out.failed += 1;
+    }
+    out.millis = started.elapsed().as_secs_f64() * 1000.0;
+    let _ = stop_tx.send(true);
+    if let Ok(rep) = session.await {
+        out.ready_bytes = rep.ready_bytes;
+    }
+    out
 }
 
 fn print_report(args: &Args, m: &Measured, failures: &[String]) {
@@ -459,6 +539,17 @@ fn print_report(args: &Args, m: &Measured, failures: &[String]) {
         m.rest.percentile_ms(99.0),
         m.rest.max_ms()
     );
+    if let Some(p) = &m.first_paint {
+        println!(
+            "  first paint  {} servers: {:.0} ms, READY frame {} bytes, {} of {} requests failed ({} were 429)",
+            p.guilds,
+            p.millis,
+            p.ready_bytes,
+            p.rate_limited + p.failed,
+            p.requests,
+            p.rate_limited
+        );
+    }
     if failures.is_empty() {
         println!("PASS");
     } else {
@@ -484,6 +575,10 @@ fn report_json(args: &Args, m: &Measured, failures: &[String]) -> String {
             "p50_ms": m.rest.percentile_ms(50.0), "p95_ms": m.rest.percentile_ms(95.0),
             "p99_ms": m.rest.percentile_ms(99.0), "max_ms": m.rest.max_ms(),
         },
+        "first_paint": m.first_paint.as_ref().map(|p| serde_json::json!({
+            "guilds": p.guilds, "ms": p.millis, "ready_bytes": p.ready_bytes,
+            "requests": p.requests, "rate_limited": p.rate_limited, "failed": p.failed,
+        })),
         "passed": failures.is_empty(),
         "failures": failures,
     }))

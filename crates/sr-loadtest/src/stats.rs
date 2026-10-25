@@ -33,6 +33,10 @@ impl Samples {
         self.us.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.us.is_empty()
+    }
+
     pub fn errors(&self) -> u64 {
         self.errors
     }
@@ -80,6 +84,10 @@ pub struct Targets {
     pub min_send_ratio: f64,
     /// Share of expected gateway deliveries that must arrive.
     pub min_delivery_ratio: f64,
+    /// Fan-out (POST to dispatch) p95 in milliseconds (RDY-PERF-002: 250 ms).
+    pub max_fanout_p95_ms: f64,
+    /// First paint of a member of many servers, in milliseconds (K-22: 1.5 s with 60 servers).
+    pub max_first_paint_ms: f64,
 }
 
 impl Default for Targets {
@@ -90,6 +98,8 @@ impl Default for Targets {
             max_rest_error_rate: 0.01,
             min_send_ratio: 0.95,
             min_delivery_ratio: 0.99,
+            max_fanout_p95_ms: 250.0,
+            max_first_paint_ms: 1500.0,
         }
     }
 }
@@ -105,6 +115,24 @@ pub struct Measured {
     pub deliveries_expected: u64,
     pub deliveries_received: u64,
     pub fanout: Samples,
+    /// The first-paint probe, when it ran.
+    pub first_paint: Option<FirstPaint>,
+}
+
+/// What a member of many servers sees when the Lounge loads: the gateway READY and the REST calls of the shell
+/// at the same time, while the rest of the load runs.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FirstPaint {
+    /// Servers the probe account is in.
+    pub guilds: usize,
+    /// Wall time until READY and every REST call had answered.
+    pub millis: f64,
+    /// READY frame size in bytes.
+    pub ready_bytes: usize,
+    /// REST calls of the probe, and how many answered 429 or failed otherwise.
+    pub requests: usize,
+    pub rate_limited: usize,
+    pub failed: usize,
 }
 
 impl Measured {
@@ -163,6 +191,32 @@ impl Measured {
                 self.delivery_ratio() * 100.0
             ));
         }
+        if !self.fanout.is_empty() {
+            let f95 = self.fanout.percentile_ms(95.0);
+            if f95 > t.max_fanout_p95_ms {
+                out.push(format!(
+                    "fan-out p95 {f95:.1} ms is over {:.0} ms",
+                    t.max_fanout_p95_ms
+                ));
+            }
+        }
+        if let Some(p) = &self.first_paint {
+            if p.rate_limited > 0 || p.failed > 0 {
+                out.push(format!(
+                    "first paint with {} servers: {} of {} requests failed ({} were 429)",
+                    p.guilds,
+                    p.rate_limited + p.failed,
+                    p.requests,
+                    p.rate_limited
+                ));
+            }
+            if p.millis > t.max_first_paint_ms {
+                out.push(format!(
+                    "first paint with {} servers took {:.0} ms (over {:.0} ms)",
+                    p.guilds, p.millis, t.max_first_paint_ms
+                ));
+            }
+        }
         out
     }
 }
@@ -218,6 +272,7 @@ mod tests {
             deliveries_expected: 1000,
             deliveries_received: 1000,
             fanout: samples(&[3, 4]),
+            first_paint: None,
         }
     }
 
@@ -250,6 +305,26 @@ mod tests {
         let mut m = passing();
         m.deliveries_received = 800;
         assert!(m.failures(&t)[0].contains("800 of 1000"));
+
+        let mut m = passing();
+        m.fanout = samples(&[400; 10]);
+        assert!(m.failures(&t)[0].contains("fan-out p95"));
+
+        let probe = |millis: f64, rate_limited: usize| FirstPaint {
+            guilds: 60,
+            millis,
+            ready_bytes: 1000,
+            requests: 3,
+            rate_limited,
+            failed: 0,
+        };
+        let mut m = passing();
+        m.first_paint = Some(probe(900.0, 0));
+        assert!(m.failures(&t).is_empty());
+        m.first_paint = Some(probe(1800.0, 0));
+        assert!(m.failures(&t)[0].contains("took 1800 ms"));
+        m.first_paint = Some(probe(100.0, 2));
+        assert!(m.failures(&t)[0].contains("2 of 3 requests failed (2 were 429)"));
     }
 
     #[test]

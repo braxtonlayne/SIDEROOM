@@ -118,6 +118,10 @@ pub fn router() -> Router<AppState> {
                 .put(user_settings::put_notification_keywords),
         )
         .route(
+            "/users/@me/guild-settings",
+            get(notifications::list_settings),
+        )
+        .route(
             "/users/@me/guilds/{guild_id}/settings",
             get(notifications::get_settings).patch(notifications::patch_settings),
         )
@@ -156,6 +160,7 @@ pub fn router() -> Router<AppState> {
         read_state::ack_bulk,
         read_state::ack_guild,
         read_state::list,
+        notifications::list_settings,
         notifications::get_settings,
         notifications::patch_settings,
         user_settings::get_settings,
@@ -199,6 +204,7 @@ pub fn router() -> Router<AppState> {
         model::MuteConfigObject,
         model::ChannelOverrideObject,
         model::UserGuildSettingsObject,
+        model::UserGuildSettingsList,
         model::MuteConfigIn,
         model::ChannelOverrideBody,
         model::GuildSettingsBody,

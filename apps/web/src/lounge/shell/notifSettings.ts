@@ -1,8 +1,13 @@
 /**
  * Per-server and per-channel notification settings (mute, level). The server owns them
  * (`/users/@me/guilds/{id}/settings`); this store caches what was fetched so the rail and channel list can
- * dim muted items and hide muted channels. Settings load lazily and quietly: a failed fetch leaves a guild
+ * dim muted items and hide muted channels. Settings load quietly: a failed fetch leaves a guild
  * un-muted rather than blocking the shell.
+ *
+ * RDY-SCALE-002: the rail loads every server's settings with ONE request (`/users/@me/guild-settings`,
+ * `loadAll`), so an account in 100 servers sends a constant number of settings requests at load, not
+ * one per server. A single server is fetched on its own only when it is opened (`load`) and the batch
+ * has not already answered for it.
  */
 import { create } from 'zustand';
 import { apiFetch } from '../../api/client';
@@ -91,6 +96,12 @@ const mutePatch = (p: MutePatch) =>
 
 export interface NotifState {
   byGuild: Record<string, GuildNotif>;
+  /**
+   * One request for all of the account's servers; `guildIds` the ones on the rail. A server the batch
+   * does not list has the defaults. Runs once per session (a failed batch may be retried); resolves
+   * false when it failed, so the caller does not fall back to a request per server.
+   */
+  loadAll(guildIds: string[]): Promise<boolean>;
   load(guildId: string, force?: boolean): Promise<void>;
   patchGuild(
     guildId: string,
@@ -116,10 +127,44 @@ const settingsPath = (guildId: string) =>
   `/users/@me/guilds/${guildId === '@me' ? guildId : encodeURIComponent(guildId)}/settings`;
 
 const inflight = new Set<string>();
+let batch: Promise<boolean> | null = null;
+let batchDone = false;
+
+interface WireList {
+  settings: (WireGuildSettings & { guild_id?: string | null })[];
+}
 
 export const useNotifSettings = create<NotifState>()((set, get) => ({
   byGuild: {},
+  loadAll(guildIds) {
+    if (batchDone) return Promise.resolve(true);
+    if (batch) return batch;
+    batch = (async () => {
+      let ok = false;
+      try {
+        const list = await apiFetch<WireList>('/users/@me/guild-settings', { retries: 0 });
+        const loaded: Record<string, GuildNotif> = {};
+        for (const w of list.settings) loaded[w.guild_id ?? '@me'] = fromWire(w);
+        set((s) => {
+          const next = { ...s.byGuild };
+          // A fresher single-server answer (a patch since the request left) wins.
+          for (const [id, n] of Object.entries(loaded)) if (!next[id]) next[id] = n;
+          for (const id of guildIds) if (!next[id]) next[id] = fromWire({ muted: false });
+          return { byGuild: next };
+        });
+        batchDone = true;
+        ok = true;
+      } catch {
+        /* a server's own settings still load when it is opened */
+      } finally {
+        batch = null;
+      }
+      return ok;
+    })();
+    return batch;
+  },
   async load(guildId, force) {
+    if (!force && !get().byGuild[guildId] && batch) await batch;
     if ((!force && get().byGuild[guildId]) || inflight.has(guildId)) return;
     inflight.add(guildId);
     try {
@@ -163,5 +208,8 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
     });
     set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
   },
-  reset: () => set({ byGuild: {} }),
+  reset: () => {
+    batchDone = false;
+    set({ byGuild: {} });
+  },
 }));

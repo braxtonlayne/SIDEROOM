@@ -634,6 +634,18 @@ impl NotificationRepository for MemoryRepo {
         v.sort_by_key(|o| o.channel);
         Ok(v)
     }
+
+    async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>> {
+        let s = self.lock()?;
+        let mut v: Vec<_> = s
+            .scopes
+            .values()
+            .filter(|c| c.user == user)
+            .cloned()
+            .collect();
+        v.sort_by_key(|c| c.guild);
+        Ok(v)
+    }
 }
 
 #[async_trait]
