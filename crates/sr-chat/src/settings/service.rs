@@ -664,6 +664,12 @@ impl<R: SettingsRepository> SettingsService<R> {
         Ok(self.rule_cache.insert(guild, compiled))
     }
 
+    /// Whether `guild` has any enabled AutoMod rule (from the rule cache). With none, [`Self::check_message`]
+    /// matches nothing whatever the context, so a caller may skip building one (RDY-PERF-002).
+    pub async fn has_rules(&self, guild: GuildId) -> SettingsResult<bool> {
+        Ok(!self.compiled_rules(guild).await?.is_empty())
+    }
+
     /// Run message AutoMod. The caller executes the returned actions.
     pub async fn check_message(
         &self,

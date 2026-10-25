@@ -127,6 +127,11 @@ pub fn verdict_of(msg: &MessageCheck, matches: Vec<RuleMatch>) -> AutoModVerdict
 #[async_trait]
 impl AutoModGate for SettingsDeps {
     async fn evaluate(&self, msg: &MessageCheck) -> Result<AutoModVerdict, HttpError> {
+        // Most servers have no rule: then nothing can match, and the channel and member lookups below (four
+        // queries on every message sent) are skipped (RDY-PERF-002).
+        if !self.service.has_rules(msg.guild).await.map_err(se)? {
+            return Ok(verdict_of(msg, Vec::new()));
+        }
         let channel = self.chat.get_channel(msg.channel).await.map_err(re)?;
         let acc = self.guild_access(msg.author, msg.guild).await?;
         let ctx = MessageContext {

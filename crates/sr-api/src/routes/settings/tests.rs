@@ -1377,6 +1377,32 @@ async fn automod_rule_crud_validation_and_quota() {
     assert!(actions.contains(&140) && actions.contains(&141) && actions.contains(&142));
 }
 
+/// RDY-PERF-002: a server without AutoMod rules is not asked for the author's member and roles on every
+/// message. A stranger (no member row) shows it: without rules the check passes untouched, with a rule the
+/// lookup runs and fails for them.
+#[tokio::test]
+async fn automod_gate_skips_member_lookups_without_rules() {
+    let e = env().await;
+    let stranger = 987_654;
+    let v = e.deps.evaluate(&e.check(stranger, "heckin")).await.unwrap();
+    assert!(v.block.is_none() && v.alerts.is_empty() && v.matches.is_empty());
+    e.post(
+        &e.g("/auto-moderation/rules"),
+        "owner",
+        keyword_rule("words", &["heck*"]),
+    )
+    .await;
+    assert!(e.deps.evaluate(&e.check(stranger, "heckin")).await.is_err());
+    assert!(
+        e.deps
+            .evaluate(&e.check(BOB, "heckin"))
+            .await
+            .unwrap()
+            .block
+            .is_some()
+    );
+}
+
 #[tokio::test]
 async fn automod_gate_blocks_folds_text_and_respects_exemptions() {
     let e = env().await;
