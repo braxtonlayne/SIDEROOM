@@ -6492,6 +6492,7 @@ dependencies = [
  "serde_json",
  "sr-core",
  "sr-e2ee",
+ "sr-events",
  "sr-gateway",
  "sr-voice",
  "sr-voice-proto",

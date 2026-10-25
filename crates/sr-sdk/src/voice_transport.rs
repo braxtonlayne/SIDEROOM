@@ -19,8 +19,14 @@
 //! cannot be decrypted. Encoded frames are encrypted before RTP packetisation exactly as in the browser
 //! (the SFU only ever sees ciphertext).
 //!
-//! The session is one task's worth of state, not a thread: call `pump` in a loop. It does not reconnect;
-//! on [`VoiceEvent::Closed`] ask the gateway for a new `VOICE_SERVER_UPDATE` and build a new session.
+//! The session is one task's worth of state, not a thread: call `pump` in a loop. A bare [`VoiceSession`] does
+//! not reconnect; on [`VoiceEvent::Closed`] it is done. [`VoiceLink`] wraps one and does what a client does
+//! (RDY-DEV-002): when the signalling WebSocket drops while the media connection is up it re-attaches with the
+//! SFU's RESUME (the same participant, audio keeps flowing, [`VoiceEvent::Resumed`]); when the SFU no longer
+//! knows the session it joins again with the same token and keeps the frame transform
+//! ([`VoiceEvent::Reconnected`]); it gives up, with the SFU's close code, on a removal (4014), a replacement
+//! (4016), a refusal or after [`ReconnectPolicy::max_attempts`]. A refused token (4004) means the join token
+//! expired: send gateway op 4 again and hand the new `VOICE_SERVER_UPDATE` to [`VoiceLink::rejoin`].
 
 use std::collections::VecDeque;
 use std::net::{IpAddr, SocketAddr};
@@ -45,8 +51,21 @@ mod op {
     pub const SDP_OFFER: u8 = 4;
     pub const SDP_ANSWER: u8 = 5;
     pub const SPEAKING: u8 = 7;
+    pub const RESUME: u8 = 8;
+    pub const RESUMED: u8 = 9;
     pub const CLIENT_CONNECT: u8 = 10;
     pub const CLIENT_DISCONNECT: u8 = 11;
+}
+
+/// SFU close codes the client acts on (sr-voice-proto `wire::close`).
+mod close {
+    pub const SESSION_INVALID: u16 = 4006;
+}
+
+/// Whether a close code (0: dropped without one) is worth a reconnect. Removal from the call, a replacement by
+/// another device, a refused token and protocol errors are not: the caller has to decide what to do next.
+pub fn close_is_retryable(code: u16) -> bool {
+    matches!(code, 0 | 4006 | 4008 | 4009 | 4015)
 }
 
 /// What went wrong in the transport.
@@ -174,6 +193,16 @@ pub enum VoiceEvent {
     },
     /// The SFU closed the connection (code 0: dropped without a code). Do not keep pumping.
     Closed(u16),
+    /// [`VoiceLink`]: the signalling WebSocket was re-attached with RESUME; the media connection never went
+    /// down. `participants` is who is in the channel now.
+    Resumed {
+        participants: Vec<u64>,
+    },
+    /// [`VoiceLink`]: the SFU had forgotten the session, so the link joined again (new media connection, same
+    /// frame transform). `participants` is who is in the channel now; `Connected` follows when audio is up.
+    Reconnected {
+        participants: Vec<u64>,
+    },
 }
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -185,6 +214,9 @@ fn user_of(v: &Value) -> Option<u64> {
 /// One bot's connection to one voice channel.
 pub struct VoiceSession {
     ws: Ws,
+    endpoint: String,
+    session_id: String,
+    resume_token: String,
     rtc: Rtc,
     socket: UdpSocket,
     local: SocketAddr,
@@ -282,8 +314,13 @@ impl VoiceSession {
             .as_array()
             .map(|a| a.iter().filter_map(user_of).collect())
             .unwrap_or_default();
+        let session_id = ready["session_id"].as_str().unwrap_or_default().to_owned();
+        let resume_token = ready["resume_token"].as_str().unwrap_or_default().to_owned();
         Ok(Self {
             ws,
+            endpoint: update.endpoint.clone(),
+            session_id,
+            resume_token,
             rtc,
             socket,
             local,
@@ -301,6 +338,65 @@ impl VoiceSession {
             events: VecDeque::new(),
             initial_participants,
         })
+    }
+
+    /// Re-attach the signalling WebSocket with the SFU's RESUME. The media connection is untouched, so audio
+    /// keeps flowing; the SFU sends the current participants and repeats an offer that was in flight. Fails with
+    /// [`TransportError::Refused`] (4006) when the session is gone (the resume window passed): join again.
+    pub async fn resume(&mut self) -> Result<Vec<u64>, TransportError> {
+        if self.session_id.is_empty() || self.resume_token.is_empty() {
+            return Err(TransportError::Refused(close::SESSION_INVALID));
+        }
+        let (mut ws, _) = tokio::time::timeout(
+            Duration::from_secs(10),
+            tokio_tungstenite::connect_async(self.endpoint.as_str()),
+        )
+        .await
+        .map_err(|_| TransportError::NoReady)?
+        .map_err(|e| TransportError::Socket(e.to_string()))?;
+        send_ws(
+            &mut ws,
+            json!({"op": op::RESUME, "d": {"session_id": self.session_id, "resume_token": self.resume_token}}),
+        )
+        .await?;
+        let ready = loop {
+            match tokio::time::timeout(Duration::from_secs(10), ws.next()).await {
+                Ok(Some(Ok(WsMessage::Text(t)))) => {
+                    let v: Value = serde_json::from_str(t.as_str())
+                        .map_err(|e| TransportError::Socket(e.to_string()))?;
+                    if v["op"] == op::RESUMED {
+                        break v["d"].clone();
+                    }
+                }
+                Ok(Some(Ok(WsMessage::Close(f)))) => {
+                    return Err(TransportError::Refused(f.map_or(0, |f| u16::from(f.code))));
+                }
+                Ok(Some(Ok(_))) => {}
+                Ok(Some(Err(e))) => return Err(TransportError::Socket(e.to_string())),
+                Ok(None) => return Err(TransportError::Refused(0)),
+                Err(_) => return Err(TransportError::NoReady),
+            }
+        };
+        if let Some(t) = ready["resume_token"].as_str() {
+            self.resume_token = t.to_owned();
+        }
+        let participants: Vec<u64> = ready["participants"]
+            .as_array()
+            .map(|a| a.iter().filter_map(user_of).collect())
+            .unwrap_or_default();
+        self.ws = ws;
+        self.closed = None;
+        self.out.clear();
+        self.next_heartbeat = Instant::now() + self.heartbeat_every;
+        Ok(participants)
+    }
+
+    /// Drop the signalling WebSocket without leaving (no close frame), as a network loss would. The media
+    /// connection stays up. Meant for tests of reconnect logic and for callers that detect a dead network.
+    pub async fn abandon_signalling(&mut self) {
+        // A TCP shutdown without a WebSocket close frame: the SFU sees a lost socket, not a leave.
+        let _ = tokio::io::AsyncWriteExt::shutdown(self.ws.get_mut()).await;
+        self.closed = Some(0);
     }
 
     /// Install the frame transform (end-to-end encryption).
@@ -523,9 +619,156 @@ impl VoiceSession {
         Ok(())
     }
 
+    fn take_transform(&mut self) -> Option<Box<dyn FrameTransform>> {
+        self.transform.take()
+    }
+
     /// Leave: close the WebSocket. Send gateway op 4 with `channel_id: null` too (see [`voice_state_body`]).
     pub async fn leave(mut self) {
         let _ = self.ws.close(None).await;
+    }
+}
+
+/// How a [`VoiceLink`] retries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReconnectPolicy {
+    /// Attempts (a resume or a join each count one) before the link reports [`VoiceEvent::Closed`].
+    pub max_attempts: u32,
+    /// Wait before the first attempt; doubles per attempt up to `max_backoff`.
+    pub min_backoff: Duration,
+    pub max_backoff: Duration,
+}
+
+impl Default for ReconnectPolicy {
+    fn default() -> Self {
+        Self {
+            max_attempts: 6,
+            min_backoff: Duration::from_millis(500),
+            max_backoff: Duration::from_secs(8),
+        }
+    }
+}
+
+/// A [`VoiceSession`] that comes back by itself (RDY-DEV-002); see the module docs for the rules.
+pub struct VoiceLink {
+    session: VoiceSession,
+    update: VoiceServerUpdate,
+    bind_ip: IpAddr,
+    policy: ReconnectPolicy,
+}
+
+impl std::fmt::Debug for VoiceLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VoiceLink")
+            .field("session", &self.session)
+            .field("policy", &self.policy)
+            .finish_non_exhaustive()
+    }
+}
+
+impl VoiceLink {
+    /// Join like [`VoiceSession::connect`] and keep the update for later rejoins.
+    pub async fn connect(
+        update: VoiceServerUpdate,
+        bind_ip: IpAddr,
+        policy: ReconnectPolicy,
+    ) -> Result<Self, TransportError> {
+        let session = VoiceSession::connect(&update, bind_ip).await?;
+        Ok(Self {
+            session,
+            update,
+            bind_ip,
+            policy,
+        })
+    }
+
+    /// The live session: `send_opus`, `set_speaking`, `set_transform`. It is replaced by a rejoin, so do not
+    /// keep the reference across a `pump`.
+    pub fn session(&mut self) -> &mut VoiceSession {
+        &mut self.session
+    }
+
+    /// Join again with a fresh `VOICE_SERVER_UPDATE` (after [`VoiceEvent::Closed`] with a refused token, or
+    /// because the gateway moved the call to another node), keeping the frame transform.
+    pub async fn rejoin(&mut self, update: VoiceServerUpdate) -> Result<(), TransportError> {
+        let mut fresh = VoiceSession::connect(&update, self.bind_ip).await?;
+        if let Some(t) = self.session.take_transform() {
+            fresh.transform = Some(t);
+        }
+        self.session = fresh;
+        self.update = update;
+        Ok(())
+    }
+
+    /// [`VoiceSession::pump`] with reconnects: a lost or retryable close never reaches the caller; it shows up
+    /// as [`VoiceEvent::Resumed`] or [`VoiceEvent::Reconnected`]. The call can take longer than `max` while it
+    /// backs off between attempts.
+    pub async fn pump(&mut self, max: Duration) -> Result<Vec<VoiceEvent>, TransportError> {
+        let (mut events, code) = match self.session.pump(max).await {
+            Ok(mut ev) => match ev.iter().position(|e| matches!(e, VoiceEvent::Closed(_))) {
+                Some(i) => {
+                    let VoiceEvent::Closed(code) = ev.remove(i) else {
+                        unreachable!("position matched Closed")
+                    };
+                    (ev, code)
+                }
+                None => return Ok(ev),
+            },
+            // The WebSocket broke under a send: the same as a close without a code.
+            Err(TransportError::Socket(_)) => (Vec::new(), 0),
+            Err(e) => return Err(e),
+        };
+        events.extend(self.recover(code).await);
+        Ok(events)
+    }
+
+    async fn recover(&mut self, first_code: u16) -> Vec<VoiceEvent> {
+        let mut code = first_code;
+        if !close_is_retryable(code) {
+            return vec![VoiceEvent::Closed(code)];
+        }
+        let mut backoff = self.policy.min_backoff;
+        for _ in 0..self.policy.max_attempts {
+            tokio::time::sleep(backoff).await;
+            backoff = (backoff * 2).min(self.policy.max_backoff);
+            // The media connection is up: re-attach only the signalling. Otherwise (or when the SFU forgot us)
+            // there is nothing to resume.
+            let mut resume_failed = !self.session.is_connected();
+            if !resume_failed {
+                match self.session.resume().await {
+                    Ok(participants) => return vec![VoiceEvent::Resumed { participants }],
+                    Err(TransportError::Refused(c)) if c == close::SESSION_INVALID => {
+                        resume_failed = true;
+                    }
+                    Err(TransportError::Refused(c)) => {
+                        if !close_is_retryable(c) {
+                            return vec![VoiceEvent::Closed(c)];
+                        }
+                        code = c;
+                        continue;
+                    }
+                    Err(_) => continue,
+                }
+            }
+            if resume_failed {
+                match VoiceSession::connect(&self.update, self.bind_ip).await {
+                    Ok(mut fresh) => {
+                        if let Some(t) = self.session.take_transform() {
+                            fresh.transform = Some(t);
+                        }
+                        let participants = fresh.initial_participants.clone();
+                        self.session = fresh;
+                        return vec![VoiceEvent::Reconnected { participants }];
+                    }
+                    // An expired token, a removal or a full SFU: the caller has to act.
+                    Err(TransportError::Refused(c)) if !close_is_retryable(c) => {
+                        return vec![VoiceEvent::Closed(c)];
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+        vec![VoiceEvent::Closed(code)]
     }
 }
 
@@ -561,6 +804,17 @@ mod tests {
         assert_eq!(j["guild_id"], "9");
         let l = voice_state_body(None, None, false, false, true);
         assert!(l["channel_id"].is_null() && l.get("guild_id").is_none());
+    }
+
+    #[test]
+    fn only_losses_are_retried_not_removals_or_refusals() {
+        for c in [0, 4006, 4008, 4009, 4015] {
+            assert!(close_is_retryable(c), "{c}");
+        }
+        // 4004 refused token, 4014 removed, 4016 replaced, 4017 full, 4002 protocol error.
+        for c in [4004, 4014, 4016, 4017, 4002] {
+            assert!(!close_is_retryable(c), "{c}");
+        }
     }
 
     #[tokio::test]

@@ -44,6 +44,7 @@ sr-core = { path = "../sr-core", default-features = false }
 # The transport is tested against the real SFU, in process, on loopback.
 sr-voice = { path = "../sr-voice" }
 sr-voice-proto = { path = "../sr-voice-proto" }
+sr-events = { path = "../sr-events" }
 axum = { version = "0.8", default-features = false, features = ["ws", "http1", "tokio"] }
 
 [[test]]
@@ -59,4 +60,8 @@ name = "echo_bot"
 
 [[example]]
 name = "voice_bot"
+required-features = ["voice-transport"]
+
+[[test]]
+name = "voice_reconnect"
 required-features = ["voice-transport"]
