@@ -124,3 +124,35 @@ pub async fn event_payload(deps: &MessagesDeps, msg: &Message) -> MsgResult<serd
     attach_threads(deps, std::slice::from_ref(msg), &mut objs).await;
     Ok(objs[0].to_value())
 }
+
+/// A message just created, rendered once for both of its uses: the author's REST answer and the gateway
+/// payload (RDY-PERF-002: rendering it twice read attachments, nonce, users, webhook authors and threads twice
+/// for every message sent). A new message has no reactions, and without a poll the viewer changes nothing in
+/// `decorate`, so the two differ only by the author's sensitive-media view, applied last. A message with a
+/// poll is still rendered twice (the REST view carries `me_voted`).
+pub async fn render_created(
+    deps: &MessagesDeps,
+    author: UserId,
+    msg: &Message,
+) -> MsgResult<(MessageObject, serde_json::Value)> {
+    if msg.poll.is_some() {
+        let data = event_payload(deps, msg).await?;
+        return Ok((render_one(deps, author, msg).await?, data));
+    }
+    let atts = deps
+        .store
+        .attachments_of(&[msg.id])
+        .await?
+        .remove(&msg.id)
+        .unwrap_or_default();
+    let nonce = deps.store.nonce_of(msg.id).await?;
+    let users = lookup_users(deps, std::slice::from_ref(msg)).await?;
+    let mut objs = vec![MessageObject::build(msg, &atts, &[], nonce, &users)];
+    super::rich_model::decorate(deps, None, std::slice::from_ref(msg), &mut objs).await?;
+    sign_attachments(deps, &mut objs);
+    attach_threads(deps, std::slice::from_ref(msg), &mut objs).await;
+    let data = objs[0].to_value();
+    deps.apply_sensitive(author, std::slice::from_ref(msg), &mut objs)
+        .await;
+    Ok((objs.remove(0), data))
+}
