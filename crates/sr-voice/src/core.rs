@@ -1611,6 +1611,7 @@ impl SfuCore {
     fn on_event(&mut self, id: ParticipantId, e: Event, now: Instant) {
         match e {
             Event::IceConnectionStateChange(s) => {
+                tracing::debug!(pid = id.0, state = ?s, "voice ICE state");
                 if let Some(p) = self.parts.get_mut(&id) {
                     p.ice_down_since = match s {
                         IceConnectionState::Disconnected => p.ice_down_since.or(Some(now)),
@@ -1728,7 +1729,11 @@ impl SfuCore {
                     }
                 }
             }
+            Event::Connected => {
+                tracing::debug!(pid = id.0, "voice DTLS connected");
+            }
             Event::Closed => {
+                tracing::debug!(pid = id.0, "voice peer connection closed");
                 if let Some(p) = self.parts.get_mut(&id) {
                     p.dead = Some(CloseReason::Connection);
                 }

@@ -53,6 +53,10 @@ jobs:
       SOAK_MINUTES: ${{ inputs.minutes }}
       SOAK_MAX_DROP_RATIO: ${{ inputs.max_drop_ratio }}
       SOAK_CAMERA: ${{ inputs.camera && '1' || '0' }}
+      # The target is right (the embedded SFU logs as sr_voice::server / sr_voice::core). Run 40226525398 showed
+      # no sr_voice lines only because the SFU logged nothing on joins, resumes or drops; it now does (debug), and
+      # a participant whose drop clears its voice state is logged at info ("voice participant lost"). The
+      # gateway and /voice/ws upgrades bypass the tower_http trace layer, so they never appear as requests.
       SR_LOG__FILTER: "info,sr_voice=debug"
     steps:
       - uses: actions/checkout@v4

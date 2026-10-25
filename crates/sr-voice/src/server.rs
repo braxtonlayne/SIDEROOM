@@ -797,6 +797,7 @@ impl Actor {
             .map(|(p, _)| *p)
             .collect();
         for pid in expired {
+            tracing::debug!(pid = pid.0, "voice WebSocket not resumed within the window");
             self.core.leave(pid, CloseReason::Left);
         }
     }
@@ -843,7 +844,15 @@ impl Actor {
                 conn,
                 reply,
             } => {
-                let _ = reply.send(self.join(now, claims, conn));
+                let (user, channel) = (claims.user_id, claims.channel_id);
+                let res = self.join(now, claims, conn);
+                match &res {
+                    Ok(j) => {
+                        tracing::debug!(%user, %channel, pid = j.pid.0, shard = self.shard, "voice participant joined")
+                    }
+                    Err(code) => tracing::debug!(%user, %channel, code, "voice join refused"),
+                }
+                let _ = reply.send(res);
             }
             Cmd::Resume {
                 session_id,
@@ -851,7 +860,12 @@ impl Actor {
                 conn,
                 reply,
             } => {
-                let _ = reply.send(self.resume(now, &session_id, &resume_token, conn));
+                let res = self.resume(now, &session_id, &resume_token, conn);
+                match &res {
+                    Ok(j) => tracing::debug!(pid = j.pid.0, "voice session resumed"),
+                    Err(code) => tracing::debug!(code, "voice resume refused"),
+                }
+                let _ = reply.send(res);
             }
             Cmd::Offer { pid, conn_id, sdp } => {
                 if !self.is_current(pid, conn_id) {
@@ -903,6 +917,11 @@ impl Actor {
                 {
                     s.conn = None;
                     s.lost_at = Some(now);
+                    tracing::debug!(
+                        pid = pid.0,
+                        resume_window_s = self.cfg.resume_window.as_secs(),
+                        "voice WebSocket lost; waiting for a resume"
+                    );
                 }
             }
             Cmd::Control(c) => self.control(now, c),
@@ -1160,6 +1179,17 @@ impl Actor {
                         }
                     }
                     // Not asked for by the gateway: tell it, so it clears the voice state.
+                    if matches!(reason, CloseReason::Left | CloseReason::Connection) {
+                        tracing::info!(
+                            %user,
+                            %channel,
+                            pid = pid.0,
+                            ?reason,
+                            "voice participant lost; the gateway clears its voice state"
+                        );
+                    } else {
+                        tracing::debug!(%user, %channel, pid = pid.0, ?reason, "voice participant closed");
+                    }
                     if matches!(reason, CloseReason::Left | CloseReason::Connection) {
                         let _ = self.events.send(SfuEvent {
                             kind: SfuEventKind::Lost,
