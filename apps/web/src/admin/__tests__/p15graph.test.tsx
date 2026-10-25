@@ -18,6 +18,7 @@ import {
   toWorld,
   zoomAt,
 } from '../sections/graph/graphModel';
+import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
 import { asStaff, http, HttpResponse, openAdmin, server } from './helpers';
 
 const layoutGraph = vi.hoisted(() =>
@@ -241,5 +242,68 @@ describe('invite graph: canvas view', () => {
     expect(await screen.findByText(/could not be drawn/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'List' }));
     expect(screen.getByRole('table', { name: 'Invited accounts' })).toBeInTheDocument();
+  });
+
+  describe('reduced motion (integrator item 3b)', () => {
+    afterEach(() => usePrefsStore.setState({ prefs: DEFAULT_PREFS }));
+
+    const frames = () => {
+      const raf = vi.fn((f: FrameRequestCallback) => {
+        f(0);
+        return 1;
+      });
+      vi.stubGlobal('requestAnimationFrame', raf);
+      return raf;
+    };
+
+    it('draws a static picture without requestAnimationFrame when Settings asks for reduced motion', async () => {
+      usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, reducedMotion: 'on' } });
+      const raf = frames();
+      seed(CANVAS_THRESHOLD + 20);
+      openAdmin('invite-graph');
+      const user = userEvent.setup();
+      const canvas = await screen.findByRole('img', { name: /Invite graph of/ });
+      await waitFor(() => expect(calls.some((c) => c.startsWith('arc'))).toBe(true));
+      expect(canvas).toHaveAttribute('data-reduced-motion', 'true');
+      // Pan and zoom still redraw, at once and without a frame loop.
+      canvas.focus();
+      const before = calls.length;
+      await user.keyboard('{ArrowLeft}+0');
+      expect(calls.length).toBeGreaterThan(before);
+      await user.click(screen.getByRole('button', { name: 'Zoom in' }));
+      expect(raf).not.toHaveBeenCalled();
+    });
+
+    it('follows the OS setting when Settings says "system", and animates frames otherwise', async () => {
+      const mq = (reduce: boolean) =>
+        vi.stubGlobal(
+          'matchMedia',
+          (q: string) =>
+            ({
+              matches: reduce && q.includes('prefers-reduced-motion'),
+              media: q,
+              addEventListener: () => undefined,
+              removeEventListener: () => undefined,
+            }) as unknown as MediaQueryList,
+        );
+      mq(true);
+      let raf = frames();
+      seed(CANVAS_THRESHOLD + 20);
+      const first = openAdmin('invite-graph');
+      await screen.findByRole('img', { name: /Invite graph of/ });
+      await waitFor(() => expect(calls.some((c) => c.startsWith('arc'))).toBe(true));
+      expect(raf).not.toHaveBeenCalled();
+      first.unmount();
+
+      calls.length = 0;
+      mq(false);
+      raf = frames();
+      seed(CANVAS_THRESHOLD + 20);
+      openAdmin('invite-graph');
+      const canvas = await screen.findByRole('img', { name: /Invite graph of/ });
+      await waitFor(() => expect(calls.some((c) => c.startsWith('arc'))).toBe(true));
+      expect(canvas).not.toHaveAttribute('data-reduced-motion');
+      expect(raf).toHaveBeenCalled();
+    });
   });
 });
