@@ -20,7 +20,10 @@ test('every missing step is named', () => {
   assert.match(verdict(good.replace(/resumed \(.*\n/, ''), 0).join(), /not resumed/);
   assert.match(verdict(`${good}\nclosed (4014)`, 0).join(), /closed under/);
   assert.match(verdict(good, 1).join(), /exited with 1/);
-  assert.match(verdict(good.replace('encrypting under epoch 1\n', ''), 0).join(), /no encryption epoch/);
+  assert.match(
+    verdict(good.replace('encrypting under epoch 1\n', ''), 0).join(),
+    /no encryption epoch/,
+  );
   assert.match(verdict(good.replace('frames=900', 'frames=0'), 0).join(), /no frame was sent/);
   assert.match(verdict('', 0).join(), /VOICE_SERVER_UPDATE/);
 });
