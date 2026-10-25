@@ -89100,9 +89100,15 @@
         "description": "What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).",
         "required": [
           "minimum_age",
-          "invoice_retention_years"
+          "invoice_retention_years",
+          "invite_initial_credits"
         ],
         "properties": {
+          "invite_initial_credits": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Invite credits a new account is granted (`invites.initial_credits`)."
+          },
           "invoice_retention_years": {
             "type": "integer",
             "format": "int32",

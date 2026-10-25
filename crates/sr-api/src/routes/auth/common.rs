@@ -203,6 +203,11 @@ impl AuthService {
         self.store.set_locale(id, locale).await
     }
 
+    /// Invite credits a new account is granted (`invites.initial_credits`), as registration uses it.
+    pub fn initial_credits(&self) -> i32 {
+        self.cfg.initial_credits
+    }
+
     /// Whether the account closed or finished the platform first run (`GET /users/@me`).
     pub async fn first_run_done(&self, id: i64) -> Result<bool, sr_auth::store::StoreError> {
         self.store.first_run_done(id).await

@@ -20741,6 +20741,11 @@ export interface components {
         PublicComplianceObject: {
             /**
              * Format: int32
+             * @description Invite credits a new account is granted (`invites.initial_credits`).
+             */
+            invite_initial_credits: number;
+            /**
+             * Format: int32
              * @description Years invoices stay linked to a member after the year of payment (D-325).
              */
             invoice_retention_years: number;
