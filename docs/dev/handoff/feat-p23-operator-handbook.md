@@ -37,8 +37,8 @@ The drilled sections (Lost or suspect secret key, Compromised staff account) alr
 
 ## Decisions and questions for the owner
 
-1. **Gates with no RDY item.** Phase 3 (a signet payment end to end), phase 4 (the 10-chapter Library run) and phases 6 and 7 (no gate is written) are "Not yet" with no RDY item behind them. They need either an item in a later wave or an owner decision that the gate is waived. Phase 4's mobile half is in the owner checklist's real-device pass only.
-2. **Lawyer (D-336 (h)).** The CSAM playbook has steps 6 and 7 marked LAWYER and undefined (report where and when, preservation period, who may handle the material). Safe steps (do not copy the material, hold it in place, remove from view, ban with `child_safety`) are written. Ask the lawyer before the first invite.
+1. **Answered: P23-1 (D-368), follow-up T-01 done on this branch (doc 13 gate lines and table rows; RDY-PAY-001 and RDY-LIB-001 are wave 24, phase 6 is Not yet, phase 7 is Partly).** Was: gates with no RDY item. Phase 3 (a signet payment end to end), phase 4 (the 10-chapter Library run) and phases 6 and 7 (no gate is written) are "Not yet" with no RDY item behind them. They need either an item in a later wave or an owner decision that the gate is waived. Phase 4's mobile half is in the owner checklist's real-device pass only.
+2. **Lawyer (D-336 (h)).** Still open (RDY-OWN-001). The CSAM playbook has steps 6 and 7 marked LAWYER and undefined (report where and when, preservation period, who may handle the material). Safe steps (do not copy the material, hold it in place, remove from view, ban with `child_safety`) are written. Ask the lawyer before the first invite.
 3. **Linking OPERATOR.md.** `deploy/INSTALL.md`, `deploy/GO-LIVE.md`, the README and `docs/README.md` do not yet link `deploy/OPERATOR.md` (not my files). One line each when the integrator merges.
 4. The integrator checklist should include running `node --test "scripts/*.test.mjs"`, which now covers `check-ops-files.test.mjs`.
 
