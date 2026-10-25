@@ -77,6 +77,8 @@ mod cinema_wiring_pg_tests;
 #[cfg(test)]
 mod bot_pg_tests;
 #[cfg(test)]
+mod jobs_scale_pg_tests;
+#[cfg(test)]
 mod party_cards_pg_tests;
 #[cfg(test)]
 mod staff_feed_pg_tests;
