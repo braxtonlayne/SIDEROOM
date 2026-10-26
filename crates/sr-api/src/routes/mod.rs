@@ -62,6 +62,7 @@ pub mod review;
 pub mod search;
 pub mod settings;
 pub mod social;
+pub mod storage;
 pub mod submissions;
 pub mod threads;
 pub mod tv;
@@ -143,6 +144,7 @@ pub fn all() -> Router<AppState> {
         .merge(inbox::router())
         .merge(userfeat::router())
         .merge(moderation::router())
+        .merge(storage::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -187,6 +189,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(inbox::openapi());
     doc.merge(userfeat::openapi());
     doc.merge(moderation::openapi());
+    doc.merge(storage::openapi());
     doc
 }
 

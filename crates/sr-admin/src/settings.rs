@@ -115,6 +115,7 @@ pub const ABUSE_WATCH_PARTY_JOINS: &str = "abuse.watch_party_joins_per_minute";
 pub const ABUSE_EMOJI_UPLOADS: &str = "abuse.emoji_uploads_per_hour";
 pub const ABUSE_STICKER_UPLOADS: &str = "abuse.sticker_uploads_per_hour";
 pub const ABUSE_APPEAL_ATTEMPTS: &str = "abuse.appeal_attempts_per_hour";
+pub const ABUSE_STORAGE_TESTS: &str = "abuse.storage_tests_per_hour";
 pub const ABUSE_COUNTER_NOTICES: &str = "abuse.counter_notices_per_day";
 pub const ABUSE_DATA_EXPORT_COOLDOWN: &str = "abuse.data_export_cooldown_hours";
 
@@ -252,6 +253,14 @@ pub const CATALOG: &[SettingDef] = &[
         1000,
         10,
         "Ban appeals per hour from one address, whatever the account (one appeal per ban besides, D-215).",
+    ),
+    int(
+        ABUSE_STORAGE_TESTS,
+        "abuse",
+        1,
+        1000,
+        20,
+        "Connection tests of storage mounts per hour by one member (applies on the next request).",
     ),
     int(
         ABUSE_COUNTER_NOTICES,
@@ -545,7 +554,7 @@ mod tests {
     #[test]
     fn abuse_limits_are_in_their_own_group_with_a_floor_of_one() {
         let abuse: Vec<_> = CATALOG.iter().filter(|d| d.group == "abuse").collect();
-        assert_eq!(abuse.len(), 11);
+        assert_eq!(abuse.len(), 12);
         for d in abuse {
             assert!(d.key.starts_with("abuse."), "{}", d.key);
             assert!(d.min >= 1.0 && d.max > d.min, "{}", d.key);

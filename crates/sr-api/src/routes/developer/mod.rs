@@ -425,7 +425,7 @@ pub(crate) fn bot_app(p: &Principal, raw: &str) -> MsgResult<i64> {
     }
 }
 
-pub(crate) fn iso(ms: i64) -> String {
+pub fn iso(ms: i64) -> String {
     iso8601(ms)
 }
 

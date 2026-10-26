@@ -6,9 +6,15 @@
 //! - [`upload`]: size-limit policy, content-type sniffing and EXIF/metadata stripping.
 
 pub mod cdn;
+pub mod cors_check;
 pub mod error;
 pub mod img;
 pub mod media;
+pub mod mount_cache;
+pub mod mounts;
+pub mod path;
+pub mod probe;
+pub mod recheck;
 pub mod s3admin;
 pub mod s3multipart;
 pub mod storage;
