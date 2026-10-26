@@ -89,3 +89,14 @@
   padding-inline-start: 20px;
   font-size: 0.875rem;
 }
+.sto-policy pre {
+  margin-block: 4px;
+  padding: 8px;
+  overflow: auto;
+  max-block-size: 16rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  font-size: 0.75rem;
+}

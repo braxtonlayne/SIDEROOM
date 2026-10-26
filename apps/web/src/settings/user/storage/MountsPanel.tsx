@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useT } from '../../../i18n';
 import { errorText, useResource } from '../api';
 import { Card, fmtDate, Loaded } from '../parts';
+import { policyExample } from './policy';
 import {
   applyCors,
   checkCors,
@@ -159,8 +160,12 @@ function ConnectForm({
           />
         </div>
         <Notice variant="info" title={t('settings.storage.guidanceTitle')}>
-          {t(`settings.storage.guidance.${provider}`)}
+          {t(`settings.storage.guidance.${provider}`)}{' '}
+          {policyExample(provider, '', '') === null && t('settings.storage.tokenScopesNote')}
         </Notice>
+        {policyExample(provider, bucket, prefix) !== null && (
+          <PolicyBlock text={policyExample(provider, bucket, prefix) ?? ''} />
+        )}
         <TextInput
           label={t('settings.storage.label')}
           value={label}
@@ -228,6 +233,36 @@ function ConnectForm({
         </div>
       </form>
     </Card>
+  );
+}
+
+/** A copyable policy document with the "check against your provider's current docs" reminder. */
+function PolicyBlock({ text }: { text: string }) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="sto-policy">
+      <p>
+        <strong>{t('settings.storage.policyTitle')}</strong>
+      </p>
+      <pre tabIndex={0} aria-label={t('settings.storage.policyAria')}>
+        <code>{text}</code>
+      </pre>
+      <div className="us-actions">
+        <Button type="button" variant="secondary" size="sm" onClick={() => void copy()}>
+          {copied ? t('settings.storage.policyCopied') : t('settings.storage.policyCopy')}
+        </Button>
+      </div>
+      <p className="us-muted">{t('settings.storage.policyCheckDocs')}</p>
+    </div>
   );
 }
 

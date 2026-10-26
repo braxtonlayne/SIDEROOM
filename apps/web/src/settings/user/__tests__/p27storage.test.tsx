@@ -35,7 +35,7 @@ describe('User Settings > Storage (BYOS-UI-001, against MSW mocks)', () => {
     expect(await screen.findByText('No bucket connected yet.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Connect a bucket' }));
     // Provider guidance follows the provider.
-    expect(screen.getByText(/s3:ListBucket/)).toBeInTheDocument();
+    expect(screen.getByText(/In IAM, create a user/)).toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: 'Provider' }));
     await user.click(await screen.findByRole('option', { name: 'Cloudflare R2' }));
     expect(screen.getByText(/R2 API token/)).toBeInTheDocument();
@@ -113,5 +113,24 @@ describe('User Settings > Storage (BYOS-UI-001, against MSW mocks)', () => {
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     await user.click(screen.getByRole('button', { name: 'Confirm remove' }));
     expect(await screen.findByText('No bucket connected yet.')).toBeInTheDocument();
+  });
+});
+
+describe('Provider policy examples', () => {
+  it('shows a copyable bucket-scoped policy for S3 and words only for R2', async () => {
+    const user = userEvent.setup();
+    server.use(...byosMockHandlers());
+    openSettings('storage');
+    await user.click(await screen.findByRole('button', { name: 'Connect a bucket' }));
+    await user.type(screen.getByLabelText('Bucket'), 'my-shelf');
+    await user.type(screen.getByLabelText('Folder prefix'), 'media');
+    const pre = screen.getByLabelText('Bucket policy example');
+    expect(pre.textContent).toContain('arn:aws:s3:::my-shelf/media/*');
+    expect(pre.textContent).toContain('s3:AbortMultipartUpload');
+    expect(screen.getByText(/current docs before you use it/)).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Provider' }));
+    await user.click(await screen.findByRole('option', { name: 'Cloudflare R2' }));
+    expect(screen.queryByLabelText('Bucket policy example')).toBeNull();
+    expect(screen.getByText(/Check against your provider/)).toBeInTheDocument();
   });
 });

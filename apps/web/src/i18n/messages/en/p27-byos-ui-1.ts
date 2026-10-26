@@ -35,6 +35,14 @@ export default {
     'In MinIO, create a service account whose policy allows list, read, write and delete on this one bucket, and allow it to get and put the bucket CORS configuration.',
   'settings.storage.guidance.garage':
     'In Garage, create a key and allow it on this one bucket with read, write and owner rights, so it can set CORS. Use the S3 API endpoint with path-style addressing.',
+  'settings.storage.policyTitle': 'Least-privilege policy for this bucket',
+  'settings.storage.policyAria': 'Bucket policy example',
+  'settings.storage.policyCopy': 'Copy policy',
+  'settings.storage.policyCopied': 'Copied',
+  'settings.storage.policyCheckDocs':
+    "Check against your provider's current docs before you use it.",
+  'settings.storage.tokenScopesNote':
+    "Token scopes change over time. Check against your provider's current docs.",
   'settings.storage.label': 'Name',
   'settings.storage.endpoint': 'Endpoint',
   'settings.storage.endpointHint': 'Leave empty for Amazon S3.',
