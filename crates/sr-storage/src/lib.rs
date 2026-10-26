@@ -12,6 +12,7 @@ pub mod img;
 pub mod media;
 pub mod mount_cache;
 pub mod mounts;
+pub mod path;
 pub mod probe;
 pub mod recheck;
 pub mod s3admin;

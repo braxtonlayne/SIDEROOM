@@ -42,3 +42,8 @@ Scratch DB `sr_p27_byos_core` exists: drop it when the wave is finished.
 
 ## Open owner questions
 None new.
+
+## Added after byos-scopes finished
+- `sr_storage::path::{safe_key(key, allow_folder), KeyError, MAX_KEY_BYTES}` has landed. It has the same rules as scopes' `browse::check_key`, so the integrator can swap one for the other. It does NOT normalise NFC: that needs `unicode-normalization`, which the wave may not add. Callers that own the dependency normalise first.
+- `Mount::storage` now sets a 5 s connect timeout, an 8 s request timeout and one retry (10 s retry window), so a dead endpoint fails in seconds.
+- Route AUTHZ cells: my 14 mount rows use `self` (user scope) and `membership` (guild scope). Scopes added `mount_owner` and `storage_scope` to `AUTHZ_VALUES` on its branch; at merge, switch the mount rows to `mount_owner` if the integrator wants one name for them.

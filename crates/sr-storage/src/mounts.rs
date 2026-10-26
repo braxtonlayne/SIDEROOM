@@ -372,6 +372,17 @@ impl Mount {
                 .with_secret_access_key(secret.expose())
                 .with_virtual_hosted_style_request(!self.path_style)
                 .with_allow_http(self.endpoint.starts_with("http://"))
+                // A dead endpoint must fail in seconds, not minutes.
+                .with_client_options(
+                    object_store::ClientOptions::new()
+                        .with_connect_timeout(std::time::Duration::from_secs(5))
+                        .with_timeout(std::time::Duration::from_secs(8)),
+                )
+                .with_retry(object_store::RetryConfig {
+                    backoff: Default::default(),
+                    max_retries: 1,
+                    retry_timeout: std::time::Duration::from_secs(10),
+                })
                 .build()
                 .map_err(|e| MountError::Invalid(e.to_string()))?,
         );
