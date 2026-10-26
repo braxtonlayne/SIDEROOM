@@ -547,7 +547,13 @@ impl Server {
     }
 
     /// A call that also sends the audit reason header the staff routes ask for.
-    async fn call_reason(&self, cred: &Cred, method: &str, path: &str, body: Option<&Value>) -> Resp {
+    async fn call_reason(
+        &self,
+        cred: &Cred,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+    ) -> Resp {
         let b = body.map(Value::to_string);
         let mut h = self.headers(cred, method);
         h.push(("X-Audit-Log-Reason".to_owned(), "authz matrix".to_owned()));
@@ -732,7 +738,11 @@ fn make_png(w: u32, h: u32) -> Vec<u8> {
         for b in data {
             c ^= u32::from(*b);
             for _ in 0..8 {
-                c = if c & 1 == 1 { 0xedb8_8320 ^ (c >> 1) } else { c >> 1 };
+                c = if c & 1 == 1 {
+                    0xedb8_8320 ^ (c >> 1)
+                } else {
+                    c >> 1
+                };
             }
         }
         !c
@@ -1933,30 +1943,76 @@ async fn seed(
             Some(json!({"kind": "series", "title": "Authz show"}))
         );
         if let Some(st) = a.get("series_title_id").and_then(|x| x.parse::<i64>().ok()) {
-            sqlx::query("UPDATE video_titles SET published = true, published_at = now() WHERE id = $1")
-                .bind(st)
-                .execute(&pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "UPDATE video_titles SET published = true, published_at = now() WHERE id = $1",
+            )
+            .bind(st)
+            .execute(&pool)
+            .await
+            .unwrap();
         }
         let st = a.get("series_title_id").cloned().unwrap_or_default();
-        put!("season_id", &staff, format!("/admin/cinema/titles/{st}/seasons"), None);
+        put!(
+            "season_id",
+            &staff,
+            format!("/admin/cinema/titles/{st}/seasons"),
+            None
+        );
         if let Some(se) = a.get("season_id").cloned() {
-            put!("episode_id", &staff, format!("/admin/cinema/seasons/{se}/episodes"), None);
+            put!(
+                "episode_id",
+                &staff,
+                format!("/admin/cinema/seasons/{se}/episodes"),
+                None
+            );
         }
         if let Some(e) = a.get("episode_id").and_then(|x| x.parse::<i64>().ok()) {
-            sqlx::query("UPDATE video_episodes SET published = true, published_at = now() WHERE id = $1")
-                .bind(e)
-                .execute(&pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "UPDATE video_episodes SET published = true, published_at = now() WHERE id = $1",
+            )
+            .bind(e)
+            .execute(&pool)
+            .await
+            .unwrap();
         }
-        put!("trailer_id", &staff, format!("/admin/cinema/titles/{t}/trailers"), None);
-        put!("variant_id", &staff, format!("/admin/cinema/titles/{t}/variants"), None);
-        put!("merge_title_id", &staff, "/admin/cinema/titles".into(), None);
-        put!("merge_series_id", &staff, "/admin/library/series".into(), None);
-        put!("collection_id", &staff, "/admin/cinema/collections".into(), None);
-        mk(&srv, infos, &staff, &format!("/admin/library/series/{s}/publish"), None).await;
+        put!(
+            "trailer_id",
+            &staff,
+            format!("/admin/cinema/titles/{t}/trailers"),
+            None
+        );
+        put!(
+            "variant_id",
+            &staff,
+            format!("/admin/cinema/titles/{t}/variants"),
+            None
+        );
+        put!(
+            "merge_title_id",
+            &staff,
+            "/admin/cinema/titles".into(),
+            None
+        );
+        put!(
+            "merge_series_id",
+            &staff,
+            "/admin/library/series".into(),
+            None
+        );
+        put!(
+            "collection_id",
+            &staff,
+            "/admin/cinema/collections".into(),
+            None
+        );
+        mk(
+            &srv,
+            infos,
+            &staff,
+            &format!("/admin/library/series/{s}/publish"),
+            None,
+        )
+        .await;
         if let Some(id) = mk(
             &srv,
             infos,
@@ -1968,17 +2024,34 @@ async fn seed(
         {
             a.insert("guild_command_id", id);
         }
-        put!("edition_id", &staff, format!("/admin/library/series/{s}/editions"), Some(json!({"language": "en", "label": "Official"})));
+        put!(
+            "edition_id",
+            &staff,
+            format!("/admin/library/series/{s}/editions"),
+            Some(json!({"language": "en", "label": "Official"}))
+        );
         if let Some(e) = a.get("edition_id").cloned() {
-            put!("volume_id", &staff, format!("/admin/library/editions/{e}/volumes"), None);
-            put!("lib_chapter_id", &staff, format!("/admin/library/editions/{e}/chapters"), None);
+            put!(
+                "volume_id",
+                &staff,
+                format!("/admin/library/editions/{e}/volumes"),
+                None
+            );
+            put!(
+                "lib_chapter_id",
+                &staff,
+                format!("/admin/library/editions/{e}/chapters"),
+                None
+            );
         }
         if let Some(c) = a.get("lib_chapter_id").cloned() {
-            sqlx::query("UPDATE reading_chapters SET published = true, published_at = now() WHERE id = $1")
-                .bind(c.parse::<i64>().unwrap_or(0))
-                .execute(&pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "UPDATE reading_chapters SET published = true, published_at = now() WHERE id = $1",
+            )
+            .bind(c.parse::<i64>().unwrap_or(0))
+            .execute(&pool)
+            .await
+            .unwrap();
             put!(
                 "lib_upload_id",
                 &staff,
@@ -1991,29 +2064,74 @@ async fn seed(
                 format!("/admin/library/chapters/{c}/uploads"),
                 Some(json!({"filename": "b.zip", "size_bytes": 10}))
             );
-            put!("library_comment_id", &member_cred, format!("/library/chapters/{c}/comments"), None);
+            put!(
+                "library_comment_id",
+                &member_cred,
+                format!("/library/chapters/{c}/comments"),
+                None
+            );
         }
-        put!("cinema_comment_id", &member_cred, format!("/cinema/titles/{t}/comments"), None);
+        put!(
+            "cinema_comment_id",
+            &member_cred,
+            format!("/cinema/titles/{t}/comments"),
+            None
+        );
         // Reviews (the member's), and a report of each comment by someone else.
-        if let Some(id) = mk_m(&srv, infos, &member_cred, "PUT", &format!("/cinema/titles/{t}/review"), None).await {
+        if let Some(id) = mk_m(
+            &srv,
+            infos,
+            &member_cred,
+            "PUT",
+            &format!("/cinema/titles/{t}/review"),
+            None,
+        )
+        .await
+        {
             a.insert("cinema_review_id", id);
         }
-        if let Some(id) = mk_m(&srv, infos, &member_cred, "PUT", &format!("/library/series/{s}/review"), None).await {
+        if let Some(id) = mk_m(
+            &srv,
+            infos,
+            &member_cred,
+            "PUT",
+            &format!("/library/series/{s}/review"),
+            None,
+        )
+        .await
+        {
             a.insert("library_review_id", id);
         }
         if let Some(c) = a.get("cinema_comment_id").cloned() {
-            put!("cinema_report_id", &oa, format!("/cinema/comments/{c}/report"), None);
+            put!(
+                "cinema_report_id",
+                &oa,
+                format!("/cinema/comments/{c}/report"),
+                None
+            );
         }
         if let Some(c) = a.get("library_comment_id").cloned() {
-            put!("library_report_id", &oa, format!("/library/comments/{c}/report"), None);
+            put!(
+                "library_report_id",
+                &oa,
+                format!("/library/comments/{c}/report"),
+                None
+            );
         }
         put!("cinema_list_id", &member_cred, "/cinema/lists".into(), None);
-        put!("library_list_id", &member_cred, "/library/lists".into(), None);
+        put!(
+            "library_list_id",
+            &member_cred,
+            "/library/lists".into(),
+            None
+        );
         put!(
             "source_id",
             &staff,
             "/admin/ingest-sources".into(),
-            Some(json!({"label": "authz", "kind": "storage_import", "backend": "storage", "location": "imports/authz", "owner_id": u("staffowner").to_string()}))
+            Some(
+                json!({"label": "authz", "kind": "storage_import", "backend": "storage", "location": "imports/authz", "owner_id": u("staffowner").to_string()})
+            )
         );
         put!("token_id", &staff, "/admin/transcode/tokens".into(), None);
         if !tv.is_empty() {
@@ -2021,9 +2139,18 @@ async fn seed(
                 "block_id",
                 &staff,
                 format!("/admin/tv/channels/{tv}/blocks"),
-                Some(json!({"title_id": t.clone(), "start_ms": clock.now_unix_ms() + 2 * 86_400_000}))
+                Some(
+                    json!({"title_id": t.clone(), "start_ms": clock.now_unix_ms() + 2 * 86_400_000})
+                )
             );
-            mk(&srv, infos, &staff, &format!("/admin/tv/channels/{tv}/publish"), None).await;
+            mk(
+                &srv,
+                infos,
+                &staff,
+                &format!("/admin/tv/channels/{tv}/publish"),
+                None,
+            )
+            .await;
         }
     }
     // A watch party of the published film, and an Activity bundle (a one-file zip, sent as bytes).
@@ -2059,7 +2186,11 @@ async fn seed(
     {
         a.insert("bundle_id", id);
     } else {
-        println!("authz_matrix: seed activity bundle -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+        println!(
+            "authz_matrix: seed activity bundle -> {} {}",
+            r.status,
+            r.body.chars().take(100).collect::<String>()
+        );
     }
     // RDY-SEC-011: the per-account objects of the write phase's rightful actors (the plain member's own
     // reminders, bookmarks and lists, the owner's templates, the invitee's offers ...).
@@ -2084,8 +2215,16 @@ async fn seed(
         let lib_ch = a.get("lib_chapter_id").cloned().unwrap_or_default();
         // The feature ids that exist, one list per family.
         for (key, who, path) in [
-            ("channel_feature_id", &oa, format!("/channels/{ch}/sr/features")),
-            ("user_feature_id", &member_cred, "/users/@me/sr/features".to_owned()),
+            (
+                "channel_feature_id",
+                &oa,
+                format!("/channels/{ch}/sr/features"),
+            ),
+            (
+                "user_feature_id",
+                &member_cred,
+                "/users/@me/sr/features".to_owned(),
+            ),
             ("admin_feature_id", &staff, "/admin/features".to_owned()),
         ] {
             let r = srv.call(who, "GET", &path, None).await;
@@ -2131,7 +2270,12 @@ async fn seed(
             a.insert("reminder_id", id);
         }
         let b1 = srv
-            .call(&member_cred, "PUT", &format!("/channels/{ch}/messages/{msg}/bookmark"), None)
+            .call(
+                &member_cred,
+                "PUT",
+                &format!("/channels/{ch}/messages/{msg}/bookmark"),
+                None,
+            )
             .await;
         let b2 = srv
             .call(
@@ -2148,7 +2292,11 @@ async fn seed(
         {
             a.insert("bookmark_id", id);
         } else {
-            println!("authz_matrix: seed library bookmark -> {} {}", b2.status, b2.body.chars().take(100).collect::<String>());
+            println!(
+                "authz_matrix: seed library bookmark -> {} {}",
+                b2.status,
+                b2.body.chars().take(100).collect::<String>()
+            );
         }
         let _ = b1;
         let png_bytes = make_png(8, 8);
@@ -2168,7 +2316,11 @@ async fn seed(
         {
             a.insert("media_id", id);
         } else {
-            println!("authz_matrix: seed profile media -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+            println!(
+                "authz_matrix: seed profile media -> {} {}",
+                r.status,
+                r.body.chars().take(100).collect::<String>()
+            );
         }
         let r = srv
             .call(&member_cred, "POST", "/sr/invites", Some(&json!({})))
@@ -2179,7 +2331,11 @@ async fn seed(
         {
             a.insert("sr_invite_code", code);
         } else {
-            println!("authz_matrix: seed member invite -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+            println!(
+                "authz_matrix: seed member invite -> {} {}",
+                r.status,
+                r.body.chars().take(100).collect::<String>()
+            );
         }
         // A reaction and a pin, so that removing them is a real removal.
         srv.call(
@@ -2189,7 +2345,8 @@ async fn seed(
             None,
         )
         .await;
-        srv.call(&oa, "PUT", &format!("/channels/{ch}/pins/{msg}"), None).await;
+        srv.call(&oa, "PUT", &format!("/channels/{ch}/pins/{msg}"), None)
+            .await;
         // A template, a directory listing, an application to join, a ticket, an upload slot.
         let r = srv
             .call(
@@ -2205,7 +2362,11 @@ async fn seed(
         {
             a.insert("template_code", code);
         } else {
-            println!("authz_matrix: seed template -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+            println!(
+                "authz_matrix: seed template -> {} {}",
+                r.status,
+                r.body.chars().take(100).collect::<String>()
+            );
         }
         sqlx::query("INSERT INTO guild_community (guild_id, community_enabled) VALUES ($1, true) ON CONFLICT (guild_id) DO UPDATE SET community_enabled = true")
             .bind(ga)
@@ -2230,7 +2391,15 @@ async fn seed(
         {
             a.insert("guild_application_id", id);
         }
-        if let Some(id) = mk(&srv, infos, &oa, &format!("/guilds/{ga}/tickets"), Some(json!({"subject": "authz ticket"}))).await {
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &oa,
+            &format!("/guilds/{ga}/tickets"),
+            Some(json!({"subject": "authz ticket"})),
+        )
+        .await
+        {
             a.insert("ticket_id", id);
         }
         if let Some(id) = mk(
@@ -2280,7 +2449,8 @@ async fn seed(
         {
             let offeree_cred = Cred::Session(sess["offeree"].clone());
             let now = SystemClock.now_unix_ms() as u64 / 1000;
-            let code = sr_auth::totp::current_code(&totp, "SIDE ROOM", "offeree", now).unwrap_or_default();
+            let code =
+                sr_auth::totp::current_code(&totp, "SIDE ROOM", "offeree", now).unwrap_or_default();
             let r = srv
                 .call(
                     &offeree_cred,
@@ -2290,16 +2460,29 @@ async fn seed(
                 )
                 .await;
             if r.status != 200 && r.status != 204 {
-                println!("authz_matrix: seed offeree reauth -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+                println!(
+                    "authz_matrix: seed offeree reauth -> {} {}",
+                    r.status,
+                    r.body.chars().take(100).collect::<String>()
+                );
             }
         }
         // Watch party: a queued item and a second participant.
         if !party.is_empty() {
             let j = srv
-                .call(&insider_cred, "POST", &format!("/watch-parties/{party}/join"), Some(&json!({})))
+                .call(
+                    &insider_cred,
+                    "POST",
+                    &format!("/watch-parties/{party}/join"),
+                    Some(&json!({})),
+                )
                 .await;
             if j.status != 200 {
-                println!("authz_matrix: seed party join -> {} {}", j.status, j.body.chars().take(140).collect::<String>());
+                println!(
+                    "authz_matrix: seed party join -> {} {}",
+                    j.status,
+                    j.body.chars().take(140).collect::<String>()
+                );
             }
             let mut q = srv
                 .call(
@@ -2322,7 +2505,11 @@ async fn seed(
             if let Some(id) = pv["queue"][1]["id"].as_str() {
                 a.insert("queue_item_id", id.to_owned());
             } else {
-                println!("authz_matrix: seed queue item -> {} {}", q.status, q.body.chars().take(140).collect::<String>());
+                println!(
+                    "authz_matrix: seed queue item -> {} {}",
+                    q.status,
+                    q.body.chars().take(140).collect::<String>()
+                );
             }
         }
         // A temporary role, an invoice.
@@ -2370,7 +2557,10 @@ async fn seed(
             let m = json!({"id": id, "name": id, "version": "1.0.0", "author": "me", "targets": ["lounge"], "scheme": "dark"});
             zip_of(&[
                 ("theme.json", m.to_string().as_bytes()),
-                ("tokens.json", json!({"--ui-accent": "#5865f2"}).to_string().as_bytes()),
+                (
+                    "tokens.json",
+                    json!({"--ui-accent": "#5865f2"}).to_string().as_bytes(),
+                ),
             ])
         };
         let pack = {
@@ -2391,17 +2581,35 @@ async fn seed(
             ("package_id", "approved_version_id", theme("ocean"), true),
             ("pack_id", "pack_version_id", pack, true),
             ("recipe_id", "recipe_version_id", recipe, true),
-            ("pending_package_id", "pending_version_id", theme("pending-one"), false),
-            ("withdraw_package_id", "withdraw_version_id", theme("pending-two"), false),
+            (
+                "pending_package_id",
+                "pending_version_id",
+                theme("pending-one"),
+                false,
+            ),
+            (
+                "withdraw_package_id",
+                "withdraw_version_id",
+                theme("pending-two"),
+                false,
+            ),
         ];
         for (pkey, vkey, zip, approve) in uploads {
             let r = srv
                 .call_bytes(&member_cred, "POST", "/packages", "application/zip", &zip)
                 .await;
             let v: Value = serde_json::from_str(&r.body).unwrap_or(Value::Null);
-            let v = if v["version"].is_object() { v["version"].clone() } else { v };
+            let v = if v["version"].is_object() {
+                v["version"].clone()
+            } else {
+                v
+            };
             let (Some(pid), Some(vid)) = (v["package_id"].as_str(), v["id"].as_str()) else {
-                println!("authz_matrix: seed package {pkey} -> {} {}", r.status, r.body.chars().take(140).collect::<String>());
+                println!(
+                    "authz_matrix: seed package {pkey} -> {} {}",
+                    r.status,
+                    r.body.chars().take(140).collect::<String>()
+                );
                 continue;
             };
             a.insert(pkey, pid.to_owned());
@@ -2416,20 +2624,42 @@ async fn seed(
                     )
                     .await;
                 if !(200..300).contains(&d.status) {
-                    println!("authz_matrix: seed package decision -> {} {}", d.status, d.body.chars().take(100).collect::<String>());
+                    println!(
+                        "authz_matrix: seed package decision -> {} {}",
+                        d.status,
+                        d.body.chars().take(100).collect::<String>()
+                    );
                 }
             }
         }
         // Reports of a comment (the member made the comments; the owner reports them).
         if let Some(c) = a.get("cinema_comment_id").cloned() {
-            srv.call(&oa, "POST", &format!("/cinema/comments/{c}/report"), Some(&json!({"reason": "authz"}))).await;
+            srv.call(
+                &oa,
+                "POST",
+                &format!("/cinema/comments/{c}/report"),
+                Some(&json!({"reason": "authz"})),
+            )
+            .await;
         }
         if let Some(c) = a.get("library_comment_id").cloned() {
-            srv.call(&oa, "POST", &format!("/library/comments/{c}/report"), Some(&json!({"reason": "authz"}))).await;
+            srv.call(
+                &oa,
+                "POST",
+                &format!("/library/comments/{c}/report"),
+                Some(&json!({"reason": "authz"})),
+            )
+            .await;
         }
         for (key, sql) in [
-            ("cinema_report_id", "SELECT id FROM cinema_reports ORDER BY id LIMIT 1"),
-            ("library_report_id", "SELECT id FROM reading_comment_reports ORDER BY id LIMIT 1"),
+            (
+                "cinema_report_id",
+                "SELECT id FROM cinema_reports ORDER BY id LIMIT 1",
+            ),
+            (
+                "library_report_id",
+                "SELECT id FROM reading_comment_reports ORDER BY id LIMIT 1",
+            ),
         ] {
             if let Ok(id) = sqlx::query_scalar::<_, i64>(sql).fetch_one(&pool).await {
                 a.insert(key, id.to_string());
@@ -2441,7 +2671,10 @@ async fn seed(
             .fetch_one(&pool)
             .await
             .unwrap();
-        for (key, kind) in [("signal_id", "shared_login_ip"), ("signal2_id", "shared_invite_lineage")] {
+        for (key, kind) in [
+            ("signal_id", "shared_login_ip"),
+            ("signal2_id", "shared_invite_lineage"),
+        ] {
             let id = ids.generate().get() as i64;
             sqlx::query("INSERT INTO evasion_signals (id, person_id, related_person_id, kind) VALUES ($1, $2, $3, $4)")
                 .bind(id)
@@ -2454,11 +2687,13 @@ async fn seed(
             a.insert(key, id.to_string());
         }
         let alert = ids.generate().get() as i64;
-        sqlx::query("INSERT INTO staff_alerts (id, kind, detail) VALUES ($1, 'authz', 'authz matrix')")
-            .bind(alert)
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO staff_alerts (id, kind, detail) VALUES ($1, 'authz', 'authz matrix')",
+        )
+        .bind(alert)
+        .execute(&pool)
+        .await
+        .unwrap();
         a.insert("alert_id", alert.to_string());
         // A data request about the victim.
         if let Some(id) = mk(
@@ -2477,15 +2712,18 @@ async fn seed(
             infos,
             &staff,
             "/admin/donations/entitlements",
-            Some(json!({"kind": "patron", "days": 30, "user_id": victim, "reason": "authz matrix"})),
+            Some(
+                json!({"kind": "patron", "days": 30, "user_id": victim, "reason": "authz matrix"}),
+            ),
         )
         .await
         {
             a.insert("entitlement_grant_id", id);
         }
-        if let Ok(id) = sqlx::query_scalar::<_, i64>("SELECT id FROM platform_invites ORDER BY id LIMIT 1")
-            .fetch_one(&pool)
-            .await
+        if let Ok(id) =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM platform_invites ORDER BY id LIMIT 1")
+                .fetch_one(&pool)
+                .await
         {
             a.insert("platform_invite_id", id.to_string());
         }
@@ -2654,9 +2892,9 @@ fn outsider_exception(r: &Route) -> Option<&'static str> {
         // The client learns from `member: false` that it was dropped (a sleeping laptop, a removal) and says so.
         // A stranger gets the same answer with a neutral playback and nothing about the party; the service test
         // `a_heartbeat_from_a_stranger_reveals_no_playback` pins that.
-        ("POST", "/watch-parties/{party_id}/heartbeat") => {
-            Some("a non-member is told member:false with a neutral playback, the dropped participant's signal")
-        }
+        ("POST", "/watch-parties/{party_id}/heartbeat") => Some(
+            "a non-member is told member:false with a neutral playback, the dropped participant's signal",
+        ),
         _ => None,
     }
 }
@@ -3171,48 +3409,216 @@ fn class_of(method: &str) -> u8 {
 /// `write_observed_is_pinned` pins its length, and a route listed here that turns out to be admitted fails
 /// the run until it is removed (and the pin lowered).
 const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
-    ("POST", "/moderation/appeals", "an appeal is opened with the token mailed to a banned account"),
-    ("POST", "/moderation/appeals/{appeal_id}/decision", "an appeal is opened with the token mailed to a banned account"),
-    ("POST", "/admin/card-actions", "needs a posted alert card, a message carrying an sr: button"),
-    ("POST", "/admin/cinema/assets/{asset_id}/complete", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
-    ("POST", "/admin/cinema/assets/{asset_id}/probe", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
-    ("POST", "/admin/cinema/assets/{asset_id}/transcode", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
-    ("POST", "/admin/jobs/{job_id}/retry", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
-    ("POST", "/admin/persons/{person_id}/identities/{identity_id}/move", "needs a linked identity row (an external login) of the person"),
-    ("POST", "/admin/transcode/jobs/{job_id}/cancel", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
-    ("PUT", "/admin/cinema/assets/{asset_id}/original-downloads", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
-    ("PUT", "/admin/library/chapters/{chapter_id}/pages/{index}", "needs a stored page; pages are objects written by the ingest under library/ keys"),
-    ("PUT", "/admin/transcode/workers/{worker_id}/drain", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
-    ("DELETE", "/admin/library/uploads/{upload_id}", "the second seeded admin upload answers Unknown upload (unresolved, see the handoff)"),
-    ("DELETE", "/admin/jobs/{job_id}", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
-    ("PUT", "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions", "bearer-only route: needs a user token with applications.commands.permissions.update, which no actor holds"),
-    ("POST", "/activity-instances/{instance_id}/join", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
-    ("POST", "/activity-instances/{instance_id}/leave", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
-    ("POST", "/channels/{channel_id}/activity", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
-    ("POST", "/channels/{channel_id}/call/ring", "the call state lives in the voice node (calls is unset in the embedded setup)"),
-    ("POST", "/channels/{channel_id}/call/stop-ringing", "the call state lives in the voice node (calls is unset in the embedded setup)"),
-    ("POST", "/cinema/assets/{asset_id}/refresh", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
-    ("POST", "/cinema/titles/{title_id}/downloads", "Patrons only: the member holds no entitlement grant"),
-    ("POST", "/donations/invoices/{invoice_id}/cancel", "payments are off: no active wallet is configured"),
-    ("POST", "/donations/invoices/{invoice_id}/check", "payments are off: no active wallet is configured"),
-    ("POST", "/guilds/{guild_id}/alert-actions", "needs a posted alert card, a message carrying an sr: button"),
-    ("POST", "/interactions/{interaction_id}/{token}/callback", "needs an interaction id and token minted by a real interaction"),
-    ("POST", "/library/chapters/{chapter_id}/download", "Patrons only: the member holds no entitlement grant"),
-    ("POST", "/sr/auth/discord/link", "needs an external identity provider or a passkey ceremony"),
-    ("POST", "/sr/auth/passkeys/login/finish", "needs an external identity provider or a passkey ceremony"),
-    ("POST", "/users/@me/connections/{provider}/authorize", "needs an external identity provider or a passkey ceremony"),
-    ("POST", "/users/@me/connections/{provider}/{id}/refresh", "needs an external identity provider or a passkey ceremony"),
-    ("POST", "/users/@me/profile-doc/layout", "needs an approved profile_layout package"),
-    ("PATCH", "/sr/auth/passkeys/{id}", "needs an external identity provider or a passkey ceremony"),
-    ("PATCH", "/users/@me/connections/{provider}/{id}", "needs an external identity provider or a passkey ceremony"),
-    ("PATCH", "/webhooks/{application_id}/{token}/messages/{message_id}", "needs an interaction id and token minted by a real interaction"),
-    ("DELETE", "/users/@me/connections/{provider}/{id}", "needs an external identity provider or a passkey ceremony"),
-    ("DELETE", "/webhooks/{application_id}/{token}/messages/{message_id}", "needs an interaction id and token minted by a real interaction"),
-    ("DELETE", "/guilds/{guild_id}/integrations/{integration_id}", "no integration exists to remove (they are created by external sync)"),
-    ("DELETE", "/sr/auth/passkeys/{id}", "needs an external identity provider or a passkey ceremony"),
-    ("DELETE", "/users/{user_id}/guestbook/{entry_id}", "the victim's profile page has no guestbook (a setting of the page owner)"),
-    ("DELETE", "/activity-instances/{instance_id}", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
-    ("POST", "/watch-parties/{party_id}/leave", "the insider's leave follows its removal by the member delete (unresolved order, see the handoff)"),
+    (
+        "POST",
+        "/moderation/appeals",
+        "an appeal is opened with the token mailed to a banned account",
+    ),
+    (
+        "POST",
+        "/moderation/appeals/{appeal_id}/decision",
+        "an appeal is opened with the token mailed to a banned account",
+    ),
+    (
+        "POST",
+        "/admin/card-actions",
+        "needs a posted alert card, a message carrying an sr: button",
+    ),
+    (
+        "POST",
+        "/admin/cinema/assets/{asset_id}/complete",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/admin/cinema/assets/{asset_id}/probe",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/admin/cinema/assets/{asset_id}/transcode",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/admin/jobs/{job_id}/retry",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "POST",
+        "/admin/persons/{person_id}/identities/{identity_id}/move",
+        "needs a linked identity row (an external login) of the person",
+    ),
+    (
+        "POST",
+        "/admin/transcode/jobs/{job_id}/cancel",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "PUT",
+        "/admin/cinema/assets/{asset_id}/original-downloads",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "PUT",
+        "/admin/library/chapters/{chapter_id}/pages/{index}",
+        "needs a stored page; pages are objects written by the ingest under library/ keys",
+    ),
+    (
+        "PUT",
+        "/admin/transcode/workers/{worker_id}/drain",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "DELETE",
+        "/admin/library/uploads/{upload_id}",
+        "the second seeded admin upload answers Unknown upload (unresolved, see the handoff)",
+    ),
+    (
+        "DELETE",
+        "/admin/jobs/{job_id}",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "PUT",
+        "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions",
+        "bearer-only route: needs a user token with applications.commands.permissions.update, which no actor holds",
+    ),
+    (
+        "POST",
+        "/activity-instances/{instance_id}/join",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/activity-instances/{instance_id}/leave",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/channels/{channel_id}/activity",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/channels/{channel_id}/call/ring",
+        "the call state lives in the voice node (calls is unset in the embedded setup)",
+    ),
+    (
+        "POST",
+        "/channels/{channel_id}/call/stop-ringing",
+        "the call state lives in the voice node (calls is unset in the embedded setup)",
+    ),
+    (
+        "POST",
+        "/cinema/assets/{asset_id}/refresh",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/cinema/titles/{title_id}/downloads",
+        "Patrons only: the member holds no entitlement grant",
+    ),
+    (
+        "POST",
+        "/donations/invoices/{invoice_id}/cancel",
+        "payments are off: no active wallet is configured",
+    ),
+    (
+        "POST",
+        "/donations/invoices/{invoice_id}/check",
+        "payments are off: no active wallet is configured",
+    ),
+    (
+        "POST",
+        "/guilds/{guild_id}/alert-actions",
+        "needs a posted alert card, a message carrying an sr: button",
+    ),
+    (
+        "POST",
+        "/interactions/{interaction_id}/{token}/callback",
+        "needs an interaction id and token minted by a real interaction",
+    ),
+    (
+        "POST",
+        "/library/chapters/{chapter_id}/download",
+        "Patrons only: the member holds no entitlement grant",
+    ),
+    (
+        "POST",
+        "/sr/auth/discord/link",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/sr/auth/passkeys/login/finish",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/users/@me/connections/{provider}/authorize",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/users/@me/connections/{provider}/{id}/refresh",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/users/@me/profile-doc/layout",
+        "needs an approved profile_layout package",
+    ),
+    (
+        "PATCH",
+        "/sr/auth/passkeys/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "PATCH",
+        "/users/@me/connections/{provider}/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "PATCH",
+        "/webhooks/{application_id}/{token}/messages/{message_id}",
+        "needs an interaction id and token minted by a real interaction",
+    ),
+    (
+        "DELETE",
+        "/users/@me/connections/{provider}/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "DELETE",
+        "/webhooks/{application_id}/{token}/messages/{message_id}",
+        "needs an interaction id and token minted by a real interaction",
+    ),
+    (
+        "DELETE",
+        "/guilds/{guild_id}/integrations/{integration_id}",
+        "no integration exists to remove (they are created by external sync)",
+    ),
+    (
+        "DELETE",
+        "/sr/auth/passkeys/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "DELETE",
+        "/users/{user_id}/guestbook/{entry_id}",
+        "the victim's profile page has no guestbook (a setting of the page owner)",
+    ),
+    (
+        "DELETE",
+        "/activity-instances/{instance_id}",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/watch-parties/{party_id}/leave",
+        "the insider's leave follows its removal by the member delete (unresolved order, see the handoff)",
+    ),
 ];
 
 /// The length of [`WRITE_OBSERVED`]. Lower it when an entry goes; never raise it.
@@ -3362,8 +3768,12 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
         ("POST", "/developers/tester-invites/{invite_id}/respond")
         | ("POST", "/staff/offers/{offer_id}/respond") => r#"{"accept":true}"#,
-        ("POST", "/applications/{application_id}/activity/submit") => r#"{"bundle_id":"{bundle_id}"}"#,
-        ("POST", "/moderation/evasion-signals/{signal_id}/link-case") => r#"{"case_id":"{case_id}"}"#,
+        ("POST", "/applications/{application_id}/activity/submit") => {
+            r#"{"bundle_id":"{bundle_id}"}"#
+        }
+        ("POST", "/moderation/evasion-signals/{signal_id}/link-case") => {
+            r#"{"case_id":"{case_id}"}"#
+        }
         ("POST", "/admin/data-requests") => r#"{"kind":"export","account_id":"{user_id}"}"#,
         ("POST", "/channels/{channel_id}/attachments") => {
             r#"{"files":[{"filename":"a.txt","file_size":3}]}"#
@@ -3391,16 +3801,17 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         | ("POST", "/applications/{application_id}/bot/reset-token")
         | ("DELETE", "/applications/{application_id}")
         | ("POST", "/sr/auth/discord/unlink")
-        | ("POST", "/sr/auth/passkeys/register/begin") => r#"{"password":"{pw}","current_password":"{pw}"}"#,
+        | ("POST", "/sr/auth/passkeys/register/begin") => {
+            r#"{"password":"{pw}","current_password":"{pw}"}"#
+        }
         ("POST", "/sr/auth/account/delete") => r#"{"password":"{pw}","username":"dispdel"}"#,
         ("POST", "/sr/auth/reauth") => r#"{"method":"totp","code":"{totp_next}"}"#,
         ("POST", "/guilds/{guild_id}/rss-feeds") => {
             r#"{"channel_id":"{channel_id}","url":"https://example.test/feed2.xml"}"#
         }
         ("POST", "/requests/{request_id}/fulfil") => r#"{"submission_id":"{submission_id}"}"#,
-        ("PUT", "/watch-parties/{party_id}/media") | ("POST", "/watch-parties/{party_id}/queue") => {
-            r#"{"title_id":"{title_id}"}"#
-        }
+        ("PUT", "/watch-parties/{party_id}/media")
+        | ("POST", "/watch-parties/{party_id}/queue") => r#"{"title_id":"{title_id}"}"#,
         ("POST", "/moderation/takedowns/{notice_id}/items") => {
             r#"{"kind":"message","id":"{message_id}"}"#
         }
@@ -3446,7 +3857,10 @@ fn fixup(v: &mut Value) {
         Value::Object(m) => {
             for (k, x) in m.iter_mut() {
                 match (k.as_str(), &*x) {
-                    ("image" | "file" | "thumbnail" | "cover" | "avatar" | "icon" | "banner", Value::String(_)) => {
+                    (
+                        "image" | "file" | "thumbnail" | "cover" | "avatar" | "icon" | "banner",
+                        Value::String(_),
+                    ) => {
                         *x = json!(format!("data:image/png;base64,{}", b64(&make_png(8, 8))));
                     }
                     ("sound", Value::String(_)) => *x = json!(wav_uri(300)),
@@ -3467,7 +3881,8 @@ fn substitute(text: &str, ids: &HashMap<&'static str, String>, totp: &TotpSecret
     if t.contains("{totp_next}") {
         // The step after the one the staff step-up used: a code is good once.
         let now = SystemClock.now_unix_ms() as u64 / 1000 + 30;
-        let code = sr_auth::totp::current_code(totp, "SIDE ROOM", "staffowner", now).unwrap_or_default();
+        let code =
+            sr_auth::totp::current_code(totp, "SIDE ROOM", "staffowner", now).unwrap_or_default();
         t = t.replace("{totp_next}", &code);
     }
     for (k, v) in ids {
@@ -3519,7 +3934,11 @@ async fn write_phase(
         )
         .await;
     if !(200..300).contains(&r.status) {
-        println!("authz_matrix: directory listing -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+        println!(
+            "authz_matrix: directory listing -> {} {}",
+            r.status,
+            r.body.chars().take(100).collect::<String>()
+        );
     }
     world
         .srv
@@ -3603,7 +4022,10 @@ async fn write_phase(
                 resp.status,
                 short(160)
             ));
-            ("FAIL", format!("#{} {} {}", stats.calls, resp.status, short(160)))
+            (
+                "FAIL",
+                format!("#{} {} {}", stats.calls, resp.status, short(160)),
+            )
         } else if matches!(resp.status, 400 | 422) {
             stats.shape += 1;
             ("shape", format!("{} {}", resp.status, short(160)))
@@ -3972,17 +4394,57 @@ fn ctx_for(
 /// their own `{asset_id}`, `{comment_id}`, `{list_id}` ..., and the submission chapter is not the
 /// published one. The write phase (and every other pass) fills them from the family's own seeded key.
 const OVERLAYS: &[(&[&str], &str, &str)] = &[
-    (&["/cinema/", "/admin/cinema/"], "asset_id", "cinema_asset_id"),
-    (&["/cinema/", "/admin/cinema/"], "comment_id", "cinema_comment_id"),
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "asset_id",
+        "cinema_asset_id",
+    ),
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "comment_id",
+        "cinema_comment_id",
+    ),
     (&["/cinema/", "/admin/cinema/"], "list_id", "cinema_list_id"),
-    (&["/cinema/", "/admin/cinema/"], "review_id", "cinema_review_id"),
-    (&["/cinema/", "/admin/cinema/"], "report_id", "cinema_report_id"),
-    (&["/library/", "/admin/library/"], "chapter_id", "lib_chapter_id"),
-    (&["/library/", "/admin/library/"], "upload_id", "lib_upload_id"),
-    (&["/library/", "/admin/library/"], "comment_id", "library_comment_id"),
-    (&["/library/", "/admin/library/"], "list_id", "library_list_id"),
-    (&["/library/", "/admin/library/"], "review_id", "library_review_id"),
-    (&["/library/", "/admin/library/"], "report_id", "library_report_id"),
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "review_id",
+        "cinema_review_id",
+    ),
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "report_id",
+        "cinema_report_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "chapter_id",
+        "lib_chapter_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "upload_id",
+        "lib_upload_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "comment_id",
+        "library_comment_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "list_id",
+        "library_list_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "review_id",
+        "library_review_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "report_id",
+        "library_report_id",
+    ),
     (&["/guilds/"], "feature_id", "guild_feature_id"),
     (&["/channels/"], "feature_id", "channel_feature_id"),
     (&["/users/@me/"], "feature_id", "user_feature_id"),
@@ -3992,22 +4454,62 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/sr/invites/"], "code", "sr_invite_code"),
     (&["templates/{code}"], "code", "template_code"),
     (&["/channels/"], "upload_id", "attach_upload_id"),
-    (&["sr/applications/{application_id}"], "application_id", "guild_application_id"),
+    (
+        &["sr/applications/{application_id}"],
+        "application_id",
+        "guild_application_id",
+    ),
     (&["/applications/"], "emoji_id", "app_emoji_id"),
-    (&["{application_id}/guilds/{guild_id}/commands/"], "command_id", "guild_command_id"),
-    (&["/developers/tester-invites/"], "invite_id", "tester_invite_id"),
-    (&["/staff/offers/", "/admin/staff/offers/"], "offer_id", "staff_offer_id"),
+    (
+        &["{application_id}/guilds/{guild_id}/commands/"],
+        "command_id",
+        "guild_command_id",
+    ),
+    (
+        &["/developers/tester-invites/"],
+        "invite_id",
+        "tester_invite_id",
+    ),
+    (
+        &["/staff/offers/", "/admin/staff/offers/"],
+        "offer_id",
+        "staff_offer_id",
+    ),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
-    (&["submissions/{submission_id}/publish-now"], "submission_id", "own_submission_id"),
+    (
+        &["submissions/{submission_id}/publish-now"],
+        "submission_id",
+        "own_submission_id",
+    ),
     (&["/admin/data-requests/"], "request_id", "data_request_id"),
-    (&["/admin/donations/entitlements/"], "grant_id", "entitlement_grant_id"),
+    (
+        &["/admin/donations/entitlements/"],
+        "grant_id",
+        "entitlement_grant_id",
+    ),
     (&["/admin/invites/"], "invite_id", "platform_invite_id"),
-    (&["/admin/developers/packages/versions/"], "version_id", "pending_version_id"),
-    (&["/packages/versions/"], "version_id", "withdraw_version_id"),
+    (
+        &["/admin/developers/packages/versions/"],
+        "version_id",
+        "pending_version_id",
+    ),
+    (
+        &["/packages/versions/"],
+        "version_id",
+        "withdraw_version_id",
+    ),
     (&["{package_id}/import"], "package_id", "pack_id"),
-    (&["{package_id}/apply", "/create-guild"], "package_id", "recipe_id"),
+    (
+        &["{package_id}/apply", "/create-guild"],
+        "package_id",
+        "recipe_id",
+    ),
     // Episodes and seasons belong to the series title, not to the film.
-    (&["{episode_id}", "{season_id}"], "title_id", "series_title_id"),
+    (
+        &["{episode_id}", "{season_id}"],
+        "title_id",
+        "series_title_id",
+    ),
 ];
 
 fn overlay(r: &Route, mut c: HashMap<&'static str, String>) -> HashMap<&'static str, String> {

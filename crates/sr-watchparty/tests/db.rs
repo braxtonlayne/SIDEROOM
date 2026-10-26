@@ -1086,7 +1086,10 @@ async fn a_heartbeat_from_a_stranger_reveals_no_playback() {
     let (host, stranger) = (e.user().await, e.user().await);
     let hv = e.v(host).await;
     let party = e.svc.create(hv, create(1)).await.unwrap();
-    e.svc.command(hv, party.id, cmd(Action::Play)).await.unwrap();
+    e.svc
+        .command(hv, party.id, cmd(Action::Play))
+        .await
+        .unwrap();
     e.advance(7_000);
     let own = e
         .svc
