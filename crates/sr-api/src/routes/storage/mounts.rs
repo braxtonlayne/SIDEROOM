@@ -800,7 +800,13 @@ pub async fn patch_guild(
     Path((guild_id, mount_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<PatchMountBody>,
 ) -> MsgResult<Json<MountObject>> {
-    patch(&d, guild_scope(&d, &s, &p, &guild_id).await?, &mount_id, body).await
+    patch(
+        &d,
+        guild_scope(&d, &s, &p, &guild_id).await?,
+        &mount_id,
+        body,
+    )
+    .await
 }
 
 /// Disconnect one of the server's buckets.

@@ -293,7 +293,13 @@ pub async fn check_guild(
     Ext(s): Ext<SettingsDeps>,
     Path((guild_id, mount_id)): Path<(String, String)>,
 ) -> MsgResult<Json<CorsResultObject>> {
-    run_cors(&d, guild_scope(&d, &s, &p, &guild_id).await?, &mount_id, false).await
+    run_cors(
+        &d,
+        guild_scope(&d, &s, &p, &guild_id).await?,
+        &mount_id,
+        false,
+    )
+    .await
 }
 
 /// Write the needed CORS rule to one of the server's buckets, then check it again.
@@ -310,7 +316,13 @@ pub async fn apply_guild(
     Ext(s): Ext<SettingsDeps>,
     Path((guild_id, mount_id)): Path<(String, String)>,
 ) -> MsgResult<Json<CorsResultObject>> {
-    run_cors(&d, guild_scope(&d, &s, &p, &guild_id).await?, &mount_id, true).await
+    run_cors(
+        &d,
+        guild_scope(&d, &s, &p, &guild_id).await?,
+        &mount_id,
+        true,
+    )
+    .await
 }
 
 /// OpenAPI fragment.

@@ -329,8 +329,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .await
             .context("seeding the instance storage mount")?;
     }
-    let mount_storages =
-        sr_storage::mount_storage::MountStorages::new(
+    let mount_storages = sr_storage::mount_storage::MountStorages::new(
         storage,
         mount_resolver.clone(),
         mount_sealer.clone(),
