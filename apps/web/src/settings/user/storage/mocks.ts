@@ -19,6 +19,13 @@ export interface ByosMockOptions {
   objects?: Record<string, string[]>;
   /** When true, listing and presign answer 409 CORS_NOT_READY. */
   corsNotReady?: boolean;
+  /** `GET /users/@me/shelves/summary` answer (BYOS-SCP-001). */
+  summary?: {
+    cinema: number;
+    library: number;
+    music: number;
+    catalog?: { cinema: number; library: number };
+  };
 }
 
 export const MOCK_NOW = '2026-10-26T12:00:00.000Z';
@@ -215,7 +222,11 @@ export function byosMockHandlers(opts: ByosMockOptions = {}): HttpHandler[] {
       });
     }),
   ];
+  const summaryHandler = http.get('*/api/v1/users/@me/shelves/summary', () =>
+    HttpResponse.json(opts.summary ?? { cinema: 0, library: 0, music: 0 }),
+  );
   return [
+    summaryHandler,
     ...browseHandlers,
     ...shareHandlers,
     ...make('users/@me', false),

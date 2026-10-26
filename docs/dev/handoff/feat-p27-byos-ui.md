@@ -2,9 +2,8 @@
 
 ## Resume here
 
-Done and committed: User Settings > Storage, Guild Settings > Storage, IAM policy examples, role editor Storage grants, Friend Shelf toggles, bucket browser read side. Next slices, in order:
+Done and committed: User Settings > Storage, Guild Settings > Storage, IAM policy examples, role editor Storage grants, Friend Shelf toggles, bucket browser read side, nav modes. Next slices, in order:
 
-5. Appearance > Sections nav modes (Always show | Always hide | Auto from `GET /users/@me/shelves/summary`) + top tabs hook.
 6. `scripts/check-css-tokens.mjs` + test; `e2e/tests/byos-mount.spec.ts` + one `storage.yml` step (do not run Playwright).
 7. axe test of the Storage section, `i18n-audit`, bundle budget, `pnpm lint` on whole web (only at the end).
 
@@ -12,6 +11,7 @@ Mocks live in ONE file: `apps/web/src/settings/user/storage/mocks.ts` (`byosMock
 
 ## Done
 
+- Nav modes: prefs `navCinema`/`navLibrary` ('show' default | 'hide' | 'auto'), Appearance > Sections card, `storage/navModes.ts` (`useNavVisibility`, used by `SectionBar` in `lounge/Chrome.tsx`; summary fetched only while a tab is Auto). ASSUMED `GET /users/@me/shelves/summary` -> `{cinema, library, music, catalog?: {cinema, library}}`; `catalog` (instance catalog counts visible to the viewer) is an extra field backend must add, otherwise Auto never hides (fail visible).
 - Bucket browser (`apps/web/src/storage/*`, route `/storage/$mountId?prefix=`, registered in `router.tsx`): breadcrumb + folder list (simplification of the roadmap's folder tree), file table, Preview for images/audio via presigned URL (dropped at `expires_at`), Copy link with expiry shown, Load more, 409 CORS_NOT_READY message. Link from each mount row. ASSUMED shapes: `GET /storage/mounts/{id}/objects?prefix=&delimiter=/&cursor=` -> `{folders: string[] (full prefixes ending /), objects: [{key,size,last_modified|null,content_type?}], next_cursor|null}`; `POST /storage/mounts/{id}/presign` body `{key, method:'GET'}` -> `{url, expires_at}`; 409 code `CORS_NOT_READY`.
 - Friend Shelf toggles (`storage/FriendShelfShare.tsx`, mounted in `lounge/profile/FullProfile.tsx` under the note field, mutual friends only, needs an active user mount). NOT done: a second placement under Settings > Friends (no such section exists; the Friends page is `lounge/shell/FriendsPage.tsx`, its row menu could host the same component). ASSUMED extra route: `GET /users/@me/storage/mounts/{mount_id}/shares` -> `[{friend_id, cinema, library, music}]` (owner's outgoing list). PUT body `{cinema, library, music}` -> the stored share; DELETE when all three are off.
 - Role editor Storage group (`settings/server/storage/GrantsCard.tsx`, inside the role's Permissions tab; five switches saved at once via `PUT /guilds/{gid}/storage/grants` body `{ role_id, grants: [...] }` -> 204; current set read from `role.sr_storage_grants`; not in `permissions.ts`, so never in channel overwrites, asserted by a test).

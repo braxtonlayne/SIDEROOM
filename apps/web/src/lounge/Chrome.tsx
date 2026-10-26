@@ -4,12 +4,14 @@ import { useT } from '../i18n';
 import { useVoiceSession } from '../voice/session';
 import { HelpButton } from './header/HelpButton';
 import { InboxButton } from './inbox/InboxButton';
+import { useNavVisibility } from '../storage/navModes';
 import { useLoungeUi } from './store';
 
 /** Thin global section bar above everything (spec 1). Collapsible via the store setting. */
 export function SectionBar() {
   const t = useT();
   const show = useLoungeUi((s) => s.showSectionBar);
+  const nav = useNavVisibility();
   const voiceName = useVoiceSession((s) => (s.status === 'connected' ? s.channelName : null));
   if (!show) return null;
   return (
@@ -20,12 +22,16 @@ export function SectionBar() {
         <Link to="/channels" className="lng-sectionbar-link" aria-current="page">
           {t('lounge.chrome.lounge')}
         </Link>
-        <Link to="/cinema" className="lng-sectionbar-link">
-          {t('lounge.chrome.cinema')}
-        </Link>
-        <Link to="/library" className="lng-sectionbar-link">
-          {t('lounge.chrome.library')}
-        </Link>
+        {nav.cinema && (
+          <Link to="/cinema" className="lng-sectionbar-link">
+            {t('lounge.chrome.cinema')}
+          </Link>
+        )}
+        {nav.library && (
+          <Link to="/library" className="lng-sectionbar-link">
+            {t('lounge.chrome.library')}
+          </Link>
+        )}
       </nav>
       {voiceName && (
         <span className="lng-sectionbar-voice" role="status">

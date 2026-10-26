@@ -154,3 +154,12 @@ describe('Storage error codes', () => {
     expect(await screen.findByText(/already have a bucket with that name/)).toBeInTheDocument();
   });
 });
+
+describe('Appearance > Sections nav modes', () => {
+  it('offers Always show, Always hide and Auto for Cinema and Library', async () => {
+    openSettings('appearance');
+    expect(await screen.findByText('Sections')).toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: 'Auto' })).toHaveLength(2);
+    expect(screen.getAllByRole('radio', { name: 'Always hide' })).toHaveLength(2);
+  });
+});
