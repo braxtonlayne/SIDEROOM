@@ -1933,6 +1933,17 @@ async fn seed(
         put!("merge_series_id", &staff, "/admin/library/series".into(), None);
         put!("collection_id", &staff, "/admin/cinema/collections".into(), None);
         mk(&srv, infos, &staff, &format!("/admin/library/series/{s}/publish"), None).await;
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &bot_cred,
+            &format!("/applications/{aid}/guilds/{ga}/commands"),
+            Some(json!({"name": "guildping", "description": "ping"})),
+        )
+        .await
+        {
+            a.insert("guild_command_id", id);
+        }
         put!("edition_id", &staff, format!("/admin/library/series/{s}/editions"), Some(json!({"language": "en", "label": "Official"})));
         if let Some(e) = a.get("edition_id").cloned() {
             put!("volume_id", &staff, format!("/admin/library/editions/{e}/volumes"), None);
@@ -2088,7 +2099,7 @@ async fn seed(
             a.insert("reminder_id", id);
         }
         let b1 = srv
-            .call(&member_cred, "PUT", &format!("/users/@me/bookmarks/{msg}"), Some(&json!({})))
+            .call(&member_cred, "PUT", &format!("/channels/{ch}/messages/{msg}/bookmark"), None)
             .await;
         let b2 = srv
             .call(
@@ -2177,6 +2188,13 @@ async fn seed(
                 Some(&json!({"category": "gaming", "description": "authz"})),
             )
             .await;
+        srv.call(
+            &staff,
+            "PATCH",
+            &format!("/admin/directory/{ga}"),
+            Some(&json!({"decision": "approve"})),
+        )
+        .await;
         if !(200..300).contains(&r.status) {
             println!("authz_matrix: seed directory -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
         }
@@ -3130,6 +3148,13 @@ fn write_late(method: &str, path: &str) -> bool {
         ("DELETE", "/guilds/{guild_id}")
             // A new token ends the old one, which the webhook routes before it are called with.
             | ("POST", "/webhooks/{webhook_id}/reset-token")
+            // The bot's token and the app's secret end with the reset; the delete ends the app.
+            | ("POST", "/applications/{application_id}/bot/reset-token")
+            | ("POST", "/applications/{application_id}/reset-secret")
+            | ("DELETE", "/applications/{application_id}")
+            // A bulk overwrite replaces the commands the routes before it address.
+            | ("PUT", "/applications/{application_id}/commands")
+            | ("PUT", "/applications/{application_id}/guilds/{guild_id}/commands")
             // Removing members ends what the member routes before them act on.
             | ("DELETE", "/guilds/{guild_id}/bans/{user_id}")
             | ("DELETE", "/webhooks/{webhook_id}")
@@ -3714,7 +3739,7 @@ fn ctx_for(
     } else if r.path.starts_with("/stage-instances/") {
         "stage_channel_id"
     } else if r.path.contains("/call/") {
-        "dm_channel_id"
+        "group_channel_id"
     } else if r.path.starts_with("/tv/favorites/") {
         "tv_channel_id"
     } else if r.path.starts_with("/tv/reminders/") {
@@ -3755,6 +3780,7 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/channels/"], "upload_id", "attach_upload_id"),
     (&["sr/applications/{application_id}"], "application_id", "guild_application_id"),
     (&["/applications/"], "emoji_id", "app_emoji_id"),
+    (&["{application_id}/guilds/{guild_id}/commands/"], "command_id", "guild_command_id"),
     (&["/developers/tester-invites/"], "invite_id", "tester_invite_id"),
     (&["/staff/offers/"], "offer_id", "staff_offer_id"),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
