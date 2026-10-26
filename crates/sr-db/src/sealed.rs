@@ -90,6 +90,17 @@ impl SecretBox {
     }
 }
 
+/// Mount credentials (BYOS-MNT-001) seal through the same box; the row id is the associated data
+/// (`sr_storage::mounts::mount_aad`).
+impl sr_storage::mounts::Sealer for SecretBox {
+    fn seal(&self, aad: &[u8], plain: &[u8]) -> Result<Vec<u8>, sr_storage::mounts::MountError> {
+        SecretBox::seal(self, aad, plain).map_err(|_| sr_storage::mounts::MountError::Unseal)
+    }
+    fn open(&self, aad: &[u8], blob: &[u8]) -> Result<Vec<u8>, sr_storage::mounts::MountError> {
+        SecretBox::open(self, aad, blob).map_err(|_| sr_storage::mounts::MountError::Unseal)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +117,32 @@ mod tests {
         assert_eq!(rotated.open(b"row-1", &blob).unwrap(), b"seed");
         assert!(old.open(b"row-1", &blob[..5]).is_err());
         assert_eq!(format!("{old:?}"), "SecretBox(..)");
+    }
+
+    #[test]
+    fn mount_secrets_seal_with_the_row_id_as_aad() {
+        use sr_storage::mounts::{MountError, SealedSecret, Secret};
+        let old = SecretBox::new([1; 32]);
+        let sealed = SealedSecret::seal(&old, 77, &Secret::new("wJalrXUtnFEMI/K7MDENG")).unwrap();
+        assert!(
+            !sealed.as_bytes().windows(8).any(|w| w == b"wJalrXUt"),
+            "ciphertext must not contain the plaintext"
+        );
+        assert_eq!(sealed.as_bytes()[0], key_version(&[1; 32]));
+        assert_eq!(
+            sealed.open(&old, 77).unwrap().expose(),
+            "wJalrXUtnFEMI/K7MDENG"
+        );
+        assert!(matches!(sealed.open(&old, 78), Err(MountError::Unseal)));
+        // Rotation: the new box still opens the old blob and re-seals it under the new key.
+        let rotated = SecretBox::new([2; 32]).with_previous_keys(vec![[1; 32]]);
+        let resealed = sealed.reseal(&rotated, 77).unwrap();
+        assert_eq!(resealed.as_bytes()[0], key_version(&[2; 32]));
+        let new_only = SecretBox::new([2; 32]);
+        assert_eq!(
+            resealed.open(&new_only, 77).unwrap().expose(),
+            "wJalrXUtnFEMI/K7MDENG"
+        );
+        assert!(sealed.open(&new_only, 77).is_err());
     }
 }
