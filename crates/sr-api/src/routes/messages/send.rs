@@ -215,7 +215,7 @@ pub async fn create_message(
     };
     // Decided before the send: storing the message reopens closed DMs.
     let dm_announce = deps.plan_dm_announce(&acc.channel, author).await;
-    let msg = deps.send(author, channel_id, req).await?;
+    let msg = deps.send_in(author, &acc, req).await?;
 
     for (mut att, description) in uploads {
         att.state = UploadState::Attached;
@@ -230,7 +230,7 @@ pub async fn create_message(
             .await?;
     }
 
-    let (mut out, data) = render_created(&deps, author, &msg).await?;
+    let (mut out, data) = render_created(&deps, author, &msg, body.nonce.clone()).await?;
     // The channel object must reach a recipient before the first message in it.
     deps.announce_dm(channel_id, &dm_announce).await;
     deps.publish(DomainEvent::MessageSent {

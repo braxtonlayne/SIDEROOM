@@ -75,6 +75,12 @@ pub trait DmAnnouncer: Send + Sync {
 #[async_trait]
 trait ChatOps: Send + Sync {
     async fn send(&self, a: UserId, c: ChannelId, r: SendMessage) -> ChatResult<Message>;
+    async fn send_resolved(
+        &self,
+        a: UserId,
+        c: sr_chat::ResolvedChannel,
+        r: SendMessage,
+    ) -> ChatResult<Message>;
     async fn edit(
         &self,
         u: UserId,
@@ -101,6 +107,14 @@ trait ChatOps: Send + Sync {
 impl<R: ChatRepository + 'static> ChatOps for ChatService<R> {
     async fn send(&self, a: UserId, c: ChannelId, r: SendMessage) -> ChatResult<Message> {
         self.send_message(a, c, r).await
+    }
+    async fn send_resolved(
+        &self,
+        a: UserId,
+        c: sr_chat::ResolvedChannel,
+        r: SendMessage,
+    ) -> ChatResult<Message> {
+        ChatService::send_resolved(self, a, c, r).await
     }
     async fn edit(
         &self,
@@ -147,6 +161,8 @@ pub struct Access {
     pub channel: Channel,
     pub perms: Permissions,
     pub roles: Vec<Role>,
+    /// The guild row of a guild channel (read for the permissions anyway; the send reuses it).
+    pub guild: Option<sr_chat::domain::Guild>,
 }
 
 impl Access {
@@ -602,6 +618,7 @@ impl MessagesDeps {
                 channel,
                 perms: dm_permissions(),
                 roles: Vec::new(),
+                guild: None,
             });
         };
         let guild = self
@@ -632,6 +649,7 @@ impl MessagesDeps {
             channel,
             perms,
             roles,
+            guild: Some(guild),
         })
     }
 
@@ -668,6 +686,17 @@ impl MessagesDeps {
 
     pub async fn send(&self, a: UserId, c: ChannelId, r: SendMessage) -> ChatResult<Message> {
         self.chat.send(a, c, r).await
+    }
+    /// [`Self::send`] into the channel [`Self::access`] resolved for `a`, without resolving it again
+    /// (RDY-PERF-002).
+    pub async fn send_in(&self, a: UserId, acc: &Access, r: SendMessage) -> ChatResult<Message> {
+        let resolved = sr_chat::ResolvedChannel {
+            channel: acc.channel.clone(),
+            perms: acc.perms,
+            roles: acc.roles.clone(),
+            guild: acc.guild.clone(),
+        };
+        self.chat.send_resolved(a, resolved, r).await
     }
     pub async fn edit(
         &self,

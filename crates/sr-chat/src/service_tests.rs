@@ -374,3 +374,60 @@ async fn everyone_and_role_mentions_fan_out_to_viewers() {
     got.sort();
     assert_eq!(got, vec![OWNER, BOB, carol, dave]);
 }
+
+/// RDY-PERF-002: a send into a channel the caller resolved uses that resolution: the same message as a
+/// plain send with what `access` computes, and the permissions passed decide (here, none to send).
+#[tokio::test]
+async fn send_resolved_uses_the_callers_resolution() {
+    let f = fixture().await;
+    let acc = f.svc.access(BOB, f.general).await.unwrap();
+    let guild = f.svc.guild(f.guild).await.unwrap();
+    let req = || SendMessage {
+        content: "hi from a resolved channel".into(),
+        ..Default::default()
+    };
+    let resolved = crate::service::ResolvedChannel {
+        channel: acc.channel.clone(),
+        perms: acc.perms,
+        roles: acc.roles.clone(),
+        guild: Some(guild),
+    };
+    let msg = f
+        .svc
+        .send_resolved(BOB, resolved.clone(), req())
+        .await
+        .unwrap();
+    assert_eq!(msg.channel_id, f.general);
+    assert_eq!(msg.guild_id, Some(f.guild));
+    assert_eq!(msg.content, "hi from a resolved channel");
+    // Without the guild row it is read, with the same result.
+    let again = f
+        .svc
+        .send_resolved(
+            BOB,
+            crate::service::ResolvedChannel {
+                guild: None,
+                ..resolved.clone()
+            },
+            req(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(again.guild_id, Some(f.guild));
+    // The permissions handed in decide.
+    let denied = f
+        .svc
+        .send_resolved(
+            BOB,
+            crate::service::ResolvedChannel {
+                perms: Permissions::VIEW_CHANNEL,
+                ..resolved
+            },
+            req(),
+        )
+        .await;
+    assert!(
+        matches!(denied, Err(ChatError::MissingPermissions)),
+        "{denied:?}"
+    );
+}

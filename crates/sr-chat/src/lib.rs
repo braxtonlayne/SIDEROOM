@@ -42,4 +42,4 @@ pub use admin_repo::{Ban, GuildAdminRepository};
 pub use domain::*;
 pub use error::{ChatError, ChatResult, RepoError};
 pub use limits::ChatLimits;
-pub use service::{ChatService, ForwardRequest, SendMessage};
+pub use service::{ChatService, ForwardRequest, ResolvedChannel, SendMessage};
