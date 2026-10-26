@@ -5,6 +5,7 @@
 //! - [`cdn`]: framework-agnostic HMAC signed URL scheme and `Range` parsing.
 //! - [`upload`]: size-limit policy, content-type sniffing and EXIF/metadata stripping.
 
+pub mod browse;
 pub mod cdn;
 pub mod error;
 pub mod img;

@@ -1148,3 +1148,76 @@ mod tests {
         assert_eq!(Grant::parse("MANAGE"), None);
     }
 }
+
+/// The hard ceiling of a presigned GET, whatever the settings say.
+pub const PRESIGN_HARD_CEILING_SECS: u64 = 86_400;
+/// The shortest URL worth issuing; a session with less left than this gets none.
+pub const PRESIGN_MIN_SECS: u64 = 10;
+
+/// The lifetime of a presigned `GET`: `ttl` (setting `byos.presign_ttl_secs`) capped by `cap`
+/// (`byos.presign_ttl_cap_secs`), by the hard ceiling of 86400 s, and by what the caller's session has left
+/// (`None`: the credential has no expiry of its own). `None` when the session is nearly over.
+pub fn presign_ttl_secs(ttl: u64, cap: u64, session_left: Option<i64>) -> Option<u64> {
+    let mut secs = ttl.min(cap).min(PRESIGN_HARD_CEILING_SECS);
+    if let Some(left) = session_left {
+        secs = secs.min(u64::try_from(left).unwrap_or(0));
+    }
+    (secs >= PRESIGN_MIN_SECS).then_some(secs)
+}
+
+/// Check the shape of a request range: `bytes=a-b`, `bytes=a-` or `bytes=-n`, with `a <= b`, digits only.
+pub fn check_range(range: &str) -> bool {
+    let Some(spec) = range.strip_prefix("bytes=") else {
+        return false;
+    };
+    let Some((a, b)) = spec.split_once('-') else {
+        return false;
+    };
+    let digits = |s: &str| !s.is_empty() && s.len() <= 18 && s.bytes().all(|c| c.is_ascii_digit());
+    match (a.is_empty(), b.is_empty()) {
+        (false, false) => digits(a) && digits(b) && a.parse::<u64>().ok() <= b.parse::<u64>().ok(),
+        (false, true) => digits(a),
+        (true, false) => digits(b) && b.parse::<u64>().is_ok_and(|n| n > 0),
+        (true, true) => false,
+    }
+}
+
+#[cfg(test)]
+mod ttl_tests {
+    use super::*;
+
+    #[test]
+    fn ttl_is_capped_by_setting_cap_ceiling_and_session() {
+        assert_eq!(presign_ttl_secs(900, 3600, None), Some(900));
+        assert_eq!(presign_ttl_secs(7200, 3600, None), Some(3600));
+        // The cap setting itself cannot lift the hard ceiling.
+        assert_eq!(presign_ttl_secs(500_000, 500_000, None), Some(86_400));
+        assert_eq!(presign_ttl_secs(900, 3600, Some(120)), Some(120));
+        assert_eq!(presign_ttl_secs(900, 3600, Some(5)), None);
+        assert_eq!(presign_ttl_secs(900, 3600, Some(-30)), None);
+        assert_eq!(presign_ttl_secs(0, 3600, None), None);
+    }
+
+    #[test]
+    fn ranges_are_checked_for_shape() {
+        for ok in ["bytes=0-0", "bytes=0-1023", "bytes=100-", "bytes=-500"] {
+            assert!(check_range(ok), "{ok}");
+        }
+        for bad in [
+            "",
+            "bytes=",
+            "bytes=-",
+            "bytes=5-2",
+            "bytes=a-b",
+            "bytes=1-2,4-5",
+            "items=0-1",
+            "bytes=0--1",
+            "bytes=-0",
+            "bytes= 0-1",
+            "bytes=99999999999999999999-1",
+            "BYTES=0-1",
+        ] {
+            assert!(!check_range(bad), "{bad}");
+        }
+    }
+}

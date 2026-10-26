@@ -1,6 +1,7 @@
 # Handoff: feat/p27-byos-scopes (wave 27, BYOS-SCP-001..002)
 
 ## Status
+- Slice 3: sr_storage::browse (list_dir, head_meta, check_key + fuzz) and scopes::presign_ttl_secs, check_range (all unit tested). Routes still next.
 - Slice 1: migration 1410 and `sr_storage::scopes` (decision logic, `MemoryScopeFacts`, 22 unit tests).
 - Slice 2: `sr_db::scopes_repo::PgScopeFacts` (facts, share and grant CRUD, shelves summary), unfriend/block hook inside `PgSocialRepo::apply`, Postgres tests `crates/sr-db/tests/scopes_repo.rs` (2 pass).
 - Routes (SCP-001 and SCP-002) not started.
