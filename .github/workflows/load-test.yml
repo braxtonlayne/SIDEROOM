@@ -52,7 +52,16 @@ jobs:
           docker restart ${{ job.services.postgres.id }}
           for i in $(seq 1 60); do pg_isready -h localhost -U sideroom -d sr_loadtest && break; sleep 1; done
           psql "$SR_DATABASE__URL" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements" || echo "pg_stat_statements unavailable" | tee -a machine.txt
-      - run: ./target/release/sr-cli migrate
+      - name: Reach Postgres without the docker port proxy
+        # Through the published port every byte of every statement went through docker-proxy, a userland TCP
+        # relay: in run 40249411584 top.txt shows it at ~90 % of a CPU in the steady state (sr-server ~105 %,
+        # Postgres ~150 %, sr-loadtest ~10 %, ~10 % idle, of 4 vCPUs). A server and its database do not talk
+        # through such a relay in production, so the steps after this one use the container's own address.
+        run: |
+          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${{ job.services.postgres.id }})
+          echo "postgres container address: $ip" | tee -a machine.txt
+          echo "SR_DATABASE__URL=postgres://sideroom:sideroom_ci@$ip:5432/sr_loadtest" >> "$GITHUB_ENV"
+      - run: echo "database at ${SR_DATABASE__URL#*@}" && ./target/release/sr-cli migrate
       - name: Seed the dataset (RDY-PERF-001, the target is under 30 minutes)
         if: ${{ inputs.seed_scale }}
         run: |
