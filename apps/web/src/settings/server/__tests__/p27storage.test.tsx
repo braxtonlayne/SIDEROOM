@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { byosMockHandlers, mockMount } from '../../user/storage/mocks';
+import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { PERMISSIONS } from '../permissions';
 import { http, HttpResponse, MANAGE, openSettings, restRoles, seed, server } from './helpers';
 
@@ -65,4 +66,17 @@ describe('Role editor > Storage grants', () => {
     await waitFor(() => expect(put).toEqual({ role_id: 'low', grants: ['view_cinema', 'upload'] }));
     expect(PERMISSIONS.some((p) => /storage|shelf/i.test(p.id))).toBe(false);
   });
+});
+
+describe('Role editor Storage grants accessibility (axe)', () => {
+  it('has no violations on the Permissions tab', async () => {
+    seed({ perms: [MANAGE.roles, MANAGE.guild], position: 7 });
+    const user = userEvent.setup();
+    server.use(http.get('*/api/v1/guilds/g1/roles', () => HttpResponse.json(restRoles())));
+    await openSettings('roles');
+    await user.click(await screen.findByRole('button', { name: 'Member' }));
+    await user.click(screen.getByRole('tab', { name: 'Permissions' }));
+    await screen.findByRole('switch', { name: 'Upload to the shelf' });
+    expect(await axeViolations(document.body)).toEqual([]);
+  }, 30000);
 });
