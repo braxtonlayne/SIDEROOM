@@ -20,7 +20,8 @@ jobs:
   playwright:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45: WebKit took 26 minutes before the two exit-gate specs got their own step (RDY-DEV-005, RDY-MOD-001).
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

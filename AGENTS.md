@@ -53,6 +53,7 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 - **The API contract** is generated from Rust (`utoipa` → OpenAPI → TypeScript client). Never hand-edit `packages/api-client/src/generated`.
 - **Review:** the repository owner reviews and merges. Agents never merge their own PRs.
 - **Integrator's checklist:** when a wave is merged, add its section to the top of `CHANGELOG.md` (user-facing lines written from the wave's handoffs). The first `##` heading is the version the web build embeds, so a new heading shows members the one-time "What's new" badge on the help button.
+- **Wave 25 integration checklist:** bring the exit gate status table in `docs/13-roadmap-and-phases.md` to the truth. A row becomes Proven only with a link to a CI run or a handoff that records it; link the `playwright` job run of the two `@gate` specs (`developer-gate`, `moderation-gate`) from the phase 6 and 7 rows once it is green. `node scripts/check-ops-files.mjs` checks the shape of the table.
 
 ## 5. Definition of done
 
