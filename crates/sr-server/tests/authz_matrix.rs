@@ -687,32 +687,74 @@ async fn step_up(srv: &Server, who: &Cred, totp: &TotpSecret) -> Resp {
     .await
 }
 
-/// The password of the accounts that present one in the write phase (a test value, in no real system).
-const TEST_PASSWORD: &str = "authz-matrix-Correct-Horse-9";
+/// An RFC 3339 UTC time `days` from now (the days-from-civil conversion, no date crate).
+fn rfc3339_in_days(days: u64) -> String {
+    let secs = SystemClock.now_unix_ms() as u64 / 1000 + days * 86_400;
+    let (d, rem) = ((secs / 86_400) as i64, secs % 86_400);
+    let z = d + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
+}
 
-/// Decode standard base64 (the seeded PNG).
-fn b64_decode(text: &str) -> Vec<u8> {
-    let mut out = Vec::new();
-    let (mut acc, mut bits) = (0u32, 0u32);
-    for c in text.bytes() {
-        let v = match c {
-            b'A'..=b'Z' => c - b'A',
-            b'a'..=b'z' => c - b'a' + 26,
-            b'0'..=b'9' => c - b'0' + 52,
-            b'+' => 62,
-            b'/' => 63,
-            _ => continue,
-        };
-        acc = (acc << 6) | u32::from(v);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-            acc &= (1 << bits) - 1;
+/// A real `w` x `h` RGBA PNG (stored deflate blocks), with its CRCs: the picture routes decode what they get.
+fn make_png(w: u32, h: u32) -> Vec<u8> {
+    fn crc(data: &[u8]) -> u32 {
+        let mut c = 0xffff_ffffu32;
+        for b in data {
+            c ^= u32::from(*b);
+            for _ in 0..8 {
+                c = if c & 1 == 1 { 0xedb8_8320 ^ (c >> 1) } else { c >> 1 };
+            }
         }
+        !c
     }
+    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        let mut body = kind.to_vec();
+        body.extend_from_slice(data);
+        out.extend_from_slice(&body);
+        out.extend_from_slice(&crc(&body).to_be_bytes());
+    }
+    let mut raw = Vec::new();
+    for _ in 0..h {
+        raw.push(0);
+        raw.extend(std::iter::repeat_n([120u8, 60, 200, 255], w as usize).flatten());
+    }
+    let (mut a, mut b) = (1u32, 0u32);
+    for x in &raw {
+        a = (a + u32::from(*x)) % 65_521;
+        b = (b + a) % 65_521;
+    }
+    let mut z = vec![0x78, 0x01, 0x01];
+    z.extend_from_slice(&(raw.len() as u16).to_le_bytes());
+    z.extend_from_slice(&(!(raw.len() as u16)).to_le_bytes());
+    z.extend_from_slice(&raw);
+    z.extend_from_slice(&((b << 16) | a).to_be_bytes());
+    let mut out = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a].to_vec();
+    let mut ihdr = Vec::new();
+    ihdr.extend_from_slice(&w.to_be_bytes());
+    ihdr.extend_from_slice(&h.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 6, 0, 0, 0]);
+    chunk(&mut out, b"IHDR", &ihdr);
+    chunk(&mut out, b"IDAT", &z);
+    chunk(&mut out, b"IEND", &[]);
     out
 }
+
+/// The password of the accounts that present one in the write phase (a test value, in no real system).
+const TEST_PASSWORD: &str = "authz-matrix-Correct-Horse-9";
 
 /// Standard base64 with padding (the data URIs of stickers and sounds; no dependency for ten lines).
 fn b64(data: &[u8]) -> String {
@@ -1966,6 +2008,11 @@ async fn seed(
     // RDY-SEC-011: the per-account objects of the write phase's rightful actors (the plain member's own
     // reminders, bookmarks and lists, the owner's templates, the invitee's offers ...).
     {
+        sqlx::query("UPDATE accounts SET created_at = now() - interval '400 days' WHERE id = $1")
+            .bind(u("member"))
+            .execute(&pool)
+            .await
+            .unwrap();
         let insider_cred = Cred::Session(sess["insider"].clone());
         let outsider_cred = Cred::Session(sess["outsider"].clone());
         let party = a.get("party_id").cloned().unwrap_or_default();
@@ -1996,7 +2043,7 @@ async fn seed(
             infos,
             &member_cred,
             &format!("/channels/{ch}/scheduled-messages"),
-            Some(json!({"content": "authz", "send_at": "2031-01-01T00:00:00Z"})),
+            Some(json!({"content": "authz", "send_at": rfc3339_in_days(30)})),
         )
         .await
         {
@@ -2021,7 +2068,7 @@ async fn seed(
                 &member_cred,
                 "PUT",
                 &format!("/library/chapters/{lib_ch}/bookmarks"),
-                Some(&json!({"page": 1})),
+                Some(&json!({"page_index": 0})),
             )
             .await;
         if let Some(id) = serde_json::from_str::<Value>(&b2.body)
@@ -2034,12 +2081,12 @@ async fn seed(
             println!("authz_matrix: seed library bookmark -> {} {}", b2.status, b2.body.chars().take(100).collect::<String>());
         }
         let _ = b1;
-        let png_bytes = b64_decode(png.trim_start_matches("data:image/png;base64,"));
+        let png_bytes = make_png(8, 8);
         let r = srv
             .call_bytes(
                 &member_cred,
                 "POST",
-                "/users/@me/profile-media",
+                "/users/@me/profile-media?kind=gallery",
                 "application/octet-stream",
                 &png_bytes,
             )
@@ -2090,6 +2137,11 @@ async fn seed(
         } else {
             println!("authz_matrix: seed template -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
         }
+        sqlx::query("INSERT INTO guild_community (guild_id, community_enabled) VALUES ($1, true) ON CONFLICT (guild_id) DO UPDATE SET community_enabled = true")
+            .bind(ga)
+            .execute(&pool)
+            .await
+            .unwrap();
         let r = srv
             .call(
                 &oa,
