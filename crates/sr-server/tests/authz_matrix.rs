@@ -3516,17 +3516,17 @@ const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
     (
         "POST",
         "/cinema/titles/{title_id}/downloads",
-        "Patrons only: the member holds no entitlement grant",
+        "needs a transcoded Cinema asset; the test store cannot start an upload (RDY-SEC-011)",
     ),
     (
         "POST",
         "/donations/invoices/{invoice_id}/cancel",
-        "payments are off: no active wallet is configured",
+        "payments are off: no chain source in the test stack (D-257); ownership pinned by sr-api donations tests",
     ),
     (
         "POST",
         "/donations/invoices/{invoice_id}/check",
-        "payments are off: no active wallet is configured",
+        "payments are off: no chain source in the test stack (D-257); ownership pinned by sr-api donations tests",
     ),
     (
         "POST",
@@ -3537,11 +3537,6 @@ const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
         "POST",
         "/interactions/{interaction_id}/{token}/callback",
         "needs an interaction id and token minted by a real interaction",
-    ),
-    (
-        "POST",
-        "/library/chapters/{chapter_id}/download",
-        "Patrons only: the member holds no entitlement grant",
     ),
     (
         "POST",
@@ -3621,7 +3616,7 @@ const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
 ];
 
 /// The length of [`WRITE_OBSERVED`]. Lower it when an entry goes; never raise it.
-const WRITE_OBSERVED_LEN: usize = 42;
+const WRITE_OBSERVED_LEN: usize = 41;
 
 /// Admitted writes that answered 400 or 422 per group, in the order of [`GROUPS`]: the request shape was
 /// refused before the permission check ran. Like [`WEAK_CEILING`], the numbers only go down.
@@ -3641,9 +3636,13 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/developers/tester-invites/{invite_id}/respond") => Some("victim"),
         // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
         ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
-        // The handler asks for a platform permission (REVIEW_READING) although the AUTHZ cell says `user`:
-        // a finding in the handoff; the Owner holds it.
+        // `author_or_staff`: the submitter of the published submission or a REVIEW_READING holder; the seeded
+        // submission is not the member's, so the Owner fulfils.
         ("POST", "/requests/{request_id}/fulfil") => Some("staff_owner"),
+        // Patrons only: the seed grants the victim a Patron entitlement (P25-SEC-1). The Cinema download
+        // stays in WRITE_OBSERVED until a transcoded asset can be seeded.
+        ("POST", "/library/chapters/{chapter_id}/download")
+        | ("POST", "/cinema/titles/{title_id}/downloads") => Some("victim"),
         // A vote on a review is not the author's.
         ("PUT", "/library/reviews/{review_id}/helpful")
         | ("DELETE", "/library/reviews/{review_id}/helpful")
