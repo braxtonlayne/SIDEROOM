@@ -32,7 +32,7 @@ use sr_db::{
     testing::TestDb,
 };
 use sr_moderation::{
-    HoldScope, Moderation,
+    Moderation,
     model::{NewReport, ReportCategory, TargetKind, Who},
 };
 
@@ -175,7 +175,11 @@ async fn the_due_date_and_the_overdue_flag_follow_the_clock_to_the_millisecond()
         )
         .await
         .unwrap();
-    assert_eq!(q.due_at_ms, w.start + 25 * DAY_MS, "arrival plus thirty days");
+    assert_eq!(
+        q.due_at_ms,
+        w.start + 25 * DAY_MS,
+        "arrival plus thirty days"
+    );
     assert_eq!(q.effective_due_ms, q.due_at_ms);
     assert!(!q.overdue);
     assert_eq!(q.state, DataRequestState::Open);
@@ -196,8 +200,14 @@ async fn the_due_date_and_the_overdue_flag_follow_the_clock_to_the_millisecond()
     };
     // Two days before, on the due date itself and one millisecond after it.
     assert!(!overdue_at(q.due_at_ms - 2 * DAY_MS).await);
-    assert!(!overdue_at(q.due_at_ms).await, "the due date is still in time");
-    assert!(overdue_at(q.due_at_ms + 1).await, "a millisecond later it is late");
+    assert!(
+        !overdue_at(q.due_at_ms).await,
+        "the due date is still in time"
+    );
+    assert!(
+        overdue_at(q.due_at_ms + 1).await,
+        "a millisecond later it is late"
+    );
     assert!(overdue_at(q.due_at_ms + 40 * DAY_MS).await);
 
     // The dashboard counts from the same dates: not overdue today, overdue once the rows have aged by the 26 days.
@@ -245,7 +255,10 @@ async fn the_one_extension_moves_the_deadline_and_a_late_one_is_marked() {
         .extend_data_request(&w.staff, a.id, MAX_EXTENSION_DAYS, reason)
         .await
         .unwrap();
-    assert_eq!(a.extended_until_ms, Some(a.due_at_ms + MAX_EXTENSION_DAYS * DAY_MS));
+    assert_eq!(
+        a.extended_until_ms,
+        Some(a.due_at_ms + MAX_EXTENSION_DAYS * DAY_MS)
+    );
     assert_eq!(a.effective_due_ms, a.due_at_ms + 60 * DAY_MS);
     assert!(!a.extended_late);
     assert!(
@@ -257,10 +270,18 @@ async fn the_one_extension_moves_the_deadline_and_a_late_one_is_marked() {
     );
     // The original date passes without the request being overdue; the extended one makes it so.
     w.at(a.due_at_ms + DAY_MS);
-    let listed = w.svc.list_data_requests(&w.staff, true, None).await.unwrap();
+    let listed = w
+        .svc
+        .list_data_requests(&w.staff, true, None)
+        .await
+        .unwrap();
     assert!(!listed.iter().find(|r| r.id == a.id).unwrap().overdue);
     w.at(a.effective_due_ms + 1);
-    let listed = w.svc.list_data_requests(&w.staff, true, None).await.unwrap();
+    let listed = w
+        .svc
+        .list_data_requests(&w.staff, true, None)
+        .await
+        .unwrap();
     assert!(listed.iter().find(|r| r.id == a.id).unwrap().overdue);
 
     // An extension granted after the original date is marked late and does not make the record clean.
@@ -286,17 +307,19 @@ async fn the_one_extension_moves_the_deadline_and_a_late_one_is_marked() {
     assert!(b.extended_late);
     assert!(!b.overdue, "the new date is twenty days away");
     assert_eq!(b.effective_due_ms, w.start + 20 * DAY_MS);
-    let notices: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM staff_access_log WHERE action = 'data_request.extend_notice'")
-            .fetch_one(w.pool())
-            .await
-            .unwrap();
+    let notices: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action = 'data_request.extend_notice'",
+    )
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
     assert_eq!(notices, 2, "each extension leaves its notice row");
 }
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the_day_messages_were_hidden() {
+async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the_day_messages_were_hidden()
+ {
     let w = world().await;
     let pool = w.pool().clone();
     let reporter = account(&pool, "reporter").await;
@@ -314,6 +337,16 @@ async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the
         .execute(&pool)
         .await
         .unwrap();
+    for member in [reporter, subject] {
+        sqlx::query(
+            "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(g)
+        .bind(member)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
     let _: String = sqlx::query_scalar(
         "SELECT sr_ensure_message_partition((now() - interval '10 minutes')::date)",
     )
@@ -360,13 +393,12 @@ async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the
         .fetch_one(&pool)
         .await
         .unwrap();
-    let who_caller = w.staff.clone();
-    let who = Who::Staff(&who_caller);
-    let hold = m
-        .place_hold(&who, case, HoldScope::Message(held), Some("evidence"))
+    assert!(case > 0, "the report opened a case");
+    // Filing the report froze the reported message as evidence: the case already holds it.
+    let hold: i64 = sqlx::query_scalar("SELECT hold_id FROM messages WHERE id = $1")
+        .bind(held)
+        .fetch_one(&pool)
         .await
-        .unwrap()
-        .hold_id
         .unwrap();
 
     // The request arrived 40 days ago, so it is already 10 days late when staff run it.
@@ -402,16 +434,23 @@ async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the
     assert_eq!(run.request.state, DataRequestState::Completed);
     assert!(!run.request.overdue, "a completed request is not overdue");
     assert_eq!(run.report.held_rows, 1);
-    assert_eq!(run.report.held_holds, 1, "the hold is flagged, not released");
+    assert_eq!(
+        run.report.held_holds, 1,
+        "the hold is flagged, not released"
+    );
     let state: String = sqlx::query_scalar("SELECT state::text FROM accounts WHERE id = $1")
         .bind(subject)
         .fetch_one(&pool)
         .await
         .unwrap();
     assert_eq!(state, "deleted");
-    assert_eq!(overdue_in_dashboard(&w).await, 0, "a completed request leaves the overdue count");
+    assert_eq!(
+        overdue_in_dashboard(&w).await,
+        0,
+        "a completed request leaves the overdue count"
+    );
 
-    // The queued delete job hides the messages: thirty days from this moment, none for the held one.
+    // The queued delete job hides both messages; the purge date is thirty days from this moment, none for the held one.
     let hidden_at = w.start + 41 * DAY_MS;
     let out = self_delete::hide(
         &pool,
@@ -425,7 +464,14 @@ async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the
     )
     .await
     .unwrap();
-    assert_eq!(out.messages, 2);
+    assert_eq!(
+        out.hidden
+            .iter()
+            .map(|h| h.message_ids.len())
+            .sum::<usize>(),
+        2,
+        "both messages are hidden at once; only the held one gets no purge date"
+    );
     let purge_in_days = |id: i64| {
         let pool = pool.clone();
         async move {
@@ -438,11 +484,23 @@ async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the
             .unwrap()
         }
     };
-    assert_eq!(purge_in_days(plain).await, Some(30), "doc 09: purged 30 days after the deletion");
-    assert_eq!(purge_in_days(held).await, None, "a held message never gets a purge date");
+    assert_eq!(
+        purge_in_days(plain).await,
+        Some(30),
+        "doc 09: purged 30 days after the deletion"
+    );
+    assert_eq!(
+        purge_in_days(held).await,
+        None,
+        "a held message never gets a purge date"
+    );
 
     // Releasing the hold later starts no new window: the date is the deletion day plus thirty.
-    m.release_hold(&who, hold, Some("case closed")).await.unwrap();
+    let who_caller = w.staff.clone();
+    let who = Who::Staff(&who_caller);
+    m.release_hold(&who, hold, Some("case closed"))
+        .await
+        .unwrap();
     assert_eq!(purge_in_days(held).await, Some(30));
     let same: bool = sqlx::query_scalar(
         "SELECT (SELECT purge_after FROM messages WHERE id = $1) = (SELECT purge_after FROM messages WHERE id = $2)",
