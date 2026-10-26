@@ -199,7 +199,7 @@ export function SchemaForm({
               <TextInput
                 key={f.key}
                 label={f.label}
-                placeholder="#rrggbb"
+                placeholder={t('admin.schemaForm.colorPlaceholder')}
                 {...(hint ? { hint } : {})}
                 value={typeof v === 'string' ? v : ''}
                 onChange={(e) => set(f.key, e.target.value)}

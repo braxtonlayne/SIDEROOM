@@ -307,7 +307,7 @@ export function ActivitiesTab({ app }: { app: DevApp }) {
             hint={t('developers.activities.devUrlHint')}
             value={dev}
             maxLength={512}
-            placeholder="https://dev.example.com/"
+            placeholder={t('developers.activities.devUrlPlaceholder')}
             onChange={(e) => setDev(e.target.value)}
           />
         )}
@@ -320,14 +320,14 @@ export function ActivitiesTab({ app }: { app: DevApp }) {
                 label={t('developers.activities.prefix')}
                 value={r.prefix}
                 maxLength={64}
-                placeholder="/api"
+                placeholder={t('developers.activities.prefixPlaceholder')}
                 onChange={(e) => setRow(i, { prefix: e.target.value })}
               />
               <TextInput
                 label={t('developers.activities.target')}
                 value={r.target}
                 maxLength={512}
-                placeholder="https://api.example.com"
+                placeholder={t('developers.activities.targetPlaceholder')}
                 onChange={(e) => setRow(i, { target: e.target.value })}
               />
               <Button

@@ -104,7 +104,7 @@ export function AuditLogSection() {
           >
             <TextInput
               label={t('admin.auditLog.filterAction')}
-              placeholder="accounts.suspend"
+              placeholder={t('admin.auditLog.actionPlaceholder')}
               value={draft.action}
               onChange={(e) => setDraft({ ...draft, action: e.target.value })}
             />

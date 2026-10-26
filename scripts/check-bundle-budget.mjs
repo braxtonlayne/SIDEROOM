@@ -80,6 +80,26 @@ for (const f of readdirSync(join(dist, 'assets')).filter((x) => x.endsWith('.js'
   }
 }
 
+// RDY-I18N-002: the pseudo-locales (en-XA, ar-XB) exist on dev hosts and in a build made with SR_PSEUDO_LOCALE=1
+// only. A production bundle must hold neither the pseudo alphabet, the generated catalog nor the picker labels.
+if (process.env.SR_PSEUDO_LOCALE === '1') {
+  rows.push('skip pseudo     SR_PSEUDO_LOCALE=1 build: the pseudo-locales are expected');
+} else {
+  const MARKERS = ['àƀçðéƒĝĥîĵķļɱñöþǫŕšţûṽŵẋýž', 'Pseudo (accented)', 'Pseudo (right-to-left)'];
+  const leaks = readdirSync(join(dist, 'assets'))
+    .filter((f) => f.endsWith('.js'))
+    .filter((f) => {
+      const code = readFileSync(join(dist, 'assets', f), 'utf8');
+      return MARKERS.some((m) => code.includes(m));
+    });
+  rows.push(
+    leaks.length
+      ? `FAIL pseudo     pseudo-locale text found in a production bundle: ${leaks.join(', ')}`
+      : 'ok   pseudo     no pseudo-locale text in any chunk',
+  );
+  if (leaks.length) failed = true;
+}
+
 console.log(rows.join('\n'));
 if (failed) {
   console.error(

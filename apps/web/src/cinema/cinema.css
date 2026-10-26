@@ -822,6 +822,10 @@
   .cin-sectionbar-nav {
     gap: 12px;
     margin-inline-start: 4px;
+    /* A longer language scrolls the links inside the bar instead of widening the page (RDY-I18N-002). */
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
   .cin-sectionbar-brand {
     letter-spacing: 0.12em;
