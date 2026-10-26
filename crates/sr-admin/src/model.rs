@@ -683,6 +683,17 @@ pub struct StoredSetting {
     pub updated_at_ms: i64,
 }
 
+/// One bucket measured by the daily `storage.measure` job: the object store, Library media or Cinema media.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct StorageFigure {
+    pub bucket: String,
+    pub bytes: i64,
+    pub objects: i64,
+    /// The walk hit its object cap or time budget, so the figures are a lower bound.
+    pub truncated: bool,
+    pub measured_at_ms: i64,
+}
+
 /// Counts for the dashboard and system page.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct SystemCounts {
@@ -710,6 +721,9 @@ pub struct SystemCounts {
     /// Bytes of stored attachments (live rows).
     #[serde(default)]
     pub storage_bytes: i64,
+    /// The daily `storage.measure` figures (RDY-OBS-002); empty before its first run.
+    #[serde(default)]
+    pub storage_figures: Vec<StorageFigure>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

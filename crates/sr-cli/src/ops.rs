@@ -4,6 +4,7 @@
 //! version) and write exactly what `deploy/scripts/backup.sh` writes, so the two are interchangeable: a custom
 //! format dump named `db/sideroom-<UTC stamp>.dump` with a `.json` manifest (file, created_at, sha256, bytes,
 //! migrations). The database password reaches the tools through `PGPASSWORD`, never through arguments.
+//! A `*.dump.partial` older than an hour (a dump that died) is removed before the next one starts.
 //! Retention pruning, object snapshots and WAL archiving stay with the scripts (`deploy/BACKUP.md`).
 
 use anyhow::{Context, Result, bail};
@@ -167,6 +168,48 @@ async fn migration_count(pool: &PgPool) -> String {
         .map_or_else(|_| "unknown".to_owned(), |n| n.to_string())
 }
 
+/// A `*.dump.partial` older than this is the leftover of a dump that died (RDY-OPS-008). `backup.sh` uses the same hour.
+pub const STALE_PARTIAL_AGE: std::time::Duration = std::time::Duration::from_secs(3600);
+
+/// Remove every `sideroom-*.dump.partial` in `db_dir` last written more than `max_age` before `now`; a younger one
+/// may belong to a dump still running and stays. Returns what was removed. A failure to remove one file is
+/// reported on stderr and does not stop the backup.
+pub fn remove_stale_partials(
+    db_dir: &Path,
+    now: std::time::SystemTime,
+    max_age: std::time::Duration,
+) -> Vec<PathBuf> {
+    let mut removed = Vec::new();
+    let Ok(entries) = fs::read_dir(db_dir) else {
+        return removed;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_partial = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.starts_with("sideroom-") && n.ends_with(".dump.partial"));
+        if !is_partial || !path.is_file() {
+            continue;
+        }
+        let age = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|m| now.duration_since(m).ok());
+        if age.is_some_and(|a| a > max_age) {
+            match fs::remove_file(&path) {
+                Ok(()) => {
+                    eprintln!("removed the stale partial dump {}", path.display());
+                    removed.push(path);
+                }
+                Err(e) => eprintln!("could not remove {}: {e}", path.display()),
+            }
+        }
+    }
+    removed
+}
+
 /// `sr-cli backup`: a consistent dump plus manifest in `<dir>/db/`. Returns the dump path.
 pub async fn backup(cfg: &Config, pool: &PgPool, dir: &Path, now_ms: i64) -> Result<PathBuf> {
     let env = PgEnv::parse(cfg.database.url.expose())?;
@@ -178,6 +221,7 @@ pub async fn backup(cfg: &Config, pool: &PgPool, dir: &Path, now_ms: i64) -> Res
         let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
         let _ = fs::set_permissions(&db_dir, fs::Permissions::from_mode(0o700));
     }
+    remove_stale_partials(&db_dir, std::time::SystemTime::now(), STALE_PARTIAL_AGE);
     let stamp = stamp(now_ms);
     let out = db_dir.join(format!("sideroom-{stamp}.dump"));
     let partial = db_dir.join(format!("sideroom-{stamp}.dump.partial"));
@@ -609,6 +653,49 @@ mod tests {
         assert_eq!(stamp(1_000_000_000_000), "20010909T014640Z");
         assert_eq!(stamp(1_760_000_000_000 + 3_723_000), "20251009T095523Z");
         assert_eq!(stamp(951_782_400_000 + 86_399_000), "20000229T235959Z");
+    }
+
+    #[test]
+    fn stale_partial_dumps_are_removed_and_young_ones_are_not() {
+        use std::time::{Duration, SystemTime};
+        let dir = std::env::temp_dir().join(format!("sr-cli-partials-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let now = SystemTime::now();
+        let write = |name: &str, age: Duration| {
+            let p = dir.join(name);
+            fs::write(&p, b"x").unwrap();
+            fs::File::options()
+                .write(true)
+                .open(&p)
+                .unwrap()
+                .set_modified(now - age)
+                .unwrap();
+            p
+        };
+        let old = write(
+            "sideroom-20260101T000000Z.dump.partial",
+            Duration::from_secs(7200),
+        );
+        let young = write(
+            "sideroom-20260101T010000Z.dump.partial",
+            Duration::from_secs(600),
+        );
+        let dump = write("sideroom-20260101T020000Z.dump", Duration::from_secs(7200));
+        let manifest = write(
+            "sideroom-20260101T020000Z.dump.json",
+            Duration::from_secs(7200),
+        );
+        let other = write("notes.partial", Duration::from_secs(7200));
+        let removed = remove_stale_partials(&dir, now, STALE_PARTIAL_AGE);
+        assert_eq!(removed, vec![old.clone()]);
+        assert!(!old.exists(), "the old partial is gone");
+        for kept in [&young, &dump, &manifest, &other] {
+            assert!(kept.exists(), "{} must stay", kept.display());
+        }
+        // Nothing to do on a missing folder.
+        assert!(remove_stale_partials(&dir.join("nope"), now, STALE_PARTIAL_AGE).is_empty());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -33,6 +33,15 @@ export const getMe = () => get<Me>('/admin/me');
 
 // ---- stats and system ----
 
+/** One measured bucket: the object store, Library media or Cinema media. */
+export interface StorageFigure {
+  bucket: string;
+  bytes: number;
+  objects: number;
+  /** The walk hit its object cap or time budget, so the figures are a lower bound. */
+  truncated: boolean;
+  measured_at_ms: number;
+}
 export interface SystemCounts {
   accounts_active: number;
   accounts_banned: number;
@@ -49,6 +58,8 @@ export interface SystemCounts {
   invites_open?: number;
   review_pending?: number;
   storage_bytes?: number;
+  /** The daily `storage.measure` figures (RDY-OBS-002); empty before its first run. */
+  storage_figures?: StorageFigure[];
   /** Not served yet (no voice stats route): shown only when a server sends them. */
   voice_rooms?: number;
   egress_bytes?: number;

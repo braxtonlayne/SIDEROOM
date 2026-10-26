@@ -44,6 +44,12 @@ const PLAYBOOKS = {
   disk: 'deploy/RUNBOOK.md#disk-pressure',
 } as const;
 
+const STORAGE_BUCKETS: Record<string, MessageKey> = {
+  objects: 'admin.system.storageBucketObjects',
+  library: 'admin.system.storageBucketLibrary',
+  cinema: 'admin.system.storageBucketCinema',
+};
+
 /** Free space below this share is red: the default of `alerts.disk_percent` (80 percent full). */
 const DISK_RED_FREE_SHARE = 0.2;
 
@@ -178,6 +184,39 @@ export function SystemSection() {
                                 free: formatBytes(d.free_bytes),
                                 total: formatBytes(d.total_bytes),
                               })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+            {s.counts.storage_figures && (
+              <section className="ss-card" aria-labelledby="sys-storage">
+                <h2 id="sys-storage">{t('admin.system.storageTitle')}</h2>
+                <p className="ss-sub">{t('admin.system.storageHint')}</p>
+                {s.counts.storage_figures.length === 0 ? (
+                  <p className="ss-meta">{t('admin.system.storageNone')}</p>
+                ) : (
+                  <ul className="ss-list" aria-label={t('admin.system.storageTitle')}>
+                    {s.counts.storage_figures.map((f) => (
+                      <li key={f.bucket} className="ss-row">
+                        <div className="ss-grow">
+                          <div className="ss-name">
+                            {STORAGE_BUCKETS[f.bucket] ? t(STORAGE_BUCKETS[f.bucket]!) : f.bucket}
+                          </div>
+                        </div>
+                        <span className="ss-meta">
+                          {t(
+                            f.truncated
+                              ? 'admin.system.storagePartial'
+                              : 'admin.system.storageFigure',
+                            {
+                              bytes: formatBytes(f.bytes),
+                              objects: formatNumber(f.objects),
+                              when: fmtMs(f.measured_at_ms),
+                            },
+                          )}
                         </span>
                       </li>
                     ))}

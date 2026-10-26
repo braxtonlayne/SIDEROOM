@@ -25,6 +25,12 @@ pg_env_from_url "$SR_DATABASE_URL"
 
 mkdir -p "$dir/db"
 chmod "${SR_BACKUP_DIR_MODE:-700}" "$dir" "$dir/db" 2>/dev/null || true
+# RDY-OPS-008: a dump that died leaves sideroom-<stamp>.dump.partial behind. Remove one older than an hour (a younger one
+# may be a dump still running) before starting. Retention below globs *.dump, so it never counts a .partial.
+find "$dir/db" -maxdepth 1 -type f -name 'sideroom-*.dump.partial' -mmin +60 | while read -r stale; do
+  log "removing the stale partial dump $(basename "$stale")"
+  rm -f -- "$stale"
+done
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 out="$dir/db/sideroom-$stamp.dump"
 tmp="$out.partial"

@@ -93269,6 +93269,38 @@
           }
         }
       },
+      "StorageFigure": {
+        "type": "object",
+        "description": "One bucket measured by the daily `storage.measure` job: the object store, Library media or Cinema media.",
+        "required": [
+          "bucket",
+          "bytes",
+          "objects",
+          "truncated",
+          "measured_at_ms"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "measured_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "objects": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "The walk hit its object cap or time budget, so the figures are a lower bound."
+          }
+        }
+      },
       "StreamPreviewBody": {
         "type": "object",
         "required": [
@@ -94442,6 +94474,13 @@
             "type": "integer",
             "format": "int64",
             "description": "Bytes of stored attachments (live rows)."
+          },
+          "storage_figures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageFigure"
+            },
+            "description": "The daily `storage.measure` figures (RDY-OBS-002); empty before its first run."
           }
         }
       },

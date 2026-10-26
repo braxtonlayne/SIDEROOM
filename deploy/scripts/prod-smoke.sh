@@ -15,6 +15,21 @@
 #                                              every row must pass except the ones the smoke cannot have (below)
 #   deploy/scripts/prod-smoke.sh logs          container logs and state, for a failed run
 #
+# The upgrade drill (RDY-OPS-007, the `upgrade` job of prod-smoke.yml; it does not use the stages above except wait and
+# logs). It installs the PREVIOUS release, upgrades to this checkout following deploy/UPGRADE.md, then rolls back:
+#
+#   deploy/scripts/prod-smoke.sh base-sha          print the commit to use as the previous release (below)
+#   deploy/scripts/prod-smoke.sh upgrade-prepare   unpack deploy/ and packages/starter-packs of that commit into $SMOKE_WORK/live
+#   deploy/scripts/prod-smoke.sh upgrade-install   install.sh --yes from that copy with the previous image
+#   deploy/scripts/prod-smoke.sh upgrade-seed      sr-cli seed, a Cinema title and a marker message through the API
+#   deploy/scripts/prod-smoke.sh upgrade-backup    UPGRADE.md step 2 (backup.sh in the postgres container), restore-drill.sh
+#   deploy/scripts/prod-smoke.sh upgrade-apply     UPGRADE.md steps 3 to 7: new deploy files, new SR_IMAGE, sr-cli upgrade, restart
+#   deploy/scripts/prod-smoke.sh upgrade-verify L  sign in and check the data (L: before, after-upgrade, after-rollback)
+#   deploy/scripts/prod-smoke.sh upgrade-rollback  UPGRADE.md "Rolling back": the dump into a fresh database, previous image
+#
+#   SMOKE_PREV_IMAGE  the previous release image, loaded on this host (upgrade-install, upgrade-rollback)
+#   SMOKE_BASE_SHA    the previous release commit (upgrade-prepare, upgrade-rollback); base-sha prints it
+#
 #   SMOKE_IMAGE     server image already built or loaded on this host (install)
 #   SMOKE_WEB_DIR   absolute path of the built web app, apps/web/dist (install)
 #   SMOKE_DOMAIN    default smoke.localhost: Caddy issues .localhost names from its own CA, and the name has a dot
@@ -27,10 +42,17 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 
 repo=$(cd "$here/../.." && pwd)
-compose_dir=$repo/deploy/compose
-env_file=$compose_dir/.env.prod
 domain=${SMOKE_DOMAIN:-smoke.localhost}
 work=${SMOKE_WORK:-${RUNNER_TEMP:-/tmp}/sr-prod-smoke}
+# The deploy files the stack runs from. Ordinarily this checkout's; the upgrade drill runs from a copy it unpacks
+# from the previous release (SMOKE_DEPLOY_DIR, default $work/live/deploy for the upgrade-* stages) and updates in place.
+live=$work/live
+case ${1:-} in
+  upgrade-*) deploy_dir=${SMOKE_DEPLOY_DIR:-$live/deploy} ;;
+  *) deploy_dir=${SMOKE_DEPLOY_DIR:-$repo/deploy} ;;
+esac
+compose_dir=$deploy_dir/compose
+env_file=$compose_dir/.env.prod
 base_url=https://$domain
 ca=$work/caddy-root.crt
 pwfile=$work/owner-password
@@ -48,8 +70,9 @@ sudo_run() {
   if [ "$(id -u)" = "0" ]; then "$@"; else sudo "$@"; fi
 }
 
-stage_install() {
-  : "${SMOKE_IMAGE:?set SMOKE_IMAGE}"
+# `install_with <image>`: install.sh --yes from $deploy_dir with that server image.
+install_with() {
+  image=$1
   : "${SMOKE_WEB_DIR:?set SMOKE_WEB_DIR}"
   need docker
   [ -f "$SMOKE_WEB_DIR/index.html" ] || die "$SMOKE_WEB_DIR has no index.html: build the web app first (pnpm --filter @sideroom/web build)"
@@ -63,14 +86,19 @@ stage_install() {
     log "adding $domain to /etc/hosts"
     echo "127.0.0.1 $domain" | sudo_run tee -a /etc/hosts >/dev/null
   fi
-  log "install.sh --yes for https://$domain with image $SMOKE_IMAGE"
-  SR_DOMAIN=$domain SR_IMAGE=$SMOKE_IMAGE SR_WEB_DIR=$SMOKE_WEB_DIR \
+  log "install.sh --yes for https://$domain with image $image"
+  SR_DOMAIN=$domain SR_IMAGE=$image SR_WEB_DIR=$SMOKE_WEB_DIR \
     SMTP_HOST=mail.example.org SMTP_PORT=587 SMTP_TLS=starttls \
     SR_OWNER_USERNAME=owner SR_OWNER_EMAIL=owner@example.test SR_OWNER_PASSWORD=$(cat "$pwfile") \
     SR_GARAGE_CAPACITY=1G SR_INGEST_DIR="$work/ingest" SR_PAYMENTS_ELECTRS=no \
     SR_INSTALL_SKIP_PULL=1 SR_INSTALL_PREFLIGHT=warn SR_INSTALL_PREFLIGHT_ARGS=--insecure-tls \
-    sh "$repo/deploy/install.sh" --yes
+    sh "$deploy_dir/install.sh" --yes
   [ "$(stat -c %a "$env_file")" = "600" ] || die ".env.prod is not mode 0600"
+}
+
+stage_install() {
+  : "${SMOKE_IMAGE:?set SMOKE_IMAGE}"
+  install_with "$SMOKE_IMAGE"
 }
 
 fetch_ca() {
@@ -297,6 +325,163 @@ stage_cli_backups() {
   log "sr-cli backup, restore, restore --force and upgrade --dry-run all work"
 }
 
+# --- the upgrade drill (RDY-OPS-007) ------------------------------------------------------------------------------
+# Which commit is "the previous release"? The merge base of the change with its target branch (GITHUB_BASE_REF for a
+# pull request, else main), so a branch is judged against what it forked from. A change that has no merge base, or
+# sits on the target itself (a push to main, the weekly run), is compared with the commit before it. A pull request
+# run checks out the merge commit; its second parent is the branch head.
+stage_base_sha() {
+  need git
+  cd "$repo"
+  target=${GITHUB_BASE_REF:-main}
+  head=HEAD
+  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] && git rev-parse -q --verify HEAD^2 >/dev/null; then
+    head=HEAD^2
+  fi
+  head_sha=$(git rev-parse "$head")
+  base=
+  if git rev-parse -q --verify "origin/$target" >/dev/null; then
+    base=$(git merge-base "origin/$target" "$head" 2>/dev/null || true)
+  fi
+  if [ -z "$base" ] || [ "$base" = "$head_sha" ]; then
+    base=$(git rev-parse -q --verify "$head_sha^1" || true)
+    [ -n "$base" ] || die "no previous commit to upgrade from (is the checkout shallow? use fetch-depth: 0)"
+    echo "no merge base with origin/$target apart from the commit itself: comparing with the commit before it" >&2
+  fi
+  echo "$base"
+}
+
+upgrade_state() { echo "$work/upgrade-$1"; }
+
+# `set_image <image>`: UPGRADE.md step 4 on Compose, the SR_IMAGE line of .env.prod.
+set_image() {
+  grep -q '^SR_IMAGE=' "$env_file" || die "no SR_IMAGE line in $env_file"
+  sed -i "s|^SR_IMAGE=.*|SR_IMAGE=$1|" "$env_file"
+  grep -qx "SR_IMAGE=$1" "$env_file" || die "could not set SR_IMAGE in $env_file"
+}
+
+# `unpack_release <commit>`: the deploy files of a commit over the live copy. Tracked files are overwritten; the files
+# an installation generates (.env.prod, garage.prod.toml) are not in the commit and stay.
+unpack_release() {
+  need git
+  need tar
+  mkdir -p "$live"
+  git -C "$repo" archive "$1" deploy packages/starter-packs | tar -x -C "$live"
+}
+
+stage_upgrade_prepare() {
+  : "${SMOKE_BASE_SHA:?set SMOKE_BASE_SHA (prod-smoke.sh base-sha prints it)}"
+  rm -rf "$live"
+  unpack_release "$SMOKE_BASE_SHA"
+  [ -f "$deploy_dir/install.sh" ] || die "$SMOKE_BASE_SHA has no deploy/install.sh"
+  log "the previous release, $SMOKE_BASE_SHA, is unpacked in $live"
+}
+
+stage_upgrade_install() {
+  : "${SMOKE_PREV_IMAGE:?set SMOKE_PREV_IMAGE}"
+  [ -f "$deploy_dir/install.sh" ] || die "no $deploy_dir/install.sh: run upgrade-prepare first"
+  log "installing the PREVIOUS release with image $SMOKE_PREV_IMAGE"
+  install_with "$SMOKE_PREV_IMAGE"
+}
+
+# Client environment for the node scripts.
+node_env() {
+  fetch_ca
+  NODE_EXTRA_CA_CERTS=$ca SMOKE_URL=$base_url SMOKE_OWNER_PASSWORD_FILE=$pwfile SMOKE_WORK=$work "$@"
+}
+
+stage_upgrade_seed() {
+  need node
+  log "sr-cli seed (the ordinary seed, not --scale) on the previous release"
+  out=$(sr_cli_c seed 2>&1) || { echo "$out"; die "sr-cli seed failed"; }
+  echo "$out"
+  echo "$out" | grep -q 'created dev guild' || die "the seed made no dev guild"
+  echo "$out" | grep -q 'library sample series' || die "the seed made no Library samples (the sentence above says why)"
+  log "a Cinema title, a marker message and the Library figures through the API"
+  node_env node "$here/upgrade-check.mjs" seed
+}
+
+stage_upgrade_backup() {
+  need node
+  log "UPGRADE.md step 2: backup.sh in the postgres container"
+  # The command is read out of UPGRADE.md so the page and the drill cannot drift apart.
+  cmd=$(sed -n "s/^[[:space:]]*\$dc exec -T -u postgres postgres sh -c '\(.*\)'[[:space:]]*\$/\1/p" "$repo/deploy/UPGRADE.md" | head -n 1)
+  [ -n "$cmd" ] || die "deploy/UPGRADE.md has no backup command of the form: \$dc exec -T -u postgres postgres sh -c '...'"
+  pg_user "$cmd"
+  dump=$(pg_user 'ls -1 /var/backups/sideroom/db/sideroom-*.dump | sort | tail -n 1' | tr -d '\r')
+  [ -n "$dump" ] || die "backup.sh left no dump"
+  pg_user "test -f '$dump.json'" || die "backup.sh left no manifest for $dump"
+  echo "$dump" >"$(upgrade_state dump)"
+  q sideroom "select count(*) from _sqlx_migrations" >"$(upgrade_state migrations)"
+  log "dump $dump taken at $(cat "$(upgrade_state migrations)") migrations"
+  log "UPGRADE.md step 2: restore-drill.sh still passes"
+  pg_user 'SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom sh /opt/sideroom/scripts/restore-drill.sh'
+}
+
+stage_upgrade_apply() {
+  : "${SMOKE_IMAGE:?set SMOKE_IMAGE (the image of this checkout)}"
+  need docker
+  log "UPGRADE.md step 3: the new release's deploy files over the installed ones"
+  unpack_release HEAD
+  # New keys in .env.prod.example are added with their example value; one that needs a secret is the operator's job.
+  for key in $(sed -n 's/^\([A-Z][A-Z0-9_]*\)=.*/\1/p' "$compose_dir/.env.prod.example"); do
+    if grep -q "^$key=" "$env_file"; then continue; fi
+    line=$(grep "^$key=" "$compose_dir/.env.prod.example" | head -n 1)
+    case $line in
+      *CHANGE_ME*) die "the release adds the .env.prod key $key, which needs a value only the operator can make" ;;
+    esac
+    log "the release adds the .env.prod key $key: taking the example's $line"
+    printf '%s\n' "$line" >>"$env_file"
+  done
+  log "UPGRADE.md step 4: SR_IMAGE -> $SMOKE_IMAGE (the image is already loaded on this host: nothing to pull)"
+  set_image "$SMOKE_IMAGE"
+  log "UPGRADE.md step 5: the web build is the same directory (SR_WEB_DIR), nothing to unpack"
+  log "UPGRADE.md step 6: sr-cli upgrade --dry-run, then sr-cli upgrade --no-backup, with the new image and the old server still up"
+  sr_cli_c upgrade --dry-run
+  sr_cli_c upgrade --no-backup
+  log "$(q sideroom "select count(*) from _sqlx_migrations") migrations applied (was $(cat "$(upgrade_state migrations)") at the backup)"
+  log "UPGRADE.md step 7: restart sr-server on the new image"
+  dc up -d sr-server
+}
+
+# `upgrade-verify <before|after-upgrade|after-rollback>`: Owner sign-in through Caddy and Admin > System, then the
+# data checks of upgrade-check.mjs. The label picks the extras (see that script).
+stage_upgrade_verify() {
+  need node
+  label=${1:-}
+  case $label in
+    before) flags= ;;
+    after-upgrade) flags=--write-marker ;;
+    after-rollback) flags=--expect-marker-gone ;;
+    *) die "usage: prod-smoke.sh upgrade-verify before|after-upgrade|after-rollback" ;;
+  esac
+  log "verify ($label): sign in through Caddy"
+  node_env node "$here/smoke-admin.mjs" signin
+  log "verify ($label): the data through the API"
+  # shellcheck disable=SC2086 # at most one flag
+  node_env node "$here/upgrade-check.mjs" verify $flags
+}
+
+stage_upgrade_rollback() {
+  : "${SMOKE_PREV_IMAGE:?set SMOKE_PREV_IMAGE}"
+  : "${SMOKE_BASE_SHA:?set SMOKE_BASE_SHA}"
+  need docker
+  dump=$(cat "$(upgrade_state dump)") || die "no dump recorded: run upgrade-backup first"
+  log "UPGRADE.md \"Rolling back\": stop sr-server, put the pre-upgrade dump into a fresh database"
+  dc stop sr-server
+  q postgres "drop database sideroom with (force)"
+  q postgres "create database sideroom"
+  pg_user "sh /opt/sideroom/scripts/restore.sh '$dump' postgres://sideroom@/sideroom"
+  got=$(q sideroom "select count(*) from _sqlx_migrations")
+  want=$(cat "$(upgrade_state migrations)")
+  [ "$got" = "$want" ] || die "the restored database has $got migrations, the backup had $want"
+  log "restored: $got migrations, as at the backup"
+  log "the previous deploy files and the previous image back, then start"
+  unpack_release "$SMOKE_BASE_SHA"
+  set_image "$SMOKE_PREV_IMAGE"
+  dc up -d sr-server
+}
+
 stage_logs() {
   dc ps -a || true
   dc logs --no-color --tail 80 || true
@@ -312,5 +497,13 @@ case $stage in
   cli-backups) stage_cli_backups ;;
   preflight) stage_preflight ;;
   logs) stage_logs ;;
-  *) die "usage: prod-smoke.sh install|wait|migrate|signin|backups|cli-backups|preflight|logs" ;;
+  base-sha) stage_base_sha ;;
+  upgrade-prepare) stage_upgrade_prepare ;;
+  upgrade-install) stage_upgrade_install ;;
+  upgrade-seed) stage_upgrade_seed ;;
+  upgrade-backup) stage_upgrade_backup ;;
+  upgrade-apply) stage_upgrade_apply ;;
+  upgrade-verify) stage_upgrade_verify "${2:-}" ;;
+  upgrade-rollback) stage_upgrade_rollback ;;
+  *) die "usage: prod-smoke.sh install|wait|migrate|signin|backups|cli-backups|preflight|logs|base-sha|upgrade-prepare|upgrade-install|upgrade-seed|upgrade-backup|upgrade-apply|upgrade-verify|upgrade-rollback" ;;
 esac

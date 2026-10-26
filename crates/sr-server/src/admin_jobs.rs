@@ -32,6 +32,17 @@ const REPEAT_AFTER_HOURS: i32 = 24;
 /// Reserved singleton id (below any Snowflake).
 pub const VERIFY_JOB_ID: i64 = 130;
 pub const VERIFY_KIND: &str = "admin.access_log.verify";
+
+/// Daily storage measurement singleton (RDY-OBS-002): one listing walk of the bucket with an object cap and a time
+/// budget, stored in `storage_figures` and exported by `sr_storage_bytes{bucket}`. Not part of the 15-minute health pass.
+pub const STORAGE_MEASURE_JOB_ID: i64 = 133;
+pub const STORAGE_MEASURE_KIND: &str = "storage.measure";
+const STORAGE_HOUR_UTC: u32 = 5;
+const STORAGE_MINUTE_UTC: u32 = 20;
+/// The walk stops after this long and stores what it has, flagged as a lower bound.
+pub const STORAGE_WALK_BUDGET: Duration = Duration::from_secs(60);
+/// The default of `ops.storage_measure_max_objects`, used when the setting cannot be read.
+const STORAGE_MAX_OBJECTS_DEFAULT: u64 = 200_000;
 const HOUR_UTC: u32 = 4;
 const MINUTE_UTC: u32 = 15;
 
@@ -125,7 +136,115 @@ pub async fn schedule(pool: &PgPool) -> DbResult<()> {
         Duration::from_secs(300),
     )
     .await?;
+    jobs::schedule_singleton(
+        pool,
+        STORAGE_MEASURE_JOB_ID,
+        STORAGE_MEASURE_KIND,
+        &json!({}),
+        jobs::delay_until_daily_utc(now_ms(), STORAGE_HOUR_UTC, STORAGE_MINUTE_UTC),
+    )
+    .await?;
     Ok(())
+}
+
+// ---- storage measurement (RDY-OBS-002) ---------------------------------------------
+
+/// The part of the bucket a key belongs to, besides "everything": Library media (`library/`) or Cinema media (posters,
+/// originals and transcoded renditions: `cinema/`, `originals/`, `transcode/`).
+pub fn storage_part(key: &str) -> Option<&'static str> {
+    let top = key.split('/').next().unwrap_or("");
+    match top {
+        "library" => Some("library"),
+        "cinema" | "originals" | "transcode" => Some("cinema"),
+        _ => None,
+    }
+}
+
+/// One listing walk of the bucket, at most `max_objects` objects and `budget` long, stored as three figures
+/// (`objects`, `library`, `cinema`) and set on the gauge. A walk that stops early stores what it saw with
+/// `truncated` set. Returns the figures as `(bucket, bytes, objects, truncated)`.
+pub async fn measure_storage(
+    pool: &PgPool,
+    storage: &dyn sr_storage::ObjectStorage,
+    max_objects: u64,
+    budget: Duration,
+) -> Result<Vec<(&'static str, i64, i64, bool)>, String> {
+    let mut tally = [(0u64, 0u64); 3]; // objects, library, cinema: (bytes, count)
+    // The walk checks the clock between objects; the timeout also bounds one stuck listing request (the tally so far
+    // is kept either way).
+    let walked = tokio::time::timeout(
+        budget + Duration::from_secs(5),
+        storage.walk(max_objects, budget, &mut |key, size| {
+            tally[0].0 += size;
+            tally[0].1 += 1;
+            let slot = match storage_part(key) {
+                Some("library") => 1,
+                Some(_) => 2,
+                None => return,
+            };
+            tally[slot].0 += size;
+            tally[slot].1 += 1;
+        }),
+    )
+    .await;
+    let complete = match walked {
+        Ok(r) => r.map_err(|e| e.to_string())?,
+        Err(_) => false,
+    };
+    let figures: Vec<_> = ["objects", "library", "cinema"]
+        .into_iter()
+        .zip(tally)
+        .map(|(bucket, (bytes, count))| {
+            (
+                bucket,
+                i64::try_from(bytes).unwrap_or(i64::MAX),
+                i64::try_from(count).unwrap_or(i64::MAX),
+                !complete,
+            )
+        })
+        .collect();
+    sr_db::storage_figures::save(pool, &figures)
+        .await
+        .map_err(|e| e.to_string())?;
+    for (bucket, bytes, _, _) in &figures {
+        sr_api::observability::record_storage_bytes(bucket, u64::try_from(*bytes).unwrap_or(0));
+    }
+    Ok(figures)
+}
+
+/// Register the `storage.measure` handler; pair with [`schedule`]. It needs the object store, so it is separate from
+/// [`register`].
+pub fn register_storage_measure(
+    runner: JobRunner,
+    pool: &PgPool,
+    ids: IdSource,
+    storage: Arc<dyn sr_storage::ObjectStorage>,
+) -> JobRunner {
+    let pool = pool.clone();
+    let admin = AdminService::new(Arc::new(PgAdminRepo::new(pool.clone(), ids)));
+    runner.register(STORAGE_MEASURE_KIND, 1, move |job: Job| {
+        let (pool, storage, admin) = (pool.clone(), storage.clone(), admin.clone());
+        Box::pin(async move {
+            let max = admin
+                .setting_value_text(sr_admin::settings::OPS_STORAGE_MEASURE_MAX_OBJECTS)
+                .await
+                .ok()
+                .and_then(|v| v.trim().parse::<u64>().ok())
+                .unwrap_or(STORAGE_MAX_OBJECTS_DEFAULT);
+            match measure_storage(&pool, storage.as_ref(), max, STORAGE_WALK_BUDGET).await {
+                Ok(f) => tracing::info!(figures = ?f, "storage measured"),
+                // A failed walk keeps yesterday's figures and tries again tomorrow.
+                Err(e) => tracing::warn!(error = %e, "storage measurement failed"),
+            }
+            jobs::reschedule_running(
+                &pool,
+                job.id,
+                jobs::delay_until_daily_utc(now_ms(), STORAGE_HOUR_UTC, STORAGE_MINUTE_UTC),
+            )
+            .await?;
+            Ok(())
+        })
+    })
 }
 
 // ---- health check (ADM-ALR-001) ---------------------------------------------------
@@ -439,6 +558,89 @@ pub async fn run_health(pool: &PgPool, admin: &AdminService, bus: &Arc<dyn Event
 mod tests {
     use super::*;
 
+    /// RDY-OBS-002: the new job id and kind are not used by any other job, and its setting key is not used by any other
+    /// setting. Reads the sources of every crate, so a second `= 133;` anywhere fails here.
+    #[test]
+    fn the_storage_job_id_kind_and_setting_key_are_unique() {
+        fn walk(dir: &Path, out: &mut Vec<(String, String)>) {
+            for e in std::fs::read_dir(dir).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    walk(&p, out);
+                } else if p.extension().is_some_and(|x| x == "rs") {
+                    out.push((
+                        p.display().to_string(),
+                        std::fs::read_to_string(&p).unwrap(),
+                    ));
+                }
+            }
+        }
+        let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut files = Vec::new();
+        for c in std::fs::read_dir(&crates).unwrap().flatten() {
+            let src = c.path().join("src");
+            if src.is_dir() {
+                walk(&src, &mut files);
+            }
+        }
+        // Every `const NAME_JOB_ID: i64 = N;` in the repository: no two share a number.
+        let mut ids: Vec<(i64, String)> = Vec::new();
+        for (path, text) in &files {
+            for line in text.lines() {
+                let l = line.trim_start();
+                if let Some(rest) = l
+                    .strip_prefix("pub const ")
+                    .or_else(|| l.strip_prefix("const "))
+                    && let Some((name, value)) = rest.split_once(": i64 = ")
+                    && name.ends_with("JOB_ID")
+                    && let Ok(n) = value.trim_end_matches(';').trim().parse::<i64>()
+                {
+                    ids.push((n, format!("{name} in {path}")));
+                }
+            }
+        }
+        assert!(ids.len() > 20, "found only {} job ids", ids.len());
+        // Nothing else uses this id (two crates mirror one id on purpose elsewhere, so only ours is checked).
+        let ours: Vec<_> = ids
+            .iter()
+            .filter(|(n, _)| *n == STORAGE_MEASURE_JOB_ID)
+            .collect();
+        assert_eq!(ours.len(), 1, "{ours:?}");
+        assert!(ours[0].1.starts_with("STORAGE_MEASURE_JOB_ID"));
+        // The kind string is registered once.
+        let kind = format!("\"{STORAGE_MEASURE_KIND}\"");
+        let uses: usize = files
+            .iter()
+            .map(|(_, t)| {
+                t.lines()
+                    .filter(|l| l.contains("_KIND: &str = ") && l.contains(&kind))
+                    .count()
+            })
+            .sum();
+        assert_eq!(uses, 1, "{STORAGE_MEASURE_KIND} is declared once");
+        // The setting key is in the catalog once and the lookup finds it.
+        let key = sr_admin::settings::OPS_STORAGE_MEASURE_MAX_OBJECTS;
+        assert_eq!(
+            sr_admin::settings::CATALOG
+                .iter()
+                .filter(|d| d.key == key)
+                .count(),
+            1
+        );
+        assert!(sr_admin::settings::find(key).is_some());
+        // Only the owner of the key writes it out literally.
+        let literal = format!("\"{key}\"");
+        let owners = files
+            .iter()
+            .filter(|(p, t)| {
+                !p.contains("admin_jobs.rs")
+                    && t.contains(&format!(
+                        "pub const OPS_STORAGE_MEASURE_MAX_OBJECTS: &str = {literal}"
+                    ))
+            })
+            .count();
+        assert_eq!(owners, 1);
+    }
     #[test]
     fn the_disk_alert_fires_at_the_threshold() {
         assert!(disk_alert("/data", 100, 21, 80).is_none());
