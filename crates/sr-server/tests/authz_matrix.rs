@@ -802,6 +802,18 @@ fn wav_uri(ms: usize) -> String {
     format!("data:audio/wav;base64,{}", b64(&out))
 }
 
+/// A zip of the given files.
+fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    use std::io::Write;
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, data) in entries {
+        z.start_file(*name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        z.write_all(data).unwrap();
+    }
+    z.finish().unwrap().into_inner()
+}
+
 /// A zip of one file, an Activity bundle that unpacks.
 fn tiny_zip() -> Vec<u8> {
     use std::io::Write;
@@ -2013,6 +2025,12 @@ async fn seed(
             .execute(&pool)
             .await
             .unwrap();
+        sqlx::query("INSERT INTO invite_credits_ledger (id, account_id, delta, reason) VALUES ($1, $2, 3, 'staff_grant')")
+            .bind(ids.generate().get() as i64)
+            .bind(u("member"))
+            .execute(&pool)
+            .await
+            .unwrap();
         let insider_cred = Cred::Session(sess["insider"].clone());
         let outsider_cred = Cred::Session(sess["outsider"].clone());
         let party = a.get("party_id").cloned().unwrap_or_default();
@@ -2220,17 +2238,25 @@ async fn seed(
         }
         // Watch party: a queued item and a second participant.
         if !party.is_empty() {
-            srv.call(&insider_cred, "POST", &format!("/watch-parties/{party}/join"), Some(&json!({}))).await;
-            if let Some(id) = mk(
-                &srv,
-                infos,
-                &member_cred,
-                &format!("/watch-parties/{party}/queue"),
-                Some(json!({"title_id": t})),
-            )
-            .await
-            {
-                a.insert("queue_item_id", id);
+            let j = srv
+                .call(&insider_cred, "POST", &format!("/watch-parties/{party}/join"), Some(&json!({})))
+                .await;
+            if j.status != 200 {
+                println!("authz_matrix: seed party join -> {} {}", j.status, j.body.chars().take(140).collect::<String>());
+            }
+            let q = srv
+                .call(
+                    &member_cred,
+                    "POST",
+                    &format!("/watch-parties/{party}/queue"),
+                    Some(&json!({"title_id": t})),
+                )
+                .await;
+            let pv: Value = serde_json::from_str(&q.body).unwrap_or(Value::Null);
+            if let Some(id) = pv["queue"][0]["id"].as_str() {
+                a.insert("queue_item_id", id.to_owned());
+            } else {
+                println!("authz_matrix: seed queue item -> {} {}", q.status, q.body.chars().take(140).collect::<String>());
             }
         }
         // A temporary role, an invoice.
@@ -2252,6 +2278,154 @@ async fn seed(
         {
             a.insert("invoice_id", id);
         }
+    }
+    // RDY-SEC-011: packages (submitted by the member, decided by the Owner), reports, evasion signals,
+    // alerts, a data request, a guestbook entry, a second webhook and more reactions.
+    {
+        let t = a.get("title_id").cloned().unwrap_or_default();
+        a.insert("insider_id", u("insider").to_string());
+        let theme = |id: &str| {
+            let m = json!({"id": id, "name": id, "version": "1.0.0", "author": "me", "targets": ["lounge"], "scheme": "dark"});
+            zip_of(&[
+                ("theme.json", m.to_string().as_bytes()),
+                ("tokens.json", json!({"--ui-accent": "#5865f2"}).to_string().as_bytes()),
+            ])
+        };
+        let pack = {
+            let m = json!({"kind": "emoji_pack", "id": "faces", "name": "Faces", "version": "1.0.0", "author": "me",
+                           "items": [{"name": "wave", "file": "emoji/wave.png"}]});
+            zip_of(&[
+                ("pack.json", m.to_string().as_bytes()),
+                ("emoji/wave.png", &make_png(32, 32)),
+            ])
+        };
+        let recipe = {
+            let m = json!({"id": "starter", "name": "Starter", "version": "1.0.0", "author": "me",
+                           "features": [{"id": "lounge.starboard", "enabled": true}]});
+            zip_of(&[("recipe.json", m.to_string().as_bytes())])
+        };
+        // (key for the package, key for its version, zip, approved)
+        let uploads: [(&'static str, &'static str, Vec<u8>, bool); 5] = [
+            ("package_id", "approved_version_id", theme("ocean"), true),
+            ("pack_id", "pack_version_id", pack, true),
+            ("recipe_id", "recipe_version_id", recipe, true),
+            ("pending_package_id", "pending_version_id", theme("pending-one"), false),
+            ("withdraw_package_id", "withdraw_version_id", theme("pending-two"), false),
+        ];
+        for (pkey, vkey, zip, approve) in uploads {
+            let r = srv
+                .call_bytes(&member_cred, "POST", "/packages", "application/zip", &zip)
+                .await;
+            let v: Value = serde_json::from_str(&r.body).unwrap_or(Value::Null);
+            let v = if v["version"].is_object() { v["version"].clone() } else { v };
+            let (Some(pid), Some(vid)) = (v["package_id"].as_str(), v["id"].as_str()) else {
+                println!("authz_matrix: seed package {pkey} -> {} {}", r.status, r.body.chars().take(140).collect::<String>());
+                continue;
+            };
+            a.insert(pkey, pid.to_owned());
+            a.insert(vkey, vid.to_owned());
+            if approve {
+                let d = srv
+                    .call(
+                        &staff,
+                        "POST",
+                        &format!("/admin/developers/packages/versions/{vid}/decision"),
+                        Some(&json!({"decision": "approve"})),
+                    )
+                    .await;
+                if !(200..300).contains(&d.status) {
+                    println!("authz_matrix: seed package decision -> {} {}", d.status, d.body.chars().take(100).collect::<String>());
+                }
+            }
+        }
+        // Reports of a comment (the member made the comments; the owner reports them).
+        if let Some(c) = a.get("cinema_comment_id").cloned() {
+            srv.call(&oa, "POST", &format!("/cinema/comments/{c}/report"), Some(&json!({"reason": "authz"}))).await;
+        }
+        if let Some(c) = a.get("library_comment_id").cloned() {
+            srv.call(&oa, "POST", &format!("/library/comments/{c}/report"), Some(&json!({"reason": "authz"}))).await;
+        }
+        for (key, sql) in [
+            ("cinema_report_id", "SELECT id FROM cinema_reports ORDER BY id LIMIT 1"),
+            ("library_report_id", "SELECT id FROM reading_comment_reports ORDER BY id LIMIT 1"),
+        ] {
+            if let Ok(id) = sqlx::query_scalar::<_, i64>(sql).fetch_one(&pool).await {
+                a.insert(key, id.to_string());
+            }
+        }
+        // Two evasion signals between the victim's Person and the member's, and a staff alert.
+        let member_person: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+            .bind(u("member"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        for (key, kind) in [("signal_id", "shared_login_ip"), ("signal2_id", "shared_invite_lineage")] {
+            let id = ids.generate().get() as i64;
+            sqlx::query("INSERT INTO evasion_signals (id, person_id, related_person_id, kind) VALUES ($1, $2, $3, $4)")
+                .bind(id)
+                .bind(person)
+                .bind(member_person)
+                .bind(kind)
+                .execute(&pool)
+                .await
+                .unwrap();
+            a.insert(key, id.to_string());
+        }
+        let alert = ids.generate().get() as i64;
+        sqlx::query("INSERT INTO staff_alerts (id, kind, detail) VALUES ($1, 'authz', 'authz matrix')")
+            .bind(alert)
+            .execute(&pool)
+            .await
+            .unwrap();
+        a.insert("alert_id", alert.to_string());
+        // A data request about the victim.
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/admin/data-requests",
+            Some(json!({"kind": "export", "account_id": victim})),
+        )
+        .await
+        {
+            a.insert("data_request_id", id);
+        }
+        // A guestbook entry the member wrote on the victim's board.
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            &format!("/users/{victim}/guestbook"),
+            Some(json!({"body": "authz"})),
+        )
+        .await
+        {
+            a.insert("entry_id", id);
+        }
+        // A second webhook (the token-addressed delete removes it; the id-addressed routes use the first),
+        // and reactions to remove one way each.
+        let h2 = srv
+            .must(
+                &oa,
+                "POST",
+                &format!("/channels/{chan_a}/webhooks"),
+                json!({"name": "hook two"}),
+            )
+            .await;
+        a.insert("webhook2_id", h2["id"].as_str().unwrap_or(BOGUS).to_owned());
+        a.insert("token2", h2["token"].as_str().unwrap_or("x").to_owned());
+        let ch = a.get("channel_id").cloned().unwrap_or_default();
+        let msg = a.get("message_id").cloned().unwrap_or_default();
+        for emoji in ["%F0%9F%98%80", "%F0%9F%8E%89"] {
+            srv.call(
+                &oa,
+                "PUT",
+                &format!("/channels/{ch}/messages/{msg}/reactions/{emoji}/@me"),
+                None,
+            )
+            .await;
+        }
+        let _ = t;
     }
     // A running thread member: the seeded thread gets the victim.
     if let Some(t) = a.get("thread_id") {
@@ -2490,6 +2664,11 @@ fn rightful_of(r: &Route) -> &'static str {
         "staff_owner"
     } else if r.authz == "owner" {
         "app_owner"
+    } else if (r.path.starts_with("/cinema/") || r.path.starts_with("/library/"))
+        || r.path.starts_with("/users/{user_id}/guestbook")
+    {
+        // Their lists, comments and posts are the plain member's.
+        "member"
     } else if r.authz == "self" || r.authz == "user" {
         // Per-account data: the plain member's, which the seed filled.
         "member"
@@ -2926,8 +3105,24 @@ fn write_ending(method: &str, path: &str) -> bool {
 /// Placeholder values that differ from the seeded ones for a route (the reaction the route removes is the
 /// one `owner_a` made, not the victim's).
 fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
-    if r.path.contains("/reactions/") {
+    if r.method == "DELETE" && r.path.ends_with("/reactions/{emoji}/{user_id}") {
+        vec![
+            ("user_id", world.users["ownera"].to_string()),
+            ("emoji", "%F0%9F%98%80".to_owned()),
+        ]
+    } else if r.method == "DELETE" && r.path.ends_with("/reactions/{emoji}") {
+        vec![("emoji", "%F0%9F%8E%89".to_owned())]
+    } else if r.path.contains("/reactions/") {
         vec![("user_id", world.users["ownera"].to_string())]
+    } else if r.path.contains("/bans/") {
+        vec![("user_id", world.users["friendtwo"].to_string())]
+    } else if r.method == "DELETE" && r.path == "/webhooks/{webhook_id}/{token}" {
+        vec![
+            ("webhook_id", world.a["webhook2_id"].clone()),
+            ("token", world.a["token2"].clone()),
+        ]
+    } else if r.path == "/moderation/evasion-signals/{signal_id}/link-case" {
+        vec![("signal_id", world.a["signal2_id"].clone())]
     } else if r.path.starts_with("/watch-parties/") && r.path.contains("{user_id}") {
         vec![("user_id", world.users["insider"].to_string())]
     } else {
@@ -2939,6 +3134,15 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
 /// consulted before [`body_override`].
 fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
+        ("POST", "/watch-parties") => r#"{"title_id":"{title_id}"}"#,
+        ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{insider_id}"}"#,
+        ("POST", "/moderation/evasion-signals/{signal_id}/link-case") => r#"{"case_id":"{case_id}"}"#,
+        ("POST", "/admin/data-requests") => r#"{"kind":"export","account_id":"{user_id}"}"#,
+        ("POST", "/channels/{channel_id}/attachments") => {
+            r#"{"files":[{"filename":"a.txt","file_size":3}]}"#
+        }
+        ("POST", "/users/{user_id}/guestbook") => r#"{"body":"authz"}"#,
+        ("POST", "/packages/{package_id}/create-guild") => r#"{"name":"authz guild"}"#,
         ("POST", "/sr/auth/password") => {
             r#"{"current_password":"{pw}","new_password":"authz-matrix-New-Horse-7"}"#
         }
@@ -2990,7 +3194,7 @@ fn write_rank(r: &Route, idx: usize) -> (bool, u8, usize, usize) {
         write_late(&r.method, &r.path),
         kind,
         if kind == 4 { usize::MAX - depth } else { 0 },
-        idx,
+        if kind == 4 { usize::MAX - idx } else { idx },
     )
 }
 
@@ -3474,6 +3678,11 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/developers/tester-invites/"], "invite_id", "tester_invite_id"),
     (&["/staff/offers/"], "offer_id", "staff_offer_id"),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
+    (&["/admin/data-requests/"], "request_id", "data_request_id"),
+    (&["/admin/developers/packages/versions/"], "version_id", "pending_version_id"),
+    (&["/packages/versions/"], "version_id", "withdraw_version_id"),
+    (&["{package_id}/import"], "package_id", "pack_id"),
+    (&["{package_id}/apply", "/create-guild"], "package_id", "recipe_id"),
     // Episodes and seasons belong to the series title, not to the film.
     (&["{episode_id}", "{season_id}"], "title_id", "series_title_id"),
 ];
