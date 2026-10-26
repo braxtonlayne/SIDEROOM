@@ -407,8 +407,7 @@ pub struct HeartbeatInput {
 pub struct HeartbeatResult {
     pub server_time_ms: i64,
     pub playback: PlaybackView,
-    /// `false`: the caller is not in the party (removed, ended, or never joined); the playback is then a
-    /// neutral one that says nothing about the party.
+    /// `false`: the caller is no longer in the party (removed or ended).
     pub member: bool,
 }
 
