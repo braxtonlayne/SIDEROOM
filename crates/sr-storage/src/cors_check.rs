@@ -208,12 +208,36 @@ pub async fn check(admin: &S3Admin, provider: Provider, origin: &str) -> crate::
         return Ok(compare(&origin, None));
     }
     if unsupported(&reply) {
-        return Ok(manual_report(provider, &origin));
+        return Ok(manual_or_verified(admin, provider, &origin).await);
     }
     Err(crate::StorageError::Backend(format!(
         "reading the bucket's CORS rules failed: {}",
         reply.reason()
     )))
+}
+
+/// For a service without the CORS API: if a live preflight already succeeds, the rule is in place (the owner
+/// set it by hand); otherwise the provider's steps.
+async fn manual_or_verified(admin: &S3Admin, provider: Provider, origin: &str) -> CorsReport {
+    let allowed = admin
+        .preflight_allows(
+            crate::probe::PROBE_NAME,
+            origin,
+            std::time::Duration::from_secs(5),
+        )
+        .await
+        .unwrap_or(false);
+    if allowed {
+        return CorsReport {
+            state: CorsState::Ok,
+            required: vec![required_rule(origin).describe()],
+            found: vec![
+                "Verified with a live preflight request; this service has no CORS API.".to_owned(),
+            ],
+            manual_steps: None,
+        };
+    }
+    manual_report(provider, origin)
 }
 
 fn manual_report(provider: Provider, origin: &str) -> CorsReport {
@@ -228,10 +252,12 @@ fn manual_report(provider: Provider, origin: &str) -> CorsReport {
 /// Write the required rule for `origin` and check again. A service that refuses the API answers `manual`.
 pub async fn apply(admin: &S3Admin, provider: Provider, origin: &str) -> crate::Result<CorsReport> {
     let origin = normalize_origin(origin)?;
-    let put = admin.put_bucket_cors_raw(std::slice::from_ref(&origin)).await?;
+    let put = admin
+        .put_bucket_cors_raw(std::slice::from_ref(&origin))
+        .await?;
     if !put.ok() {
         if unsupported(&put) {
-            return Ok(manual_report(provider, &origin));
+            return Ok(manual_or_verified(admin, provider, &origin).await);
         }
         return Err(crate::StorageError::Backend(format!(
             "writing the bucket's CORS rules failed: {}",

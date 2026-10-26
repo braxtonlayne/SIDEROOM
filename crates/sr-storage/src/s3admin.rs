@@ -227,6 +227,8 @@ pub struct S3Reply {
     pub status: u16,
     /// Response body as text.
     pub body: String,
+    /// Response headers, names lower case.
+    pub headers: Vec<(String, String)>,
 }
 
 impl S3Reply {
@@ -546,11 +548,55 @@ impl S3Admin {
             .await
             .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
         let status = resp.status().as_u16();
+        let headers = resp
+            .headers()
+            .iter()
+            .filter_map(|(k, v)| {
+                Some((k.as_str().to_ascii_lowercase(), v.to_str().ok()?.to_owned()))
+            })
+            .collect();
         let body = resp
             .text()
             .await
             .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
-        Ok(S3Reply { status, body })
+        Ok(S3Reply {
+            status,
+            body,
+            headers,
+        })
+    }
+
+    /// A live CORS preflight (`OPTIONS`, unsigned, as a browser sends it) for a `GET` of the probe object
+    /// from `origin`. `true` when the service answers with that origin (or `*`) in
+    /// `Access-Control-Allow-Origin`. This proves the rule works even where the CORS API is not offered.
+    pub async fn preflight_allows(
+        &self,
+        key: &str,
+        origin: &str,
+        timeout: Duration,
+    ) -> Result<bool> {
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            uri_encode(&self.bucket, false),
+            uri_encode(key.trim_start_matches('/'), true)
+        );
+        let resp = self
+            .client
+            .request(reqwest::Method::OPTIONS, &url)
+            .header("origin", origin)
+            .header("access-control-request-method", "GET")
+            .timeout(timeout)
+            .send()
+            .await
+            .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
+        let allow = resp
+            .headers()
+            .get("access-control-allow-origin")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        Ok(resp.status().is_success()
+            && matches!(allow.as_deref(), Some(a) if a == origin || a == "*"))
     }
 }
 

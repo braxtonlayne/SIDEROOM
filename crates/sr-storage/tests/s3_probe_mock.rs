@@ -381,3 +381,26 @@ async fn other_refusals_and_bad_origins_are_errors() {
     );
     assert!(cors_check::check(&a, Provider::Garage, "*").await.is_err());
 }
+
+#[tokio::test]
+async fn a_manual_provider_whose_preflight_works_counts_as_ok() {
+    let (ep, seen) = fake_s3(Arc::new(|m, _, _| {
+        if m == "OPTIONS" {
+            (200, String::new())
+        } else {
+            (501, "<Error><Code>NotImplemented</Code></Error>".into())
+        }
+    }))
+    .await;
+    // The fake cannot set response headers, so a preflight without Allow-Origin stays manual.
+    let r = cors_check::check(&admin(&ep), Provider::B2, ORIGIN)
+        .await
+        .unwrap();
+    assert_eq!(r.state, CorsState::Manual);
+    assert!(
+        seen.lock()
+            .unwrap()
+            .iter()
+            .any(|l| l.starts_with("OPTIONS /shelf/.sideroom-probe"))
+    );
+}
