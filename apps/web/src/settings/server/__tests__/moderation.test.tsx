@@ -316,10 +316,12 @@ describe('auditText and permissions units', () => {
       'CONTROL_WATCH_PARTY',
       'USE_LIBRARY_EMBEDS',
       'MANAGE_EXTENSIONS',
+      'USE_EXPRESSIONS_EXTERNALLY',
     ])
       expect(all).toContain(n);
     expect(PERM.START_WATCH_PARTY).toBe(1n << 56n);
     expect(PERM.MANAGE_EXTENSIONS).toBe(1n << 59n);
+    expect(PERM.USE_EXPRESSIONS_EXTERNALLY).toBe(1n << 60n);
     expect(PERM.PIN_MESSAGES).toBe(1n << 51n);
     expect(permissionGroups().at(-1)?.label).toBe('SIDE ROOM');
   });

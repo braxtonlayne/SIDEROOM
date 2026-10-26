@@ -36,6 +36,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::SEND_POLLS
         | P::USE_EXTERNAL_APPS
         | P::START_WATCH_PARTY
+        | P::USE_EXPRESSIONS_EXTERNALLY
 }
 
 /// Permissions of each participant in a DM or group DM.
@@ -78,6 +79,14 @@ pub fn guild_permissions(guild: &Guild, member: &Member, roles: &[Role]) -> Perm
         everyone_perms(guild, roles),
         member_roles(member, roles).map(|r| r.permissions),
     )
+}
+
+/// D-376 source gate: whether `member` may use the expressions of `guild` outside it. Evaluated
+/// with guild permissions only (the emoji belongs to no channel, so no overwrite applies); owner
+/// and administrator bypass follow from the base computation. The caller resolves the membership
+/// first: a user who is not a member has no `Member` and fails closed before reaching here.
+pub fn may_use_externally(guild: &Guild, member: &Member, roles: &[Role]) -> bool {
+    guild_permissions(guild, member, roles).contains(Permissions::USE_EXPRESSIONS_EXTERNALLY)
 }
 
 /// Effective permissions in a channel. Applies overwrites, drops everything when
@@ -248,6 +257,36 @@ mod tests {
             allow,
             deny,
         }
+    }
+
+    #[test]
+    fn external_expressions_bit_is_default_but_not_in_dms() {
+        assert!(default_everyone_permissions().contains(Permissions::USE_EXPRESSIONS_EXTERNALLY));
+        assert!(!dm_permissions().contains(Permissions::USE_EXPRESSIONS_EXTERNALLY));
+    }
+
+    #[test]
+    fn may_use_externally_follows_guild_roles() {
+        let g = guild();
+        // Default @everyone grants it.
+        assert!(may_use_externally(&g, &member(5, &[]), &[everyone()]));
+        // @everyone without the bit: denied, even with a channel-style allow elsewhere.
+        let mut off = everyone();
+        off.permissions
+            .remove(Permissions::USE_EXPRESSIONS_EXTERNALLY);
+        assert!(!may_use_externally(&g, &member(5, &[]), &[off.clone()]));
+        // A role that adds the bit back.
+        let grant = role(7, 1, Permissions::USE_EXPRESSIONS_EXTERNALLY);
+        assert!(may_use_externally(
+            &g,
+            &member(5, &[7]),
+            &[off.clone(), grant]
+        ));
+        // Owner bypass.
+        assert!(may_use_externally(&g, &member(OWNER, &[]), &[off.clone()]));
+        // Administrator bypass.
+        let admin = role(8, 1, Permissions::ADMINISTRATOR);
+        assert!(may_use_externally(&g, &member(5, &[8]), &[off, admin]));
     }
 
     #[test]

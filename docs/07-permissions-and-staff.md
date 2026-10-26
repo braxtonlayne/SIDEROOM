@@ -21,6 +21,16 @@ Use Discord's bits 0–50 with identical semantics (CREATE_INSTANT_INVITE … SE
 | 57  | `CONTROL_WATCH_PARTY` | Control playback in someone else's party (when the host allows shared control)                                                            |
 | 58  | `USE_LIBRARY_EMBEDS`  | Post rich Cinema/Library cards (default-granted, enforced at send: a message with a `<library:id>` or `<cinema:id>` card needs it, D-241) |
 | 59  | `MANAGE_EXTENSIONS`   | Enable or disable approved extensions/themes for the server                                                                               |
+| 60  | `USE_EXPRESSIONS_EXTERNALLY` | Use this server's emoji, stickers and sounds in other servers and DMs; default-granted, checked in this server for the member's roles here, no channel overwrite (D-376) |
+
+### External expressions (D-375, D-376)
+
+Emoji, stickers and soundboard sounds of a server are usable by its members everywhere (other servers, DMs, group DMs). Two gates apply, and neither implies the other:
+
+1. **The target.** In a server channel the target channel must grant `USE_EXTERNAL_EMOJIS` (18), `USE_EXTERNAL_STICKERS` (37) or `USE_EXTERNAL_SOUNDS` (45), with Discord's semantics. In a DM or group DM `dm_permissions` already grants them.
+2. **The source.** The sender must hold `USE_EXPRESSIONS_EXTERNALLY` (60) in the server the expression belongs to, computed with guild permissions for the member's roles there (owner and administrator bypass; channel overwrites never apply). The sender must still be a member of the source server, and the expression's own `available` flag and, for emoji, `role_ids` restriction must pass. A member who left the source server fails the gate.
+
+Bit 60 is in the default `@everyone` set and migration 1360 backfilled it into every existing `@everyone` role, so nothing changes until a server turns it off. It is not a Patron perk. Application emoji (D-237) belong to no server and are untouched. Enforcement is at the write: see doc 05 (`GET /users/@me/expressions` and the three refusal shapes).
 
 ### Server 2FA requirement (D-223)
 

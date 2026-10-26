@@ -1,5 +1,5 @@
 // Permission catalog for the server settings screens (docs/07 section 2, sr-core permissions.rs).
-// Bit numbers match Discord for 0-52; SIDE ROOM adds 56-59. Bitfields travel as decimal strings.
+// Bit numbers match Discord for 0-52; SIDE ROOM adds 56-60. Bitfields travel as decimal strings.
 import { t } from '../../i18n';
 import type { PermissionGroupDef, TriState } from '@sideroom/ui';
 
@@ -194,6 +194,7 @@ export const PERMISSIONS: PermissionInfo[] = [
   p('CONTROL_WATCH_PARTY', 57, 'sideroom'),
   p('USE_LIBRARY_EMBEDS', 58, 'sideroom', { scope: 'text' }),
   p('MANAGE_EXTENSIONS', 59, 'sideroom', { scope: 'guild' }),
+  p('USE_EXPRESSIONS_EXTERNALLY', 60, 'sideroom', { scope: 'guild' }),
 ];
 
 export const PERM = Object.fromEntries(
