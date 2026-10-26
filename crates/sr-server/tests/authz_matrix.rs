@@ -544,6 +544,21 @@ impl Server {
         .await
     }
 
+    /// A call that also sends the audit reason header the staff routes ask for.
+    async fn call_reason(&self, cred: &Cred, method: &str, path: &str, body: Option<&Value>) -> Resp {
+        let b = body.map(Value::to_string);
+        let mut h = self.headers(cred, method);
+        h.push(("X-Audit-Log-Reason".to_owned(), "authz matrix".to_owned()));
+        raw(
+            self.port,
+            method,
+            &format!("/api/v1{path}"),
+            &h,
+            b.as_deref(),
+        )
+        .await
+    }
+
     /// A call with a body that is not JSON (a zip, the bytes of an image).
     async fn call_bytes(
         &self,
@@ -3303,6 +3318,29 @@ fn write_rank(r: &Route, idx: usize) -> (bool, u8, usize, usize) {
     )
 }
 
+/// Make a sampled body fit what the handlers validate before they decide: a real picture where an image is
+/// asked for, a real sound, a word where the sample put `x`. Only the write phase uses it.
+fn fixup(v: &mut Value) {
+    match v {
+        Value::Object(m) => {
+            for (k, x) in m.iter_mut() {
+                match (k.as_str(), &*x) {
+                    ("image" | "file" | "thumbnail" | "cover" | "avatar" | "icon" | "banner", Value::String(_)) => {
+                        *x = json!(format!("data:image/png;base64,{}", b64(&make_png(8, 8))));
+                    }
+                    ("sound", Value::String(_)) => *x = json!(wav_uri(300)),
+                    ("language", Value::String(_)) => *x = json!("en"),
+                    ("reason" | "note", Value::String(s)) if s == "x" => *x = json!("authz matrix"),
+                    _ => fixup(x),
+                }
+            }
+        }
+        Value::Array(a) => a.iter_mut().for_each(fixup),
+        Value::String(s) if s == "x" => *s = "authz_sample".to_owned(),
+        _ => {}
+    }
+}
+
 fn substitute(text: &str, ids: &HashMap<&'static str, String>, totp: &TotpSecret) -> String {
     let mut t = text.replace("{pw}", TEST_PASSWORD);
     if t.contains("{totp_next}") {
@@ -3379,9 +3417,13 @@ async fn write_phase(
                     .unwrap_or_else(|| json!({})),
             ),
         };
+        let body = body.map(|mut b| {
+            fixup(&mut b);
+            b
+        });
         let resp = world
             .srv
-            .call(&actor.cred, &r.method, &path, body.as_ref())
+            .call_reason(&actor.cred, &r.method, &path, body.as_ref())
             .await;
         stats.calls += 1;
         let listed = write_observed(r);
