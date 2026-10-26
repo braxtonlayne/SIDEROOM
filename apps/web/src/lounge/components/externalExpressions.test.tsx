@@ -44,7 +44,7 @@ const MINE = [
   },
 ];
 
-function handlers(list: unknown = MINE) {
+function handlers(list: object = MINE) {
   server.use(
     http.get('*/api/v1/users/@me/expressions', () => HttpResponse.json(list)),
     http.get('*/api/v1/guilds/g1/emojis', () => HttpResponse.json([EMOJI('1', 'homey')])),

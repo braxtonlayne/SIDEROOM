@@ -41,6 +41,17 @@ impl RichStore for MemoryBackend {
             .collect())
     }
 
+    async fn guild_emojis(
+        &self,
+        emoji: &[u64],
+    ) -> StoreResult<HashMap<u64, crate::rich_repo::GuildEmojiRef>> {
+        let d = self.data();
+        Ok(emoji
+            .iter()
+            .filter_map(|e| d.guild_emojis.get(e).map(|g| (*e, g.clone())))
+            .collect())
+    }
+
     async fn bot_applications(&self, users: &[UserId]) -> StoreResult<HashMap<UserId, i64>> {
         let d = self.data();
         Ok(users

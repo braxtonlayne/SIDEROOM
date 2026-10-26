@@ -9,8 +9,8 @@ use sr_chat::settings::soundboard::{DEFAULT_SOUNDS, render_default};
 use std::sync::Mutex;
 
 #[derive(Default)]
-struct Plays {
-    seen: Mutex<Vec<(UserId, GuildId, ChannelId, SoundEffect)>>,
+pub(super) struct Plays {
+    pub(super) seen: Mutex<Vec<(UserId, GuildId, ChannelId, SoundEffect)>>,
     fail: Mutex<Option<VoiceError>>,
 }
 
@@ -66,11 +66,11 @@ fn wav_bytes(ms: usize) -> Vec<u8> {
     out
 }
 
-fn wav_uri(ms: usize) -> String {
+pub(super) fn wav_uri(ms: usize) -> String {
     format!("data:audio/wav;base64,{}", BASE64.encode(&wav_bytes(ms)))
 }
 
-async fn env_voice() -> (Env, Arc<Plays>) {
+pub(super) async fn env_voice() -> (Env, Arc<Plays>) {
     let plays = Arc::new(Plays::default());
     let e = env_with(Opts {
         voice: Some(plays.clone()),

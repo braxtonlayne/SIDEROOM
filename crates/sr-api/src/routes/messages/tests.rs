@@ -1993,6 +1993,9 @@ async fn messages_work_without_a_registered_gate() {
 
 mod rich_tests;
 
+#[path = "tests/external_pg.rs"]
+mod external_pg;
+
 #[tokio::test]
 async fn moderator_message_actions_are_audited() {
     use sr_chat::settings::audit::AuditAction;

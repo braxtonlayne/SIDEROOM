@@ -224,10 +224,57 @@ pub fn custom_emoji_ids(content: &str) -> Vec<u64> {
     out
 }
 
+/// `content` with every `<:name:id>` / `<a:name:id>` token whose id is in `refused` replaced by
+/// `:name:` (Discord's rendering of an emoji the sender may not use, D-376). Other tokens and
+/// all other text are kept byte for byte.
+pub fn rewrite_emoji_tokens(content: &str, refused: &std::collections::HashSet<u64>) -> String {
+    let mut out = String::with_capacity(content.len());
+    let mut rest = content;
+    while let Some(start) = rest.find('<') {
+        let after = &rest[start + 1..];
+        let Some(end) = after.find('>') else { break };
+        let body = &after[..end];
+        let token = body.strip_prefix('a').unwrap_or(body);
+        let hit = token
+            .strip_prefix(':')
+            .and_then(|inner| inner.rsplit_once(':'))
+            .filter(|(name, _)| !name.is_empty())
+            .and_then(|(name, id)| id.parse::<u64>().ok().map(|id| (name, id)))
+            .filter(|(_, id)| refused.contains(id));
+        if let Some((name, _)) = hit {
+            out.push_str(&rest[..start]);
+            out.push(':');
+            out.push_str(name);
+            out.push(':');
+            rest = &after[end + 1..];
+        } else {
+            // Keep the `<` and rescan from just after it, as `custom_emoji_ids` does.
+            out.push_str(&rest[..=start]);
+            rest = after;
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use sr_chat::message::{PollAnswer, PollMedia};
+
+    #[test]
+    fn refused_tokens_become_text() {
+        let refused: std::collections::HashSet<u64> = [12, 34].into_iter().collect();
+        assert_eq!(
+            rewrite_emoji_tokens(
+                "a <:wave:12> b <a:dance:34> <:keep:99> <:bad:x> <@1> <:",
+                &refused
+            ),
+            "a :wave: b :dance: <:keep:99> <:bad:x> <@1> <:"
+        );
+        assert_eq!(rewrite_emoji_tokens("no tokens", &refused), "no tokens");
+        assert_eq!(rewrite_emoji_tokens("<<:wave:12>", &refused), "<:wave:");
+    }
 
     #[test]
     fn poll_json_has_results_and_expiry() {

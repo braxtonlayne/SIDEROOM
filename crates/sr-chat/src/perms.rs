@@ -89,6 +89,52 @@ pub fn may_use_externally(guild: &Guild, member: &Member, roles: &[Role]) -> boo
     guild_permissions(guild, member, roles).contains(Permissions::USE_EXPRESSIONS_EXTERNALLY)
 }
 
+/// A member's standing in the server an expression belongs to (D-376 source gate).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceStanding {
+    /// [`may_use_externally`] for the member's roles there.
+    pub allowed: bool,
+    /// The member's roles in that server (for an emoji's own role restriction).
+    pub role_ids: Vec<sr_core::RoleId>,
+}
+
+impl SourceStanding {
+    /// The expression's own restrictions on top of the gate: `available`, and for emoji the
+    /// `role_ids` restriction (empty = everyone). `None` standing (not a member) fails closed.
+    pub fn permits(
+        standing: Option<&Self>,
+        available: bool,
+        restricted_to: &[sr_core::RoleId],
+    ) -> bool {
+        standing.is_some_and(|s| {
+            s.allowed
+                && available
+                && (restricted_to.is_empty()
+                    || restricted_to.iter().any(|r| s.role_ids.contains(r)))
+        })
+    }
+}
+
+/// Load the standing of `user` in `source`: `None` when the user is not a member (never joined,
+/// left, or the server is unknown), so every check fails closed.
+pub async fn source_standing(
+    repo: &dyn crate::repo::ChatRepository,
+    source: sr_core::GuildId,
+    user: sr_core::UserId,
+) -> crate::repo::RepoResult<Option<SourceStanding>> {
+    let Some(member) = repo.get_member(source, user).await? else {
+        return Ok(None);
+    };
+    let Some(guild) = repo.get_guild(source).await? else {
+        return Ok(None);
+    };
+    let roles = repo.list_roles(source).await?;
+    Ok(Some(SourceStanding {
+        allowed: may_use_externally(&guild, &member, &roles),
+        role_ids: member.role_ids.clone(),
+    }))
+}
+
 /// Effective permissions in a channel. Applies overwrites, drops everything when
 /// `VIEW_CHANNEL` is missing, and restricts timed-out members to read-only access.
 pub fn channel_permissions(
@@ -287,6 +333,25 @@ mod tests {
         // Administrator bypass.
         let admin = role(8, 1, Permissions::ADMINISTRATOR);
         assert!(may_use_externally(&g, &member(5, &[8]), &[off, admin]));
+    }
+
+    #[test]
+    fn source_standing_permits_checks_restrictions() {
+        let rid = |n| sr_core::RoleId::new(n);
+        let ok = SourceStanding {
+            allowed: true,
+            role_ids: vec![rid(7)],
+        };
+        let off = SourceStanding {
+            allowed: false,
+            role_ids: vec![rid(7)],
+        };
+        assert!(SourceStanding::permits(Some(&ok), true, &[]));
+        assert!(SourceStanding::permits(Some(&ok), true, &[rid(7), rid(9)]));
+        assert!(!SourceStanding::permits(Some(&ok), true, &[rid(9)]));
+        assert!(!SourceStanding::permits(Some(&ok), false, &[]));
+        assert!(!SourceStanding::permits(Some(&off), true, &[]));
+        assert!(!SourceStanding::permits(None, true, &[]));
     }
 
     #[test]
