@@ -5111,6 +5111,18 @@ async fn storage_scopes_hold_over_http() {
         .await,
         204
     );
+    let roles = srv
+        .call(&owner_a, "GET", &format!("/guilds/{gid}/roles"), None)
+        .await;
+    if !roles
+        .body
+        .contains("\"sr_storage_grants\":[\"view_music\"]")
+    {
+        failures.push(format!(
+            "the role list carries the grants: {}",
+            roles.body.chars().take(300).collect::<String>()
+        ));
+    }
     expect!(
         "insider audio",
         presign(&insider, &g_mount, "a.mp3").await,

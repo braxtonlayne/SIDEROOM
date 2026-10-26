@@ -182,6 +182,10 @@ pub struct RoleObject {
     pub flags: u32,
     /// Gradient stops (J-08); `primary_color` mirrors `color`.
     pub colors: RoleColorsObject,
+    /// The storage grants of the role (BYOS): `view_cinema`, `view_library`, `view_music`, `upload`,
+    /// `manage`. Present on the role list; edited through `PUT /guilds/{guild_id}/storage/grants`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_storage_grants: Option<Vec<String>>,
 }
 
 /// The gradient stops of a role, Discord's `colors` object.
@@ -232,6 +236,7 @@ impl From<&Role> for RoleObject {
                 secondary_color: r.secondary_color,
                 tertiary_color: r.tertiary_color,
             },
+            sr_storage_grants: None,
         }
     }
 }
