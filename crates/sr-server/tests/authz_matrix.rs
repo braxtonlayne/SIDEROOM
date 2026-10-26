@@ -545,7 +545,6 @@ impl Server {
     }
 
     /// A call with a body that is not JSON (a zip, the bytes of an image).
-    #[allow(dead_code)]
     async fn call_bytes(
         &self,
         cred: &Cred,
@@ -732,12 +731,23 @@ fn wav_uri(ms: usize) -> String {
     format!("data:audio/wav;base64,{}", b64(&out))
 }
 
+/// A zip of one file, an Activity bundle that unpacks.
+fn tiny_zip() -> Vec<u8> {
+    use std::io::Write;
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    z.start_file("index.html", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    z.write_all(b"<h1>authz</h1>").unwrap();
+    z.finish().unwrap().into_inner()
+}
+
 /// The id a create answered with: `id`, or the one nested under the object it returned.
 fn pick_id(v: &Value) -> Option<String> {
     [
         &v["id"],
         &v["upload"]["id"],
         &v["token"]["id"],
+        &v["bundle"]["id"],
         &v["submission"]["id"],
         &v["sound_id"],
     ]
@@ -1085,6 +1095,7 @@ async fn seed(
             UpdateInput {
                 bot_public: Some(true),
                 redirect_uris: Some(vec!["https://client.test/cb".into()]),
+                privacy_policy_url: Some(Some("https://client.test/privacy".into())),
                 ..Default::default()
             },
         )
@@ -1715,12 +1726,6 @@ async fn seed(
             Some(json!({"note": "authz", "privacy_policy_url": "https://example.test/privacy"})),
         ),
         (
-            "bundle_id",
-            format!("/applications/{aid}/activity/bundles"),
-            &appowner_cred,
-            None,
-        ),
-        (
             "item_id",
             format!("/moderation/takedowns/{}/items", a["notice_id"]),
             &staff,
@@ -1733,21 +1738,6 @@ async fn seed(
         {
             a.insert(param, id.to_owned());
         }
-    }
-    if let Some(tv) = a.get("tv_channel_id").cloned()
-        && let Some(v) = create(
-            &srv,
-            &member_cred,
-            "POST",
-            "/watch-parties",
-            "/watch-parties",
-            infos,
-            Some(json!({"tv_channel_id": tv})),
-        )
-        .await
-        && let Some(id) = v["id"].as_str()
-    {
-        a.insert("party_id", id.to_owned());
     }
     if let (Some(chapter), Some(sub)) = (a.get("chapter_id"), a.get("submission_id")) {
         let path = format!("/submissions/{sub}/library/chapters/{chapter}/uploads");
@@ -1843,6 +1833,41 @@ async fn seed(
             );
             mk(&srv, infos, &staff, &format!("/admin/tv/channels/{tv}/publish"), None).await;
         }
+    }
+    // A watch party of the published film, and an Activity bundle (a one-file zip, sent as bytes).
+    if let Some(title) = a.get("title_id").cloned()
+        && let Some(v) = create(
+            &srv,
+            &member_cred,
+            "POST",
+            "/watch-parties",
+            "/watch-parties",
+            infos,
+            Some(json!({"title_id": title})),
+        )
+        .await
+        && let Some(id) = v["id"].as_str()
+    {
+        a.insert("party_id", id.to_owned());
+    }
+    let zipped = tiny_zip();
+    let r = srv
+        .call_bytes(
+            &appowner_cred,
+            "POST",
+            &format!("/applications/{aid}/activity/bundles"),
+            "application/zip",
+            &zipped,
+        )
+        .await;
+    if let Some(id) = serde_json::from_str::<Value>(&r.body)
+        .ok()
+        .as_ref()
+        .and_then(pick_id)
+    {
+        a.insert("bundle_id", id);
+    } else {
+        println!("authz_matrix: seed activity bundle -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
     }
     // A running thread member: the seeded thread gets the victim.
     if let Some(t) = a.get("thread_id") {
