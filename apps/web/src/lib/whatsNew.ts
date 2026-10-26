@@ -45,12 +45,30 @@ export function markNewsSeen(version = APP_VERSION) {
   emit();
 }
 
+/**
+ * Another tab of the same browser opened what's new (or recorded the version): this tab's badge follows, without a
+ * reload (RDY-PWA-001: after an accepted update every open tab is on the new version, and only one of them is read).
+ */
+function onStorage(e: StorageEvent) {
+  if (e.key === SEEN_KEY || e.key === null) emit();
+}
+
+function subscribe(cb: () => void): () => void {
+  if (listeners.size === 0 && typeof window !== 'undefined') {
+    window.addEventListener('storage', onStorage);
+  }
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+    if (listeners.size === 0 && typeof window !== 'undefined') {
+      window.removeEventListener('storage', onStorage);
+    }
+  };
+}
+
 export function useNewsBadge(): boolean {
   return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
-    },
+    subscribe,
     // `hasUnseenNews` records the version on a first visit, then answers the same until the version changes.
     () => hasUnseenNews(),
     () => false,
