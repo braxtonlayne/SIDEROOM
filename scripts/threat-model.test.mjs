@@ -2,13 +2,17 @@
 // against the tree, so the document cannot drift into claims nobody can find.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const doc = readFileSync(join(ROOT, 'docs/15-threat-model.md'), 'utf8');
-const roadmap = readFileSync(join(ROOT, 'docs/dev/roadmap-p20.md'), 'utf8');
+// Every roadmap from phase 20 on defines RDY items (roadmap-p20.md, roadmap-p25.md, ...).
+const roadmap = readdirSync(join(ROOT, 'docs/dev'))
+  .filter((f) => /^roadmap-p\d+\.md$/.test(f) && Number(f.match(/\d+/)[0]) >= 20)
+  .map((f) => readFileSync(join(ROOT, 'docs/dev', f), 'utf8'))
+  .join('\n');
 
 const ROOTS = /^(crates|apps|deploy|scripts|docs|\.github|e2e|packages)\//;
 const tokens = [...doc.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
