@@ -119,6 +119,11 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
     keywords: 'invite code credits bring friends join link revoke',
   },
   {
+    section: 'storage',
+    label: 'Storage',
+    keywords: 'bucket s3 r2 b2 wasabi minio garage media shelf cors mount own storage',
+  },
+  {
     section: 'appearance',
     card: 'us-theme',
     label: 'Theme',

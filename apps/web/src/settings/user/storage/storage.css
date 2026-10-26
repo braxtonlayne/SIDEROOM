@@ -1,0 +1,145 @@
+/* Storage settings and the bucket browser (BYOS-UI-001). Semantic tokens only (--ui-*); no raw colours. */
+.sto-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+.sto-mount {
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.sto-mount-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sto-form {
+  display: grid;
+  gap: 12px;
+  max-inline-size: 36rem;
+}
+.sto-field {
+  display: grid;
+  gap: 4px;
+}
+.sto-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sto-badge {
+  padding-block: 1px;
+  padding-inline: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.sto-badge[data-status='active'] {
+  color: var(--ui-success);
+  border-color: var(--ui-success);
+}
+.sto-badge[data-status='failing'] {
+  color: var(--ui-danger);
+  border-color: var(--ui-danger);
+}
+.sto-table {
+  inline-size: 100%;
+  margin-block: 12px;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.sto-table caption {
+  text-align: start;
+  padding-block-end: 4px;
+}
+.sto-table th,
+.sto-table td {
+  padding-block: 4px;
+  padding-inline: 8px;
+  text-align: start;
+  border-block-end: 1px solid var(--ui-border);
+}
+.sto-table th {
+  inline-size: 6rem;
+  font-weight: 700;
+}
+.sto-table tr[data-status='pass'] th {
+  color: var(--ui-success);
+}
+.sto-table tr[data-status='warn'] th {
+  color: var(--ui-warning);
+}
+.sto-table tr[data-status='fail'] th {
+  color: var(--ui-danger);
+}
+.sto-cors {
+  margin-block-start: 12px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--ui-border);
+}
+.sto-rules {
+  margin-block: 4px 8px;
+  padding-inline-start: 20px;
+  font-size: 0.875rem;
+}
+.sto-policy pre {
+  margin-block: 4px;
+  padding: 8px;
+  overflow: auto;
+  max-block-size: 16rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  font-size: 0.75rem;
+}
+.sto-share-row {
+  flex-basis: 100%;
+}
+.sto-share {
+  margin-block-start: 12px;
+}
+.sto-share-title {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-muted);
+}
+.sto-browser {
+  max-inline-size: 60rem;
+  margin-inline: auto;
+  padding: 24px 16px;
+  color: var(--ui-text);
+  background: var(--ui-bg);
+}
+.sto-crumbs {
+  margin-block-end: 12px;
+}
+.sto-folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.sto-preview {
+  margin-block-start: 16px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+}
+.sto-img {
+  max-inline-size: 100%;
+  max-block-size: 24rem;
+}

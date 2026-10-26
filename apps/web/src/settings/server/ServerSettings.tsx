@@ -34,6 +34,7 @@ import { OverviewSection } from './sections/Overview';
 import { RolesSection } from './sections/Roles';
 import { ServerSupportSection } from './sections/ServerSupport';
 import { TagSection } from './sections/Tag';
+import { ServerStorageSection } from './storage/StorageSection';
 import { WatchLibrarySection } from './sections/WatchLibrary';
 
 export interface SectionProps {
@@ -148,6 +149,14 @@ export const SECTIONS: SectionDef[] = [
     group: 'APPS',
     visible: (v) => v.can('MANAGE_GUILD'),
     component: WatchLibrarySection,
+  },
+  {
+    id: 'storage',
+    label: 'settings.serverStorage.nav',
+    group: 'APPS',
+    // MANAGE_GUILD implies the `manage` storage grant (roadmap-p27 section 3); the server decides.
+    visible: (v) => v.can('MANAGE_GUILD'),
+    component: ServerStorageSection,
   },
   {
     id: 'integrations',

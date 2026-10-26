@@ -32,6 +32,7 @@ import { AuthorizedAppsSection } from './sections/AuthorizedApps';
 import { ConnectionsSection } from './sections/Connections';
 import { DevicesSection } from './sections/Devices';
 import { InvitesSection } from './sections/Invites';
+import { StorageSection } from './storage/StorageSection';
 import { KeybindsSection } from './sections/Keybinds';
 import { ModulesSection } from './sections/Modules';
 import { NotificationsSection } from './sections/Notifications';
@@ -174,6 +175,7 @@ function Body({
         {section === 'devices' && <DevicesSection onSignedOut={onSignedOut} />}
         {section === 'connections' && <ConnectionsSection />}
         {section === 'invites' && <InvitesSection />}
+        {section === 'storage' && <StorageSection />}
         {section === 'support' && <SupportSection />}
         {section === 'appearance' && <AppearanceSection {...prefsProps} />}
         {section === 'accessibility' && <AccessibilitySection {...prefsProps} />}
