@@ -66,16 +66,16 @@ function VersionCard({ v, onWithdraw }: { v: AppVersion; onWithdraw: (v: AppVers
           {v.reviewer_note}
         </Notice>
       )}
-      {v.diff.changed.length > 0 && (
+      {v.diff.length > 0 && (
         <details>
           <summary>
             {t('developers.review.whatChanged', {
               version: v.version,
-              count: v.diff.changed.length,
+              count: v.diff.length,
             })}
           </summary>
           <ul className="dev-diff">
-            {v.diff.changed.map((c) => (
+            {v.diff.map((c) => (
               <li key={c.key}>
                 <code>{c.key}</code>: <del>{show(c.old)}</del> <ins>{show(c.new)}</ins>
               </li>

@@ -99,7 +99,8 @@ export interface AppVersion {
   state: VersionState;
   needs_review: boolean;
   needs_review_reasons: ('scopes' | 'redirect_uris' | 'intents' | 'first_release')[];
-  diff: { changed: { key: string; old: unknown; new: unknown }[] };
+  /** `[{key, old, new}]` against the last approved manifest, as the API sends it (an array, not an object). */
+  diff: { key: string; old: unknown; new: unknown }[];
   note: string | null;
   reviewer_note: string | null;
   created_at: string;

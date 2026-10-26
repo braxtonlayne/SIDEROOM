@@ -20,7 +20,8 @@ jobs:
   playwright:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 45: WebKit took 26 minutes before the two exit-gate specs got their own step (RDY-DEV-005, RDY-MOD-001).
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -32,19 +33,40 @@ jobs:
         run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
       - name: Migrate, start the server, run Playwright
         # global-setup.ts bootstraps the Owner; e2e-run.sh starts sr-server and stops it afterwards.
+        # The two exit gates (tagged @gate) run in the next step on a server of their own: registration allows 20
+        # accounts per address and day, counted in memory, and the gates register seven between them.
         run: |
           ./target/debug/sr-cli migrate
-          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }}
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep-invert @gate
         env:
           CI: "true"
+      - name: Exit gates of phase 6 and 7 (developer-gate, moderation-gate)
+        # RDY-DEV-005: portal, OAuth2 install, a bot answers a slash command, a reviewed release installs on a second
+        # server. RDY-MOD-001: report, case, ban, appeal, takedown and counter-notice, duplicate account, data request
+        # export and erasure, audit and access log. Both need the gateway and the REST API only (no voice, no
+        # Activities); staff reauth stays ON (the gate enrols a second factor). A failure in the main step above must not
+        # hide these, and the other way round, so each step reports on its own.
+        #
+        # The report, the traces and the server log go to files of their own, so this run does not overwrite those of the
+        # main step.
+        if: ${{ !cancelled() }}
+        run: |
+          mv server.log server-main.log 2>/dev/null || true
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep @gate --output=test-results-gate
+        env:
+          CI: "true"
+          PLAYWRIGHT_HTML_REPORT: playwright-report-gate
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: e2e-${{ matrix.browser }}
           path: |
             e2e/playwright-report
+            e2e/playwright-report-gate
             e2e/test-results
+            e2e/test-results-gate
             server.log
+            server-main.log
 
   # VOX-E2E-003, DEV-ACT-001, D-243/D-244: features that need the SFU, voice E2EE and Activities switched on.
   # One sr-server run per suite (registration allows 20 accounts per address and day, counted in memory).
