@@ -77,7 +77,9 @@ const BOGUS: &str = "900000000000000001";
 /// Admin is 28 since R-07 (D-366): the weak refusals there are one per appointed actor on
 /// `POST /admin/review/submissions/{submission_id}/publish-now`, and the merge rows added the pair actor
 /// `staff_publish_media_and_delete_content`; the seed did not get worse.
-const WEAK_CEILING: [usize; 6] = [0, 28, 12, 0, 8, 79];
+/// RDY-SEC-011 (P25): the control for a write route is now the write phase's own answer (a rightful actor
+/// on a real resource), so a 404 next to it is a real refusal: the ceilings fell to 0, 0, 0, 0, 0 and 16.
+const WEAK_CEILING: [usize; 6] = [0, 0, 0, 0, 0, 16];
 
 /// The groups in RDY-SEC-003 order.
 const GROUPS: [&str; 6] = [
@@ -2649,6 +2651,12 @@ fn outsider_exception(r: &Route) -> Option<&'static str> {
         // Custom emoji are drawn in messages that anyone may read; this lookup gives the name and
         // whether it is animated, and names no server (`guild` is null for a non-member).
         ("GET", "/sr/emojis/{emoji_id}") => Some("public emoji metadata, no server named"),
+        // The client learns from `member: false` that it was dropped (a sleeping laptop, a removal) and says so.
+        // A stranger gets the same answer with a neutral playback and nothing about the party; the service test
+        // `a_heartbeat_from_a_stranger_reveals_no_playback` pins that.
+        ("POST", "/watch-parties/{party_id}/heartbeat") => {
+            Some("a non-member is told member:false with a neutral playback, the dropped participant's signal")
+        }
         _ => None,
     }
 }
@@ -3212,7 +3220,7 @@ const WRITE_OBSERVED_LEN: usize = 42;
 
 /// Admitted writes that answered 400 or 422 per group, in the order of [`GROUPS`]: the request shape was
 /// refused before the permission check ran. Like [`WEAK_CEILING`], the numbers only go down.
-const SHAPE_CEILING: [usize; 6] = [usize::MAX; 6];
+const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 45];
 
 /// Rightful actors that differ from [`control_of`]'s rule, by route.
 fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
