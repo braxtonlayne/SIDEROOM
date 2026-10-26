@@ -228,7 +228,7 @@ fn manual_report(provider: Provider, origin: &str) -> CorsReport {
 /// Write the required rule for `origin` and check again. A service that refuses the API answers `manual`.
 pub async fn apply(admin: &S3Admin, provider: Provider, origin: &str) -> crate::Result<CorsReport> {
     let origin = normalize_origin(origin)?;
-    let put = admin.put_bucket_cors_raw(&[origin.clone()]).await?;
+    let put = admin.put_bucket_cors_raw(std::slice::from_ref(&origin)).await?;
     if !put.ok() {
         if unsupported(&put) {
             return Ok(manual_report(provider, &origin));
