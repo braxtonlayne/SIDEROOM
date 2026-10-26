@@ -100,6 +100,9 @@
   color: var(--ui-text);
   font-size: 0.75rem;
 }
+.sto-share-row {
+  flex-basis: 100%;
+}
 .sto-share {
   margin-block-start: 12px;
 }

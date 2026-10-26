@@ -4,6 +4,7 @@ import { friendsOf, useSocial } from '../../../lounge/shell/social';
 import { useT } from '../../../i18n';
 import { storageErrorText } from './errors';
 import { deleteShare, listMounts, listShares, putShare } from './api';
+import './storage.css';
 import { SHARE_KINDS, type Mount, type ShareKind } from './types';
 
 type Flags = Record<ShareKind, boolean>;
@@ -14,7 +15,14 @@ const NONE: Flags = { cinema: false, library: false, music: false };
  * friends only, and only when the viewer has an active mount; the server refuses anything else and
  * revokes every share when the friendship ends.
  */
-export function FriendShelfShare({ userId }: { userId: string }) {
+export function FriendShelfShare({
+  userId,
+  showEmpty = false,
+}: {
+  userId: string;
+  /** Say why nothing shows (no active bucket) instead of rendering nothing. */
+  showEmpty?: boolean;
+}) {
   const t = useT();
   const rows = useSocial((s) => s.relationships);
   const isFriend = friendsOf(rows).some((r) => r.id === userId);
@@ -22,6 +30,7 @@ export function FriendShelfShare({ userId }: { userId: string }) {
   const [flags, setFlags] = useState<Flags>(NONE);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!isFriend) return;
@@ -36,6 +45,8 @@ export function FriendShelfShare({ userId }: { userId: string }) {
         setFlags(s ? { cinema: s.cinema, library: s.library, music: s.music } : NONE);
       } catch {
         /* no shelf, or not available yet: the toggle simply does not show */
+      } finally {
+        if (live) setLoaded(true);
       }
     })();
     return () => {
@@ -43,7 +54,11 @@ export function FriendShelfShare({ userId }: { userId: string }) {
     };
   }, [isFriend, userId]);
 
-  if (!isFriend || !mount) return null;
+  if (!isFriend) return null;
+  if (!mount)
+    return showEmpty && loaded ? (
+      <p className="us-muted">{t('settings.storageShare.noBucket')}</p>
+    ) : null;
 
   const toggle = async (kind: ShareKind, on: boolean) => {
     const next = { ...flags, [kind]: on };

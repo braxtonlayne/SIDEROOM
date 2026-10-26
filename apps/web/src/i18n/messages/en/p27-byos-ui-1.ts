@@ -14,6 +14,8 @@ export default {
   'settings.storageGrants.grant.viewMusic': 'View shelf music',
   'settings.storageGrants.grant.upload': 'Upload to the shelf',
   'settings.storageGrants.grant.manage': 'Manage storage',
+  'settings.storageShare.menu': 'Share my Media Shelf…',
+  'settings.storageShare.noBucket': 'Connect a bucket in Settings > Storage to share a shelf.',
   'settings.storageShare.title': 'Share my Media Shelf',
   'settings.storageShare.failed': 'Could not change what you share',
   'settings.storageShare.kind.cinema': 'Cinema',
