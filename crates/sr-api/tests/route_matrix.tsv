@@ -75,6 +75,7 @@ DELETE	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	me
 DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/storage/mounts/{mount_id}	authenticated	membership	deny	-	-
 DELETE	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
@@ -120,6 +121,7 @@ DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/storage/mounts/{mount_id}	authenticated	self	deny	-	-
 DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-	-
 DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-	-
@@ -369,6 +371,7 @@ GET	/guilds/{guild_id}/stage-instances	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/storage/mounts	authenticated	membership	deny	-	-
 GET	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/support	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
@@ -518,6 +521,7 @@ GET	/users/@me/reminders	authenticated	self	deny	-	-
 GET	/users/@me/scheduled-messages	authenticated	self	deny	-	-
 GET	/users/@me/settings	authenticated	self	deny	-	-
 GET	/users/@me/sr/features	authenticated	self	deny	-	-
+GET	/users/@me/storage/mounts	authenticated	self	deny	-	-
 GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
 GET	/users/{user_id}/profile	authenticated	user	allow	-	-
 GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-	-
@@ -562,6 +566,7 @@ PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/sr/profile	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/storage/mounts/{mount_id}	authenticated	membership	deny	-	-
 PATCH	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
@@ -586,6 +591,7 @@ PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
 PATCH	/users/@me/settings	authenticated	self	deny	-	-
 PATCH	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
+PATCH	/users/@me/storage/mounts/{mount_id}	authenticated	self	deny	-	-
 PATCH	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
 PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-	-
 PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-	-
@@ -763,6 +769,7 @@ POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	
 POST	/guilds/{guild_id}/sr/slowmode/apply	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/sr/temp-roles	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/storage/mounts	authenticated	membership	deny	-	-
 POST	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/tickets	authenticated	membership	allow	-	-
@@ -857,6 +864,7 @@ POST	/users/@me/profile-media	authenticated	self	deny	-	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-	-
 POST	/users/@me/relationships	authenticated	self	deny	-	-
 POST	/users/@me/reminders	authenticated	self	deny	-	-
+POST	/users/@me/storage/mounts	authenticated	self	deny	-	-
 POST	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
 POST	/watch-parties	authenticated	party_access	allow	-	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	party_member	allow	-	-
