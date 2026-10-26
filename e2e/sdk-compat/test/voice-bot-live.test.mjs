@@ -27,3 +27,11 @@ test('every missing step is named', () => {
   assert.match(verdict(good.replace('frames=900', 'frames=0'), 0).join(), /no frame was sent/);
   assert.match(verdict('', 0).join(), /VOICE_SERVER_UPDATE/);
 });
+
+test('the partner must have decoded a tone from the other bot, not silence (DEV-FU-002)', () => {
+  const heard = (line) => verdict(`${good}\n${line}`, 0, { heardFrom: '42' });
+  assert.deepEqual(heard('42 spoke 57 bytes (-12 dBov)'), []);
+  assert.match(heard('42 spoke 57 bytes (-127 dBov)').join(), /never decrypted a frame from 42/);
+  assert.match(heard('42 spoke 60 bytes').join(), /never decrypted a frame from 42/);
+  assert.match(heard('43 spoke 57 bytes (-12 dBov)').join(), /never decrypted a frame from 42/);
+});

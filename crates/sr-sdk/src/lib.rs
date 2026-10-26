@@ -12,6 +12,8 @@
 //!
 //! See `examples/echo_bot.rs`. Transports are traits, so tests need no network.
 
+#[cfg(feature = "voice-opus")]
+pub mod audio;
 pub mod cache;
 pub mod client;
 pub mod command;

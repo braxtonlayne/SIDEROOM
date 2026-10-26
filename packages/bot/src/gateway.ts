@@ -91,6 +91,12 @@ export class Shard {
   private sessionId: string | undefined;
   private resumeUrl: string | undefined;
   private seq: number | null = null;
+  /**
+   * The last op 4 body that joined a voice channel as sent (DEV-FU-001, U-06 (a)). The server forgets voice state
+   * with a session that cannot be resumed, so it is sent again after the fresh READY that follows; a leave
+   * (null `channel_id`) clears it. Same as the Rust shard (`crates/sr-sdk/src/gateway.rs`).
+   */
+  private voiceJoin: string | undefined;
   private acked = true;
   private heartbeat: ReturnType<typeof setInterval> | undefined;
   private retry: ReturnType<typeof setTimeout> | undefined;
@@ -133,8 +139,22 @@ export class Shard {
   /** Send an op (for example REQUEST_GUILD_MEMBERS) on the open connection. False if not open. */
   send(op: number, d: unknown): boolean {
     if (!this.socket || !this.sessionId) return false;
-    this.socket.send(JSON.stringify({ op, d }));
+    const frame = JSON.stringify({ op, d });
+    this.socket.send(frame);
+    if (op === OP.VOICE_STATE_UPDATE) {
+      const channel = (d as { channel_id?: unknown } | null | undefined)?.channel_id;
+      this.voiceJoin = channel === null || channel === undefined ? undefined : frame;
+    }
     return true;
+  }
+
+  /**
+   * Forget the session and connect again with IDENTIFY, as after a server INVALID_SESSION (false). The voice
+   * join, if any, is sent again after the fresh READY (DEV-FU-001). For a caller that knows its session is
+   * stale, and for the fresh-session case of `voice.live.test.ts`.
+   */
+  reidentify(): void {
+    this.reconnect(false);
   }
 
   destroy(): void {
@@ -210,6 +230,11 @@ export class Shard {
           this.backoff = this.o.minBackoffMs ?? 1000;
         }
         this.o.onDispatch(this.o.shard[0], name, p.d);
+        // READY is only ever the answer to an IDENTIFY (a RESUME is answered by RESUMED), so this is a session
+        // without the old voice state: join the channel again.
+        if (name === 'READY' && this.voiceJoin !== undefined && this.socket === socket) {
+          socket.send(this.voiceJoin);
+        }
         return;
       }
       case OP.HEARTBEAT:
