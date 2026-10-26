@@ -2484,16 +2484,15 @@ async fn seed(
                     j.body.chars().take(140).collect::<String>()
                 );
             }
-            let mut q = srv
-                .call(
-                    &member_cred,
-                    "POST",
-                    &format!("/watch-parties/{party}/queue"),
-                    Some(&json!({"title_id": t})),
-                )
-                .await;
+            srv.call(
+                &member_cred,
+                "POST",
+                &format!("/watch-parties/{party}/queue"),
+                Some(&json!({"title_id": t})),
+            )
+            .await;
             // Two items: the write phase's `next` plays the first.
-            q = srv
+            let q = srv
                 .call(
                     &member_cred,
                     "POST",
