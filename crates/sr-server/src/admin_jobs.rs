@@ -39,6 +39,13 @@ pub const STORAGE_MEASURE_JOB_ID: i64 = 133;
 pub const STORAGE_MEASURE_KIND: &str = "storage.measure";
 const STORAGE_HOUR_UTC: u32 = 5;
 const STORAGE_MINUTE_UTC: u32 = 20;
+
+/// Daily CORS recheck singleton (BYOS-MNT-003): reads every live mount's bucket CORS rules, stamps `cors_ok_at` or
+/// marks the mount failing with the reason.
+pub const CORS_RECHECK_JOB_ID: i64 = 134;
+pub const CORS_RECHECK_KIND: &str = "storage.cors_recheck";
+const CORS_HOUR_UTC: u32 = 5;
+const CORS_MINUTE_UTC: u32 = 40;
 /// The walk stops after this long and stores what it has, flagged as a lower bound.
 pub const STORAGE_WALK_BUDGET: Duration = Duration::from_secs(60);
 /// The default of `ops.storage_measure_max_objects`, used when the setting cannot be read.
@@ -144,6 +151,14 @@ pub async fn schedule(pool: &PgPool) -> DbResult<()> {
         jobs::delay_until_daily_utc(now_ms(), STORAGE_HOUR_UTC, STORAGE_MINUTE_UTC),
     )
     .await?;
+    jobs::schedule_singleton(
+        pool,
+        CORS_RECHECK_JOB_ID,
+        CORS_RECHECK_KIND,
+        &json!({}),
+        jobs::delay_until_daily_utc(now_ms(), CORS_HOUR_UTC, CORS_MINUTE_UTC),
+    )
+    .await?;
     Ok(())
 }
 
@@ -240,6 +255,59 @@ pub fn register_storage_measure(
                 &pool,
                 job.id,
                 jobs::delay_until_daily_utc(now_ms(), STORAGE_HOUR_UTC, STORAGE_MINUTE_UTC),
+            )
+            .await?;
+            Ok(())
+        })
+    })
+}
+
+/// Register the `storage.cors_recheck` handler; pair with [`schedule`].
+pub fn register_cors_recheck(
+    runner: JobRunner,
+    pool: &PgPool,
+    repo: Arc<dyn sr_storage::mounts::MountRepo>,
+    sealer: Arc<dyn sr_storage::mounts::Sealer>,
+    origin: String,
+) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(CORS_RECHECK_KIND, 1, move |job: Job| {
+        let (pool, repo, sealer, origin) =
+            (pool.clone(), repo.clone(), sealer.clone(), origin.clone());
+        Box::pin(async move {
+            if let Ok(origin) = sr_storage::s3admin::normalize_origin(&origin) {
+                let iso = |ms: i64| sr_api::routes::developer::iso(ms);
+                match sr_storage::recheck::recheck_all(
+                    repo.as_ref(),
+                    sealer.as_ref(),
+                    &origin,
+                    now_ms(),
+                    &iso,
+                )
+                .await
+                {
+                    Ok(done) => {
+                        let bad = done
+                            .iter()
+                            .filter(|d| {
+                                !matches!(d.result, Ok(sr_storage::cors_check::CorsState::Ok))
+                            })
+                            .count();
+                        tracing::info!(
+                            mounts = done.len(),
+                            not_ok = bad,
+                            "storage mounts CORS rechecked"
+                        );
+                    }
+                    Err(e) => tracing::warn!(error = %e, "storage mounts CORS recheck failed"),
+                }
+            } else {
+                tracing::warn!("server.public_url is not an origin; CORS recheck skipped");
+            }
+            jobs::reschedule_running(
+                &pool,
+                job.id,
+                jobs::delay_until_daily_utc(now_ms(), CORS_HOUR_UTC, CORS_MINUTE_UTC),
             )
             .await?;
             Ok(())
@@ -618,6 +686,22 @@ mod tests {
             })
             .sum();
         assert_eq!(uses, 1, "{STORAGE_MEASURE_KIND} is declared once");
+        // The CORS recheck (BYOS-MNT-003): its id and kind are declared once too.
+        let ours: Vec<_> = ids
+            .iter()
+            .filter(|(n, _)| *n == CORS_RECHECK_JOB_ID)
+            .collect();
+        assert_eq!(ours.len(), 1, "{ours:?}");
+        let kind = format!("\"{CORS_RECHECK_KIND}\"");
+        let uses: usize = files
+            .iter()
+            .map(|(_, t)| {
+                t.lines()
+                    .filter(|l| l.contains("_KIND: &str = ") && l.contains(&kind))
+                    .count()
+            })
+            .sum();
+        assert_eq!(uses, 1, "{CORS_RECHECK_KIND} is declared once");
         // The setting key is in the catalog once and the lookup finds it.
         let key = sr_admin::settings::OPS_STORAGE_MEASURE_MAX_OBJECTS;
         assert_eq!(

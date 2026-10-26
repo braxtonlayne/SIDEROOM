@@ -13,6 +13,7 @@ pub mod media;
 pub mod mount_cache;
 pub mod mounts;
 pub mod probe;
+pub mod recheck;
 pub mod s3admin;
 pub mod s3multipart;
 pub mod storage;

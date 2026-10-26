@@ -404,3 +404,128 @@ async fn a_manual_provider_whose_preflight_works_counts_as_ok() {
             .any(|l| l.starts_with("OPTIONS /shelf/.sideroom-probe"))
     );
 }
+
+// ---------------------------------------------------------------- the daily recheck
+
+use sr_storage::mounts::{
+    MemoryMountRepo, MountError, MountInput, MountOwner, MountPatch, MountRepo, MountResolver,
+    MountStatus, NewMount, Sealer, Secret,
+};
+use sr_storage::recheck::recheck_all;
+
+struct PlainSealer;
+impl Sealer for PlainSealer {
+    fn seal(&self, aad: &[u8], plain: &[u8]) -> Result<Vec<u8>, MountError> {
+        let mut v = aad.to_vec();
+        v.push(b'|');
+        v.extend_from_slice(plain);
+        Ok(v)
+    }
+    fn open(&self, aad: &[u8], blob: &[u8]) -> Result<Vec<u8>, MountError> {
+        blob.strip_prefix(aad)
+            .and_then(|r| r.strip_prefix(b"|"))
+            .map(<[u8]>::to_vec)
+            .ok_or(MountError::Unseal)
+    }
+}
+
+fn new_mount(id: i64, endpoint: &str) -> NewMount {
+    NewMount::seal(
+        &PlainSealer,
+        id,
+        MountInput {
+            owner: MountOwner::User(id),
+            label: format!("m{id}"),
+            provider: Provider::Garage,
+            endpoint: endpoint.to_owned(),
+            region: "garage".into(),
+            bucket: "shelf".into(),
+            prefix: String::new(),
+            path_style: true,
+            access_key_id: "GKexample".into(),
+        },
+        &Secret::new("secretexample"),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn the_recheck_stamps_ok_marks_failing_and_recovers() {
+    let (good_h, good_doc) = cors_store();
+    let (good, _) = fake_s3(good_h).await;
+    let (bad_h, _) = cors_store();
+    let (bad, _) = fake_s3(bad_h).await;
+    // A mount whose server is down: the job leaves it alone.
+    let port = {
+        let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        l.local_addr().unwrap().port()
+    };
+    let down = format!("http://127.0.0.1:{port}");
+
+    let repo = MemoryMountRepo::new();
+    repo.create(new_mount(1, &good), None).await.unwrap();
+    repo.create(new_mount(2, &bad), None).await.unwrap();
+    repo.create(new_mount(3, &down), None).await.unwrap();
+    repo.set_cors_ok(3, Some(7)).await.unwrap();
+    // Mount 1 has the right rule, 2 has none.
+    *good_doc.lock().unwrap() = Some(sr_storage::s3admin::cors_xml(&[ORIGIN.to_owned()]).unwrap());
+
+    let iso = |ms: i64| format!("t{ms}");
+    let res = recheck_all(&repo, &PlainSealer, ORIGIN, 1000, &iso)
+        .await
+        .unwrap();
+    let state = |id| res.iter().find(|r| r.id == id).unwrap().result.clone();
+    assert_eq!(state(1), Ok(CorsState::Ok));
+    assert_eq!(state(2), Ok(CorsState::Missing));
+    assert!(state(3).is_err());
+
+    let m1 = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(
+        (m1.status, m1.cors_ok_at),
+        (MountStatus::Active, Some(1000))
+    );
+    let m2 = repo.by_id(2).await.unwrap().unwrap();
+    assert_eq!((m2.status, m2.cors_ok_at), (MountStatus::Failing, None));
+    assert!(m2.last_test.unwrap().contains("Apply CORS"));
+    let m3 = repo.by_id(3).await.unwrap().unwrap();
+    assert_eq!((m3.status, m3.cors_ok_at), (MountStatus::Active, Some(7)));
+
+    // The owner fixes mount 2's bucket: the next run brings it back to active.
+    let (fixed_h, fixed_doc) = cors_store();
+    let (fixed, _) = fake_s3(fixed_h).await;
+    *fixed_doc.lock().unwrap() = Some(sr_storage::s3admin::cors_xml(&[ORIGIN.to_owned()]).unwrap());
+    repo.update(
+        2,
+        MountPatch {
+            endpoint: Some(fixed),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 2000, &iso)
+        .await
+        .unwrap();
+    let m2 = repo.by_id(2).await.unwrap().unwrap();
+    assert_eq!(
+        (m2.status, m2.cors_ok_at),
+        (MountStatus::Active, Some(2000))
+    );
+
+    // A disabled mount is not touched.
+    repo.update(
+        1,
+        MountPatch {
+            status: Some(MountStatus::Disabled),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    *good_doc.lock().unwrap() = None;
+    let res = recheck_all(&repo, &PlainSealer, ORIGIN, 3000, &iso)
+        .await
+        .unwrap();
+    assert!(res.iter().all(|r| r.id != 1));
+    assert_eq!(repo.by_id(1).await.unwrap().unwrap().cors_ok_at, Some(2000));
+}

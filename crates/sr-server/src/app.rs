@@ -1092,10 +1092,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // BYOS storage mounts (BYOS-MNT-001): the member's and the server's own buckets, credentials sealed
     // with the server secret.
+    let byos_mount_repo: Arc<dyn sr_storage::mounts::MountRepo> =
+        Arc::new(sr_db::mounts_repo::PgMountRepo::new(pool.clone()));
+    let byos_mount_sealer: Arc<dyn sr_storage::mounts::Sealer> =
+        Arc::new(sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys));
     let mounts_deps = Arc::new(
         routes::storage::mounts::MountsDeps::new(
-            Arc::new(sr_db::mounts_repo::PgMountRepo::new(pool.clone())),
-            Arc::new(sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys)),
+            byos_mount_repo.clone(),
+            byos_mount_sealer.clone(),
             {
                 let ids = ids.clone();
                 Arc::new(move || ids.generate().get())
@@ -1533,6 +1537,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner =
         crate::admin_jobs::register_storage_measure(runner, &pool, id_src.clone(), storage.clone());
+    let runner = crate::admin_jobs::register_cors_recheck(
+        runner,
+        &pool,
+        byos_mount_repo.clone(),
+        byos_mount_sealer.clone(),
+        cfg.server.public_url.clone(),
+    );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
