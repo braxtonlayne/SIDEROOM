@@ -1,6 +1,6 @@
 import { apiFetch, apiPost } from '../api/client';
 
-// Read side of BYOS-SCP-002 (ASSUMED shapes, see docs/dev/handoff/feat-p27-byos-ui.md).
+// Read side of BYOS-SCP-002; shapes checked against the merged OpenAPI (ObjectList, ObjectEntry, PresignView).
 
 export interface ObjectEntry {
   key: string;

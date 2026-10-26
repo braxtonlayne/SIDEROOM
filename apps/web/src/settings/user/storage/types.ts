@@ -1,5 +1,5 @@
-// Wire shapes ASSUMED for BYOS-MNT-001..003 (roadmap-p27.md section 5). byos-core must match these;
-// they are listed in docs/dev/handoff/feat-p27-byos-ui.md. The secret key is never returned: the view
+// Wire shapes of BYOS-MNT-001..003 (roadmap-p27.md section 5), checked against the merged OpenAPI
+// (MountObject, CreateMountBody, TestResultObject, CorsResultObject, ShareView) at the wave-27 integration. The secret key is never returned: the view
 // carries the access key id and `key_hint` (the last four characters of the ACCESS KEY ID, never of the secret).
 
 export type MountProvider = 's3' | 'r2' | 'b2' | 'minio' | 'wasabi' | 'garage';

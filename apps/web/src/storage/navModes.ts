@@ -4,14 +4,14 @@ import { usePrefsStore, type NavMode } from '../settings/user/prefs';
 
 /**
  * `GET /users/@me/shelves/summary` (BYOS-SCP-001): counts per kind of what the viewer can reach through
- * shelves. `catalog` (counts of the instance catalog visible to the viewer) is ASSUMED so Auto can tell
+ * shelves. `catalog` (counts of the instance catalog visible to the viewer) is optional (null or absent when the count query fails) so Auto can tell
  * "nothing anywhere" from "nothing on shelves"; when it is absent Auto keeps the tab (fail visible).
  */
 export interface ShelvesSummary {
   cinema: number;
   library: number;
   music: number;
-  catalog?: { cinema: number; library: number };
+  catalog?: { cinema: number; library: number } | null;
 }
 export const getShelvesSummary = () =>
   apiFetch<ShelvesSummary>('/users/@me/shelves/summary', { retries: 0 });
