@@ -3109,8 +3109,15 @@ async fn fingerprint(pool: &sqlx::PgPool) -> BTreeMap<String, String> {
             continue;
         }
         let strip: String = STAMPS.iter().map(|c| format!(" - '{c}'")).collect();
+        // The system user's direct messages (a staff offer, a tester invite) are written and updated by the
+        // server's own tasks at times of their choosing; no refused call is theirs.
+        let own = if t == "messages" || t.starts_with("messages_") {
+            format!(" WHERE x.author_id <> {SYSTEM_USER_ID}")
+        } else {
+            String::new()
+        };
         let sql = format!(
-            "SELECT md5(coalesce(string_agg((to_jsonb(x){strip})::text, '|' ORDER BY (to_jsonb(x){strip})::text), '')) FROM \"{t}\" x"
+            "SELECT md5(coalesce(string_agg((to_jsonb(x){strip})::text, '|' ORDER BY (to_jsonb(x){strip})::text), '')) FROM \"{t}\" x{own}"
         );
         let h: Result<String, _> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
             .fetch_one(pool)
@@ -3677,13 +3684,19 @@ async fn run_group(
         .partition(|c| class_of(&routes[c.route].method) == 0);
     // Let what the seed set going (a staff offer's direct message, a notification job) land first.
     let mut before = fingerprint(&world.pool).await;
-    for _ in 0..10 {
+    let mut steady = 0;
+    for _ in 0..30 {
         tokio::time::sleep(Duration::from_millis(400)).await;
         let again = fingerprint(&world.pool).await;
         if again == before {
-            break;
+            steady += 1;
+            if steady == 6 {
+                break;
+            }
+        } else {
+            steady = 0;
+            before = again;
         }
-        before = again;
     }
     let mut group_fail = 0usize;
     let mut n = 0usize;
@@ -3776,8 +3789,14 @@ async fn run_group(
             let changed = diff(&before, &after);
             if !changed.is_empty() {
                 group_fail += 1;
+                let latest: Vec<(i64, i64, String)> = sqlx::query_as(
+                    "SELECT id, channel_id, left(content, 80) FROM messages ORDER BY id DESC LIMIT 3",
+                )
+                .fetch_all(&world.pool)
+                .await
+                .unwrap_or_default();
                 failures.push(format!(
-                    "[{gname}] refused calls changed tables: {changed:?}"
+                    "[{gname}] refused calls changed tables: {changed:?} (newest messages: {latest:?})"
                 ));
             }
         }
