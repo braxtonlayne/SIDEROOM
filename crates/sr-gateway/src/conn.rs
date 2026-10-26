@@ -53,6 +53,10 @@ struct Conn {
     window_ops: u32,
     /// Earliest time a heartbeat may mark the user seen again.
     next_seen: Instant,
+    /// Last frame of any kind from the client, and the longest a write to it blocked: logged when the
+    /// server closes the connection, to tell a silent client from a stalled write path (RDY-VOX-002).
+    last_in: Instant,
+    send_blocked_max: std::time::Duration,
 }
 
 /// A live session refreshes the user's `last_seen_at` at most this often (D-166).
@@ -90,6 +94,8 @@ pub async fn run_connection(
         window_start: Instant::now(),
         window_ops: 0,
         next_seen: Instant::now(),
+        last_in: Instant::now(),
+        send_blocked_max: std::time::Duration::ZERO,
     };
     let stop = c.run(&mut incoming, &mut session_rx).await;
     // Which side ended a gateway connection, and why (RDY-VOX-002: run 40237146331 lost five members'
@@ -102,6 +108,9 @@ pub async fn run_connection(
                 ?user,
                 code,
                 reason,
+                silent_ms = u64::try_from(c.last_in.elapsed().as_millis()).unwrap_or(u64::MAX),
+                send_blocked_max_ms =
+                    u64::try_from(c.send_blocked_max.as_millis()).unwrap_or(u64::MAX),
                 "gateway connection closed by the server"
             );
         }
@@ -142,7 +151,10 @@ impl Conn {
                 m = session_rx.recv(), if self.session.is_some() => match m {
                     Some(Out::Frame(t)) => {
                         self.record_dispatch_bytes(t.len());
-                        self.send_text(t.to_string()).await
+                        let started = Instant::now();
+                        let r = self.send_text(t.to_string()).await;
+                        self.send_blocked_max = self.send_blocked_max.max(started.elapsed());
+                        r
                     }
                     Some(Out::Reconnect) => {
                         let _ = self.send_text(Payload::new(op::RECONNECT, Value::Null).to_text()).await;
@@ -151,14 +163,17 @@ impl Conn {
                     // Taken over by a newer connection, or fell too far behind.
                     None => Err(Stop::Close(close::UNKNOWN_ERROR, "session detached")),
                 },
-                f = incoming.recv() => match f {
-                    None | Some(Frame::Close { .. }) => Err(Stop::Gone),
-                    Some(Frame::Binary(_)) => Err(Stop::Close(close::DECODE_ERROR, "binary frames unsupported")),
-                    Some(Frame::Text(_)) if !self.count_op() => {
-                        Err(Stop::Close(close::RATE_LIMITED, "rate limited"))
+                f = incoming.recv() => {
+                    self.last_in = Instant::now();
+                    match f {
+                        None | Some(Frame::Close { .. }) => Err(Stop::Gone),
+                        Some(Frame::Binary(_)) => Err(Stop::Close(close::DECODE_ERROR, "binary frames unsupported")),
+                        Some(Frame::Text(_)) if !self.count_op() => {
+                            Err(Stop::Close(close::RATE_LIMITED, "rate limited"))
+                        }
+                        Some(Frame::Text(t)) => self.on_text(&t, session_rx).await,
                     }
-                    Some(Frame::Text(t)) => self.on_text(&t, session_rx).await,
-                },
+                }
             };
             if let Err(s) = step {
                 return s;

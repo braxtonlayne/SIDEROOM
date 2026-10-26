@@ -66,19 +66,146 @@ interface Snapshot {
   voiceSockets: number;
 }
 
-/** Counts the page's /voice/ws sockets (an SFU restart would reopen every member's). */
+/**
+ * Counts the page's /voice/ws sockets (an SFU restart would reopen every member's), and keeps a log of every
+ * gateway and voice socket (RDY-VOX-002, run 40246851668: gateways timed out with 4009 and voice sockets missed
+ * their heartbeats while the pages still painted): opens, closes with code, heartbeats sent and acked, identify /
+ * resume, per-socket frame and byte counts, the main thread's timer lag and visibility changes.
+ */
 async function trackVoiceSockets(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as { __voiceSockets: WebSocket[] };
+    type Ev = {
+      t: number;
+      s: number;
+      k: string;
+      e: string;
+      code?: number;
+      why?: string;
+      buffered?: number;
+    };
+    const w = window as unknown as {
+      __voiceSockets: WebSocket[];
+      __wsLog: Ev[];
+      __wsStats: Record<number, Record<string, number | string>>;
+      __lag: { at: number; maxMs: number }[];
+    };
     w.__voiceSockets = [];
+    w.__wsLog = [];
+    w.__wsStats = {};
+    w.__lag = [];
+    const log = (ev: Ev) => {
+      w.__wsLog.push(ev);
+      if (w.__wsLog.length > 600) w.__wsLog.splice(0, 100);
+    };
+    // Main-thread timer lag: a 250 ms interval, worst drift per 5 s bucket (only buckets over 1 s are kept).
+    let last = Date.now();
+    let bucket = { at: last, maxMs: 0 };
+    setInterval(() => {
+      const now = Date.now();
+      bucket.maxMs = Math.max(bucket.maxMs, now - last - 250);
+      last = now;
+      if (now - bucket.at >= 5000) {
+        if (bucket.maxMs > 1000) w.__lag.push(bucket);
+        if (w.__lag.length > 200) w.__lag.shift();
+        bucket = { at: now, maxMs: 0 };
+      }
+    }, 250);
+    document.addEventListener('visibilitychange', () =>
+      log({ t: Date.now(), s: 0, k: 'page', e: `visibility ${document.visibilityState}` }),
+    );
+    const opOf = (d: unknown): number | null => {
+      if (typeof d !== 'string' || d.length > 400) return null;
+      const m = /"op"\s*:\s*(\d+)/.exec(d);
+      return m ? Number(m[1]) : null;
+    };
+    let ids = 0;
     const Native = window.WebSocket;
     window.WebSocket = class extends Native {
       constructor(url: string | URL, protocols?: string | string[]) {
         super(url, protocols);
-        if (/\/voice\/ws/.test(String(url))) w.__voiceSockets.push(this);
+        const u = String(url);
+        const k = /\/voice\/ws/.test(u) ? 'voice' : /\/gateway/.test(u) ? 'gw' : 'other';
+        if (k === 'voice') w.__voiceSockets.push(this);
+        if (k === 'other') return;
+        const s = ++ids;
+        const st: Record<string, number | string> = {
+          url: u.replace(/token=[^&]*/, 'token=x'),
+          created: Date.now(),
+          in: 0,
+          out: 0,
+          bytesIn: 0,
+          bytesOut: 0,
+          lastIn: 0,
+          lastOut: 0,
+        };
+        w.__wsStats[s] = st;
+        log({ t: Date.now(), s, k, e: 'create' });
+        this.addEventListener('open', () => log({ t: Date.now(), s, k, e: 'open' }));
+        this.addEventListener('error', () => log({ t: Date.now(), s, k, e: 'error' }));
+        this.addEventListener('close', (ev) => {
+          st.closed = Date.now();
+          log({ t: Date.now(), s, k, e: 'close', code: ev.code, why: ev.reason });
+        });
+        this.addEventListener('message', (ev) => {
+          const d: unknown = ev.data;
+          st.in = Number(st.in) + 1;
+          st.bytesIn =
+            Number(st.bytesIn) + (typeof d === 'string' ? d.length : (d as ArrayBuffer).byteLength);
+          st.lastIn = Date.now();
+          const op = opOf(d);
+          if ((k === 'gw' && op === 11) || (k === 'voice' && op === 3))
+            log({ t: Date.now(), s, k, e: 'ack' });
+          else if (k === 'gw' && (op === 7 || op === 9 || op === 10))
+            log({ t: Date.now(), s, k, e: `op ${op}` });
+        });
+        const send = this.send.bind(this);
+        this.send = (d: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+          st.out = Number(st.out) + 1;
+          st.bytesOut = Number(st.bytesOut) + (typeof d === 'string' ? d.length : 0);
+          st.lastOut = Date.now();
+          const op = opOf(d);
+          if ((k === 'gw' && op === 1) || (k === 'voice' && op === 2))
+            log({ t: Date.now(), s, k, e: 'heartbeat', buffered: this.bufferedAmount });
+          else if (k === 'gw' && (op === 2 || op === 6))
+            log({ t: Date.now(), s, k, e: op === 2 ? 'identify' : 'resume' });
+          return send(d);
+        };
       }
     } as typeof WebSocket;
   });
+}
+
+/** The socket log of one page (see trackVoiceSockets), with ISO times; bounded so a starved page cannot hang the dump. */
+async function socketDiagnostics(page: Page): Promise<unknown> {
+  const read = page.evaluate(() => {
+    const w = window as unknown as {
+      __wsLog?: { t: number }[];
+      __wsStats?: Record<number, Record<string, number | string>>;
+      __lag?: { at: number; maxMs: number }[];
+    };
+    const iso = (t: unknown) => (typeof t === 'number' && t > 0 ? new Date(t).toISOString() : t);
+    const stats = Object.fromEntries(
+      Object.entries(w.__wsStats ?? {}).map(([id, s]) => [
+        id,
+        Object.fromEntries(
+          Object.entries(s).map(([k, v]) => [
+            k,
+            ['created', 'closed', 'lastIn', 'lastOut'].includes(k) ? iso(v) : v,
+          ]),
+        ),
+      ]),
+    );
+    return {
+      readAt: new Date().toISOString(),
+      sockets: stats,
+      events: (w.__wsLog ?? []).slice(-120).map((e) => ({ ...e, t: iso(e.t) })),
+      lag: (w.__lag ?? []).map((l) => ({ at: iso(l.at), maxMs: l.maxMs })),
+    };
+  });
+  const timeout = new Promise((r) =>
+    setTimeout(() => r({ error: 'page did not answer in 20 s' }), 20_000),
+  );
+  return Promise.race([read.catch((e: unknown) => ({ error: String(e) })), timeout]);
 }
 
 async function snapshot(page: Page): Promise<Snapshot> {
@@ -186,6 +313,20 @@ test.describe('Voice soak', () => {
           console.log(`member ${i} did not connect:\n${diag}`);
           await test.info().attach(`join-${i}-diagnostics.json`, {
             body: diag,
+            contentType: 'application/json',
+          });
+          // Every member's socket log, read in parallel (a starved page answers late, not never).
+          const logs = await Promise.all(
+            members.slice(0, i + 1).map((x) => socketDiagnostics(x.page)),
+          );
+          const sockets = JSON.stringify(
+            logs.map((l, j) => ({ member: j, userId: users[j]!.id, ...(l as object) })),
+            null,
+            1,
+          );
+          console.log(`socket logs at the failed join:\n${sockets}`);
+          await test.info().attach(`join-${i}-sockets.json`, {
+            body: sockets,
             contentType: 'application/json',
           });
           throw e;
