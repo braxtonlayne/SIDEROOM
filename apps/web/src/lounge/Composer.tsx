@@ -145,6 +145,9 @@ export interface ComposerProps {
   canStartThread?: boolean | undefined;
   /** May offer "Start an Activity" here: a guild text channel (the server still checks the permission). */
   canStartActivity?: boolean | undefined;
+  /** The channel grants USE_EXTERNAL_EMOJIS / USE_EXTERNAL_STICKERS (D-376); true in a DM. */
+  canExternalEmoji?: boolean | undefined;
+  canExternalStickers?: boolean | undefined;
 }
 
 const FORMATS: {
@@ -223,6 +226,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     canTts,
     canStartThread,
     canStartActivity,
+    canExternalEmoji = true,
+    canExternalStickers = true,
   },
   handle,
 ) {
@@ -1041,6 +1046,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               <ExpressionPicker
                 initial="gifs"
                 guildId={guildId}
+                externalEmoji={canExternalEmoji}
+                externalStickers={canExternalStickers}
                 onEmoji={(emoji) => {
                   const { s, e } = sel();
                   apply(insertAt(text, s, e, emoji));
@@ -1071,6 +1078,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               <ExpressionPicker
                 initial="stickers"
                 guildId={guildId}
+                externalEmoji={canExternalEmoji}
+                externalStickers={canExternalStickers}
                 onEmoji={(emoji) => {
                   const { s, e } = sel();
                   apply(insertAt(text, s, e, emoji));
@@ -1113,6 +1122,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         >
           <EmojiPicker
             guildId={guildId}
+            externalAllowed={canExternalEmoji}
             onPick={(emoji) => {
               const { s, e } = sel();
               apply(insertAt(text, s, e, emoji));

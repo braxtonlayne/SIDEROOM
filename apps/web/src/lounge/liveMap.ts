@@ -42,6 +42,9 @@ export const PERM = {
   MOVE_MEMBERS: 1n << 24n,
   USE_VAD: 1n << 25n,
   USE_SOUNDBOARD: 1n << 42n,
+  USE_EXTERNAL_EMOJIS: 1n << 18n,
+  USE_EXTERNAL_STICKERS: 1n << 37n,
+  USE_EXTERNAL_SOUNDS: 1n << 45n,
   REQUEST_TO_SPEAK: 1n << 32n,
   SET_VOICE_CHANNEL_STATUS: 1n << 48n,
   ADMINISTRATOR: 1n << 3n,
@@ -181,6 +184,9 @@ function permissionsFromBits(bits: bigint): ChannelPermissions {
     muteMembers: has(PERM.MUTE_MEMBERS),
     deafenMembers: has(PERM.DEAFEN_MEMBERS),
     moveMembers: has(PERM.MOVE_MEMBERS),
+    externalEmoji: has(PERM.USE_EXTERNAL_EMOJIS),
+    externalStickers: has(PERM.USE_EXTERNAL_STICKERS),
+    externalSounds: has(PERM.USE_EXTERNAL_SOUNDS),
   };
 }
 

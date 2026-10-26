@@ -12,6 +12,83 @@ use sr_chat::{ForwardRequest, Message};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode, MessageId, UserId};
 
+/// The D-376 gates for other servers' emoji in `content`, applied where the message is written.
+///
+/// A `<:name:id>` / `<a:name:id>` token of a server other than the channel's own is kept only
+/// when the target channel grants `USE_EXTERNAL_EMOJIS` (a DM always does) AND the sender passes
+/// the source gate (`USE_EXPRESSIONS_EXTERNALLY` in the emoji's server, still a member, the
+/// emoji available and not role-restricted away from them); otherwise it becomes `:name:`.
+/// Application emoji and ids that match no server emoji are untouched.
+///
+/// Cost: nothing without tokens; otherwise ONE batched emoji lookup, then nothing more when the
+/// target channel already refuses or every emoji is the channel's own; membership is read once
+/// per distinct source server.
+pub async fn gate_external_emoji(
+    deps: &MessagesDeps,
+    user: UserId,
+    channel_guild: Option<sr_core::GuildId>,
+    channel_perms: Permissions,
+    content: String,
+) -> MsgResult<String> {
+    let ids = super::rich_model::custom_emoji_ids(&content);
+    let refused = refused_emoji(deps, user, channel_guild, channel_perms, ids).await?;
+    if refused.is_empty() {
+        return Ok(content);
+    }
+    Ok(super::rich_model::rewrite_emoji_tokens(&content, &refused))
+}
+
+/// The subset of the emoji `ids` that `user` may NOT use in a channel of `channel_guild` with
+/// `channel_perms` (see [`gate_external_emoji`] for the rules and the cost). Reactions use it too.
+pub async fn refused_emoji(
+    deps: &MessagesDeps,
+    user: UserId,
+    channel_guild: Option<sr_core::GuildId>,
+    channel_perms: Permissions,
+    mut ids: Vec<u64>,
+) -> MsgResult<std::collections::HashSet<u64>> {
+    let mut refused = std::collections::HashSet::new();
+    if ids.is_empty() {
+        return Ok(refused);
+    }
+    let Some(store) = &deps.rich.store else {
+        return Ok(refused);
+    };
+    ids.sort_unstable();
+    ids.dedup();
+    let found = store.guild_emojis(&ids).await?;
+    let foreign: Vec<&sr_chat::rich_repo::GuildEmojiRef> = found
+        .values()
+        .filter(|e| Some(e.guild_id) != channel_guild)
+        .collect();
+    if foreign.is_empty() {
+        return Ok(refused);
+    }
+    let target_ok = channel_guild.is_none() || channel_perms.has(Permissions::USE_EXTERNAL_EMOJIS);
+    let mut standing: std::collections::HashMap<
+        sr_core::GuildId,
+        Option<sr_chat::perms::SourceStanding>,
+    > = std::collections::HashMap::new();
+    for e in foreign {
+        let ok = if target_ok {
+            if let std::collections::hash_map::Entry::Vacant(v) = standing.entry(e.guild_id) {
+                v.insert(sr_chat::perms::source_standing(&*deps.repo, e.guild_id, user).await?);
+            }
+            sr_chat::perms::SourceStanding::permits(
+                standing.get(&e.guild_id).and_then(Option::as_ref),
+                e.available,
+                &e.role_ids,
+            )
+        } else {
+            false
+        };
+        if !ok {
+            refused.insert(e.id);
+        }
+    }
+    Ok(refused)
+}
+
 /// Stickers per message (Discord).
 pub const MAX_STICKERS: usize = 3;
 /// Longest voice message.
@@ -32,10 +109,14 @@ pub fn plan_poll(deps: &MessagesDeps, raw: Option<&serde_json::Value>) -> MsgRes
 }
 
 /// Sticker ids of a create request: at most three, distinct, existing, available,
-/// and either standard or from the channel's own guild.
+/// and either standard, from the channel's own guild, or (D-376) from another server whose
+/// sticker the sender may use: the target grants `USE_EXTERNAL_STICKERS` (a DM always does) and
+/// the sender passes the source gate there.
 pub async fn resolve_stickers(
     deps: &MessagesDeps,
+    user: UserId,
     channel_guild: Option<sr_core::GuildId>,
+    channel_perms: Permissions,
     raw: Option<&Vec<String>>,
 ) -> MsgResult<Vec<u64>> {
     let Some(raw) = raw.filter(|r| !r.is_empty()) else {
@@ -63,10 +144,31 @@ pub async fn resolve_stickers(
         ids.push(id);
     }
     let found = deps.rich_store("sticker_ids")?.stickers(&ids).await?;
+    let target_ok =
+        channel_guild.is_none() || channel_perms.has(Permissions::USE_EXTERNAL_STICKERS);
+    let mut standing: std::collections::HashMap<
+        sr_core::GuildId,
+        Option<sr_chat::perms::SourceStanding>,
+    > = std::collections::HashMap::new();
     for id in &ids {
-        let ok = found.iter().any(|s| {
-            s.id == *id && s.available && (s.guild_id.is_none() || s.guild_id == channel_guild)
-        });
+        let mut ok = false;
+        if let Some(s) = found.iter().find(|s| s.id == *id && s.available) {
+            ok = match s.guild_id {
+                None => true,
+                Some(g) if Some(g) == channel_guild => true,
+                Some(g) if target_ok => {
+                    if let std::collections::hash_map::Entry::Vacant(v) = standing.entry(g) {
+                        v.insert(sr_chat::perms::source_standing(&*deps.repo, g, user).await?);
+                    }
+                    sr_chat::perms::SourceStanding::permits(
+                        standing.get(&g).and_then(Option::as_ref),
+                        true,
+                        &[],
+                    )
+                }
+                Some(_) => false,
+            };
+        }
         if !ok {
             return Err(invalid(
                 "sticker_ids",

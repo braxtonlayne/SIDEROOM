@@ -125,6 +125,41 @@ impl RichStore for PgRichStore {
         Ok(rows.into_iter().map(|(e, a)| (u(e), a)).collect())
     }
 
+    async fn guild_emojis(
+        &self,
+        emoji: &[u64],
+    ) -> StoreResult<HashMap<u64, sr_chat::rich_repo::GuildEmojiRef>> {
+        if emoji.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let ids: Vec<i64> = emoji.iter().map(|e| i(*e)).collect();
+        // One round trip: the emoji and the roles it is restricted to.
+        let rows: Vec<(i64, i64, bool, Vec<i64>)> = sqlx::query_as(
+            "SELECT e.id, e.guild_id, e.available, \n                    COALESCE(array_agg(r.role_id) FILTER (WHERE r.role_id IS NOT NULL), '{}') \n             FROM emojis e LEFT JOIN emoji_roles r ON r.emoji_id = e.id \n             WHERE e.id = ANY($1) GROUP BY e.id",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, guild, available, roles)| {
+                (
+                    u(id),
+                    sr_chat::rich_repo::GuildEmojiRef {
+                        id: u(id),
+                        guild_id: GuildId::new(u(guild)),
+                        available,
+                        role_ids: roles
+                            .into_iter()
+                            .map(|r| sr_core::RoleId::new(u(r)))
+                            .collect(),
+                    },
+                )
+            })
+            .collect())
+    }
+
     async fn bot_applications(&self, users: &[UserId]) -> StoreResult<HashMap<UserId, i64>> {
         if users.is_empty() {
             return Ok(HashMap::new());

@@ -235,6 +235,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
             target={target}
             timedOutUntil={timedOutUntil}
             canTts={!isDm && (channel?.permissions?.sendTts ?? true)}
+            canExternalEmoji={isDm || (channel?.permissions?.externalEmoji ?? true)}
+            canExternalStickers={isDm || (channel?.permissions?.externalStickers ?? true)}
             canStartActivity={
               !isDm && (channel?.type === 'text' || channel?.type === 'announcement')
             }

@@ -3,10 +3,13 @@ import { Icon, Popover, Slider, TextInput } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { onDispatch } from '../../store/events';
 import { voiceController } from '../../voice/controller';
+import { useGuilds } from '../data';
+import { useMyExpressions } from '../components/myExpressions';
 import { useVoiceSession } from '../../voice/session';
 import {
   applySoundboardEvent,
   loadSounds,
+  parseSound,
   soundKey,
   startFavoritesSync,
   useSoundboard,
@@ -23,6 +26,8 @@ interface SectionProps {
   onPlay(s: Sound): void;
   onPreview(s: Sound): void;
   onFavorite(s: Sound): void;
+  /** Why the section cannot be played from here (shown as a tooltip while greyed). */
+  hint?: string | undefined;
 }
 
 function Section({
@@ -33,13 +38,16 @@ function Section({
   onPlay,
   onPreview,
   onFavorite,
+  hint,
 }: SectionProps) {
   const t = useT();
   if (!sounds.length) return null;
   return (
-    <section className="vc-sb-section">
-      <h3 className="vc-sb-heading">{title}</h3>
-      <ul className="vc-sb-list">
+    <section className="vc-sb-section" data-greyed={hint ? true : undefined}>
+      <h3 className="vc-sb-heading" title={hint}>
+        {title}
+      </h3>
+      <ul className="vc-sb-list" title={hint}>
         {sounds.map((s) => {
           const fav = favorites.includes(soundKey(s));
           return (
@@ -88,6 +96,8 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
   const perms = useVoicePerms(guildId, channelId);
   const defaults = useSoundboard((s) => s.defaults);
   const server = useSoundboard((s) => s.guilds[guildId]);
+  const guilds = useGuilds();
+  const mine = useMyExpressions(true);
   const favorites = useSoundboard((s) => s.favorites);
   const volume = useSoundboard((s) => s.volume);
   const toggleFavorite = useSoundboard((s) => s.toggleFavorite);
@@ -114,11 +124,34 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
 
   const q = query.trim().toLowerCase();
   const match = (s: Sound) => !q || s.name.toLowerCase().includes(q);
-  const all = useMemo(() => [...(server ?? []), ...(defaults ?? [])], [server, defaults]);
+  // Other servers' sounds, in the order of the sidebar; servers whose roles forbid it are left out (D-376).
+  const external = useMemo(() => {
+    const order = new Map(guilds.map((g, i) => [g.id, i]));
+    return (mine ?? [])
+      .filter((s) => s.guild.id !== guildId && s.usable_externally)
+      .map((s) => ({
+        id: s.guild.id,
+        name: s.guild.name,
+        sounds: s.sounds
+          .map(parseSound)
+          .filter((x): x is Sound => !!x && x.available)
+          .map((x) => ({ ...x, guildId: s.guild.id })),
+      }))
+      .filter((s) => s.sounds.length > 0)
+      .sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
+  }, [mine, guilds, guildId]);
+  const all = useMemo(
+    () => [...(server ?? []), ...(defaults ?? []), ...external.flatMap((e) => e.sounds)],
+    [server, defaults, external],
+  );
   const favSounds = all.filter((s) => favorites.includes(soundKey(s)) && match(s));
   const serverSounds = (server ?? []).filter(match);
   const defaultSounds = (defaults ?? []).filter(match);
-  const nothing = !favSounds.length && !serverSounds.length && !defaultSounds.length;
+  const nothing =
+    !favSounds.length &&
+    !serverSounds.length &&
+    !defaultSounds.length &&
+    !external.some((e) => e.sounds.some(match));
 
   const play = (s: Sound) => {
     setMessage(null);
@@ -181,6 +214,16 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
         <Section title={t('lounge.soundboard.favorites')} sounds={favSounds} {...rowProps} />
         <Section title={t('lounge.soundboard.server')} sounds={serverSounds} {...rowProps} />
         <Section title={t('lounge.soundboard.defaults')} sounds={defaultSounds} {...rowProps} />
+        {external.map((e) => (
+          <Section
+            key={e.id}
+            title={e.name}
+            sounds={e.sounds.filter(match)}
+            {...rowProps}
+            disabled={rowProps.disabled || !perms.externalSounds}
+            hint={perms.externalSounds ? undefined : t('lounge.soundboard.externalNotAllowed')}
+          />
+        ))}
         {nothing && (defaults || failed) && (
           <p className="vc-note" role="status">
             {t('lounge.soundboard.empty')}

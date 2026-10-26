@@ -53,6 +53,8 @@ export const server = setupServer(
   http.get('*/api/v1/users/@me/notification-defaults', () =>
     HttpResponse.json({ message_notifications: null }),
   ),
+  // The expression pickers read every server's expressions at once (D-376): none by default.
+  http.get('*/api/v1/users/@me/expressions', () => HttpResponse.json([])),
   // Saved items (bookmarks, reminders, scheduled messages) start empty.
   http.get('*/api/v1/users/@me/bookmarks', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/reminders', () => HttpResponse.json([])),

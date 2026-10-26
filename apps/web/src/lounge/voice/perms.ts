@@ -13,6 +13,8 @@ export interface VoicePerms {
   requestToSpeak: boolean;
   setVoiceStatus: boolean;
   manageChannels: boolean;
+  /** USE_EXTERNAL_SOUNDS: other servers' sounds in this channel (D-376). */
+  externalSounds: boolean;
 }
 
 /**
@@ -39,5 +41,6 @@ export function useVoicePerms(
     requestToSpeak: p?.requestToSpeak ?? base('REQUEST_TO_SPEAK', true),
     setVoiceStatus: p?.setVoiceStatus ?? base('SET_VOICE_CHANNEL_STATUS', true),
     manageChannels: p?.manageChannels ?? base('MANAGE_CHANNELS', false),
+    externalSounds: p?.externalSounds ?? base('USE_EXTERNAL_SOUNDS', true),
   };
 }

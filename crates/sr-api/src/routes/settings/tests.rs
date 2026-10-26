@@ -3062,6 +3062,9 @@ async fn membership_applications_flow() {
 #[path = "soundboard_tests.rs"]
 mod soundboard_tests;
 
+#[path = "external_expressions_tests.rs"]
+mod external_expressions_tests;
+
 // ---- Staff Server invites (ADM-STF-003) ---------------------------------------------
 
 #[tokio::test]

@@ -29,6 +29,7 @@ use utoipa::ToSchema;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/users/@me/expressions", get(list_my_expressions))
         .route("/guilds/{guild_id}/emojis/{emoji_id}/url", get(emoji_url))
         .route(
             "/guilds/{guild_id}/stickers/{sticker_id}/url",
@@ -56,6 +57,117 @@ pub fn routes() -> Router<AppState> {
                 .patch(modify_sticker)
                 .delete(delete_sticker),
         )
+}
+
+/// The server an entry of `GET /users/@me/expressions` belongs to.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ExpressionGuildRef {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+}
+
+/// One server's expressions the caller may use (D-376).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ServerExpressions {
+    pub guild: ExpressionGuildRef,
+    /// The caller passes the source gate here: `USE_EXPRESSIONS_EXTERNALLY` in this server.
+    /// False means the lists below are usable inside this server only.
+    pub usable_externally: bool,
+    /// Available emoji the caller's roles may use.
+    pub emojis: Vec<EmojiObject>,
+    /// Available stickers.
+    pub stickers: Vec<StickerObject>,
+    /// Available soundboard sounds (the Discord sound objects).
+    #[schema(value_type = Vec<Object>)]
+    pub sounds: Vec<Value>,
+}
+
+/// Emoji, stickers and sounds of every server the caller belongs to, already filtered to what
+/// the caller may use there (`available`, an emoji's `roles`), with `usable_externally` per
+/// server (D-375, D-376). One request fills the picker; a user who shares no server with anyone
+/// gets only their own servers, never someone else's.
+#[utoipa::path(
+    get,
+    path = "/users/@me/expressions",
+    responses((status = 200, body = Vec<ServerExpressions>), (status = 401, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn list_my_expressions(
+    p: Principal,
+    Ext(deps): Ext<SettingsDeps>,
+) -> ApiResult<Json<Vec<ServerExpressions>>> {
+    let user = actor(&p)?;
+    let repo = deps.service.repo();
+    let mut out = Vec::new();
+    let mut all_emoji = Vec::new();
+    let mut all_stickers = Vec::new();
+    let mut all_sounds = Vec::new();
+    for gid in deps.chat.user_guild_ids(user).await.map_err(re)? {
+        // Left, deleted or banned in between: skip the server rather than fail the list.
+        let Ok(acc) = deps.guild_access(user, gid).await else {
+            continue;
+        };
+        let mine = &acc.member.role_ids;
+        let emojis: Vec<Emoji> = repo
+            .list_emoji(gid)
+            .await
+            .map_err(re)?
+            .into_iter()
+            .filter(|e| {
+                e.available
+                    && (e.role_ids.is_empty() || e.role_ids.iter().any(|r| mine.contains(r)))
+            })
+            .collect();
+        let stickers: Vec<Sticker> = repo
+            .list_stickers(gid)
+            .await
+            .map_err(re)?
+            .into_iter()
+            .filter(|s| s.available)
+            .collect();
+        let sounds: Vec<_> = repo
+            .list_sounds(gid)
+            .await
+            .map_err(re)?
+            .into_iter()
+            .filter(|s| s.available)
+            .collect();
+        all_emoji.extend(emojis.iter().map(|e| e.creator_id));
+        all_stickers.extend(stickers.iter().map(|s| s.creator_id));
+        all_sounds.extend(sounds.iter().map(|s| s.creator_id));
+        out.push((acc, emojis, stickers, sounds));
+    }
+    let users = deps
+        .users(all_emoji.into_iter().chain(all_stickers).chain(all_sounds))
+        .await?;
+    Ok(Json(
+        out.into_iter()
+            .map(|(acc, emojis, stickers, sounds)| ServerExpressions {
+                usable_externally: sr_chat::perms::may_use_externally(
+                    &acc.guild,
+                    &acc.member,
+                    &acc.roles,
+                ),
+                guild: ExpressionGuildRef {
+                    id: acc.guild.id.to_string(),
+                    name: acc.guild.name.clone(),
+                    icon: acc.guild.icon_key.clone(),
+                },
+                emojis: emojis.iter().map(|e| EmojiObject::of(e, &users)).collect(),
+                stickers: stickers
+                    .iter()
+                    .map(|s| StickerObject::of(s, &users))
+                    .collect(),
+                sounds: sounds
+                    .iter()
+                    .map(|s| {
+                        s.to_json(serde_json::to_value(UserRef::of(s.creator_id, &users)).ok())
+                    })
+                    .collect(),
+            })
+            .collect(),
+    ))
 }
 
 // ---- upload decoding -------------------------------------------------------------

@@ -83,6 +83,16 @@ pub struct StickerPack {
     pub stickers: Vec<PackSticker>,
 }
 
+/// A server emoji as the external-use gate needs it (D-376): the server it belongs to, its own
+/// `available` flag and its role restriction (empty = everyone).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildEmojiRef {
+    pub id: u64,
+    pub guild_id: GuildId,
+    pub available: bool,
+    pub role_ids: Vec<sr_core::RoleId>,
+}
+
 /// How a webhook-posted message is shown (DEV-BOT-006): the webhook id replaces the author id
 /// and the name and avatar can be overridden per execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +124,13 @@ pub trait RichStore: Send + Sync {
 
     /// Which of these emoji ids are application emoji (D-237), with the owning application.
     async fn app_emoji_owners(&self, _emoji: &[u64]) -> StoreResult<HashMap<u64, i64>> {
+        Ok(HashMap::new())
+    }
+
+    /// The server emoji among these ids, in one batched lookup (D-376). Application emoji and
+    /// unknown ids are omitted. The default finds none, so a store without the table never
+    /// treats an emoji as foreign.
+    async fn guild_emojis(&self, _emoji: &[u64]) -> StoreResult<HashMap<u64, GuildEmojiRef>> {
         Ok(HashMap::new())
     }
 
