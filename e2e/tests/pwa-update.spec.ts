@@ -223,7 +223,8 @@ async function controlled(page: Page): Promise<void> {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
 }
 
-test.describe.configure({ mode: 'serial' });
+// Service worker timing is the risk: no retry in CI either, so a flake is seen (roadmap-p25 section 4, Risks).
+test.describe.configure({ mode: 'serial', retries: 0 });
 
 test.describe('the service worker update and the offline shell (RDY-PWA-001)', () => {
   test.skip(
