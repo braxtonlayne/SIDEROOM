@@ -41,12 +41,14 @@ async fn account(pool: &sqlx::PgPool, ids: &Ids) -> UserId {
 }
 
 async fn join(pool: &sqlx::PgPool, guild: GuildId, user: UserId) {
-    sqlx::query("INSERT INTO guild_members (guild_id, user_id, join_source) VALUES ($1, $2, 'staff')")
-        .bind(guild.get() as i64)
-        .bind(user.get() as i64)
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO guild_members (guild_id, user_id, join_source) VALUES ($1, $2, 'staff')",
+    )
+    .bind(guild.get() as i64)
+    .bind(user.get() as i64)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 async fn emoji(pool: &sqlx::PgPool, id: u64, guild: GuildId, name: &str, creator: UserId) {
@@ -141,10 +143,11 @@ async fn the_gate_over_postgres_and_its_cost_on_message_create() {
         gate(acc.perms, Some(host_g), text.clone()).await,
         format!("hi :pog: and <:home:{own}>")
     );
-    // In a DM the target gate holds, so only the source gate matters: refused now, kept after.
+    // In a DM the target gate holds, so only the source gate matters (the host server's own emoji
+    // is foreign there and passes its gate): refused now, kept after.
     assert_eq!(
         gate(dm_permissions(), None, text.clone()).await,
-        format!("hi :pog: and :home:")
+        format!("hi :pog: and <:home:{own}>")
     );
     sqlx::query("UPDATE roles SET permissions = permissions | (1::BIGINT << 60) WHERE id = $1")
         .bind(src_g.get() as i64)

@@ -61995,6 +61995,48 @@
         ]
       }
     },
+    "/users/@me/expressions": {
+      "get": {
+        "tags": [
+          "expressions"
+        ],
+        "summary": "Emoji, stickers and sounds of every server the caller belongs to, already filtered to what\nthe caller may use there (`available`, an emoji's `roles`), with `usable_externally` per\nserver (D-375, D-376). One request fills the picker; a user who shares no server with anyone\ngets only their own servers, never someone else's.",
+        "operationId": "list_my_expressions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServerExpressions"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/guild-settings": {
       "get": {
         "tags": [
@@ -78188,6 +78230,28 @@
           }
         }
       },
+      "ExpressionGuildRef": {
+        "type": "object",
+        "description": "The server an entry of `GET /users/@me/expressions` belongs to.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "FacetCount": {
         "type": "object",
         "required": [
@@ -92148,6 +92212,47 @@
           "hiatus",
           "cancelled"
         ]
+      },
+      "ServerExpressions": {
+        "type": "object",
+        "description": "One server's expressions the caller may use (D-376).",
+        "required": [
+          "guild",
+          "usable_externally",
+          "emojis",
+          "stickers",
+          "sounds"
+        ],
+        "properties": {
+          "emojis": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmojiObject"
+            },
+            "description": "Available emoji the caller's roles may use."
+          },
+          "guild": {
+            "$ref": "#/components/schemas/ExpressionGuildRef"
+          },
+          "sounds": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Available soundboard sounds (the Discord sound objects)."
+          },
+          "stickers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StickerObject"
+            },
+            "description": "Available stickers."
+          },
+          "usable_externally": {
+            "type": "boolean",
+            "description": "The caller passes the source gate here: `USE_EXPRESSIONS_EXTERNALLY` in this server.\nFalse means the lists below are usable inside this server only."
+          }
+        }
       },
       "SessionStartLimit": {
         "type": "object",
