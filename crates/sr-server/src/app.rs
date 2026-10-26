@@ -253,6 +253,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     };
     let auth_service = Arc::new(auth_service);
 
+    // Bucket mounts, read side (BYOS-SCP-001/002): scoped listing and presign over the mount repo.
+    let storage_scope_deps = Arc::new(routes::storage::ScopeDeps {
+        mounts: Arc::new(sr_db::mounts_repo::PgMountRepo::new(pool.clone())),
+        store: Arc::new(sr_db::scopes_repo::PgScopeFacts::new(pool.clone())),
+        sealer: Arc::new(
+            sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys.clone()),
+        ),
+    });
     // The developer platform: applications, bot tokens, OAuth2, commands, interactions. Bot
     // and bearer credentials authenticate against its stores (open question 56).
     let apps_repo = Arc::new(sr_db::apps_repo::PgAppsRepo::new(
@@ -1409,6 +1417,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
+        .extension(storage_scope_deps)
         .extension(Arc::new(
             routes::donations::DonationsDeps::new(payments.service.clone())
                 .with_chat_slot(payments.chat.clone()),

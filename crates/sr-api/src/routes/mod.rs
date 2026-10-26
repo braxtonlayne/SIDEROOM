@@ -29,6 +29,7 @@
 //!   suggestions and tickets (`/users/@me/{scheduled-messages,reminders,bookmarks,birthday}*`,
 //!   `POST /channels/{id}/scheduled-messages`, `PUT /channels/{id}/messages/{id}/bookmark` and
 //!   `/guilds/{id}/{birthdays,leveling,rss-feeds,poll-templates,suggestions,tickets}*`).
+//! * `storage`: bucket mounts, read side: shares, grants, the shelves summary, `/storage/mounts/{id}/objects*` and presign (BYOS).
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
 //!   and `/users/@me/presence`. Only `GET /users/@me` stays with the base router.
@@ -62,6 +63,7 @@ pub mod review;
 pub mod search;
 pub mod settings;
 pub mod social;
+pub mod storage;
 pub mod submissions;
 pub mod threads;
 pub mod tv;
@@ -142,6 +144,7 @@ pub fn all() -> Router<AppState> {
         .merge(gifs::router())
         .merge(inbox::router())
         .merge(userfeat::router())
+        .merge(storage::router())
         .merge(moderation::router())
 }
 
@@ -186,6 +189,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(gifs::openapi());
     doc.merge(inbox::openapi());
     doc.merge(userfeat::openapi());
+    doc.merge(storage::openapi());
     doc.merge(moderation::openapi());
     doc
 }
