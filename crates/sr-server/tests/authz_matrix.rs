@@ -732,6 +732,58 @@ fn wav_uri(ms: usize) -> String {
     format!("data:audio/wav;base64,{}", b64(&out))
 }
 
+/// The id a create answered with: `id`, or the one nested under the object it returned.
+fn pick_id(v: &Value) -> Option<String> {
+    [
+        &v["id"],
+        &v["upload"]["id"],
+        &v["submission"]["id"],
+        &v["sound_id"],
+    ]
+    .into_iter()
+    .find_map(|x| x.as_str().map(str::to_owned))
+}
+
+/// A create for the seed: the sampled body unless one is given; the new id.
+async fn mk(
+    srv: &Server,
+    infos: &HashMap<(String, String), OpInfo>,
+    who: &Cred,
+    path: &str,
+    body: Option<Value>,
+) -> Option<String> {
+    // The template for the sampled body is the path with its ids put back to the placeholders.
+    let tpl = path
+        .split('/')
+        .map(|seg| {
+            if seg.len() > 12 && seg.bytes().all(|b| b.is_ascii_digit()) {
+                "{x}"
+            } else {
+                seg
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    let key = infos
+        .keys()
+        .find(|(m, p)| m == "POST" && same_template(p, &tpl))
+        .map(|(_, p)| p.clone())
+        .unwrap_or(tpl);
+    create(srv, who, "POST", &key, path, infos, body)
+        .await
+        .as_ref()
+        .and_then(pick_id)
+}
+
+/// Whether `template` (with `{x}` for every id) is the OpenAPI path `p`.
+fn same_template(p: &str, template: &str) -> bool {
+    let (a, b): (Vec<&str>, Vec<&str>) = (p.split('/').collect(), template.split('/').collect());
+    a.len() == b.len()
+        && a.iter()
+            .zip(&b)
+            .all(|(x, y)| x == y || (x.starts_with('{') && *y == "{x}"))
+}
+
 fn id_of(v: &Value) -> String {
     v["id"].as_str().map(str::to_owned).unwrap_or_else(|| {
         panic!("no id in {v}");
@@ -1708,9 +1760,59 @@ async fn seed(
             Some(json!({"filename": "a.zip", "size_bytes": 10})),
         )
         .await
-            && let Some(id) = v["id"].as_str()
+            && let Some(id) = pick_id(&v)
         {
-            a.insert("upload_id", id.to_owned());
+            a.insert("upload_id", id);
+        }
+    }
+    // RDY-SEC-011: the ids the write phase needs to reach real resources (published Cinema and Library
+    // content, comments, lists, Live TV blocks, tokens), each under a key that `OVERLAYS` maps to a
+    // placeholder. The staff step-up window is open (see above).
+    {
+        macro_rules! put {
+            ($key:expr, $who:expr, $tpl:expr, $body:expr) => {{
+                let tpl: String = $tpl;
+                if let Some(id) = mk(&srv, infos, $who, &tpl, $body).await {
+                    a.insert($key, id);
+                }
+            }};
+        }
+        let t = a.get("title_id").cloned().unwrap_or_default();
+        let s = a.get("series_id").cloned().unwrap_or_default();
+        let tv = a.get("tv_channel_id").cloned().unwrap_or_default();
+        mk(&srv, infos, &staff, &format!("/admin/cinema/titles/{t}/publish"), None).await;
+        put!("season_id", &staff, format!("/admin/cinema/titles/{t}/seasons"), None);
+        if let Some(se) = a.get("season_id").cloned() {
+            put!("episode_id", &staff, format!("/admin/cinema/seasons/{se}/episodes"), None);
+        }
+        put!("trailer_id", &staff, format!("/admin/cinema/titles/{t}/trailers"), None);
+        put!("variant_id", &staff, format!("/admin/cinema/titles/{t}/variants"), None);
+        put!("cinema_asset_id", &staff, "/admin/cinema/assets".into(), None);
+        put!("collection_id", &staff, "/admin/cinema/collections".into(), None);
+        mk(&srv, infos, &staff, &format!("/admin/library/series/{s}/publish"), None).await;
+        put!("edition_id", &staff, format!("/admin/library/series/{s}/editions"), None);
+        if let Some(e) = a.get("edition_id").cloned() {
+            put!("volume_id", &staff, format!("/admin/library/editions/{e}/volumes"), None);
+            put!("lib_chapter_id", &staff, format!("/admin/library/editions/{e}/chapters"), None);
+        }
+        if let Some(c) = a.get("lib_chapter_id").cloned() {
+            mk(&srv, infos, &staff, &format!("/admin/library/chapters/{c}/publish"), None).await;
+            put!(
+                "lib_upload_id",
+                &staff,
+                format!("/admin/library/chapters/{c}/uploads"),
+                Some(json!({"filename": "a.zip", "size_bytes": 10}))
+            );
+            put!("library_comment_id", &member_cred, format!("/library/chapters/{c}/comments"), None);
+        }
+        put!("cinema_comment_id", &member_cred, format!("/cinema/titles/{t}/comments"), None);
+        put!("cinema_list_id", &member_cred, "/cinema/lists".into(), None);
+        put!("library_list_id", &member_cred, "/library/lists".into(), None);
+        put!("source_id", &staff, "/admin/ingest-sources".into(), None);
+        put!("token_id", &staff, "/admin/transcode/tokens".into(), None);
+        if !tv.is_empty() {
+            put!("block_id", &staff, format!("/admin/tv/channels/{tv}/blocks"), None);
+            mk(&srv, infos, &staff, &format!("/admin/tv/channels/{tv}/publish"), None).await;
         }
     }
     // A running thread member: the seeded thread gets the victim.
@@ -2808,13 +2910,37 @@ fn ctx_for(
     } else if r.path.starts_with("/stage-instances/") {
         "stage_channel_id"
     } else {
-        return (base.clone(), false);
+        return (overlay(r, base.clone()), false);
     };
     let mut c = base.clone();
     if let Some(v) = base.get(from) {
         c.insert("channel_id", v.clone());
     }
-    (c, true)
+    (overlay(r, c), true)
+}
+
+/// Placeholders that mean different things in different route families: Cinema and Library each have
+/// their own `{asset_id}`, `{comment_id}`, `{list_id}` ..., and the submission chapter is not the
+/// published one. The write phase (and every other pass) fills them from the family's own seeded key.
+const OVERLAYS: &[(&[&str], &str, &str)] = &[
+    (&["/cinema/", "/admin/cinema/"], "asset_id", "cinema_asset_id"),
+    (&["/cinema/", "/admin/cinema/"], "comment_id", "cinema_comment_id"),
+    (&["/cinema/", "/admin/cinema/"], "list_id", "cinema_list_id"),
+    (&["/library/", "/admin/library/"], "chapter_id", "lib_chapter_id"),
+    (&["/library/", "/admin/library/"], "upload_id", "lib_upload_id"),
+    (&["/library/", "/admin/library/"], "comment_id", "library_comment_id"),
+    (&["/library/", "/admin/library/"], "list_id", "library_list_id"),
+];
+
+fn overlay(r: &Route, mut c: HashMap<&'static str, String>) -> HashMap<&'static str, String> {
+    for (prefixes, placeholder, key) in OVERLAYS {
+        if prefixes.iter().any(|p| r.path.starts_with(p))
+            && let Some(v) = c.get(key).cloned()
+        {
+            c.insert(placeholder, v);
+        }
+    }
+    c
 }
 
 /// D-366: how a PLATFORM cell admits an appointed actor (no database).
