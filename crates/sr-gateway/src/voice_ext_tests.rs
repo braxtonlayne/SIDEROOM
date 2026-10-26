@@ -1413,6 +1413,11 @@ async fn who_may_set_a_status_and_what_is_refused() {
         e.gw.voice_status_set(u(MOD), TEXT, Some("x")).await,
         Err(StatusError::NotVoiceChannel)
     );
+    // A stranger is refused before the kind of the channel is looked at: it learns nothing about it.
+    assert_eq!(
+        e.gw.voice_status_set(u(OUTSIDER), TEXT, Some("x")).await,
+        Err(StatusError::MissingPermissions)
+    );
     assert_eq!(
         e.gw.voice_status_set(u(MOD), ChannelId::new(999), Some("x"))
             .await,

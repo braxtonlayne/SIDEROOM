@@ -130,13 +130,15 @@ impl Gateway {
             .voice_channel(guild, channel)
             .await
             .ok_or(StatusError::UnknownChannel)?;
-        if info.kind == VoiceChannelKind::Other {
-            return Err(StatusError::NotVoiceChannel);
-        }
+        // Who may see the channel is asked first: a stranger is not told what kind of channel it is
+        // (RDY-SEC-011, found by the write phase of the authorization matrix).
         let perms = dir
             .channel_permissions(actor, guild, channel)
             .await
             .ok_or(StatusError::MissingPermissions)?;
+        if info.kind == VoiceChannelKind::Other {
+            return Err(StatusError::NotVoiceChannel);
+        }
         let text = validate_status(raw.unwrap_or(""))?;
         let in_channel = self
             .voice_state(actor)
