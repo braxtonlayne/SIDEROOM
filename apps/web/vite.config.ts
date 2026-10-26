@@ -72,6 +72,8 @@ export default defineConfig({
       '/api': 'http://localhost:8080',
       '/internal/csp-report': 'http://localhost:8080',
       '/gateway': { target: 'ws://localhost:8080', ws: true },
+      // As in Caddyfile and Caddyfile.prod (`handle /voice/*`): the voice soak runs against the built bundle.
+      '/voice': { target: 'ws://localhost:8080', ws: true },
       '/cdn': 'http://localhost:8080',
     },
   },

@@ -86,10 +86,19 @@ jobs:
             exit 1
           }
           echo "sr-server pid $(cat sr-server.pid)"
+      # Environment parity (RDY-VOX-002, run 40250340133): the pages' socket logs showed gateway heartbeats sent up
+      # to 45 s late while the server never blocked a write, i.e. ten pages of the Vite dev server (React's
+      # development build, unbundled modules) starved the runner's CPU. The soak runs the production build behind
+      # `vite preview`, which proxies /api, /gateway and /voice like Caddy and enforces the production CSP.
+      - name: Build the web app (production bundle)
+        run: pnpm --filter @sideroom/web build
+        env:
+          VITE_SR_E2E: "1"
       - name: Soak (${{ inputs.count }} members, ${{ inputs.minutes }} minutes)
         run: pnpm --filter @sideroom/e2e exec playwright test --project=chromium tests/voice-soak.spec.ts --retries=0 --reporter=list,html
         env:
           CI: "true"
+          SR_E2E_WEB: preview
       # No SFU restart: the process the soak started is still the one answering, and it did not panic.
       - name: The SFU was not restarted
         if: always()

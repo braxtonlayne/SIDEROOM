@@ -31,7 +31,13 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
-    command: 'pnpm --filter @sideroom/web dev --host 127.0.0.1 --port 5173 --strictPort',
+    // SR_E2E_WEB=preview serves the production build (`vite build` first, with VITE_SR_E2E=1) instead of the dev
+    // server: the voice soak measures what users run, and ten pages of React's development build starved the
+    // runner's CPU (RDY-VOX-002, run 40250340133: heartbeats 45 s late).
+    command:
+      process.env.SR_E2E_WEB === 'preview'
+        ? 'pnpm --filter @sideroom/web exec vite preview --host 127.0.0.1 --port 5173 --strictPort'
+        : 'pnpm --filter @sideroom/web dev --host 127.0.0.1 --port 5173 --strictPort',
     cwd: '..',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
