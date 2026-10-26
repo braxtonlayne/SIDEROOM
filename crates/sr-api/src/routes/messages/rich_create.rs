@@ -71,9 +71,8 @@ pub async fn refused_emoji(
     > = std::collections::HashMap::new();
     for e in foreign {
         let ok = if target_ok {
-            if !standing.contains_key(&e.guild_id) {
-                let s = sr_chat::perms::source_standing(&*deps.repo, e.guild_id, user).await?;
-                standing.insert(e.guild_id, s);
+            if let std::collections::hash_map::Entry::Vacant(v) = standing.entry(e.guild_id) {
+                v.insert(sr_chat::perms::source_standing(&*deps.repo, e.guild_id, user).await?);
             }
             sr_chat::perms::SourceStanding::permits(
                 standing.get(&e.guild_id).and_then(Option::as_ref),
@@ -158,9 +157,8 @@ pub async fn resolve_stickers(
                 None => true,
                 Some(g) if Some(g) == channel_guild => true,
                 Some(g) if target_ok => {
-                    if !standing.contains_key(&g) {
-                        let st = sr_chat::perms::source_standing(&*deps.repo, g, user).await?;
-                        standing.insert(g, st);
+                    if let std::collections::hash_map::Entry::Vacant(v) = standing.entry(g) {
+                        v.insert(sr_chat::perms::source_standing(&*deps.repo, g, user).await?);
                     }
                     sr_chat::perms::SourceStanding::permits(
                         standing.get(&g).and_then(Option::as_ref),
