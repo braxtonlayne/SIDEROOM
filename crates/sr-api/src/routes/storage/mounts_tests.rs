@@ -1,7 +1,8 @@
 //! Endpoint tests for the mount routes over the in-memory repositories: the whole CRUD, the caps, the
 //! cross-tenant 404, the guild 403s, session-only access, input validation, and that no body has the secret.
 
-use super::mounts::{MountsDeps, router};
+use super::mounts::MountsDeps;
+use super::router;
 use crate::{
     ApiSettings, AppState,
     auth::{
@@ -162,7 +163,8 @@ async fn env() -> Env {
         Arc::new(XorSealer),
         Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
         policy,
-    );
+    )
+    .with_public_origin("https://chat.example.test");
     mounts.max_per_user = 2;
     mounts.max_per_guild = 1;
 
@@ -576,4 +578,292 @@ async fn env_with_default_policy() -> Env {
         tokens: vec![(MEMBER, t.expose().to_owned())],
         guild: e.guild,
     }
+}
+
+// ---------------------------------------------------------------- test and CORS routes
+
+use std::sync::Mutex;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
+
+/// A fake S3 for one bucket named `shelf`: a healthy key whose CORS document is whatever was PUT last.
+/// `deny_put` makes writes fail so the test goes red.
+async fn fake_s3(deny_put: bool) -> (String, Arc<Mutex<Option<String>>>) {
+    let doc: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let d = doc.clone();
+    tokio::spawn(async move {
+        while let Ok((mut sock, _)) = listener.accept().await {
+            let d = d.clone();
+            tokio::spawn(async move {
+                let mut buf = Vec::new();
+                let mut chunk = [0u8; 4096];
+                loop {
+                    let n = sock.read(&mut chunk).await.unwrap_or(0);
+                    if n == 0 {
+                        return;
+                    }
+                    buf.extend_from_slice(&chunk[..n]);
+                    let text = String::from_utf8_lossy(&buf).to_string();
+                    let Some((head, body)) = text.split_once("\r\n\r\n") else {
+                        continue;
+                    };
+                    let want = head
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .and_then(|v| v.trim().parse::<usize>().ok())
+                        })
+                        .unwrap_or(0);
+                    if body.len() < want {
+                        continue;
+                    }
+                    let mut first = head.lines().next().unwrap_or("").split(' ');
+                    let (m, t) = (first.next().unwrap_or(""), first.next().unwrap_or(""));
+                    let (status, reply) = match (m, t) {
+                        ("HEAD", "/shelf") => (200, String::new()),
+                        ("GET", t) if t.contains("list-type=2") => {
+                            (200, "<ListBucketResult/>".to_owned())
+                        }
+                        ("PUT", t) if t.ends_with(".sideroom-probe") => {
+                            if deny_put {
+                                (403, "<Error><Code>AccessDenied</Code></Error>".to_owned())
+                            } else {
+                                (200, String::new())
+                            }
+                        }
+                        ("GET", t) if t.ends_with(".sideroom-probe") => {
+                            (200, "sideroom probe".to_owned())
+                        }
+                        ("DELETE", _) => (204, String::new()),
+                        ("POST", t) if t.contains("uploads") => {
+                            (200, "<R><UploadId>u1</UploadId></R>".to_owned())
+                        }
+                        ("GET", "/shelf?cors") => match d.lock().unwrap().clone() {
+                            Some(x) => (200, x),
+                            None => (
+                                404,
+                                "<Error><Code>NoSuchCORSConfiguration</Code></Error>".to_owned(),
+                            ),
+                        },
+                        ("PUT", "/shelf?cors") => {
+                            *d.lock().unwrap() = Some(body.to_owned());
+                            (200, String::new())
+                        }
+                        ("GET", "/") => {
+                            (403, "<Error><Code>AccessDenied</Code></Error>".to_owned())
+                        }
+                        _ => (500, String::new()),
+                    };
+                    let reply = if m == "HEAD" { String::new() } else { reply };
+                    let resp = format!(
+                        "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
+                        reply.len()
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.shutdown().await;
+                    return;
+                }
+            });
+        }
+    });
+    (format!("http://127.0.0.1:{port}"), doc)
+}
+
+async fn connect(e: &Env, who: u64, base: &str, endpoint: &str) -> String {
+    let mut body = create_body("Fake");
+    body["endpoint"] = json!(endpoint);
+    let (st, m, _) = e.call(Some(who), Method::POST, base, Some(body)).await;
+    assert_eq!(st, StatusCode::CREATED, "{m}");
+    m["id"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn the_connection_test_stores_its_result_and_flips_the_status() {
+    let e = env().await;
+    let base = "/users/@me/storage/mounts";
+    let (good, _) = fake_s3(false).await;
+    let id = connect(&e, MEMBER, base, &good).await;
+
+    let (st, r, t) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &format!("{base}/{id}/test"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{r}");
+    assert!(!t.contains(SECRET));
+    let rows = r["rows"].as_array().unwrap();
+    let ids: Vec<&str> = rows.iter().map(|x| x["id"].as_str().unwrap()).collect();
+    assert_eq!(
+        ids,
+        [
+            "head_bucket",
+            "list",
+            "put",
+            "multipart",
+            "cors",
+            "list_buckets"
+        ]
+    );
+    assert!(
+        rows.iter()
+            .all(|x| x["message"].as_str().is_some_and(|m| !m.is_empty()))
+    );
+    assert!(r["at"].as_str().unwrap().contains('T'));
+
+    // The same object is the mount's `last_test`, and the mount stays active.
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    let m = &list.as_array().unwrap()[0];
+    assert_eq!(m["status"], "active");
+    assert_eq!(m["last_test"]["rows"].as_array().unwrap().len(), 6);
+    assert!(m["last_test_at"].is_string());
+
+    // A failing key turns it `failing`; a clean run turns it back.
+    let (bad, _) = fake_s3(true).await;
+    let (st, _, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PATCH,
+            &format!("{base}/{id}"),
+            Some(json!({"endpoint": bad})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let (_, r, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &format!("{base}/{id}/test"),
+            None,
+        )
+        .await;
+    assert_eq!(r["rows"][2]["status"], "fail");
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert_eq!(list[0]["status"], "failing");
+    e.call(
+        Some(MEMBER),
+        Method::PATCH,
+        &format!("{base}/{id}"),
+        Some(json!({"endpoint": good})),
+    )
+    .await;
+    e.call(
+        Some(MEMBER),
+        Method::POST,
+        &format!("{base}/{id}/test"),
+        None,
+    )
+    .await;
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert_eq!(list[0]["status"], "active");
+
+    // Not yours: 404. Unauthenticated: 401.
+    let (st, _, _) = e
+        .call(
+            Some(OUTSIDER),
+            Method::POST,
+            &format!("{base}/{id}/test"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    let (st, _, _) = e
+        .call(None, Method::POST, &format!("{base}/{id}/test"), None)
+        .await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn cors_check_apply_and_the_presign_flag() {
+    let e = env().await;
+    let base = "/users/@me/storage/mounts";
+    let (ep, doc) = fake_s3(false).await;
+    let id = connect(&e, MEMBER, base, &ep).await;
+    let check = format!("{base}/{id}/cors/check");
+    let apply = format!("{base}/{id}/cors/apply");
+
+    let (st, r, _) = e.call(Some(MEMBER), Method::POST, &check, None).await;
+    assert_eq!(st, StatusCode::OK, "{r}");
+    assert_eq!(r["state"], "missing");
+    assert_eq!(r["found"].as_array().unwrap().len(), 0);
+    assert!(
+        r["required"][0]
+            .as_str()
+            .unwrap()
+            .contains("chat.example.test")
+    );
+    assert!(r["checked_at"].is_string());
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert!(list[0]["cors_ok_at"].is_null());
+
+    let (st, r, _) = e.call(Some(MEMBER), Method::POST, &apply, None).await;
+    assert_eq!(st, StatusCode::OK, "{r}");
+    assert_eq!(r["state"], "ok");
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert!(list[0]["cors_ok_at"].is_string(), "ok stamps cors_ok_at");
+
+    // The rules are replaced behind our back: check says different and clears the stamp.
+    *doc.lock().unwrap() =
+        Some(sr_storage::s3admin::cors_xml(&["https://other.example.test".to_owned()]).unwrap());
+    let (_, r, _) = e.call(Some(MEMBER), Method::POST, &check, None).await;
+    assert_eq!(r["state"], "different");
+    assert!(
+        r["found"][0]
+            .as_str()
+            .unwrap()
+            .contains("other.example.test")
+    );
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert!(list[0]["cors_ok_at"].is_null());
+
+    // Changing the bucket clears the proof too.
+    e.call(Some(MEMBER), Method::POST, &apply, None).await;
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert!(list[0]["cors_ok_at"].is_string());
+    e.call(
+        Some(MEMBER),
+        Method::PATCH,
+        &format!("{base}/{id}"),
+        Some(json!({"prefix": "other/"})),
+    )
+    .await;
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert!(list[0]["cors_ok_at"].is_null());
+
+    // Guild scope: a plain member is refused, the owner may.
+    let gbase = format!("/guilds/{}/storage/mounts", e.guild);
+    let gid = connect(&e, OWNER, &gbase, &ep).await;
+    let (st, _, _) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            &format!("{gbase}/{gid}/cors/apply"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, r, _) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &format!("{gbase}/{gid}/cors/apply"),
+            None,
+        )
+        .await;
+    assert_eq!((st, r["state"].as_str()), (StatusCode::OK, Some("ok")));
+    // A user mount through the guild route is 404.
+    let (st, _, _) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &format!("{gbase}/{id}/test"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
 }

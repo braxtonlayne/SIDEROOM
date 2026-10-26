@@ -52,9 +52,19 @@ pub struct MountsDeps {
     pub max_per_user: u32,
     /// `byos.max_mounts_per_guild`.
     pub max_per_guild: u32,
+    /// The origin browsers read mounts from (`server.public_url`); the CORS rule names exactly this.
+    pub public_origin: String,
+    /// How long the connection test may run (20 s).
+    pub test_budget: std::time::Duration,
 }
 
 impl MountsDeps {
+    /// Set the origin the CORS rule allows (`server.public_url`).
+    pub fn with_public_origin(mut self, origin: &str) -> Self {
+        self.public_origin = origin.trim_end_matches('/').to_owned();
+        self
+    }
+
     /// Wire the repo with the default caps.
     pub fn new(
         repo: Arc<dyn MountRepo>,
@@ -71,6 +81,8 @@ impl MountsDeps {
             net_policy,
             max_per_user: DEFAULT_MAX_MOUNTS_PER_USER,
             max_per_guild: DEFAULT_MAX_MOUNTS_PER_GUILD,
+            public_origin: String::new(),
+            test_budget: sr_storage::probe::PROBE_BUDGET,
         }
     }
 }
@@ -207,14 +219,14 @@ pub(crate) fn conflict(code: &str, message: &str) -> MsgError {
     )
 }
 
-fn not_found() -> MsgError {
+pub(crate) fn not_found() -> MsgError {
     MsgError::Api(ApiError::with_message(
         ErrorCode::SrNotFound,
         "Unknown storage mount",
     ))
 }
 
-fn repo_failure(e: MountError) -> MsgError {
+pub(crate) fn repo_failure(e: MountError) -> MsgError {
     match e {
         MountError::CapReached(n) => conflict(
             "MOUNT_CAP_REACHED",
@@ -260,7 +272,7 @@ fn raw(id: UserId) -> i64 {
 }
 
 /// The caller's own mounts.
-fn user_scope(p: &Principal) -> MsgResult<Scope> {
+pub(crate) fn user_scope(p: &Principal) -> MsgResult<Scope> {
     Ok(Scope::User(raw(member(p)?)))
 }
 
