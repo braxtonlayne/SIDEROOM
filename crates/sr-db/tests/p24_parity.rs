@@ -107,3 +107,56 @@ async fn the_dm_spam_filter_files_a_spammy_first_message_as_likely_spam() {
     );
     db.cleanup().await.unwrap();
 }
+
+/// PAR-FU-002 (U-03): the filter level "All" also reads a friend's message. The friend stays in the conversation
+/// (no request state is filed) and the message is flagged `LIKELY_SPAM`; "Non-friends" and "Off" never read it.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_all_level_flags_a_friends_spammy_message_without_filing_a_request() {
+    use sr_chat::social::safety::SpamFilter;
+    use sr_chat::social::user_settings::PrivacyUpdate;
+
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let test_ids = ids(9);
+    let friend = account(&pool, &test_ids).await;
+    let me = account(&pool, &test_ids).await;
+    let repo = PgSocialRepo::new(pool.clone());
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let svc = SocialService::new(
+        PgSocialRepo::new(pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(clock, 9, 10).unwrap(),
+        SocialLimits::default(),
+    );
+    svc.send_friend_request(friend, me).await.unwrap();
+    svc.accept_friend_request(me, friend).await.unwrap();
+    let ch = ChannelId::new(test_ids.generate().get());
+    repo.insert_dm(ch, friend, me).await.unwrap();
+
+    let spam = "https://a.example.com https://b.example.org https://c.example.net";
+    let level = |l| PrivacyUpdate {
+        dm_spam_filter: Some(l),
+        ..Default::default()
+    };
+    for l in [SpamFilter::NonFriends, SpamFilter::Off] {
+        svc.update_privacy(me, level(l)).await.unwrap();
+        assert!(!svc.friend_dm_spam_flag(ch, friend, spam).await.unwrap());
+    }
+    svc.update_privacy(me, level(SpamFilter::All))
+        .await
+        .unwrap();
+    assert!(svc.friend_dm_spam_flag(ch, friend, spam).await.unwrap());
+    assert!(
+        !svc.friend_dm_spam_flag(ch, friend, "see you at nine")
+            .await
+            .unwrap()
+    );
+    // The conversation is not a request, and screening it leaves it alone.
+    assert_eq!(svc.screen_dm_message(ch, friend, spam).await.unwrap(), None);
+    assert_ne!(
+        repo.get_request_state(me, ch).await.unwrap(),
+        Some(RequestState::Spam)
+    );
+    db.cleanup().await.unwrap();
+}

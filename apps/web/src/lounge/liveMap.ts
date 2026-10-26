@@ -375,6 +375,7 @@ const FLAG_SUPPRESS_EMBEDS = 1 << 2;
 const FLAG_VOICE = 1 << 13;
 const FLAG_EPHEMERAL = 1 << 6;
 const FLAG_SYSTEM_TAG = 1 << 30;
+const FLAG_LIKELY_SPAM = 1 << 29;
 
 function decodeWaveform(b64: string | null | undefined): number[] | null {
   if (!b64) return null;
@@ -502,6 +503,7 @@ export function toLoungeMessage(m: S.Message): Message {
       : {}),
     ...(flags & FLAG_VOICE ? { voice: true } : {}),
     ...(flags & FLAG_EPHEMERAL ? { ephemeral: true } : {}),
+    ...(flags & FLAG_LIKELY_SPAM ? { likelySpam: true } : {}),
     ...(flags & FLAG_SUPPRESS_EMBEDS ? { suppressEmbeds: true } : {}),
     ...(m.sr_text_emoji?.length ? { textEmoji: m.sr_text_emoji } : {}),
   };

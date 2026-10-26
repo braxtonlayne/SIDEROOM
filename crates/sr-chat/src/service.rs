@@ -479,7 +479,7 @@ impl<R: ChatRepository> ChatService<R> {
             notify.extend(self.fanout_recipients(g, &acc.channel, &mentions).await?);
         }
 
-        let message = Message {
+        let mut message = Message {
             id: MessageId::from(self.ids.generate()),
             channel_id,
             guild_id: acc.channel.guild_id,
@@ -511,6 +511,9 @@ impl<R: ChatRepository> ChatService<R> {
             purge_after_ms: None,
             hold_id: None,
         };
+        if let Some(hooks) = &self.hooks {
+            message.flags |= hooks.extra_flags(&message).await;
+        }
         self.repo.insert_message(&message).await?;
         if let Some(hooks) = &self.hooks {
             hooks.message_sent(&message, &notify).await;

@@ -145,7 +145,7 @@ export interface Message {
   reactions?: MessageReaction[];
   /** 0 default, 6 pin notice, 19 reply (Discord message types). */
   type?: number;
-  /** 4 suppress embeds, 8192 voice message, 1 << 30 written by the system user (SYSTEM_TAG). */
+  /** 4 suppress embeds, 8192 voice message, 1 << 30 written by the system user (SYSTEM_TAG), 1 << 29 flagged as likely spam (LIKELY_SPAM). */
   flags?: number;
   attachments?: RawAttachment[];
   embeds?: RawEmbed[];
