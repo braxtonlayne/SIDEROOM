@@ -41,12 +41,16 @@ export function startBot(opts: {
       answered.push(opts.command.name);
     },
   );
-  client.on('error', (e) => errors.push(String(e)));
-  client.on('fatal', (code, reason) => errors.push(`gateway closed for good: ${code} ${reason}`));
+  client.on('error', (e) => {
+    errors.push(String(e));
+  });
+  client.on('fatal', (code, reason) => {
+    errors.push(`gateway closed for good: ${code} ${reason}`);
+  });
 
   const ready = new Promise<{ applicationId: string; username: string }>((resolve, reject) => {
     client.on('ready', (r) => {
-      resolve({ applicationId: r.application?.id ?? '', username: r.user.username });
+      resolve({ applicationId: r.application?.id ?? '', username: r.user.username ?? '' });
     });
     client.on('fatal', (code, reason) => reject(new Error(`gateway: ${code} ${reason}`)));
   });
