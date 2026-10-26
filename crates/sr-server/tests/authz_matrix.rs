@@ -3187,12 +3187,15 @@ fn write_late(method: &str, path: &str) -> u8 {
             | ("POST", "/applications/{application_id}/bot/reset-token")
             | ("POST", "/applications/{application_id}/reset-secret")
             | ("DELETE", "/applications/{application_id}")
+            // The channel and the server take their webhooks and members with them.
+            | ("DELETE", "/channels/{channel_id}")
+            | ("DELETE", "/guilds/{guild_id}")
     ) {
         return 2;
     }
     u8::from(matches!(
         (method, path),
-        ("DELETE", "/guilds/{guild_id}")
+        ("DELETE", "/guilds/{guild_id}/never")
             // A bulk overwrite replaces the commands the routes before it address.
             | ("PUT", "/applications/{application_id}/commands")
             | ("PUT", "/applications/{application_id}/guilds/{guild_id}/commands")
@@ -3201,8 +3204,6 @@ fn write_late(method: &str, path: &str) -> u8 {
             | ("DELETE", "/webhooks/{webhook_id}")
             // The host leaving ends the party.
             | ("POST", "/watch-parties/{party_id}/leave")
-            | ("DELETE", "/channels/{channel_id}")
-            | ("DELETE", "/guilds/{guild_id}/channels/{channel_id}")
             | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
             | ("POST", "/guilds/{guild_id}/prune")
             | ("POST", "/guilds/{guild_id}/bulk-ban")
