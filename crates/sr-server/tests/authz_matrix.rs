@@ -2337,6 +2337,9 @@ async fn seed(
         a.insert("insider_id", u("insider").to_string());
         a.insert("key", sr_admin::ENTRANCE_COPY_KEYS[0].to_owned());
         a.insert("member_id", u("member").to_string());
+        a.insert("staff_target_id", u("friendtwo").to_string());
+        a.insert("owner_b_id", u("ownerb").to_string());
+        a.insert("support_role_id", staff_roles["Support"].to_string());
         if let Some(id) = mk(
             &srv,
             infos,
@@ -2453,6 +2456,23 @@ async fn seed(
         .await
         {
             a.insert("data_request_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/admin/donations/entitlements",
+            Some(json!({"kind": "patron", "days": 30, "user_id": victim, "reason": "authz matrix"})),
+        )
+        .await
+        {
+            a.insert("entitlement_grant_id", id);
+        }
+        if let Ok(id) = sqlx::query_scalar::<_, i64>("SELECT id FROM platform_invites ORDER BY id LIMIT 1")
+            .fetch_one(&pool)
+            .await
+        {
+            a.insert("platform_invite_id", id.to_string());
         }
         // A guestbook entry the member wrote on the victim's board.
         if let Some(id) = mk(
@@ -3200,12 +3220,13 @@ fn write_root(path: &str) -> bool {
     )
 }
 
-/// Writes that end or remove what the edits before them act on (leaving a party, banning or pruning the
-/// members): after the edits, before the deletes.
+/// Writes that settle or consume what the creates and edits before them act on (a hold is released or
+/// retained once it has been reviewed): after the edits, before the deletes.
 fn write_ending(method: &str, path: &str) -> bool {
     matches!(
         (method, path),
-        ("POST", "/never")
+        ("POST", "/moderation/holds/{hold_id}/release")
+            | ("POST", "/moderation/holds/{hold_id}/retain")
     )
 }
 
@@ -3228,6 +3249,8 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
             ("webhook_id", world.a["webhook2_id"].clone()),
             ("token", world.a["token2"].clone()),
         ]
+    } else if r.path.starts_with("/admin/staff/{account_id}") {
+        vec![("account_id", world.a["staff_target_id"].clone())]
     } else if r.method == "DELETE" && r.path == "/admin/library/uploads/{upload_id}" {
         vec![("upload_id", world.a["lib_upload2_id"].clone())]
     } else if r.path == "/admin/cinema/titles/{title_id}/merge" {
@@ -3249,6 +3272,9 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
         ("POST", "/admin/cinema/titles/{title_id}/merge") => r#"{"target_id":"{title_id}"}"#,
         ("POST", "/admin/library/series/{series_id}/merge") => r#"{"target_id":"{series_id}"}"#,
+        ("POST", "/moderation/age/restrictions") => {
+            r#"{"kind":"channel","id":"{channel_id}","restricted":true,"reason":"authz matrix"}"#
+        }
         ("POST", "/watch-parties") => r#"{"title_id":"{title_id}","channel_id":"{channel_id}"}"#,
         // The host hands the party to itself: allowed, and the member keeps the control the rest needs.
         ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
@@ -3262,6 +3288,15 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         }
         ("POST", "/users/{user_id}/guestbook") => r#"{"body":"authz"}"#,
         ("POST", "/packages/{package_id}/create-guild") => r#"{"name":"authz guild"}"#,
+        ("POST", "/admin/staff") => {
+            r#"{"account_id":"{staff_target_id}","role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
+        }
+        ("POST", "/admin/staff/offers") => {
+            r#"{"account_id":"{owner_b_id}","role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
+        }
+        ("PUT", "/admin/staff/{account_id}/roles") => {
+            r#"{"role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
+        }
         ("POST", "/sr/auth/password") => {
             r#"{"current_password":"{pw}","new_password":"authz-matrix-New-Horse-7"}"#
         }
@@ -3417,8 +3452,14 @@ async fn write_phase(
                     .unwrap_or_else(|| json!({})),
             ),
         };
+        let wants_reason = info
+            .and_then(|i| i.full.as_ref())
+            .is_some_and(|f| f.get("reason").is_some());
         let body = body.map(|mut b| {
             fixup(&mut b);
+            if wants_reason && let Some(m) = b.as_object_mut() {
+                m.entry("reason").or_insert(json!("authz matrix"));
+            }
             b
         });
         let resp = world
@@ -3824,10 +3865,12 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/applications/"], "emoji_id", "app_emoji_id"),
     (&["{application_id}/guilds/{guild_id}/commands/"], "command_id", "guild_command_id"),
     (&["/developers/tester-invites/"], "invite_id", "tester_invite_id"),
-    (&["/staff/offers/"], "offer_id", "staff_offer_id"),
+    (&["/staff/offers/", "/admin/staff/offers/"], "offer_id", "staff_offer_id"),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
     (&["submissions/{submission_id}/publish-now"], "submission_id", "own_submission_id"),
     (&["/admin/data-requests/"], "request_id", "data_request_id"),
+    (&["/admin/donations/entitlements/"], "grant_id", "entitlement_grant_id"),
+    (&["/admin/invites/"], "invite_id", "platform_invite_id"),
     (&["/admin/developers/packages/versions/"], "version_id", "pending_version_id"),
     (&["/packages/versions/"], "version_id", "withdraw_version_id"),
     (&["{package_id}/import"], "package_id", "pack_id"),
