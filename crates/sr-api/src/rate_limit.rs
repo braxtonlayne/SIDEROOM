@@ -926,7 +926,7 @@ mod tests {
                 "{a:?} guards no route"
             );
         }
-        assert_eq!(Abuse::ALL.len(), 9);
+        assert_eq!(Abuse::ALL.len(), 10);
         assert_eq!(RateConfig::of(&RateLimitConfig::default()), d);
     }
 

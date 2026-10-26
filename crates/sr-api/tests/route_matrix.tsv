@@ -957,7 +957,7 @@ PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-	-
-PUT	/guilds/{guild_id}/storage/grants	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/storage/grants	authenticated	membership	deny	-	-
 PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
 PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	self	allow	-	-
