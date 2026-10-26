@@ -317,10 +317,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let mount_resolver = Arc::new(sr_storage::mount_cache::CachedMountResolver::new(
         mount_repo.clone(),
     ));
-    // Bucket mounts, read side (BYOS-SCP-001/002): scoped listing and presign over the same resolver.
+    // Bucket mounts, read side (BYOS-SCP-001/002): scoped listing and presign over the same repo and sealer.
     let scope_facts = Arc::new(sr_db::scopes_repo::PgScopeFacts::new(pool.clone()));
     let storage_scope_deps = Arc::new(routes::storage::ScopeDeps {
-        mounts: mount_resolver.clone(),
+        // Uncached on purpose: a disabled mount or a cleared CORS flag (the recheck job, sr-cli, a direct
+        // write) must stop presigning at once, not after the 60 s cache.
+        mounts: mount_repo.clone(),
         store: scope_facts.clone(),
         sealer: mount_sealer.clone(),
     });
