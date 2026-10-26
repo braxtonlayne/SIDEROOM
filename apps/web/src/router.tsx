@@ -23,6 +23,7 @@ import { createDeveloperRoutes } from './developers/routes';
 import { createSupportRoutes } from './support/routes';
 import { createProfilePageRoutes } from './profilepage/routes';
 import { createPwaRoutes } from './pwa/routes';
+import { createStorageRoutes } from './storage/routes';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
 import { LoginLink } from './routes/entrance/LoginLink';
@@ -147,6 +148,7 @@ const routeTree = root.addChildren([
   ...createSupportRoutes(root),
   ...createProfilePageRoutes(root),
   ...createPwaRoutes(root),
+  ...createStorageRoutes(root),
 ]);
 
 function NotFoundPage() {

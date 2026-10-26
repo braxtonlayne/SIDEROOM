@@ -15,6 +15,10 @@ export interface ByosMockOptions {
   cors?: CorsResult['state'];
   /** Outgoing Friend Shelf shares, by mount id. */
   shares?: Record<string, Share[]>;
+  /** Object keys per mount id for the bucket browser; sizes are fake. */
+  objects?: Record<string, string[]>;
+  /** When true, listing and presign answer 409 CORS_NOT_READY. */
+  corsNotReady?: boolean;
 }
 
 export const MOCK_NOW = '2026-10-26T12:00:00.000Z';
@@ -177,5 +181,39 @@ export function byosMockHandlers(opts: ByosMockOptions = {}): HttpHandler[] {
       return new HttpResponse(null, { status: 204 });
     }),
   ];
-  return [...shareHandlers, ...make('users/@me', false), ...make('guilds/:gid', true)];
+  // Bucket browser read side (BYOS-SCP-002; assumed shapes in ../../../storage/api.ts).
+  const notReady = () =>
+    HttpResponse.json({ message: 'CORS not ready', code: 'CORS_NOT_READY' }, { status: 409 });
+  const browseHandlers = [
+    http.get('*/api/v1/storage/mounts/:id/objects', ({ request, params }) => {
+      if (opts.corsNotReady) return notReady();
+      const url = new URL(request.url);
+      const prefix = url.searchParams.get('prefix') ?? '';
+      const keys = (opts.objects ?? {})[String(params.id)] ?? [];
+      const folders = new Set<string>();
+      const objects: { key: string; size: number; last_modified: string | null }[] = [];
+      for (const k of keys) {
+        if (!k.startsWith(prefix)) continue;
+        const rest = k.slice(prefix.length);
+        const i = rest.indexOf('/');
+        if (i >= 0) folders.add(prefix + rest.slice(0, i + 1));
+        else objects.push({ key: k, size: 2048, last_modified: MOCK_NOW });
+      }
+      return HttpResponse.json({ folders: [...folders], objects, next_cursor: null });
+    }),
+    http.post('*/api/v1/storage/mounts/:id/presign', async ({ request }) => {
+      if (opts.corsNotReady) return notReady();
+      const body = (await request.json()) as { key: string };
+      return HttpResponse.json({
+        url: `https://bucket.example/${encodeURI(body.key)}?X-Amz-Signature=mock`,
+        expires_at: new Date(Date.now() + 900_000).toISOString(),
+      });
+    }),
+  ];
+  return [
+    ...browseHandlers,
+    ...shareHandlers,
+    ...make('users/@me', false),
+    ...make('guilds/:gid', true),
+  ];
 }

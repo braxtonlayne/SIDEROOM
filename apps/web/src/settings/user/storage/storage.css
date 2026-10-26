@@ -111,3 +111,32 @@
   letter-spacing: 0.04em;
   color: var(--ui-text-muted);
 }
+.sto-browser {
+  max-inline-size: 60rem;
+  margin-inline: auto;
+  padding: 24px 16px;
+  color: var(--ui-text);
+  background: var(--ui-bg);
+}
+.sto-crumbs {
+  margin-block-end: 12px;
+}
+.sto-folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.sto-preview {
+  margin-block-start: 16px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+}
+.sto-img {
+  max-inline-size: 100%;
+  max-block-size: 24rem;
+}

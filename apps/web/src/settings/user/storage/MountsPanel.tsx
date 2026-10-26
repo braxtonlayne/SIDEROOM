@@ -1,4 +1,5 @@
 import { Button, Notice, Select, TextInput } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
 import { errorText, useResource } from '../api';
@@ -323,6 +324,14 @@ function MountRow({
           >
             {t('settings.storage.test')}
           </Button>
+          <Link
+            to="/storage/$mountId"
+            params={{ mountId: mount.id }}
+            search={{ prefix: '' }}
+            className="sto-link"
+          >
+            {t('settings.storage.browse')}
+          </Link>
           <Button
             variant="secondary"
             size="sm"
