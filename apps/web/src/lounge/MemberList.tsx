@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react';
 import { useT } from '../i18n';
 import { nameStyle } from '../lib/roleGradient';
 import { useDeveloperMode } from '../settings/user/prefs';
+import { useViewAsMembers } from '../settings/server/viewAsMode';
 import { useViewer, type Viewer } from '../settings/server/hooks';
 import { useAppsMenu } from './apps/useAppsMenu';
 import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
@@ -203,7 +204,7 @@ export function MemberList({
 }) {
   const t = useT();
   const guild = useGuild(guildId);
-  const members = useMembers(guildId);
+  const members = useViewAsMembers(guildId, channelId, guild?.ownerId, useMembers(guildId));
   const roles = useRoles(guildId);
   const presence = usePresenceMap();
   const viewer = useViewer(guildId);

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { cspOptionsFromConfig, securityHeaders } from './src/security/csp';
 import { activityHostProxy } from './vite/activityHosts';
+import { pseudoLocalePlugin } from './vite/pseudoLocale';
 import { pwaPlugin } from './vite/pwa';
 
 /** Optional comma-separated extra CSP origins for self-hosters (a separate voice host, activities). */
@@ -42,10 +43,17 @@ function changelogVersion(): string {
 }
 
 export default defineConfig({
-  define: { __SR_VERSION__: JSON.stringify(changelogVersion()) },
+  define: {
+    __SR_VERSION__: JSON.stringify(changelogVersion()),
+    // RDY-I18N-002: the pseudo-locales ship only in a build made with SR_PSEUDO_LOCALE=1 (src/i18n/runtime.ts).
+    'import.meta.env.VITE_SR_PSEUDO_LOCALE': JSON.stringify(
+      process.env.SR_PSEUDO_LOCALE === '1' ? 'true' : 'false',
+    ),
+  },
   plugins: [
     react(),
     pwaPlugin(),
+    pseudoLocalePlugin(),
     ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy()] : []),
   ],
   // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.

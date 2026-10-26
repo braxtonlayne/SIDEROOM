@@ -898,6 +898,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"status","method":"get","path":"/users/@me/data-export","status":200,"body":{"state":"string"}},
   {"id":"request","method":"post","path":"/users/@me/data-export","status":202,"body":{"state":"string"}},
   {"id":"download","method":"get","path":"/users/@me/data-export/:id/download","status":200,"body":null},
+  {"id":"list_my_expressions","method":"get","path":"/users/@me/expressions","status":200,"body":[{"emojis":[{}],"guild":{},"sounds":[{}],"stickers":[{}],"usable_externally":false}]},
   {"id":"list_settings","method":"get","path":"/users/@me/guild-settings","status":200,"body":{"settings":[{}]}},
   {"id":"list_my_guilds","method":"get","path":"/users/@me/guilds","status":200,"body":[{"features":["string"],"id":"1","name":"string","owner":false,"permissions":"string"}]},
   {"id":"leave_guild","method":"delete","path":"/users/@me/guilds/:guild_id","status":204,"body":null},

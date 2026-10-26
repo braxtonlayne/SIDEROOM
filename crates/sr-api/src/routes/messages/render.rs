@@ -90,6 +90,10 @@ pub async fn render_many(
             )
         })
         .collect();
+    // PAR-FU-002: the likely-spam flag is the recipient's view; the author never gets it.
+    for (o, m) in out.iter_mut().zip(msgs) {
+        o.flags = sr_chat::message_flags::for_viewer(o.flags, m.author_id, viewer);
+    }
     super::rich_model::decorate(deps, Some(viewer), msgs, &mut out).await?;
     attach_threads(deps, msgs, &mut out).await;
     sign_attachments(deps, &mut out);
@@ -158,6 +162,9 @@ pub async fn render_created(
     super::rich_model::decorate(deps, None, std::slice::from_ref(msg), &mut objs).await?;
     sign_attachments(deps, &mut objs);
     let data = objs[0].to_value();
+    // The broadcast keeps the flag (the recipient needs it; the gateway masks it for the author); the author's
+    // own REST response does not carry it.
+    objs[0].flags = sr_chat::message_flags::for_viewer(objs[0].flags, msg.author_id, author);
     deps.apply_sensitive(author, std::slice::from_ref(msg), &mut objs)
         .await;
     Ok((objs.remove(0), data))

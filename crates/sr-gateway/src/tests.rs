@@ -2434,3 +2434,25 @@ async fn user_scoped_events_follow_the_guild_or_go_to_shard_zero() {
     s0.silent().await;
     s1.silent().await;
 }
+
+/// PAR-FU-002: the likely-spam flag is the recipient's view; the author's session gets the message without it.
+#[tokio::test]
+async fn the_author_never_receives_the_likely_spam_flag() {
+    let e = env();
+    let mut author = connect(&e);
+    author.identify("bot:1", GUILDS_MSGS, 1).await;
+    let mut reader = connect(&e);
+    reader.identify("bot:2", GUILDS_MSGS, 1).await;
+    let flagged = 1u64 << 29;
+    let mut ev = msg(G1, OPEN, 300);
+    if let DomainEvent::MessageSent { data, .. } = &mut ev {
+        data["flags"] = json!(flagged | 4);
+    }
+    emit(&e.bus, ev).await;
+    // Author is user 1: the bit is gone, the other flags stay.
+    assert_eq!(author.expect_event("MESSAGE_CREATE").await["d"]["flags"], 4);
+    assert_eq!(
+        reader.expect_event("MESSAGE_CREATE").await["d"]["flags"],
+        flagged | 4
+    );
+}

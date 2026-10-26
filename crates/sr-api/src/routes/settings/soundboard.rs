@@ -585,7 +585,12 @@ pub async fn send_sound(
             if !ca.perms.has(Permissions::USE_EXTERNAL_SOUNDS) {
                 return Err(ErrorCode::MissingPermissions.into());
             }
-            deps.guild_access(user, source).await?;
+            // D-376: the source server decides whether its sounds leave it. A non-member fails
+            // in `guild_access`; a member needs `USE_EXPRESSIONS_EXTERNALLY` in the source.
+            let src = deps.guild_access(user, source).await?;
+            if !sr_chat::perms::may_use_externally(&src.guild, &src.member, &src.roles) {
+                return Err(ErrorCode::MissingPermissions.into());
+            }
         }
         let s = deps
             .service

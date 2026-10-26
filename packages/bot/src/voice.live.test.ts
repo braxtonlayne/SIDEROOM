@@ -11,20 +11,23 @@
 //    implementation's encrypted audio, opened by this implementation's keys.
 //
 // Environment: SR_BOT_TOKEN, SR_API_URL, SR_GATEWAY_URL, SR_GUILD_ID, SR_VOICE_CHANNEL_ID, SR_BIND_IP, and
-// optionally SR_RUN_SECONDS (60), SR_DROP_AFTER_SECONDS (20), SR_PARTNER_USER.
+// optionally SR_RUN_SECONDS (60), SR_DROP_AFTER_SECONDS (20), SR_PARTNER_USER and SR_FRESH_SESSION_AFTER_SECONDS.
+//
+// The bot speaks a 440 Hz tone through `OpusEncoder` (DEV-FU-002) and decodes the partner's frames, which must
+// be a tone too, not silence. With SR_FRESH_SESSION_AFTER_SECONDS the gateway session is thrown away that many
+// seconds in (`Shard.reidentify`): the new session's IDENTIFY and READY carry no voice state, so the call is only
+// joined again if the shard sends its remembered op 4 after READY (DEV-FU-001); the test then needs a second
+// VOICE_SERVER_UPDATE, rejoins the SFU with it and does the MLS handshake again.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { loadE2ee } from '@sideroom/wasm';
 import { Client, Intents } from './index';
+import { FRAME_SAMPLES, OpusDecoder, OpusEncoder, audioLevelDbov } from './audio';
+import type { Shard } from './gateway';
 import { E2eeCall, E2eeMedia, Identity, type Action } from './voice';
-import {
-  VoiceLink,
-  VoiceServerUpdate,
-  voiceStateBody,
-  type VoiceEvent,
-} from './voiceTransport';
+import { VoiceLink, VoiceServerUpdate, voiceStateBody, type VoiceEvent } from './voiceTransport';
 
 const live = process.env.SR_VOICE_LIVE === '1';
 const env = (k: string): string => {
@@ -36,6 +39,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const seconds = Number(process.env.SR_RUN_SECONDS ?? '60');
 const dropAfter = process.env.SR_DROP_AFTER_SECONDS
   ? Number(process.env.SR_DROP_AFTER_SECONDS)
+  : null;
+const freshAfter = process.env.SR_FRESH_SESSION_AFTER_SECONDS
+  ? Number(process.env.SR_FRESH_SESSION_AFTER_SECONDS)
   : null;
 
 describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', () => {
@@ -57,14 +63,19 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
       });
       let me = '';
       let update: VoiceServerUpdate | null = null;
+      const laterUpdates: VoiceServerUpdate[] = [];
+      let readies = 0;
       const mls: Record<string, unknown>[] = [];
       const gotReady = new Promise<void>((resolve) => {
         client.on('raw', (name, data) => {
           if (name === 'READY') {
             me = String((data as { user: { id: string } }).user.id);
+            readies += 1;
             resolve();
           } else if (name === 'VOICE_SERVER_UPDATE') {
-            update = VoiceServerUpdate.fromDispatch(data as Record<string, unknown>);
+            const u = VoiceServerUpdate.fromDispatch(data as Record<string, unknown>);
+            if (update === null) update = u;
+            else if (u) laterUpdates.push(u);
           } else if (name === 'E2EE_MLS') {
             mls.push(data as Record<string, unknown>);
           }
@@ -90,9 +101,9 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
         }
       };
 
-      expect(client.voiceStateUpdate(guild, voiceStateBody(guild, channel, false, false, true))).toBe(
-        true,
-      );
+      expect(
+        client.voiceStateUpdate(guild, voiceStateBody(guild, channel, false, false, true)),
+      ).toBe(true);
       const waitFor = async <T>(f: () => T | null, ms: number, what: string): Promise<T> => {
         const end = Date.now() + ms;
         for (;;) {
@@ -120,7 +131,23 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
       let undecryptable = 0;
       let closed: number | null = null;
       let nextFrame = Date.now();
-      const tone = new Uint8Array(60).fill(0x5a);
+      // 20 ms of the tone per frame; the phase continues across frames.
+      const encoder = link.session().adopt(new OpusEncoder(1, 'voip'));
+      const decoder = link.session().adopt(new OpusDecoder(1));
+      let clock = 0;
+      const toneFrame = (): Int16Array => {
+        const pcm = new Int16Array(FRAME_SAMPLES);
+        for (let i = 0; i < FRAME_SAMPLES; i++) {
+          pcm[i] = Math.round(
+            Math.sin((2 * Math.PI * 440 * (clock * FRAME_SAMPLES + i)) / 48000) * 8000,
+          );
+        }
+        clock += 1;
+        return pcm;
+      };
+      let freshDone = false;
+      let rejoins = 0;
+      let bestHeard = -127;
 
       while (Date.now() - started < seconds * 1000 && closed === null) {
         for (const d of mls.splice(0)) apply(call.handle(d, roster, Date.now()));
@@ -131,9 +158,24 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
           link.session().abandonSignalling();
           dropped = true;
         }
+        if (!freshDone && freshAfter !== null && Date.now() - started >= freshAfter * 1000) {
+          console.log('throwing the gateway session away (a fresh IDENTIFY follows)');
+          const shards = (client as unknown as { shards: Shard[] }).shards;
+          shards[0]?.reidentify();
+          freshDone = true;
+        }
+        // The shard sent its remembered join after the fresh READY, so the server says where the call is again.
+        for (const u of laterUpdates.splice(0)) {
+          console.log(`rejoining ${u.endpoint}`);
+          rejoins += 1;
+          closed = null;
+          await link.rejoin(u);
+          apply([call.hello()]);
+        }
         if (link.session().isConnected() && media.sendingEpoch() >= 0 && Date.now() >= nextFrame) {
           nextFrame += 20;
-          await link.session().sendOpus(tone);
+          const pcm = toneFrame();
+          await link.session().sendOpus(encoder.encodeFrame(pcm));
           frames += 1;
         }
         const events: VoiceEvent[] = await link.pump(20);
@@ -145,8 +187,11 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
               console.log('connected');
               break;
             case 'audio':
-              if (e.user === partner && e.frame.length === 60 && e.frame.every((b) => b === 0x5a)) {
-                heard += 1;
+              if (e.user === partner) {
+                // The partner's encoded tone, opened with our keys and decoded: sound, not silence.
+                const level = audioLevelDbov(decoder.decodeFrame(e.frame));
+                bestHeard = Math.max(bestHeard, level);
+                if (level > -40) heard += 1;
               }
               break;
             case 'undecryptable':
@@ -171,6 +216,11 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
               changed = true;
               break;
             case 'closed':
+              // After a thrown-away session the server removes the old media leg; the rejoin follows.
+              if (freshDone && rejoins === 0) {
+                console.log(`old media connection closed (${e.code}), waiting for the new one`);
+                break;
+              }
               closed = e.code;
               console.log(`closed (${e.code})`);
               break;
@@ -179,7 +229,7 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
         if (changed) apply(call.rosterChanged(roster, Date.now()));
       }
       console.log(
-        `done: connected=${connected} resumed=${resumed} encrypted_epochs=${epochs.length} frames=${frames} heard=${heard} undecryptable=${undecryptable}`,
+        `done: connected=${connected} resumed=${resumed} encrypted_epochs=${epochs.length} frames=${frames} heard=${heard} loudest=${bestHeard}dBov undecryptable=${undecryptable} readies=${readies} rejoins=${rejoins}`,
       );
       await link.session().leave();
       client.voiceStateUpdate(guild, voiceStateBody(guild, null, false, false, true));
@@ -190,8 +240,12 @@ describe.runIf(live)('voice bot against a live server and SFU (RDY-DEV-001)', ()
       expect(epochs.length, 'an epoch key was executed').toBeGreaterThan(0);
       expect(frames, 'frames went out under the epoch key').toBeGreaterThan(0);
       if (dropAfter !== null) expect(resumed, 'the dropped socket was resumed').toBe(true);
+      if (freshAfter !== null) {
+        expect(readies, 'a second, fresh READY arrived').toBeGreaterThan(1);
+        expect(rejoins, 'the shard joined the call again after the fresh READY').toBeGreaterThan(0);
+      }
       if (partner !== null) {
-        expect(heard, "the partner's encrypted audio was decrypted").toBeGreaterThan(20);
+        expect(heard, "the partner's encrypted tone was decrypted and decoded").toBeGreaterThan(20);
       }
     },
     (seconds + 90) * 1000,

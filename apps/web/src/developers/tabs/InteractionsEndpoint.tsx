@@ -119,7 +119,7 @@ export function InteractionsEndpointCard({ app }: { app: DevApp }) {
       <TextInput
         label={t('developers.endpoint.urlLabel')}
         hint={t('developers.endpoint.urlHint')}
-        placeholder="https://example.com/interactions"
+        placeholder={t('developers.endpoint.urlPlaceholder')}
         value={url}
         inputMode="url"
         onChange={(e) => setUrl(e.target.value)}

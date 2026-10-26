@@ -84,6 +84,22 @@ pub async fn create_message(
         return Ok(Json(out));
     }
 
+    // D-376: other servers' emoji the sender may not use become `:name:` text before anything
+    // (AutoMod, hooks, storage) sees the content.
+    let mut body = body;
+    if let Some(content) = body.content.take() {
+        body.content = Some(
+            super::rich_create::gate_external_emoji(
+                &deps,
+                author,
+                acc.channel.guild_id,
+                acc.perms,
+                content,
+            )
+            .await?,
+        );
+    }
+
     // AutoMod (LNG-SSET-059/060): a blocking rule rejects the message before it is
     // stored (Discord error 200000). A failing check lets the message through and
     // is logged: AutoMod is a filter, not a security boundary, and must not take
@@ -196,7 +212,9 @@ pub async fn create_message(
     let poll = super::rich_create::plan_poll(&deps, body.poll.as_ref())?;
     let sticker_ids = super::rich_create::resolve_stickers(
         &deps,
+        author,
         acc.channel.guild_id,
+        acc.perms,
         body.sticker_ids.as_ref(),
     )
     .await?;
@@ -319,12 +337,29 @@ pub async fn edit_message(
     let editor = actor(&p);
     let channel_id: ChannelId = parse_id(&channel_id, ErrorCode::UnknownChannel)?;
     let message_id: MessageId = parse_id(&message_id, ErrorCode::UnknownMessage)?;
+    // D-376: the same gates as on create, only when the new content carries custom emoji.
+    let mut content = body.content;
+    if let Some(c) = content.take() {
+        content = Some(if super::rich_model::custom_emoji_ids(&c).is_empty() {
+            c
+        } else {
+            let acc = deps.access(editor, channel_id).await?;
+            super::rich_create::gate_external_emoji(
+                &deps,
+                editor,
+                acc.channel.guild_id,
+                acc.perms,
+                c,
+            )
+            .await?
+        });
+    }
     deps.edit(
         editor,
         channel_id,
         message_id,
         EditMessageInput {
-            content: body.content,
+            content,
             flags: body.flags,
         },
     )

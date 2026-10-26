@@ -1,6 +1,7 @@
 import { Icon, Popover } from '@sideroom/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../../i18n';
+import { useViewAsThreadParent } from '../../settings/server/viewAsMode';
 import { useLoungeGotoThread } from '../nav';
 import { threadsOf, useThreads, type ThreadInfo } from './threadStore';
 
@@ -16,8 +17,15 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
   const [more, setMore] = useState(false);
   const openThread = useLoungeGotoThread();
 
-  const active = useMemo(() => threadsOf(byId, channelId), [byId, channelId]);
-  const archived = useMemo(() => threadsOf(byId, channelId, { archived: true }), [byId, channelId]);
+  const parentShown = useViewAsThreadParent(guildId);
+  const active = useMemo(
+    () => (parentShown(channelId) ? threadsOf(byId, channelId) : []),
+    [byId, channelId, parentShown],
+  );
+  const archived = useMemo(
+    () => (parentShown(channelId) ? threadsOf(byId, channelId, { archived: true }) : []),
+    [byId, channelId, parentShown],
+  );
 
   useEffect(() => {
     if (!open) return;

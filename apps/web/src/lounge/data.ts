@@ -149,6 +149,10 @@ export interface ChannelPermissions {
   requestToSpeak?: boolean;
   /** SET_VOICE_CHANNEL_STATUS: the status line of a voice channel. */
   setVoiceStatus?: boolean;
+  /** USE_EXTERNAL_EMOJIS / USE_EXTERNAL_STICKERS / USE_EXTERNAL_SOUNDS: other servers' expressions here (D-376). */
+  externalEmoji?: boolean;
+  externalStickers?: boolean;
+  externalSounds?: boolean;
 }
 
 export interface Channel {
@@ -361,6 +365,8 @@ export interface Message {
   referenceChannelId?: Snowflake | null;
   /** Text-to-speech message. */
   tts?: boolean;
+  /** A friend's DM the recipient's "Filter all" spam level flagged (flag 1 << 29): shown behind a notice. */
+  likelySpam?: boolean;
   /** The thread started from this message. */
   thread?: { id: Snowflake; name: string; messageCount: number } | null;
 }

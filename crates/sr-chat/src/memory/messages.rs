@@ -48,6 +48,8 @@ pub struct Data {
     pub webhook_authors: HashMap<MessageId, crate::rich_repo::WebhookAuthor>,
     /// Application emoji id to owning application (test seed, D-237).
     pub app_emojis: HashMap<u64, i64>,
+    /// Server emoji for the external-use gate (test seed, D-376).
+    pub guild_emojis: HashMap<u64, crate::rich_repo::GuildEmojiRef>,
     /// Bot user to application (test seed, D-237).
     pub bot_apps: HashMap<UserId, i64>,
     /// Bans for [`GuildAdminRepository`].

@@ -20,6 +20,7 @@
 // longer knows the session it joins again with the same token and keeps the transform (`reconnected`), and it
 // gives up, with the SFU's close code, on a removal (4014), a replacement (4016), a refusal or after
 // `ReconnectPolicy.maxAttempts`.
+import type { Closeable } from './audio';
 import {
   RTCPeerConnection,
   RtpHeader,
@@ -180,7 +181,11 @@ const participantsOf = (ready: Record<string, unknown>): string[] =>
     : [];
 
 /** Next text message of `ws`, or a refusal / failure; used for READY and RESUMED. */
-function waitForOp(ws: WebSocket, wanted: number, timeoutMs: number): Promise<Record<string, unknown>> {
+function waitForOp(
+  ws: WebSocket,
+  wanted: number,
+  timeoutMs: number,
+): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup();
@@ -200,7 +205,9 @@ function waitForOp(ws: WebSocket, wanted: number, timeoutMs: number): Promise<Re
     };
     const onClose = (ev: CloseEvent) => {
       cleanup();
-      reject(new TransportError('refused', `the SFU refused the join (close code ${ev.code})`, ev.code));
+      reject(
+        new TransportError('refused', `the SFU refused the join (close code ${ev.code})`, ev.code),
+      );
     };
     const onError = () => {
       cleanup();
@@ -227,9 +234,13 @@ function openSocket(endpoint: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(endpoint);
     ws.addEventListener('open', () => resolve(ws), { once: true });
-    ws.addEventListener('error', () => reject(new TransportError('socket', 'voice websocket error')), {
-      once: true,
-    });
+    ws.addEventListener(
+      'error',
+      () => reject(new TransportError('socket', 'voice websocket error')),
+      {
+        once: true,
+      },
+    );
   });
 }
 
@@ -241,6 +252,7 @@ export class VoiceSession {
   private events: VoiceEvent[] = [];
   private waiters: Waiter[] = [];
   private transform: FrameTransform | null = null;
+  private codecs = new Set<Closeable>();
   private closedCode: number | null = null;
   private reportedUp = false;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -292,7 +304,10 @@ export class VoiceSession {
       const transceiver = pc.addTransceiver('audio', { direction: 'sendonly' });
       const heartbeatMs = Math.max(
         1000,
-        Math.min(60_000, typeof ready.heartbeat_interval === 'number' ? ready.heartbeat_interval : 13_750),
+        Math.min(
+          60_000,
+          typeof ready.heartbeat_interval === 'number' ? ready.heartbeat_interval : 13_750,
+        ),
       );
       const s = new VoiceSession(
         update.endpoint,
@@ -407,7 +422,10 @@ export class VoiceSession {
               await this.pc.setRemoteDescription({ type: 'offer', sdp });
               const answer = await this.pc.createAnswer();
               await this.pc.setLocalDescription(answer);
-              this.sendWs({ op: OP.SDP_ANSWER, d: { sdp: this.pc.localDescription?.sdp ?? answer.sdp } });
+              this.sendWs({
+                op: OP.SDP_ANSWER,
+                d: { sdp: this.pc.localDescription?.sdp ?? answer.sdp },
+              });
             })
             .catch(() => undefined);
         }
@@ -462,6 +480,21 @@ export class VoiceSession {
     this.transform = t;
   }
 
+  /**
+   * Hand an encoder or decoder (`./audio`) to the session: `leave()` closes it, which gives back its
+   * WebAssembly memory (DEV-FU-002). A `VoiceLink` rejoin moves it to the new session.
+   */
+  adopt<T extends Closeable>(codec: T): T {
+    this.codecs.add(codec);
+    return codec;
+  }
+
+  takeCodecs(): Set<Closeable> {
+    const c = this.codecs;
+    this.codecs = new Set();
+    return c;
+  }
+
   takeTransform(): FrameTransform | null {
     const t = this.transform;
     this.transform = null;
@@ -478,7 +511,8 @@ export class VoiceSession {
    * encrypted call this fails without a transform.
    */
   async sendOpus(frame: Uint8Array): Promise<void> {
-    if (!this.isConnected()) throw new TransportError('not-connected', 'the connection is not up yet');
+    if (!this.isConnected())
+      throw new TransportError('not-connected', 'the connection is not up yet');
     let payload: Uint8Array;
     if (this.transform) {
       try {
@@ -496,7 +530,12 @@ export class VoiceSession {
     }
     this.seq = (this.seq + 1) & 0xffff;
     const timestamp = Math.floor(((Date.now() - this.started) * 48) % 0x1_0000_0000);
-    const header = new RtpHeader({ payloadType: 111, sequenceNumber: this.seq, timestamp, ssrc: 0 });
+    const header = new RtpHeader({
+      payloadType: 111,
+      sequenceNumber: this.seq,
+      timestamp,
+      ssrc: 0,
+    });
     await this.sender.sendRtp(new RtpPacket(header, Buffer.from(payload)));
   }
 
@@ -572,6 +611,7 @@ export class VoiceSession {
   async leave(): Promise<void> {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.ws.close();
+    for (const c of this.takeCodecs()) c.close();
     await this.pc.close();
   }
 }
@@ -623,6 +663,7 @@ export class VoiceLink {
   async rejoin(update: VoiceServerUpdate): Promise<void> {
     const fresh = await VoiceSession.connect(update, this.opts);
     fresh.setTransform(this.current.takeTransform());
+    for (const c of this.current.takeCodecs()) fresh.adopt(c);
     void this.current.leave();
     this.current = fresh;
     this.update = update;
@@ -672,6 +713,7 @@ export class VoiceLink {
         try {
           const fresh = await VoiceSession.connect(this.update, this.opts);
           fresh.setTransform(this.current.takeTransform());
+          for (const c of this.current.takeCodecs()) fresh.adopt(c);
           void this.current.leave();
           this.current = fresh;
           return [{ kind: 'reconnected', participants: fresh.initialParticipants }];

@@ -81,6 +81,21 @@ pub async fn add_own(
         .await?
         .remove(&t.message.id)
         .unwrap_or_default();
+    // D-376: another server's emoji needs both gates (the target channel, then the source
+    // server); Discord answers 50013.
+    if let Some(eid) = emoji.id
+        && !super::rich_create::refused_emoji(
+            &deps,
+            t.user,
+            t.acc.channel.guild_id,
+            t.acc.perms,
+            vec![eid],
+        )
+        .await?
+        .is_empty()
+    {
+        return Err(ChatError::MissingPermissions.into());
+    }
     let present = existing.iter().any(|r| r.emoji == emoji);
     validate_add_reaction(
         &t.message,

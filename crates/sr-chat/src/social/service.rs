@@ -691,7 +691,8 @@ impl<R: SocialRepository> SocialService<R> {
     /// Message Requests as pending, and the message trips the spam heuristics
     /// ([`super::safety::dm_spam_reason`]), the request moves to "Likely spam" (state `Spam`, reason
     /// `spam`). It stays out of the recipient's DM list and notifications as every unaccepted request
-    /// does. Returns the heuristic that fired.
+    /// does. Returns the heuristic that fired. Friends are never moved: at level `All` a friend's hit is carried as a
+    /// message flag instead ([`Self::friend_dm_spam_flag`], PAR-FU-002).
     pub async fn screen_dm_message(
         &self,
         channel: ChannelId,
@@ -731,6 +732,43 @@ impl<R: SocialRepository> SocialService<R> {
             return Ok(Some(reason));
         }
         Ok(None)
+    }
+
+    /// PAR-FU-002: the DM spam filter's "All" level also reads a friend's message. Friends are never moved to
+    /// Message Requests, so a hit is carried as the message flag `LIKELY_SPAM` instead: the message stays in the
+    /// conversation and the recipient's client shows it behind a notice they can reveal. Called before the message is
+    /// stored (see `MessageHooks::extra_flags`); true when some recipient has the filter on `All`, is friends with
+    /// the author, and the message trips the spam heuristics ([`super::safety::dm_spam_reason`]).
+    pub async fn friend_dm_spam_flag(
+        &self,
+        channel: ChannelId,
+        author: UserId,
+        content: &str,
+    ) -> SocialResult<bool> {
+        // The heuristics are cheap and almost never hit: read them before touching the database.
+        if super::safety::dm_spam_reason(content).is_none() {
+            return Ok(false);
+        }
+        let Some(dm) = self.repo.get_dm(channel).await? else {
+            return Ok(false);
+        };
+        if dm.kind != DmKind::Dm || !dm.has(author) {
+            return Ok(false);
+        }
+        for other in dm.recipients.iter().copied().filter(|u| *u != author) {
+            if self.repo.get_privacy(other).await?.safety.dm_spam_filter
+                != super::safety::SpamFilter::All
+            {
+                continue;
+            }
+            let st = self.pair_state(author, other).await?;
+            if st.mine == Some(RelationshipKind::Friend)
+                && st.theirs == Some(RelationshipKind::Friend)
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Reopen for every recipient who closed it (called when a message arrives).

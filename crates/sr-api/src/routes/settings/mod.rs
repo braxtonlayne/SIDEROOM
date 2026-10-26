@@ -100,6 +100,7 @@ pub fn router() -> Router<AppState> {
         invites::delete_invite,
         invites::accept_invite,
         audit::list_audit_log,
+        expressions::list_my_expressions,
         expressions::list_emojis,
         expressions::get_emoji,
         expressions::emoji_url,

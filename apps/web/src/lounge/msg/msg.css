@@ -1389,3 +1389,15 @@
   text-transform: uppercase;
   color: var(--sr-text-2);
 }
+
+/* PAR-FU-002: a friend's message flagged by the "Filter all" DM spam level. */
+.lng-likely-spam {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding-block: 4px;
+  color: var(--sr-text-muted, #8a8f98);
+  font-size: 0.875rem;
+}

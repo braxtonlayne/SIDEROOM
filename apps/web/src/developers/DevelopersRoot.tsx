@@ -15,7 +15,7 @@ function Shell() {
         {t('developers.shell.skipToContent')}
       </a>
       <header className="dev-bar">
-        <span className="dev-brand">SIDE ROOM</span>
+        <span className="dev-brand">{t('developers.shell.brand')}</span>
         <span aria-hidden="true" className="dev-slash">
           /
         </span>

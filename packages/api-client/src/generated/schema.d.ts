@@ -12511,6 +12511,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/expressions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Emoji, stickers and sounds of every server the caller belongs to, already filtered to what
+         *     the caller may use there (`available`, an emoji's `roles`), with `usable_externally` per
+         *     server (D-375, D-376). One request fills the picker; a user who shares no server with anyone
+         *     gets only their own servers, never someone else's.
+         */
+        get: operations["list_my_expressions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/guild-settings": {
         parameters: {
             query?: never;
@@ -17317,6 +17339,12 @@ export interface components {
             /** @description `none`, `pending`, `building`, `ready`, `failed` or `expired`. */
             state: string;
         };
+        /** @description The server an entry of `GET /users/@me/expressions` belongs to. */
+        ExpressionGuildRef: {
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
         FacetCount: {
             /** Format: int64 */
             count: number;
@@ -21728,6 +21756,21 @@ export interface components {
          * @enum {string}
          */
         SeriesStatus: "ongoing" | "completed" | "hiatus" | "cancelled";
+        /** @description One server's expressions the caller may use (D-376). */
+        ServerExpressions: {
+            /** @description Available emoji the caller's roles may use. */
+            emojis: components["schemas"]["EmojiObject"][];
+            guild: components["schemas"]["ExpressionGuildRef"];
+            /** @description Available soundboard sounds (the Discord sound objects). */
+            sounds: Record<string, never>[];
+            /** @description Available stickers. */
+            stickers: components["schemas"]["StickerObject"][];
+            /**
+             * @description The caller passes the source gate here: `USE_EXPRESSIONS_EXTERNALLY` in this server.
+             *     False means the lists below are usable inside this server only.
+             */
+            usable_externally: boolean;
+        };
         SessionStartLimit: {
             /** Format: int32 */
             max_concurrency: number;
@@ -64078,6 +64121,33 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_my_expressions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerExpressions"][];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

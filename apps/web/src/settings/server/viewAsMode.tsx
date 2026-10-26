@@ -16,6 +16,11 @@ export interface ViewAsSession {
   roleNames: string[];
   /** Ids of the channels (and categories) the chosen roles can see. */
   visibleIds: ReadonlySet<string>;
+  /**
+   * PAR-FU-001: whether a member holding `roleIds` can view `channelId` (the same `sr-permissions` engine, the
+   * channel's overwrites). Absent: the member list is left alone.
+   */
+  canSeeChannel?: (channelId: string, roleIds: readonly string[]) => boolean;
 }
 
 interface ViewAsState {
@@ -39,6 +44,38 @@ export function useViewAsChannels(guildId: string | undefined, channels: Channel
         ? channels.filter((c) => session.visibleIds.has(c.id))
         : channels,
     [session, guildId, channels],
+  );
+}
+
+/**
+ * PAR-FU-001: the member list while a preview runs. A previewer who cannot see the open channel sees nobody; otherwise
+ * only the members who can view it with their own roles (the owner always can). Without a preview the list itself.
+ */
+export function useViewAsMembers<M extends { user: { id: string }; roleIds: readonly string[] }>(
+  guildId: string | undefined,
+  channelId: string | undefined,
+  ownerId: string | undefined,
+  members: M[],
+): M[] {
+  const session = useViewAs((s) => s.session);
+  return useMemo(() => {
+    if (!session || session.guildId !== guildId || !channelId) return members;
+    if (!session.visibleIds.has(channelId)) return [];
+    const can = session.canSeeChannel;
+    if (!can) return members;
+    return members.filter((m) => m.user.id === ownerId || can(channelId, m.roleIds));
+  }, [session, guildId, channelId, ownerId, members]);
+}
+
+/** PAR-FU-001: whether the threads of `parentId` show in the thread lists (all do without a preview). */
+export function useViewAsThreadParent(guildId: string | undefined): (parentId: string) => boolean {
+  const session = useViewAs((s) => s.session);
+  return useMemo(
+    () =>
+      session && session.guildId === guildId
+        ? (parentId) => session.visibleIds.has(parentId)
+        : () => true,
+    [session, guildId],
   );
 }
 

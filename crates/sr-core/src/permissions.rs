@@ -68,6 +68,9 @@ bitflags! {
         const CONTROL_WATCH_PARTY = 1 << 57;
         const USE_LIBRARY_EMBEDS = 1 << 58;
         const MANAGE_EXTENSIONS = 1 << 59;
+        /// Use this server's emoji, stickers and sounds in other servers and DMs (D-376).
+        /// A source-server bit: evaluated with guild permissions, never with overwrites.
+        const USE_EXPRESSIONS_EXTERNALLY = 1 << 60;
     }
 }
 
@@ -359,6 +362,7 @@ mod tests {
         assert_eq!(Permissions::USE_EXTERNAL_APPS.bits(), 1 << 50);
         assert_eq!(Permissions::START_WATCH_PARTY.bits(), 1 << 56);
         assert_eq!(Permissions::MANAGE_EXTENSIONS.bits(), 1 << 59);
+        assert_eq!(Permissions::USE_EXPRESSIONS_EXTERNALLY.bits(), 1 << 60);
     }
 
     #[test]

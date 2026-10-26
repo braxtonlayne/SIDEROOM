@@ -17,6 +17,17 @@ ignore = [
   # fixed 0.5.x release; it goes away when those crates move to elliptic-curve 0.14. Review weekly
   # (`cargo tree -i crypto-bigint@0.5.5`) and remove this line as soon as the 0.5 copy leaves the lockfile.
   { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 via elliptic-curve 0.13 (str0m, openmls, sr-push) has no fixed release; 0.7 is updated; review weekly" },
+  # zstd 0.13.3 / zstd-safe 7.3.0 (P26-SEC-1, 2026-10-26). They enter only through tantivy-sstable 0.7.0
+  # (tantivy 0.26.2 via tantivy-columnar), whose two call sites use the one-shot bulk API with a fresh
+  # context per block (delta.rs, block_reader.rs). None of the three advisories is reachable from that code:
+  # 0391 needs the streaming `with_context` constructors on a reused context, 0398 needs the `seekable`
+  # feature (cargo-deny sees it because of `all-features = true` above; the build never compiles it), 0403
+  # needs `DCtx::decompress_stream` through `stream::write::Decoder`. The fixed releases (zstd 0.14.3,
+  # zstd-safe 8.2.0) require tantivy 0.27; that upgrade is DEP-FU-001. Review 2026-11-09 and on each
+  # tantivy release (`cargo tree -i zstd`); remove all three lines when tantivy 0.27 lands.
+  { id = "RUSTSEC-2026-0391", reason = "zstd 0.13.3 bulk API only via tantivy-sstable; the reused-context leak needs stream::raw::*::with_context; fixed by tantivy 0.27 (DEP-FU-001); review 2026-11-09" },
+  { id = "RUSTSEC-2026-0398", reason = "zstd-safe 7.3.0 `seekable` feature is not compiled (all-features graph only); fixed by tantivy 0.27 (DEP-FU-001); review 2026-11-09" },
+  { id = "RUSTSEC-2026-0403", reason = "zstd-safe 7.3.0 decompress_stream is not called (tantivy-sstable uses bulk DCtx::decompress); fixed by tantivy 0.27 (DEP-FU-001); review 2026-11-09" },
 ]
 
 [licenses]

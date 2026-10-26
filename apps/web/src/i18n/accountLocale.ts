@@ -10,7 +10,7 @@
  */
 import { apiFetch } from '../api/client';
 import { DEFAULT_PREFS, usePrefsStore } from '../settings/user/prefs';
-import { negotiateLocale, setLocale } from './runtime';
+import { isPreviewLocale, negotiateLocale, setLocale } from './runtime';
 
 const STORAGE_KEY = 'sr.locale';
 
@@ -36,7 +36,7 @@ function hasSavedLocale(): boolean {
 
 /** Adopt the account locale on a device that has never chosen a language. Returns the locale applied. */
 export async function adoptAccountLocale(account: string | undefined): Promise<string | null> {
-  if (!account || hasSavedLocale()) return null;
+  if (!account || hasSavedLocale() || isPreviewLocale()) return null;
   const code = negotiateLocale([account]);
   await setLocale(code);
   return code;

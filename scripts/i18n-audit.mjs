@@ -61,17 +61,31 @@ export function countTs(src) {
   return n;
 }
 
+// RDY-I18N-002: text that is code, not prose. A `>` that closes a comparison or a generic (`a.length > 0 && b <`,
+// `Record<string, X>`, `T[], columns`) lets the JSX-text pattern read source as text; those carry `&&`, `||`, `[]`,
+// a leading comma or digit, or a quote-comma-newline. Technical literals are data, not copy: shell commands
+// (`sr-cli ...`), URLs and invite examples, and the fixed network and language names listed below.
+const CODE_LIKE = /sr-cli\s|&&|\|\||\[\]|^\s*[,\d]|'\s*,\s*\n/;
+const TECHNICAL =
+  /^\s*(?:sr-cli\s[\s\S]*|(?:https?:\/\/)?[\w-]+(?:\.[\w-]+)+(?:\/[\w./-]*)?|[\w-]+\/[\w./-]*)\s*$/;
+const TECHNICAL_TOKENS = new Set(['mainnet', 'testnet', 'signet', 'regtest', 'curl', 'hTKzmak']);
+const isCode = (text) =>
+  CODE_LIKE.test(text) || TECHNICAL.test(text) || TECHNICAL_TOKENS.has(text.trim());
+
 export function countFile(src) {
   let n = 0;
   // Attribute string literals.
-  for (const m of src.matchAll(ATTR)) if (letters(m[1] ?? m[2] ?? '') >= 3) n++;
+  for (const m of src.matchAll(ATTR)) {
+    const v = m[1] ?? m[2] ?? '';
+    if (letters(v) >= 3 && !isCode(v)) n++;
+  }
   // JSX text: text between '>' and '<' outside braces, at least 3 letters.
   const noComments = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
   // `(?<!=)>` leaves out the `>` of an arrow (`() => Promise<void>`); a `;` never occurs in UI text but does between
   // two generics (`useState<string>(null); const x = useRef<`), which the pattern would otherwise read as text.
   for (const m of noComments.matchAll(/(?<!=)>([^<>{}]*)(?=<)/g)) {
     const text = m[1].replace(/&[a-z]+;/g, ' ');
-    if (letters(text) < 3 || text.includes(';')) continue;
+    if (letters(text) < 3 || text.includes(';') || isCode(text)) continue;
     // Skip TypeScript generics / arrows / comparisons that merely look like text.
     if (/[=;()]|=>/.test(text) && !/[A-Za-z]{3,}\s+[A-Za-z]{2,}/.test(text)) continue;
     n++;

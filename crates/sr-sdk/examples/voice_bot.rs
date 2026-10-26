@@ -19,10 +19,12 @@
 //! * `SR_RUN_SECONDS=60` leaves after that long (exit code 0 only if the call was joined, encrypted when the
 //!   call is, and resumed after the drop); default: run forever;
 //! * `SR_DROP_AFTER_SECONDS=20` drops the SFU WebSocket once after that long, to watch the resume;
+//! * what it hears is decoded and printed as `<user> spoke <bytes> bytes (<level> dBov)`;
 //! * `SR_IDENTITY_SECRET=<64 hex digits>` keeps the bot's identity key between runs (default: a new one).
 //!
-//! The "tone" is not Opus: a real bot encodes PCM with an Opus encoder (the SDK ships none) and passes each
-//! 20 ms packet to `send_opus`.
+//! The bot speaks a 440 Hz tone: each 20 ms of PCM goes through [`OpusEncoder`] (feature `voice-opus`, DEV-FU-002)
+//! and the packet, with its real level from [`audio_level_dbov`], to `send_opus`. A bot that already has Opus
+//! (a file, another SDK) passes those packets to `send_opus` as they are.
 
 use std::collections::HashSet;
 use std::hash::{BuildHasher, Hasher};
@@ -31,6 +33,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use serde_json::Value;
+use sr_sdk::audio::{
+    Application, Channels, FRAME_SAMPLES, OpusDecoder, OpusEncoder, audio_level_dbov,
+};
 use sr_sdk::voice::{Action, E2eeCall, E2eeMedia, Identity};
 use sr_sdk::voice_transport::{
     ReconnectPolicy, SharedMedia, VoiceEvent, VoiceLink, VoiceServerUpdate, voice_state_body,
@@ -66,6 +71,16 @@ impl EventHandler for Voice {
         };
         let _ = self.0.send(msg);
     }
+}
+
+/// 20 ms of a 440 Hz sine at a modest level, frame number `n` onwards (the phase continues across frames).
+fn tone_frame(n: u64) -> Vec<i16> {
+    (0..FRAME_SAMPLES as u64)
+        .map(|i| {
+            let t = (n * FRAME_SAMPLES as u64 + i) as f64 / 48_000.0;
+            (f64::sin(2.0 * std::f64::consts::PI * 440.0 * t) * 8_000.0) as i16
+        })
+        .collect()
 }
 
 fn seconds(var: &str) -> Option<Duration> {
@@ -183,6 +198,12 @@ async fn main() -> Result<()> {
     let stop_after = seconds("SR_RUN_SECONDS");
     let mut drop_after = seconds("SR_DROP_AFTER_SECONDS");
     let (mut joined, mut resumed, mut frames) = (false, false, 0u32);
+    let mut encoder = OpusEncoder::new(Channels::Mono, Application::Voip)
+        .map_err(|e| Error::Invalid(e.to_string()))?;
+    let mut pcm_clock = 0u64;
+    // One decoder per speaker: each keeps the state of its own stream.
+    let mut decoders: std::collections::HashMap<u64, OpusDecoder> =
+        std::collections::HashMap::new();
     let mut e2ee_call = false;
     loop {
         if stop_after.is_some_and(|s| started.elapsed() >= s) {
@@ -250,12 +271,19 @@ async fn main() -> Result<()> {
             l.session().abandon_signalling().await;
             drop_after = None;
         }
-        // One 20 ms test frame once the call is encrypted under a key (or at once in a call in the clear).
-        if l.session().is_connected()
-            && (!e2ee_call || media.lock().sending_epoch().is_some())
-            && l.session().send_opus(&[0x5A; 60], -30).is_ok()
-        {
-            frames += 1;
+        // One 20 ms frame of the tone once the call is encrypted under a key (or at once in a call in the clear).
+        if l.session().is_connected() && (!e2ee_call || media.lock().sending_epoch().is_some()) {
+            let pcm = tone_frame(pcm_clock);
+            let packet = encoder
+                .encode_frame(&pcm)
+                .map_err(|e| Error::Invalid(e.to_string()))?;
+            if l.session()
+                .send_opus(&packet, audio_level_dbov(&pcm))
+                .is_ok()
+            {
+                frames += 1;
+                pcm_clock += 1;
+            }
         }
         let events = l
             .pump(Duration::from_millis(20))
@@ -268,7 +296,18 @@ async fn main() -> Result<()> {
                     joined = true;
                     println!("connected");
                 }
-                VoiceEvent::Audio { user, frame } => println!("{user} spoke {} bytes", frame.len()),
+                VoiceEvent::Audio { user, frame } => {
+                    // Hear what was said: decode and report the level (the live harness checks it is not silence).
+                    let decoder = match decoders.entry(user) {
+                        std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                        std::collections::hash_map::Entry::Vacant(e) => e.insert(
+                            OpusDecoder::new(Channels::Mono)
+                                .map_err(|e| Error::Invalid(e.to_string()))?,
+                        ),
+                    };
+                    let level = audio_level_dbov(&decoder.decode_frame(&frame, false));
+                    println!("{user} spoke {} bytes ({level} dBov)", frame.len());
+                }
                 VoiceEvent::Joined(u) => changed |= roster.insert(u),
                 VoiceEvent::Left(u) => changed |= roster.remove(&u),
                 VoiceEvent::Resumed { participants } => {

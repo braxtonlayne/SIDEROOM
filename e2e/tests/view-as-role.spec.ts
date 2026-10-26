@@ -48,3 +48,48 @@ test('View Server As Role previews the Lounge with an exit banner', async ({ sol
   await expect(page.getByTestId('channel-sidebar')).toContainText(hidden);
   await expect(page.getByTestId('view-as-banner')).toHaveCount(0);
 });
+
+/**
+ * PAR-FU-001 (U-02): the preview also narrows the member list. In a channel only the previewed role may view, the
+ * member who does not hold it is absent from the list (computed in the browser with the same engine); the Owner
+ * stays. (Exiting is covered by the unit test; a full load also ends the preview.)
+ */
+test('View Server As Role hides members who cannot view the open channel', async ({ scenario }) => {
+  const { a, b, guildId } = await scenario.ownerAndMember();
+  const page = a.page;
+  const stamp = Date.now().toString(36);
+  const roleName = `Reader ${stamp}`;
+  const role = await apiPost<{ id: string }>(a.context.request, `/guilds/${guildId}/roles`, {
+    name: roleName,
+  });
+  const staff = await apiPost<{ id: string }>(a.context.request, `/guilds/${guildId}/channels`, {
+    name: `staff-${stamp}`,
+    type: 0,
+    permission_overwrites: [
+      { id: guildId, type: 0, allow: '0', deny: VIEW_CHANNEL },
+      { id: role.id, type: 0, allow: VIEW_CHANNEL, deny: '0' },
+    ],
+  });
+
+  // The member is online (offline members sit in their own group, which is not what is under test).
+  await b.page.goto(`/channels/${guildId}`);
+  await page.goto(`/settings/server/${guildId}/roles`);
+  await page.getByRole('button', { name: 'View Server As Role' }).click();
+  const dialog = page.getByRole('dialog', { name: 'View Server As Role' });
+  await dialog.getByRole('checkbox', { name: roleName }).check();
+  await dialog.getByRole('button', { name: 'Preview in the Lounge' }).click();
+  await expect(page.getByTestId('view-as-banner')).toBeVisible();
+  const members = page.getByRole('list', { name: 'Members' });
+  // #general is open to everyone: both people show (the preview may open either channel first).
+  const sidebar = page.getByTestId('channel-sidebar');
+  await sidebar.getByRole('link', { name: 'general' }).click();
+  await expect(members).toContainText(b.user.username);
+  // A full page load would end the preview, so move to the staff channel through the sidebar.
+  await page
+    .getByTestId('channel-sidebar')
+    .getByRole('link', { name: `staff-${stamp}` })
+    .click();
+  await expect(page).toHaveURL(new RegExp(staff.id));
+  await expect(members).toContainText(a.user.username);
+  await expect(members).not.toContainText(b.user.username);
+});

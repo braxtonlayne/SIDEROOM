@@ -44,6 +44,9 @@ struct Env {
     deps: Arc<ThreadsDeps>,
     guild: GuildId,
     ch: ChannelId,
+    /// The rich-message store (custom emoji rows); wired into the messages deps only by
+    /// `env_rich`.
+    backend: MemoryBackend,
 }
 
 fn member(guild: GuildId, user: u64) -> Member {
@@ -63,6 +66,15 @@ fn member(guild: GuildId, user: u64) -> Member {
 }
 
 async fn env() -> Env {
+    env_with(false).await
+}
+
+/// The thread env with the rich-message store wired, so the D-376 emoji gate runs.
+async fn env_rich() -> Env {
+    env_with(true).await
+}
+
+async fn env_with(rich: bool) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
     let repo = MemoryRepo::default();
@@ -107,19 +119,25 @@ async fn env() -> Env {
         .with_audit(audit.clone()),
     );
     let storage = Arc::new(ObjectStoreStorage::in_memory());
-    let messages = MessagesDeps::new(
+    let mut messages = MessagesDeps::new(
         repo.clone(),
         Arc::new(backend.clone()),
         storage.clone(),
         bus.clone(),
         Arc::new(FixedEntitlements(1 << 20)),
-        Arc::new(backend),
+        Arc::new(backend.clone()),
         Some(threads.activity_hook()),
         dyn_clock.clone(),
         1,
         1,
     )
     .unwrap();
+    if rich {
+        messages = messages.with_rich(crate::routes::messages::rich::RichDeps {
+            store: Some(Arc::new(backend.clone())),
+            ..Default::default()
+        });
+    }
     let state = AppState::builder()
         .bots(bots)
         .clock(dyn_clock)
@@ -141,6 +159,7 @@ async fn env() -> Env {
         audit,
         guild,
         ch,
+        backend,
     }
 }
 
@@ -896,4 +915,84 @@ async fn thread_create_edit_and_delete_are_audited() {
             (AuditAction::ThreadDelete, Some(tch.get()), parent),
         ]
     );
+}
+
+/// P26-EXP-1 (1), D-376: the starter of a forum or media post is a message the caller writes,
+/// so another server's emoji keeps its token only when the forum grants USE_EXTERNAL_EMOJIS and
+/// the caller holds USE_EXPRESSIONS_EXTERNALLY in the emoji's server; otherwise it becomes text.
+#[tokio::test]
+async fn forum_post_starters_apply_the_same_gates() {
+    use sr_chat::rich_repo::GuildEmojiRef;
+    use sr_core::Snowflake;
+    use sr_core::permissions::{Overwrite, OverwriteKind};
+    const POG: u64 = 5_001;
+    let e = env_rich().await;
+    // A second server where BOB is a plain member with the default @everyone set.
+    let clock: Arc<dyn Clock> = e.clock.clone();
+    let ids = SnowflakeGenerator::new(clock, 7, 1).unwrap();
+    let bp = plan_new_guild(UserId::new(OWNER), "Source", T0, || ids.generate()).unwrap();
+    let src = bp.guild.id;
+    e.repo.insert_guild(&bp).await.unwrap();
+    e.repo.store.lock().unwrap().members.push(member(src, BOB));
+    e.backend.data().guild_emojis.insert(
+        POG,
+        GuildEmojiRef {
+            id: POG,
+            guild_id: src,
+            available: true,
+            role_ids: vec![],
+        },
+    );
+    let (forum, _) = make_forum(&e, 0).await;
+    let token = format!("<:pog:{POG}>");
+    let post = |n: u32| {
+        let (e, forum, token) = (&e, forum.clone(), token.clone());
+        async move {
+            let (s, v) = e
+                .post(
+                    &format!("/channels/{forum}/threads"),
+                    "bob",
+                    json!({ "name": format!("post {n}"), "message": { "content": token } }),
+                )
+                .await;
+            assert_eq!(s, StatusCode::CREATED, "{v}");
+            v["message"]["content"].as_str().unwrap().to_owned()
+        }
+    };
+    assert_eq!(post(1).await, token, "both gates pass: the token stays");
+
+    // The source server takes bit 60 away from @everyone.
+    {
+        let mut s = e.repo.store.lock().unwrap();
+        let role = s
+            .roles
+            .iter_mut()
+            .find(|r| r.guild_id == src && r.is_everyone())
+            .unwrap();
+        role.permissions
+            .remove(Permissions::USE_EXPRESSIONS_EXTERNALLY);
+    }
+    assert_eq!(post(2).await, ":pog:", "source gate fails");
+
+    // Bit 60 back, but the forum denies USE_EXTERNAL_EMOJIS.
+    {
+        let mut s = e.repo.store.lock().unwrap();
+        let role = s
+            .roles
+            .iter_mut()
+            .find(|r| r.guild_id == src && r.is_everyone())
+            .unwrap();
+        role.permissions
+            .insert(Permissions::USE_EXPRESSIONS_EXTERNALLY);
+        s.overwrites
+            .entry(forum.parse::<u64>().map(ChannelId::new).unwrap())
+            .or_default()
+            .push(Overwrite {
+                id: Snowflake::new(e.guild.get()),
+                kind: OverwriteKind::Role,
+                allow: Permissions::empty(),
+                deny: Permissions::USE_EXTERNAL_EMOJIS,
+            });
+    }
+    assert_eq!(post(3).await, ":pog:", "target gate fails");
 }

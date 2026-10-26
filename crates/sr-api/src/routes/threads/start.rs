@@ -255,6 +255,22 @@ pub async fn start_thread(
             "Polls and stickers are not available yet.",
         ));
     }
+    // D-376, P26-EXP-1: the starter is a message the caller writes, so other servers' emoji they
+    // may not use become `:name:` text as in create_message. Checked on the forum (the thread does
+    // not exist yet, so a repo error leaves no thread behind) and only when the content carries a
+    // custom emoji token.
+    let mut content = msg_body.content.unwrap_or_default();
+    if !crate::routes::messages::rich_model::custom_emoji_ids(&content).is_empty() {
+        let acc = m.access(user, parent).await?;
+        content = crate::routes::messages::rich_create::gate_external_emoji(
+            &m,
+            user,
+            acc.channel.guild_id,
+            acc.perms,
+            content,
+        )
+        .await?;
+    }
     let mut tags = Vec::new();
     for (n, raw) in body.applied_tags.iter().flatten().enumerate() {
         tags.push(raw.parse::<u64>().map_err(|_| {
@@ -284,7 +300,7 @@ pub async fn start_thread(
         flags |= message_flags::TTS;
     }
     let req = SendMessage {
-        content: msg_body.content.unwrap_or_default(),
+        content,
         embeds: msg_body.embeds.unwrap_or_default(),
         components: msg_body.components.unwrap_or_default(),
         attachment_ids: uploads.iter().map(|(a, _)| a.id).collect(),

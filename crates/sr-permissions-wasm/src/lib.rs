@@ -249,6 +249,12 @@ mod tests {
     fn high_bits_survive() {
         let big = (1u64 << 59).to_string();
         assert!(has(&big, &big).expect("ok"));
+        // Bit 60 (USE_EXPRESSIONS_EXTERNALLY, D-376) is part of ALL and survives the round trip.
+        let ext = (1u64 << 60).to_string();
+        assert!(has(&ext, &ext).expect("ok"));
+        let a = base(false, "0", &[ADMIN.to_string()]).expect("ok");
+        assert!(has(&a, &ext).expect("ok"));
+        assert_ne!(Permissions::ALL.bits() & (1 << 60), 0);
     }
 }
 
