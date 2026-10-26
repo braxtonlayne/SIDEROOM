@@ -20,7 +20,7 @@ RUN set -eux; \
     cargo build --release --locked --target "$target" -p sr-transcoder; \
     install -D "target/$target/release/sr-transcoder" /out/sr-transcoder
 
-FROM nvidia/cuda:12.6.3-base-ubuntu24.04
+FROM nvidia/cuda:13.4.3-base-ubuntu24.04
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home --home-dir /work sideroom \
