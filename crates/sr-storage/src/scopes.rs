@@ -195,6 +195,8 @@ pub struct GuildStanding {
     pub administrator: bool,
     /// The viewer's roles include `MANAGE_GUILD`.
     pub manage_guild: bool,
+    /// The viewer's roles include `MANAGE_ROLES`.
+    pub manage_roles: bool,
     /// The viewer's role ids (without the implicit everyone role: the table keys on real role rows; the
     /// everyone role id equals the guild id and the implementation must include it).
     pub role_ids: Vec<i64>,
@@ -1220,4 +1222,56 @@ mod ttl_tests {
             assert!(!check_range(bad), "{bad}");
         }
     }
+}
+
+/// One row of `GET /users/@me/storage/shares`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SharedToMe {
+    /// The shared mount.
+    pub mount_id: i64,
+    /// The friend who owns it.
+    pub owner_id: i64,
+    /// The mount's label.
+    pub label: String,
+    /// What is shared.
+    pub share: Share,
+}
+
+/// Counts for the nav modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShelvesSummary {
+    /// Shelves reachable for cinema.
+    pub cinema: i64,
+    /// For library.
+    pub library: i64,
+    /// For music.
+    pub music: i64,
+}
+
+/// Friend Shelf shares, guild grants and the shelves summary on top of the read-side [`ScopeFacts`]. The
+/// route layer holds this as a trait object (`sr_db::scopes_repo::PgScopeFacts` is the implementation).
+#[async_trait]
+pub trait ScopeStore: ScopeFacts {
+    /// Whether `role_id` is a role of `guild_id`.
+    async fn role_in_guild(&self, guild_id: i64, role_id: i64) -> Result<bool, FactsError>;
+    /// Set (insert or replace) the share of `mount_id` for `friend`; a share with every kind off is deleted.
+    /// The caller has checked that the mount is the caller's and that the two are mutual friends.
+    async fn set_share(&self, mount_id: i64, friend: i64, share: Share) -> Result<(), FactsError>;
+    /// Remove a share; whether there was one.
+    async fn delete_share(&self, mount_id: i64, friend: i64) -> Result<bool, FactsError>;
+    /// The shares of one mount, by friend id.
+    async fn shares_of_mount(&self, mount_id: i64) -> Result<Vec<(i64, Share)>, FactsError>;
+    /// What friends share with `viewer`.
+    async fn shares_to(&self, viewer: i64) -> Result<Vec<SharedToMe>, FactsError>;
+    /// Replace a role's grants.
+    async fn set_role_grants(
+        &self,
+        guild_id: i64,
+        role_id: i64,
+        grants: &GrantSet,
+    ) -> Result<(), FactsError>;
+    /// Every role's grants in a guild (roles without grants are absent).
+    async fn grants_of_guild(&self, guild_id: i64) -> Result<BTreeMap<i64, GrantSet>, FactsError>;
+    /// How many shelves of each kind `viewer` reaches.
+    async fn shelves_summary(&self, viewer: i64) -> Result<ShelvesSummary, FactsError>;
 }

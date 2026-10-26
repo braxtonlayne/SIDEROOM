@@ -6,12 +6,17 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use sr_storage::mounts::MountOwner;
-use sr_storage::scopes::{FactsError, Grant, GrantSet, GuildStanding, Kind, ScopeFacts, Share};
+use sr_storage::scopes::{
+    FactsError, Grant, GrantSet, GuildStanding, Kind, ScopeFacts, ScopeStore, Share, SharedToMe,
+    ShelvesSummary,
+};
 
 /// `ADMINISTRATOR` in `roles.permissions` (`sr_core::Permissions`).
 const ADMINISTRATOR: i64 = 1 << 3;
 /// `MANAGE_GUILD`.
 const MANAGE_GUILD: i64 = 1 << 5;
+/// `MANAGE_ROLES`.
+const MANAGE_ROLES: i64 = 1 << 28;
 
 fn fe(e: sqlx::Error) -> FactsError {
     FactsError(e.to_string())
@@ -28,15 +33,22 @@ impl PgScopeFacts {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+}
+
+#[async_trait]
+impl ScopeStore for PgScopeFacts {
+    async fn role_in_guild(&self, guild_id: i64, role_id: i64) -> Result<bool, FactsError> {
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM roles WHERE id = $1 AND guild_id = $2)")
+            .bind(role_id)
+            .bind(guild_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(fe)
+    }
 
     /// Set (insert or replace) the share of `mount_id` for `friend`. A share with every kind off is deleted.
     /// The caller has checked that the mount is the caller's and that the two are mutual friends.
-    pub async fn set_share(
-        &self,
-        mount_id: i64,
-        friend: i64,
-        share: Share,
-    ) -> Result<(), FactsError> {
+    async fn set_share(&self, mount_id: i64, friend: i64, share: Share) -> Result<(), FactsError> {
         if !share.any() {
             return self.delete_share(mount_id, friend).await.map(|_| ());
         }
@@ -58,7 +70,7 @@ impl PgScopeFacts {
     }
 
     /// Remove a share; whether there was one.
-    pub async fn delete_share(&self, mount_id: i64, friend: i64) -> Result<bool, FactsError> {
+    async fn delete_share(&self, mount_id: i64, friend: i64) -> Result<bool, FactsError> {
         let r =
             sqlx::query("DELETE FROM storage_mount_shares WHERE mount_id = $1 AND friend_id = $2")
                 .bind(mount_id)
@@ -70,7 +82,7 @@ impl PgScopeFacts {
     }
 
     /// The shares of one mount, by friend id.
-    pub async fn shares_of_mount(&self, mount_id: i64) -> Result<Vec<(i64, Share)>, FactsError> {
+    async fn shares_of_mount(&self, mount_id: i64) -> Result<Vec<(i64, Share)>, FactsError> {
         let rows = sqlx::query(
             "SELECT friend_id, cinema, library, music FROM storage_mount_shares \
              WHERE mount_id = $1 ORDER BY friend_id",
@@ -85,7 +97,7 @@ impl PgScopeFacts {
     }
 
     /// What friends share with `viewer`: live, active-owner mounts of mutual friends with a share row.
-    pub async fn shares_to(&self, viewer: i64) -> Result<Vec<SharedToMe>, FactsError> {
+    async fn shares_to(&self, viewer: i64) -> Result<Vec<SharedToMe>, FactsError> {
         let rows = sqlx::query(
             "SELECT m.id AS mount_id, m.label, m.owner_id, s.cinema, s.library, s.music \
              FROM storage_mount_shares s \
@@ -116,7 +128,7 @@ impl PgScopeFacts {
     }
 
     /// Replace a role's grants (the role payload's `sr_storage_grants`).
-    pub async fn set_role_grants(
+    async fn set_role_grants(
         &self,
         guild_id: i64,
         role_id: i64,
@@ -144,10 +156,7 @@ impl PgScopeFacts {
     }
 
     /// Every role's grants in a guild (roles without grants are absent).
-    pub async fn grants_of_guild(
-        &self,
-        guild_id: i64,
-    ) -> Result<BTreeMap<i64, GrantSet>, FactsError> {
+    async fn grants_of_guild(&self, guild_id: i64) -> Result<BTreeMap<i64, GrantSet>, FactsError> {
         let rows = sqlx::query(
             "SELECT role_id, grant_name FROM guild_storage_grants WHERE guild_id = $1 ORDER BY role_id",
         )
@@ -169,7 +178,7 @@ impl PgScopeFacts {
 
     /// How many shelves of each kind `viewer` reaches (the nav modes read this): their own live mounts count
     /// for every kind, plus friends' shares, plus guild shelves their grants open.
-    pub async fn shelves_summary(&self, viewer: i64) -> Result<ShelvesSummary, FactsError> {
+    async fn shelves_summary(&self, viewer: i64) -> Result<ShelvesSummary, FactsError> {
         let own: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM storage_mounts WHERE owner_kind = 'user' AND owner_id = $1 \
              AND deleted_at IS NULL AND status <> 'disabled'",
@@ -219,31 +228,6 @@ fn share_of(r: &sqlx::postgres::PgRow) -> Result<Share, FactsError> {
         music: r.try_get("music").map_err(fe)?,
     })
 }
-
-/// One row of `GET /users/@me/storage/shares`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SharedToMe {
-    /// The shared mount.
-    pub mount_id: i64,
-    /// The friend who owns it.
-    pub owner_id: i64,
-    /// The mount's label.
-    pub label: String,
-    /// What is shared.
-    pub share: Share,
-}
-
-/// Counts for the nav modes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ShelvesSummary {
-    /// Shelves reachable for cinema.
-    pub cinema: i64,
-    /// For library.
-    pub library: i64,
-    /// For music.
-    pub music: i64,
-}
-
 /// The unfriend hook: delete every share between two accounts, in either direction. Call it inside the
 /// transaction that ends (or downgrades) the friendship.
 pub async fn revoke_shares_between(
@@ -346,6 +330,7 @@ impl ScopeFacts for PgScopeFacts {
             is_owner: member.try_get("is_owner").map_err(fe)?,
             administrator: perms & ADMINISTRATOR != 0,
             manage_guild: perms & MANAGE_GUILD != 0,
+            manage_roles: perms & MANAGE_ROLES != 0,
             role_ids,
         }))
     }

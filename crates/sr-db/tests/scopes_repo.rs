@@ -9,7 +9,7 @@ use sr_db::social_repo::PgSocialRepo;
 use sr_db::testing::TestDb;
 use sr_storage::mounts::{Mount, MountOwner, MountStatus, Provider, SealedSecret};
 use sr_storage::scopes::{
-    self, Grant, GrantSet, Refused, ResolveError, Scope, ScopeFacts, Share, Viewer,
+    self, Grant, GrantSet, Refused, ResolveError, Scope, ScopeFacts, ScopeStore, Share, Viewer,
 };
 
 async fn account(pool: &sqlx::PgPool, id: i64) {
