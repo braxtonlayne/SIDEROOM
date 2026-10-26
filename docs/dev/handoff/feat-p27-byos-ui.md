@@ -5,7 +5,7 @@
 Done and committed: User Settings > Storage, Guild Settings > Storage, IAM policy examples, role editor Storage grants, Friend Shelf toggles, bucket browser read side, nav modes, check-css-tokens, axe tests, i18n-audit zero. Next slices, in order:
 
 6. `e2e/tests/byos-mount.spec.ts` + one `storage.yml` step (write only; do not run Playwright: connect Garage, test, apply CORS, browse, play audio, share with friend who sees it and a third member who does not).
-7. Final gates: whole-web `pnpm lint`, bundle budget (`scripts/check-bundle-budget.mjs` after a build), full vitest of touched areas. Then swap the MSW mocks for the real handlers when byos-core/scopes land (delete `settings/user/storage/mocks.ts`).
+7. Swap the MSW mocks for the real handlers when byos-core/scopes land (delete `settings/user/storage/mocks.ts`); then the e2e spec + `storage.yml` step.
 
 Mocks live in ONE file: `apps/web/src/settings/user/storage/mocks.ts` (`byosMockHandlers`). Tests call `server.use(...byosMockHandlers(opts))` (put per-test overrides BEFORE it; first handler wins). Replace with the real handlers when byos-core/byos-scopes land by deleting that file and its imports.
 
@@ -26,6 +26,8 @@ Mocks live in ONE file: `apps/web/src/settings/user/storage/mocks.ts` (`byosMock
 Everything in "Resume here".
 
 ## Tests run
+
+- Final gates run: whole-web eslint clean; tsc clean; `vite build` OK (wasm `dist` copied from the main checkout, no cargo build); `check-bundle-budget.mjs`: all routes ok (lounge 435/600, settings 308/600).
 
 - Latest: vitest src/storage + user p27storage (22 passed incl. axe), nav modes, friend share; `node --test scripts/check-css-tokens.test.mjs` 6 passed; `node scripts/i18n-audit.mjs` TOTAL 0; tsc and eslint clean.
 
