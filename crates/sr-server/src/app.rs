@@ -317,6 +317,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let mount_resolver = Arc::new(sr_storage::mount_cache::CachedMountResolver::new(
         mount_repo.clone(),
     ));
+    // Bucket mounts, read side (BYOS-SCP-001/002): scoped listing and presign over the same resolver.
+    let scope_facts = Arc::new(sr_db::scopes_repo::PgScopeFacts::new(pool.clone()));
+    let storage_scope_deps = Arc::new(routes::storage::ScopeDeps {
+        mounts: mount_resolver.clone(),
+        store: scope_facts.clone(),
+        sealer: mount_sealer.clone(),
+    });
     if s.endpoint != "memory:" {
         crate::instance_mount::ensure_instance_mount(mount_repo.as_ref(), mount_sealer.as_ref(), s)
             .await
@@ -1129,7 +1136,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             unfurl_policy_for_feeds.clone(),
         )
         .with_public_origin(&cfg.server.public_url)
-        .with_resolver(mount_resolver.clone()),
+        .with_resolver(mount_resolver.clone())
+        .with_facts(scope_facts.clone()),
     );
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
@@ -1452,6 +1460,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
+        .extension(storage_scope_deps)
         .extension(Arc::new(
             routes::donations::DonationsDeps::new(payments.service.clone())
                 .with_chat_slot(payments.chat.clone()),

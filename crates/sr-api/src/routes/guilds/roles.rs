@@ -45,12 +45,31 @@ pub fn routes() -> Router<AppState> {
 pub async fn list_roles(
     p: Principal,
     Api(api): Api,
+    MaybeExt(scope): MaybeExt<crate::routes::storage::ScopeDeps>,
     Path(guild_id): Path<String>,
 ) -> ApiResult<Json<Vec<RoleObject>>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let roles = api.list_roles(user, gid).await.map_err(ce)?;
-    Ok(Json(roles.iter().map(RoleObject::from).collect()))
+    let mut out: Vec<RoleObject> = roles.iter().map(RoleObject::from).collect();
+    // BYOS-SCP-001: the role payload carries the storage grants (a table, not permission bits; O-1).
+    if let Some(scope) = scope
+        && let Ok(grants) = scope
+            .store
+            .grants_of_guild(guild_id.parse::<i64>().unwrap_or(0))
+            .await
+    {
+        for r in &mut out {
+            let set =
+                r.id.parse::<i64>()
+                    .ok()
+                    .and_then(|id| grants.get(&id))
+                    .map(|g| g.names().into_iter().map(str::to_owned).collect())
+                    .unwrap_or_default();
+            r.sr_storage_grants = Some(set);
+        }
+    }
+    Ok(Json(out))
 }
 
 /// Create a role directly above `@everyone`. Needs `MANAGE_ROLES`; the caller can only grant bits they hold.

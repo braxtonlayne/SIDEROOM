@@ -56,12 +56,21 @@ pub struct MountsDeps {
     pub public_origin: String,
     /// How long the connection test may run (20 s).
     pub test_budget: std::time::Duration,
+    /// The storage-scope facts: who may manage a server's mounts (`sr_storage::scopes::may_manage_guild`,
+    /// so a role with the `manage` grant counts). Unset only in unit tests, which fall back to `MANAGE_GUILD`.
+    pub facts: Option<Arc<dyn sr_storage::scopes::ScopeFacts>>,
 }
 
 impl MountsDeps {
     /// Set the origin the CORS rule allows (`server.public_url`).
     pub fn with_public_origin(mut self, origin: &str) -> Self {
         self.public_origin = origin.trim_end_matches('/').to_owned();
+        self
+    }
+
+    /// Decide server management through the storage grants.
+    pub fn with_facts(mut self, facts: Arc<dyn sr_storage::scopes::ScopeFacts>) -> Self {
+        self.facts = Some(facts);
         self
     }
 
@@ -89,6 +98,7 @@ impl MountsDeps {
             max_per_guild: DEFAULT_MAX_MOUNTS_PER_GUILD,
             public_origin: String::new(),
             test_budget: sr_storage::probe::PROBE_BUDGET,
+            facts: None,
         }
     }
 }
@@ -283,11 +293,33 @@ pub(crate) fn user_scope(p: &Principal) -> MsgResult<Scope> {
 }
 
 /// The caller must be a member of the server who may manage it: 404 unknown server, 403 otherwise.
-pub(crate) async fn guild_scope(s: &SettingsDeps, p: &Principal, guild: &str) -> MsgResult<Scope> {
+pub(crate) async fn guild_scope(
+    d: &MountsDeps,
+    s: &SettingsDeps,
+    p: &Principal,
+    guild: &str,
+) -> MsgResult<Scope> {
     let user = member(p)?;
     let gid: GuildId = parse_id(guild, ErrorCode::UnknownGuild)?;
     let access = s.guild_access(user, gid).await?;
-    if !access.perms.has(Permissions::MANAGE_GUILD) {
+    let raw_gid = i64::try_from(gid.get()).unwrap_or(0);
+    let manages = match &d.facts {
+        Some(facts) => sr_storage::scopes::may_manage_guild(
+            facts.as_ref(),
+            sr_storage::scopes::Viewer {
+                id: raw(user),
+                staff: false,
+            },
+            raw_gid,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "storage scope facts failed");
+            MsgError::from(ErrorCode::SrInternal)
+        })?,
+        None => access.perms.has(Permissions::MANAGE_GUILD),
+    };
+    if !manages {
         return Err(ErrorCode::MissingPermissions.into());
     }
     Ok(Scope::Guild(i64::try_from(gid.get()).unwrap_or(0)))
@@ -715,7 +747,7 @@ pub async fn list_guild(
     Ext(s): Ext<SettingsDeps>,
     Path(guild_id): Path<String>,
 ) -> MsgResult<Json<Vec<MountObject>>> {
-    list(&d, guild_scope(&s, &p, &guild_id).await?).await
+    list(&d, guild_scope(&d, &s, &p, &guild_id).await?).await
 }
 
 /// Connect a bucket to the server (at most 5).
@@ -740,7 +772,7 @@ pub async fn create_guild(
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateMountBody>,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
-    create(&d, guild_scope(&s, &p, &guild_id).await?, body).await
+    create(&d, guild_scope(&d, &s, &p, &guild_id).await?, body).await
 }
 
 /// Change one of the server's buckets.
@@ -768,7 +800,7 @@ pub async fn patch_guild(
     Path((guild_id, mount_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<PatchMountBody>,
 ) -> MsgResult<Json<MountObject>> {
-    patch(&d, guild_scope(&s, &p, &guild_id).await?, &mount_id, body).await
+    patch(&d, guild_scope(&d, &s, &p, &guild_id).await?, &mount_id, body).await
 }
 
 /// Disconnect one of the server's buckets.
@@ -788,7 +820,7 @@ pub async fn delete_guild(
     Ext(s): Ext<SettingsDeps>,
     Path((guild_id, mount_id)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
-    remove(&d, guild_scope(&s, &p, &guild_id).await?, &mount_id).await
+    remove(&d, guild_scope(&d, &s, &p, &guild_id).await?, &mount_id).await
 }
 
 /// OpenAPI fragment.

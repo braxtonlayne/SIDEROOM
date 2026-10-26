@@ -119,7 +119,7 @@ pub trait ObjectStorage: Send + Sync {
 /// [`ObjectStorage`] over any `object_store` backend, with an optional signer.
 #[derive(Clone)]
 pub struct ObjectStoreStorage {
-    store: Arc<dyn ObjectStore>,
+    pub(crate) store: Arc<dyn ObjectStore>,
     signer: Option<Arc<dyn Signer>>,
 }
 

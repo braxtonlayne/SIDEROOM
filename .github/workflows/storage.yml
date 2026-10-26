@@ -67,7 +67,9 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Rust live tests (ObjectStoreStorage over S3)
-        run: cargo test -p sr-storage --test s3_live -- --ignored --test-threads=1
+        run: |
+          cargo test -p sr-storage --test s3_live -- --ignored --test-threads=1
+          cargo test -p sr-storage --test s3_mount_live -- --ignored --test-threads=1
 
       # BYOS-MNT-002 / BYOS-MNT-003: the mount connection test and the CORS apply, check and preflight against Garage.
       - name: Rust live tests (storage mounts, connection test and CORS)
