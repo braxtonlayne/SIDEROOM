@@ -102,13 +102,11 @@ pub trait ObjectStorage: Send + Sync {
         visit: &mut (dyn for<'a> FnMut(&'a str, u64) + Send),
     ) -> Result<bool> {
         let started = std::time::Instant::now();
-        let mut seen = 0u64;
-        for o in self.list("").await? {
-            if seen >= max_objects || started.elapsed() > budget {
+        for (seen, o) in self.list("").await?.into_iter().enumerate() {
+            if seen as u64 >= max_objects || started.elapsed() > budget {
                 return Ok(false);
             }
             visit(&o.key, o.size);
-            seen += 1;
         }
         Ok(true)
     }

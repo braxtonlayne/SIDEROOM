@@ -207,7 +207,7 @@ pub async fn measure_storage(
         .await
         .map_err(|e| e.to_string())?;
     for (bucket, bytes, _, _) in &figures {
-        sr_api::observability::record_storage_bytes(*bucket, u64::try_from(*bytes).unwrap_or(0));
+        sr_api::observability::record_storage_bytes(bucket, u64::try_from(*bytes).unwrap_or(0));
     }
     Ok(figures)
 }

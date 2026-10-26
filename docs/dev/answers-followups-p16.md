@@ -451,7 +451,7 @@ From the wave-24 handoffs (`feat-p24-scale.md`, `feat-p24-parity.md`, `feat-p24-
 
 ### Storage gauge
 
-- [ ] **U-04 (RDY-OBS-001 follow-up) `sr_storage_bytes` for the object-store buckets and media.** The gauge covers `attachments` (sum of `attachments.size_bytes`) only. Add the object-store buckets and the Library and Cinema media through a bounded daily job (one listing walk per bucket with a page and time cap, figures stored and exported), never in the 15-minute `admin.health.check` run. Size: S.
+- [x] **U-04 (RDY-OBS-001 follow-up) `sr_storage_bytes` for the object-store buckets and media.** The gauge covers `attachments` (sum of `attachments.size_bytes`) only. Add the object-store buckets and the Library and Cinema media through a bounded daily job (one listing walk per bucket with a page and time cap, figures stored and exported), never in the 15-minute `admin.health.check` run. Size: S. *Done in wave 25 (RDY-OBS-002): the daily job `storage.measure` (`crates/sr-server/src/admin_jobs.rs`, job id 133, 05:20 UTC) walks the bucket once (`ObjectStorage::walk`: cap `ops.storage_measure_max_objects`, 60 s budget), stores `objects`, `library` and `cinema` in `storage_figures` (migration 1350) and sets `sr_storage_bytes{bucket}`; Admin > System has a "Stored data" card. Tests: `storage_measure_pg_tests.rs` (memory store, Postgres), `walk_visits_every_object_and_stops_at_the_cap`, `the_storage_job_id_kind_and_setting_key_are_unique`.*
 
 ### Backups
 
