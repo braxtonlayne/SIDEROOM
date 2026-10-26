@@ -431,3 +431,56 @@ async fn send_resolved_uses_the_callers_resolution() {
         "{denied:?}"
     );
 }
+
+/// Flags every message whose text contains "spam" (the server-set `LIKELY_SPAM` bit of PAR-FU-002).
+struct SpamStub;
+
+#[async_trait::async_trait]
+impl crate::message_hooks::MessageHooks for SpamStub {
+    async fn message_sent(&self, _: &crate::domain::Message, _: &[UserId]) {}
+    async fn extra_flags(&self, m: &crate::domain::Message) -> u32 {
+        if m.content.contains("spam") {
+            crate::domain::message_flags::LIKELY_SPAM
+        } else {
+            0
+        }
+    }
+}
+
+#[tokio::test]
+async fn editing_a_message_re_screens_its_server_flags() {
+    use crate::domain::message_flags::{LIKELY_SPAM, SUPPRESS_EMBEDS};
+    let mut f = fixture().await;
+    f.svc = f.svc.with_hooks(Arc::new(SpamStub));
+    let m = f.svc.send_message(BOB, f.general, say("hi")).await.unwrap();
+    assert_eq!(m.flags & LIKELY_SPAM, 0);
+    let edit = |content: Option<&str>, flags: Option<u32>| EditMessageInput {
+        content: content.map(Into::into),
+        flags,
+    };
+    f.clock.advance_ms(1000);
+    let p = f
+        .svc
+        .edit_message(BOB, f.general, m.id, edit(Some("buy spam now"), None))
+        .await
+        .unwrap();
+    assert_eq!(p.flags & LIKELY_SPAM, LIKELY_SPAM);
+    assert_eq!(
+        f.svc.repo_for_tests().store.lock().unwrap().messages[0].flags & LIKELY_SPAM,
+        LIKELY_SPAM
+    );
+    // A flags-only edit keeps the bit.
+    let p = f
+        .svc
+        .edit_message(BOB, f.general, m.id, edit(None, Some(SUPPRESS_EMBEDS)))
+        .await
+        .unwrap();
+    assert_eq!(p.flags, LIKELY_SPAM | SUPPRESS_EMBEDS);
+    // Editing the text back to something clean clears it.
+    let p = f
+        .svc
+        .edit_message(BOB, f.general, m.id, edit(Some("sorry, hello"), None))
+        .await
+        .unwrap();
+    assert_eq!(p.flags & LIKELY_SPAM, 0);
+}

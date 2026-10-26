@@ -361,6 +361,8 @@ export interface Message {
   referenceChannelId?: Snowflake | null;
   /** Text-to-speech message. */
   tts?: boolean;
+  /** A friend's DM the recipient's "Filter all" spam level flagged (flag 1 << 29): shown behind a notice. */
+  likelySpam?: boolean;
   /** The thread started from this message. */
   thread?: { id: Snowflake; name: string; messageCount: number } | null;
 }

@@ -2231,3 +2231,32 @@ async fn a_spammy_first_message_lands_under_likely_spam() {
         .unwrap();
     assert!(accepted["is_message_request"].is_null(), "{accepted}");
 }
+
+/// PAR-FU-002 (P26-LNG-1): the likely-spam flag is the recipient's view. Alice (a friend) sends spam to Bob, whose
+/// filter is at All: Alice's POST response and GET never carry the bit, Bob's GET does.
+#[tokio::test]
+async fn the_author_never_receives_the_likely_spam_flag() {
+    const LIKELY_SPAM: u64 = 1 << 29;
+    let e = env().await;
+    e.befriend(ALICE, BOB).await;
+    let (s, v) = e
+        .patch("/users/@me/privacy", BOB, json!({"dm_spam_filter": "all"}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    let spam = "https://a.example.com https://b.example.org https://c.example.net win big";
+    let (s, posted) = e
+        .post(
+            &format!("/channels/{dm}/messages"),
+            ALICE,
+            json!({ "content": spam }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{posted}");
+    assert_eq!(posted["flags"].as_u64().unwrap_or(0) & LIKELY_SPAM, 0);
+    let flags_of = |list: &Value| list[0]["flags"].as_u64().unwrap_or(0) & LIKELY_SPAM;
+    let (_, mine) = e.get(&format!("/channels/{dm}/messages"), ALICE).await;
+    assert_eq!(flags_of(&mine), 0, "{mine}");
+    let (_, theirs) = e.get(&format!("/channels/{dm}/messages"), BOB).await;
+    assert_eq!(flags_of(&theirs), LIKELY_SPAM, "{theirs}");
+}

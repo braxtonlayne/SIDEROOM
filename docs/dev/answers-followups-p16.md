@@ -443,11 +443,11 @@ From the wave-24 handoffs (`feat-p24-scale.md`, `feat-p24-parity.md`, `feat-p24-
 
 ### View Server As Role
 
-- [ ] **U-02 (RDY-PAR-005 follow-up, P24-PAR-5) View as Role also filters the member list and the thread list.** Today the Lounge preview narrows only the channel sidebar. The member list should show only the members who can see the open channel under the previewed roles, and the thread list only threads of channels those roles can read, both through the same `sr-permissions` WASM (`viewAs.ts`). Still client-side, no server state. Size: S.
+- [x] **U-02 (RDY-PAR-005 follow-up, P24-PAR-5) View as Role also filters the member list and the thread list.** Today the Lounge preview narrows only the channel sidebar. The member list should show only the members who can see the open channel under the previewed roles, and the thread list only threads of channels those roles can read, both through the same `sr-permissions` WASM (`viewAs.ts`). Still client-side, no server state. Size: S. *Built in phase 26 (PAR-FU-001): `useViewAsMembers` and `useViewAsThreadParent` in `viewAsMode.tsx`, applied in `MemberList.tsx`, `ThreadsButton.tsx` and `NestedThreads.tsx`; tests in `viewAsMode.test.tsx` and `e2e/tests/view-as-role.spec.ts`.*
 
 ### DM spam filter
 
-- [ ] **U-03 (RDY-PAR-004 follow-up, P24-PAR-1) The filter level "All" screens friends too.** `screen_dm_message` skips friends at every level, so "All" behaves as "Non-friends"; Discord's "Filter all" also scans messages from friends. Make "All" screen friends' messages (friends' DMs are not message requests, so decide where a flagged friend message goes: Discord hides it behind a "likely spam" notice in the conversation) and pin both levels in the `sr-chat` safety tests. Size: S.
+- [x] **U-03 (RDY-PAR-004 follow-up, P24-PAR-1) The filter level "All" screens friends too.** `screen_dm_message` skips friends at every level, so "All" behaves as "Non-friends"; Discord's "Filter all" also scans messages from friends. Make "All" screen friends' messages (friends' DMs are not message requests, so decide where a flagged friend message goes: Discord hides it behind a "likely spam" notice in the conversation) and pin both levels in the `sr-chat` safety tests. Size: S. *Built in phase 26 (PAR-FU-002): `SocialService::friend_dm_spam_flag` sets message flag `LIKELY_SPAM` (1 << 29) via `MessageHooks::extra_flags`; the client hides the message behind `LikelySpamGate` (`lounge/msg/LikelySpamNotice.tsx`). Tests: `sr-chat` social tests, `sr-db/tests/p24_parity.rs`, `p26LikelySpam.test.tsx`. No migration.*
 
 ### Storage gauge
 

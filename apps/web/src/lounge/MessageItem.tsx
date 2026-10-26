@@ -23,6 +23,7 @@ import { EphemeralNote } from './apps/EphemeralNote';
 import { useAppsMenu } from './apps/useAppsMenu';
 import { ComponentRows } from './msg/Components';
 import { findInviteCode, InviteCard } from './msg/InviteCard';
+import { LikelySpamGate } from './msg/LikelySpamNotice';
 import { findMessageLinks, MessageLinkCard } from './msg/MessageLinkCard';
 import { EmbedList } from './msg/Embeds';
 import { ForwardedFrame } from './msg/Forwarded';
@@ -157,7 +158,7 @@ function MessageBody({
     };
   }, [resolvers, m.textEmoji]);
   return (
-    <>
+    <LikelySpamGate flagged={!!m.likelySpam && !isOwn}>
       {m.content && (
         <Markdown
           nodes={nodes}
@@ -206,7 +207,7 @@ function MessageBody({
           onEnd={onEndPoll}
         />
       )}
-    </>
+    </LikelySpamGate>
   );
 }
 

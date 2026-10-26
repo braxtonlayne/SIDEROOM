@@ -1965,3 +1965,58 @@ async fn filing_a_request_as_spam_gives_it_the_spam_reason_and_friends_are_never
         Some(RequestState::Pending)
     );
 }
+
+#[tokio::test]
+async fn all_level_flags_a_friends_spam_and_non_friends_level_does_not() {
+    use super::safety::SpamFilter;
+    use super::user_settings::PrivacyUpdate;
+    let f = fx();
+    let spam = "https://a.example.com https://b.example.org https://c.example.net win big";
+    befriend(&f, 5, 6).await;
+    let id = f.svc.open_dm(u(5), u(6)).await.unwrap().channel.id;
+    let set = |level| PrivacyUpdate {
+        dm_spam_filter: Some(level),
+        ..Default::default()
+    };
+    // Both levels are pinned: the default (non_friends) and off never read a friend's message...
+    for level in [SpamFilter::NonFriends, SpamFilter::Off] {
+        f.svc.update_privacy(u(6), set(level)).await.unwrap();
+        assert!(!f.svc.friend_dm_spam_flag(id, u(5), spam).await.unwrap());
+    }
+    // ..."All" does: a spammy friend message is flagged, an ordinary one is not.
+    f.svc
+        .update_privacy(u(6), set(SpamFilter::All))
+        .await
+        .unwrap();
+    assert!(f.svc.friend_dm_spam_flag(id, u(5), spam).await.unwrap());
+    assert!(
+        f.svc
+            .friend_dm_spam_flag(id, u(5), &"a".repeat(40))
+            .await
+            .unwrap()
+    );
+    assert!(
+        !f.svc
+            .friend_dm_spam_flag(id, u(5), "hi, are we still on for friday?")
+            .await
+            .unwrap()
+    );
+    // The flag follows the recipient's filter: the sender's own setting does not flag the other direction.
+    assert!(!f.svc.friend_dm_spam_flag(id, u(6), spam).await.unwrap());
+    // The conversation itself is untouched (a flagged friend message is not a request).
+    assert_eq!(f.svc.screen_dm_message(id, u(5), spam).await.unwrap(), None);
+    // A stranger is never flagged here: strangers go to "Likely spam" through screen_dm_message instead.
+    f.svc
+        .repo()
+        .store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(1), u(2)));
+    f.svc
+        .update_privacy(u(2), set(SpamFilter::All))
+        .await
+        .unwrap();
+    let id2 = f.svc.open_dm(u(1), u(2)).await.unwrap().channel.id;
+    assert!(!f.svc.friend_dm_spam_flag(id2, u(1), spam).await.unwrap());
+}

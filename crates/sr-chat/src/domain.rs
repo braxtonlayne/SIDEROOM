@@ -437,6 +437,20 @@ pub mod message_flags {
     /// SIDE ROOM extension (D-188): the message was written by the system user, which the
     /// client labels with a `SYSTEM` badge. Set when a message object is built, never stored.
     pub const SYSTEM_TAG: u32 = 1 << 30;
+    /// SIDE ROOM extension (PAR-FU-002): a friend's DM that the recipient's "All" spam filter flagged. The
+    /// message stays in the conversation and the client shows it behind a "likely spam" notice the recipient can
+    /// reveal. Stored, set only by the server (never by a client: it is not in the client-settable flags).
+    pub const LIKELY_SPAM: u32 = 1 << 29;
+
+    /// The flag bits `viewer` may see on a message written by `author`. `LIKELY_SPAM` is the recipient's view of
+    /// their own safety setting: the author never receives it (REST or gateway).
+    pub fn for_viewer(flags: u32, author: sr_core::UserId, viewer: sr_core::UserId) -> u32 {
+        if author == viewer {
+            flags & !LIKELY_SPAM
+        } else {
+            flags
+        }
+    }
 }
 
 /// D-121: user_deleted / staff_removed are hidden from user views.

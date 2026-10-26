@@ -7,7 +7,7 @@ import { useT } from '../../../i18n';
 import { useGuild } from '../../../lounge/data';
 import { loadPermEngine, usePermEngine } from '../../../lounge/permEngine';
 import * as api from '../api';
-import { hasAdministrator, viewServerAs } from '../viewAs';
+import { canViewAs, hasAdministrator, viewServerAs } from '../viewAs';
 import { useViewAs } from '../viewAsMode';
 
 const ICON: Record<number, string> = {
@@ -75,6 +75,12 @@ export function ViewAsRoleDialog({
       guildName: guildName ?? guildId,
       roleNames: pickable.filter((r) => picked.has(r.id)).map((r) => r.name),
       visibleIds: new Set(shown.map((e) => e.channel.id)),
+      // PAR-FU-001: the member list asks per member whether their own roles see the open channel.
+      canSeeChannel: (channelId, roleIds) => {
+        const channel = channels?.find((c) => c.id === channelId);
+        if (!engine || !channel) return true;
+        return canViewAs(engine, { guildId, roles, picked: new Set(roleIds) }, channel) !== false;
+      },
     });
     onClose();
     void navigate(
