@@ -91,6 +91,27 @@ pub trait ObjectStorage: Send + Sync {
     async fn delete(&self, key: &str) -> Result<()>;
     /// List objects under a prefix (recursive).
     async fn list(&self, prefix: &str) -> Result<Vec<ObjectInfo>>;
+    /// One listing walk over the whole bucket for a size census (RDY-OBS-002): `visit(key, size)` is called for each
+    /// object, at most `max_objects` of them and for at most `budget`. Returns `true` when the walk reached the end,
+    /// `false` when it stopped at the cap or the budget. The default lists everything first; the `object_store`
+    /// implementation streams the listing page by page and checks the cap and the clock between pages.
+    async fn walk(
+        &self,
+        max_objects: u64,
+        budget: Duration,
+        visit: &mut (dyn for<'a> FnMut(&'a str, u64) + Send),
+    ) -> Result<bool> {
+        let started = std::time::Instant::now();
+        let mut seen = 0u64;
+        for o in self.list("").await? {
+            if seen >= max_objects || started.elapsed() > budget {
+                return Ok(false);
+            }
+            visit(&o.key, o.size);
+            seen += 1;
+        }
+        Ok(true)
+    }
     /// Produce a time-limited presigned URL.
     async fn presign(&self, method: PresignMethod, key: &str, ttl: Duration) -> Result<String>;
     /// Begin a multipart upload.
@@ -281,6 +302,33 @@ impl ObjectStorage for ObjectStoreStorage {
             .collect())
     }
 
+    async fn walk(
+        &self,
+        max_objects: u64,
+        budget: Duration,
+        visit: &mut (dyn for<'a> FnMut(&'a str, u64) + Send),
+    ) -> Result<bool> {
+        use futures::StreamExt;
+        let started = std::time::Instant::now();
+        let mut seen = 0u64;
+        let mut stream = self.store.list(None);
+        loop {
+            let left = budget.saturating_sub(started.elapsed());
+            if seen >= max_objects || left.is_zero() {
+                return Ok(false);
+            }
+            match tokio::time::timeout(left, stream.next()).await {
+                Err(_) => return Ok(false),
+                Ok(None) => return Ok(true),
+                Ok(Some(meta)) => {
+                    let meta = meta?;
+                    visit(meta.location.as_ref(), meta.size);
+                    seen += 1;
+                }
+            }
+        }
+    }
+
     async fn presign(&self, method: PresignMethod, key: &str, ttl: Duration) -> Result<String> {
         let signer = self
             .signer
@@ -307,6 +355,45 @@ impl ObjectStorage for ObjectStoreStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn walk_visits_every_object_and_stops_at_the_cap() {
+        let s = ObjectStoreStorage::in_memory();
+        for (k, n) in [
+            ("a/1", 1usize),
+            ("a/2", 2),
+            ("b/3", 3),
+            ("c/4", 4),
+            ("c/5", 5),
+        ] {
+            s.put(k, Bytes::from(vec![0u8; n])).await.unwrap();
+        }
+        let mut total = 0u64;
+        let done = s
+            .walk(100, Duration::from_secs(5), &mut |_, size| total += size)
+            .await
+            .unwrap();
+        assert!(done);
+        assert_eq!(total, 15);
+        let (mut seen, mut keys) = (0u64, Vec::new());
+        let done = s
+            .walk(3, Duration::from_secs(5), &mut |k, _| {
+                seen += 1;
+                keys.push(k.to_owned());
+            })
+            .await
+            .unwrap();
+        assert!(!done, "the cap stops the walk early");
+        assert_eq!((seen, keys.len()), (3, 3));
+        // A zero budget visits nothing and says so.
+        let mut n = 0;
+        assert!(
+            !s.walk(100, Duration::ZERO, &mut |_, _| n += 1)
+                .await
+                .unwrap()
+        );
+        assert_eq!(n, 0);
+    }
 
     #[tokio::test]
     async fn put_get_head_range_list_delete() {
