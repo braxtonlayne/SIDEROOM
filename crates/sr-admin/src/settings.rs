@@ -124,6 +124,8 @@ pub const ALERTS_DISK_PERCENT: &str = "alerts.disk_percent";
 pub const ALERTS_BACKUP_MAX_AGE_HOURS: &str = "alerts.backup_max_age_hours";
 pub const OPS_DISK_PATH: &str = "ops.disk_path";
 pub const OPS_BACKUP_DIR: &str = "ops.backup_dir";
+/// Most objects the daily `storage.measure` walk lists before it stops and flags its figures as a lower bound (RDY-OBS-002).
+pub const OPS_STORAGE_MEASURE_MAX_OBJECTS: &str = "ops.storage_measure_max_objects";
 
 /// Live TV: the asset id (as text, empty for none) of the instance slate loop played while a channel is off air
 /// (D-266, D-269). `sr-cli tv slate` makes the asset and writes this; the server reads it before the
@@ -462,6 +464,14 @@ pub const CATALOG: &[SettingDef] = &[
         720,
         36,
         "Raise a staff alert when the newest backup is older than this many hours.",
+    ),
+    int(
+        OPS_STORAGE_MEASURE_MAX_OBJECTS,
+        "limits",
+        1_000,
+        5_000_000,
+        200_000,
+        "Most objects the daily storage measurement lists before it stops (the figures are then marked as a lower bound). The walk also stops after 60 seconds.",
     ),
     SettingDef {
         key: OPS_DISK_PATH,

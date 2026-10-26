@@ -1077,6 +1077,37 @@ async fn silent_participants_are_dropped_by_the_sweep() {
     assert!(!hb.member);
 }
 
+/// RDY-SEC-011: the write-side authorization matrix found that a heartbeat from anyone answered with the
+/// party's real playback state, whether or not they were in it.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_heartbeat_from_a_stranger_reveals_no_playback() {
+    let e = env().await;
+    let (host, stranger) = (e.user().await, e.user().await);
+    let hv = e.v(host).await;
+    let party = e.svc.create(hv, create(1)).await.unwrap();
+    e.svc
+        .command(hv, party.id, cmd(Action::Play))
+        .await
+        .unwrap();
+    e.advance(7_000);
+    let own = e
+        .svc
+        .heartbeat(hv, party.id, HeartbeatInput::default())
+        .await
+        .unwrap();
+    assert!(own.member && own.playback.playing && own.playback.version >= 2);
+    assert_eq!(own.playback.expected_position_ms, 7_000);
+    let theirs = e
+        .svc
+        .heartbeat(e.v(stranger).await, party.id, HeartbeatInput::default())
+        .await
+        .unwrap();
+    assert!(!theirs.member);
+    assert_eq!(theirs.playback, PlaybackView::hidden(e.clock.now_unix_ms()));
+    assert!(!theirs.playback.playing && theirs.playback.version == 0);
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn restricted_titles_need_age_confirmation_from_everyone() {

@@ -227,3 +227,130 @@ jobs:
         run: |
           promtool --version
           promtool check rules deploy/monitoring/alerts.yml
+
+  # RDY-OPS-007: the upgrade drill. The previous release (the merge base of the change with its target branch; the commit
+  # before it when there is none, as on a push to main) is built into an image here, in parallel with `image`, because
+  # nothing about that build is cached across commits and it must not eat the drill's 25 minutes. The `upgrade` job then
+  # installs it with ITS OWN deploy files, seeds it, backs up as deploy/UPGRADE.md says, upgrades to this checkout's image
+  # and files, and rolls back from the backup, checking sign-in and the seeded data after each move
+  # (deploy/scripts/prod-smoke.sh upgrade-*, deploy/scripts/upgrade-check.mjs). The web bundle is this checkout's for
+  # both versions: the drill is about the server, the database and the deploy files.
+  upgrade-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      sha: ${{ steps.base.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: base
+        name: Find the previous release
+        run: |
+          deploy/scripts/prod-smoke.sh base-sha > "$RUNNER_TEMP/base-sha"
+          echo "sha=$(cat "$RUNNER_TEMP/base-sha")" >> "$GITHUB_OUTPUT"
+          echo "previous release: $(git log -1 --format='%h %s' "$(cat "$RUNNER_TEMP/base-sha")")"
+      - name: Check out the previous release beside this one
+        run: git worktree add --detach "$RUNNER_TEMP/previous" "$(cat "$RUNNER_TEMP/base-sha")"
+      - uses: docker/setup-buildx-action@v3
+      # Same Dockerfile as `image`, the previous release's own copy of it. Reads the layer cache, never writes it.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ runner.temp }}/previous
+          file: ${{ runner.temp }}/previous/deploy/docker/server.Dockerfile
+          platforms: linux/amd64
+          tags: sideroom-server:previous
+          outputs: type=docker,dest=${{ runner.temp }}/previous-image.tar
+          cache-from: type=gha
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-previous-image
+          path: ${{ runner.temp }}/previous-image.tar
+          retention-days: 1
+
+  upgrade:
+    needs: [image, web, upgrade-base]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SMOKE_PREV_IMAGE: sideroom-server:previous
+      SMOKE_BASE_SHA: ${{ needs.upgrade-base.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/download-artifact@v4
+        with: { name: smoke-server-image, path: "${{ runner.temp }}/in" }
+      - uses: actions/download-artifact@v4
+        with: { name: smoke-previous-image, path: "${{ runner.temp }}/in" }
+      - uses: actions/download-artifact@v4
+        with: { name: smoke-web-dist, path: "${{ runner.temp }}/in" }
+      - name: Load both images and unpack the web bundle
+        run: |
+          docker load -i "$RUNNER_TEMP/in/server-image.tar"
+          docker load -i "$RUNNER_TEMP/in/previous-image.tar"
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/in/web-dist.tar.gz"
+          {
+            echo "SMOKE_WEB_DIR=$RUNNER_TEMP/dist"
+            echo "SMOKE_WORK=$RUNNER_TEMP/sr-prod-smoke"
+            echo "SMOKE_DEPLOY_DIR=$RUNNER_TEMP/sr-prod-smoke/live/deploy"
+          } >> "$GITHUB_ENV"
+          echo "previous release $SMOKE_BASE_SHA, this change $(git rev-parse HEAD)"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @sideroom/e2e...
+      - name: Install the previous release (its own deploy/install.sh --yes)
+        run: |
+          deploy/scripts/prod-smoke.sh upgrade-prepare
+          deploy/scripts/prod-smoke.sh upgrade-install
+      - name: Healthz through Caddy (previous release)
+        run: deploy/scripts/prod-smoke.sh wait
+      - name: Seed the previous release (sr-cli seed, a Cinema title, a marker message)
+        run: deploy/scripts/prod-smoke.sh upgrade-seed
+      - name: The seeded data reads back (so a later failure is the upgrade, not the check)
+        run: deploy/scripts/prod-smoke.sh upgrade-verify before
+      - name: Back up as UPGRADE.md says
+        run: deploy/scripts/prod-smoke.sh upgrade-backup
+      - name: Upgrade to this change (UPGRADE.md steps 3 to 7)
+        run: deploy/scripts/prod-smoke.sh upgrade-apply
+      - name: Healthz through Caddy (after the upgrade)
+        run: deploy/scripts/prod-smoke.sh wait
+      - name: Sign-in and the seeded data after the upgrade
+        run: deploy/scripts/prod-smoke.sh upgrade-verify after-upgrade
+      # The same config as the stack job's entrance-smoke step, against the running stack.
+      - name: Playwright entrance-smoke through Caddy (after the upgrade)
+        run: |
+          pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+          cat > e2e/playwright.prod-smoke.config.ts <<'EOF'
+          import { defineConfig } from '@playwright/test';
+          import base from './playwright.config';
+          export default defineConfig({
+            ...base,
+            globalSetup: undefined,
+            webServer: undefined,
+            retries: 0,
+            reporter: [['list']],
+            projects: [base.projects![0]],
+            use: { ...base.use, baseURL: 'https://smoke.localhost', ignoreHTTPSErrors: true },
+          });
+          EOF
+          pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke
+      - name: Roll back from the backup (UPGRADE.md "Rolling back")
+        run: deploy/scripts/prod-smoke.sh upgrade-rollback
+      - name: Healthz through Caddy (after the rollback)
+        run: deploy/scripts/prod-smoke.sh wait
+      - name: Sign-in and the seeded data after the rollback
+        run: deploy/scripts/prod-smoke.sh upgrade-verify after-rollback
+      - name: Playwright entrance-smoke through Caddy (after the rollback)
+        run: pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke
+      - name: Container state and logs
+        if: failure()
+        run: deploy/scripts/prod-smoke.sh logs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: prod-smoke-upgrade-playwright
+          path: e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 3

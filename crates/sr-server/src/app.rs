@@ -1515,6 +1515,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
+    let runner =
+        crate::admin_jobs::register_storage_measure(runner, &pool, id_src.clone(), storage.clone());
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());

@@ -42,7 +42,7 @@ export const VERSION: AppVersion = {
   state: 'pending',
   needs_review: true,
   needs_review_reasons: ['first_release', 'scopes'],
-  diff: { changed: [{ key: 'scopes', old: [], new: ['bot'] }] },
+  diff: [{ key: 'scopes', old: [], new: ['bot'] }],
   note: 'Please review',
   reviewer_note: null,
   created_at: '2026-10-02T00:00:00Z',

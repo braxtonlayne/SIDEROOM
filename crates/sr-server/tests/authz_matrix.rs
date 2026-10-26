@@ -36,8 +36,9 @@ use sr_apps::service::{
 };
 use sr_auth::{
     oauth::Scope,
-    repo::{SessionRecord, SessionRepository},
+    repo::{SessionRecord, SessionRepository, TotpRepository},
     session::SessionToken,
+    totp::TotpSecret,
 };
 use sr_chat::repo::GuildRepository;
 use sr_core::{
@@ -76,7 +77,9 @@ const BOGUS: &str = "900000000000000001";
 /// Admin is 28 since R-07 (D-366): the weak refusals there are one per appointed actor on
 /// `POST /admin/review/submissions/{submission_id}/publish-now`, and the merge rows added the pair actor
 /// `staff_publish_media_and_delete_content`; the seed did not get worse.
-const WEAK_CEILING: [usize; 6] = [0, 28, 12, 0, 8, 79];
+/// RDY-SEC-011 (P25): the control for a write route is now the write phase's own answer (a rightful actor
+/// on a real resource), so a 404 next to it is a real refusal: the ceilings fell to 0, 0, 0, 0, 0 and 16.
+const WEAK_CEILING: [usize; 6] = [0, 0, 0, 0, 0, 16];
 
 /// The groups in RDY-SEC-003 order.
 const GROUPS: [&str; 6] = [
@@ -422,27 +425,50 @@ async fn raw(
     headers: &[(String, String)],
     body: Option<&str>,
 ) -> Resp {
+    raw_body(
+        port,
+        method,
+        path,
+        headers,
+        body.map(|b| ("application/json", b.as_bytes())),
+    )
+    .await
+}
+
+/// The same call with any body and content type (RDY-SEC-012: the zip and binary upload routes).
+async fn raw_body(
+    port: u16,
+    method: &str,
+    path: &str,
+    headers: &[(String, String)],
+    body: Option<(&str, &[u8])>,
+) -> Resp {
     let fut = async {
         let mut s = TcpStream::connect(("127.0.0.1", port)).await.ok()?;
         let mut req = format!(
             "{method} {path} HTTP/1.1\r\nHost: localhost:{port}\r\nConnection: close\r\nAccept: application/json\r\n"
-        );
+        )
+        .into_bytes();
+        let mut head = String::new();
         for (k, v) in headers {
-            req.push_str(&format!("{k}: {v}\r\n"));
+            head.push_str(&format!("{k}: {v}\r\n"));
         }
         match body {
-            Some(b) => {
-                req.push_str("Content-Type: application/json\r\n");
-                req.push_str(&format!("Content-Length: {}\r\n\r\n{b}", b.len()));
+            Some((ctype, b)) => {
+                head.push_str(&format!("Content-Type: {ctype}\r\n"));
+                head.push_str(&format!("Content-Length: {}\r\n\r\n", b.len()));
+                req.extend_from_slice(head.as_bytes());
+                req.extend_from_slice(b);
             }
             None => {
                 if method != "GET" && method != "HEAD" {
-                    req.push_str("Content-Length: 0\r\n");
+                    head.push_str("Content-Length: 0\r\n");
                 }
-                req.push_str("\r\n");
+                head.push_str("\r\n");
+                req.extend_from_slice(head.as_bytes());
             }
         }
-        s.write_all(req.as_bytes()).await.ok()?;
+        s.write_all(&req).await.ok()?;
         let mut buf = Vec::new();
         s.read_to_end(&mut buf).await.ok()?;
         let split = find(&buf, b"\r\n\r\n")?;
@@ -520,6 +546,46 @@ impl Server {
         .await
     }
 
+    /// A call that also sends the audit reason header the staff routes ask for.
+    async fn call_reason(
+        &self,
+        cred: &Cred,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+    ) -> Resp {
+        let b = body.map(Value::to_string);
+        let mut h = self.headers(cred, method);
+        h.push(("X-Audit-Log-Reason".to_owned(), "authz matrix".to_owned()));
+        raw(
+            self.port,
+            method,
+            &format!("/api/v1{path}"),
+            &h,
+            b.as_deref(),
+        )
+        .await
+    }
+
+    /// A call with a body that is not JSON (a zip, the bytes of an image).
+    async fn call_bytes(
+        &self,
+        cred: &Cred,
+        method: &str,
+        path: &str,
+        ctype: &str,
+        body: &[u8],
+    ) -> Resp {
+        raw_body(
+            self.port,
+            method,
+            &format!("/api/v1{path}"),
+            &self.headers(cred, method),
+            Some((ctype, body)),
+        )
+        .await
+    }
+
     /// A seeding call that must succeed; returns the JSON body.
     async fn must(&self, cred: &Cred, method: &str, path: &str, body: Value) -> Value {
         let r = self.call(cred, method, path, Some(&body)).await;
@@ -589,6 +655,10 @@ struct World {
     private: HashMap<&'static str, String>,
     member_id: i64,
     guild_a: i64,
+    /// The TOTP secret `staff_owner` is enrolled with (RDY-SEC-012), for the step-up of the write phase.
+    totp: TotpSecret,
+    /// The account ids of the cast, by seed name.
+    users: BTreeMap<&'static str, i64>,
 }
 
 impl World {
@@ -624,6 +694,227 @@ async fn give_role(pool: &sqlx::PgPool, guild: i64, user: i64, role: i64) {
     .execute(pool)
     .await
     .unwrap();
+}
+
+/// Open the staff step-up window of a session with a real TOTP code (the secret is the Owner's).
+async fn step_up(srv: &Server, who: &Cred, totp: &TotpSecret) -> Resp {
+    let now = SystemClock.now_unix_ms() as u64 / 1000;
+    let code =
+        sr_auth::totp::current_code(totp, "SIDE ROOM", "staffowner", now).expect("totp code");
+    srv.call(
+        who,
+        "POST",
+        "/admin/reauth",
+        Some(&json!({"method": "totp", "code": code})),
+    )
+    .await
+}
+
+/// An RFC 3339 UTC time `days` from now (the days-from-civil conversion, no date crate).
+fn rfc3339_in_days(days: u64) -> String {
+    let secs = SystemClock.now_unix_ms() as u64 / 1000 + days * 86_400;
+    let (d, rem) = ((secs / 86_400) as i64, secs % 86_400);
+    let z = d + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
+}
+
+/// A real `w` x `h` RGBA PNG (stored deflate blocks), with its CRCs: the picture routes decode what they get.
+fn make_png(w: u32, h: u32) -> Vec<u8> {
+    fn crc(data: &[u8]) -> u32 {
+        let mut c = 0xffff_ffffu32;
+        for b in data {
+            c ^= u32::from(*b);
+            for _ in 0..8 {
+                c = if c & 1 == 1 {
+                    0xedb8_8320 ^ (c >> 1)
+                } else {
+                    c >> 1
+                };
+            }
+        }
+        !c
+    }
+    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        let mut body = kind.to_vec();
+        body.extend_from_slice(data);
+        out.extend_from_slice(&body);
+        out.extend_from_slice(&crc(&body).to_be_bytes());
+    }
+    let mut raw = Vec::new();
+    for _ in 0..h {
+        raw.push(0);
+        raw.extend(std::iter::repeat_n([120u8, 60, 200, 255], w as usize).flatten());
+    }
+    let (mut a, mut b) = (1u32, 0u32);
+    for x in &raw {
+        a = (a + u32::from(*x)) % 65_521;
+        b = (b + a) % 65_521;
+    }
+    let mut z = vec![0x78, 0x01, 0x01];
+    z.extend_from_slice(&(raw.len() as u16).to_le_bytes());
+    z.extend_from_slice(&(!(raw.len() as u16)).to_le_bytes());
+    z.extend_from_slice(&raw);
+    z.extend_from_slice(&((b << 16) | a).to_be_bytes());
+    let mut out = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a].to_vec();
+    let mut ihdr = Vec::new();
+    ihdr.extend_from_slice(&w.to_be_bytes());
+    ihdr.extend_from_slice(&h.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 6, 0, 0, 0]);
+    chunk(&mut out, b"IHDR", &ihdr);
+    chunk(&mut out, b"IDAT", &z);
+    chunk(&mut out, b"IEND", &[]);
+    out
+}
+
+/// The password of the accounts that present one in the write phase (a test value, in no real system).
+const TEST_PASSWORD: &str = "authz-matrix-Correct-Horse-9";
+
+/// Standard base64 with padding (the data URIs of stickers and sounds; no dependency for ten lines).
+fn b64(data: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in data.chunks(3) {
+        let n = (u32::from(c[0]) << 16)
+            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*c.get(2).unwrap_or(&0));
+        out.push(T[(n >> 18) as usize & 63] as char);
+        out.push(T[(n >> 12) as usize & 63] as char);
+        out.push(if c.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if c.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// A mono 8 kHz PCM WAV of `ms` milliseconds (the soundboard accepts MP3, Ogg and WAV; the container's own
+/// length claim is what is measured, D-363).
+fn wav_uri(ms: usize) -> String {
+    let rate = 8_000usize;
+    let n = rate * ms / 1000;
+    let mut out = Vec::new();
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&((36 + n * 2) as u32).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&(rate as u32).to_le_bytes());
+    out.extend_from_slice(&((rate * 2) as u32).to_le_bytes());
+    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&((n * 2) as u32).to_le_bytes());
+    out.resize(out.len() + n * 2, 7);
+    format!("data:audio/wav;base64,{}", b64(&out))
+}
+
+/// A zip of the given files.
+fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    use std::io::Write;
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, data) in entries {
+        z.start_file(*name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        z.write_all(data).unwrap();
+    }
+    z.finish().unwrap().into_inner()
+}
+
+/// A zip of one file, an Activity bundle that unpacks.
+fn tiny_zip() -> Vec<u8> {
+    use std::io::Write;
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    z.start_file("index.html", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    z.write_all(b"<h1>authz</h1>").unwrap();
+    z.finish().unwrap().into_inner()
+}
+
+/// The id a create answered with: `id`, or the one nested under the object it returned.
+fn pick_id(v: &Value) -> Option<String> {
+    [
+        &v["id"],
+        &v["upload"]["id"],
+        &v["attachments"][0]["upload_id"],
+        &v["token"]["id"],
+        &v["bundle"]["id"],
+        &v["submission"]["id"],
+        &v["sound_id"],
+    ]
+    .into_iter()
+    .find_map(|x| x.as_str().map(str::to_owned))
+}
+
+/// A create for the seed: the sampled body unless one is given; the new id.
+async fn mk(
+    srv: &Server,
+    infos: &HashMap<(String, String), OpInfo>,
+    who: &Cred,
+    path: &str,
+    body: Option<Value>,
+) -> Option<String> {
+    mk_m(srv, infos, who, "POST", path, body).await
+}
+
+async fn mk_m(
+    srv: &Server,
+    infos: &HashMap<(String, String), OpInfo>,
+    who: &Cred,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+) -> Option<String> {
+    // The template for the sampled body is the path with its ids put back to the placeholders.
+    let tpl = path
+        .split('/')
+        .map(|seg| {
+            if seg.len() > 12 && seg.bytes().all(|b| b.is_ascii_digit()) {
+                "{x}"
+            } else {
+                seg
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    let key = infos
+        .keys()
+        .find(|(m, p)| m == method && same_template(p, &tpl))
+        .map(|(_, p)| p.clone())
+        .unwrap_or(tpl);
+    create(srv, who, method, &key, path, infos, body)
+        .await
+        .as_ref()
+        .and_then(pick_id)
+}
+
+/// Whether `template` (with `{x}` for every id) is the OpenAPI path `p`.
+fn same_template(p: &str, template: &str) -> bool {
+    let (a, b): (Vec<&str>, Vec<&str>) = (p.split('/').collect(), template.split('/').collect());
+    a.len() == b.len()
+        && a.iter()
+            .zip(&b)
+            .all(|(x, y)| x == y || (x.starts_with('{') && *y == "{x}"))
 }
 
 fn id_of(v: &Value) -> String {
@@ -723,6 +1014,9 @@ async fn seed(
         "appowner",
         "staffbasic",
         "friendtwo",
+        "offeree",
+        "dispdel",
+        "disppw",
     ] {
         users.insert(n, account(&pool, &ids, n).await);
     }
@@ -757,6 +1051,25 @@ async fn seed(
     );
     for n in ["member", "insider", "mod", "victim"] {
         add_member(&pool, ga, u(n)).await;
+    }
+
+    // The accounts whose own password the write phase presents (reset-secret, unlink, change ...).
+    {
+        let hasher = sr_auth::password::PasswordHasher::new(sr_auth::password::PasswordParams {
+            m_cost_kib: 1024,
+            t_cost: 1,
+            p_cost: 1,
+        })
+        .expect("hasher");
+        let hash = hasher.hash(TEST_PASSWORD).expect("hash");
+        for n in ["member", "appowner", "ownera", "dispdel", "disppw"] {
+            sqlx::query("UPDATE accounts SET password_hash = $2 WHERE id = $1")
+                .bind(u(n))
+                .bind(&hash)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
     }
 
     // Staff: roles from the templates; the Owner holds the Owner role and an appointment; Support
@@ -882,6 +1195,10 @@ async fn seed(
         ("support", "support"),
         ("fake_staff", "fakestaff"),
         ("app_owner", "appowner"),
+        ("victim", "victim"),
+        ("offeree", "offeree"),
+        ("disp_del", "dispdel"),
+        ("disp_pw", "disppw"),
     ] {
         let t = session_for(&auth, &ids, u(user)).await;
         sess.insert(actor, t.clone());
@@ -926,6 +1243,7 @@ async fn seed(
             UpdateInput {
                 bot_public: Some(true),
                 redirect_uris: Some(vec!["https://client.test/cb".into()]),
+                privacy_policy_url: Some(Some("https://client.test/privacy".into())),
                 ..Default::default()
             },
         )
@@ -988,6 +1306,24 @@ async fn seed(
         });
     }
 
+    // RDY-SEC-012: the Owner is enrolled in TOTP (confirmed, with a step far in the past), so that the
+    // write phase can open the staff step-up window once per group with a real code.
+    let totp = TotpSecret::generate().expect("totp secret");
+    let step_now = SystemClock.now_unix_ms() as u64 / 1000 / 30;
+    TotpRepository::put_pending(&auth, u("staffowner"), totp.as_bytes())
+        .await
+        .unwrap();
+    TotpRepository::confirm(&auth, u("staffowner"), step_now - 10)
+        .await
+        .unwrap();
+    // The staff offeree is enrolled too (an offer is accepted only with a second factor).
+    TotpRepository::put_pending(&auth, u("offeree"), totp.as_bytes())
+        .await
+        .unwrap();
+    TotpRepository::confirm(&auth, u("offeree"), step_now - 10)
+        .await
+        .unwrap();
+
     // Lift the HTTP rate limits so the sweep is not answered with 429 (the limiter is proven elsewhere).
     for key in [
         "limits.rate.ip",
@@ -1042,6 +1378,16 @@ async fn seed(
     cfg.database.max_connections = 12;
     cfg.storage.endpoint = "memory:".into();
     cfg.activities.enabled = true;
+    // RDY-SEC-012: voice is on, so that the stage routes are reached past the module gate. The embedded SFU
+    // binds loopback sockets in a small range of its own; nothing joins a call.
+    cfg.voice.enabled = true;
+    cfg.voice.bind_ip = "127.0.0.1".into();
+    cfg.voice.announce_ips = vec!["127.0.0.1".into()];
+    // A range of its own per world: a stopped node frees its sockets a moment after the process says so.
+    static VOICE_N: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
+    let voice_base = 52_000 + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    cfg.voice.udp_port_min = voice_base;
+    cfg.voice.udp_port_max = voice_base + 9;
     cfg.server.shutdown_grace_secs = 1;
     static SEARCH_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let search = std::env::temp_dir().join(format!(
@@ -1243,6 +1589,7 @@ async fn seed(
     // a hold, an announcement, a submission, a command, a grant and a running stage.
     let staff = Cred::Session(sess["staff_owner"].clone());
     let member_cred = Cred::Session(sess["member"].clone());
+    step_up(&srv, &staff, &totp).await;
     let bot_cred = Cred::Bot(app_a.bot_token.clone());
     let person: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
         .bind(u("victim"))
@@ -1375,7 +1722,19 @@ async fn seed(
         )
         .await;
     }
-    let recipes: [(&'static str, &str, &Cred, Option<Value>); 7] = [
+    let recipes: [(&'static str, &str, &Cred, Option<Value>); 9] = [
+        (
+            "sticker_id",
+            "/guilds/{guild_id}/stickers",
+            &oa,
+            Some(json!({"name": "authzsticker", "tags": "authz", "file": png})),
+        ),
+        (
+            "sound_id",
+            "/guilds/{guild_id}/soundboard-sounds",
+            &oa,
+            Some(json!({"name": "authzsound", "sound": wav_uri(400)})),
+        ),
         (
             "event_id",
             "/guilds/{guild_id}/scheduled-events",
@@ -1426,10 +1785,44 @@ async fn seed(
     for (param, tpl, who, body) in recipes {
         let path = fill(tpl, &a);
         if let Some(v) = create(&srv, who, "POST", tpl, &path, infos, body).await
-            && let Some(id) = v["id"].as_str()
+            && let Some(id) = v["id"].as_str().or(v["sound_id"].as_str())
         {
             a.insert(param, id.to_owned());
         }
+    }
+
+    // RDY-SEC-012: two stage channels of server A, one with a running stage instance (the seeded
+    // `stage_channel_id`) and one for the write phase to start a stage in (`stage_new_channel_id`).
+    for (key, name) in [
+        ("stage_channel_id", "stage-one"),
+        ("stage_new_channel_id", "stage-two"),
+    ] {
+        if let Some(v) = create(
+            &srv,
+            &oa,
+            "POST",
+            "/guilds/{guild_id}/channels",
+            &format!("/guilds/{ga}/channels"),
+            infos,
+            Some(json!({"name": name, "type": 13})),
+        )
+        .await
+            && let Some(id) = v["id"].as_str()
+        {
+            a.insert(key, id.to_owned());
+        }
+    }
+    if let Some(stage) = a.get("stage_channel_id").cloned() {
+        create(
+            &srv,
+            &oa,
+            "POST",
+            "/stage-instances",
+            "/stage-instances",
+            infos,
+            Some(json!({"channel_id": stage, "topic": "authz stage"})),
+        )
+        .await;
     }
 
     // R-03: more ids, from the world's own API. Each is stored under the placeholder the routes use.
@@ -1488,12 +1881,6 @@ async fn seed(
             Some(json!({"note": "authz", "privacy_policy_url": "https://example.test/privacy"})),
         ),
         (
-            "bundle_id",
-            format!("/applications/{aid}/activity/bundles"),
-            &appowner_cred,
-            None,
-        ),
-        (
             "item_id",
             format!("/moderation/takedowns/{}/items", a["notice_id"]),
             &staff,
@@ -1507,21 +1894,6 @@ async fn seed(
             a.insert(param, id.to_owned());
         }
     }
-    if let Some(tv) = a.get("tv_channel_id").cloned()
-        && let Some(v) = create(
-            &srv,
-            &member_cred,
-            "POST",
-            "/watch-parties",
-            "/watch-parties",
-            infos,
-            Some(json!({"tv_channel_id": tv})),
-        )
-        .await
-        && let Some(id) = v["id"].as_str()
-    {
-        a.insert("party_id", id.to_owned());
-    }
     if let (Some(chapter), Some(sub)) = (a.get("chapter_id"), a.get("submission_id")) {
         let path = format!("/submissions/{sub}/library/chapters/{chapter}/uploads");
         if let Some(v) = create(
@@ -1534,10 +1906,862 @@ async fn seed(
             Some(json!({"filename": "a.zip", "size_bytes": 10})),
         )
         .await
-            && let Some(id) = v["id"].as_str()
+            && let Some(id) = pick_id(&v)
         {
-            a.insert("upload_id", id.to_owned());
+            a.insert("upload_id", id);
         }
+    }
+    // RDY-SEC-011: the ids the write phase needs to reach real resources (published Cinema and Library
+    // content, comments, lists, Live TV blocks, tokens), each under a key that `OVERLAYS` maps to a
+    // placeholder. The staff step-up window is open (see above).
+    {
+        macro_rules! put {
+            ($key:expr, $who:expr, $tpl:expr, $body:expr) => {{
+                let tpl: String = $tpl;
+                if let Some(id) = mk(&srv, infos, $who, &tpl, $body).await {
+                    a.insert($key, id);
+                }
+            }};
+        }
+        let t = a.get("title_id").cloned().unwrap_or_default();
+        let s = a.get("series_id").cloned().unwrap_or_default();
+        let tv = a.get("tv_channel_id").cloned().unwrap_or_default();
+        // A published film with a playable asset and a runtime: Live TV can place it, comments can be made.
+        // The playable asset is a plain reference (no foreign key): the object store of this world cannot start an upload.
+        let asset: Option<i64> = Some(ids.generate().get() as i64);
+        sqlx::query("UPDATE video_titles SET published = true, published_at = now(), runtime_min = 90, asset_id = $2 WHERE id = $1")
+            .bind(t.parse::<i64>().unwrap_or(0))
+            .bind(asset)
+            .execute(&pool)
+            .await
+            .unwrap();
+        // A published series for the seasons and episodes (the film above is what Live TV plays).
+        put!(
+            "series_title_id",
+            &staff,
+            "/admin/cinema/titles".into(),
+            Some(json!({"kind": "series", "title": "Authz show"}))
+        );
+        if let Some(st) = a.get("series_title_id").and_then(|x| x.parse::<i64>().ok()) {
+            sqlx::query(
+                "UPDATE video_titles SET published = true, published_at = now() WHERE id = $1",
+            )
+            .bind(st)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let st = a.get("series_title_id").cloned().unwrap_or_default();
+        put!(
+            "season_id",
+            &staff,
+            format!("/admin/cinema/titles/{st}/seasons"),
+            None
+        );
+        if let Some(se) = a.get("season_id").cloned() {
+            put!(
+                "episode_id",
+                &staff,
+                format!("/admin/cinema/seasons/{se}/episodes"),
+                None
+            );
+        }
+        if let Some(e) = a.get("episode_id").and_then(|x| x.parse::<i64>().ok()) {
+            sqlx::query(
+                "UPDATE video_episodes SET published = true, published_at = now() WHERE id = $1",
+            )
+            .bind(e)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        put!(
+            "trailer_id",
+            &staff,
+            format!("/admin/cinema/titles/{t}/trailers"),
+            None
+        );
+        put!(
+            "variant_id",
+            &staff,
+            format!("/admin/cinema/titles/{t}/variants"),
+            None
+        );
+        put!(
+            "merge_title_id",
+            &staff,
+            "/admin/cinema/titles".into(),
+            None
+        );
+        put!(
+            "merge_series_id",
+            &staff,
+            "/admin/library/series".into(),
+            None
+        );
+        put!(
+            "collection_id",
+            &staff,
+            "/admin/cinema/collections".into(),
+            None
+        );
+        mk(
+            &srv,
+            infos,
+            &staff,
+            &format!("/admin/library/series/{s}/publish"),
+            None,
+        )
+        .await;
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &bot_cred,
+            &format!("/applications/{aid}/guilds/{ga}/commands"),
+            Some(json!({"name": "guildping", "description": "ping"})),
+        )
+        .await
+        {
+            a.insert("guild_command_id", id);
+        }
+        put!(
+            "edition_id",
+            &staff,
+            format!("/admin/library/series/{s}/editions"),
+            Some(json!({"language": "en", "label": "Official"}))
+        );
+        if let Some(e) = a.get("edition_id").cloned() {
+            put!(
+                "volume_id",
+                &staff,
+                format!("/admin/library/editions/{e}/volumes"),
+                None
+            );
+            put!(
+                "lib_chapter_id",
+                &staff,
+                format!("/admin/library/editions/{e}/chapters"),
+                None
+            );
+        }
+        if let Some(c) = a.get("lib_chapter_id").cloned() {
+            sqlx::query(
+                "UPDATE reading_chapters SET published = true, published_at = now() WHERE id = $1",
+            )
+            .bind(c.parse::<i64>().unwrap_or(0))
+            .execute(&pool)
+            .await
+            .unwrap();
+            put!(
+                "lib_upload_id",
+                &staff,
+                format!("/admin/library/chapters/{c}/uploads"),
+                Some(json!({"filename": "a.zip", "size_bytes": 10}))
+            );
+            put!(
+                "lib_upload2_id",
+                &staff,
+                format!("/admin/library/chapters/{c}/uploads"),
+                Some(json!({"filename": "b.zip", "size_bytes": 10}))
+            );
+            put!(
+                "library_comment_id",
+                &member_cred,
+                format!("/library/chapters/{c}/comments"),
+                None
+            );
+        }
+        put!(
+            "cinema_comment_id",
+            &member_cred,
+            format!("/cinema/titles/{t}/comments"),
+            None
+        );
+        // Reviews (the member's), and a report of each comment by someone else.
+        if let Some(id) = mk_m(
+            &srv,
+            infos,
+            &member_cred,
+            "PUT",
+            &format!("/cinema/titles/{t}/review"),
+            None,
+        )
+        .await
+        {
+            a.insert("cinema_review_id", id);
+        }
+        if let Some(id) = mk_m(
+            &srv,
+            infos,
+            &member_cred,
+            "PUT",
+            &format!("/library/series/{s}/review"),
+            None,
+        )
+        .await
+        {
+            a.insert("library_review_id", id);
+        }
+        if let Some(c) = a.get("cinema_comment_id").cloned() {
+            put!(
+                "cinema_report_id",
+                &oa,
+                format!("/cinema/comments/{c}/report"),
+                None
+            );
+        }
+        if let Some(c) = a.get("library_comment_id").cloned() {
+            put!(
+                "library_report_id",
+                &oa,
+                format!("/library/comments/{c}/report"),
+                None
+            );
+        }
+        put!("cinema_list_id", &member_cred, "/cinema/lists".into(), None);
+        put!(
+            "library_list_id",
+            &member_cred,
+            "/library/lists".into(),
+            None
+        );
+        put!(
+            "source_id",
+            &staff,
+            "/admin/ingest-sources".into(),
+            Some(
+                json!({"label": "authz", "kind": "storage_import", "backend": "storage", "location": "imports/authz", "owner_id": u("staffowner").to_string()})
+            )
+        );
+        put!("token_id", &staff, "/admin/transcode/tokens".into(), None);
+        if !tv.is_empty() {
+            put!(
+                "block_id",
+                &staff,
+                format!("/admin/tv/channels/{tv}/blocks"),
+                Some(
+                    json!({"title_id": t.clone(), "start_ms": clock.now_unix_ms() + 2 * 86_400_000})
+                )
+            );
+            mk(
+                &srv,
+                infos,
+                &staff,
+                &format!("/admin/tv/channels/{tv}/publish"),
+                None,
+            )
+            .await;
+        }
+    }
+    // A watch party of the published film, and an Activity bundle (a one-file zip, sent as bytes).
+    if let Some(title) = a.get("title_id").cloned()
+        && let Some(v) = create(
+            &srv,
+            &member_cred,
+            "POST",
+            "/watch-parties",
+            "/watch-parties",
+            infos,
+            Some(json!({"title_id": title, "channel_id": a["channel_id"]})),
+        )
+        .await
+        && let Some(id) = v["id"].as_str()
+    {
+        a.insert("party_id", id.to_owned());
+    }
+    let zipped = tiny_zip();
+    let r = srv
+        .call_bytes(
+            &appowner_cred,
+            "POST",
+            &format!("/applications/{aid}/activity/bundles"),
+            "application/zip",
+            &zipped,
+        )
+        .await;
+    if let Some(id) = serde_json::from_str::<Value>(&r.body)
+        .ok()
+        .as_ref()
+        .and_then(pick_id)
+    {
+        a.insert("bundle_id", id);
+    } else {
+        println!(
+            "authz_matrix: seed activity bundle -> {} {}",
+            r.status,
+            r.body.chars().take(100).collect::<String>()
+        );
+    }
+    // RDY-SEC-011: the per-account objects of the write phase's rightful actors (the plain member's own
+    // reminders, bookmarks and lists, the owner's templates, the invitee's offers ...).
+    {
+        sqlx::query("UPDATE accounts SET created_at = now() - interval '400 days' WHERE id = $1")
+            .bind(u("member"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO invite_credits_ledger (id, account_id, delta, reason) VALUES ($1, $2, 3, 'staff_grant')")
+            .bind(ids.generate().get() as i64)
+            .bind(u("member"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        let insider_cred = Cred::Session(sess["insider"].clone());
+        let outsider_cred = Cred::Session(sess["outsider"].clone());
+        let party = a.get("party_id").cloned().unwrap_or_default();
+        let msg = a.get("message_id").cloned().unwrap_or_default();
+        let ch = a.get("channel_id").cloned().unwrap_or_default();
+        let t = a.get("title_id").cloned().unwrap_or_default();
+        let lib_ch = a.get("lib_chapter_id").cloned().unwrap_or_default();
+        // The feature ids that exist, one list per family.
+        for (key, who, path) in [
+            (
+                "channel_feature_id",
+                &oa,
+                format!("/channels/{ch}/sr/features"),
+            ),
+            (
+                "user_feature_id",
+                &member_cred,
+                "/users/@me/sr/features".to_owned(),
+            ),
+            ("admin_feature_id", &staff, "/admin/features".to_owned()),
+        ] {
+            let r = srv.call(who, "GET", &path, None).await;
+            let v: Value = serde_json::from_str(&r.body).unwrap_or(Value::Null);
+            if let Some(id) = v
+                .as_array()
+                .and_then(|l| l.first())
+                .and_then(|f| f["id"].as_str())
+            {
+                a.insert(key, id.to_owned());
+            }
+        }
+        a.insert("guild_feature_id", "community.suggestions".to_owned());
+        // The report intake is a platform module that is off until staff switch it on.
+        srv.call(
+            &staff,
+            "PATCH",
+            "/admin/features/moderation.reports",
+            Some(&json!({"enabled": true})),
+        )
+        .await;
+        // The member's own things.
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            &format!("/channels/{ch}/scheduled-messages"),
+            Some(json!({"content": "authz", "send_at": rfc3339_in_days(30)})),
+        )
+        .await
+        {
+            a.insert("sched_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            "/users/@me/reminders",
+            Some(json!({"note": "authz", "in_seconds": 86400})),
+        )
+        .await
+        {
+            a.insert("reminder_id", id);
+        }
+        let b1 = srv
+            .call(
+                &member_cred,
+                "PUT",
+                &format!("/channels/{ch}/messages/{msg}/bookmark"),
+                None,
+            )
+            .await;
+        let b2 = srv
+            .call(
+                &member_cred,
+                "PUT",
+                &format!("/library/chapters/{lib_ch}/bookmarks"),
+                Some(&json!({"page_index": 0})),
+            )
+            .await;
+        if let Some(id) = serde_json::from_str::<Value>(&b2.body)
+            .ok()
+            .as_ref()
+            .and_then(pick_id)
+        {
+            a.insert("bookmark_id", id);
+        } else {
+            println!(
+                "authz_matrix: seed library bookmark -> {} {}",
+                b2.status,
+                b2.body.chars().take(100).collect::<String>()
+            );
+        }
+        let _ = b1;
+        let png_bytes = make_png(8, 8);
+        let r = srv
+            .call_bytes(
+                &member_cred,
+                "POST",
+                "/users/@me/profile-media?kind=gallery",
+                "application/octet-stream",
+                &png_bytes,
+            )
+            .await;
+        if let Some(id) = serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .as_ref()
+            .and_then(pick_id)
+        {
+            a.insert("media_id", id);
+        } else {
+            println!(
+                "authz_matrix: seed profile media -> {} {}",
+                r.status,
+                r.body.chars().take(100).collect::<String>()
+            );
+        }
+        let r = srv
+            .call(&member_cred, "POST", "/sr/invites", Some(&json!({})))
+            .await;
+        if let Some(code) = serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .and_then(|v| v["code"].as_str().map(str::to_owned))
+        {
+            a.insert("sr_invite_code", code);
+        } else {
+            println!(
+                "authz_matrix: seed member invite -> {} {}",
+                r.status,
+                r.body.chars().take(100).collect::<String>()
+            );
+        }
+        // A reaction and a pin, so that removing them is a real removal.
+        srv.call(
+            &oa,
+            "PUT",
+            &format!("/channels/{ch}/messages/{msg}/reactions/%F0%9F%91%8D/@me"),
+            None,
+        )
+        .await;
+        srv.call(&oa, "PUT", &format!("/channels/{ch}/pins/{msg}"), None)
+            .await;
+        // A template, a directory listing, an application to join, a ticket, an upload slot.
+        let r = srv
+            .call(
+                &oa,
+                "POST",
+                &format!("/guilds/{ga}/templates"),
+                Some(&json!({"name": "authz template"})),
+            )
+            .await;
+        if let Some(code) = serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .and_then(|v| v["code"].as_str().map(str::to_owned))
+        {
+            a.insert("template_code", code);
+        } else {
+            println!(
+                "authz_matrix: seed template -> {} {}",
+                r.status,
+                r.body.chars().take(100).collect::<String>()
+            );
+        }
+        sqlx::query("INSERT INTO guild_community (guild_id, community_enabled) VALUES ($1, true) ON CONFLICT (guild_id) DO UPDATE SET community_enabled = true")
+            .bind(ga)
+            .execute(&pool)
+            .await
+            .unwrap();
+        srv.call(
+            &oa,
+            "PUT",
+            &format!("/guilds/{ga}/sr/applications/form"),
+            Some(&json!({"enabled": true, "questions": []})),
+        )
+        .await;
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &outsider_cred,
+            &format!("/guilds/{ga}/sr/applications"),
+            Some(json!({"answers": []})),
+        )
+        .await
+        {
+            a.insert("guild_application_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &oa,
+            &format!("/guilds/{ga}/tickets"),
+            Some(json!({"subject": "authz ticket"})),
+        )
+        .await
+        {
+            a.insert("ticket_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &oa,
+            &format!("/channels/{ch}/attachments"),
+            Some(json!({"files": [{"filename": "a.txt", "file_size": 3, "id": "0"}]})),
+        )
+        .await
+        {
+            a.insert("attach_upload_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &appowner_cred,
+            &format!("/applications/{aid}/emojis"),
+            Some(json!({"name": "authzapp", "image": png})),
+        )
+        .await
+        {
+            a.insert("app_emoji_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &appowner_cred,
+            &format!("/applications/{aid}/testers"),
+            Some(json!({"username": "victim"})),
+        )
+        .await
+        {
+            a.insert("tester_invite_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/admin/staff/offers",
+            Some(json!({"account_id": u("offeree").to_string(), "role_ids": [staff_roles["Support"].to_string()], "reason": "authz"})),
+        )
+        .await
+        {
+            a.insert("staff_offer_id", id);
+        }
+        {
+            let offeree_cred = Cred::Session(sess["offeree"].clone());
+            let now = SystemClock.now_unix_ms() as u64 / 1000;
+            let code =
+                sr_auth::totp::current_code(&totp, "SIDE ROOM", "offeree", now).unwrap_or_default();
+            let r = srv
+                .call(
+                    &offeree_cred,
+                    "POST",
+                    "/sr/auth/reauth",
+                    Some(&json!({"method": "totp", "code": code})),
+                )
+                .await;
+            if r.status != 200 && r.status != 204 {
+                println!(
+                    "authz_matrix: seed offeree reauth -> {} {}",
+                    r.status,
+                    r.body.chars().take(100).collect::<String>()
+                );
+            }
+        }
+        // Watch party: a queued item and a second participant.
+        if !party.is_empty() {
+            let j = srv
+                .call(
+                    &insider_cred,
+                    "POST",
+                    &format!("/watch-parties/{party}/join"),
+                    Some(&json!({})),
+                )
+                .await;
+            if j.status != 200 {
+                println!(
+                    "authz_matrix: seed party join -> {} {}",
+                    j.status,
+                    j.body.chars().take(140).collect::<String>()
+                );
+            }
+            srv.call(
+                &member_cred,
+                "POST",
+                &format!("/watch-parties/{party}/queue"),
+                Some(&json!({"title_id": t})),
+            )
+            .await;
+            // Two items: the write phase's `next` plays the first.
+            let q = srv
+                .call(
+                    &member_cred,
+                    "POST",
+                    &format!("/watch-parties/{party}/queue"),
+                    Some(&json!({"title_id": t})),
+                )
+                .await;
+            let pv: Value = serde_json::from_str(&q.body).unwrap_or(Value::Null);
+            if let Some(id) = pv["queue"][1]["id"].as_str() {
+                a.insert("queue_item_id", id.to_owned());
+            } else {
+                println!(
+                    "authz_matrix: seed queue item -> {} {}",
+                    q.status,
+                    q.body.chars().take(140).collect::<String>()
+                );
+            }
+        }
+        // A temporary role, an invoice.
+        srv.call(
+            &oa,
+            "POST",
+            &format!("/guilds/{ga}/sr/temp-roles"),
+            Some(&json!({"user_id": victim, "role_id": a["role_id"], "duration_seconds": 86400})),
+        )
+        .await;
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            "/donations/invoices",
+            Some(json!({"purpose": "invite_credit", "credits": 1})),
+        )
+        .await
+        {
+            a.insert("invoice_id", id);
+        }
+    }
+    // RDY-SEC-011: packages (submitted by the member, decided by the Owner), reports, evasion signals,
+    // alerts, a data request, a guestbook entry, a second webhook and more reactions.
+    {
+        let t = a.get("title_id").cloned().unwrap_or_default();
+        a.insert("insider_id", u("insider").to_string());
+        a.insert("key", sr_admin::ENTRANCE_COPY_KEYS[0].to_owned());
+        a.insert("member_id", u("member").to_string());
+        a.insert("staff_target_id", u("friendtwo").to_string());
+        a.insert("owner_b_id", u("ownerb").to_string());
+        a.insert("support_role_id", staff_roles["Support"].to_string());
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/submissions",
+            Some(json!({"kind": "library.series", "payload": {"title": "Owner series", "kind": "manga"}, "title": "Owner series", "summary": "authz matrix"})),
+        )
+        .await
+        {
+            a.insert("own_submission_id", id);
+        }
+        let theme = |id: &str| {
+            let m = json!({"id": id, "name": id, "version": "1.0.0", "author": "me", "targets": ["lounge"], "scheme": "dark"});
+            zip_of(&[
+                ("theme.json", m.to_string().as_bytes()),
+                (
+                    "tokens.json",
+                    json!({"--ui-accent": "#5865f2"}).to_string().as_bytes(),
+                ),
+            ])
+        };
+        let pack = {
+            let m = json!({"kind": "emoji_pack", "id": "faces", "name": "Faces", "version": "1.0.0", "author": "me",
+                           "items": [{"name": "wave", "file": "emoji/wave.png"}]});
+            zip_of(&[
+                ("pack.json", m.to_string().as_bytes()),
+                ("emoji/wave.png", &make_png(32, 32)),
+            ])
+        };
+        let recipe = {
+            let m = json!({"id": "starter", "name": "Starter", "version": "1.0.0", "author": "me",
+                           "features": [{"id": "lounge.starboard", "enabled": true}]});
+            zip_of(&[("recipe.json", m.to_string().as_bytes())])
+        };
+        // (key for the package, key for its version, zip, approved)
+        let uploads: [(&'static str, &'static str, Vec<u8>, bool); 5] = [
+            ("package_id", "approved_version_id", theme("ocean"), true),
+            ("pack_id", "pack_version_id", pack, true),
+            ("recipe_id", "recipe_version_id", recipe, true),
+            (
+                "pending_package_id",
+                "pending_version_id",
+                theme("pending-one"),
+                false,
+            ),
+            (
+                "withdraw_package_id",
+                "withdraw_version_id",
+                theme("pending-two"),
+                false,
+            ),
+        ];
+        for (pkey, vkey, zip, approve) in uploads {
+            let r = srv
+                .call_bytes(&member_cred, "POST", "/packages", "application/zip", &zip)
+                .await;
+            let v: Value = serde_json::from_str(&r.body).unwrap_or(Value::Null);
+            let v = if v["version"].is_object() {
+                v["version"].clone()
+            } else {
+                v
+            };
+            let (Some(pid), Some(vid)) = (v["package_id"].as_str(), v["id"].as_str()) else {
+                println!(
+                    "authz_matrix: seed package {pkey} -> {} {}",
+                    r.status,
+                    r.body.chars().take(140).collect::<String>()
+                );
+                continue;
+            };
+            a.insert(pkey, pid.to_owned());
+            a.insert(vkey, vid.to_owned());
+            if approve {
+                let d = srv
+                    .call(
+                        &staff,
+                        "POST",
+                        &format!("/admin/developers/packages/versions/{vid}/decision"),
+                        Some(&json!({"decision": "approve"})),
+                    )
+                    .await;
+                if !(200..300).contains(&d.status) {
+                    println!(
+                        "authz_matrix: seed package decision -> {} {}",
+                        d.status,
+                        d.body.chars().take(100).collect::<String>()
+                    );
+                }
+            }
+        }
+        // Reports of a comment (the member made the comments; the owner reports them).
+        if let Some(c) = a.get("cinema_comment_id").cloned() {
+            srv.call(
+                &oa,
+                "POST",
+                &format!("/cinema/comments/{c}/report"),
+                Some(&json!({"reason": "authz"})),
+            )
+            .await;
+        }
+        if let Some(c) = a.get("library_comment_id").cloned() {
+            srv.call(
+                &oa,
+                "POST",
+                &format!("/library/comments/{c}/report"),
+                Some(&json!({"reason": "authz"})),
+            )
+            .await;
+        }
+        for (key, sql) in [
+            (
+                "cinema_report_id",
+                "SELECT id FROM cinema_reports ORDER BY id LIMIT 1",
+            ),
+            (
+                "library_report_id",
+                "SELECT id FROM reading_comment_reports ORDER BY id LIMIT 1",
+            ),
+        ] {
+            if let Ok(id) = sqlx::query_scalar::<_, i64>(sql).fetch_one(&pool).await {
+                a.insert(key, id.to_string());
+            }
+        }
+        // Two evasion signals between the victim's Person and the member's, and a staff alert.
+        let member_person: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+            .bind(u("member"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        for (key, kind) in [
+            ("signal_id", "shared_login_ip"),
+            ("signal2_id", "shared_invite_lineage"),
+        ] {
+            let id = ids.generate().get() as i64;
+            sqlx::query("INSERT INTO evasion_signals (id, person_id, related_person_id, kind) VALUES ($1, $2, $3, $4)")
+                .bind(id)
+                .bind(person)
+                .bind(member_person)
+                .bind(kind)
+                .execute(&pool)
+                .await
+                .unwrap();
+            a.insert(key, id.to_string());
+        }
+        let alert = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO staff_alerts (id, kind, detail) VALUES ($1, 'authz', 'authz matrix')",
+        )
+        .bind(alert)
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("alert_id", alert.to_string());
+        // A data request about the victim.
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/admin/data-requests",
+            Some(json!({"kind": "export", "account_id": victim})),
+        )
+        .await
+        {
+            a.insert("data_request_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/admin/donations/entitlements",
+            Some(
+                json!({"kind": "patron", "days": 30, "user_id": victim, "reason": "authz matrix"}),
+            ),
+        )
+        .await
+        {
+            a.insert("entitlement_grant_id", id);
+        }
+        if let Ok(id) =
+            sqlx::query_scalar::<_, i64>("SELECT id FROM platform_invites ORDER BY id LIMIT 1")
+                .fetch_one(&pool)
+                .await
+        {
+            a.insert("platform_invite_id", id.to_string());
+        }
+        // A guestbook entry the member wrote on the victim's board.
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            &format!("/users/{victim}/guestbook"),
+            Some(json!({"body": "authz"})),
+        )
+        .await
+        {
+            a.insert("entry_id", id);
+        }
+        // A second webhook (the token-addressed delete removes it; the id-addressed routes use the first),
+        // and reactions to remove one way each.
+        let h2 = srv
+            .must(
+                &oa,
+                "POST",
+                &format!("/channels/{chan_a}/webhooks"),
+                json!({"name": "hook two"}),
+            )
+            .await;
+        a.insert("webhook2_id", h2["id"].as_str().unwrap_or(BOGUS).to_owned());
+        a.insert("token2", h2["token"].as_str().unwrap_or("x").to_owned());
+        let ch = a.get("channel_id").cloned().unwrap_or_default();
+        let msg = a.get("message_id").cloned().unwrap_or_default();
+        for emoji in ["%F0%9F%98%80", "%F0%9F%8E%89"] {
+            srv.call(
+                &oa,
+                "PUT",
+                &format!("/channels/{ch}/messages/{msg}/reactions/{emoji}/@me"),
+                None,
+            )
+            .await;
+        }
+        let _ = t;
     }
     // A running thread member: the seeded thread gets the victim.
     if let Some(t) = a.get("thread_id") {
@@ -1550,6 +2774,11 @@ async fn seed(
         .await;
     }
 
+    {
+        let mut keys: Vec<&str> = a.keys().copied().collect();
+        keys.sort_unstable();
+        println!("authz_matrix: seeded {}", keys.join(" "));
+    }
     let mut private = a.clone();
     private.insert("channel_id", priv_chan);
     private.insert("message_id", msg_priv);
@@ -1564,6 +2793,8 @@ async fn seed(
             private,
             member_id: u("member"),
             guild_a: ga,
+            totp,
+            users,
         },
         tx,
         handle,
@@ -1585,7 +2816,9 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 30] = [
+const TENANT: [&str; 32] = [
+    "sticker_id",
+    "sound_id",
     "request_id",
     "chapter_id",
     "upload_id",
@@ -1655,6 +2888,12 @@ fn outsider_exception(r: &Route) -> Option<&'static str> {
         // Custom emoji are drawn in messages that anyone may read; this lookup gives the name and
         // whether it is animated, and names no server (`guild` is null for a non-member).
         ("GET", "/sr/emojis/{emoji_id}") => Some("public emoji metadata, no server named"),
+        // The client learns from `member: false` that it was dropped (a sleeping laptop, a removal) and says so.
+        // A stranger gets the same answer with a neutral playback and nothing about the party; the service test
+        // `a_heartbeat_from_a_stranger_reveals_no_playback` pins that.
+        ("POST", "/watch-parties/{party_id}/heartbeat") => Some(
+            "a non-member is told member:false with a neutral playback, the dropped participant's signal",
+        ),
         _ => None,
     }
 }
@@ -1754,10 +2993,32 @@ struct Call {
 /// The actor who is rightfully allowed on the route: its status shows whether the seeded ids
 /// reach a real resource (a refusal as 404 next to a 404 for the control proves little).
 fn control_of(r: &Route) -> &'static str {
-    if r.authz == "staff" || r.path.starts_with("/moderation") {
+    rightful_of(r)
+}
+
+/// The actor who is rightfully allowed on the route (RDY-SEC-011): the one the write phase calls it as.
+fn rightful_of(r: &Route) -> &'static str {
+    if let Some(a) = rightful_override(&r.method, &r.path) {
+        a
+    } else if r.access != "authenticated" {
+        "anon"
+    } else if r.path.contains("/commands") && r.path.starts_with("/applications/") {
+        // Slash command management is the bot's (the owner's session is refused: "Only bots").
+        "bot_in"
+    } else if r.authz == "staff" || r.path.starts_with("/moderation") {
         "staff_owner"
     } else if r.authz == "owner" {
         "app_owner"
+    } else if r.path.contains("/call/") || r.path.starts_with("/packages") {
+        "member"
+    } else if (r.path.starts_with("/cinema/") || r.path.starts_with("/library/"))
+        || r.path.starts_with("/users/{user_id}/guestbook")
+    {
+        // Their lists, comments and posts are the plain member's.
+        "member"
+    } else if r.authz == "self" || r.authz == "user" {
+        // Per-account data: the plain member's, which the seed filled.
+        "member"
     } else if r.path.starts_with("/submissions")
         || r.path.starts_with("/users/@me/channels")
         || r.path.contains("/recipients")
@@ -2093,8 +3354,15 @@ async fn fingerprint(pool: &sqlx::PgPool) -> BTreeMap<String, String> {
             continue;
         }
         let strip: String = STAMPS.iter().map(|c| format!(" - '{c}'")).collect();
+        // The system user's direct messages (a staff offer, a tester invite) are written and updated by the
+        // server's own tasks at times of their choosing; no refused call is theirs.
+        let own = if t == "messages" || t.starts_with("messages_") {
+            format!(" WHERE x.author_id <> {SYSTEM_USER_ID}")
+        } else {
+            String::new()
+        };
         let sql = format!(
-            "SELECT md5(coalesce(string_agg((to_jsonb(x){strip})::text, '|' ORDER BY (to_jsonb(x){strip})::text), '')) FROM \"{t}\" x"
+            "SELECT md5(coalesce(string_agg((to_jsonb(x){strip})::text, '|' ORDER BY (to_jsonb(x){strip})::text), '')) FROM \"{t}\" x{own}"
         );
         let h: Result<String, _> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
             .fetch_one(pool)
@@ -2126,6 +3394,667 @@ fn class_of(method: &str) -> u8 {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// RDY-SEC-011, RDY-SEC-012: the write side, the allow phase.
+//
+// After the refusal and read phases of a group, every write route of the group is called once as its
+// rightful actor and must be *admitted*: any status but 401, 403 and 404 (and no 5xx, which is a handler
+// bug). The calls go in dependency order, so that a rightful delete does not destroy the world for the
+// rows after it: creates (POST), then edits (PUT, PATCH), then deletes from the leaf to the root (a message
+// before its channel before its server). A 400 or 422 is admitted but reported with the body: the request
+// shape was refused before the permission check could be seen, and a hand-made body is missing.
+
+/// Write routes the allow phase cannot assert yet, each with the reason. The table can only shrink:
+/// `write_observed_is_pinned` pins its length, and a route listed here that turns out to be admitted fails
+/// the run until it is removed (and the pin lowered).
+const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
+    (
+        "POST",
+        "/moderation/appeals",
+        "an appeal is opened with the token mailed to a banned account",
+    ),
+    (
+        "POST",
+        "/moderation/appeals/{appeal_id}/decision",
+        "an appeal is opened with the token mailed to a banned account",
+    ),
+    (
+        "POST",
+        "/admin/card-actions",
+        "needs a posted alert card, a message carrying an sr: button",
+    ),
+    (
+        "POST",
+        "/admin/cinema/assets/{asset_id}/complete",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/admin/cinema/assets/{asset_id}/probe",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/admin/cinema/assets/{asset_id}/transcode",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/admin/jobs/{job_id}/retry",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "POST",
+        "/admin/persons/{person_id}/identities/{identity_id}/move",
+        "needs a linked identity row (an external login) of the person",
+    ),
+    (
+        "POST",
+        "/admin/transcode/jobs/{job_id}/cancel",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "PUT",
+        "/admin/cinema/assets/{asset_id}/original-downloads",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "PUT",
+        "/admin/library/chapters/{chapter_id}/pages/{index}",
+        "needs a stored page; pages are objects written by the ingest under library/ keys",
+    ),
+    (
+        "PUT",
+        "/admin/transcode/workers/{worker_id}/drain",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "DELETE",
+        "/admin/library/uploads/{upload_id}",
+        "the second seeded admin upload answers Unknown upload (unresolved, see the handoff)",
+    ),
+    (
+        "DELETE",
+        "/admin/jobs/{job_id}",
+        "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates",
+    ),
+    (
+        "PUT",
+        "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions",
+        "bearer-only route: needs a user token with applications.commands.permissions.update, which no actor holds",
+    ),
+    (
+        "POST",
+        "/activity-instances/{instance_id}/join",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/activity-instances/{instance_id}/leave",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/channels/{channel_id}/activity",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/channels/{channel_id}/call/ring",
+        "the call state lives in the voice node (calls is unset in the embedded setup)",
+    ),
+    (
+        "POST",
+        "/channels/{channel_id}/call/stop-ringing",
+        "the call state lives in the voice node (calls is unset in the embedded setup)",
+    ),
+    (
+        "POST",
+        "/cinema/assets/{asset_id}/refresh",
+        "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/cinema/titles/{title_id}/downloads",
+        "needs a transcoded Cinema asset; the test store cannot start an upload (RDY-SEC-011)",
+    ),
+    (
+        "POST",
+        "/donations/invoices/{invoice_id}/cancel",
+        "payments are off: no chain source in the test stack (D-257); ownership pinned by sr-api donations tests",
+    ),
+    (
+        "POST",
+        "/donations/invoices/{invoice_id}/check",
+        "payments are off: no chain source in the test stack (D-257); ownership pinned by sr-api donations tests",
+    ),
+    (
+        "POST",
+        "/guilds/{guild_id}/alert-actions",
+        "needs a posted alert card, a message carrying an sr: button",
+    ),
+    (
+        "POST",
+        "/interactions/{interaction_id}/{token}/callback",
+        "needs an interaction id and token minted by a real interaction",
+    ),
+    (
+        "POST",
+        "/sr/auth/discord/link",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/sr/auth/passkeys/login/finish",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/users/@me/connections/{provider}/authorize",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/users/@me/connections/{provider}/{id}/refresh",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "POST",
+        "/users/@me/profile-doc/layout",
+        "needs an approved profile_layout package",
+    ),
+    (
+        "PATCH",
+        "/sr/auth/passkeys/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "PATCH",
+        "/users/@me/connections/{provider}/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "PATCH",
+        "/webhooks/{application_id}/{token}/messages/{message_id}",
+        "needs an interaction id and token minted by a real interaction",
+    ),
+    (
+        "DELETE",
+        "/users/@me/connections/{provider}/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "DELETE",
+        "/webhooks/{application_id}/{token}/messages/{message_id}",
+        "needs an interaction id and token minted by a real interaction",
+    ),
+    (
+        "DELETE",
+        "/guilds/{guild_id}/integrations/{integration_id}",
+        "no integration exists to remove (they are created by external sync)",
+    ),
+    (
+        "DELETE",
+        "/sr/auth/passkeys/{id}",
+        "needs an external identity provider or a passkey ceremony",
+    ),
+    (
+        "DELETE",
+        "/users/{user_id}/guestbook/{entry_id}",
+        "the victim's profile page has no guestbook (a setting of the page owner)",
+    ),
+    (
+        "DELETE",
+        "/activity-instances/{instance_id}",
+        "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
+    ),
+    (
+        "POST",
+        "/watch-parties/{party_id}/leave",
+        "the insider's leave follows its removal by the member delete (unresolved order, see the handoff)",
+    ),
+];
+
+/// The length of [`WRITE_OBSERVED`]. Lower it when an entry goes; never raise it.
+const WRITE_OBSERVED_LEN: usize = 41;
+
+/// Admitted writes that answered 400 or 422 per group, in the order of [`GROUPS`]: the request shape was
+/// refused before the permission check ran. Like [`WEAK_CEILING`], the numbers only go down.
+const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 45];
+
+/// Rightful actors that differ from [`control_of`]'s rule, by route.
+fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
+    match (method, path) {
+        // Disposable accounts: the call ends the session or the account.
+        ("POST", "/sr/auth/account/delete") => Some("disp_del"),
+        ("POST", "/sr/auth/password") => Some("disp_pw"),
+        // The only account enrolled in TOTP.
+        ("POST", "/sr/auth/reauth") => Some("staff_owner"),
+        ("POST", "/staff/offers/{offer_id}/respond") => Some("offeree"),
+        // A participant leaves; the host leaving would end the party the deletes address.
+        ("POST", "/watch-parties/{party_id}/leave") => Some("insider"),
+        ("POST", "/developers/tester-invites/{invite_id}/respond") => Some("victim"),
+        // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
+        ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
+        // `author_or_staff`: the submitter of the published submission or a REVIEW_READING holder; the seeded
+        // submission is not the member's, so the Owner fulfils.
+        ("POST", "/requests/{request_id}/fulfil") => Some("staff_owner"),
+        // Patrons only: the seed grants the victim a Patron entitlement (P25-SEC-1). The Cinema download
+        // stays in WRITE_OBSERVED until a transcoded asset can be seeded.
+        ("POST", "/library/chapters/{chapter_id}/download")
+        | ("POST", "/cinema/titles/{title_id}/downloads") => Some("victim"),
+        // A vote on a review is not the author's.
+        ("PUT", "/library/reviews/{review_id}/helpful")
+        | ("DELETE", "/library/reviews/{review_id}/helpful")
+        | ("PUT", "/cinema/reviews/{review_id}/helpful")
+        | ("DELETE", "/cinema/reviews/{review_id}/helpful") => Some("owner_a"),
+        _ => None,
+    }
+}
+
+/// Routes whose rightful call ends the actor's own session or account, or otherwise breaks what the
+/// rest of the phase needs: they go last.
+fn write_late(method: &str, path: &str) -> u8 {
+    if matches!(
+        (method, path),
+        // A new token ends the old one, which the routes before it are called with; the delete ends the app
+        // or the webhook.
+        ("POST", "/webhooks/{webhook_id}/reset-token")
+            | ("DELETE", "/webhooks/{webhook_id}")
+            | ("POST", "/applications/{application_id}/bot/reset-token")
+            | ("POST", "/applications/{application_id}/reset-secret")
+            | ("DELETE", "/applications/{application_id}")
+            // The channel and the server take their webhooks and members with them.
+            | ("DELETE", "/channels/{channel_id}")
+            | ("DELETE", "/guilds/{guild_id}")
+    ) {
+        return 2;
+    }
+    u8::from(matches!(
+        (method, path),
+        // Saving a profile page drops the pictures it does not use.
+        ("PUT", "/users/@me/profile-doc")
+            | ("DELETE", "/guilds/{guild_id}/never")
+            // A bulk overwrite replaces the commands the routes before it address.
+            | ("PUT", "/applications/{application_id}/commands")
+            | ("PUT", "/applications/{application_id}/guilds/{guild_id}/commands")
+            // Removing members ends what the member routes before them act on.
+            | ("DELETE", "/guilds/{guild_id}/bans/{user_id}")
+            // Leaving, then the party's removal.
+            | ("POST", "/watch-parties/{party_id}/leave")
+            | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
+            | ("POST", "/guilds/{guild_id}/prune")
+            | ("POST", "/guilds/{guild_id}/bulk-ban")
+            | ("DELETE", "/watch-parties/{party_id}")
+    ))
+}
+
+/// Deletes of the entities others hang on without being nested in their path (a channel's messages, pins
+/// and invites; a Live TV channel's blocks; an edition's chapters; a title's seasons): last among the deletes.
+fn write_root(path: &str) -> bool {
+    matches!(
+        path,
+        "/channels/{channel_id}"
+            | "/channels/{channel_id}/messages/{message_id}"
+            | "/admin/tv/channels/{channel_id}"
+            | "/admin/library/editions/{edition_id}"
+            | "/admin/library/series/{series_id}"
+            | "/admin/cinema/titles/{title_id}"
+            | "/admin/cinema/seasons/{season_id}"
+            | "/watch-parties/{party_id}"
+            | "/guilds/{guild_id}"
+    )
+}
+
+/// Writes that settle or consume what the creates and edits before them act on (a hold is released or
+/// retained once it has been reviewed): after the edits, before the deletes.
+fn write_ending(method: &str, path: &str) -> bool {
+    matches!(
+        (method, path),
+        ("POST", "/moderation/holds/{hold_id}/release")
+            | ("POST", "/moderation/holds/{hold_id}/retain")
+    )
+}
+
+/// Placeholder values that differ from the seeded ones for a route (the reaction the route removes is the
+/// one `owner_a` made, not the victim's).
+fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
+    if r.method == "DELETE" && r.path.ends_with("/reactions/{emoji}/{user_id}") {
+        vec![
+            ("user_id", world.users["ownera"].to_string()),
+            ("emoji", "%F0%9F%98%80".to_owned()),
+        ]
+    } else if r.method == "DELETE" && r.path.ends_with("/reactions/{emoji}") {
+        vec![("emoji", "%F0%9F%8E%89".to_owned())]
+    } else if r.path.contains("/reactions/") {
+        vec![("user_id", world.users["ownera"].to_string())]
+    } else if r.path.contains("/bans/") {
+        vec![("user_id", world.users["friendtwo"].to_string())]
+    } else if r.method == "DELETE" && r.path == "/webhooks/{webhook_id}/{token}" {
+        vec![
+            ("webhook_id", world.a["webhook2_id"].clone()),
+            ("token", world.a["token2"].clone()),
+        ]
+    } else if r.path.starts_with("/admin/staff/{account_id}") {
+        vec![("account_id", world.a["staff_target_id"].clone())]
+    } else if r.method == "DELETE" && r.path == "/admin/library/uploads/{upload_id}" {
+        vec![("upload_id", world.a["lib_upload2_id"].clone())]
+    } else if r.path == "/admin/cinema/titles/{title_id}/merge" {
+        vec![("title_id", world.a["merge_title_id"].clone())]
+    } else if r.path == "/admin/library/series/{series_id}/merge" {
+        vec![("series_id", world.a["merge_series_id"].clone())]
+    } else if r.path == "/moderation/evasion-signals/{signal_id}/link-case" {
+        vec![("signal_id", world.a["signal2_id"].clone())]
+    } else if r.path.starts_with("/watch-parties/") && r.path.contains("{user_id}") {
+        vec![("user_id", world.users["insider"].to_string())]
+    } else {
+        Vec::new()
+    }
+}
+
+/// A hand-made body for the write phase (placeholders in braces are replaced by the ids of tenant A),
+/// consulted before [`body_override`].
+fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
+    Some(match (method, path) {
+        ("POST", "/admin/cinema/titles/{title_id}/merge") => r#"{"target_id":"{title_id}"}"#,
+        ("POST", "/admin/library/series/{series_id}/merge") => r#"{"target_id":"{series_id}"}"#,
+        ("POST", "/moderation/age/restrictions") => {
+            r#"{"kind":"channel","id":"{channel_id}","restricted":true,"reason":"authz matrix"}"#
+        }
+        ("POST", "/watch-parties") => r#"{"title_id":"{title_id}","channel_id":"{channel_id}"}"#,
+        // The host hands the party to itself: allowed, and the member keeps the control the rest needs.
+        ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
+        ("POST", "/developers/tester-invites/{invite_id}/respond")
+        | ("POST", "/staff/offers/{offer_id}/respond") => r#"{"accept":true}"#,
+        ("POST", "/applications/{application_id}/activity/submit") => {
+            r#"{"bundle_id":"{bundle_id}"}"#
+        }
+        ("POST", "/moderation/evasion-signals/{signal_id}/link-case") => {
+            r#"{"case_id":"{case_id}"}"#
+        }
+        ("POST", "/admin/data-requests") => r#"{"kind":"export","account_id":"{user_id}"}"#,
+        ("POST", "/channels/{channel_id}/attachments") => {
+            r#"{"files":[{"filename":"a.txt","file_size":3}]}"#
+        }
+        ("POST", "/users/{user_id}/guestbook") => r#"{"body":"authz"}"#,
+        ("POST", "/packages/{package_id}/create-guild") => r#"{"name":"authz guild"}"#,
+        ("POST", "/admin/staff") => {
+            r#"{"account_id":"{staff_target_id}","role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
+        }
+        ("POST", "/admin/staff/offers") => {
+            r#"{"account_id":"{owner_b_id}","role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
+        }
+        ("PUT", "/admin/staff/{account_id}/roles") => {
+            r#"{"role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
+        }
+        ("PUT", "/sr/auth/username") => r#"{"username":"authz.member","password":"{pw}"}"#,
+        ("DELETE", "/sr/auth/passkeys/{id}") | ("PATCH", "/sr/auth/passkeys/{id}") => {
+            r#"{"password":"{pw}","name":"authz"}"#
+        }
+        ("POST", "/sr/auth/password") => {
+            r#"{"current_password":"{pw}","new_password":"authz-matrix-New-Horse-7"}"#
+        }
+        ("DELETE", "/users/@me/age-confirmation") => r#"{"current_password":"{pw}"}"#,
+        ("POST", "/applications/{application_id}/reset-secret")
+        | ("POST", "/applications/{application_id}/bot/reset-token")
+        | ("DELETE", "/applications/{application_id}")
+        | ("POST", "/sr/auth/discord/unlink")
+        | ("POST", "/sr/auth/passkeys/register/begin") => {
+            r#"{"password":"{pw}","current_password":"{pw}"}"#
+        }
+        ("POST", "/sr/auth/account/delete") => r#"{"password":"{pw}","username":"dispdel"}"#,
+        ("POST", "/sr/auth/reauth") => r#"{"method":"totp","code":"{totp_next}"}"#,
+        ("POST", "/guilds/{guild_id}/rss-feeds") => {
+            r#"{"channel_id":"{channel_id}","url":"https://example.test/feed2.xml"}"#
+        }
+        ("POST", "/requests/{request_id}/fulfil") => r#"{"submission_id":"{submission_id}"}"#,
+        ("PUT", "/watch-parties/{party_id}/media")
+        | ("POST", "/watch-parties/{party_id}/queue") => r#"{"title_id":"{title_id}"}"#,
+        ("POST", "/moderation/takedowns/{notice_id}/items") => {
+            r#"{"kind":"message","id":"{message_id}"}"#
+        }
+        ("POST", "/stage-instances") => {
+            r#"{"channel_id":"{stage_new_channel_id}","topic":"authz"}"#
+        }
+        _ => return None,
+    })
+}
+
+fn write_observed(r: &Route) -> Option<&'static str> {
+    WRITE_OBSERVED
+        .iter()
+        .find(|(m, p, _)| *m == r.method && *p == r.path)
+        .map(|(_, _, why)| *why)
+}
+
+/// The order of the write phase: late routes last; then creates, edits, deletes; deletes deepest first.
+fn write_rank(r: &Route, idx: usize) -> (u8, u8, usize, usize) {
+    let kind = if write_ending(&r.method, &r.path) {
+        3
+    } else {
+        match r.method.as_str() {
+            "POST" => 0,
+            "DELETE" if write_root(&r.path) => 5,
+            "DELETE" => 4,
+            _ => 1,
+        }
+    };
+    let depth = r.path.matches('/').count();
+    (
+        write_late(&r.method, &r.path),
+        kind,
+        if kind >= 4 { usize::MAX - depth } else { 0 },
+        idx,
+    )
+}
+
+/// Make a sampled body fit what the handlers validate before they decide: a real picture where an image is
+/// asked for, a real sound, a word where the sample put `x`. Only the write phase uses it.
+fn fixup(v: &mut Value) {
+    match v {
+        Value::Object(m) => {
+            for (k, x) in m.iter_mut() {
+                match (k.as_str(), &*x) {
+                    (
+                        "image" | "file" | "thumbnail" | "cover" | "avatar" | "icon" | "banner",
+                        Value::String(_),
+                    ) => {
+                        *x = json!(format!("data:image/png;base64,{}", b64(&make_png(8, 8))));
+                    }
+                    ("sound", Value::String(_)) => *x = json!(wav_uri(300)),
+                    ("language", Value::String(_)) => *x = json!("en"),
+                    ("reason" | "note", Value::String(s)) if s == "x" => *x = json!("authz matrix"),
+                    _ => fixup(x),
+                }
+            }
+        }
+        Value::Array(a) => a.iter_mut().for_each(fixup),
+        Value::String(s) if s == "x" => *s = "authz_sample".to_owned(),
+        _ => {}
+    }
+}
+
+fn substitute(text: &str, ids: &HashMap<&'static str, String>, totp: &TotpSecret) -> String {
+    let mut t = text.replace("{pw}", TEST_PASSWORD);
+    if t.contains("{totp_next}") {
+        // The step after the one the staff step-up used: a code is good once.
+        let now = SystemClock.now_unix_ms() as u64 / 1000 + 30;
+        let code =
+            sr_auth::totp::current_code(totp, "SIDE ROOM", "staffowner", now).unwrap_or_default();
+        t = t.replace("{totp_next}", &code);
+    }
+    for (k, v) in ids {
+        t = t.replace(&format!("{{{k}}}"), v);
+    }
+    t
+}
+
+/// What the write phase found for a group.
+#[derive(Default)]
+struct WriteStats {
+    calls: usize,
+    admitted: usize,
+    shape: usize,
+    observed: usize,
+}
+
+async fn write_phase(
+    world: &World,
+    routes: &[Route],
+    g: usize,
+    infos: &HashMap<(String, String), OpInfo>,
+    failures: &mut Vec<String>,
+    obs: &mut Vec<Obs>,
+) -> WriteStats {
+    let gname = GROUPS[g];
+    let mut stats = WriteStats::default();
+    // The staff step-up, once per group: a real TOTP code for the Owner opens the 15-minute window of its
+    // session, so that the gated staff writes are asserted (RDY-SEC-012).
+    let owner = world.actor("staff_owner");
+    let r = step_up(&world.srv, &owner.cred, &world.totp).await;
+    if r.status != 200 {
+        failures.push(format!(
+            "[{gname}] the staff step-up (POST /admin/reauth with a TOTP code) answered {} {}",
+            r.status,
+            r.body.chars().take(160).collect::<String>()
+        ));
+    }
+    // Listed in the directory only now: once approved, a stranger may join the server, which the refusal
+    // phases before this one must not see.
+    let ga = world.guild_a;
+    let r = world
+        .srv
+        .call(
+            &world.actor("owner_a").cred,
+            "PUT",
+            &format!("/guilds/{ga}/directory"),
+            Some(&json!({"category": "gaming", "description": "authz"})),
+        )
+        .await;
+    if !(200..300).contains(&r.status) {
+        println!(
+            "authz_matrix: directory listing -> {} {}",
+            r.status,
+            r.body.chars().take(100).collect::<String>()
+        );
+    }
+    world
+        .srv
+        .call(
+            &owner.cred,
+            "PATCH",
+            &format!("/admin/directory/{ga}"),
+            Some(&json!({"decision": "approve"})),
+        )
+        .await;
+    let mut order: Vec<usize> = routes
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| group_of(&r.path) == g && is_write(&r.method))
+        .map(|(i, _)| i)
+        .collect();
+    order.sort_by_key(|i| write_rank(&routes[*i], *i));
+    for i in order {
+        let r = &routes[i];
+        let actor_name = rightful_of(r);
+        let actor = world.actor(actor_name);
+        let info = infos.get(&(r.method.clone(), r.path.clone()));
+        let (mut ctx, _) = ctx_for(r, &world.a);
+        for (k, v) in path_overrides(r, world) {
+            ctx.insert(k, v);
+        }
+        let mut path = fill(&r.path, &ctx);
+        if let Some(i) = info
+            && !i.query.is_empty()
+        {
+            path.push(if path.contains('?') { '&' } else { '?' });
+            path.push_str(&i.query);
+        }
+        let text =
+            write_body_override(&r.method, &r.path).or_else(|| body_override(&r.method, &r.path));
+        let body = match text {
+            Some(t) => serde_json::from_str(&substitute(t, &world.a, &world.totp)).ok(),
+            None => Some(
+                info.and_then(|i| i.body.clone())
+                    .unwrap_or_else(|| json!({})),
+            ),
+        };
+        let wants_reason = info
+            .and_then(|i| i.full.as_ref())
+            .is_some_and(|f| f.get("reason").is_some());
+        let body = body.map(|mut b| {
+            fixup(&mut b);
+            if wants_reason && let Some(m) = b.as_object_mut() {
+                m.entry("reason").or_insert(json!("authz matrix"));
+            }
+            b
+        });
+        let resp = world
+            .srv
+            .call_reason(&actor.cred, &r.method, &path, body.as_ref())
+            .await;
+        stats.calls += 1;
+        let listed = write_observed(r);
+        let refused = matches!(resp.status, 401 | 403 | 404);
+        let broken = resp.status == 0 || resp.status >= 500;
+        let short = |n: usize| resp.body.chars().take(n).collect::<String>();
+        let (verdict, note): (&'static str, String) = if let Some(why) = listed {
+            if refused || broken || matches!(resp.status, 400 | 422) {
+                stats.observed += 1;
+                ("observed", format!("{why}: {} {}", resp.status, short(80)))
+            } else {
+                failures.push(format!(
+                    "[{gname}] {} {} is listed in WRITE_OBSERVED ({why}) but {actor_name} was admitted ({}): remove the entry and lower WRITE_OBSERVED_LEN",
+                    r.method, r.path, resp.status
+                ));
+                (
+                    "FAIL",
+                    format!("stale WRITE_OBSERVED entry: {}", resp.status),
+                )
+            }
+        } else if refused || broken {
+            failures.push(format!(
+                "[{gname}] {} {} as {actor_name} (write): expected admitted, got {} {}",
+                r.method,
+                r.path,
+                resp.status,
+                short(160)
+            ));
+            (
+                "FAIL",
+                format!("#{} {} {}", stats.calls, resp.status, short(160)),
+            )
+        } else if matches!(resp.status, 400 | 422) {
+            stats.shape += 1;
+            ("shape", format!("{} {}", resp.status, short(160)))
+        } else {
+            stats.admitted += 1;
+            ("ok", short(80))
+        };
+        obs.push(Obs {
+            group: g,
+            method: r.method.clone(),
+            path: r.path.clone(),
+            actor: actor.name,
+            pass: "write",
+            status: resp.status,
+            exp: Exp::Allow,
+            verdict,
+            note,
+        });
+        if actor_name == "member" {
+            heal(world).await;
+        }
+    }
+    if stats.shape > SHAPE_CEILING[g] {
+        failures.push(format!(
+            "[{gname}] {} admitted writes were refused as malformed (400 or 422), the ceiling is {}: a hand-made body stopped fitting",
+            stats.shape, SHAPE_CEILING[g]
+        ));
+    }
+    stats
+}
+
 struct GroupResult {
     line: String,
     failures: Vec<String>,
@@ -2153,6 +4082,11 @@ async fn run_group(
     let (denials, others): (Vec<&Call>, Vec<&Call>) =
         calls.iter().partition(|c| c.exp == Exp::Deny);
     let mut others = others;
+    // RDY-SEC-011: SR_AUTHZ_WRITES=0 skips the write phase, SR_AUTHZ_WRITE_ONLY=1 runs nothing else (both
+    // for iterating on the harness; the full run has neither).
+    let write_on = std::env::var("SR_AUTHZ_WRITES").as_deref() != Ok("0");
+    let write_only = std::env::var_os("SR_AUTHZ_WRITE_ONLY").is_some();
+    let mut wstats = WriteStats::default();
     // Reads, then writes, then deletes; deeper paths first among the deletes, so that removing a
     // server does not leave its children looking absent to the controls.
     others.sort_by_key(|c| {
@@ -2172,12 +4106,46 @@ async fn run_group(
         )
     });
 
-    let before = fingerprint(&world.pool).await;
+    // Reads, then the write phase (the rightful actors, asserted), then the other actors' writes.
+    let (reads, rest): (Vec<&Call>, Vec<&Call>) = others
+        .into_iter()
+        .partition(|c| class_of(&routes[c.route].method) == 0);
+    // Let what the seed set going (a staff offer's direct message, a notification job) land first.
+    let mut before = fingerprint(&world.pool).await;
+    let mut steady = 0;
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let again = fingerprint(&world.pool).await;
+        if again == before {
+            steady += 1;
+            if steady == 6 {
+                break;
+            }
+        } else {
+            steady = 0;
+            before = again;
+        }
+    }
     let mut group_fail = 0usize;
     let mut n = 0usize;
-    for (phase, list) in [(0, denials), (1, others)] {
+    for (phase, list) in [(0, denials), (1, reads), (2, rest)] {
+        if write_only && phase != 2 {
+            continue;
+        }
+        if phase == 2 && write_on {
+            let before_fail = failures.len();
+            wstats = write_phase(&world, routes, g, infos, &mut failures, &mut obs).await;
+            group_fail += failures.len() - before_fail;
+        }
         for c in list {
             let r = &routes[c.route];
+            // The rightful actor's writes were made, in order and asserted, by the write phase.
+            if write_on && is_write(&r.method) && c.actor == rightful_of(r) && c.pass == "std" {
+                continue;
+            }
+            if write_only {
+                continue;
+            }
             let actor = world.actor(c.actor);
             let info = infos.get(&(r.method.clone(), r.path.clone()));
             let mut path = c.path.clone();
@@ -2249,8 +4217,14 @@ async fn run_group(
             let changed = diff(&before, &after);
             if !changed.is_empty() {
                 group_fail += 1;
+                let latest: Vec<(i64, i64, String)> = sqlx::query_as(
+                    "SELECT id, channel_id, left(content, 80) FROM messages ORDER BY id DESC LIMIT 3",
+                )
+                .fetch_all(&world.pool)
+                .await
+                .unwrap_or_default();
                 failures.push(format!(
-                    "[{gname}] refused calls changed tables: {changed:?}"
+                    "[{gname}] refused calls changed tables: {changed:?} (newest messages: {latest:?})"
                 ));
             }
         }
@@ -2263,7 +4237,7 @@ async fn run_group(
             .iter()
             .find(|r| r.method == o.method && r.path == o.path)
             .unwrap();
-        if o.pass == "std" && o.actor == control_of(r) {
+        if (o.pass == "std" || o.pass == "write") && o.actor == control_of(r) {
             control.insert((o.method.clone(), o.path.clone()), o.status);
         }
     }
@@ -2286,7 +4260,7 @@ async fn run_group(
     }
 
     // R-03: the weak refusals of a group may only go down (lower WEAK_CEILING when they do).
-    if weak > WEAK_CEILING[g] {
+    if !write_only && weak > WEAK_CEILING[g] {
         group_fail += 1;
         failures.push(format!(
             "[{gname}] {weak} weak refusals, the ceiling is {}: a seeded id stopped reaching its resource",
@@ -2298,8 +4272,12 @@ async fn run_group(
     db.cleanup().await.ok();
     let status = if group_fail == 0 { "proven" } else { "FAILED" };
     let line = format!(
-        "{}. {gname}: {status} ({n} calls, {group_fail} failures, {weak} weak refusals, {masked} masked, {:.0}s)",
+        "{}. {gname}: {status} ({n} calls, {group_fail} failures, {weak} weak refusals, {masked} masked; writes: {} asserted, {} admitted, {} malformed, {} observed; {:.0}s)",
         g + 1,
+        wstats.calls,
+        wstats.admitted,
+        wstats.shape,
+        wstats.observed,
         started.elapsed().as_secs_f64()
     );
     GroupResult {
@@ -2392,14 +4370,161 @@ fn ctx_for(
         "group_channel_id"
     } else if r.path.contains("tv/channels") {
         "tv_channel_id"
+    } else if r.path.starts_with("/stage-instances/") {
+        "stage_channel_id"
+    } else if r.path.contains("/call/") {
+        "group_channel_id"
+    } else if r.path.starts_with("/tv/favorites/") {
+        "tv_channel_id"
+    } else if r.path.starts_with("/tv/reminders/") {
+        "block_id"
     } else {
-        return (base.clone(), false);
+        return (overlay(r, base.clone()), false);
     };
     let mut c = base.clone();
     if let Some(v) = base.get(from) {
         c.insert("channel_id", v.clone());
     }
-    (c, true)
+    (overlay(r, c), true)
+}
+
+/// Placeholders that mean different things in different route families: Cinema and Library each have
+/// their own `{asset_id}`, `{comment_id}`, `{list_id}` ..., and the submission chapter is not the
+/// published one. The write phase (and every other pass) fills them from the family's own seeded key.
+const OVERLAYS: &[(&[&str], &str, &str)] = &[
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "asset_id",
+        "cinema_asset_id",
+    ),
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "comment_id",
+        "cinema_comment_id",
+    ),
+    (&["/cinema/", "/admin/cinema/"], "list_id", "cinema_list_id"),
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "review_id",
+        "cinema_review_id",
+    ),
+    (
+        &["/cinema/", "/admin/cinema/"],
+        "report_id",
+        "cinema_report_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "chapter_id",
+        "lib_chapter_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "upload_id",
+        "lib_upload_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "comment_id",
+        "library_comment_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "list_id",
+        "library_list_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "review_id",
+        "library_review_id",
+    ),
+    (
+        &["/library/", "/admin/library/"],
+        "report_id",
+        "library_report_id",
+    ),
+    (&["/guilds/"], "feature_id", "guild_feature_id"),
+    (&["/channels/"], "feature_id", "channel_feature_id"),
+    (&["/users/@me/"], "feature_id", "user_feature_id"),
+    (&["/admin/"], "feature_id", "admin_feature_id"),
+    (&["/users/@me/scheduled-messages/"], "id", "sched_id"),
+    (&["/users/@me/reminders/"], "id", "reminder_id"),
+    (&["/sr/invites/"], "code", "sr_invite_code"),
+    (&["templates/{code}"], "code", "template_code"),
+    (&["/channels/"], "upload_id", "attach_upload_id"),
+    (
+        &["sr/applications/{application_id}"],
+        "application_id",
+        "guild_application_id",
+    ),
+    (&["/applications/"], "emoji_id", "app_emoji_id"),
+    (
+        &["{application_id}/guilds/{guild_id}/commands/"],
+        "command_id",
+        "guild_command_id",
+    ),
+    (
+        &["/developers/tester-invites/"],
+        "invite_id",
+        "tester_invite_id",
+    ),
+    (
+        &["/staff/offers/", "/admin/staff/offers/"],
+        "offer_id",
+        "staff_offer_id",
+    ),
+    (&["/watch-parties/"], "item_id", "queue_item_id"),
+    (
+        &["submissions/{submission_id}/publish-now"],
+        "submission_id",
+        "own_submission_id",
+    ),
+    (&["/admin/data-requests/"], "request_id", "data_request_id"),
+    (
+        &["/admin/donations/entitlements/"],
+        "grant_id",
+        "entitlement_grant_id",
+    ),
+    (&["/admin/invites/"], "invite_id", "platform_invite_id"),
+    (
+        &["/admin/developers/packages/versions/"],
+        "version_id",
+        "pending_version_id",
+    ),
+    (
+        &["/packages/versions/"],
+        "version_id",
+        "withdraw_version_id",
+    ),
+    (&["{package_id}/import"], "package_id", "pack_id"),
+    (
+        &["{package_id}/apply", "/create-guild"],
+        "package_id",
+        "recipe_id",
+    ),
+    // Episodes and seasons belong to the series title, not to the film.
+    (
+        &["{episode_id}", "{season_id}"],
+        "title_id",
+        "series_title_id",
+    ),
+];
+
+fn overlay(r: &Route, mut c: HashMap<&'static str, String>) -> HashMap<&'static str, String> {
+    for (prefixes, placeholder, key) in OVERLAYS {
+        let by_placeholder = !prefixes[0].starts_with('/');
+        if prefixes.iter().any(|p| {
+            if by_placeholder {
+                r.path.contains(p)
+            } else {
+                r.path.starts_with(p)
+            }
+        }) && let Some(v) = c.get(key).cloned()
+        {
+            c.insert(placeholder, v);
+        }
+    }
+    c
 }
 
 /// D-366: how a PLATFORM cell admits an appointed actor (no database).
@@ -2451,5 +4576,26 @@ fn admitted_grammar() {
             std::panic::catch_unwind(|| admitted(&owner, bad)).is_err(),
             "{bad}"
         );
+    }
+}
+
+/// RDY-SEC-011: the table of write routes the allow phase cannot assert only shrinks (no database).
+#[test]
+fn write_observed_is_pinned() {
+    let routes = parse_matrix();
+    assert_eq!(
+        WRITE_OBSERVED.len(),
+        WRITE_OBSERVED_LEN,
+        "WRITE_OBSERVED changed: an entry may be removed (lower WRITE_OBSERVED_LEN in the same change), never added"
+    );
+    let mut seen = BTreeSet::new();
+    for (m, p, why) in WRITE_OBSERVED {
+        let r = routes
+            .iter()
+            .find(|r| r.method == *m && r.path == *p)
+            .unwrap_or_else(|| panic!("WRITE_OBSERVED names {m} {p}, which is not in the matrix"));
+        assert!(is_write(&r.method), "{m} {p} is not a write route");
+        assert!(why.len() > 10, "{m} {p}: say why");
+        assert!(seen.insert((*m, *p)), "{m} {p} is listed twice");
     }
 }

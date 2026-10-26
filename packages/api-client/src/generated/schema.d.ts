@@ -22084,6 +22084,18 @@ export interface components {
         StickerPacksObject: {
             sticker_packs: components["schemas"]["StickerPackObject"][];
         };
+        /** @description One bucket measured by the daily `storage.measure` job: the object store, Library media or Cinema media. */
+        StorageFigure: {
+            bucket: string;
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int64 */
+            measured_at_ms: number;
+            /** Format: int64 */
+            objects: number;
+            /** @description The walk hit its object cap or time budget, so the figures are a lower bound. */
+            truncated: boolean;
+        };
         StreamPreviewBody: {
             /** @description `data:image/jpeg;base64,...`, at most 256 KiB once decoded. */
             thumbnail: string;
@@ -22485,6 +22497,8 @@ export interface components {
              * @description Bytes of stored attachments (live rows).
              */
             storage_bytes?: number;
+            /** @description The daily `storage.measure` figures (RDY-OBS-002); empty before its first run. */
+            storage_figures?: components["schemas"]["StorageFigure"][];
         };
         SystemView: {
             /** @description When the last backup, restore check and object snapshot happened (null fields: never, or not reported). */

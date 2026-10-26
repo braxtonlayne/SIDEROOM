@@ -1,0 +1,28 @@
+name: Production smoke
+# P25-OPS-1. prod-smoke.yml runs on pull requests only when they touch the install surface (D-354 paths). Once its
+# `stack`, `systemd` and `upgrade` jobs are required checks in branch protection, a pull request outside those paths would
+# wait forever on checks that never report. This companion runs on exactly the complementary paths (paths-ignore on the
+# same four entries) and reports jobs of the same names that only echo. Keep the path list identical to prod-smoke.yml's
+# pull_request paths.
+on:
+  pull_request:
+    paths-ignore:
+      - "deploy/**"
+      - ".github/workflows/prod-smoke.yml"
+      - "crates/sr-cli/**"
+      - "crates/sr-preflight/**"
+permissions:
+  contents: read
+jobs:
+  stack:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "install surface untouched"
+  systemd:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "install surface untouched"
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "install surface untouched"

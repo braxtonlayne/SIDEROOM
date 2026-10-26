@@ -61,7 +61,7 @@ With Docker Compose, run the same script from the host against the published or 
 
 ## From the command line
 
-`sr-cli backup [--dir ./backups]` writes the same file and manifest as `backup.sh` (`db/sideroom-<stamp>.dump` + `.dump.json`), using `pg_dump` from `PATH` and the database in `SR_DATABASE__URL`; the password is passed in the environment, never as an argument. `sr-cli restore <dump> [--force]` verifies the manifest, refuses a non-empty database unless `--force`, and runs `pg_restore`. `sr-cli upgrade` takes this backup automatically before it migrates. Retention pruning stays with `backup.sh`.
+`sr-cli backup [--dir ./backups]` writes the same file and manifest as `backup.sh` (`db/sideroom-<stamp>.dump` + `.dump.json`), using `pg_dump` from `PATH` and the database in `SR_DATABASE__URL`; the password is passed in the environment, never as an argument. `sr-cli restore <dump> [--force]` verifies the manifest, refuses a non-empty database unless `--force`, and runs `pg_restore`. `sr-cli upgrade` takes this backup automatically before it migrates. Retention pruning stays with `backup.sh`. Like the script, it first removes a `*.dump.partial` older than one hour.
 
 ## On the Compose stack
 
@@ -92,6 +92,7 @@ Both write the same dump format and manifest, and both verify the checksum befor
 | Runs | where `pg_dump` / `pg_restore` / `psql` and a shell are: in the postgres container (Compose), or on the host with the client tools | where `sr-cli` runs and `pg_dump` / `pg_restore` are on `PATH`. The server image is distroless, so there is **no** `sr-cli backup` inside it: use the static binary on the host and reach Postgres over its container address, or publish it on loopback |
 | Database named by | `SR_DATABASE_URL` (backup) and the target URL argument (restore) | `SR_DATABASE__URL` / `SR_CONFIG`, the same configuration as the server; restore always targets the configured database |
 | Folder | `SR_BACKUP_DIR`, mode `SR_BACKUP_DIR_MODE` (default 700) | `--dir`, always 700 |
+| Stale `*.dump.partial` (older than one hour) removed first | yes | yes |
 | Retention (14 daily, 8 weekly, 12 monthly) | yes | no |
 | Object snapshot (`rustic` / `restic`), `snapshot.ok` | yes | no |
 | Non-empty target | refused unless `SR_RESTORE_FORCE=1` | refused unless `--force` |
@@ -106,6 +107,8 @@ Both write the same dump format and manifest, and both verify the checksum befor
 
 `backup.sh` keeps the newest dump of each of the last 14 days, 8 ISO weeks and 12 months (`SR_BACKUP_KEEP=14,8,12`), and deletes the rest with their manifests. Run it more often than daily and only the newest of each day survives.
 
+**Stale `.partial` files.** A dump is written to `sideroom-<stamp>.dump.partial` and renamed only when `pg_dump` succeeds, so a failed run leaves no fresh `.dump` and never refreshes the backup age shown in Admin > System. Both `backup.sh` and `sr-cli backup` remove a `*.dump.partial` older than one hour before they start (a younger one may be a dump still running, so it stays), and retention only ever looks at finished `*.dump` files, so a `.partial` is never counted as a backup (RDY-OPS-008).
+
 ## Restoring
 
 Stop `sr-server` first, so nothing writes during the restore.
@@ -119,7 +122,8 @@ createdb sideroom_restored
 deploy/scripts/restore.sh /var/backups/sideroom/db/sideroom-20261013T031500Z.dump \
   postgres://sideroom:<password>@127.0.0.1:5432/sideroom_restored
 
-# 3. ...or over the existing one (drops objects first):
+# 3. ...or over the existing one (drops the objects the dump contains first; tables a newer migration added stay, so
+#    for a rollback after an upgrade drop and recreate the database instead, deploy/UPGRADE.md "Rolling back"):
 SR_RESTORE_FORCE=1 deploy/scripts/restore.sh <dump> <url-of-the-live-database>
 
 # 4. Apply migrations newer than the dump, then start the server.

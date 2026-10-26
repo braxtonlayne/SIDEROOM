@@ -43,6 +43,7 @@ pub mod sealed;
 pub mod self_delete;
 pub mod settings_repo;
 pub mod social_repo;
+pub mod storage_figures;
 pub mod testing;
 pub mod thread_repo;
 mod tx;

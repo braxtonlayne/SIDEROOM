@@ -36,6 +36,23 @@ pub struct PlaybackView {
 }
 
 impl PlaybackView {
+    /// What a caller outside the party is told: nothing about the party (RDY-SEC-011: a heartbeat from a
+    /// stranger used to answer with the real playback).
+    pub fn hidden(now_ms: i64) -> Self {
+        Self {
+            version: 0,
+            playing: false,
+            position_ms: 0,
+            rate: 1.0,
+            at_ms: now_ms,
+            server_time_ms: now_ms,
+            expected_position_ms: 0,
+            auto_paused: false,
+            duration_ms: None,
+            live: false,
+        }
+    }
+
     pub fn from_state(s: &Playback, now_ms: i64) -> Self {
         Self {
             version: s.version,

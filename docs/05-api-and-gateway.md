@@ -354,7 +354,7 @@ exist.
 | Sticker uploads (`POST /guilds/{guild_id}/stickers`) | `abuse.sticker_uploads_per_hour` | 20 | per credential per server per hour | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
 | Messages sent | `limits.rate.messages` | 60 | per channel and caller per minute (H-39) | `crates/sr-api/src/rate_limit.rs::a_live_change_applies_on_the_next_request` |
 
-### 5.4 How authorization is tested (RDY-SEC-001 to 003)
+### 5.4 How authorization is tested (RDY-SEC-001 to 003, 011, 012)
 
 Three layers, from cheap to thorough. All of them read `crates/sr-api/tests/route_matrix.tsv`, one row per operation of the OpenAPI document
 (`METHOD  PATH  ACCESS  AUTHZ  BOT  BEARER  PLATFORM`). `PLATFORM` names the platform permission a `staff` or `author_or_staff` row demands, spelled as in
@@ -364,7 +364,7 @@ other row. For the review routes it names the Library section's bit (the seeded 
 1. **`route_matrix.rs`** (no database). The file and the router agree; `ACCESS` agrees with the handler's `security(...)`; every authenticated route answers
    401 without credentials; `BOT` and `BEARER` agree with `auth::policy`; `AUTHZ` agrees with the handler's own extractors (a staff extractor means `staff`,
    `BotOnly` means `bot`). A row carries no `?` and no `other`, a staff row names a real `PLATFORM` permission and every other row has `-`: a new route must say who may call it.
-2. **`crates/sr-server/tests/authz_matrix.rs`** (Postgres, `#[ignore]`, about four minutes; it lives in `sr-server` because that crate owns the real wiring). It boots the real server wiring (`sr_server::app::run`) in the test process on a fresh
+2. **`crates/sr-server/tests/authz_matrix.rs`** (Postgres, `#[ignore]`, about two to four minutes depending on the machine; it lives in `sr-server` because that crate owns the real wiring). It boots the real server wiring (`sr_server::app::run`) in the test process on a fresh
    migrated database, seeds a world (two servers with a private channel, roles, a message, a webhook, an invite, a thread, an emoji, an event, an
    auto-moderation rule, a moderation case with a hold, a takedown notice, a submission, an application with a bot and a command, an OAuth2 grant, a staff
    server with its roles) and calls **every row** over HTTP with the ids of that world as these actors:
@@ -396,6 +396,22 @@ other row. For the review routes it names the Library section's bit (the seeded 
    All must be refused, and the database fingerprint (every table, minus the job runner, sessions, access log and authentication stamps) must be unchanged after the
    refused calls of the group. A refusal that is a 404 next to a 404 for the rightful actor proves little and is counted as *weak* in the run summary (the
    unseeded ids); the report file lists them and `WEAK_CEILING` in the test pins a ceiling per group that may only go down.
+
+   **The write phase (RDY-SEC-011, RDY-SEC-012).** After the refusal and read phases of each group, every write route of the group is called once as its rightful actor
+   (`rightful_of`: the Owner for staff rows, the plain member for per-account rows, the server owner for server rows, the application owner for portal rows, the bot for
+   slash-command routes, the bot's or a disposable account where the call ends the session) and must be *admitted*: any status but 401, 403 and 404, and no 5xx. The
+   calls go in dependency order: creates (POST), then edits (PUT, PATCH), then deletes from the leaf to the root (a message before its channel before its server), with a
+   few named exceptions that settle or consume what the rest act on (`write_ending`, `write_late`, `write_root`). A 400 or 422 is admitted but reported with its body
+   (`malformed` in the run line, `shape` in the report): the request was refused for its content, and `SHAPE_CEILING` keeps those from growing. The bodies are the
+   sampled ones, made to fit by `fixup` (a real picture where an image is asked for, a word where the sample put `x`) and by `write_body_override`; the audit
+   reason travels in `X-Audit-Log-Reason`. Routes the stack cannot reach yet are listed with their reason in `WRITE_OBSERVED` (an installation without payments,
+   a transcoder worker, an external identity provider, an interaction token, a stored page, a Patron entitlement): the table can only shrink, `write_observed_is_pinned`
+   pins its length, and a listed route that turns out to be admitted fails the run until the entry is removed. The seed enrols the Owner in TOTP and the phase opens the
+   staff step-up window once per group with a real code, so the announcements and the other re-authentication routes are asserted; the test config turns `voice` on (the
+   embedded SFU on loopback, a port range of its own per world) and the seed starts a stage in a stage channel, so `/guilds/{id}/stage-instances` is proven for the
+   non-empty case; stickers and sounds take JSON data URIs in this API (not multipart), so a generated PNG and a generated WAV are enough. `SR_AUTHZ_WRITE_ONLY=1` runs
+   only the write phase (about a minute) and `SR_AUTHZ_WRITES=0` skips it. Handler bugs the phase found are fixed with their tests (the Watch Party heartbeat, the
+   voice-status check order; see the P25 handoff).
 
    Run it with `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-server --test authz_matrix -- --include-ignored --test-threads=1 --nocapture`.
    `SR_AUTHZ_REPORT=<file>` writes one row per call (group, route, actor, pass, status, expectation, verdict); `SR_AUTHZ_GROUPS=0,1` runs only those groups

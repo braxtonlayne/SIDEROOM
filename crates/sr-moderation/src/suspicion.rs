@@ -646,7 +646,9 @@ impl Moderation {
                 .get_or_insert(Lineage::SameInviter);
         }
 
-        // A new account shortly after a ban of a Person we already found a link to.
+        // A new account shortly after a ban of a Person we already found a link to. The newest ban of each
+        // related Person is kept too: the signal budget below goes to the most recent bans first.
+        let mut latest_ban: BTreeMap<i64, i64> = BTreeMap::new();
         if !found.is_empty() {
             let created: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
                 "SELECT {} FROM accounts WHERE person_id = $1 AND id <> 1",
@@ -667,6 +669,8 @@ impl Moderation {
                 for b in &bans {
                     let p: i64 = b.try_get("person_id")?;
                     let at: i64 = b.try_get("banned_ms")?;
+                    let newest = latest_ban.entry(p).or_insert(at);
+                    *newest = (*newest).max(at);
                     if rules::created_shortly_after_ban(created, at, lim.new_account_after_ban_days)
                         && let Some(f) = found.get_mut(&p)
                     {
@@ -676,12 +680,19 @@ impl Moderation {
             }
         }
 
+        // At most MAX_SIGNALS_PER_SCAN new signals, newest ban first (then the higher Person id), so a Person
+        // linked to many banned Persons still gets the signal for the ban that matters most (P25-SEC-1).
+        let mut order: Vec<&i64> = found.keys().collect();
+        order.sort_by_key(|p| {
+            std::cmp::Reverse((latest_ban.get(p).copied().unwrap_or(i64::MIN), **p))
+        });
         let mut raised = 0;
         let mut budget = MAX_SIGNALS_PER_SCAN;
-        for (related, f) in &found {
+        'pairs: for related in order {
+            let f = &found[related];
             for s in rules::signals_for(f, lim.new_account_after_ban_days) {
                 if budget == 0 {
-                    return Ok(raised);
+                    break 'pairs;
                 }
                 let n = sqlx::query(
                     "INSERT INTO evasion_signals (id, person_id, related_person_id, kind, detail) \

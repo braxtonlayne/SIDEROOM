@@ -702,6 +702,73 @@ async fn lineage_signals_need_corroboration_unless_invited_by_the_banned() {
     w.db.cleanup().await.unwrap();
 }
 
+/// P25-SEC-1 (4): the ten-signal budget of one scan goes to the newest bans first. Six banned siblings of a
+/// newcomer, banned 6 to 1 days ago in the order their Persons were made (so the oldest ban has the lowest
+/// Person id), each yield two signals: twelve candidates for a budget of ten. The two left out belong to the
+/// oldest ban, never the newest.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_signal_budget_keeps_the_newest_ban() {
+    let w = world().await;
+    let pool = w.pool();
+    let inviter = person(pool, "inviter").await;
+    let senior = person(pool, "senior").await;
+    let mut banned = Vec::new();
+    for k in (1..=6).rev() {
+        let p = person(pool, &format!("banned{k}")).await;
+        invite(pool, &inviter, &p).await;
+        ban(pool, &p, senior.account, "serious", "ban_evasion").await;
+        exec(
+            pool,
+            "UPDATE person_bans SET created_at = now() - $2 * interval '1 day' WHERE person_id = $1",
+            &[p.person, k],
+        )
+        .await;
+        banned.push((k, p));
+    }
+    let newcomer = person(pool, "newcomer").await;
+    invite(pool, &inviter, &newcomer).await;
+    exec(
+        pool,
+        "UPDATE accounts SET created_at = now() WHERE id = $1",
+        &[newcomer.account],
+    )
+    .await;
+
+    assert_eq!(w.m.scan_person(newcomer.person).await.unwrap(), 10);
+    let count_for = |related: i64| async move {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM evasion_signals WHERE person_id = $1 AND related_person_id = $2",
+        )
+        .bind(newcomer.person)
+        .bind(related)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    };
+    for (k, p) in &banned {
+        let expected = if *k == 6 { 0 } else { 2 };
+        assert_eq!(
+            count_for(p.person).await,
+            expected,
+            "signals for the Person banned {k} days ago"
+        );
+    }
+    let newest: Vec<String> = sqlx::query_scalar(
+        "SELECT kind FROM evasion_signals WHERE person_id = $1 AND related_person_id = $2 ORDER BY kind",
+    )
+    .bind(newcomer.person)
+    .bind(banned.last().unwrap().1.person)
+    .fetch_all(pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        newest,
+        vec!["new_account_after_ban", "shared_invite_lineage"]
+    );
+    w.db.cleanup().await.unwrap();
+}
+
 /// The whole chain with the real admin service: serious bans of invitees raise the inviter's suspicion, the
 /// crossings open and upgrade one case, the clear keeps the events and lands on the case timeline.
 #[tokio::test]

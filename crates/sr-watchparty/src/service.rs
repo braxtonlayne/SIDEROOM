@@ -1270,9 +1270,16 @@ impl PartyService {
         let row = store::get_party(&mut c, id, false)
             .await?
             .ok_or(PartyError::NotFound("watch party"))?;
+        // Only a participant is told the playback; anyone else (a stranger who guessed an id, a participant
+        // who was dropped) learns that they are not in the party and nothing more.
+        let playback = if updated > 0 {
+            PlaybackView::from_state(&row.playback(), self.now())
+        } else {
+            PlaybackView::hidden(self.now())
+        };
         Ok(HeartbeatResult {
             server_time_ms: now,
-            playback: PlaybackView::from_state(&row.playback(), self.now()),
+            playback,
             member: updated > 0 && row.ended_at_ms.is_none(),
         })
     }
