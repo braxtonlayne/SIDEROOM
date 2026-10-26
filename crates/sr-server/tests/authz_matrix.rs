@@ -36,8 +36,9 @@ use sr_apps::service::{
 };
 use sr_auth::{
     oauth::Scope,
-    repo::{SessionRecord, SessionRepository},
+    repo::{SessionRecord, SessionRepository, TotpRepository},
     session::SessionToken,
+    totp::TotpSecret,
 };
 use sr_chat::repo::GuildRepository;
 use sr_core::{
@@ -422,27 +423,50 @@ async fn raw(
     headers: &[(String, String)],
     body: Option<&str>,
 ) -> Resp {
+    raw_body(
+        port,
+        method,
+        path,
+        headers,
+        body.map(|b| ("application/json", b.as_bytes())),
+    )
+    .await
+}
+
+/// The same call with any body and content type (RDY-SEC-012: the zip and binary upload routes).
+async fn raw_body(
+    port: u16,
+    method: &str,
+    path: &str,
+    headers: &[(String, String)],
+    body: Option<(&str, &[u8])>,
+) -> Resp {
     let fut = async {
         let mut s = TcpStream::connect(("127.0.0.1", port)).await.ok()?;
         let mut req = format!(
             "{method} {path} HTTP/1.1\r\nHost: localhost:{port}\r\nConnection: close\r\nAccept: application/json\r\n"
-        );
+        )
+        .into_bytes();
+        let mut head = String::new();
         for (k, v) in headers {
-            req.push_str(&format!("{k}: {v}\r\n"));
+            head.push_str(&format!("{k}: {v}\r\n"));
         }
         match body {
-            Some(b) => {
-                req.push_str("Content-Type: application/json\r\n");
-                req.push_str(&format!("Content-Length: {}\r\n\r\n{b}", b.len()));
+            Some((ctype, b)) => {
+                head.push_str(&format!("Content-Type: {ctype}\r\n"));
+                head.push_str(&format!("Content-Length: {}\r\n\r\n", b.len()));
+                req.extend_from_slice(head.as_bytes());
+                req.extend_from_slice(b);
             }
             None => {
                 if method != "GET" && method != "HEAD" {
-                    req.push_str("Content-Length: 0\r\n");
+                    head.push_str("Content-Length: 0\r\n");
                 }
-                req.push_str("\r\n");
+                head.push_str("\r\n");
+                req.extend_from_slice(head.as_bytes());
             }
         }
-        s.write_all(req.as_bytes()).await.ok()?;
+        s.write_all(&req).await.ok()?;
         let mut buf = Vec::new();
         s.read_to_end(&mut buf).await.ok()?;
         let split = find(&buf, b"\r\n\r\n")?;
@@ -520,6 +544,26 @@ impl Server {
         .await
     }
 
+    /// A call with a body that is not JSON (a zip, the bytes of an image).
+    #[allow(dead_code)]
+    async fn call_bytes(
+        &self,
+        cred: &Cred,
+        method: &str,
+        path: &str,
+        ctype: &str,
+        body: &[u8],
+    ) -> Resp {
+        raw_body(
+            self.port,
+            method,
+            &format!("/api/v1{path}"),
+            &self.headers(cred, method),
+            Some((ctype, body)),
+        )
+        .await
+    }
+
     /// A seeding call that must succeed; returns the JSON body.
     async fn must(&self, cred: &Cred, method: &str, path: &str, body: Value) -> Value {
         let r = self.call(cred, method, path, Some(&body)).await;
@@ -589,6 +633,8 @@ struct World {
     private: HashMap<&'static str, String>,
     member_id: i64,
     guild_a: i64,
+    /// The TOTP secret `staff_owner` is enrolled with (RDY-SEC-012), for the step-up of the write phase.
+    totp: TotpSecret,
 }
 
 impl World {
@@ -624,6 +670,52 @@ async fn give_role(pool: &sqlx::PgPool, guild: i64, user: i64, role: i64) {
     .execute(pool)
     .await
     .unwrap();
+}
+
+/// Standard base64 with padding (the data URIs of stickers and sounds; no dependency for ten lines).
+fn b64(data: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in data.chunks(3) {
+        let n = (u32::from(c[0]) << 16)
+            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*c.get(2).unwrap_or(&0));
+        out.push(T[(n >> 18) as usize & 63] as char);
+        out.push(T[(n >> 12) as usize & 63] as char);
+        out.push(if c.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if c.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// A mono 8 kHz PCM WAV of `ms` milliseconds (the soundboard accepts MP3, Ogg and WAV; the container's own
+/// length claim is what is measured, D-363).
+fn wav_uri(ms: usize) -> String {
+    let rate = 8_000usize;
+    let n = rate * ms / 1000;
+    let mut out = Vec::new();
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&((36 + n * 2) as u32).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&(rate as u32).to_le_bytes());
+    out.extend_from_slice(&((rate * 2) as u32).to_le_bytes());
+    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&((n * 2) as u32).to_le_bytes());
+    out.resize(out.len() + n * 2, 7);
+    format!("data:audio/wav;base64,{}", b64(&out))
 }
 
 fn id_of(v: &Value) -> String {
@@ -988,6 +1080,17 @@ async fn seed(
         });
     }
 
+    // RDY-SEC-012: the Owner is enrolled in TOTP (confirmed, with a step far in the past), so that the
+    // write phase can open the staff step-up window once per group with a real code.
+    let totp = TotpSecret::generate().expect("totp secret");
+    let step_now = SystemClock.now_unix_ms() as u64 / 1000 / 30;
+    TotpRepository::put_pending(&auth, u("staffowner"), totp.as_bytes())
+        .await
+        .unwrap();
+    TotpRepository::confirm(&auth, u("staffowner"), step_now - 10)
+        .await
+        .unwrap();
+
     // Lift the HTTP rate limits so the sweep is not answered with 429 (the limiter is proven elsewhere).
     for key in [
         "limits.rate.ip",
@@ -1042,6 +1145,13 @@ async fn seed(
     cfg.database.max_connections = 12;
     cfg.storage.endpoint = "memory:".into();
     cfg.activities.enabled = true;
+    // RDY-SEC-012: voice is on, so that the stage routes are reached past the module gate. The embedded SFU
+    // binds loopback sockets in a small range of its own; nothing joins a call.
+    cfg.voice.enabled = true;
+    cfg.voice.bind_ip = "127.0.0.1".into();
+    cfg.voice.announce_ips = vec!["127.0.0.1".into()];
+    cfg.voice.udp_port_min = 52_870;
+    cfg.voice.udp_port_max = 52_879;
     cfg.server.shutdown_grace_secs = 1;
     static SEARCH_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let search = std::env::temp_dir().join(format!(
@@ -1375,7 +1485,19 @@ async fn seed(
         )
         .await;
     }
-    let recipes: [(&'static str, &str, &Cred, Option<Value>); 7] = [
+    let recipes: [(&'static str, &str, &Cred, Option<Value>); 9] = [
+        (
+            "sticker_id",
+            "/guilds/{guild_id}/stickers",
+            &oa,
+            Some(json!({"name": "authzsticker", "tags": "authz", "file": png})),
+        ),
+        (
+            "sound_id",
+            "/guilds/{guild_id}/soundboard-sounds",
+            &oa,
+            Some(json!({"name": "authzsound", "sound": wav_uri(400)})),
+        ),
         (
             "event_id",
             "/guilds/{guild_id}/scheduled-events",
@@ -1430,6 +1552,40 @@ async fn seed(
         {
             a.insert(param, id.to_owned());
         }
+    }
+
+    // RDY-SEC-012: two stage channels of server A, one with a running stage instance (the seeded
+    // `stage_channel_id`) and one for the write phase to start a stage in (`stage_new_channel_id`).
+    for (key, name) in [
+        ("stage_channel_id", "stage-one"),
+        ("stage_new_channel_id", "stage-two"),
+    ] {
+        if let Some(v) = create(
+            &srv,
+            &oa,
+            "POST",
+            "/guilds/{guild_id}/channels",
+            &format!("/guilds/{ga}/channels"),
+            infos,
+            Some(json!({"name": name, "type": 13})),
+        )
+        .await
+            && let Some(id) = v["id"].as_str()
+        {
+            a.insert(key, id.to_owned());
+        }
+    }
+    if let Some(stage) = a.get("stage_channel_id").cloned() {
+        create(
+            &srv,
+            &oa,
+            "POST",
+            "/stage-instances",
+            "/stage-instances",
+            infos,
+            Some(json!({"channel_id": stage, "topic": "authz stage"})),
+        )
+        .await;
     }
 
     // R-03: more ids, from the world's own API. Each is stored under the placeholder the routes use.
@@ -1564,6 +1720,7 @@ async fn seed(
             private,
             member_id: u("member"),
             guild_a: ga,
+            totp,
         },
         tx,
         handle,
@@ -1585,7 +1742,9 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 30] = [
+const TENANT: [&str; 32] = [
+    "sticker_id",
+    "sound_id",
     "request_id",
     "chapter_id",
     "upload_id",
@@ -1754,7 +1913,16 @@ struct Call {
 /// The actor who is rightfully allowed on the route: its status shows whether the seeded ids
 /// reach a real resource (a refusal as 404 next to a 404 for the control proves little).
 fn control_of(r: &Route) -> &'static str {
-    if r.authz == "staff" || r.path.starts_with("/moderation") {
+    rightful_of(r)
+}
+
+/// The actor who is rightfully allowed on the route (RDY-SEC-011): the one the write phase calls it as.
+fn rightful_of(r: &Route) -> &'static str {
+    if let Some(a) = rightful_override(&r.method, &r.path) {
+        a
+    } else if r.access != "authenticated" {
+        "anon"
+    } else if r.authz == "staff" || r.path.starts_with("/moderation") {
         "staff_owner"
     } else if r.authz == "owner" {
         "app_owner"
@@ -2126,6 +2294,216 @@ fn class_of(method: &str) -> u8 {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// RDY-SEC-011, RDY-SEC-012: the write side, the allow phase.
+//
+// After the refusal and read phases of a group, every write route of the group is called once as its
+// rightful actor and must be *admitted*: any status but 401, 403 and 404 (and no 5xx, which is a handler
+// bug). The calls go in dependency order, so that a rightful delete does not destroy the world for the
+// rows after it: creates (POST), then edits (PUT, PATCH), then deletes from the leaf to the root (a message
+// before its channel before its server). A 400 or 422 is admitted but reported with the body: the request
+// shape was refused before the permission check could be seen, and a hand-made body is missing.
+
+/// Write routes the allow phase cannot assert yet, each with the reason. The table can only shrink:
+/// `write_observed_is_pinned` pins its length, and a route listed here that turns out to be admitted fails
+/// the run until it is removed (and the pin lowered).
+const WRITE_OBSERVED: &[(&str, &str, &str)] = &[];
+
+/// The length of [`WRITE_OBSERVED`]. Lower it when an entry goes; never raise it.
+const WRITE_OBSERVED_LEN: usize = 0;
+
+/// Admitted writes that answered 400 or 422 per group, in the order of [`GROUPS`]: the request shape was
+/// refused before the permission check ran. Like [`WEAK_CEILING`], the numbers only go down.
+const SHAPE_CEILING: [usize; 6] = [usize::MAX; 6];
+
+/// Rightful actors that differ from [`control_of`]'s rule, by route.
+fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
+    match (method, path) {
+        _ => None,
+    }
+}
+
+/// Routes whose rightful call ends the actor's own session or account, or otherwise breaks what the
+/// rest of the phase needs: they go last.
+fn write_late(method: &str, path: &str) -> bool {
+    matches!((method, path), ("DELETE", "/guilds/{guild_id}"))
+}
+
+/// A hand-made body for the write phase (placeholders in braces are replaced by the ids of tenant A),
+/// consulted before [`body_override`].
+fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
+    Some(match (method, path) {
+        ("POST", "/stage-instances") => {
+            r#"{"channel_id":"{stage_new_channel_id}","topic":"authz"}"#
+        }
+        _ => return None,
+    })
+}
+
+fn write_observed(r: &Route) -> Option<&'static str> {
+    WRITE_OBSERVED
+        .iter()
+        .find(|(m, p, _)| *m == r.method && *p == r.path)
+        .map(|(_, _, why)| *why)
+}
+
+/// The order of the write phase: late routes last; then creates, edits, deletes; deletes deepest first.
+fn write_rank(r: &Route, idx: usize) -> (bool, u8, usize, usize) {
+    let kind = match r.method.as_str() {
+        "POST" => 0,
+        "DELETE" => 2,
+        _ => 1,
+    };
+    let depth = r.path.matches('/').count();
+    (
+        write_late(&r.method, &r.path),
+        kind,
+        if kind == 2 { usize::MAX - depth } else { 0 },
+        idx,
+    )
+}
+
+fn substitute(text: &str, ids: &HashMap<&'static str, String>) -> String {
+    let mut t = text.to_owned();
+    for (k, v) in ids {
+        t = t.replace(&format!("{{{k}}}"), v);
+    }
+    t
+}
+
+/// What the write phase found for a group.
+#[derive(Default)]
+struct WriteStats {
+    calls: usize,
+    admitted: usize,
+    shape: usize,
+    observed: usize,
+}
+
+async fn write_phase(
+    world: &World,
+    routes: &[Route],
+    g: usize,
+    infos: &HashMap<(String, String), OpInfo>,
+    failures: &mut Vec<String>,
+    obs: &mut Vec<Obs>,
+) -> WriteStats {
+    let gname = GROUPS[g];
+    let mut stats = WriteStats::default();
+    // The staff step-up, once per group: a real TOTP code for the Owner opens the 15-minute window of its
+    // session, so that the gated staff writes are asserted (RDY-SEC-012).
+    let owner = world.actor("staff_owner");
+    let now = SystemClock.now_unix_ms() as u64 / 1000;
+    let code = sr_auth::totp::current_code(&world.totp, "SIDE ROOM", "staffowner", now)
+        .expect("totp code");
+    let r = world
+        .srv
+        .call(
+            &owner.cred,
+            "POST",
+            "/admin/reauth",
+            Some(&json!({"method": "totp", "code": code})),
+        )
+        .await;
+    if r.status != 200 {
+        failures.push(format!(
+            "[{gname}] the staff step-up (POST /admin/reauth with a TOTP code) answered {} {}",
+            r.status,
+            r.body.chars().take(160).collect::<String>()
+        ));
+    }
+    let mut order: Vec<usize> = routes
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| group_of(&r.path) == g && is_write(&r.method))
+        .map(|(i, _)| i)
+        .collect();
+    order.sort_by_key(|i| write_rank(&routes[*i], *i));
+    for i in order {
+        let r = &routes[i];
+        let actor_name = rightful_of(r);
+        let actor = world.actor(actor_name);
+        let info = infos.get(&(r.method.clone(), r.path.clone()));
+        let (ctx, _) = ctx_for(r, &world.a);
+        let mut path = fill(&r.path, &ctx);
+        if let Some(i) = info
+            && !i.query.is_empty()
+        {
+            path.push(if path.contains('?') { '&' } else { '?' });
+            path.push_str(&i.query);
+        }
+        let text =
+            write_body_override(&r.method, &r.path).or_else(|| body_override(&r.method, &r.path));
+        let body = match text {
+            Some(t) => serde_json::from_str(&substitute(t, &world.a)).ok(),
+            None => Some(
+                info.and_then(|i| i.body.clone())
+                    .unwrap_or_else(|| json!({})),
+            ),
+        };
+        let resp = world
+            .srv
+            .call(&actor.cred, &r.method, &path, body.as_ref())
+            .await;
+        stats.calls += 1;
+        let listed = write_observed(r);
+        let refused = matches!(resp.status, 401 | 403 | 404);
+        let broken = resp.status == 0 || resp.status >= 500;
+        let short = |n: usize| resp.body.chars().take(n).collect::<String>();
+        let (verdict, note): (&'static str, String) = if let Some(why) = listed {
+            if refused || broken || matches!(resp.status, 400 | 422) {
+                stats.observed += 1;
+                ("observed", format!("{why}: {} {}", resp.status, short(80)))
+            } else {
+                failures.push(format!(
+                    "[{gname}] {} {} is listed in WRITE_OBSERVED ({why}) but {actor_name} was admitted ({}): remove the entry and lower WRITE_OBSERVED_LEN",
+                    r.method, r.path, resp.status
+                ));
+                (
+                    "FAIL",
+                    format!("stale WRITE_OBSERVED entry: {}", resp.status),
+                )
+            }
+        } else if refused || broken {
+            failures.push(format!(
+                "[{gname}] {} {} as {actor_name} (write): expected admitted, got {} {}",
+                r.method,
+                r.path,
+                resp.status,
+                short(160)
+            ));
+            ("FAIL", format!("{} {}", resp.status, short(160)))
+        } else if matches!(resp.status, 400 | 422) {
+            stats.shape += 1;
+            ("shape", format!("{} {}", resp.status, short(160)))
+        } else {
+            stats.admitted += 1;
+            ("ok", short(80))
+        };
+        obs.push(Obs {
+            group: g,
+            method: r.method.clone(),
+            path: r.path.clone(),
+            actor: actor.name,
+            pass: "write",
+            status: resp.status,
+            exp: Exp::Allow,
+            verdict,
+            note,
+        });
+        if actor_name == "member" {
+            heal(world).await;
+        }
+    }
+    if stats.shape > SHAPE_CEILING[g] {
+        failures.push(format!(
+            "[{gname}] {} admitted writes were refused as malformed (400 or 422), the ceiling is {}: a hand-made body stopped fitting",
+            stats.shape, SHAPE_CEILING[g]
+        ));
+    }
+    stats
+}
+
 struct GroupResult {
     line: String,
     failures: Vec<String>,
@@ -2153,6 +2531,11 @@ async fn run_group(
     let (denials, others): (Vec<&Call>, Vec<&Call>) =
         calls.iter().partition(|c| c.exp == Exp::Deny);
     let mut others = others;
+    // RDY-SEC-011: SR_AUTHZ_WRITES=0 skips the write phase, SR_AUTHZ_WRITE_ONLY=1 runs nothing else (both
+    // for iterating on the harness; the full run has neither).
+    let write_on = std::env::var("SR_AUTHZ_WRITES").as_deref() != Ok("0");
+    let write_only = std::env::var_os("SR_AUTHZ_WRITE_ONLY").is_some();
+    let mut wstats = WriteStats::default();
     // Reads, then writes, then deletes; deeper paths first among the deletes, so that removing a
     // server does not leave its children looking absent to the controls.
     others.sort_by_key(|c| {
@@ -2172,12 +2555,31 @@ async fn run_group(
         )
     });
 
+    // Reads, then the write phase (the rightful actors, asserted), then the other actors' writes.
+    let (reads, rest): (Vec<&Call>, Vec<&Call>) = others
+        .into_iter()
+        .partition(|c| class_of(&routes[c.route].method) == 0);
     let before = fingerprint(&world.pool).await;
     let mut group_fail = 0usize;
     let mut n = 0usize;
-    for (phase, list) in [(0, denials), (1, others)] {
+    for (phase, list) in [(0, denials), (1, reads), (2, rest)] {
+        if write_only && phase != 2 {
+            continue;
+        }
+        if phase == 2 && write_on {
+            let before_fail = failures.len();
+            wstats = write_phase(&world, routes, g, infos, &mut failures, &mut obs).await;
+            group_fail += failures.len() - before_fail;
+        }
         for c in list {
             let r = &routes[c.route];
+            // The rightful actor's writes were made, in order and asserted, by the write phase.
+            if write_on && is_write(&r.method) && c.actor == rightful_of(r) && c.pass == "std" {
+                continue;
+            }
+            if write_only {
+                continue;
+            }
             let actor = world.actor(c.actor);
             let info = infos.get(&(r.method.clone(), r.path.clone()));
             let mut path = c.path.clone();
@@ -2263,7 +2665,7 @@ async fn run_group(
             .iter()
             .find(|r| r.method == o.method && r.path == o.path)
             .unwrap();
-        if o.pass == "std" && o.actor == control_of(r) {
+        if (o.pass == "std" || o.pass == "write") && o.actor == control_of(r) {
             control.insert((o.method.clone(), o.path.clone()), o.status);
         }
     }
@@ -2286,7 +2688,7 @@ async fn run_group(
     }
 
     // R-03: the weak refusals of a group may only go down (lower WEAK_CEILING when they do).
-    if weak > WEAK_CEILING[g] {
+    if !write_only && weak > WEAK_CEILING[g] {
         group_fail += 1;
         failures.push(format!(
             "[{gname}] {weak} weak refusals, the ceiling is {}: a seeded id stopped reaching its resource",
@@ -2298,8 +2700,12 @@ async fn run_group(
     db.cleanup().await.ok();
     let status = if group_fail == 0 { "proven" } else { "FAILED" };
     let line = format!(
-        "{}. {gname}: {status} ({n} calls, {group_fail} failures, {weak} weak refusals, {masked} masked, {:.0}s)",
+        "{}. {gname}: {status} ({n} calls, {group_fail} failures, {weak} weak refusals, {masked} masked; writes: {} asserted, {} admitted, {} malformed, {} observed; {:.0}s)",
         g + 1,
+        wstats.calls,
+        wstats.admitted,
+        wstats.shape,
+        wstats.observed,
         started.elapsed().as_secs_f64()
     );
     GroupResult {
@@ -2392,6 +2798,8 @@ fn ctx_for(
         "group_channel_id"
     } else if r.path.contains("tv/channels") {
         "tv_channel_id"
+    } else if r.path.starts_with("/stage-instances/") {
+        "stage_channel_id"
     } else {
         return (base.clone(), false);
     };
@@ -2451,5 +2859,26 @@ fn admitted_grammar() {
             std::panic::catch_unwind(|| admitted(&owner, bad)).is_err(),
             "{bad}"
         );
+    }
+}
+
+/// RDY-SEC-011: the table of write routes the allow phase cannot assert only shrinks (no database).
+#[test]
+fn write_observed_is_pinned() {
+    let routes = parse_matrix();
+    assert_eq!(
+        WRITE_OBSERVED.len(),
+        WRITE_OBSERVED_LEN,
+        "WRITE_OBSERVED changed: an entry may be removed (lower WRITE_OBSERVED_LEN in the same change), never added"
+    );
+    let mut seen = BTreeSet::new();
+    for (m, p, why) in WRITE_OBSERVED {
+        let r = routes
+            .iter()
+            .find(|r| r.method == *m && r.path == *p)
+            .unwrap_or_else(|| panic!("WRITE_OBSERVED names {m} {p}, which is not in the matrix"));
+        assert!(is_write(&r.method), "{m} {p} is not a write route");
+        assert!(why.len() > 10, "{m} {p}: say why");
+        assert!(seen.insert((*m, *p)), "{m} {p} is listed twice");
     }
 }
