@@ -317,10 +317,9 @@ impl ObjectStorage for ObjectStoreStorage {
             if seen >= max_objects || left.is_zero() {
                 return Ok(false);
             }
-            match tokio::time::timeout(left, stream.next()).await {
-                Err(_) => return Ok(false),
-                Ok(None) => return Ok(true),
-                Ok(Some(meta)) => {
+            match stream.next().await {
+                None => return Ok(true),
+                Some(meta) => {
                     let meta = meta?;
                     visit(meta.location.as_ref(), meta.size);
                     seen += 1;

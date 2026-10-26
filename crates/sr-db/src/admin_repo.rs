@@ -1915,6 +1915,18 @@ impl AdminRepository for PgAdminRepo {
             invites_open: g("invites_open")?,
             alerts_unacked: g("alerts_unacked")?,
             storage_bytes: g("storage")?,
+            storage_figures: crate::storage_figures::list(&self.pool)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|f| sr_admin::StorageFigure {
+                    bucket: f.bucket,
+                    bytes: f.bytes,
+                    objects: f.objects,
+                    truncated: f.truncated,
+                    measured_at_ms: f.measured_at_ms,
+                })
+                .collect(),
         })
     }
 
