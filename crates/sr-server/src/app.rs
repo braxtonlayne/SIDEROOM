@@ -304,6 +304,32 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
     };
 
+    // The instance bucket is mount 1 (BYOS-INS-001). Seed its row on first start and refuse to start when it
+    // names another bucket than `storage.bucket`. Services keep using `storage` below: mount 1 always
+    // resolves to this very handle (`MountStorages::for_mount(1)`), so the instance path is unchanged.
+    // One repo, one sealer and one cached resolver for every mount user (instance storage, the mount
+    // routes, the CORS recheck job), so a route's cache invalidation is seen by the media path too.
+    let mount_sealer: Arc<dyn sr_storage::mounts::Sealer> = Arc::new(
+        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys.clone()),
+    );
+    let mount_repo: Arc<dyn sr_storage::mounts::MountRepo> =
+        Arc::new(sr_db::mounts_repo::PgMountRepo::new(pool.clone()));
+    let mount_resolver = Arc::new(sr_storage::mount_cache::CachedMountResolver::new(
+        mount_repo.clone(),
+    ));
+    if s.endpoint != "memory:" {
+        crate::instance_mount::ensure_instance_mount(mount_repo.as_ref(), mount_sealer.as_ref(), s)
+            .await
+            .context("seeding the instance storage mount")?;
+    }
+    let mount_storages =
+        sr_storage::mount_storage::MountStorages::new(
+        storage,
+        mount_resolver.clone(),
+        mount_sealer.clone(),
+    );
+    let storage: Arc<dyn ObjectStorage> = mount_storages.instance();
+
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
     let registry = Arc::new(feature_registry()?);
@@ -1092,21 +1118,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // BYOS storage mounts (BYOS-MNT-001): the member's and the server's own buckets, credentials sealed
     // with the server secret.
-    let byos_mount_repo: Arc<dyn sr_storage::mounts::MountRepo> =
-        Arc::new(sr_db::mounts_repo::PgMountRepo::new(pool.clone()));
-    let byos_mount_sealer: Arc<dyn sr_storage::mounts::Sealer> =
-        Arc::new(sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys));
     let mounts_deps = Arc::new(
         routes::storage::mounts::MountsDeps::new(
-            byos_mount_repo.clone(),
-            byos_mount_sealer.clone(),
+            mount_repo.clone(),
+            mount_sealer.clone(),
             {
                 let ids = ids.clone();
                 Arc::new(move || ids.generate().get())
             },
             unfurl_policy_for_feeds.clone(),
         )
-        .with_public_origin(&cfg.server.public_url),
+        .with_public_origin(&cfg.server.public_url)
+        .with_resolver(mount_resolver.clone()),
     );
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
@@ -1540,8 +1563,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::admin_jobs::register_cors_recheck(
         runner,
         &pool,
-        byos_mount_repo.clone(),
-        byos_mount_sealer.clone(),
+        mount_repo.clone(),
+        mount_sealer.clone(),
         cfg.server.public_url.clone(),
     );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());

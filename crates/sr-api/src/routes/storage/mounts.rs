@@ -65,6 +65,12 @@ impl MountsDeps {
         self
     }
 
+    /// Share the composition root's cached resolver, so the routes' invalidations reach every reader.
+    pub fn with_resolver(mut self, resolver: Arc<CachedMountResolver>) -> Self {
+        self.resolver = resolver;
+        self
+    }
+
     /// Wire the repo with the default caps.
     pub fn new(
         repo: Arc<dyn MountRepo>,
