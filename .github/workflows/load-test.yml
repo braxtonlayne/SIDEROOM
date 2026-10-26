@@ -41,6 +41,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked -p sr-server -p sr-cli -p sr-loadtest
+      - name: Record the runner and turn on pg_stat_statements
+        # Runs 40239291091 and 40246880848 ran the same code 1.5 to 5 times apart (the cold release build took
+        # 8m58s and 13m18s, the seed 114 s and 158 s) with no CPU figure in the log to tell a slower runner from a
+        # regression. machine.txt, vmstat.txt, top.txt and pg-statements.txt answer that next time.
+        # pg_stat_statements ships with the postgres image (contrib); it needs a preload, hence the restart.
+        run: |
+          { echo "nproc: $(nproc)"; lscpu | grep -E "Model name|^CPU.s.:|Thread|Core|Socket|MHz|Hypervisor"; free -m; } | tee machine.txt
+          psql "$SR_DATABASE__URL" -c "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements'"
+          docker restart ${{ job.services.postgres.id }}
+          for i in $(seq 1 60); do pg_isready -h localhost -U sideroom -d sr_loadtest && break; sleep 1; done
+          psql "$SR_DATABASE__URL" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements" || echo "pg_stat_statements unavailable" | tee -a machine.txt
       - run: ./target/release/sr-cli migrate
       - name: Seed the dataset (RDY-PERF-001, the target is under 30 minutes)
         if: ${{ inputs.seed_scale }}
@@ -50,13 +61,12 @@ jobs:
           echo "seed took $(( $(date +%s) - start )) s" | tee -a seed.log
       - name: Settle the database after the bulk load
         # A database that took 5 million rows a minute ago still owes autovacuum its first pass over every
-        # table (it sets hint bits and the visibility map) and has a WAL-triggered checkpoint in flight. In run
-        # 40239291091 Postgres logged "checkpoints are occurring too frequently" through the seed and started a
-        # spread checkpoint 11 s before the server that had not finished when the job ended; REST p95 went from
-        # ~110 ms to 1.4 s for 20 s, 45 s into the run, with nothing in server.log (autovacuum is not logged at
-        # the default log_autovacuum_min_duration, so that part is inferred). A live server is not measured
-        # seconds after a bulk load: the load test starts after VACUUM (ANALYZE) and a CHECKPOINT, timed apart
-        # from the seed target.
+        # table and has a WAL-triggered checkpoint in flight (run 40239291091 logged checkpoints every 8-20 s through
+        # the seed and one starting 11 s before the server). A live server is not measured seconds after a bulk
+        # load, so the run starts after VACUUM (ANALYZE) and a CHECKPOINT, timed apart from the seed target.
+        # This did NOT remove the 20 s stall that starts about 20 s into the steady state: run 40246880848 had it
+        # again with nothing logged by Postgres after the CHECKPOINT. Its cause is open; vmstat.txt and top.txt
+        # are recorded for it.
         if: ${{ inputs.seed_scale }}
         run: |
           start=$(date +%s)
@@ -74,15 +84,23 @@ jobs:
           SR_SEARCH__DIR=$RUNNER_TEMP/search SR_LOG__FILTER=info,tantivy=warn ./target/release/sr-server > server.log 2>&1 &
           echo $! > server.pid
           for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
+          psql "$SR_DATABASE__URL" -c "SELECT pg_stat_statements_reset()" || true
       - name: Load test
         # `shell: bash` adds -o pipefail: without it `| tee` hid sr-loadtest's exit code and the first run
         # (every target missed) reported success.
+        # vmstat (CPU user/system/idle/iowait/steal each second) and top (per process every 5 s) run beside it.
         shell: bash
-        run: >-
-          ./target/release/sr-loadtest --base-url http://127.0.0.1:8080
-          --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --rest-rps ${{ inputs.rest_rps }}
-          --duration ${{ inputs.duration }} --guilds 100 --first-paint-guilds 60
-          --report load-report.json | tee load-output.txt
+        run: |
+          vmstat -t 1 > vmstat.txt & vm=$!
+          top -b -d 5 -w 200 > top.txt & tp=$!
+          ./target/release/sr-loadtest --base-url http://127.0.0.1:8080 --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --rest-rps ${{ inputs.rest_rps }} --duration ${{ inputs.duration }} --guilds 100 --first-paint-guilds 60 --report load-report.json | tee load-output.txt
+          kill $vm $tp || true
+      - name: Top statements of the run (pg_stat_statements)
+        if: always()
+        run: |
+          psql "$SR_DATABASE__URL" -c "SELECT calls, round(total_exec_time) AS total_ms, round(mean_exec_time::numeric, 2) AS mean_ms, rows, left(regexp_replace(query, '[[:space:]]+', ' ', 'g'), 160) AS query FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 15" > pg-statements.txt 2>&1 || true
+          psql "$SR_DATABASE__URL" -c "SELECT sum(calls) AS statements, round(sum(total_exec_time)) AS total_ms FROM pg_stat_statements" >> pg-statements.txt 2>&1 || true
+          cat pg-statements.txt
       - name: Server memory after the run (resident set; per session = this over the sessions)
         if: always()
         run: |
@@ -93,7 +111,7 @@ jobs:
           {
             echo '### Load test'
             echo '```'
-            cat load-output.txt seed.log tables.txt server-memory.txt 2>/dev/null || true
+            cat load-output.txt seed.log tables.txt server-memory.txt machine.txt 2>/dev/null || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
@@ -107,3 +125,7 @@ jobs:
             tables.txt
             server-memory.txt
             server.log
+            machine.txt
+            vmstat.txt
+            top.txt
+            pg-statements.txt
