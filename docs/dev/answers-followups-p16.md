@@ -455,7 +455,7 @@ From the wave-24 handoffs (`feat-p24-scale.md`, `feat-p24-parity.md`, `feat-p24-
 
 ### Backups
 
-- [x] **U-05 (RDY-OBS-001 follow-up) A failed `pg_dump` must not refresh the backup age.** `backup.sh` should write to a temporary name and rename, so a failed dump leaves no fresh `.dump` behind. *Checked at the wave-24 integration: already so. `deploy/scripts/backup.sh` dumps to `sideroom-<stamp>.dump.partial` and renames after `pg_dump` succeeds (`set -eu` stops before the rename), `sr-cli backup` (`crates/sr-cli/src/ops.rs`) does the same, and `newest_backup_modified` (`crates/sr-server/src/admin_jobs.rs`) only counts `.dump` and `.json` files, so a leftover `.partial` does not count. Not cleaned up: a stale `.partial` from a failed run stays on disk until removed by hand.*
+- [x] **U-05 (RDY-OBS-001 follow-up) A failed `pg_dump` must not refresh the backup age.** `backup.sh` should write to a temporary name and rename, so a failed dump leaves no fresh `.dump` behind. *Checked at the wave-24 integration: already so. `deploy/scripts/backup.sh` dumps to `sideroom-<stamp>.dump.partial` and renames after `pg_dump` succeeds (`set -eu` stops before the rename), `sr-cli backup` (`crates/sr-cli/src/ops.rs`) does the same, and `newest_backup_modified` (`crates/sr-server/src/admin_jobs.rs`) only counts `.dump` and `.json` files, so a leftover `.partial` does not count. Closed in wave 25 (RDY-OPS-008): `backup.sh` and `sr-cli backup` now remove a `*.dump.partial` older than one hour before they start (tests: `scripts/backup.test.mjs`, `stale_partial_dumps_are_removed_and_young_ones_are_not` in `crates/sr-cli/src/ops.rs`), and retention never counts one (`deploy/BACKUP.md` "Retention").*
 
 ### Bot SDKs
 
