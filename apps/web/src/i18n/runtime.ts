@@ -21,16 +21,36 @@ export interface LocaleInfo {
   label: string;
   dir: 'ltr' | 'rtl';
   pseudo?: boolean;
+  /** The catalog is generated at build time and already carries the pseudo text, so `t()` adds nothing. */
+  generated?: boolean;
 }
+
+/**
+ * RDY-I18N-002: the pseudo locales exist on development hosts and in a build made with SR_PSEUDO_LOCALE=1
+ * (served by `vite preview`). `import.meta.env.DEV` is a literal `false` in a production build and the
+ * second flag is replaced by `vite.config.ts`, so the whole branch, `pseudo.ts` and the generated catalog
+ * included, is dropped from the bundle (scripts/check-bundle-budget.mjs asserts it).
+ */
+export const PSEUDO_ENABLED: boolean =
+  import.meta.env.DEV || import.meta.env.VITE_SR_PSEUDO_LOCALE === 'true';
 
 export const LOCALES: readonly LocaleInfo[] = [
   { code: 'en', label: 'English', dir: 'ltr' },
-  { code: 'en-XA', label: 'Pseudo (accented)', dir: 'ltr', pseudo: true },
-  { code: 'ar-XB', label: 'Pseudo (right-to-left)', dir: 'rtl', pseudo: true },
+  ...(PSEUDO_ENABLED
+    ? ([
+        { code: 'en-XA', label: 'Pseudo (accented)', dir: 'ltr', pseudo: true, generated: true },
+        { code: 'ar-XB', label: 'Pseudo (right-to-left)', dir: 'rtl', pseudo: true },
+      ] satisfies LocaleInfo[])
+    : []),
 ];
 
 /** Lazy catalog loaders for real translations: `'de': () => import('./messages/de').then((m) => m.de)`. */
 const LOADERS: Record<string, () => Promise<Catalog>> = {};
+// en-XA is generated from the English fragments by scripts/pseudo-locale.mjs (vite/pseudoLocale.ts).
+if (PSEUDO_ENABLED) {
+  LOADERS['en-XA'] = () =>
+    import('virtual:sr-pseudo-locale').then((m) => (m.default ?? {}) as Catalog);
+}
 
 const STORAGE_KEY = 'sr.locale';
 const HOUR_KEY = 'sr.hour12';
@@ -82,16 +102,18 @@ function applyToDocument(info: LocaleInfo) {
 }
 
 /** Switch locale: loads the catalog when needed, persists the choice, updates `<html lang dir>`. */
-export async function setLocale(code: string): Promise<void> {
+export async function setLocale(code: string, persist = true): Promise<void> {
   const info = LOCALES.find((l) => l.code === code) ?? LOCALES[0]!;
   const loader = LOADERS[info.code];
   loaded = loader ? await loader() : undefined;
   current = info.code;
   compiled.clear();
-  try {
-    localStorage.setItem(STORAGE_KEY, info.code);
-  } catch {
-    /* storage can be unavailable; the choice then lasts for this tab only */
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_KEY, info.code);
+    } catch {
+      /* storage can be unavailable; the choice then lasts for this tab only */
+    }
   }
   applyToDocument(info);
   emit();
@@ -150,7 +172,19 @@ export async function initLocale(): Promise<void> {
   );
   // The rest catalog loads in parallel and is NOT awaited: first paint only needs the core fragments.
   startFullCatalog();
+  // `?lang=en-XA` (or `ar-XB`) previews a pseudo locale for this page load only; it is never saved.
+  const wanted = PSEUDO_ENABLED ? pseudoFromQuery() : undefined;
+  if (wanted) return setLocale(wanted, false);
   await setLocale(saved && LOCALES.some((l) => l.code === saved) ? saved : fromBrowser);
+}
+
+function pseudoFromQuery(): string | undefined {
+  try {
+    const q = new URLSearchParams(location.search).get('lang');
+    return LOCALES.find((l) => l.pseudo && l.code === q)?.code;
+  } catch {
+    return undefined;
+  }
 }
 
 function messageFor(key: MessageKey): string {
@@ -162,7 +196,8 @@ function compile(key: MessageKey): Node[] {
   let nodes = compiled.get(cacheKey);
   if (!nodes) {
     nodes = parseIcu(messageFor(key));
-    if (localeInfo().pseudo) nodes = wrapPseudo(nodes);
+    const info = localeInfo();
+    if (PSEUDO_ENABLED && info.pseudo && !info.generated) nodes = wrapPseudo(nodes);
     compiled.set(cacheKey, nodes);
   }
   return nodes;

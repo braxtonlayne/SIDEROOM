@@ -26,7 +26,7 @@ export function SectionBar() {
   const t = useT();
   return (
     <header className="cin-sectionbar">
-      <span className="cin-sectionbar-brand">SIDE ROOM</span>
+      <span className="cin-sectionbar-brand">{t('cinema.shell.brand')}</span>
       <span aria-hidden="true" className="cin-sectionbar-slash">
         /
       </span>
@@ -168,7 +168,7 @@ export function CinemaHeader({ onSearch, onMenu }: { onSearch: () => void; onMen
       <a href="/cinema" className="cin-logo" aria-label={t('cinema.shell.logoLabel')}>
         <DoorLogo size={32} />
         <span className="cin-logo-text">
-          <span className="cin-logo-name">SIDE ROOM</span>
+          <span className="cin-logo-name">{t('cinema.shell.brand')}</span>
           <span className="cin-logo-sub" aria-hidden="true" data-text="C I N E M A" />
         </span>
       </a>
@@ -198,7 +198,7 @@ export function CinemaFooter() {
   return (
     <footer className="cin-footer">
       <span className="cin-footer-brand">
-        Side Room <em>Cinema</em>
+        {t('cinema.shell.footerBrandName')} <em>{t('cinema.shell.footerBrandSuffix')}</em>
       </span>
       <span className="cin-footer-tag">{t('cinema.shell.tagline')}</span>
       <a href="/support/leaderboards?tab=movies" className="cin-footer-link">
