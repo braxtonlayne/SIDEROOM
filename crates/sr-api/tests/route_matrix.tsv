@@ -120,6 +120,7 @@ DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount_owner	deny	-	-
 DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-	-
 DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-	-
@@ -456,6 +457,8 @@ GET	/sr/voice/turn	authenticated	user	allow	-	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 GET	/sticker-packs	authenticated	user	allow	-	-
 GET	/stickers/{sticker_id}/url	authenticated	user	allow	-	-
+GET	/storage/mounts/{mount_id}/objects	authenticated	storage_scope	deny	-	-
+GET	/storage/mounts/{mount_id}/objects/{key}	authenticated	storage_scope	deny	-	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
 GET	/submissions	authenticated	self	allow	-	-
 GET	/submissions/kinds	authenticated	user	allow	-	-
@@ -517,7 +520,10 @@ GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 GET	/users/@me/reminders	authenticated	self	deny	-	-
 GET	/users/@me/scheduled-messages	authenticated	self	deny	-	-
 GET	/users/@me/settings	authenticated	self	deny	-	-
+GET	/users/@me/shelves/summary	authenticated	self	deny	-	-
 GET	/users/@me/sr/features	authenticated	self	deny	-	-
+GET	/users/@me/storage/mounts/{mount_id}/shares	authenticated	mount_owner	deny	-	-
+GET	/users/@me/storage/shares	authenticated	self	deny	-	-
 GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
 GET	/users/{user_id}/profile	authenticated	user	allow	-	-
 GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-	-
@@ -835,6 +841,7 @@ POST	/sr/invites	authenticated	self	deny	-	-
 POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-	-
 POST	/stage-instances	authenticated	membership	allow	-	-
+POST	/storage/mounts/{mount_id}/presign	authenticated	storage_scope	deny	-	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
 POST	/submissions	authenticated	self	allow	-	-
 POST	/submissions/naming/parse	authenticated	user	allow	-	-
@@ -936,6 +943,7 @@ PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/storage/grants	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
 PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	self	allow	-	-
@@ -971,6 +979,7 @@ PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-	-
 PUT	/users/@me/primary-guild	authenticated	self	deny	-	-
 PUT	/users/@me/profile-doc	authenticated	self	deny	-	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
+PUT	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount_owner	deny	-	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	party_manager	allow	-	-
 PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-	-
 #undocumented	/
@@ -1009,3 +1018,4 @@ PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-	-
 #undocumented	/sr/auth/verify-email/resend
 #undocumented	/sr/register
 #undocumented	/sr/usernames/check
+#undocumented	/storage/mounts/{mount_id}/objects/{*key}
