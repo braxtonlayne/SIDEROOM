@@ -20,6 +20,8 @@ const PRECACHE = /*__SR_PRECACHE__*/ [];
 const CACHE = 'sr-static-' + BUILD;
 const SHELL = '/index.html';
 const OFFLINE = '/offline.html';
+// What the app shell contains and no other page of this origin does: the element the app mounts into.
+const SHELL_MARK = 'id="root"';
 
 // '/THIRD_PARTY_NOTICES.md' (D-287) is a plain static file linked from /help, never the app shell.
 const BYPASS_PREFIXES = [
@@ -44,7 +46,9 @@ function classify(request, origin) {
   const p = url.pathname;
   if (BYPASS_PREFIXES.some((x) => p === x.replace(/\/$/, '') || p.startsWith(x))) return 'bypass';
   if (request.headers.get('authorization') || request.headers.has('range')) return 'bypass';
-  if (request.mode === 'navigate') return 'navigate';
+  // The offline page is a plain static file: opening it must neither count as the app shell (it would be stored
+  // in the shell's place) nor be answered with the shell when offline (RDY-PWA-001).
+  if (request.mode === 'navigate' && p !== OFFLINE) return 'navigate';
   if (STATIC_PREFIXES.some((x) => p.startsWith(x)) || STATIC_FILES.includes(p)) return 'static';
   return 'bypass';
 }
@@ -139,8 +143,20 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
           .then((res) => {
             const ct = res.headers.get('content-type') || '';
             if (res.ok && !res.redirected && ct.includes('text/html')) {
+              // Store it only if it is the app: a captive portal or a proxy's page is html too, and would
+              // otherwise be what every offline navigation shows from then on (RDY-PWA-001).
+              const probe = res.clone();
               const copy = res.clone();
-              caches.open(CACHE).then((c) => c.put(SHELL, copy));
+              event.waitUntil(
+                probe
+                  .text()
+                  .then((html) =>
+                    html.includes(SHELL_MARK)
+                      ? caches.open(CACHE).then((c) => c.put(SHELL, copy))
+                      : undefined,
+                  )
+                  .catch(() => undefined),
+              );
             }
             return res;
           })
