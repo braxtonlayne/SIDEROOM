@@ -142,11 +142,23 @@ test.describe('@gate Phase 6 developer exit gate', () => {
 
       await page.reload();
       await expect(page.getByText('Approved').first()).toBeVisible();
+      await expect(page.getByText('Released', { exact: true }).first()).toBeVisible();
+
+      // The developer makes the released bot public, so people who are not testers may add it.
+      await page.goto(`/developers/applications/${appId}?tab=general`);
+      const publicBot = page.getByLabel('Public bot');
+      if (!(await publicBot.isChecked())) await publicBot.click();
+      await expect(publicBot).toBeChecked();
 
       // A second person, who is nobody's tester, installs the released application on their own server.
       await other.page.goto(
         `/oauth2/authorize?client_id=${appId}&scope=${encodeURIComponent('bot applications.commands')}`,
       );
+      await expect(other.page.getByLabel('Add to server')).toBeVisible();
+      await expect(
+        other.page.getByRole('option', { name: second.name, exact: true }),
+        'the second server can take the released, public bot',
+      ).toBeEnabled();
       await other.page.getByLabel('Add to server').selectOption({ label: second.name });
       await other.page.getByRole('button', { name: 'Authorize', exact: true }).click();
       await expect(other.page.getByRole('heading', { name: 'Authorized' })).toBeVisible();
