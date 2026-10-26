@@ -12,6 +12,7 @@ pub mod media;
 pub mod mounts;
 pub mod s3admin;
 pub mod s3multipart;
+pub mod scopes;
 pub mod storage;
 pub mod upload;
 
