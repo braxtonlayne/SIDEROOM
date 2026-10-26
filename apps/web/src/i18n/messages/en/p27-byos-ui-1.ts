@@ -1,6 +1,10 @@
 export default {
   // ---- User Settings > Storage and Guild Settings > Storage (BYOS-UI-001, phase 27) ----
   'settings.userNav.storage': 'Storage',
+  'settings.serverStorage.nav': 'Storage',
+  'settings.serverStorage.title': 'Storage',
+  'settings.serverStorage.description':
+    'Connect a bucket as the shared Guild Shelf of this server. Members see it according to the storage permissions of their roles.',
   'settings.storage.title': 'Storage',
   'settings.storage.what': 'storage connections',
   'settings.storage.listTitle': 'Media Shelf buckets',

@@ -2,9 +2,8 @@
 
 ## Resume here
 
-Slice 1 done (commit "BYOS-UI-001: User Settings > Storage"). Next slices, in order:
+Slices 1 (User Settings > Storage) and 2 (Guild Settings > Storage) done and committed. Next slices, in order:
 
-1. Guild Settings > Storage: add a `storage` section to the server settings (`apps/web/src/settings/server/storage/*`) that renders `<MountsPanel scope={{ kind: 'guild', guildId }} />` (already scope-generic, mocks already serve `/guilds/:gid/storage/mounts`); show it only with the `manage` storage grant or MANAGE_GUILD.
 2. Role editor "Storage" group: five toggles (view_cinema, view_library, view_music, upload, manage) in `settings/server/permissions.ts` + `RoleEditor`; payload field `sr_storage_grants`; NOT in channel overwrites (test for that). Route (byos-scopes): `PUT /guilds/{guild_id}/storage/grants`.
 3. Friend Shelf toggles (friend profile card, Settings > Friends): `PUT/DELETE /users/@me/storage/mounts/{mount_id}/shares/{user_id}`, `GET /users/@me/storage/shares`.
 4. Bucket browser `/storage/{mount}` (route, folder tree, object list, presigned previews, copy link with expiry).
@@ -16,15 +15,17 @@ Mocks live in ONE file: `apps/web/src/settings/user/storage/mocks.ts` (`byosMock
 
 ## Done
 
+- Guild Settings > Storage (`settings/server/storage/StorageSection.tsx`, section `storage` in the APPS group, visible with MANAGE_GUILD which implies the `manage` grant; the real grant check is server-side): reuses `MountsPanel` with the guild scope.
 - BYOS-UI-001 (part): User Settings > Storage (`storage/MountsPanel.tsx`, `StorageSection.tsx`, nav entry `storage`, search index): mount list with status and key hint, connect form with per-provider defaults and guidance, test table (pass/warn/fail), CORS card (check, Apply CORS, manual steps), enable/disable, remove with confirm.
 
 ## Still open
 
-Everything in "Resume here" items 1 to 7.
+Everything in "Resume here" (items renumbered from 2).
 
 ## Tests run
 
 - `vitest run --maxWorkers=2 src/settings/user/__tests__/p27storage.test.tsx src/i18n`: 55 passed.
+- `vitest ... src/settings/server/__tests__/p27storage.test.tsx shell.test.tsx`: 8 passed.
 - `tsc --noEmit` (apps/web): clean. eslint on the new files: clean. prettier applied.
 
 ## Route shapes assumed (backend must match; types in `storage/types.ts`)
