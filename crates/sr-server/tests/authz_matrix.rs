@@ -4648,3 +4648,548 @@ fn write_observed_is_pinned() {
         assert!(seen.insert((*m, *p)), "{m} {p} is listed twice");
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// BYOS-SCP-002: the storage scopes over HTTP, with the actors the generic matrix has no names for:
+// a friend the mount is shared with (`friend_shared`), a friend it is not (`friend_unshared`), a guild
+// member with and without each grant, and platform staff. Presign is the probe: it decides through
+// `sr_storage::scopes` exactly like the listing and never calls the bucket.
+
+async fn insert_mount(
+    pool: &sqlx::PgPool,
+    ids: &Ids,
+    owner: sr_storage::mounts::MountOwner,
+    cors: bool,
+) -> i64 {
+    use sr_storage::mounts::{MountInput, MountRepo as _, NewMount, Provider, Secret};
+    let id = ids.generate().get() as i64;
+    let key = sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap();
+    let new = NewMount::seal(
+        &sr_db::sealed::SecretBox::new(key),
+        id,
+        MountInput {
+            owner,
+            label: format!("Shelf {id}"),
+            provider: Provider::Minio,
+            endpoint: "http://127.0.0.1:9".into(),
+            region: "us-east-1".into(),
+            bucket: "shelf".into(),
+            prefix: "lib".into(),
+            path_style: true,
+            access_key_id: "AKIAAUTHZMATRIX".into(),
+        },
+        &Secret::new("authz-matrix-secret"),
+    )
+    .unwrap();
+    sr_db::mounts_repo::PgMountRepo::new(pool.clone())
+        .create(new, None)
+        .await
+        .unwrap();
+    if cors {
+        sqlx::query("UPDATE storage_mounts SET cors_ok_at = now() WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+    id
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn storage_scopes_hold_over_http() {
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 21).expect("ids");
+    let id_src: sr_db::auth_repo::IdSource = {
+        let g = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 22).expect("ids"));
+        Arc::new(move || g.generate().get() as i64)
+    };
+    let auth = PgAuthRepo::new(
+        world.pool.clone(),
+        id_src,
+        sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap(),
+    );
+    let friend_unshared = Cred::Session(session_for(&auth, &ids, world.users["friendtwo"]).await);
+    let friend_shared = world.actor("victim").cred.clone();
+    let member = world.actor("member").cred.clone();
+    let pool = &world.pool;
+    let srv = &world.srv;
+    let m = world.a["mount_id"].clone();
+    let gid = world.guild_a;
+    let g_mount = insert_mount(pool, &ids, sr_storage::mounts::MountOwner::Guild(gid), true)
+        .await
+        .to_string();
+
+    let mut failures: Vec<String> = Vec::new();
+    let presign = async |who: &Cred, mount: &str, key: &str| -> Resp {
+        srv.call(
+            who,
+            "POST",
+            &format!("/storage/mounts/{mount}/presign"),
+            Some(&json!({"key": key, "method": "GET"})),
+        )
+        .await
+    };
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(120).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+
+    // The owner, with the TTL rule visible in the signed URL.
+    let r = expect!(
+        "owner presigns audio",
+        presign(&member, &m, "a.mp3").await,
+        200
+    );
+    if !r.body.contains("X-Amz-Expires=900") {
+        failures.push(format!(
+            "the default TTL is 900 s: {}",
+            r.body.chars().take(200).collect::<String>()
+        ));
+    }
+    expect!(
+        "owner presigns video",
+        presign(&member, &m, "a.mkv").await,
+        200
+    );
+
+    // Friends: nothing without a share; per kind with one.
+    expect!(
+        "friend_shared before the share",
+        presign(&friend_shared, &m, "a.mp3").await,
+        404
+    );
+    expect!(
+        "friend_unshared",
+        presign(&friend_unshared, &m, "a.mp3").await,
+        404
+    );
+    let victim = world.users["victim"];
+    expect!(
+        "the owner shares music",
+        srv.call(
+            &member,
+            "PUT",
+            &format!("/users/@me/storage/mounts/{m}/shares/{victim}"),
+            Some(&json!({"cinema": false, "library": false, "music": true})),
+        )
+        .await,
+        200
+    );
+    expect!(
+        "friend_shared audio",
+        presign(&friend_shared, &m, "a.mp3").await,
+        200
+    );
+    expect!(
+        "friend_shared cover",
+        presign(&friend_shared, &m, "x/cover.jpg").await,
+        200
+    );
+    expect!(
+        "friend_shared video",
+        presign(&friend_shared, &m, "a.mkv").await,
+        404
+    );
+    expect!(
+        "friend_unshared still",
+        presign(&friend_unshared, &m, "a.mp3").await,
+        404
+    );
+    expect!(
+        "friend_unshared lists nothing",
+        srv.call(
+            &friend_unshared,
+            "GET",
+            &format!("/storage/mounts/{m}/objects"),
+            None
+        )
+        .await,
+        404
+    );
+    let incoming = expect!(
+        "the friend sees the share",
+        srv.call(&friend_shared, "GET", "/users/@me/storage/shares", None)
+            .await,
+        200
+    );
+    if !incoming.body.contains(&m) {
+        failures.push("the incoming list names the mount".into());
+    }
+    let outgoing = expect!(
+        "the owner lists the shares",
+        srv.call(
+            &member,
+            "GET",
+            &format!("/users/@me/storage/mounts/{m}/shares"),
+            None
+        )
+        .await,
+        200
+    );
+    if !outgoing.body.contains(&victim.to_string()) {
+        failures.push("the outgoing list names the friend".into());
+    }
+    let sum = expect!(
+        "the shelves summary",
+        srv.call(&friend_shared, "GET", "/users/@me/shelves/summary", None)
+            .await,
+        200
+    );
+    if !sum.body.contains("\"music\":") {
+        failures.push(format!("the summary has the music count: {}", sum.body));
+    }
+    let none = srv
+        .call(&friend_unshared, "GET", "/users/@me/shelves/summary", None)
+        .await;
+    if !none.body.contains("\"music\":0") {
+        failures.push(format!("no shelf, no count: {}", none.body));
+    }
+    // A share needs a friendship, and only the owner may give it.
+    expect!(
+        "no share to a stranger",
+        srv.call(
+            &member,
+            "PUT",
+            &format!(
+                "/users/@me/storage/mounts/{m}/shares/{}",
+                world.users["outsider"]
+            ),
+            Some(&json!({"music": true})),
+        )
+        .await,
+        400
+    );
+    expect!(
+        "a friend cannot share the owner's mount",
+        srv.call(
+            &friend_shared,
+            "PUT",
+            &format!(
+                "/users/@me/storage/mounts/{m}/shares/{}",
+                world.users["friendtwo"]
+            ),
+            Some(&json!({"music": true})),
+        )
+        .await,
+        404
+    );
+    // Revoked by hand, then by unfriending.
+    expect!(
+        "the owner stops sharing",
+        srv.call(
+            &member,
+            "DELETE",
+            &format!("/users/@me/storage/mounts/{m}/shares/{victim}"),
+            None
+        )
+        .await,
+        204
+    );
+    expect!(
+        "friend_shared after revoke",
+        presign(&friend_shared, &m, "a.mp3").await,
+        404
+    );
+    srv.call(
+        &member,
+        "PUT",
+        &format!("/users/@me/storage/mounts/{m}/shares/{victim}"),
+        Some(&json!({"music": true})),
+    )
+    .await;
+    expect!(
+        "shared again",
+        presign(&friend_shared, &m, "a.mp3").await,
+        200
+    );
+    expect!(
+        "unfriend",
+        srv.call(
+            &member,
+            "DELETE",
+            &format!("/users/@me/relationships/{victim}"),
+            None
+        )
+        .await,
+        204
+    );
+    expect!(
+        "friend_shared after unfriend",
+        presign(&friend_shared, &m, "a.mp3").await,
+        404
+    );
+    let left: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM storage_mount_shares WHERE mount_id = $1")
+            .bind(m.parse::<i64>().unwrap())
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    if left != 0 {
+        failures.push(format!("unfriending left {left} share rows"));
+    }
+
+    // Strangers, bad input.
+    let outsider = world.actor("outsider").cred.clone();
+    expect!("outsider", presign(&outsider, &m, "a.mp3").await, 404);
+    expect!("a key with ..", presign(&member, &m, "../a.mp3").await, 400);
+    let pre = format!("/storage/mounts/{m}/presign");
+    expect!(
+        "only GET",
+        srv.call(
+            &member,
+            "POST",
+            &pre,
+            Some(&json!({"key": "a.mp3", "method": "PUT"}))
+        )
+        .await,
+        400
+    );
+    expect!(
+        "a malformed range",
+        srv.call(
+            &member,
+            "POST",
+            &pre,
+            Some(&json!({"key": "a.mp3", "method": "GET", "range": "bytes=5-2"}))
+        )
+        .await,
+        400
+    );
+    expect!(
+        "a good range",
+        srv.call(
+            &member,
+            "POST",
+            &pre,
+            Some(&json!({"key": "a.mp3", "method": "GET", "range": "bytes=0-99"}))
+        )
+        .await,
+        200
+    );
+
+    // Staff: a platform operator may look and it is logged; an unappointed holder of a role may not.
+    expect!(
+        "fake staff",
+        presign(&world.actor("fake_staff").cred, &m, "a.mp3").await,
+        404
+    );
+    expect!(
+        "support has no OPERATOR",
+        presign(&world.actor("support").cred, &m, "a.mp3").await,
+        404
+    );
+    let mid: i64 = m.parse().unwrap();
+    let logged = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM staff_access_log WHERE action = 'storage.read' AND target_id = $1",
+        )
+        .bind(mid)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    };
+    let before = logged().await;
+    expect!(
+        "staff owner",
+        presign(&world.actor("staff_owner").cred, &m, "a.mp3").await,
+        200
+    );
+    let after = logged().await;
+    if after != before + 1 {
+        failures.push(format!(
+            "the staff read is logged once ({before} -> {after})"
+        ));
+    }
+    expect!("the owner again", presign(&member, &m, "a.mp3").await, 200);
+    if logged().await != after {
+        failures.push("an owner's own read is not logged".into());
+    }
+
+    // Disabled, missing CORS, owner banned.
+    sqlx::query("UPDATE storage_mounts SET status = 'disabled' WHERE id = $1")
+        .bind(mid)
+        .execute(pool)
+        .await
+        .unwrap();
+    expect!("disabled, owner", presign(&member, &m, "a.mp3").await, 404);
+    expect!(
+        "disabled, staff",
+        presign(&world.actor("staff_owner").cred, &m, "a.mp3").await,
+        404
+    );
+    sqlx::query("UPDATE storage_mounts SET status = 'active', cors_ok_at = NULL WHERE id = $1")
+        .bind(mid)
+        .execute(pool)
+        .await
+        .unwrap();
+    let r = expect!("no CORS yet", presign(&member, &m, "a.mp3").await, 409);
+    if !r.body.contains("CORS_NOT_READY") {
+        failures.push(format!("409 carries CORS_NOT_READY: {}", r.body));
+    }
+    sqlx::query("UPDATE storage_mounts SET cors_ok_at = now() WHERE id = $1")
+        .bind(mid)
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE accounts SET state = 'platform_banned' WHERE id = $1")
+        .bind(world.users["member"])
+        .execute(pool)
+        .await
+        .unwrap();
+    expect!(
+        "owner banned, staff",
+        presign(&world.actor("staff_owner").cred, &m, "a.mp3").await,
+        404
+    );
+    sqlx::query("UPDATE accounts SET state = 'active' WHERE id = $1")
+        .bind(world.users["member"])
+        .execute(pool)
+        .await
+        .unwrap();
+
+    // A guild shelf: the grants decide.
+    let owner_a = world.actor("owner_a").cred.clone();
+    let modr = world.actor("mod").cred.clone();
+    let insider = world.actor("insider").cred.clone();
+    expect!(
+        "guild owner",
+        presign(&owner_a, &g_mount, "a.mkv").await,
+        200
+    );
+    expect!(
+        "MANAGE_GUILD implies manage",
+        presign(&modr, &g_mount, "a.mkv").await,
+        200
+    );
+    expect!(
+        "member without a grant",
+        presign(&member, &g_mount, "a.mp3").await,
+        403
+    );
+    expect!(
+        "insider without a grant",
+        presign(&insider, &g_mount, "a.mp3").await,
+        403
+    );
+    expect!(
+        "non-member",
+        presign(&outsider, &g_mount, "a.mp3").await,
+        404
+    );
+    let role = world.a["overwrite_id"].clone();
+    let grants_path = format!("/guilds/{gid}/storage/grants");
+    let put_grants = |grants: Value| json!({"role_id": role, "grants": grants});
+    expect!(
+        "grant view_music",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["view_music"])))
+        )
+        .await,
+        204
+    );
+    expect!(
+        "insider audio",
+        presign(&insider, &g_mount, "a.mp3").await,
+        200
+    );
+    expect!(
+        "insider video",
+        presign(&insider, &g_mount, "a.mkv").await,
+        403
+    );
+    expect!(
+        "a member cannot edit grants",
+        srv.call(
+            &member,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["manage"])))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "a stranger cannot edit grants",
+        srv.call(
+            &outsider,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["manage"])))
+        )
+        .await,
+        404
+    );
+    expect!(
+        "an unknown grant",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["root"])))
+        )
+        .await,
+        400
+    );
+    expect!(
+        "a role of another server",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&json!({"role_id": world.b["role_id"], "grants": ["manage"]}))
+        )
+        .await,
+        404
+    );
+    expect!(
+        "an empty set clears",
+        srv.call(&owner_a, "PUT", &grants_path, Some(&put_grants(json!([]))))
+            .await,
+        204
+    );
+    expect!(
+        "insider after clearing",
+        presign(&insider, &g_mount, "a.mp3").await,
+        403
+    );
+    // The other tenant's mount is nobody else's.
+    expect!(
+        "cross tenant",
+        presign(&member, &world.b["mount_id"], "a.mp3").await,
+        404
+    );
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} storage scope failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
