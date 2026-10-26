@@ -1,0 +1,77 @@
+export default {
+  // ---- User Settings > Storage and Guild Settings > Storage (BYOS-UI-001, phase 27) ----
+  'settings.userNav.storage': 'Storage',
+  'settings.storage.title': 'Storage',
+  'settings.storage.what': 'storage connections',
+  'settings.storage.listTitle': 'Media Shelf buckets',
+  'settings.storage.listDescription':
+    'Connect your own S3-compatible bucket. Your files stay in your bucket; this server only signs short-lived links so your browser can read them.',
+  'settings.storage.empty': 'No bucket connected yet.',
+  'settings.storage.connect': 'Connect a bucket',
+  'settings.storage.connectTitle': 'Connect a bucket',
+  'settings.storage.connectDescription':
+    'Pick your provider, create a key limited to one bucket, then paste it here. The secret key is stored sealed and is never shown again.',
+  'settings.storage.provider': 'Provider',
+  'settings.storage.providerName.s3': 'Amazon S3',
+  'settings.storage.providerName.r2': 'Cloudflare R2',
+  'settings.storage.providerName.b2': 'Backblaze B2',
+  'settings.storage.providerName.wasabi': 'Wasabi',
+  'settings.storage.providerName.minio': 'MinIO',
+  'settings.storage.providerName.garage': 'Garage',
+  'settings.storage.guidanceTitle': 'Create a key for this bucket only',
+  'settings.storage.guidance.s3':
+    'In IAM, create a user whose policy allows s3:ListBucket, s3:GetObject, s3:PutObject, s3:DeleteObject, s3:GetBucketCORS and s3:PutBucketCORS and the multipart actions on this one bucket and its objects, nothing else.',
+  'settings.storage.guidance.r2':
+    'In the Cloudflare dashboard, create an R2 API token with Object Read and Write limited to this bucket. The region is auto and the endpoint is your account endpoint ending in r2.cloudflarestorage.com.',
+  'settings.storage.guidance.b2':
+    'In Backblaze, create an application key restricted to this one bucket with read and write access. Use the S3 endpoint of the bucket region. Some regions refuse CORS changes over the S3 API; you will then get manual steps.',
+  'settings.storage.guidance.wasabi':
+    'In Wasabi, create a sub-user with a policy that allows list, read, write and delete on this one bucket. Use the endpoint of the bucket region with path-style addressing.',
+  'settings.storage.guidance.minio':
+    'In MinIO, create a service account whose policy allows list, read, write and delete on this one bucket, and allow it to get and put the bucket CORS configuration.',
+  'settings.storage.guidance.garage':
+    'In Garage, create a key and allow it on this one bucket with read, write and owner rights, so it can set CORS. Use the S3 API endpoint with path-style addressing.',
+  'settings.storage.label': 'Name',
+  'settings.storage.endpoint': 'Endpoint',
+  'settings.storage.endpointHint': 'Leave empty for Amazon S3.',
+  'settings.storage.region': 'Region',
+  'settings.storage.bucket': 'Bucket',
+  'settings.storage.prefix': 'Folder prefix',
+  'settings.storage.prefixHint': 'Optional. Only this folder is used.',
+  'settings.storage.pathStyle': 'Use path-style addressing',
+  'settings.storage.accessKey': 'Access key ID',
+  'settings.storage.secretKey': 'Secret access key',
+  'settings.storage.secretHint': 'Sent once, stored sealed, never shown again.',
+  'settings.storage.save': 'Connect',
+  'settings.storage.cancel': 'Cancel',
+  'settings.storage.connectFailed': 'Could not connect the bucket',
+  'settings.storage.actionFailed': 'That did not work',
+  'settings.storage.status.active': 'Active',
+  'settings.storage.status.failing': 'Failing',
+  'settings.storage.status.disabled': 'Disabled',
+  'settings.storage.keyLine': 'Key {id}, secret ending {hint}',
+  'settings.storage.test': 'Test connection',
+  'settings.storage.testTableAria': 'Connection test results',
+  'settings.storage.testedAt': 'Tested {at}',
+  'settings.storage.probeStatus.pass': 'Pass',
+  'settings.storage.probeStatus.warn': 'Warning',
+  'settings.storage.probeStatus.fail': 'Fail',
+  'settings.storage.enable': 'Enable',
+  'settings.storage.disable': 'Disable',
+  'settings.storage.remove': 'Remove',
+  'settings.storage.confirmRemove': 'Confirm remove',
+  'settings.storage.corsTitle': 'Browser access (CORS)',
+  'settings.storage.corsReady': 'Ready',
+  'settings.storage.corsNotReady': 'Not ready',
+  'settings.storage.corsDescription':
+    'Your browser reads files straight from the bucket, so the bucket must allow this server as an origin. Nothing is served until the check passes.',
+  'settings.storage.corsCheck': 'Check CORS',
+  'settings.storage.corsApply': 'Apply CORS',
+  'settings.storage.corsState.ok': 'The bucket rules are correct.',
+  'settings.storage.corsState.missing':
+    'The bucket has no matching rule. Apply CORS to add this one:',
+  'settings.storage.corsState.different':
+    'The bucket has different rules. Apply CORS to replace them with this one:',
+  'settings.storage.corsState.manual':
+    'Your provider does not allow changing CORS through its S3 API. Set the rule by hand:',
+};

@@ -1,0 +1,153 @@
+// The ONE file of MSW mocks for the BYOS routes (BYOS-UI-001 against BYOS-MNT-001..003 before
+// byos-core lands). When the real handlers exist, delete this file and the `server.use(...)` calls
+// that import it; nothing in the screens depends on it. Shapes: ./types.ts.
+import { http, HttpResponse, type HttpHandler } from 'msw';
+import type { CorsResult, Mount, MountCreate, ProbeRow, TestResult } from './types';
+
+export interface ByosMockOptions {
+  /** Starting mounts (user scope). */
+  mounts?: Mount[];
+  /** Mounts per scope are capped like `byos.max_mounts_per_user`. */
+  cap?: number;
+  /** Probe rows a test returns. Default: all pass. */
+  probes?: ProbeRow[];
+  /** What the CORS checker finds before Apply. Default `missing`. */
+  cors?: CorsResult['state'];
+}
+
+export const MOCK_NOW = '2026-10-26T12:00:00.000Z';
+
+export const REQUIRED_CORS = [
+  'GET, HEAD, PUT from the server origin',
+  'allowed header: content-type',
+  'exposed: etag, content-range, accept-ranges, content-length',
+];
+
+export const PASSING_PROBES: ProbeRow[] = [
+  { id: 'head_bucket', status: 'pass', message: 'The bucket exists and the key can reach it.' },
+  { id: 'list', status: 'pass', message: 'Listing the prefix works.' },
+  { id: 'put', status: 'pass', message: 'Write, read and delete of a probe object work.' },
+  { id: 'multipart', status: 'pass', message: 'Multipart uploads can start and abort.' },
+  { id: 'cors', status: 'pass', message: 'Bucket rules can be read.' },
+  { id: 'list_buckets', status: 'pass', message: 'The key cannot see other buckets.' },
+];
+
+export function mockMount(over: Partial<Mount> = {}): Mount {
+  return {
+    id: '501',
+    owner_kind: 'user',
+    owner_id: '1',
+    label: 'My Garage',
+    provider: 'garage',
+    endpoint: 'http://localhost:3900',
+    region: 'garage',
+    bucket: 'shelf',
+    prefix: '',
+    path_style: true,
+    access_key_id: 'GKexample',
+    key_hint: 'ab12',
+    status: 'active',
+    cors_ok_at: null,
+    last_test_at: null,
+    last_test: null,
+    created_at: MOCK_NOW,
+    ...over,
+  };
+}
+
+/** Handlers for both scopes (`/users/@me/...` and `/guilds/:gid/...`), with in-memory state per call. */
+export function byosMockHandlers(opts: ByosMockOptions = {}): HttpHandler[] {
+  const cap = opts.cap ?? 3;
+  const rows = new Map<string, Mount[]>([['user', [...(opts.mounts ?? [])]]]);
+  const corsState = new Map<string, CorsResult['state']>();
+  let next = 600;
+  const bucketOf = (gid?: string) => {
+    const key = gid ? `guild:${gid}` : 'user';
+    if (!rows.has(key)) rows.set(key, []);
+    return rows.get(key)!;
+  };
+  const find = (gid: string | undefined, id: string) => bucketOf(gid).find((m) => m.id === id);
+  const cors = (m: Mount): CorsResult => {
+    const state = corsState.get(m.id) ?? opts.cors ?? 'missing';
+    return {
+      state,
+      required: REQUIRED_CORS,
+      found: state === 'ok' ? REQUIRED_CORS : state === 'different' ? ['GET from *'] : [],
+      manual_steps:
+        state === 'manual' ? 'Open the bucket settings and paste the CORS rule by hand.' : null,
+      checked_at: MOCK_NOW,
+    };
+  };
+  const notFound = () =>
+    HttpResponse.json({ message: 'Unknown mount', code: 10000 }, { status: 404 });
+
+  const make = (prefix: string, scoped: boolean): HttpHandler[] => {
+    const gidOf = (p: Record<string, unknown>) => (scoped ? String(p.gid) : undefined);
+    return [
+      http.get(`*/api/v1/${prefix}/storage/mounts`, ({ params }) =>
+        HttpResponse.json(bucketOf(gidOf(params))),
+      ),
+      http.post(`*/api/v1/${prefix}/storage/mounts`, async ({ request, params }) => {
+        const list = bucketOf(gidOf(params));
+        if (list.length >= cap)
+          return HttpResponse.json(
+            { message: 'Mount limit reached', code: 'MOUNT_CAP' },
+            { status: 409 },
+          );
+        const body = (await request.json()) as MountCreate;
+        const m = mockMount({
+          id: String(next++),
+          owner_kind: scoped ? 'guild' : 'user',
+          owner_id: gidOf(params) ?? '1',
+          label: body.label,
+          provider: body.provider,
+          endpoint: body.endpoint ?? null,
+          region: body.region ?? null,
+          bucket: body.bucket,
+          prefix: body.prefix ?? '',
+          path_style: body.path_style,
+          access_key_id: body.access_key_id,
+          key_hint: body.secret_access_key.slice(-4),
+        });
+        list.push(m);
+        return HttpResponse.json(m, { status: 201 });
+      }),
+      http.patch(`*/api/v1/${prefix}/storage/mounts/:id`, async ({ request, params }) => {
+        const m = find(gidOf(params), String(params.id));
+        if (!m) return notFound();
+        const body = (await request.json()) as Partial<Mount>;
+        Object.assign(m, body);
+        return HttpResponse.json(m);
+      }),
+      http.delete(`*/api/v1/${prefix}/storage/mounts/:id`, ({ params }) => {
+        const list = bucketOf(gidOf(params));
+        const i = list.findIndex((m) => m.id === params.id);
+        if (i < 0) return notFound();
+        list.splice(i, 1);
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post(`*/api/v1/${prefix}/storage/mounts/:id/test`, ({ params }) => {
+        const m = find(gidOf(params), String(params.id));
+        if (!m) return notFound();
+        const result: TestResult = { at: MOCK_NOW, rows: opts.probes ?? PASSING_PROBES };
+        m.last_test = result;
+        m.last_test_at = result.at;
+        m.status = result.rows.some((r) => r.status === 'fail') ? 'failing' : 'active';
+        return HttpResponse.json(result);
+      }),
+      http.post(`*/api/v1/${prefix}/storage/mounts/:id/cors/check`, ({ params }) => {
+        const m = find(gidOf(params), String(params.id));
+        return m ? HttpResponse.json(cors(m)) : notFound();
+      }),
+      http.post(`*/api/v1/${prefix}/storage/mounts/:id/cors/apply`, ({ params }) => {
+        const m = find(gidOf(params), String(params.id));
+        if (!m) return notFound();
+        if ((corsState.get(m.id) ?? opts.cors) === 'manual') return HttpResponse.json(cors(m));
+        corsState.set(m.id, 'ok');
+        m.cors_ok_at = MOCK_NOW;
+        return HttpResponse.json(cors(m));
+      }),
+    ];
+  };
+  return [...make('users/@me', false), ...make('guilds/:gid', true)];
+}
