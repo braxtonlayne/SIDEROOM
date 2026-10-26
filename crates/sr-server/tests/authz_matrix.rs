@@ -634,6 +634,8 @@ struct World {
     guild_a: i64,
     /// The TOTP secret `staff_owner` is enrolled with (RDY-SEC-012), for the step-up of the write phase.
     totp: TotpSecret,
+    /// The account ids of the cast, by seed name.
+    users: BTreeMap<&'static str, i64>,
 }
 
 impl World {
@@ -763,6 +765,17 @@ async fn mk(
     path: &str,
     body: Option<Value>,
 ) -> Option<String> {
+    mk_m(srv, infos, who, "POST", path, body).await
+}
+
+async fn mk_m(
+    srv: &Server,
+    infos: &HashMap<(String, String), OpInfo>,
+    who: &Cred,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+) -> Option<String> {
     // The template for the sampled body is the path with its ids put back to the placeholders.
     let tpl = path
         .split('/')
@@ -777,10 +790,10 @@ async fn mk(
         .join("/");
     let key = infos
         .keys()
-        .find(|(m, p)| m == "POST" && same_template(p, &tpl))
+        .find(|(m, p)| m == method && same_template(p, &tpl))
         .map(|(_, p)| p.clone())
         .unwrap_or(tpl);
-    create(srv, who, "POST", &key, path, infos, body)
+    create(srv, who, method, &key, path, infos, body)
         .await
         .as_ref()
         .and_then(pick_id)
@@ -1780,7 +1793,22 @@ async fn seed(
             .execute(&pool)
             .await
             .unwrap();
-        put!("season_id", &staff, format!("/admin/cinema/titles/{t}/seasons"), None);
+        // A published series for the seasons and episodes (the film above is what Live TV plays).
+        put!(
+            "series_title_id",
+            &staff,
+            "/admin/cinema/titles".into(),
+            Some(json!({"kind": "series", "title": "Authz show"}))
+        );
+        if let Some(st) = a.get("series_title_id").and_then(|x| x.parse::<i64>().ok()) {
+            sqlx::query("UPDATE video_titles SET published = true, published_at = now() WHERE id = $1")
+                .bind(st)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let st = a.get("series_title_id").cloned().unwrap_or_default();
+        put!("season_id", &staff, format!("/admin/cinema/titles/{st}/seasons"), None);
         if let Some(se) = a.get("season_id").cloned() {
             put!("episode_id", &staff, format!("/admin/cinema/seasons/{se}/episodes"), None);
         }
@@ -1815,6 +1843,19 @@ async fn seed(
             put!("library_comment_id", &member_cred, format!("/library/chapters/{c}/comments"), None);
         }
         put!("cinema_comment_id", &member_cred, format!("/cinema/titles/{t}/comments"), None);
+        // Reviews (the member's), and a report of each comment by someone else.
+        if let Some(id) = mk_m(&srv, infos, &member_cred, "PUT", &format!("/cinema/titles/{t}/review"), None).await {
+            a.insert("cinema_review_id", id);
+        }
+        if let Some(id) = mk_m(&srv, infos, &member_cred, "PUT", &format!("/library/series/{s}/review"), None).await {
+            a.insert("library_review_id", id);
+        }
+        if let Some(c) = a.get("cinema_comment_id").cloned() {
+            put!("cinema_report_id", &oa, format!("/cinema/comments/{c}/report"), None);
+        }
+        if let Some(c) = a.get("library_comment_id").cloned() {
+            put!("library_report_id", &oa, format!("/library/comments/{c}/report"), None);
+        }
         put!("cinema_list_id", &member_cred, "/cinema/lists".into(), None);
         put!("library_list_id", &member_cred, "/library/lists".into(), None);
         put!(
@@ -1880,6 +1921,11 @@ async fn seed(
         .await;
     }
 
+    {
+        let mut keys: Vec<&str> = a.keys().copied().collect();
+        keys.sort_unstable();
+        println!("authz_matrix: seeded {}", keys.join(" "));
+    }
     let mut private = a.clone();
     private.insert("channel_id", priv_chan);
     private.insert("message_id", msg_priv);
@@ -1895,6 +1941,7 @@ async fn seed(
             member_id: u("member"),
             guild_a: ga,
             totp,
+            users,
         },
         tx,
         handle,
@@ -2500,13 +2547,43 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
 /// Routes whose rightful call ends the actor's own session or account, or otherwise breaks what the
 /// rest of the phase needs: they go last.
 fn write_late(method: &str, path: &str) -> bool {
-    matches!((method, path), ("DELETE", "/guilds/{guild_id}"))
+    matches!(
+        (method, path),
+        ("DELETE", "/guilds/{guild_id}")
+            // A new token ends the old one, which the webhook routes before it are called with.
+            | ("POST", "/webhooks/{webhook_id}/reset-token")
+    )
+}
+
+/// Writes that end or remove what the edits before them act on (leaving a party, banning or pruning the
+/// members): after the edits, before the deletes.
+fn write_ending(method: &str, path: &str) -> bool {
+    matches!(
+        (method, path),
+        ("POST", "/watch-parties/{party_id}/leave")
+            | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
+            | ("POST", "/guilds/{guild_id}/prune")
+            | ("POST", "/guilds/{guild_id}/bulk-ban")
+    )
+}
+
+/// Placeholder values that differ from the seeded ones for a route (the reaction the route removes is the
+/// one `owner_a` made, not the victim's).
+fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
+    if r.path.contains("/reactions/") {
+        vec![("user_id", world.users["ownera"].to_string())]
+    } else {
+        Vec::new()
+    }
 }
 
 /// A hand-made body for the write phase (placeholders in braces are replaced by the ids of tenant A),
 /// consulted before [`body_override`].
 fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
+        ("POST", "/moderation/takedowns/{notice_id}/items") => {
+            r#"{"kind":"message","id":"{message_id}"}"#
+        }
         ("POST", "/stage-instances") => {
             r#"{"channel_id":"{stage_new_channel_id}","topic":"authz"}"#
         }
@@ -2523,16 +2600,20 @@ fn write_observed(r: &Route) -> Option<&'static str> {
 
 /// The order of the write phase: late routes last; then creates, edits, deletes; deletes deepest first.
 fn write_rank(r: &Route, idx: usize) -> (bool, u8, usize, usize) {
-    let kind = match r.method.as_str() {
-        "POST" => 0,
-        "DELETE" => 2,
-        _ => 1,
+    let kind = if write_ending(&r.method, &r.path) {
+        3
+    } else {
+        match r.method.as_str() {
+            "POST" => 0,
+            "DELETE" => 4,
+            _ => 1,
+        }
     };
     let depth = r.path.matches('/').count();
     (
         write_late(&r.method, &r.path),
         kind,
-        if kind == 2 { usize::MAX - depth } else { 0 },
+        if kind == 4 { usize::MAX - depth } else { 0 },
         idx,
     )
 }
@@ -2587,7 +2668,10 @@ async fn write_phase(
         let actor_name = rightful_of(r);
         let actor = world.actor(actor_name);
         let info = infos.get(&(r.method.clone(), r.path.clone()));
-        let (ctx, _) = ctx_for(r, &world.a);
+        let (mut ctx, _) = ctx_for(r, &world.a);
+        for (k, v) in path_overrides(r, world) {
+            ctx.insert(k, v);
+        }
         let mut path = fill(&r.path, &ctx);
         if let Some(i) = info
             && !i.query.is_empty()
@@ -2635,7 +2719,7 @@ async fn write_phase(
                 resp.status,
                 short(160)
             ));
-            ("FAIL", format!("{} {}", resp.status, short(160)))
+            ("FAIL", format!("#{} {} {}", stats.calls, resp.status, short(160)))
         } else if matches!(resp.status, 400 | 422) {
             stats.shape += 1;
             ("shape", format!("{} {}", resp.status, short(160)))
@@ -2980,16 +3064,28 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/cinema/", "/admin/cinema/"], "asset_id", "cinema_asset_id"),
     (&["/cinema/", "/admin/cinema/"], "comment_id", "cinema_comment_id"),
     (&["/cinema/", "/admin/cinema/"], "list_id", "cinema_list_id"),
+    (&["/cinema/", "/admin/cinema/"], "review_id", "cinema_review_id"),
+    (&["/cinema/", "/admin/cinema/"], "report_id", "cinema_report_id"),
     (&["/library/", "/admin/library/"], "chapter_id", "lib_chapter_id"),
     (&["/library/", "/admin/library/"], "upload_id", "lib_upload_id"),
     (&["/library/", "/admin/library/"], "comment_id", "library_comment_id"),
     (&["/library/", "/admin/library/"], "list_id", "library_list_id"),
+    (&["/library/", "/admin/library/"], "review_id", "library_review_id"),
+    (&["/library/", "/admin/library/"], "report_id", "library_report_id"),
+    // Episodes and seasons belong to the series title, not to the film.
+    (&["{episode_id}", "{season_id}"], "title_id", "series_title_id"),
 ];
 
 fn overlay(r: &Route, mut c: HashMap<&'static str, String>) -> HashMap<&'static str, String> {
     for (prefixes, placeholder, key) in OVERLAYS {
-        if prefixes.iter().any(|p| r.path.starts_with(p))
-            && let Some(v) = c.get(key).cloned()
+        let by_placeholder = prefixes[0].starts_with('{');
+        if prefixes.iter().any(|p| {
+            if by_placeholder {
+                r.path.contains(p)
+            } else {
+                r.path.starts_with(p)
+            }
+        }) && let Some(v) = c.get(key).cloned()
         {
             c.insert(placeholder, v);
         }
