@@ -1,30 +1,41 @@
 # Handoff: feat/p27-byos-scopes (wave 27, BYOS-SCP-001..002)
 
 ## Status
-- Slice 3: sr_storage::browse (list_dir, head_meta, check_key + fuzz) and scopes::presign_ttl_secs, check_range (all unit tested). Routes still next.
-- Slice 1: migration 1410 and `sr_storage::scopes` (decision logic, `MemoryScopeFacts`, 22 unit tests).
-- Slice 2: `sr_db::scopes_repo::PgScopeFacts` (facts, share and grant CRUD, shelves summary), unfriend/block hook inside `PgSocialRepo::apply`, Postgres tests `crates/sr-db/tests/scopes_repo.rs` (2 pass).
-- Routes (SCP-001 and SCP-002) not started.
+BYOS-SCP-001 and BYOS-SCP-002 are built and proven except the items under "Not done". Commits on `feat/p27-byos-scopes` from tag `p27-day1`.
 
-## Resume here
-Next, in order:
-1. Routes in `crates/sr-api/src/routes/storage/{scopes,objects}.rs` plus `mod.rs` (shared with byos-core: add only my modules; register in routes/mod.rs `all()` and openapi). Wire shapes agreed with byos-ui (commander message):
-   - `GET /users/@me/storage/mounts/{mount_id}/shares` -> `[{friend_id, cinema, library, music}]` (owner only); `PUT .../shares/{user_id}` body `{cinema,library,music}` returns the stored share (mutual friends only, else 403/404; client sends DELETE when all off); `DELETE` 204.
-   - `GET /users/@me/storage/shares` -> incoming (`PgScopeFacts::shares_to`).
-   - `GET /users/@me/shelves/summary` -> `{cinema, library, music, catalog?: {cinema, library}}`; `PgScopeFacts::shelves_summary` gives the first three; `catalog` (instance catalog counts the viewer can see) still needs a query on cinema/library published counts.
-   - `PUT /guilds/{gid}/storage/grants` body `{role_id, grants:[view_cinema|view_library|view_music|upload|manage]}` -> 204; needs MANAGE_ROLES plus `manage`; role payload carries `sr_storage_grants` (use `grants_of_guild`; roles.rs is another agent's file: expose via a small helper, one call).
-   - `GET /storage/mounts/{id}/objects?prefix=&delimiter=/&cursor=` -> `{folders: [], objects:[{key,size,last_modified|null,content_type?}], next_cursor|null}`; `GET .../objects/{*key}` metadata; `POST .../presign` body `{key, method:"GET", range?}` -> `{url, expires_at}`; 409 `CORS_NOT_READY` when `cors_ok_at` is None; 404 other's mount, 403 `Refused::NoGrant` (`Refused::disclosure()`); ids strings, timestamps ISO 8601.
-   - Key check: `sr_storage::path::safe_key` is byos-core's and not in my base; write `scopes`-side check or wait (NFC needs unicode-normalization, not a dep of sr-storage).
-   - Presign TTL: `byos.presign_ttl_secs` 900, cap `byos.presign_ttl_cap_secs` 3600, hard 86400, and never past the session's remaining time. Staff caller: `Scope::Staff` must write `staff_access_log` (action `storage.read`, kind `read`).
-2. route_matrix rows (new AUTHZ values `storage_scope` and `mount_owner` in `route_matrix.rs` AUTHZ_VALUES; byos-core may add `mount_owner` too, merge by hand), authz_matrix actors `friend_shared`, `friend_unshared`, member with/without grants, cross-tenant sweep over `{mount_id}`.
-3. Docs: 07 section 2 grants paragraph, 05 storage group. `storage.yml` Garage range case (206, readable content-range).
-Env: CARGO_TARGET_DIR=C:/Users/braxt/Desktop/SIDEROOM_wt/p27-byos-scopes-target, CARGO_PROFILE_DEV_DEBUG=0, `-j 2`, one cargo at a time. Scratch DB `sr_p27_byos_scopes` exists (drop at the end); Postgres tests: `cargo test -p sr-db --test scopes_repo -j 2 -- --include-ignored --test-threads=1` with SR_TEST_DATABASE_URL and DATABASE_URL both pointing at it.
+## Done
+- Migration `1410_storage_shares_grants.sql`: `storage_mount_shares`, `guild_storage_grants` (column `grant_name`, GRANT is reserved).
+- `sr_storage::scopes` (`resolve`, `access`, `may_upload`, `may_manage`, `guild_grants`, `Kind::of_key`, `presign_ttl_secs`, `check_range`, `ScopeFacts`, `ScopeStore`, `MemoryScopeFacts`): every refusal of roadmap section 2 is a unit test (22 + 2).
+- `sr_storage::browse`: `ObjectStoreStorage::list_dir` (folders and objects, cursor pages of 1000), `head_meta`, `check_key` with an exhaustive small-alphabet fuzz.
+- `sr_db::scopes_repo::PgScopeFacts` (facts, shares, grants, `shelves_summary`), unfriend and block revoke inside `PgSocialRepo::apply`.
+- Routes (`crates/sr-api/src/routes/storage/{mod,scopes,objects}.rs`): shares (list, put, delete, incoming), `GET /users/@me/shelves/summary`, `PUT /guilds/{id}/storage/grants`, objects listing, object metadata, presign. Shapes are the ones byos-ui agreed (commander message). `sr_storage_grants` is on `GET /guilds/{id}/roles`. Wired in `sr-server/src/app.rs` (`storage_scope_deps`), OpenAPI fragment merged.
+- Settings `byos.presign_ttl_secs` (900) and `byos.presign_ttl_cap_secs` (3600) in `sr-admin/src/settings.rs`; hard ceiling 86400 in code; capped by the session's remaining time.
+- Staff read: `OPERATOR` (or owner) caller gets `Scope::Staff`, written to the access log as kind `read`, action `storage.read`, target `storage_mount` (the table's kind check has no `storage.read` kind, so it is the action). A failed log write refuses the read.
+- route_matrix rows (new AUTHZ values `storage_scope`, `mount_owner`), policy denies bots and bearers on mount routes.
+- Authz: `authz_matrix.rs` seeds a mount per tenant (`mount_id` is in TENANT: cross-tenant sweep, outsider, anon, bot, bearer all proven; group "rest": 0 failures, 16 weak (ceiling 16), writes admitted). New test `storage_scopes_hold_over_http` proves `friend_shared`, `friend_unshared`, member with and without grants, staff (logged), disabled, no CORS (409 `CORS_NOT_READY`), banned owner, unfriend revokes, TTL 900.
+- Docs: 05 section 5.3a, 07 "Storage grants". `storage.yml`: new live step runs `crates/sr-storage/tests/s3_mount_live.rs` (listing under a prefix, presigned ranged GET gives 206 and `content-range`).
+
+## Tests run (all on this machine, -j 2)
+`cargo test -p sr-storage` (93 lib tests incl. scopes and browse), `-p sr-admin`, `-p sr-api --lib` (687), `-p sr-api --test route_matrix` (6) and `--test openapi_names`, `-p sr-db --test scopes_repo --test social_repo` (Postgres), `-p sr-server --test authz_matrix storage_scopes` and `every_route` with `SR_AUTHZ_GROUPS=5`; fmt and clippy `-D warnings` on sr-storage, sr-db, sr-api, sr-admin, sr-server.
+
+## Not done / open
+- `catalog?` in the shelves summary (instance catalog counts the viewer can see) is omitted; needs a query over published cinema titles and library series. byos-ui must treat it as absent.
+- The Garage live case (`s3_mount_live`) has not run here (no Garage); first run is in CI after the owner pushes.
+- The presign p95 under 5 ms benchmark was not added (no S3 round trip, but two or three indexed queries).
+- `attached_guilds` (instance mount as a Guild Shelf) returns empty until byos-instance's attach table exists; `delisted` returns empty until BYOS-LEG-001. Both are single methods in `scopes_repo.rs`.
+- Moderation-case staff reads (a case touching the key) are not wired; only `OPERATOR`/owner.
+- `safe_key` NFC: `browse::check_key` has the other rules; NFC needs `unicode-normalization` (not a dependency of sr-storage). byos-core owns `path::safe_key`; swap the call in `objects.rs`/`browse.rs` when it lands.
+- OpenAPI/api-client/MSW regeneration left to the integrator.
+- Authz group "rest" watch-party rows failed once on this loaded machine (member staleness is 90 s); they pass on rerun and are unrelated.
 
 ## Decisions / deviations
-- `guild_storage_grants` column is `grant_name` (GRANT is reserved); values `view_cinema|view_library|view_music|upload|manage`.
 - Key kind comes from the file extension (`Kind::of_key`); companion files (covers, subtitles, unknown) follow any share or view grant. No wire change.
-- `manage` reads all kinds; `MANAGE_GUILD` implies `manage` only (not `upload`); owner/ADMINISTRATOR hold all five. Pending members are not members.
-- Disabled mount, inactive owner and delisted keys are refused for staff too (fail closed). `failing` mounts stay readable.
+- `manage` reads every kind; `MANAGE_GUILD` implies `manage` only; owner/ADMINISTRATOR hold all five; pending members are not members.
+- Disabled mount, inactive owner and delisted keys are refused for staff too. `failing` mounts stay readable.
 - Only `Refused::NoGrant` is 403; every other refusal is 404.
-- Instance mount (Platform owner) is reachable only through attached guilds (`attached_guilds`, empty until byos-instance's attach table) or staff. `delisted` returns empty until BYOS-LEG-001.
-- The unfriend hook lives in `sr-db/src/social_repo.rs::apply` (that is where relationships are written), not sr-chat.
+- 409 `CORS_NOT_READY` is `SrConflict` (900010) with message and field error `mount` both `CORS_NOT_READY` (no new ErrorCode, to avoid clashing with byos-core). A bucket that does not answer in 8 s is 409 `BUCKET_UNREACHABLE`.
+- The unfriend hook lives in `sr-db/src/social_repo.rs::apply` (where relationships are written), not sr-chat.
+
+## Merge notes for the integrator
+- `routes/storage/mod.rs` is mine; byos-core's `mounts.rs` module and its deps merge into it. `route_matrix.rs` AUTHZ_VALUES gained `storage_scope`, `mount_owner` (byos-core may add `mount_owner` too). `sr-server/src/app.rs` gets one block and one `.extension(...)`.
+- Needed from byos-core: nothing blocking. Wanted: `Mount::storage` should set a short object_store retry/timeout (it retries a dead endpoint for minutes; the routes wrap calls in 8 s as a guard), and `path::safe_key` to replace `browse::check_key`.
