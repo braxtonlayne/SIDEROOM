@@ -2,7 +2,7 @@
 // byos-core lands). When the real handlers exist, delete this file and the `server.use(...)` calls
 // that import it; nothing in the screens depends on it. Shapes: ./types.ts.
 import { http, HttpResponse, type HttpHandler } from 'msw';
-import type { CorsResult, Mount, MountCreate, ProbeRow, TestResult } from './types';
+import type { CorsResult, Mount, MountCreate, ProbeRow, Share, TestResult } from './types';
 
 export interface ByosMockOptions {
   /** Starting mounts (user scope). */
@@ -13,6 +13,8 @@ export interface ByosMockOptions {
   probes?: ProbeRow[];
   /** What the CORS checker finds before Apply. Default `missing`. */
   cors?: CorsResult['state'];
+  /** Outgoing Friend Shelf shares, by mount id. */
+  shares?: Record<string, Share[]>;
 }
 
 export const MOCK_NOW = '2026-10-26T12:00:00.000Z';
@@ -149,5 +151,31 @@ export function byosMockHandlers(opts: ByosMockOptions = {}): HttpHandler[] {
       }),
     ];
   };
-  return [...make('users/@me', false), ...make('guilds/:gid', true)];
+  // Friend Shelf shares of the caller's own mounts (BYOS-SCP-001; the GET list is assumed).
+  const shares = new Map<string, Share[]>(Object.entries(opts.shares ?? {}));
+  const shareHandlers = [
+    http.get('*/api/v1/users/@me/storage/mounts/:id/shares', ({ params }) =>
+      HttpResponse.json(shares.get(String(params.id)) ?? []),
+    ),
+    http.put(
+      '*/api/v1/users/@me/storage/mounts/:id/shares/:friend',
+      async ({ request, params }) => {
+        const flags = (await request.json()) as Omit<Share, 'friend_id'>;
+        const row: Share = { friend_id: String(params.friend), ...flags };
+        const list = (shares.get(String(params.id)) ?? []).filter(
+          (s) => s.friend_id !== row.friend_id,
+        );
+        shares.set(String(params.id), [...list, row]);
+        return HttpResponse.json(row);
+      },
+    ),
+    http.delete('*/api/v1/users/@me/storage/mounts/:id/shares/:friend', ({ params }) => {
+      shares.set(
+        String(params.id),
+        (shares.get(String(params.id)) ?? []).filter((s) => s.friend_id !== params.friend),
+      );
+      return new HttpResponse(null, { status: 204 });
+    }),
+  ];
+  return [...shareHandlers, ...make('users/@me', false), ...make('guilds/:gid', true)];
 }

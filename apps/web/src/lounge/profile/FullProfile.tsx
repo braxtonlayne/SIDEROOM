@@ -1,4 +1,6 @@
 import { Avatar, Button, EmptyState, Icon, Modal, Tabs } from '@sideroom/ui';
+import { FriendShelfShare } from '../../settings/user/storage/FriendShelfShare';
+import '../../settings/user/storage/storage.css';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { formatDate, useT } from '../../i18n';
@@ -382,6 +384,7 @@ export function FullProfile({ target, onClose }: { target: ProfileTarget; onClos
               </section>
             )}
             {!isSelf && <NoteField userId={target.userId} />}
+            {!isSelf && <FriendShelfShare userId={target.userId} />}
           </aside>
           <section className="prf-right">
             <Tabs items={tabs} label={t('lounge.fullProfile.tabs')} />

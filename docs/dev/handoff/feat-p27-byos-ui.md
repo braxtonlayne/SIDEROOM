@@ -2,9 +2,8 @@
 
 ## Resume here
 
-Done and committed: User Settings > Storage, Guild Settings > Storage, IAM policy examples, role editor Storage grants. Next slices, in order:
+Done and committed: User Settings > Storage, Guild Settings > Storage, IAM policy examples, role editor Storage grants, Friend Shelf toggles. Next slices, in order:
 
-3. Friend Shelf toggles (friend profile card, Settings > Friends): `PUT/DELETE /users/@me/storage/mounts/{mount_id}/shares/{user_id}`, `GET /users/@me/storage/shares`.
 4. Bucket browser `/storage/{mount}` (route, folder tree, object list, presigned previews, copy link with expiry).
 5. Appearance > Sections nav modes (Always show | Always hide | Auto from `GET /users/@me/shelves/summary`) + top tabs hook.
 6. `scripts/check-css-tokens.mjs` + test; `e2e/tests/byos-mount.spec.ts` + one `storage.yml` step (do not run Playwright).
@@ -14,6 +13,7 @@ Mocks live in ONE file: `apps/web/src/settings/user/storage/mocks.ts` (`byosMock
 
 ## Done
 
+- Friend Shelf toggles (`storage/FriendShelfShare.tsx`, mounted in `lounge/profile/FullProfile.tsx` under the note field, mutual friends only, needs an active user mount). NOT done: a second placement under Settings > Friends (no such section exists; the Friends page is `lounge/shell/FriendsPage.tsx`, its row menu could host the same component). ASSUMED extra route: `GET /users/@me/storage/mounts/{mount_id}/shares` -> `[{friend_id, cinema, library, music}]` (owner's outgoing list). PUT body `{cinema, library, music}` -> the stored share; DELETE when all three are off.
 - Role editor Storage group (`settings/server/storage/GrantsCard.tsx`, inside the role's Permissions tab; five switches saved at once via `PUT /guilds/{gid}/storage/grants` body `{ role_id, grants: [...] }` -> 204; current set read from `role.sr_storage_grants`; not in `permissions.ts`, so never in channel overwrites, asserted by a test).
 - Connect guidance: least-privilege policy JSON (s3, wasabi, minio; bucket and prefix filled in live from the form) with Copy button and a check-your-provider's-docs line; R2/B2/Garage give scopes in words plus the same reminder (`storage/policy.ts`).
 - Guild Settings > Storage (`settings/server/storage/StorageSection.tsx`, section `storage` in the APPS group, visible with MANAGE_GUILD which implies the `manage` grant; the real grant check is server-side): reuses `MountsPanel` with the guild scope.

@@ -100,3 +100,14 @@
   color: var(--ui-text);
   font-size: 0.75rem;
 }
+.sto-share {
+  margin-block-start: 12px;
+}
+.sto-share-title {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-muted);
+}

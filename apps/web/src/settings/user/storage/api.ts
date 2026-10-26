@@ -1,5 +1,5 @@
 import { apiFetch, apiPost } from '../../../api/client';
-import type { CorsResult, Mount, MountCreate, MountPatch, TestResult } from './types';
+import type { CorsResult, Mount, MountCreate, MountPatch, Share, TestResult } from './types';
 
 /** Where a set of mounts lives: the caller's own, or a guild's (needs the `manage` grant). */
 export type MountScope = { kind: 'user' } | { kind: 'guild'; guildId: string };
@@ -21,3 +21,23 @@ export const checkCors = (s: MountScope, id: string) =>
   apiPost<CorsResult>(`${one(s, id)}/cors/check`);
 export const applyCors = (s: MountScope, id: string) =>
   apiPost<CorsResult>(`${one(s, id)}/cors/apply`);
+
+// ---- Friend Shelf shares ----
+// PUT/DELETE /users/@me/storage/mounts/{mount_id}/shares/{user_id} are in the roadmap (PUT body = the
+// three flags, answer the stored Share; DELETE revokes). GET .../mounts/{mount_id}/shares (the owner's
+// outgoing list) is ASSUMED: the roadmap names only GET /users/@me/storage/shares (incoming).
+const shareBase = (mountId: string) =>
+  `/users/@me/storage/mounts/${encodeURIComponent(mountId)}/shares`;
+export const listShares = (mountId: string) =>
+  apiFetch<Share[]>(shareBase(mountId), { retries: 0 });
+export const putShare = (mountId: string, friendId: string, flags: Omit<Share, 'friend_id'>) =>
+  apiFetch<Share>(`${shareBase(mountId)}/${encodeURIComponent(friendId)}`, {
+    method: 'PUT',
+    json: flags,
+    retries: 0,
+  });
+export const deleteShare = (mountId: string, friendId: string) =>
+  apiFetch<void>(`${shareBase(mountId)}/${encodeURIComponent(friendId)}`, {
+    method: 'DELETE',
+    retries: 0,
+  });

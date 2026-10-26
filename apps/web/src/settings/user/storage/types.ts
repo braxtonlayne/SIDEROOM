@@ -65,3 +65,13 @@ export interface CorsResult {
   manual_steps?: string | null;
   checked_at: string;
 }
+
+/** One Friend Shelf share (BYOS-SCP-001): per friend, per kind, mutual friends only. */
+export interface Share {
+  friend_id: string;
+  cinema: boolean;
+  library: boolean;
+  music: boolean;
+}
+export type ShareKind = 'cinema' | 'library' | 'music';
+export const SHARE_KINDS: ShareKind[] = ['cinema', 'library', 'music'];
