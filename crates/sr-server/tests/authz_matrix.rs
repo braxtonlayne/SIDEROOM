@@ -687,6 +687,33 @@ async fn step_up(srv: &Server, who: &Cred, totp: &TotpSecret) -> Resp {
     .await
 }
 
+/// The password of the accounts that present one in the write phase (a test value, in no real system).
+const TEST_PASSWORD: &str = "authz-matrix-Correct-Horse-9";
+
+/// Decode standard base64 (the seeded PNG).
+fn b64_decode(text: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    let (mut acc, mut bits) = (0u32, 0u32);
+    for c in text.bytes() {
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => continue,
+        };
+        acc = (acc << 6) | u32::from(v);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    out
+}
+
 /// Standard base64 with padding (the data URIs of stickers and sounds; no dependency for ten lines).
 fn b64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -905,6 +932,9 @@ async fn seed(
         "appowner",
         "staffbasic",
         "friendtwo",
+        "offeree",
+        "dispdel",
+        "disppw",
     ] {
         users.insert(n, account(&pool, &ids, n).await);
     }
@@ -939,6 +969,25 @@ async fn seed(
     );
     for n in ["member", "insider", "mod", "victim"] {
         add_member(&pool, ga, u(n)).await;
+    }
+
+    // The accounts whose own password the write phase presents (reset-secret, unlink, change ...).
+    {
+        let hasher = sr_auth::password::PasswordHasher::new(sr_auth::password::PasswordParams {
+            m_cost_kib: 1024,
+            t_cost: 1,
+            p_cost: 1,
+        })
+        .expect("hasher");
+        let hash = hasher.hash(TEST_PASSWORD).expect("hash");
+        for n in ["member", "appowner", "ownera", "dispdel", "disppw"] {
+            sqlx::query("UPDATE accounts SET password_hash = $2 WHERE id = $1")
+                .bind(u(n))
+                .bind(&hash)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
     }
 
     // Staff: roles from the templates; the Owner holds the Owner role and an appointment; Support
@@ -1064,6 +1113,10 @@ async fn seed(
         ("support", "support"),
         ("fake_staff", "fakestaff"),
         ("app_owner", "appowner"),
+        ("victim", "victim"),
+        ("offeree", "offeree"),
+        ("disp_del", "dispdel"),
+        ("disp_pw", "disppw"),
     ] {
         let t = session_for(&auth, &ids, u(user)).await;
         sess.insert(actor, t.clone());
@@ -1910,6 +1963,244 @@ async fn seed(
     } else {
         println!("authz_matrix: seed activity bundle -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
     }
+    // RDY-SEC-011: the per-account objects of the write phase's rightful actors (the plain member's own
+    // reminders, bookmarks and lists, the owner's templates, the invitee's offers ...).
+    {
+        let insider_cred = Cred::Session(sess["insider"].clone());
+        let outsider_cred = Cred::Session(sess["outsider"].clone());
+        let party = a.get("party_id").cloned().unwrap_or_default();
+        let msg = a.get("message_id").cloned().unwrap_or_default();
+        let ch = a.get("channel_id").cloned().unwrap_or_default();
+        let t = a.get("title_id").cloned().unwrap_or_default();
+        let lib_ch = a.get("lib_chapter_id").cloned().unwrap_or_default();
+        // The feature ids that exist, one list per family.
+        for (key, who, path) in [
+            ("channel_feature_id", &oa, format!("/channels/{ch}/sr/features")),
+            ("user_feature_id", &member_cred, "/users/@me/sr/features".to_owned()),
+            ("admin_feature_id", &staff, "/admin/features".to_owned()),
+        ] {
+            let r = srv.call(who, "GET", &path, None).await;
+            let v: Value = serde_json::from_str(&r.body).unwrap_or(Value::Null);
+            if let Some(id) = v
+                .as_array()
+                .and_then(|l| l.first())
+                .and_then(|f| f["id"].as_str())
+            {
+                a.insert(key, id.to_owned());
+            }
+        }
+        a.insert("guild_feature_id", "community.suggestions".to_owned());
+        // The member's own things.
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            &format!("/channels/{ch}/scheduled-messages"),
+            Some(json!({"content": "authz", "send_at": "2031-01-01T00:00:00Z"})),
+        )
+        .await
+        {
+            a.insert("sched_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            "/users/@me/reminders",
+            Some(json!({"note": "authz", "in_seconds": 86400})),
+        )
+        .await
+        {
+            a.insert("reminder_id", id);
+        }
+        let b1 = srv
+            .call(&member_cred, "PUT", &format!("/users/@me/bookmarks/{msg}"), Some(&json!({})))
+            .await;
+        let b2 = srv
+            .call(
+                &member_cred,
+                "PUT",
+                &format!("/library/chapters/{lib_ch}/bookmarks"),
+                Some(&json!({"page": 1})),
+            )
+            .await;
+        if let Some(id) = serde_json::from_str::<Value>(&b2.body)
+            .ok()
+            .as_ref()
+            .and_then(pick_id)
+        {
+            a.insert("bookmark_id", id);
+        } else {
+            println!("authz_matrix: seed library bookmark -> {} {}", b2.status, b2.body.chars().take(100).collect::<String>());
+        }
+        let _ = b1;
+        let png_bytes = b64_decode(png.trim_start_matches("data:image/png;base64,"));
+        let r = srv
+            .call_bytes(
+                &member_cred,
+                "POST",
+                "/users/@me/profile-media",
+                "application/octet-stream",
+                &png_bytes,
+            )
+            .await;
+        if let Some(id) = serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .as_ref()
+            .and_then(pick_id)
+        {
+            a.insert("media_id", id);
+        } else {
+            println!("authz_matrix: seed profile media -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+        }
+        let r = srv
+            .call(&member_cred, "POST", "/sr/invites", Some(&json!({})))
+            .await;
+        if let Some(code) = serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .and_then(|v| v["code"].as_str().map(str::to_owned))
+        {
+            a.insert("sr_invite_code", code);
+        } else {
+            println!("authz_matrix: seed member invite -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+        }
+        // A reaction and a pin, so that removing them is a real removal.
+        srv.call(
+            &oa,
+            "PUT",
+            &format!("/channels/{ch}/messages/{msg}/reactions/%F0%9F%91%8D/@me"),
+            None,
+        )
+        .await;
+        srv.call(&oa, "PUT", &format!("/channels/{ch}/pins/{msg}"), None).await;
+        // A template, a directory listing, an application to join, a ticket, an upload slot.
+        let r = srv
+            .call(
+                &oa,
+                "POST",
+                &format!("/guilds/{ga}/templates"),
+                Some(&json!({"name": "authz template"})),
+            )
+            .await;
+        if let Some(code) = serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .and_then(|v| v["code"].as_str().map(str::to_owned))
+        {
+            a.insert("template_code", code);
+        } else {
+            println!("authz_matrix: seed template -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+        }
+        let r = srv
+            .call(
+                &oa,
+                "PUT",
+                &format!("/guilds/{ga}/directory"),
+                Some(&json!({"category": "gaming", "description": "authz"})),
+            )
+            .await;
+        if !(200..300).contains(&r.status) {
+            println!("authz_matrix: seed directory -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+        }
+        srv.call(
+            &oa,
+            "PUT",
+            &format!("/guilds/{ga}/sr/applications/form"),
+            Some(&json!({"enabled": true, "questions": []})),
+        )
+        .await;
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &outsider_cred,
+            &format!("/guilds/{ga}/sr/applications"),
+            Some(json!({"answers": []})),
+        )
+        .await
+        {
+            a.insert("guild_application_id", id);
+        }
+        if let Some(id) = mk(&srv, infos, &oa, &format!("/guilds/{ga}/tickets"), Some(json!({"subject": "authz ticket"}))).await {
+            a.insert("ticket_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &oa,
+            &format!("/channels/{ch}/attachments"),
+            Some(json!({"files": [{"filename": "a.txt", "file_size": 3, "id": "0"}]})),
+        )
+        .await
+        {
+            a.insert("attach_upload_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &appowner_cred,
+            &format!("/applications/{aid}/emojis"),
+            Some(json!({"name": "authzapp", "image": png})),
+        )
+        .await
+        {
+            a.insert("app_emoji_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &appowner_cred,
+            &format!("/applications/{aid}/testers"),
+            Some(json!({"username": "victim"})),
+        )
+        .await
+        {
+            a.insert("tester_invite_id", id);
+        }
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/admin/staff/offers",
+            Some(json!({"account_id": u("offeree").to_string(), "role_ids": [staff_roles["Support"].to_string()], "reason": "authz"})),
+        )
+        .await
+        {
+            a.insert("staff_offer_id", id);
+        }
+        // Watch party: a queued item and a second participant.
+        if !party.is_empty() {
+            srv.call(&insider_cred, "POST", &format!("/watch-parties/{party}/join"), Some(&json!({}))).await;
+            if let Some(id) = mk(
+                &srv,
+                infos,
+                &member_cred,
+                &format!("/watch-parties/{party}/queue"),
+                Some(json!({"title_id": t})),
+            )
+            .await
+            {
+                a.insert("queue_item_id", id);
+            }
+        }
+        // A temporary role, an invoice.
+        srv.call(
+            &oa,
+            "POST",
+            &format!("/guilds/{ga}/sr/temp-roles"),
+            Some(&json!({"user_id": victim, "role_id": a["role_id"], "duration_seconds": 86400})),
+        )
+        .await;
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &member_cred,
+            "/donations/invoices",
+            Some(json!({"purpose": "invite_credit", "credits": 1})),
+        )
+        .await
+        {
+            a.insert("invoice_id", id);
+        }
+    }
     // A running thread member: the seeded thread gets the victim.
     if let Some(t) = a.get("thread_id") {
         srv.call(
@@ -2147,6 +2438,9 @@ fn rightful_of(r: &Route) -> &'static str {
         "staff_owner"
     } else if r.authz == "owner" {
         "app_owner"
+    } else if r.authz == "self" || r.authz == "user" {
+        // Per-account data: the plain member's, which the seed filled.
+        "member"
     } else if r.path.starts_with("/submissions")
         || r.path.starts_with("/users/@me/channels")
         || r.path.contains("/recipients")
@@ -2540,6 +2834,15 @@ const SHAPE_CEILING: [usize; 6] = [usize::MAX; 6];
 /// Rightful actors that differ from [`control_of`]'s rule, by route.
 fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
     match (method, path) {
+        // Disposable accounts: the call ends the session or the account.
+        ("POST", "/sr/auth/account/delete") => Some("disp_del"),
+        ("POST", "/sr/auth/password") => Some("disp_pw"),
+        // The only account enrolled in TOTP.
+        ("POST", "/sr/auth/reauth") => Some("staff_owner"),
+        ("POST", "/staff/offers/{offer_id}/respond") => Some("offeree"),
+        ("POST", "/developers/tester-invites/{invite_id}/respond") => Some("victim"),
+        // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
+        ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
         _ => None,
     }
 }
@@ -2552,6 +2855,10 @@ fn write_late(method: &str, path: &str) -> bool {
         ("DELETE", "/guilds/{guild_id}")
             // A new token ends the old one, which the webhook routes before it are called with.
             | ("POST", "/webhooks/{webhook_id}/reset-token")
+            // Removing members ends what the member routes before them act on.
+            | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
+            | ("POST", "/guilds/{guild_id}/prune")
+            | ("POST", "/guilds/{guild_id}/bulk-ban")
     )
 }
 
@@ -2561,9 +2868,6 @@ fn write_ending(method: &str, path: &str) -> bool {
     matches!(
         (method, path),
         ("POST", "/watch-parties/{party_id}/leave")
-            | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
-            | ("POST", "/guilds/{guild_id}/prune")
-            | ("POST", "/guilds/{guild_id}/bulk-ban")
     )
 }
 
@@ -2572,6 +2876,8 @@ fn write_ending(method: &str, path: &str) -> bool {
 fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
     if r.path.contains("/reactions/") {
         vec![("user_id", world.users["ownera"].to_string())]
+    } else if r.path.starts_with("/watch-parties/") && r.path.contains("{user_id}") {
+        vec![("user_id", world.users["insider"].to_string())]
     } else {
         Vec::new()
     }
@@ -2581,6 +2887,24 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
 /// consulted before [`body_override`].
 fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
+        ("POST", "/sr/auth/password") => {
+            r#"{"current_password":"{pw}","new_password":"authz-matrix-New-Horse-7"}"#
+        }
+        ("DELETE", "/users/@me/age-confirmation") => r#"{"current_password":"{pw}"}"#,
+        ("POST", "/applications/{application_id}/reset-secret")
+        | ("POST", "/applications/{application_id}/bot/reset-token")
+        | ("DELETE", "/applications/{application_id}")
+        | ("POST", "/sr/auth/discord/unlink")
+        | ("POST", "/sr/auth/passkeys/register/begin") => r#"{"password":"{pw}","current_password":"{pw}"}"#,
+        ("POST", "/sr/auth/account/delete") => r#"{"password":"{pw}","username":"dispdel"}"#,
+        ("POST", "/sr/auth/reauth") => r#"{"method":"totp","code":"{totp_next}"}"#,
+        ("POST", "/guilds/{guild_id}/rss-feeds") => {
+            r#"{"channel_id":"{channel_id}","url":"https://example.test/feed2.xml"}"#
+        }
+        ("POST", "/requests/{request_id}/fulfil") => r#"{"submission_id":"{submission_id}"}"#,
+        ("PUT", "/watch-parties/{party_id}/media") | ("POST", "/watch-parties/{party_id}/queue") => {
+            r#"{"title_id":"{title_id}"}"#
+        }
         ("POST", "/moderation/takedowns/{notice_id}/items") => {
             r#"{"kind":"message","id":"{message_id}"}"#
         }
@@ -2618,8 +2942,14 @@ fn write_rank(r: &Route, idx: usize) -> (bool, u8, usize, usize) {
     )
 }
 
-fn substitute(text: &str, ids: &HashMap<&'static str, String>) -> String {
-    let mut t = text.to_owned();
+fn substitute(text: &str, ids: &HashMap<&'static str, String>, totp: &TotpSecret) -> String {
+    let mut t = text.replace("{pw}", TEST_PASSWORD);
+    if t.contains("{totp_next}") {
+        // The step after the one the staff step-up used: a code is good once.
+        let now = SystemClock.now_unix_ms() as u64 / 1000 + 30;
+        let code = sr_auth::totp::current_code(totp, "SIDE ROOM", "staffowner", now).unwrap_or_default();
+        t = t.replace("{totp_next}", &code);
+    }
     for (k, v) in ids {
         t = t.replace(&format!("{{{k}}}"), v);
     }
@@ -2682,7 +3012,7 @@ async fn write_phase(
         let text =
             write_body_override(&r.method, &r.path).or_else(|| body_override(&r.method, &r.path));
         let body = match text {
-            Some(t) => serde_json::from_str(&substitute(t, &world.a)).ok(),
+            Some(t) => serde_json::from_str(&substitute(t, &world.a, &world.totp)).ok(),
             None => Some(
                 info.and_then(|i| i.body.clone())
                     .unwrap_or_else(|| json!({})),
@@ -3047,6 +3377,12 @@ fn ctx_for(
         "tv_channel_id"
     } else if r.path.starts_with("/stage-instances/") {
         "stage_channel_id"
+    } else if r.path.contains("/call/") {
+        "dm_channel_id"
+    } else if r.path.starts_with("/tv/favorites/") {
+        "tv_channel_id"
+    } else if r.path.starts_with("/tv/reminders/") {
+        "block_id"
     } else {
         return (overlay(r, base.clone()), false);
     };
@@ -3072,13 +3408,27 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/library/", "/admin/library/"], "list_id", "library_list_id"),
     (&["/library/", "/admin/library/"], "review_id", "library_review_id"),
     (&["/library/", "/admin/library/"], "report_id", "library_report_id"),
+    (&["/guilds/"], "feature_id", "guild_feature_id"),
+    (&["/channels/"], "feature_id", "channel_feature_id"),
+    (&["/users/@me/"], "feature_id", "user_feature_id"),
+    (&["/admin/"], "feature_id", "admin_feature_id"),
+    (&["/users/@me/scheduled-messages/"], "id", "sched_id"),
+    (&["/users/@me/reminders/"], "id", "reminder_id"),
+    (&["/sr/invites/"], "code", "sr_invite_code"),
+    (&["templates/{code}"], "code", "template_code"),
+    (&["/channels/"], "upload_id", "attach_upload_id"),
+    (&["sr/applications/{application_id}"], "application_id", "guild_application_id"),
+    (&["/applications/"], "emoji_id", "app_emoji_id"),
+    (&["/developers/tester-invites/"], "invite_id", "tester_invite_id"),
+    (&["/staff/offers/"], "offer_id", "staff_offer_id"),
+    (&["/watch-parties/"], "item_id", "queue_item_id"),
     // Episodes and seasons belong to the series title, not to the film.
     (&["{episode_id}", "{season_id}"], "title_id", "series_title_id"),
 ];
 
 fn overlay(r: &Route, mut c: HashMap<&'static str, String>) -> HashMap<&'static str, String> {
     for (prefixes, placeholder, key) in OVERLAYS {
-        let by_placeholder = prefixes[0].starts_with('{');
+        let by_placeholder = !prefixes[0].starts_with('/');
         if prefixes.iter().any(|p| {
             if by_placeholder {
                 r.path.contains(p)
