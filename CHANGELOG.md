@@ -10,6 +10,7 @@ what the operator now has to know. Keep each wave to a handful of lines.
 
 ## Phase 26 - 2026-10-26
 
+- **Phase 6 is proven.** The first scheduled SDK compatibility run passed 7 of 7 for discord.js and serenity, so the developer platform's exit gate is closed (P26-NEXT-1).
 - **Emoji, stickers and sounds work everywhere.** Your server's emoji, stickers and sounds can be used in your other
   servers, in DMs and in group DMs. The emoji, sticker and soundboard pickers show one section per server you belong
   to.

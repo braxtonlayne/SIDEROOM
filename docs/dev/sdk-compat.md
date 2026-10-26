@@ -53,9 +53,9 @@ Run one sample bot per library against a seeded server (`just serve` plus `sr-cl
 
 Known library-visible differences to expect (each is in the spec, section 2): sharding follows `GET /gateway/bot` (one shard per 1000 installs); select menus and modal text inputs are not stored on messages (only buttons round trip); editing a posted interaction message changes content only; interactions work in servers only; `guilds.join`, user installs and teams do not exist.
 
-### Status of the weekly run (RDY-DEV-004, 2026-10-25)
+### Status of the weekly run (RDY-DEV-004, 2026-10-26)
 
-No scheduled run has happened yet: the first one is the Monday after the workflow reaches the default branch (D-306), and discord.py and twilight (RDY-DEV-003) wait for that run to be green. The last recorded result is the local walk of integration/phase17: discord.js 14.27.0 and serenity 0.12.5, 7 of 7 each. This file lists no per-library result for any later date; the dated results belong in the issue the workflow opens or in the run's `e2e/sdk-compat/report/*.xml` artifact, and are copied here after the first green run.
+The first scheduled run, 2026-10-26 06:00 UTC ([run 40318281178](https://github.com/braxtonlayne/SIDEROOM/actions/runs/40318281178)), passed 7 of 7 for discord.js 14.27.0 and 7 of 7 for serenity 0.12.5; no issue was opened. Later dated results belong in the issue the workflow opens or in the run artifact. discord.py and twilight stay unrun (RDY-DEV-003, P26-NEXT-1).
 
 ## First-party SDKs (not Discord libraries)
 
