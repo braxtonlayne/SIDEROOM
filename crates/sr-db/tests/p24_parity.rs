@@ -160,3 +160,101 @@ async fn the_all_level_flags_a_friends_spammy_message_without_filing_a_request()
     );
     db.cleanup().await.unwrap();
 }
+
+/// PAR-FU-002 (P26-LNG-1): a content edit re-screens a friend's message. Editing a clean message into the
+/// three-host text sets `LIKELY_SPAM` in Postgres without filing a request; editing it back clears the bit.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn editing_a_friends_message_into_spam_sets_the_flag_and_back_clears_it() {
+    use sr_chat::domain::message_flags::LIKELY_SPAM;
+    use sr_chat::message_hooks::MessageHooks;
+    use sr_chat::message_rules::EditMessageInput;
+    use sr_chat::repo::MessageRepository;
+    use sr_chat::social::safety::SpamFilter;
+    use sr_chat::social::user_settings::PrivacyUpdate;
+    use sr_chat::{ChatLimits, ChatService, SendMessage};
+    use sr_db::chat_repo::PgChatRepo;
+
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let test_ids = ids(11);
+    let friend = account(&pool, &test_ids).await;
+    let me = account(&pool, &test_ids).await;
+    let repo = PgSocialRepo::new(pool.clone());
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let social = Arc::new(SocialService::new(
+        PgSocialRepo::new(pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(clock.clone(), 11, 12).unwrap(),
+        SocialLimits::default(),
+    ));
+    social.send_friend_request(friend, me).await.unwrap();
+    social.accept_friend_request(me, friend).await.unwrap();
+    social
+        .update_privacy(
+            me,
+            PrivacyUpdate {
+                dm_spam_filter: Some(SpamFilter::All),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let ch = ChannelId::new(test_ids.generate().get());
+    repo.insert_dm(ch, friend, me).await.unwrap();
+
+    let hooks: Arc<dyn MessageHooks> = social.clone();
+    let chat = ChatService::new(
+        PgChatRepo::new(pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(clock, 11, 13).unwrap(),
+        ChatLimits::default(),
+    )
+    .with_hooks(hooks);
+    let sent = chat
+        .send_message(
+            friend,
+            ch,
+            SendMessage {
+                content: "see you at nine".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(sent.flags & LIKELY_SPAM, 0);
+
+    let edit = |text: &str| EditMessageInput {
+        content: Some(text.into()),
+        flags: None,
+    };
+    chat.edit_message(
+        friend,
+        ch,
+        sent.id,
+        edit("https://a.example.com https://b.example.org https://c.example.net"),
+    )
+    .await
+    .unwrap();
+    let stored = PgChatRepo::new(pool.clone())
+        .get_message(ch, sent.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.flags & LIKELY_SPAM, LIKELY_SPAM);
+    assert_ne!(
+        repo.get_request_state(me, ch).await.unwrap(),
+        Some(RequestState::Spam)
+    );
+
+    chat.edit_message(friend, ch, sent.id, edit("sorry, wrong chat"))
+        .await
+        .unwrap();
+    let stored = PgChatRepo::new(pool.clone())
+        .get_message(ch, sent.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.flags & LIKELY_SPAM, 0);
+    db.cleanup().await.unwrap();
+}

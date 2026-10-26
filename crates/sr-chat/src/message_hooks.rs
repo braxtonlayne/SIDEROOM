@@ -15,8 +15,9 @@ pub trait MessageHooks: Send + Sync {
     /// `@everyone`/`@here` and role fan-out, all already VIEW_CHANNEL-checked.
     async fn message_sent(&self, message: &Message, notify: &[UserId]);
 
-    /// Server-set flag bits added to the message before it is stored (PAR-FU-002: a DM the recipient's spam
-    /// filter flags). Defaults to none.
+    /// Server-set flag bits for the message before it is stored (PAR-FU-002: a DM the recipient's spam filter
+    /// flags). Also asked again for the edited text when a content edit changes the message, which sets or clears
+    /// the bit. Defaults to none.
     async fn extra_flags(&self, _message: &Message) -> u32 {
         0
     }

@@ -1039,6 +1039,28 @@ impl Gateway {
     /// `sr_chat::sensitive` function the REST decorators call. `restricted`: the channel is
     /// age-restricted.
     async fn deliver_filtered(&self, s: &Session, name: &str, data: &Value, restricted: bool) {
+        // PAR-FU-002: the likely-spam flag is the recipient's view; the author's sessions get the payload without it.
+        let masked;
+        let data = if matches!(name, "MESSAGE_CREATE" | "MESSAGE_UPDATE")
+            && data
+                .get("flags")
+                .and_then(Value::as_u64)
+                .is_some_and(|f| f & u64::from(sr_chat::message_flags::LIKELY_SPAM) != 0)
+            && data
+                .pointer("/author/id")
+                .and_then(Value::as_str)
+                .and_then(|a| a.parse::<u64>().ok())
+                == Some(s.user.get())
+        {
+            let mut v = data.clone();
+            if let Some(f) = v.get("flags").and_then(Value::as_u64) {
+                v["flags"] = Value::from(f & !u64::from(sr_chat::message_flags::LIKELY_SPAM));
+            }
+            masked = v;
+            &masked
+        } else {
+            data
+        };
         let has_files = matches!(name, "MESSAGE_CREATE" | "MESSAGE_UPDATE")
             && data
                 .get("attachments")

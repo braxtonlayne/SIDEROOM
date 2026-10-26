@@ -441,6 +441,16 @@ pub mod message_flags {
     /// message stays in the conversation and the client shows it behind a "likely spam" notice the recipient can
     /// reveal. Stored, set only by the server (never by a client: it is not in the client-settable flags).
     pub const LIKELY_SPAM: u32 = 1 << 29;
+
+    /// The flag bits `viewer` may see on a message written by `author`. `LIKELY_SPAM` is the recipient's view of
+    /// their own safety setting: the author never receives it (REST or gateway).
+    pub fn for_viewer(flags: u32, author: sr_core::UserId, viewer: sr_core::UserId) -> u32 {
+        if author == viewer {
+            flags & !LIKELY_SPAM
+        } else {
+            flags
+        }
+    }
 }
 
 /// D-121: user_deleted / staff_removed are hidden from user views.

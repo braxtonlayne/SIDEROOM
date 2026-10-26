@@ -549,6 +549,19 @@ impl<R: ChatRepository> ChatService<R> {
                 limits: &self.limits,
             },
         )?;
+        let mut plan = plan;
+        // PAR-FU-002: a content edit re-screens the message; the server-set bits are recomputed from the new text
+        // (a flags-only edit keeps them).
+        if let Some(hooks) = &self.hooks
+            && plan.content != message.content
+        {
+            let edited = Message {
+                content: plan.content.clone(),
+                ..message.clone()
+            };
+            plan.flags = (plan.flags & !crate::domain::message_flags::LIKELY_SPAM)
+                | hooks.extra_flags(&edited).await;
+        }
         self.repo.apply_edit(&plan).await?;
         Ok(plan)
     }
