@@ -135,7 +135,9 @@ test.describe('@gate Phase 6 developer exit gate', () => {
       // Staff: the Owner reviews the queue entry of this application and approves its version.
       const staff = new Person(API_ORIGIN, PUBLIC);
       await staff.login(owner.username, owner.password);
-      const queue = await staff.get<{ id: string; application_id: string }[]>('/admin/developers/versions');
+      const queue = await staff.get<{ id: string; application_id: string }[]>(
+        '/admin/developers/versions',
+      );
       const entry = queue.find((v) => v.application_id === appId);
       expect(entry, 'the version is in the staff review queue').toBeTruthy();
       await staff.post(`/admin/developers/versions/${entry!.id}/decision`, { decision: 'approve' });
