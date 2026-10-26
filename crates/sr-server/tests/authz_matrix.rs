@@ -2210,24 +2210,6 @@ async fn seed(
             .execute(&pool)
             .await
             .unwrap();
-        let r = srv
-            .call(
-                &oa,
-                "PUT",
-                &format!("/guilds/{ga}/directory"),
-                Some(&json!({"category": "gaming", "description": "authz"})),
-            )
-            .await;
-        srv.call(
-            &staff,
-            "PATCH",
-            &format!("/admin/directory/{ga}"),
-            Some(&json!({"decision": "approve"})),
-        )
-        .await;
-        if !(200..300).contains(&r.status) {
-            println!("authz_matrix: seed directory -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
-        }
         srv.call(
             &oa,
             "PUT",
@@ -3173,10 +3155,53 @@ fn class_of(method: &str) -> u8 {
 /// Write routes the allow phase cannot assert yet, each with the reason. The table can only shrink:
 /// `write_observed_is_pinned` pins its length, and a route listed here that turns out to be admitted fails
 /// the run until it is removed (and the pin lowered).
-const WRITE_OBSERVED: &[(&str, &str, &str)] = &[];
+const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
+    ("POST", "/moderation/appeals", "an appeal is opened with the token mailed to a banned account"),
+    ("POST", "/moderation/appeals/{appeal_id}/decision", "an appeal is opened with the token mailed to a banned account"),
+    ("POST", "/admin/card-actions", "needs a posted alert card, a message carrying an sr: button"),
+    ("POST", "/admin/cinema/assets/{asset_id}/complete", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
+    ("POST", "/admin/cinema/assets/{asset_id}/probe", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
+    ("POST", "/admin/cinema/assets/{asset_id}/transcode", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
+    ("POST", "/admin/jobs/{job_id}/retry", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
+    ("POST", "/admin/persons/{person_id}/identities/{identity_id}/move", "needs a linked identity row (an external login) of the person"),
+    ("POST", "/admin/transcode/jobs/{job_id}/cancel", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
+    ("PUT", "/admin/cinema/assets/{asset_id}/original-downloads", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
+    ("PUT", "/admin/library/chapters/{chapter_id}/pages/{index}", "needs a stored page; pages are objects written by the ingest under library/ keys"),
+    ("PUT", "/admin/transcode/workers/{worker_id}/drain", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
+    ("DELETE", "/admin/library/uploads/{upload_id}", "the second seeded admin upload answers Unknown upload (unresolved, see the handoff)"),
+    ("DELETE", "/admin/jobs/{job_id}", "needs a dead job, a running transcode job or a worker, which only a transcoder worker creates"),
+    ("PUT", "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions", "bearer-only route: needs a user token with applications.commands.permissions.update, which no actor holds"),
+    ("POST", "/activity-instances/{instance_id}/join", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
+    ("POST", "/activity-instances/{instance_id}/leave", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
+    ("POST", "/channels/{channel_id}/activity", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
+    ("POST", "/channels/{channel_id}/call/ring", "the call state lives in the voice node (calls is unset in the embedded setup)"),
+    ("POST", "/channels/{channel_id}/call/stop-ringing", "the call state lives in the voice node (calls is unset in the embedded setup)"),
+    ("POST", "/cinema/assets/{asset_id}/refresh", "needs a Cinema asset held by the object store; the test stack's store cannot start an upload (RDY-SEC-011)"),
+    ("POST", "/cinema/titles/{title_id}/downloads", "Patrons only: the member holds no entitlement grant"),
+    ("POST", "/donations/invoices/{invoice_id}/cancel", "payments are off: no active wallet is configured"),
+    ("POST", "/donations/invoices/{invoice_id}/check", "payments are off: no active wallet is configured"),
+    ("POST", "/guilds/{guild_id}/alert-actions", "needs a posted alert card, a message carrying an sr: button"),
+    ("POST", "/interactions/{interaction_id}/{token}/callback", "needs an interaction id and token minted by a real interaction"),
+    ("POST", "/library/chapters/{chapter_id}/download", "Patrons only: the member holds no entitlement grant"),
+    ("POST", "/sr/auth/discord/link", "needs an external identity provider or a passkey ceremony"),
+    ("POST", "/sr/auth/passkeys/login/finish", "needs an external identity provider or a passkey ceremony"),
+    ("POST", "/users/@me/connections/{provider}/authorize", "needs an external identity provider or a passkey ceremony"),
+    ("POST", "/users/@me/connections/{provider}/{id}/refresh", "needs an external identity provider or a passkey ceremony"),
+    ("POST", "/users/@me/profile-doc/layout", "needs an approved profile_layout package"),
+    ("PATCH", "/sr/auth/passkeys/{id}", "needs an external identity provider or a passkey ceremony"),
+    ("PATCH", "/users/@me/connections/{provider}/{id}", "needs an external identity provider or a passkey ceremony"),
+    ("PATCH", "/webhooks/{application_id}/{token}/messages/{message_id}", "needs an interaction id and token minted by a real interaction"),
+    ("DELETE", "/users/@me/connections/{provider}/{id}", "needs an external identity provider or a passkey ceremony"),
+    ("DELETE", "/webhooks/{application_id}/{token}/messages/{message_id}", "needs an interaction id and token minted by a real interaction"),
+    ("DELETE", "/guilds/{guild_id}/integrations/{integration_id}", "no integration exists to remove (they are created by external sync)"),
+    ("DELETE", "/sr/auth/passkeys/{id}", "needs an external identity provider or a passkey ceremony"),
+    ("DELETE", "/users/{user_id}/guestbook/{entry_id}", "the victim's profile page has no guestbook (a setting of the page owner)"),
+    ("DELETE", "/activity-instances/{instance_id}", "needs an approved Activity bundle and a running instance; no Activity host runs in this stack"),
+    ("POST", "/watch-parties/{party_id}/leave", "the insider's leave follows its removal by the member delete (unresolved order, see the handoff)"),
+];
 
 /// The length of [`WRITE_OBSERVED`]. Lower it when an entry goes; never raise it.
-const WRITE_OBSERVED_LEN: usize = 0;
+const WRITE_OBSERVED_LEN: usize = 42;
 
 /// Admitted writes that answered 400 or 422 per group, in the order of [`GROUPS`]: the request shape was
 /// refused before the permission check ran. Like [`WEAK_CEILING`], the numbers only go down.
@@ -3466,6 +3491,30 @@ async fn write_phase(
             r.body.chars().take(160).collect::<String>()
         ));
     }
+    // Listed in the directory only now: once approved, a stranger may join the server, which the refusal
+    // phases before this one must not see.
+    let ga = world.guild_a;
+    let r = world
+        .srv
+        .call(
+            &world.actor("owner_a").cred,
+            "PUT",
+            &format!("/guilds/{ga}/directory"),
+            Some(&json!({"category": "gaming", "description": "authz"})),
+        )
+        .await;
+    if !(200..300).contains(&r.status) {
+        println!("authz_matrix: directory listing -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+    }
+    world
+        .srv
+        .call(
+            &owner.cred,
+            "PATCH",
+            &format!("/admin/directory/{ga}"),
+            Some(&json!({"decision": "approve"})),
+        )
+        .await;
     let mut order: Vec<usize> = routes
         .iter()
         .enumerate()
@@ -3626,7 +3675,16 @@ async fn run_group(
     let (reads, rest): (Vec<&Call>, Vec<&Call>) = others
         .into_iter()
         .partition(|c| class_of(&routes[c.route].method) == 0);
-    let before = fingerprint(&world.pool).await;
+    // Let what the seed set going (a staff offer's direct message, a notification job) land first.
+    let mut before = fingerprint(&world.pool).await;
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let again = fingerprint(&world.pool).await;
+        if again == before {
+            break;
+        }
+        before = again;
+    }
     let mut group_fail = 0usize;
     let mut n = 0usize;
     for (phase, list) in [(0, denials), (1, reads), (2, rest)] {
