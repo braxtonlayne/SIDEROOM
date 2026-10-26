@@ -62,6 +62,6 @@ The pieces that are API calls rather than clicks (everything except the report-t
 
 ## Notes for the next person
 
-- The evasion scan raises at most ten signals per run, lowest related Person ids first, so against a database that already holds more than five banned Persons the signal for a new ban can be left out. Not a problem on a fresh CI database; locally, recreate the database between runs of the moderation gate.
+- The evasion scan raises at most ten signals per run. Before the integration it raised them lowest related Person id first, so a Person linked to more than a handful of banned Persons could miss the signal for the newest ban: a real moderation gap, not a local quirk. Fixed in the phase 25 integration (P25-SEC-1 (4)): `suspicion.rs::scan_person_in` spends the budget newest ban first, pinned by the Postgres test `the_signal_budget_keeps_the_newest_ban` in `crates/sr-moderation/tests/suspicion.rs`. Running the moderation gate twice on one local database no longer needs a fresh database for that reason.
 - A banned person's reported message is held by the report itself, so a staff `holds` call on it answers "already under a hold"; the spec holds the person's messages in a window instead.
 - A bot's `identifyGapMs` is set to 0 in `e2e/support/bot.ts` (one shard, one bot).
