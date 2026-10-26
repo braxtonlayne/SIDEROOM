@@ -79,7 +79,7 @@ test.describe('@gate Phase 6 developer exit gate', () => {
       );
       await page.getByLabel('Add to server').selectOption({ label: server.name });
       await page.getByRole('button', { name: 'Authorize', exact: true }).click();
-      await expect(page.getByText('The bot was added to your server.')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Authorized' })).toBeVisible();
 
       // --- 3. The bot connects, registers its command and answers it.
       bot = startBot({
@@ -149,7 +149,7 @@ test.describe('@gate Phase 6 developer exit gate', () => {
       );
       await other.page.getByLabel('Add to server').selectOption({ label: second.name });
       await other.page.getByRole('button', { name: 'Authorize', exact: true }).click();
-      await expect(other.page.getByText('The bot was added to your server.')).toBeVisible();
+      await expect(other.page.getByRole('heading', { name: 'Authorized' })).toBeVisible();
 
       // The install is real: the bot is a member of the second server.
       const members = await other.context.request.get(
