@@ -1304,6 +1304,13 @@ async fn seed(
     TotpRepository::confirm(&auth, u("staffowner"), step_now - 10)
         .await
         .unwrap();
+    // The staff offeree is enrolled too (an offer is accepted only with a second factor).
+    TotpRepository::put_pending(&auth, u("offeree"), totp.as_bytes())
+        .await
+        .unwrap();
+    TotpRepository::confirm(&auth, u("offeree"), step_now - 10)
+        .await
+        .unwrap();
 
     // Lift the HTTP rate limits so the sweep is not answered with 429 (the limiter is proven elsewhere).
     for key in [
@@ -2090,6 +2097,14 @@ async fn seed(
             }
         }
         a.insert("guild_feature_id", "community.suggestions".to_owned());
+        // The report intake is a platform module that is off until staff switch it on.
+        srv.call(
+            &staff,
+            "PATCH",
+            "/admin/features/moderation.reports",
+            Some(&json!({"enabled": true})),
+        )
+        .await;
         // The member's own things.
         if let Some(id) = mk(
             &srv,
@@ -2277,6 +2292,22 @@ async fn seed(
         .await
         {
             a.insert("staff_offer_id", id);
+        }
+        {
+            let offeree_cred = Cred::Session(sess["offeree"].clone());
+            let now = SystemClock.now_unix_ms() as u64 / 1000;
+            let code = sr_auth::totp::current_code(&totp, "SIDE ROOM", "offeree", now).unwrap_or_default();
+            let r = srv
+                .call(
+                    &offeree_cred,
+                    "POST",
+                    "/sr/auth/reauth",
+                    Some(&json!({"method": "totp", "code": code})),
+                )
+                .await;
+            if r.status != 200 && r.status != 204 {
+                println!("authz_matrix: seed offeree reauth -> {} {}", r.status, r.body.chars().take(100).collect::<String>());
+            }
         }
         // Watch party: a queued item and a second participant.
         if !party.is_empty() {
@@ -3160,6 +3191,8 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
         // The only account enrolled in TOTP.
         ("POST", "/sr/auth/reauth") => Some("staff_owner"),
         ("POST", "/staff/offers/{offer_id}/respond") => Some("offeree"),
+        // A participant leaves; the host leaving would end the party the deletes address.
+        ("POST", "/watch-parties/{party_id}/leave") => Some("insider"),
         ("POST", "/developers/tester-invites/{invite_id}/respond") => Some("victim"),
         // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
         ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
@@ -3195,14 +3228,15 @@ fn write_late(method: &str, path: &str) -> u8 {
     }
     u8::from(matches!(
         (method, path),
-        ("DELETE", "/guilds/{guild_id}/never")
+        // Saving a profile page drops the pictures it does not use.
+        ("PUT", "/users/@me/profile-doc")
+            | ("DELETE", "/guilds/{guild_id}/never")
             // A bulk overwrite replaces the commands the routes before it address.
             | ("PUT", "/applications/{application_id}/commands")
             | ("PUT", "/applications/{application_id}/guilds/{guild_id}/commands")
             // Removing members ends what the member routes before them act on.
             | ("DELETE", "/guilds/{guild_id}/bans/{user_id}")
-            | ("DELETE", "/webhooks/{webhook_id}")
-            // The host leaving ends the party.
+            // Leaving, then the party's removal.
             | ("POST", "/watch-parties/{party_id}/leave")
             | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
             | ("POST", "/guilds/{guild_id}/prune")
