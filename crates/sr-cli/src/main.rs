@@ -4,6 +4,7 @@
 mod commands;
 mod guilds;
 mod library_seed;
+mod mounts_cli;
 mod ops;
 mod packages;
 mod seed_scale;
@@ -237,14 +238,26 @@ pub enum StaffCmd {
 
 #[derive(Debug, Subcommand)]
 pub enum StorageCmd {
-    /// Apply the bucket CORS rule that browser uploads need (D-175): PUT, GET and
-    /// HEAD from the app origin, `Content-Type` allowed, `ETag` exposed. Safe to
-    /// repeat. Does not need the database.
+    /// Apply the bucket CORS rule that browser reads and uploads need (D-175, BYOS): GET, HEAD and PUT
+    /// from the app origin, `content-type` allowed, `ETag`, `Content-Range`, `Accept-Ranges` and
+    /// `Content-Length` exposed. Safe to repeat. Without `--mount` or `--all` it applies to the bucket in
+    /// `storage.*` and does not need the database; with them it works on stored storage mounts, re-checks
+    /// the rule and records the result (`cors_ok_at`).
     EnsureCors {
-        /// App origin(s). Defaults to `server.public_url` (repeatable).
+        /// App origin(s). Defaults to `server.public_url` (repeatable; stored mounts take exactly one).
         #[arg(long = "origin")]
         origins: Vec<String>,
+        /// Apply to this stored mount id.
+        #[arg(long, conflicts_with = "all")]
+        mount: Option<i64>,
+        /// Apply to every stored mount that is not disabled.
+        #[arg(long)]
+        all: bool,
     },
+    /// Point the instance bucket (mount 1) at the bucket, endpoint, region and keys now in `storage.*`.
+    /// Run it after changing `storage.bucket` and moving the objects, when the server refuses to start
+    /// because mount 1 names another bucket. The new secret is sealed with `server.secret_key`.
+    SetInstanceMount,
 }
 
 #[derive(Debug, Subcommand)]
@@ -366,9 +379,32 @@ mod tests {
         .unwrap();
         assert!(matches!(
             c.command,
-            Command::Storage(StorageCmd::EnsureCors { ref origins }) if origins.len() == 1
+            Command::Storage(StorageCmd::EnsureCors { ref origins, mount: None, all: false }) if origins.len() == 1
         ));
         assert!(Cli::try_parse_from(["sr-cli", "storage", "ensure-cors"]).is_ok());
+        let c = Cli::try_parse_from(["sr-cli", "storage", "ensure-cors", "--mount", "42"]).unwrap();
+        assert!(matches!(
+            c.command,
+            Command::Storage(StorageCmd::EnsureCors {
+                mount: Some(42),
+                all: false,
+                ..
+            })
+        ));
+        let c = Cli::try_parse_from(["sr-cli", "storage", "ensure-cors", "--all"]).unwrap();
+        assert!(matches!(
+            c.command,
+            Command::Storage(StorageCmd::EnsureCors { all: true, .. })
+        ));
+        assert!(
+            Cli::try_parse_from(["sr-cli", "storage", "ensure-cors", "--all", "--mount", "1"])
+                .is_err()
+        );
+        let c = Cli::try_parse_from(["sr-cli", "storage", "set-instance-mount"]).unwrap();
+        assert!(matches!(
+            c.command,
+            Command::Storage(StorageCmd::SetInstanceMount)
+        ));
         let c =
             Cli::try_parse_from(["sr-cli", "package", "validate", "my-theme", "--json"]).unwrap();
         assert!(matches!(
