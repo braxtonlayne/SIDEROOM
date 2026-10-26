@@ -7,5 +7,5 @@ export default {
   'admin.system.storageBucketCinema': 'Cinema media',
   'admin.system.storageFigure': '{bytes} in {objects} objects, measured {when}',
   'admin.system.storagePartial':
-    'at least {bytes} in {objects} objects (the walk hit its limit), measured {when}',
+    'at least {bytes} in {objects} objects, measured {when}. The walk hit its limit: raise ops.storage_measure_max_objects in Limits & settings (group Limits).',
 } satisfies Record<string, string>;

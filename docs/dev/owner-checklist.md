@@ -39,7 +39,7 @@ Pushes and dispatches are the owner's call; the integrator performs them once th
 - [ ] **First scheduled or dispatched run of `sdk-compat.yml`.** **Unblocks:** ticking DEV-SDK-003 (D-306).
 - [ ] **Dispatch `load-test.yml`** (release build). **Unblocks:** the load target figure (2,000 sessions, 200 msg/s, REST p95 under 100 ms), which a debug build on a laptop missed.
 - [ ] **First run of `backup-drill.yml`.** **Unblocks:** proof that the backup, restore and WAL scripts do not rot.
-- [ ] **Dispatch `prod-smoke.yml`** once wave 20 is merged (it also runs on pull requests that touch `deploy/**`, the workflow, `crates/sr-cli/**` or `crates/sr-preflight/**`, D-354, so the phase-20 PR runs it first). **Unblocks:** the proof that the production stack boots from the shipped files. Make it a required check in branch protection only after it has been green on the default branch at least twice (D-354).
+- [ ] **Dispatch `prod-smoke.yml`** once wave 20 is merged (it also runs on pull requests that touch `deploy/**`, the workflow, `crates/sr-cli/**` or `crates/sr-preflight/**`, D-354, so the phase-20 PR runs it first). **Unblocks:** the proof that the production stack boots from the shipped files. Make it a required check in branch protection only after it has been green on the default branch at least twice (D-354), and the `upgrade` job only after two green default-branch runs each under 25 minutes (P25-OPS-1): then add the three job names `stack`, `systemd` and `upgrade` as required checks for `main` (never `upgrade-base`). The companion workflow `.github/workflows/prod-smoke-skip.yml` (same job names, `paths-ignore` on the same four paths, jobs that only echo) reports them on pull requests outside the install surface, so those do not wait forever on an unreported check; it must be on `main` before the checks are required.
 - [ ] **Dispatch `visual-baselines`** (the manual run of `e2e.yml`, D-307), then commit the downloaded `*-chromium-linux.png` files in a PR. **Unblocks:** the visual regression job (L-21, L-22) and its required check.
 - [ ] **Triage the first `pnpm audit` and `shellcheck` output** in Actions (XC 4): fix or waive each finding. **Unblocks:** a clean `Repo checks`.
 
@@ -61,7 +61,8 @@ An agent downloads nothing without your word. Each row says what the download is
 - [ ] **Upstream licence texts** for the placeholders in `THIRD_PARTY_NOTICES.md` (the FreeType year, the NTP and Zlib holders; the note in that file names the upstream file each text comes from). **Unblocks:** a notices file with no placeholder. The alternative is to keep the "To complete" note.
 - [ ] **Optional: ffmpeg on a development machine** (human action 5, D-269). **Unblocks:** running the pipeline and the TV slate locally. Not required.
 - [ ] **Optional: gitleaks in CI.** **Unblocks:** a second secret scanner; wave 21 ships a no-download scanner first.
-- [ ] **Optional: discord.py and twilight** for the compatibility suite, and a Node WebRTC library for TypeScript SDK voice (each with a licence check). **Unblocks:** wider SDK coverage.
+- [ ] **Optional: discord.py and twilight** for the compatibility suite (each with a licence check). **Unblocks:** wider SDK coverage.
+- [x] ~~**Optional: a Node WebRTC library for TypeScript SDK voice.**~~ Done: `werift` 0.25.0 has been in `packages/bot` since wave 22 (struck in the phase 25 integration).
 - [ ] **Optional: one GPU rental** to run the NVENC path of `sr-transcoder` once (`deploy/TRANSCODER.md`). **Unblocks:** the proof of the hardware path; the CPU path in CI is enough for the plan.
 
 ## 6. Development machines
