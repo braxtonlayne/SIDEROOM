@@ -1,4 +1,4 @@
-import { GatewayClient, type SocketLike } from './client';
+import { GatewayClient, resumeUrlWithQuery, type SocketLike } from './client';
 import { Op } from './protocol';
 
 class FakeSocket implements SocketLike {
@@ -106,7 +106,8 @@ describe('GatewayClient', () => {
     await vi.advanceTimersByTimeAsync(1);
     const ws2 = last();
     expect(ws2).not.toBe(ws);
-    expect(ws2.url).toBe('ws://r/g');
+    // The bare resume URL gets the client's query: without `v` the server answers 400 (RDY-VOX-002).
+    expect(ws2.url).toBe('ws://r/g?v=1&encoding=json');
     ws2.recv({ op: Op.HELLO, d: { heartbeat_interval: 1000 } });
     await flush();
     expect(ws2.sent[0]).toEqual({
@@ -228,5 +229,19 @@ describe('GatewayClient', () => {
     last().onmessage?.({ data: new ArrayBuffer(4) });
     await flush();
     expect(last().closedWith).toBe(4002);
+  });
+});
+
+describe('resumeUrlWithQuery (RDY-VOX-002)', () => {
+  it('adds the client query to a bare resume URL and leaves a complete one alone', () => {
+    const base = 'ws://x/gateway?v=1&encoding=json';
+    expect(resumeUrlWithQuery('ws://r/gateway', base)).toBe('ws://r/gateway?v=1&encoding=json');
+    expect(resumeUrlWithQuery('ws://r/gateway?region=a', base)).toBe(
+      'ws://r/gateway?region=a&v=1&encoding=json',
+    );
+    expect(resumeUrlWithQuery('ws://r/gateway?v=10', base)).toBe('ws://r/gateway?v=10');
+    expect(resumeUrlWithQuery('ws://r/gateway', 'ws://x/gateway')).toBe(
+      'ws://r/gateway?v=1&encoding=json',
+    );
   });
 });

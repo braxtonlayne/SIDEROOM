@@ -64,6 +64,17 @@ function defaultUrl(): string {
   return `${scheme}://${loc?.host ?? 'localhost'}/gateway?v=1&encoding=json`;
 }
 
+/**
+ * READY's `resume_gateway_url` is a bare host and path, as Discord sends it: the client adds its own query
+ * (`v`, `encoding`). Resuming on the bare URL was answered 400 "unsupported gateway version", so a dropped
+ * gateway could never resume and stayed "Reconnecting..." for good (RDY-VOX-002, soak run 40246851668).
+ */
+export function resumeUrlWithQuery(resume: string, base: string): string {
+  if (/[?&]v=/.test(resume)) return resume;
+  const q = base.includes('?') ? base.slice(base.indexOf('?') + 1) : 'v=1&encoding=json';
+  return `${resume}${resume.includes('?') ? '&' : '?'}${q}`;
+}
+
 export class GatewayClient {
   private ws: SocketLike | null = null;
   private attempt = 0;
@@ -141,7 +152,8 @@ export class GatewayClient {
   private open(): void {
     const resuming = this.sessionId !== null && this.seq !== null;
     this.setStatus(this.everConnected || this.attempt > 0 ? 'reconnecting' : 'connecting');
-    let url = (resuming && this.resumeUrl) || this.opts.url || defaultUrl();
+    const base = this.opts.url || defaultUrl();
+    let url = resuming && this.resumeUrl ? resumeUrlWithQuery(this.resumeUrl, base) : base;
     if (this.opts.decompress && !/[?&]compress=/.test(url)) {
       url += `${url.includes('?') ? '&' : '?'}compress=zstd-stream`;
     }
