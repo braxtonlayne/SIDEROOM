@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../../test/server';
 import { byosMockHandlers, mockMount } from '../storage/mocks';
+import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { openSettings, resetPrefs, signedIn } from './helpers';
 
 beforeEach(() => {
@@ -161,5 +162,17 @@ describe('Appearance > Sections nav modes', () => {
     expect(await screen.findByText('Sections')).toBeInTheDocument();
     expect(screen.getAllByRole('radio', { name: 'Auto' })).toHaveLength(2);
     expect(screen.getAllByRole('radio', { name: 'Always hide' })).toHaveLength(2);
+  });
+});
+
+describe('Storage accessibility (axe)', () => {
+  it('has no violations with a mount, a test table and the connect form open', async () => {
+    const user = userEvent.setup();
+    server.use(...byosMockHandlers({ mounts: [mockMount()] }));
+    openSettings('storage');
+    await user.click(await screen.findByRole('button', { name: 'Test connection' }));
+    await screen.findByRole('table', { name: 'Connection test results' });
+    await user.click(screen.getByRole('button', { name: 'Connect a bucket' }));
+    expect(await axeViolations(document.body)).toEqual([]);
   });
 });

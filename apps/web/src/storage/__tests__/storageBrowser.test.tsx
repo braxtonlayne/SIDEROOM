@@ -4,6 +4,7 @@ import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
 import { http, HttpResponse, server } from '../../test/server';
 import { byosMockHandlers } from '../../settings/user/storage/mocks';
+import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { previewKind } from '../StorageBrowser';
 
 const open = (path: string) => {
@@ -90,5 +91,16 @@ describe('Bucket browser (BYOS-UI-001, against MSW mocks)', () => {
     await user.click(screen.getByRole('button', { name: 'Load more' }));
     await waitFor(() => expect(screen.getByText('b.txt')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+  });
+});
+
+describe('Bucket browser accessibility (axe)', () => {
+  it('has no violations with a listing and a preview', async () => {
+    const user = userEvent.setup();
+    server.use(...byosMockHandlers({ objects: OBJECTS }));
+    open('/storage/501');
+    await user.click(await screen.findByRole('button', { name: 'Preview cover.png' }));
+    await screen.findByRole('img', { name: 'cover.png' });
+    expect(await axeViolations(document.body)).toEqual([]);
   });
 });
