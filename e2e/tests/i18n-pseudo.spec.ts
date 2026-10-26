@@ -94,8 +94,26 @@ async function scan(page: Page) {
         clientWidth: el.clientWidth,
       });
     }
+    // The widest elements that stick out of the viewport and are not inside a clipping or scrolling box.
+    const wide: string[] = [];
+    if (doc.scrollWidth - doc.clientWidth > 1) {
+      for (const el of Array.from(document.body.querySelectorAll<HTMLElement>('*'))) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.right <= doc.clientWidth + 1) continue;
+        let clipped = false;
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+          const ox = getComputedStyle(p).overflowX;
+          if (ox !== 'visible') clipped = true;
+          if (getComputedStyle(p).position === 'fixed') clipped = true;
+        }
+        if (getComputedStyle(el).position === 'fixed' || clipped) continue;
+        const cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/)[0] : '';
+        wide.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ''} to ${Math.round(r.right)}px`);
+      }
+    }
     return {
       pageOverflow: doc.scrollWidth - doc.clientWidth,
+      wide: wide.slice(0, 4),
       pseudoActive: /[àƀçðéƒĝĥîĵķļɱñöþǫŕšţûṽŵẋýž]/.test(document.body.innerText),
       clips,
     };
@@ -107,6 +125,16 @@ async function scan(page: Page) {
  * `<route> @ <width>: <description>`; `owner` is the file that has to change.
  */
 const KNOWN: { match: string; owner: string; note: string }[] = [];
+
+test('the scanner finds a control that clips its text', async ({ page }) => {
+  await page.setContent(
+    '<button style="width:60px;overflow:hidden;white-space:nowrap">A long pseudo label</button>' +
+      '<button style="width:60px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Designed truncation</button>' +
+      '<div style="width:60px;overflow:hidden;white-space:nowrap">Not a control, left alone</div>',
+  );
+  const r = await scan(page);
+  expect(r.clips.map((c) => c.where)).toEqual(['button "A long pseudo label"']);
+});
 
 test('build the fixture world', async ({ owner, signedIn }) => {
   const s = await soloServer(signedIn, owner, 'Pseudo');
@@ -140,7 +168,8 @@ for (const vp of WIDTHS) {
 
           const label = `${row.name} @ ${vp.name}`;
           const findings: string[] = [];
-          if (r.pageOverflow > 1) findings.push(`page scrolls sideways by ${r.pageOverflow}px`);
+          if (r.pageOverflow > 1)
+            findings.push(`page scrolls sideways by ${r.pageOverflow}px (${r.wide.join(', ')})`);
           for (const c of r.clips)
             findings.push(`${c.where} clipped (${c.scrollWidth} > ${c.clientWidth})`);
 

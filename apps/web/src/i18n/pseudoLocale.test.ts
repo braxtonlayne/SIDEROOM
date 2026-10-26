@@ -3,7 +3,8 @@ import { parseIcu, type Node } from './icu';
 import { en } from './messages/en';
 import './messages/en.rest';
 import { wrapPseudo } from './pseudo';
-import { LOCALES, PSEUDO_ENABLED, setLocale, t } from './runtime';
+import { adoptAccountLocale } from './accountLocale';
+import { LOCALES, PSEUDO_ENABLED, getLocale, setLocale, t } from './runtime';
 
 /** Merge adjacent text nodes and turn case maps into plain objects, so two parses compare structurally. */
 function norm(nodes: Node[]): unknown[] {
@@ -51,6 +52,9 @@ describe('en-XA build-time catalog (RDY-I18N-002)', () => {
     await setLocale('en-XA', false);
     expect(t('entrance.login.title')).toBe(generated['entrance.login.title']);
     expect(localStorage.getItem('sr.locale')).toBeNull();
+    // A device default (the account's locale) must not replace a preview of this page load.
+    expect(await adoptAccountLocale('en-US')).toBeNull();
+    expect(getLocale()).toBe('en-XA');
     await setLocale('en');
   });
 });

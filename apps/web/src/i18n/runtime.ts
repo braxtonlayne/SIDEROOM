@@ -58,6 +58,9 @@ const HOUR_KEY = 'sr.hour12';
 type Listener = () => void;
 const listeners = new Set<Listener>();
 let current = 'en';
+/** True while a `?lang=` pseudo preview is showing (nothing saved); a device-level default must not replace it. */
+let preview = false;
+export const isPreviewLocale = () => preview;
 let hour12: boolean | undefined;
 let loaded: Catalog | undefined;
 let version = 0;
@@ -103,6 +106,7 @@ function applyToDocument(info: LocaleInfo) {
 
 /** Switch locale: loads the catalog when needed, persists the choice, updates `<html lang dir>`. */
 export async function setLocale(code: string, persist = true): Promise<void> {
+  preview = !persist;
   const info = LOCALES.find((l) => l.code === code) ?? LOCALES[0]!;
   const loader = LOADERS[info.code];
   loaded = loader ? await loader() : undefined;
