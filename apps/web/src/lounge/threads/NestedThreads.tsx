@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { Icon } from '@sideroom/ui';
 import { useMemo } from 'react';
 import { useT } from '../../i18n';
+import { useViewAsThreadParent } from '../../settings/server/viewAsMode';
 import { useLoungeRoute } from '../nav';
 import { threadsOf, useThreads } from './threadStore';
 
@@ -10,9 +11,13 @@ export function NestedThreads({ guildId, channelId }: { guildId: string; channel
   const t = useT();
   const byId = useThreads((s) => s.byId);
   const { threadId } = useLoungeRoute();
+  const parentShown = useViewAsThreadParent(guildId);
   const list = useMemo(
-    () => threadsOf(byId, channelId).filter((th) => th.joined || th.id === threadId),
-    [byId, channelId, threadId],
+    () =>
+      parentShown(channelId)
+        ? threadsOf(byId, channelId).filter((th) => th.joined || th.id === threadId)
+        : [],
+    [byId, channelId, threadId, parentShown],
   );
   if (list.length === 0) return null;
   return (
