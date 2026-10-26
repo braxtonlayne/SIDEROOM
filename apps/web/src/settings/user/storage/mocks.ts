@@ -97,10 +97,15 @@ export function byosMockHandlers(opts: ByosMockOptions = {}): HttpHandler[] {
         const list = bucketOf(gidOf(params));
         if (list.length >= cap)
           return HttpResponse.json(
-            { message: 'Mount limit reached', code: 'MOUNT_CAP' },
+            { message: 'Mount limit reached', code: 'MOUNT_CAP_REACHED' },
             { status: 409 },
           );
         const body = (await request.json()) as MountCreate;
+        if (list.some((x) => x.label === body.label))
+          return HttpResponse.json(
+            { message: 'Label taken', code: 'MOUNT_LABEL_TAKEN' },
+            { status: 409 },
+          );
         const m = mockMount({
           id: String(next++),
           owner_kind: scoped ? 'guild' : 'user',
@@ -113,7 +118,7 @@ export function byosMockHandlers(opts: ByosMockOptions = {}): HttpHandler[] {
           prefix: body.prefix ?? '',
           path_style: body.path_style,
           access_key_id: body.access_key_id,
-          key_hint: body.secret_access_key.slice(-4),
+          key_hint: body.access_key_id.slice(-4),
         });
         list.push(m);
         return HttpResponse.json(m, { status: 201 });

@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import { formatDateTime, useT } from '../i18n';
-import { errorText } from '../settings/user/api';
+import { storageErrorText } from '../settings/user/storage/errors';
 import '../settings/user/storage/storage.css';
 import { listObjects, presignGet, type ObjectEntry, type ObjectPage, type Presigned } from './api';
 
@@ -38,7 +38,9 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
 
   const failText = useCallback(
     (e: unknown) =>
-      e instanceof ApiError && e.status === 409 ? t('storage.browser.corsNotReady') : errorText(e),
+      e instanceof ApiError && e.status === 409 && String(e.body?.code) === 'CORS_NOT_READY'
+        ? t('storage.browser.corsNotReady')
+        : storageErrorText(e),
     [t],
   );
 

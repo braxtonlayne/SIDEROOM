@@ -29,6 +29,10 @@ Everything in "Resume here".
 - `vitest ... src/settings/server/__tests__/p27storage.test.tsx shell.test.tsx`: 8 passed.
 - `tsc --noEmit` (apps/web): clean. eslint on the new files: clean. prettier applied.
 
+## Confirmed by byos-core (applied)
+
+- `key_hint` = last 4 chars of the ACCESS KEY ID (UI shows "Key ID ending xxxx"). ids/owner_id strings, ISO timestamps, endpoint/region nullable. 409 codes MOUNT_CAP_REACHED, MOUNT_LABEL_TAKEN, CORS_NOT_READY get friendly text (`storage/errors.ts`); 403 and 404 too. PATCH status only active|disabled.
+
 ## Route shapes assumed (backend must match; types in `storage/types.ts`)
 
 Scope bases: `/users/@me/storage/mounts` and `/guilds/{guild_id}/storage/mounts` (all under `/api/v1`).

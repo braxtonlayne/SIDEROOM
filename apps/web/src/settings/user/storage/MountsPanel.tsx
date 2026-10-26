@@ -2,7 +2,8 @@ import { Button, Notice, Select, TextInput } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
-import { errorText, useResource } from '../api';
+import { useResource } from '../api';
+import { storageErrorText } from './errors';
 import { Card, fmtDate, Loaded } from '../parts';
 import { policyExample } from './policy';
 import {
@@ -129,7 +130,7 @@ function ConnectForm({
       setSecret('');
       onDone();
     } catch (e) {
-      setError(errorText(e));
+      setError(storageErrorText(e));
     } finally {
       setBusy(false);
     }
@@ -289,7 +290,7 @@ function MountRow({
     try {
       await fn();
     } catch (e) {
-      setError(errorText(e));
+      setError(storageErrorText(e));
     } finally {
       setBusy(null);
     }

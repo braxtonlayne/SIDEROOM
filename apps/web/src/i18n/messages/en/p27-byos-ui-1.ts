@@ -9,9 +9,9 @@ export default {
   'settings.storageGrants.description':
     'What members with this role can do with the Guild Shelf. These are storage grants, not channel permissions, so they cannot be overridden per channel.',
   'settings.storageGrants.failed': 'Could not save the storage grants',
-  'settings.storageGrants.grant.view_cinema': 'View shelf movies and shows',
-  'settings.storageGrants.grant.view_library': 'View shelf books and comics',
-  'settings.storageGrants.grant.view_music': 'View shelf music',
+  'settings.storageGrants.grant.viewCinema': 'View shelf movies and shows',
+  'settings.storageGrants.grant.viewLibrary': 'View shelf books and comics',
+  'settings.storageGrants.grant.viewMusic': 'View shelf music',
   'settings.storageGrants.grant.upload': 'Upload to the shelf',
   'settings.storageGrants.grant.manage': 'Manage storage',
   'settings.storageShare.title': 'Share my Media Shelf',
@@ -42,6 +42,14 @@ export default {
   'storage.browser.expires': 'Link expires {at}',
   'storage.browser.previewExpired': 'The preview link expired. Choose Preview again.',
   'settings.storage.browse': 'Browse',
+  'settings.storageError.capReached':
+    'You have reached the limit of connected buckets. Remove one before adding another.',
+  'settings.storageError.labelTaken':
+    'You already have a bucket with that name. Pick another name.',
+  'settings.storageError.corsNotReady':
+    'This bucket is not ready for browser access yet. Apply CORS first.',
+  'settings.storageError.forbidden': 'You do not have permission to manage storage here.',
+  'settings.storageError.notFound': 'That storage connection was not found.',
   'settings.storage.title': 'Storage',
   'settings.storage.what': 'storage connections',
   'settings.storage.listTitle': 'Media Shelf buckets',
@@ -98,7 +106,7 @@ export default {
   'settings.storage.status.active': 'Active',
   'settings.storage.status.failing': 'Failing',
   'settings.storage.status.disabled': 'Disabled',
-  'settings.storage.keyLine': 'Key {id}, secret ending {hint}',
+  'settings.storage.keyLine': 'Key ID ending {hint}',
   'settings.storage.test': 'Test connection',
   'settings.storage.testTableAria': 'Connection test results',
   'settings.storage.testedAt': 'Tested {at}',

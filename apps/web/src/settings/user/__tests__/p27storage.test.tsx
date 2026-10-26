@@ -11,11 +11,15 @@ beforeEach(() => {
 
 describe('User Settings > Storage (BYOS-UI-001, against MSW mocks)', () => {
   it('lists mounts with status and key hint but never a secret', async () => {
-    server.use(...byosMockHandlers({ mounts: [mockMount({ key_hint: 'zz99' })] }));
+    server.use(
+      ...byosMockHandlers({
+        mounts: [mockMount({ access_key_id: 'GKexample', key_hint: 'mple' })],
+      }),
+    );
     openSettings('storage');
     expect(await screen.findByText('My Garage')).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
-    expect(screen.getByText(/secret ending zz99/)).toBeInTheDocument();
+    expect(screen.getByText(/Key ID ending mple/)).toBeInTheDocument();
     expect(screen.getByText('Not ready')).toBeInTheDocument();
   });
 
@@ -109,6 +113,7 @@ describe('User Settings > Storage (BYOS-UI-001, against MSW mocks)', () => {
     await user.type(screen.getByLabelText('Secret access key'), 's');
     await user.click(screen.getByRole('button', { name: 'Connect' }));
     expect(await screen.findByText('Could not connect the bucket')).toBeInTheDocument();
+    expect(screen.getByText(/reached the limit of connected buckets/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await user.click(screen.getByRole('button', { name: 'Remove' }));
     await user.click(screen.getByRole('button', { name: 'Confirm remove' }));
@@ -132,5 +137,20 @@ describe('Provider policy examples', () => {
     await user.click(await screen.findByRole('option', { name: 'Cloudflare R2' }));
     expect(screen.queryByLabelText('Bucket policy example')).toBeNull();
     expect(screen.getByText(/Check against your provider/)).toBeInTheDocument();
+  });
+});
+
+describe('Storage error codes', () => {
+  it('explains a taken label', async () => {
+    const user = userEvent.setup();
+    server.use(...byosMockHandlers({ mounts: [mockMount()] }));
+    openSettings('storage');
+    await user.click(await screen.findByRole('button', { name: 'Connect a bucket' }));
+    await user.type(screen.getByLabelText('Name'), 'My Garage');
+    await user.type(screen.getByLabelText('Bucket'), 'b');
+    await user.type(screen.getByLabelText('Access key ID'), 'k');
+    await user.type(screen.getByLabelText('Secret access key'), 's');
+    await user.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(await screen.findByText(/already have a bucket with that name/)).toBeInTheDocument();
   });
 });

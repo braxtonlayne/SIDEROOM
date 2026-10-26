@@ -2,7 +2,7 @@ import { Notice, Switch } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { friendsOf, useSocial } from '../../../lounge/shell/social';
 import { useT } from '../../../i18n';
-import { errorText } from '../api';
+import { storageErrorText } from './errors';
 import { deleteShare, listMounts, listShares, putShare } from './api';
 import { SHARE_KINDS, type Mount, type ShareKind } from './types';
 
@@ -54,7 +54,7 @@ export function FriendShelfShare({ userId }: { userId: string }) {
       else await deleteShare(mount.id, userId);
       setFlags(next);
     } catch (e) {
-      setError(errorText(e));
+      setError(storageErrorText(e));
     } finally {
       setBusy(false);
     }

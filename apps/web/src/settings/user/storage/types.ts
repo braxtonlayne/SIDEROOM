@@ -1,6 +1,6 @@
 // Wire shapes ASSUMED for BYOS-MNT-001..003 (roadmap-p27.md section 5). byos-core must match these;
 // they are listed in docs/dev/handoff/feat-p27-byos-ui.md. The secret key is never returned: the view
-// carries the access key id and `key_hint` (last four characters of the secret).
+// carries the access key id and `key_hint` (the last four characters of the ACCESS KEY ID, never of the secret).
 
 export type MountProvider = 's3' | 'r2' | 'b2' | 'minio' | 'wasabi' | 'garage';
 export const MOUNT_PROVIDERS: MountProvider[] = ['s3', 'r2', 'b2', 'wasabi', 'minio', 'garage'];
@@ -33,6 +33,7 @@ export interface Mount {
   prefix: string;
   path_style: boolean;
   access_key_id: string;
+  /** Last four characters of the access key id. */
   key_hint: string;
   status: MountStatus;
   cors_ok_at: string | null;
@@ -54,6 +55,7 @@ export interface MountCreate {
   secret_access_key: string;
 }
 /** `PATCH`: any subset; a new `secret_access_key` re-seals the credential. */
+/** `status` takes only active|disabled; `failing` is set by the server. */
 export type MountPatch = Partial<MountCreate> & { status?: 'active' | 'disabled' };
 
 export type CorsState = 'ok' | 'missing' | 'different' | 'manual';

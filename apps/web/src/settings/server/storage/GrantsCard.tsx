@@ -1,7 +1,7 @@
 import { Notice, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
-import { errorText } from '../../user/api';
+import { storageErrorText } from '../../user/storage/errors';
 import { STORAGE_GRANTS, putStorageGrants, type StorageGrant } from './grantsApi';
 
 /**
@@ -35,7 +35,7 @@ export function StorageGrantsCard({
       setCurrent(next);
       await onChanged();
     } catch (e) {
-      setError(errorText(e));
+      setError(storageErrorText(e));
     } finally {
       setBusy(false);
     }
@@ -55,7 +55,9 @@ export function StorageGrantsCard({
       {STORAGE_GRANTS.map((g) => (
         <Switch
           key={g}
-          label={t(`settings.storageGrants.grant.${g}`)}
+          label={t(
+            `settings.storageGrants.grant.${g.replace(/_(.)/g, (_, c: string) => c.toUpperCase())}`,
+          )}
           checked={current.includes(g)}
           disabled={locked || busy}
           onChange={(e) => void toggle(g, e.target.checked)}
