@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import { useGuilds } from '../data';
+import { useMyExpressions, type ExternalEmoji } from './myExpressions';
 import './emojiPicker.css';
 import { EMOJI_CATEGORIES, TONEABLE } from './emoji';
 import {
@@ -65,11 +66,14 @@ function CustomTile({
   emoji,
   onPick,
   onHover,
+  greyed,
 }: {
   guildId: string;
   emoji: GuildEmoji;
   onPick: (e: GuildEmoji) => void;
   onHover: (label: string | null) => void;
+  /** The channel refuses other servers' emoji: shown, not usable. */
+  greyed?: boolean;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -84,7 +88,11 @@ function CustomTile({
       type="button"
       className="lng-emoji-btn"
       aria-label={emoji.name}
-      onClick={() => onPick(emoji)}
+      aria-disabled={greyed || undefined}
+      data-greyed={greyed || undefined}
+      onClick={() => {
+        if (!greyed) onPick(emoji);
+      }}
       onMouseEnter={() => onHover(`:${emoji.name}:`)}
       onMouseLeave={() => onHover(null)}
     >
@@ -112,16 +120,22 @@ interface Entry {
 /**
  * Emoji picker (LNG-EXP-007): search, frequently used, favorites (right-click an emoji to
  * toggle), this server's custom emoji, a skin tone selector and a hover preview footer.
- * Custom emoji only appear where the caller can insert them (`guildId` and `onPickCustom`).
+ * Custom emoji only appear where the caller can insert them (`onPickCustom`): this server's, then one
+ * section per other server whose role settings let the viewer use its emoji elsewhere (D-376). When the
+ * channel refuses other servers' emoji (`externalAllowed` false) those sections stay, greyed, with a tooltip
+ * saying why.
  */
 export function EmojiPicker({
   onPick,
   guildId,
   onPickCustom,
+  externalAllowed = true,
 }: {
   onPick: (emoji: string) => void;
   guildId?: string | undefined;
   onPickCustom?: ((emoji: GuildEmoji) => void) | undefined;
+  /** The target channel grants USE_EXTERNAL_EMOJIS (always true in a DM). */
+  externalAllowed?: boolean | undefined;
 }) {
   const t = useT();
   const [q, setQ] = useState('');
@@ -130,7 +144,9 @@ export function EmojiPicker({
   const [hover, setHover] = useState<{ label: string; glyph: string | null } | null>(null);
   const [active, setActive] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const guild = useGuilds().find((g) => g.id === guildId);
+  const guilds = useGuilds();
+  const guild = guilds.find((g) => g.id === guildId);
+  const mine = useMyExpressions(!!onPickCustom);
   const update = (next: EmojiPrefs) => {
     setPrefs(next);
     saveEmojiPrefs(next);
@@ -165,6 +181,23 @@ export function EmojiPicker({
     emoji: needle ? c.emoji.filter(([n]) => n.includes(needle)) : c.emoji,
   })).filter((c) => c.emoji.length);
   const customShown = needle ? custom.filter((e) => e.name.toLowerCase().includes(needle)) : custom;
+  // Other servers' emoji, in the order of the sidebar; servers whose roles forbid it are left out.
+  const external = useMemo(() => {
+    if (!onPickCustom || !mine) return [];
+    const order = new Map(guilds.map((g, i) => [g.id, i]));
+    return mine
+      .filter((s) => s.guild.id !== guildId && s.usable_externally)
+      .map((s) => ({
+        id: s.guild.id,
+        name: s.guild.name,
+        iconUrl: guilds.find((g) => g.id === s.guild.id)?.iconUrl ?? null,
+        emojis: s.emojis
+          .filter((e: ExternalEmoji) => e.available)
+          .filter((e: ExternalEmoji) => !needle || e.name.toLowerCase().includes(needle)),
+      }))
+      .filter((s) => s.emojis.length > 0)
+      .sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
+  }, [mine, guilds, guildId, onPickCustom, needle]);
   const entries = (keys: string[]): Entry[] =>
     keys.map((k) => byChar.get(k)).filter((e): e is Entry => !!e);
   const quick = needle ? [] : entries(frequent(prefs));
@@ -184,6 +217,12 @@ export function EmojiPicker({
           },
         ]
       : []),
+    ...external.map((s) => ({
+      id: `ext-${s.id}`,
+      label: s.name,
+      glyph: s.name.slice(0, 1).toUpperCase(),
+      icon: s.iconUrl,
+    })),
     ...groups.map((g) => ({ id: `cat-${g.name}`, label: g.name, glyph: g.emoji[0]![1] })),
   ];
   const current = catTabs.some((c) => c.id === active) ? active : (catTabs[0]?.id ?? '');
@@ -230,6 +269,7 @@ export function EmojiPicker({
     jump(id);
   };
 
+  const greyedTip = t('lounge.emojiPicker.externalNotAllowed');
   const button = (e: Entry, keyPrefix: string) => (
     <button
       key={`${keyPrefix}${e.name}`}
@@ -333,7 +373,36 @@ export function EmojiPicker({
               </div>
             </section>
           )}
-          {groups.length === 0 && customShown.length === 0 && (
+          {external.map((s) => (
+            <section
+              key={s.id}
+              aria-label={s.name}
+              data-cat={`ext-${s.id}`}
+              data-external={s.id}
+              data-greyed={!externalAllowed || undefined}
+            >
+              <h3 className="lng-emoji-h" title={externalAllowed ? undefined : greyedTip}>
+                {s.name}
+              </h3>
+              <div className="lng-emoji-grid" title={externalAllowed ? undefined : greyedTip}>
+                {s.emojis.map((e) => (
+                  <CustomTile
+                    key={e.id}
+                    guildId={s.id}
+                    emoji={e}
+                    onPick={onPickCustom!}
+                    greyed={!externalAllowed}
+                    onHover={(label) =>
+                      setHover(
+                        label ? { label: externalAllowed ? label : greyedTip, glyph: null } : null,
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+          {groups.length === 0 && customShown.length === 0 && external.length === 0 && (
             <p className="lng-muted">{t('lounge.emojiPicker.none')}</p>
           )}
           {groups.map((g) => (

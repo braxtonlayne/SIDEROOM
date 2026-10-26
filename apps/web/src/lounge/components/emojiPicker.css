@@ -41,3 +41,19 @@
 .lng-emoji-cat img {
   border-radius: 50%;
 }
+
+/* Other servers' emoji in a channel that refuses them (D-376): shown, not usable. */
+.lng-emoji-btn[data-greyed] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.lng-emoji [data-external][data-greyed] .lng-emoji-h {
+  opacity: 0.6;
+}
+.lng-sticker-tile[data-greyed] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.vc-sb-section[data-greyed] {
+  opacity: 0.55;
+}
