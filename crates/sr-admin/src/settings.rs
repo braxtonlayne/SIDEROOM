@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn abuse_limits_are_in_their_own_group_with_a_floor_of_one() {
         let abuse: Vec<_> = CATALOG.iter().filter(|d| d.group == "abuse").collect();
-        assert_eq!(abuse.len(), 11);
+        assert_eq!(abuse.len(), 12);
         for d in abuse {
             assert!(d.key.starts_with("abuse."), "{}", d.key);
             assert!(d.min >= 1.0 && d.max > d.min, "{}", d.key);
