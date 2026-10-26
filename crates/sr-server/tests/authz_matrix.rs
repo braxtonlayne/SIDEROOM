@@ -4865,6 +4865,9 @@ async fn storage_scopes_hold_over_http() {
     if !none.body.contains("\"music\":0") {
         failures.push(format!("no shelf, no count: {}", none.body));
     }
+    if !none.body.contains("\"catalog\":{") {
+        failures.push(format!("the summary carries catalog counts: {}", none.body));
+    }
     // A share needs a friendship, and only the owner may give it.
     expect!(
         "no share to a stranger",

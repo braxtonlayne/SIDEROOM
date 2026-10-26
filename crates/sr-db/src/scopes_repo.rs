@@ -37,6 +37,22 @@ impl PgScopeFacts {
 
 #[async_trait]
 impl ScopeStore for PgScopeFacts {
+    async fn catalog_counts(&self) -> Result<(i64, i64), FactsError> {
+        let cinema: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM video_titles WHERE published AND merged_into IS NULL",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(fe)?;
+        let library: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM reading_series WHERE published AND merged_into IS NULL",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(fe)?;
+        Ok((cinema, library))
+    }
+
     async fn role_in_guild(&self, guild_id: i64, role_id: i64) -> Result<bool, FactsError> {
         sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM roles WHERE id = $1 AND guild_id = $2)")
             .bind(role_id)

@@ -267,7 +267,12 @@ pub async fn summary(
         cinema: s.cinema,
         library: s.library,
         music: s.music,
-        catalog: None,
+        catalog: d
+            .store
+            .catalog_counts()
+            .await
+            .ok()
+            .map(|(cinema, library)| CatalogCounts { cinema, library }),
     }))
 }
 

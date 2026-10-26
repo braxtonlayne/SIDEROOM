@@ -286,3 +286,39 @@ async fn guild_grants_resolve_with_owner_admin_and_manage_guild() {
     assert!(facts.grants_of_guild(50).await.unwrap().is_empty());
     db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn catalog_counts_mirror_the_public_listing() {
+    let db = TestDb::new().await.expect("db");
+    let pool = db.pool();
+    let facts = PgScopeFacts::new(pool.clone());
+    assert_eq!(facts.catalog_counts().await.unwrap(), (0, 0));
+    for (id, published, merged) in [
+        (1i64, true, None),
+        (2, true, None),
+        (3, false, None),
+        (4, true, Some(1i64)),
+    ] {
+        sqlx::query(
+            "INSERT INTO video_titles (id, kind, title, sort_title, published, merged_into) VALUES ($1, 'movie', 't', 't', $2, $3)",
+        )
+        .bind(id)
+        .bind(published)
+        .bind(merged)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO reading_series (id, kind, title, published, merged_into) VALUES ($1, 'manga', 's', $2, $3)",
+        )
+        .bind(id + 10)
+        .bind(published)
+        .bind(merged.map(|m| m + 10))
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+    assert_eq!(facts.catalog_counts().await.unwrap(), (2, 2));
+    db.cleanup().await.unwrap();
+}

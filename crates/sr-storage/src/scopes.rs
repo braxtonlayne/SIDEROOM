@@ -1272,6 +1272,9 @@ pub trait ScopeStore: ScopeFacts {
     ) -> Result<(), FactsError>;
     /// Every role's grants in a guild (roles without grants are absent).
     async fn grants_of_guild(&self, guild_id: i64) -> Result<BTreeMap<i64, GrantSet>, FactsError>;
+    /// Published, not merged away: the instance catalog titles (Cinema) and series (Library) every member may
+    /// see (age restriction gates opening, not listing, D-184).
+    async fn catalog_counts(&self) -> Result<(i64, i64), FactsError>;
     /// How many shelves of each kind `viewer` reaches.
     async fn shelves_summary(&self, viewer: i64) -> Result<ShelvesSummary, FactsError>;
 }

@@ -19,7 +19,7 @@ BYOS-SCP-001 and BYOS-SCP-002 are built and proven except the items under "Not d
 `cargo test -p sr-storage` (93 lib tests incl. scopes and browse), `-p sr-admin`, `-p sr-api --lib` (687), `-p sr-api --test route_matrix` (6) and `--test openapi_names`, `-p sr-db --test scopes_repo --test social_repo` (Postgres), `-p sr-server --test authz_matrix storage_scopes` and `every_route` with `SR_AUTHZ_GROUPS=5`; fmt and clippy `-D warnings` on sr-storage, sr-db, sr-api, sr-admin, sr-server.
 
 ## Not done / open
-- `catalog?` in the shelves summary (instance catalog counts the viewer can see) is omitted; needs a query over published cinema titles and library series. byos-ui must treat it as absent.
+- (done in the last slice) `catalog` in the shelves summary: `{cinema, library}` = published, not merged-away video_titles and reading_series (same visibility as the listings; age restriction gates opening only), via `ScopeStore::catalog_counts`; viewer-independent. Pg test `catalog_counts_mirror_the_public_listing`.
 - The Garage live case (`s3_mount_live`) has not run here (no Garage); first run is in CI after the owner pushes.
 - The presign p95 under 5 ms benchmark was not added (no S3 round trip, but two or three indexed queries).
 - `attached_guilds` (instance mount as a Guild Shelf) returns empty until byos-instance's attach table exists; `delisted` returns empty until BYOS-LEG-001. Both are single methods in `scopes_repo.rs`.
