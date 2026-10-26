@@ -3177,16 +3177,22 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
 
 /// Routes whose rightful call ends the actor's own session or account, or otherwise breaks what the
 /// rest of the phase needs: they go last.
-fn write_late(method: &str, path: &str) -> bool {
-    matches!(
+fn write_late(method: &str, path: &str) -> u8 {
+    if matches!(
         (method, path),
-        ("DELETE", "/guilds/{guild_id}")
-            // A new token ends the old one, which the webhook routes before it are called with.
-            | ("POST", "/webhooks/{webhook_id}/reset-token")
-            // The bot's token and the app's secret end with the reset; the delete ends the app.
+        // A new token ends the old one, which the routes before it are called with; the delete ends the app
+        // or the webhook.
+        ("POST", "/webhooks/{webhook_id}/reset-token")
+            | ("DELETE", "/webhooks/{webhook_id}")
             | ("POST", "/applications/{application_id}/bot/reset-token")
             | ("POST", "/applications/{application_id}/reset-secret")
             | ("DELETE", "/applications/{application_id}")
+    ) {
+        return 2;
+    }
+    u8::from(matches!(
+        (method, path),
+        ("DELETE", "/guilds/{guild_id}")
             // A bulk overwrite replaces the commands the routes before it address.
             | ("PUT", "/applications/{application_id}/commands")
             | ("PUT", "/applications/{application_id}/guilds/{guild_id}/commands")
@@ -3200,7 +3206,8 @@ fn write_late(method: &str, path: &str) -> bool {
             | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
             | ("POST", "/guilds/{guild_id}/prune")
             | ("POST", "/guilds/{guild_id}/bulk-ban")
-    )
+            | ("DELETE", "/watch-parties/{party_id}")
+    ))
 }
 
 /// Deletes of the entities others hang on without being nested in their path (a channel's messages, pins
@@ -3297,6 +3304,10 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("PUT", "/admin/staff/{account_id}/roles") => {
             r#"{"role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
         }
+        ("PUT", "/sr/auth/username") => r#"{"username":"authz.member","password":"{pw}"}"#,
+        ("DELETE", "/sr/auth/passkeys/{id}") | ("PATCH", "/sr/auth/passkeys/{id}") => {
+            r#"{"password":"{pw}","name":"authz"}"#
+        }
         ("POST", "/sr/auth/password") => {
             r#"{"current_password":"{pw}","new_password":"authz-matrix-New-Horse-7"}"#
         }
@@ -3333,7 +3344,7 @@ fn write_observed(r: &Route) -> Option<&'static str> {
 }
 
 /// The order of the write phase: late routes last; then creates, edits, deletes; deletes deepest first.
-fn write_rank(r: &Route, idx: usize) -> (bool, u8, usize, usize) {
+fn write_rank(r: &Route, idx: usize) -> (u8, u8, usize, usize) {
     let kind = if write_ending(&r.method, &r.path) {
         3
     } else {
