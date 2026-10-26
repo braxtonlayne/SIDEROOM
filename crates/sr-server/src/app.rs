@@ -257,7 +257,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // and bearer credentials authenticate against its stores (open question 56).
     let apps_repo = Arc::new(sr_db::apps_repo::PgAppsRepo::new(
         pool.clone(),
-        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys),
+        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys.clone()),
     ));
     // The plaintext signing-seed column is gone (migration 0803, G-85); seeds are sealed at rest.
     // Upgrading from before 0771: run the previous release once so its apps.seal_seeds job runs.
@@ -1090,6 +1090,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         },
     ));
 
+    // BYOS storage mounts (BYOS-MNT-001): the member's and the server's own buckets, credentials sealed
+    // with the server secret.
+    let mounts_deps = Arc::new(routes::storage::mounts::MountsDeps::new(
+        Arc::new(sr_db::mounts_repo::PgMountRepo::new(pool.clone())),
+        Arc::new(sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys)),
+        {
+            let ids = ids.clone();
+            Arc::new(move || ids.generate().get())
+        },
+        unfurl_policy_for_feeds.clone(),
+    ));
+
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
     let gif_source: Option<Arc<dyn routes::gifs::GifSource>> = if gif_cfg.enabled() {
         Some(Arc::new(
@@ -1386,6 +1398,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             )),
         }))
         .extension(push_deps)
+        .extension(mounts_deps)
         .extension(gif_deps)
         .extension(lookup_deps)
         .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(
