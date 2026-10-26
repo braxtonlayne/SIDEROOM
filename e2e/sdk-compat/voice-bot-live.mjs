@@ -34,6 +34,9 @@ const owner = process.env.SDK_COMPAT_OWNER ?? 'owner';
 const password = process.env.SDK_COMPAT_PASSWORD ?? 'e2e-owner-Passw0rd!';
 const seconds = Number(arg('seconds', '60'));
 const dropAfter = Math.max(5, Math.floor(seconds / 3));
+// TypeScript mode only (DEV-FU-001): the gateway session is thrown away this far in, after the SFU socket was resumed,
+// and the bot must be put back in the call by the join its shard remembers.
+const freshAfter = Math.max(dropAfter + 5, Math.floor(seconds / 2));
 const typescript = process.argv.includes('--ts');
 
 /**
@@ -160,7 +163,7 @@ async function main() {
     const tsUser = await botUserId(run.token);
     const partnerUser = await botUserId(partner.token);
     console.log(
-      `running the TypeScript voice bot for ${seconds} s (socket drop at ${dropAfter} s)`,
+      `running the TypeScript voice bot for ${seconds} s (socket drop at ${dropAfter} s, fresh gateway session at ${freshAfter} s)`,
     );
     const pnpm = process.env.SR_PNPM ?? 'pnpm';
     const vitest = start(
@@ -172,6 +175,7 @@ async function main() {
         SR_BOT_TOKEN: run.token,
         SR_RUN_SECONDS: String(seconds),
         SR_DROP_AFTER_SECONDS: String(dropAfter),
+        SR_FRESH_SESSION_AFTER_SECONDS: String(freshAfter),
         SR_PARTNER_USER: partnerUser,
       },
       { shell: true },
