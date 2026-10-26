@@ -148,6 +148,15 @@ export class Shard {
     return true;
   }
 
+  /**
+   * Forget the session and connect again with IDENTIFY, as after a server INVALID_SESSION (false). The voice
+   * join, if any, is sent again after the fresh READY (DEV-FU-001). For a caller that knows its session is
+   * stale, and for the fresh-session case of `voice.live.test.ts`.
+   */
+  reidentify(): void {
+    this.reconnect(false);
+  }
+
   destroy(): void {
     this.stopped = true;
     this.clearTimers();

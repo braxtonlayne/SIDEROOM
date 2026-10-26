@@ -14,7 +14,7 @@
 // TypeScript mode: the Rust bot is started first and waits in the call; then packages/bot/src/voice.live.test.ts
 // runs as a vitest test (SR_VOICE_LIVE=1). It must join the MLS group of the call, send under the epoch key,
 // resume after its own drop and decrypt the Rust bot's frames; and the Rust bot must have decrypted the
-// TypeScript bot's frames (a line "<id> spoke 60 bytes"): each implementation opens the other's audio.
+// TypeScript bot's frames (a line "<id> spoke <n> bytes (<level> dBov)" with a level above -40: a tone, not silence): each implementation opens the other's audio.
 //
 //   SDK_COMPAT_BASE=http://127.0.0.1:8080 SDK_COMPAT_OWNER=owner SDK_COMPAT_PASSWORD=... \
 //     node e2e/sdk-compat/voice-bot-live.mjs [--ts] [--seconds 60]
@@ -41,7 +41,7 @@ const typescript = process.argv.includes('--ts');
  * @param {string} output
  * @param {number} code
  * @param {{ drop?: boolean, heardFrom?: string | null }} [opts] `drop`: the bot dropped its socket and must have
- *   resumed (default true); `heardFrom`: a user id whose 60 byte frames the bot must have decrypted.
+ *   resumed (default true); `heardFrom`: a user id whose encoded tone the bot must have decrypted and decoded to sound.
  */
 export function verdict(output, code, { drop = true, heardFrom = null } = {}) {
   const problems = [];
@@ -62,7 +62,11 @@ export function verdict(output, code, { drop = true, heardFrom = null } = {}) {
       problems.push('no frame was sent under an epoch key');
     }
   }
-  if (heardFrom !== null && !new RegExp(`^${heardFrom} spoke 60 bytes$`, 'm').test(output)) {
+  const heard = new RegExp(
+    String.raw`^${heardFrom} spoke \d+ bytes \(-(?:\d|[1-3]\d) dBov\)$`,
+    'm',
+  );
+  if (heardFrom !== null && !heard.test(output)) {
     problems.push(`it never decrypted a frame from ${heardFrom}`);
   }
   return problems;

@@ -19,6 +19,7 @@
 //! * `SR_RUN_SECONDS=60` leaves after that long (exit code 0 only if the call was joined, encrypted when the
 //!   call is, and resumed after the drop); default: run forever;
 //! * `SR_DROP_AFTER_SECONDS=20` drops the SFU WebSocket once after that long, to watch the resume;
+//! * what it hears is decoded and printed as `<user> spoke <bytes> bytes (<level> dBov)`;
 //! * `SR_IDENTITY_SECRET=<64 hex digits>` keeps the bot's identity key between runs (default: a new one).
 //!
 //! The bot speaks a 440 Hz tone: each 20 ms of PCM goes through [`OpusEncoder`] (feature `voice-opus`, DEV-FU-002)
@@ -32,7 +33,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use serde_json::Value;
-use sr_sdk::audio::{Application, Channels, FRAME_SAMPLES, OpusEncoder, audio_level_dbov};
+use sr_sdk::audio::{
+    Application, Channels, FRAME_SAMPLES, OpusDecoder, OpusEncoder, audio_level_dbov,
+};
 use sr_sdk::voice::{Action, E2eeCall, E2eeMedia, Identity};
 use sr_sdk::voice_transport::{
     ReconnectPolicy, SharedMedia, VoiceEvent, VoiceLink, VoiceServerUpdate, voice_state_body,
@@ -198,6 +201,9 @@ async fn main() -> Result<()> {
     let mut encoder = OpusEncoder::new(Channels::Mono, Application::Voip)
         .map_err(|e| Error::Invalid(e.to_string()))?;
     let mut pcm_clock = 0u64;
+    // One decoder per speaker: each keeps the state of its own stream.
+    let mut decoders: std::collections::HashMap<u64, OpusDecoder> =
+        std::collections::HashMap::new();
     let mut e2ee_call = false;
     loop {
         if stop_after.is_some_and(|s| started.elapsed() >= s) {
@@ -290,7 +296,18 @@ async fn main() -> Result<()> {
                     joined = true;
                     println!("connected");
                 }
-                VoiceEvent::Audio { user, frame } => println!("{user} spoke {} bytes", frame.len()),
+                VoiceEvent::Audio { user, frame } => {
+                    // Hear what was said: decode and report the level (the live harness checks it is not silence).
+                    let decoder = match decoders.entry(user) {
+                        std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                        std::collections::hash_map::Entry::Vacant(e) => e.insert(
+                            OpusDecoder::new(Channels::Mono)
+                                .map_err(|e| Error::Invalid(e.to_string()))?,
+                        ),
+                    };
+                    let level = audio_level_dbov(&decoder.decode_frame(&frame, false));
+                    println!("{user} spoke {} bytes ({level} dBov)", frame.len());
+                }
                 VoiceEvent::Joined(u) => changed |= roster.insert(u),
                 VoiceEvent::Left(u) => changed |= roster.remove(&u),
                 VoiceEvent::Resumed { participants } => {
