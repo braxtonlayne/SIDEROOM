@@ -3,7 +3,7 @@
 //! variants check that the SFU only relays what the frame transform produced and that a call which declares
 //! E2EE cannot be spoken into in the clear.
 //!
-//! Run with `cargo test -p sr-sdk --features voice-transport,voice-e2ee --test voice_transport`.
+//! Run with `cargo test -p sr-sdk --features voice-transport,voice-e2ee,voice-opus --test voice_transport`.
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -108,6 +108,16 @@ async fn talk(
     b: &mut VoiceSession,
     frames: u32,
 ) -> (Vec<VoiceEvent>, Vec<VoiceEvent>) {
+    talk_with(a, b, frames, |n| (frame(n), -28)).await
+}
+
+/// [`talk`] with the frame and its audio level chosen by the caller.
+async fn talk_with(
+    a: &mut VoiceSession,
+    b: &mut VoiceSession,
+    frames: u32,
+    mut next: impl FnMut(u32) -> (Vec<u8>, i8),
+) -> (Vec<VoiceEvent>, Vec<VoiceEvent>) {
     let (mut heard_b, mut seen_a) = (Vec::new(), Vec::new());
     // Connect first: both sides must pump for ICE and DTLS to complete.
     for _ in 0..200 {
@@ -133,7 +143,8 @@ async fn talk(
     }
     a.set_speaking(true);
     for n in 0..frames {
-        a.send_opus(&frame(n), -28).unwrap();
+        let (f, level) = next(n);
+        a.send_opus(&f, level).unwrap();
         let (ea, eb) = tokio::join!(
             a.pump(Duration::from_millis(20)),
             b.pump(Duration::from_millis(20))
@@ -186,6 +197,49 @@ async fn a_bot_publishes_opus_and_another_receives_it() {
             .iter()
             .any(|e| matches!(e, VoiceEvent::Speaking { user: 1, speaking } if *speaking != 0)),
         "B sees A start speaking"
+    );
+    sfu.handle.shutdown().await;
+}
+
+/// DEV-FU-002: real Opus. A tone goes through `OpusEncoder`, the SFU relays it, the receiver decodes it to a
+/// buffer that is not silence and whose level matches what the sender declared.
+#[cfg(feature = "voice-opus")]
+#[tokio::test]
+async fn encoded_frames_decode_to_sound_on_the_other_side() {
+    use sr_sdk::audio::{
+        Application, Channels, FRAME_SAMPLES, OpusDecoder, OpusEncoder, audio_level_dbov,
+    };
+
+    let sfu = start().await;
+    let mut a = VoiceSession::connect(&update(&sfu, 1, false), [127, 0, 0, 1].into())
+        .await
+        .unwrap();
+    let mut b = VoiceSession::connect(&update(&sfu, 2, false), [127, 0, 0, 1].into())
+        .await
+        .unwrap();
+    let mut enc = OpusEncoder::new(Channels::Mono, Application::Voip).unwrap();
+    let (heard, _) = talk_with(&mut a, &mut b, 60, |n| {
+        let pcm: Vec<i16> = (0..FRAME_SAMPLES)
+            .map(|i| {
+                let t = (n as usize * FRAME_SAMPLES + i) as f64 / 48_000.0;
+                (f64::sin(2.0 * std::f64::consts::PI * 440.0 * t) * 12_000.0) as i16
+            })
+            .collect();
+        (enc.encode_frame(&pcm).unwrap(), audio_level_dbov(&pcm))
+    })
+    .await;
+    let got = audio_from(&heard, 1);
+    assert!(got.len() >= 40, "B received {} of A's frames", got.len());
+    let mut dec = OpusDecoder::new(Channels::Mono).unwrap();
+    let pcm: Vec<i16> = got
+        .iter()
+        .flat_map(|f| dec.decode_frame(f, false))
+        .collect();
+    assert!(pcm.len() >= 40 * FRAME_SAMPLES);
+    let level = audio_level_dbov(&pcm[5 * FRAME_SAMPLES..]);
+    assert!(
+        level > -20,
+        "the receiver hears a tone, not silence ({level} dBov)"
     );
     sfu.handle.shutdown().await;
 }

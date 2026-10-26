@@ -67,7 +67,7 @@ name = "echo_bot"
 
 [[example]]
 name = "voice_bot"
-required-features = ["voice-transport", "voice-e2ee"]
+required-features = ["voice-transport", "voice-e2ee", "voice-opus"]
 
 [[test]]
 name = "voice_reconnect"

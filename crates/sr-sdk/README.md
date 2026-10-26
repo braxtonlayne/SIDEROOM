@@ -13,6 +13,8 @@ sr-sdk = { path = "../SIDEROOM/crates/sr-sdk", default-features = false }
 
 Add back only what you need with `features = ["voice-transport"]` (SFU session, no end-to-end encryption; it then refuses encrypted calls) or `features = ["voice-e2ee"]` (key agreement and frame transform without a transport). CI builds and tests `--no-default-features` and both single-feature sets.
 
+Opus (DEV-FU-002, D-377, D-378). The `voice-opus` feature (on by default) adds `sr_sdk::audio`: `OpusEncoder` (exactly one 20 ms frame of 48 kHz PCM, 960 samples per channel, per `encode_frame`; any other length is an error), `OpusDecoder` (`decode_frame(packet, fec)`, so a bot can hear as well as speak) and `audio_level_dbov(pcm)`, the real level for `send_opus(frame, level)`. `examples/voice_bot.rs` sends an encoded 440 Hz tone. `send_opus` still takes any pre-encoded packet, so a bot that already has Opus (a file, another SDK) can switch the feature off. It builds libopus 1.6.1 from the vendored source of `opusic-sys` with **cmake**, the tool `aws-lc-sys` already asks for, so `cmake` must be on `PATH` (or named in the `CMAKE` environment variable; on a Windows machine with only the Visual Studio Build Tools, point it at `...\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`). `default-features = false` builds no C code. The sound lives only in the SDK: the server never links libopus (D-201).
+
 Address rule (D-234). The SDK runs in an operator's bot, not in the server, so it uses plain
 `reqwest` instead of `sr_net::SafeClient` (an exception recorded in `deny.toml`). It contacts only:
 

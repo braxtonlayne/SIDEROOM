@@ -48,8 +48,11 @@ jobs:
           cargo build -p sr-sdk --no-default-features
           cargo build -p sr-sdk --no-default-features --features voice-transport
           cargo build -p sr-sdk --no-default-features --features voice-e2ee
+          cargo build -p sr-sdk --no-default-features --features voice-opus
           cargo clippy -p sr-sdk --no-default-features --all-targets -- -D warnings
+          cargo clippy -p sr-sdk --no-default-features --features voice-opus --all-targets -- -D warnings
           cargo test -p sr-sdk --no-default-features
+          cargo test -p sr-sdk --no-default-features --features voice-opus --lib
       - run: cargo nextest run --workspace
       # D-163 / F-01: the #[ignore]d Postgres suites (sr-db). Single-threaded because the tests
       # share one database; sr-storage's live S3 suite has its own workflow (storage.yml).
