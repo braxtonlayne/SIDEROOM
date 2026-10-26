@@ -356,6 +356,24 @@ exist.
 | Sticker uploads (`POST /guilds/{guild_id}/stickers`) | `abuse.sticker_uploads_per_hour` | 20 | per credential per server per hour | `crates/sr-api/tests/abuse_limits.rs::every_guarded_route_answers_429_after_its_figure` |
 | Messages sent | `limits.rate.messages` | 60 | per channel and caller per minute (H-39) | `crates/sr-api/src/rate_limit.rs::a_live_change_applies_on_the_next_request` |
 
+### 5.3a Storage mounts, read side (wave 27, BYOS-SCP-001 and 002)
+
+Ids are strings, timestamps ISO 8601. All routes need a browser session (bots and OAuth tokens are refused). The mount CRUD and the connection and CORS routes are documented with the mounts.
+
+| Route | AUTHZ | Notes |
+|---|---|---|
+| `GET /users/@me/storage/mounts/{mount_id}/shares` | `mount_owner` | `[{friend_id, cinema, library, music}]`, the owner's outgoing shares |
+| `PUT /users/@me/storage/mounts/{mount_id}/shares/{user_id}` | `mount_owner` | body `{cinema, library, music}`; mutual friends only (400 otherwise); answers the stored share; a share with every kind off is removed |
+| `DELETE /users/@me/storage/mounts/{mount_id}/shares/{user_id}` | `mount_owner` | 204, idempotent |
+| `GET /users/@me/storage/shares` | `self` | what friends share with me: `[{mount_id, owner_id, label, cinema, library, music}]` |
+| `GET /users/@me/shelves/summary` | `self` | `{cinema, library, music, catalog?}`: shelves the caller reaches per kind |
+| `PUT /guilds/{guild_id}/storage/grants` | `membership` | body `{role_id, grants: [view_cinema, view_library, view_music, upload, manage]}`; `MANAGE_ROLES` plus `manage`; 204 |
+| `GET /storage/mounts/{mount_id}/objects?prefix=&delimiter=/&cursor=` | `storage_scope` | `{folders: [], objects: [{key, size, last_modified, content_type?}], next_cursor}`; pages of 1000; keys are mount-relative; objects of kinds the viewer may not read are left out |
+| `GET /storage/mounts/{mount_id}/objects/{key}` | `storage_scope` | size, modification time, etag |
+| `POST /storage/mounts/{mount_id}/presign` | `storage_scope` | body `{key, method: "GET", range?: "bytes=a-b"}`; answers `{url, expires_at}`; 409 `CORS_NOT_READY` until the mount has passed its CORS check |
+
+Refusals: another user's mount, a non-member, a friend without the share, a disabled mount and a delisted key answer 404; a guild member who lacks only the grant answers 403. A presigned URL lives `byos.presign_ttl_secs` (900), at most `byos.presign_ttl_cap_secs` (3600), never past a day and never longer than the caller's session; it is signed locally, never stored or logged, and the server never streams the mount's bytes. A bucket that does not answer within 8 seconds is 409 `BUCKET_UNREACHABLE`. Keys are checked (no `..`, no leading `/`, no empty segment, no control character, at most 1024 bytes) before they reach the signer or the bucket. `AUTHZ` values `storage_scope` and `mount_owner` are in the vocabulary of `route_matrix.rs`; `authz_matrix.rs` seeds a mount per tenant for the cross-tenant sweep and `storage_scopes_hold_over_http` proves the actors `friend_shared`, `friend_unshared`, a member with and without each grant, and staff.
+
 ### 5.4 How authorization is tested (RDY-SEC-001 to 003, 011, 012)
 
 Three layers, from cheap to thorough. All of them read `crates/sr-api/tests/route_matrix.tsv`, one row per operation of the OpenAPI document
