@@ -1585,6 +1585,41 @@ async fn seed(
     b.insert("user_id", u("ownerb").to_string());
     b.insert("account_id", u("ownerb").to_string());
     b.insert("person_id", u("ownerb").to_string());
+    // BYOS-SCP-002: a user mount of `member` and one of `ownerb` (the cross-tenant sweep over `{mount_id}`),
+    // both past their CORS check so that the presign route reaches the signer. Nothing listens on the endpoint:
+    // presigning is local signing.
+    for (who, ids_map) in [("member", &mut a), ("ownerb", &mut b)] {
+        let id = ids.generate().get() as i64;
+        let sb = sr_db::sealed::SecretBox::new(key);
+        let new = sr_storage::mounts::NewMount::seal(
+            &sb,
+            id,
+            sr_storage::mounts::MountInput {
+                owner: sr_storage::mounts::MountOwner::User(u(who)),
+                label: "Shelf".into(),
+                provider: sr_storage::mounts::Provider::Minio,
+                endpoint: "http://127.0.0.1:9".into(),
+                region: "us-east-1".into(),
+                bucket: "shelf".into(),
+                prefix: String::new(),
+                path_style: true,
+                access_key_id: "AKIAAUTHZMATRIX".into(),
+            },
+            &sr_storage::mounts::Secret::new("authz-matrix-secret"),
+        )
+        .unwrap();
+        use sr_storage::mounts::MountRepo as _;
+        sr_db::mounts_repo::PgMountRepo::new(pool.clone())
+            .create(new, None)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE storage_mounts SET cors_ok_at = now() WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        ids_map.insert("mount_id", id.to_string());
+    }
     // More objects, so that a refusal is not just "no such id": a moderation case, a takedown notice,
     // a hold, an announcement, a submission, a command, a grant and a running stage.
     let staff = Cred::Session(sess["staff_owner"].clone());
@@ -2816,7 +2851,7 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 32] = [
+const TENANT: [&str; 33] = [
     "sticker_id",
     "sound_id",
     "request_id",
@@ -2849,6 +2884,7 @@ const TENANT: [&str; 32] = [
     "submission_id",
     "party_id",
     "case_id",
+    "mount_id",
 ];
 
 fn scoped(path: &str) -> bool {
@@ -2904,6 +2940,14 @@ fn outsider_exception(r: &Route) -> Option<&'static str> {
 /// replaced with the seeded ids of tenant A.
 fn body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
+        // BYOS-SCP-002: a presign for an audio key, a grants body naming the seeded role.
+        ("POST", "/storage/mounts/{mount_id}/presign") => r#"{"key":"a.mp3","method":"GET"}"#,
+        ("PUT", "/guilds/{guild_id}/storage/grants") => {
+            r#"{"role_id":"{role_id}","grants":["view_music"]}"#
+        }
+        ("PUT", "/users/@me/storage/mounts/{mount_id}/shares/{user_id}") => {
+            r#"{"cinema":false,"library":false,"music":true}"#
+        }
         ("POST", "/applications/{application_id}/testers") => r#"{"username":"victim"}"#,
         ("POST", "/submissions/{submission_id}/artwork/{kind}") => {
             r#"{"image":"data:image/png;base64,iVBORw0KGgo="}"#
@@ -3016,6 +3060,9 @@ fn rightful_of(r: &Route) -> &'static str {
     {
         // Their lists, comments and posts are the plain member's.
         "member"
+    } else if r.authz == "storage_scope" || r.authz == "mount_owner" {
+        // The seeded mounts are the plain member's.
+        "member"
     } else if r.authz == "self" || r.authz == "user" {
         // Per-account data: the plain member's, which the seed filled.
         "member"
@@ -3078,6 +3125,8 @@ fn plan_calls(
                 | "party_member"
                 | "party_control"
                 | "party_manager"
+                | "storage_scope"
+                | "mount_owner"
                 | "visibility"
         );
         let exempt = outsider_exception(r).is_some();

@@ -19,12 +19,12 @@ use serde_json::json;
 use sr_admin::Caller;
 use sr_auth::session::SessionToken;
 use sr_core::{ErrorCode, PlatformPermissions};
-use sr_storage::{ObjectStorage, StorageError};
 use sr_storage::browse::{PAGE, check_key};
 use sr_storage::mounts::{Mount, MountStatus};
 use sr_storage::scopes::{
     Access, Refused, ResolveError, Scope, ScopeFacts, Viewer, check_range, presign_ttl_secs,
 };
+use sr_storage::{ObjectStorage, StorageError};
 use sr_storage::{PresignMethod, mounts::Sealer};
 use std::time::Duration;
 use utoipa::ToSchema;
@@ -359,10 +359,8 @@ pub async fn list(
         }
     };
     let storage = storage_for(&d, &r.mount)?;
-    let page = storage
-        .list_dir(&bucket_prefix, delimiter, q.cursor.as_deref(), PAGE)
-        .await
-        .map_err(|e| bucket_error(&e))?;
+    let page =
+        within(storage.list_dir(&bucket_prefix, delimiter, q.cursor.as_deref(), PAGE)).await?;
     let rel: Vec<String> = page.objects.iter().map(|o| strip(&o.key)).collect();
     let gone = d
         .store
@@ -424,10 +422,7 @@ pub async fn meta(
     key_allowed(&d, &r, &key).await?;
     log_staff(admin.as_deref(), &r, "meta", &key).await?;
     let storage = storage_for(&d, &r.mount)?;
-    let m = storage
-        .head_meta(&r.mount.bucket_key(&key))
-        .await
-        .map_err(|e| bucket_error(&e))?;
+    let m = within(storage.head_meta(&r.mount.bucket_key(&key))).await?;
     Ok(Json(ObjectMetaView {
         content_type: content_type(&key),
         last_modified: Some(iso(m.last_modified_ms)),
@@ -537,4 +532,18 @@ async fn session_left(state: &AppState, headers: &HeaderMap) -> Option<i64> {
     let token = SessionToken::parse(raw)?;
     let rec = state.sessions().find(&token.hash()).await.ok()??;
     Some(rec.expires_at - state.now_secs())
+}
+
+/// How long a request waits for a member's bucket: `object_store` retries a dead endpoint for minutes, and a
+/// hung bucket must not hold a request that long.
+const BUCKET_WAIT: Duration = Duration::from_secs(8);
+
+/// Run a bucket call under [`BUCKET_WAIT`]; a timeout is `BUCKET_UNREACHABLE` like any other bucket failure.
+async fn within<T>(
+    fut: impl std::future::Future<Output = Result<T, StorageError>>,
+) -> MsgResult<T> {
+    match tokio::time::timeout(BUCKET_WAIT, fut).await {
+        Ok(r) => r.map_err(|e| bucket_error(&e)),
+        Err(_) => Err(bucket_error(&StorageError::Backend("timed out".into()))),
+    }
 }
