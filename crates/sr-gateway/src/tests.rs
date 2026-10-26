@@ -34,6 +34,8 @@ struct FakeDir {
     offline: Mutex<Vec<UserId>>,
     restricted: Mutex<HashSet<ChannelId>>,
     safety: Mutex<HashMap<UserId, (sr_chat::social::safety::SensitiveMedia, HashSet<UserId>)>>,
+    /// Audience sizes of the `dispatch_audience` calls, in order.
+    audience_calls: Mutex<Vec<usize>>,
 }
 
 #[async_trait]
@@ -81,6 +83,27 @@ impl GuildDirectory for FakeDir {
     }
     async fn can_view_channel(&self, user: UserId, _g: GuildId, ch: ChannelId) -> bool {
         !self.hidden.lock().unwrap().contains(&(user, ch))
+    }
+    async fn dispatch_audience(
+        &self,
+        g: GuildId,
+        channel: Option<ChannelId>,
+        needed: Option<Permissions>,
+        users: &[UserId],
+    ) -> HashSet<UserId> {
+        self.audience_calls.lock().unwrap().push(users.len());
+        let mut out = HashSet::new();
+        for &u in users {
+            let view = channel.is_none_or(|ch| !self.hidden.lock().unwrap().contains(&(u, ch)));
+            let perm = match needed {
+                Some(p) => self.has_guild_permission(u, g, p).await,
+                None => true,
+            };
+            if view && perm {
+                out.insert(u);
+            }
+        }
+        out
     }
     async fn member_list(
         &self,
@@ -301,6 +324,14 @@ async fn hello_identify_ready() {
     assert_eq!(gc["d"]["id"], "1");
 }
 
+/// P24-GW-1: Chrome's intensive throttling wakes a hidden tab's chained timers once a minute, so the default
+/// deadline (interval + grace) must clear 60 s with room for latency; tightening it should be deliberate.
+#[test]
+fn default_heartbeat_deadline_survives_a_once_a_minute_tab() {
+    let c = GatewayConfig::default();
+    assert!(c.heartbeat_interval + c.heartbeat_grace >= Duration::from_secs(70));
+}
+
 #[tokio::test(start_paused = true)]
 async fn heartbeat_ack_and_timeout() {
     let e = env_with(GatewayConfig {
@@ -425,6 +456,24 @@ async fn fan_out_is_permission_filtered_per_recipient() {
     emit(&e.bus, msg(G1, OPEN, 102)).await;
     assert_eq!(b.expect_event("MESSAGE_CREATE").await["d"]["id"], "102");
     a.silent().await;
+}
+
+/// RDY-PERF-002: a guild dispatch asks the directory once for its whole audience, not once per recipient.
+#[tokio::test]
+async fn fan_out_asks_the_directory_once_per_dispatch() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", GUILDS_MSGS, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", GUILDS_MSGS, 1).await;
+    e.dir.audience_calls.lock().unwrap().clear();
+    emit(&e.bus, msg(G1, OPEN, 200)).await;
+    a.expect_event("MESSAGE_CREATE").await;
+    b.expect_event("MESSAGE_CREATE").await;
+    emit(&e.bus, msg(G1, SECRET, 201)).await;
+    a.expect_event("MESSAGE_CREATE").await;
+    b.silent().await;
+    assert_eq!(*e.dir.audience_calls.lock().unwrap(), vec![2, 2]);
 }
 
 /// N-41, D-338: a restored message is a `MESSAGE_CREATE` with the full object and `restored: true`; a plain

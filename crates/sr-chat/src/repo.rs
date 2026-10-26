@@ -21,6 +21,18 @@ pub trait GuildRepository: Send + Sync {
     /// Guild that owns the vanity invite code `code` (case-insensitive), if any (LNG-INV-004).
     async fn guild_by_vanity(&self, code: &str) -> RepoResult<Option<GuildId>>;
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>>;
+    /// The members of `guild` among `users`, in no particular order; non-members are left out. The gateway
+    /// fan-out reads a dispatch's recipients with it in one query (RDY-PERF-002). The default asks
+    /// [`Self::get_member`] per user; stores should override it.
+    async fn get_members(&self, guild: GuildId, users: &[UserId]) -> RepoResult<Vec<Member>> {
+        let mut out = Vec::with_capacity(users.len());
+        for &u in users {
+            if let Some(m) = self.get_member(guild, u).await? {
+                out.push(m);
+            }
+        }
+        Ok(out)
+    }
     /// Members ordered by user id, strictly after `after`, at most `limit`. Used by
     /// the `@everyone`/role mention fan-out (open question 117).
     async fn page_members(
@@ -85,6 +97,19 @@ pub trait ChannelRepository: Send + Sync {
         Ok(Vec::new())
     }
     async fn get_overwrites(&self, channel: ChannelId) -> RepoResult<Vec<Overwrite>>;
+    /// The overwrites of several channels; a channel without any maps to an empty list. GUILD_CREATE reads a
+    /// guild's channels with it in one query (RDY-PERF-002). The default asks [`Self::get_overwrites`] per
+    /// channel; stores should override it.
+    async fn get_overwrites_of(
+        &self,
+        channels: &[ChannelId],
+    ) -> RepoResult<HashMap<ChannelId, Vec<Overwrite>>> {
+        let mut out = HashMap::with_capacity(channels.len());
+        for &c in channels {
+            out.insert(c, self.get_overwrites(c).await?);
+        }
+        Ok(out)
+    }
     async fn insert_channel(&self, channel: &Channel, overwrites: &[Overwrite]) -> RepoResult<()>;
     async fn update_channel(&self, channel: &Channel) -> RepoResult<()>;
     /// Delete the channel; children of a category are orphaned, not deleted.

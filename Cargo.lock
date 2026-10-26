@@ -6194,9 +6194,11 @@ dependencies = [
  "sr-core",
  "sr-e2ee",
  "sr-events",
+ "sr-memcount",
  "sr-voice-proto",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -6333,6 +6335,10 @@ dependencies = [
  "tracing",
  "utoipa",
 ]
+
+[[package]]
+name = "sr-memcount"
+version = "0.0.0"
 
 [[package]]
 name = "sr-moderation"
@@ -6492,6 +6498,7 @@ dependencies = [
  "serde_json",
  "sr-core",
  "sr-e2ee",
+ "sr-events",
  "sr-gateway",
  "sr-voice",
  "sr-voice-proto",

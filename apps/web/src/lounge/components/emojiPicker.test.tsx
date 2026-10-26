@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../test/server';
 import { customEmojiText, EmojiPicker, resetGuildEmojis } from './EmojiPicker';
@@ -72,5 +73,80 @@ describe('EmojiPicker', () => {
     expect(onCustom).toHaveBeenCalledWith(expect.objectContaining({ id: '5', name: 'pog' }));
     await user.type(screen.getByLabelText('Search emoji'), 'qqqq');
     await waitFor(() => expect(screen.getByText('No emoji found.')).toBeInTheDocument());
+  });
+});
+
+describe('EmojiPicker category sidebar (RDY-PAR-002)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetGuildEmojis();
+  });
+
+  it('lists one button per category, jumps and moves with the arrow keys', async () => {
+    const user = userEvent.setup();
+    render(<EmojiPicker onPick={vi.fn()} />);
+    const bar = screen.getByRole('toolbar', { name: 'Emoji categories' });
+    const tabs = within(bar).getAllByRole('button');
+    expect(tabs.length).toBeGreaterThan(3);
+    // One stop in the tab order (roving tabindex), on the first category.
+    expect(tabs.filter((b) => b.tabIndex === 0)).toHaveLength(1);
+    expect(tabs[0]).toHaveAttribute('aria-pressed', 'true');
+    tabs[0]!.focus();
+    await user.keyboard('{ArrowDown}');
+    expect(tabs[1]).toHaveFocus();
+    expect(tabs[1]).toHaveAttribute('aria-pressed', 'true');
+    expect(tabs[1]).toHaveAttribute('tabindex', '0');
+    await user.keyboard('{End}');
+    expect(tabs.at(-1)).toHaveFocus();
+    await user.keyboard('{Home}');
+    expect(tabs[0]).toHaveFocus();
+  });
+
+  it('jumps the scroll area to the section and follows the scroll position', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<EmojiPicker onPick={vi.fn()} />);
+    const box = container.querySelector<HTMLElement>('.lng-emoji-scroll')!;
+    const sections = [...container.querySelectorAll<HTMLElement>('[data-cat]')];
+    // jsdom has no layout: give every section a 100px slot.
+    box.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+    sections.forEach((el, i) => {
+      el.getBoundingClientRect = () => ({ top: i * 100 - box.scrollTop }) as DOMRect;
+    });
+    const tabs = within(screen.getByRole('toolbar')).getAllByRole('button');
+    await user.click(tabs[2]!);
+    expect(box.scrollTop).toBe(200);
+    expect(tabs[2]).toHaveAttribute('aria-pressed', 'true');
+    box.scrollTop = 300;
+    fireEvent.scroll(box);
+    expect(tabs[3]).toHaveAttribute('aria-pressed', 'true');
+    expect(tabs[2]).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('shows the server section with its icon or initial and narrows with search', async () => {
+    server.use(
+      http.get('*/api/v1/guilds/g1/emojis', () =>
+        HttpResponse.json([{ id: '5', name: 'pog', animated: false, available: true, roles: [] }]),
+      ),
+      http.get('*/api/v1/guilds/g1/emojis/:id/url', () =>
+        HttpResponse.json({ url: '/cdn/e.png', expires_at: 1 }),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<EmojiPicker onPick={vi.fn()} guildId="g1" onPickCustom={vi.fn()} />);
+    const bar = screen.getByRole('toolbar', { name: 'Emoji categories' });
+    await waitFor(() =>
+      expect(within(bar).getByRole('button', { name: 'This server' })).toBeTruthy(),
+    );
+    await user.type(screen.getByLabelText('Search emoji'), 'fire');
+    expect(within(bar).queryByRole('button', { name: 'This server' })).toBeNull();
+    expect(within(bar).getAllByRole('button').length).toBe(1);
+  });
+});
+
+describe('EmojiPicker axe (RDY-PAR-002)', () => {
+  it('has no axe violations with the sidebar', async () => {
+    localStorage.clear();
+    const { container } = render(<EmojiPicker onPick={vi.fn()} />);
+    expect(await axeViolations(container)).toEqual([]);
   });
 });

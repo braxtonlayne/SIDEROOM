@@ -53,6 +53,15 @@ fn db(e: sqlx::Error) -> RepoError {
     RepoError(e.to_string())
 }
 
+fn db_err(e: crate::DbError) -> RepoError {
+    RepoError(e.to_string())
+}
+
+/// Audit-log rows removed per transaction by `audit.purge`, and the most batches one run takes (the rest waits for
+/// tomorrow's run; 500 batches of 5,000 is 2.5 million rows).
+const AUDIT_PURGE_BATCH: i64 = 5_000;
+const AUDIT_PURGE_MAX_BATCHES: usize = 500;
+
 fn bad(what: &str) -> RepoError {
     RepoError(format!("unexpected value in column {what}"))
 }
@@ -325,22 +334,36 @@ impl AuditRepository for PgSettingsRepo {
     }
 
     async fn purge_audit_before(&self, cutoff_ms: i64) -> RepoResult<u64> {
-        let mut tx = self.pool.begin().await.map_err(db)?;
-        // The delete trigger only allows removal inside the retention job.
-        sqlx::query("SELECT set_config('sr.audit_purge', 'on', true)")
+        // RDY-PERF-003 (job `audit.purge`): batches of AUDIT_PURGE_BATCH rows, each in its own bounded
+        // transaction (lock wait at most a second), so a first run over millions of rows never holds
+        // one long transaction. A batch is cut by `created_at` through its index and skips locked rows.
+        let mut total = 0u64;
+        for _ in 0..AUDIT_PURGE_MAX_BATCHES {
+            let mut tx = crate::bounded::begin(&self.pool).await.map_err(db_err)?;
+            // The delete trigger only allows removal inside the retention job.
+            sqlx::query("SELECT set_config('sr.audit_purge', 'on', true)")
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+            let r = sqlx::query(
+                "DELETE FROM audit_log_entries WHERE id IN ( \
+                   SELECT id FROM audit_log_entries \
+                   WHERE created_at < to_timestamp($1::double precision / 1000.0) \
+                   ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED)",
+            )
+            .bind(cutoff_ms)
+            .bind(AUDIT_PURGE_BATCH)
             .execute(&mut *tx)
             .await
             .map_err(db)?;
-        let r = sqlx::query(
-            "DELETE FROM audit_log_entries \
-             WHERE created_at < to_timestamp($1::double precision / 1000.0)",
-        )
-        .bind(cutoff_ms)
-        .execute(&mut *tx)
-        .await
-        .map_err(db)?;
-        tx.commit().await.map_err(db)?;
-        Ok(r.rows_affected())
+            tx.commit().await.map_err(db)?;
+            let n = r.rows_affected();
+            total += n;
+            if i64::try_from(n).unwrap_or(i64::MAX) < AUDIT_PURGE_BATCH {
+                break;
+            }
+        }
+        Ok(total)
     }
 }
 

@@ -8,6 +8,29 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 24 - 2026-10-25
+
+- **Group DM invite links from the picker.** Creating a group DM now offers its invite link right away, with a copy
+  button; the owner sees the same link when adding people to an existing group.
+- **The emoji picker has a category bar.** One button per section (favorites, frequently used, this server, then
+  each category) beside the grid; it follows your scroll and works with the arrow keys.
+- **Profiles read better.** About Me shows bold, italic, spoilers, links and emoji, and the Settings preview wears
+  your profile theme and server tag.
+- **Likely spam in Message Requests.** With the DM spam filter on, a stranger's pending request that looks like
+  spam (floods, repeats, many different links) moves to a "Likely spam" section; you can still accept it.
+- **View Server As Role in the Lounge.** Server Settings > Roles > View as Role can now preview the channel list as
+  those roles, with a banner and an Exit button. Nothing is saved.
+- **GIF autoplay is a setting.** Settings > Accessibility: when it is off, or the window is not focused, or reduced
+  motion is on, GIFs show their first frame and play on hover or focus.
+- **Faster start with many servers.** Notification settings for all your servers load in one request instead of
+  one per server.
+- **Bots in voice.** Both bot SDKs (Rust and TypeScript) can join an encrypted voice call and reconnect after a
+  dropped connection.
+- **Operators:** new Prometheus gauges and alert rules for the job queue, backups, restore drills, the WAL archive,
+  disk, invoices and CSP reports, each linked to its runbook entry (a fresh install alerts until its first backup
+  and restore drill). `sr-cli seed --scale` loads a large test dataset, and the purge, audit and search jobs work in
+  bounded batches.
+
 ## Phase 23 - 2026-10-25
 
 - **A welcome after your first sign-in.** A short tour of the Lounge, the Library and the Cinema, then the

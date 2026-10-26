@@ -64,6 +64,8 @@ export interface UserPrefs {
   dyslexiaFont: boolean;
   stickerAnimation: Animation;
   emojiAnimation: Animation;
+  /** Play animated GIFs while the client has focus; off (or reduced motion) shows the first frame until hover or focus (RDY-PAR-006). */
+  gifAutoplay: boolean;
   showSendButton: boolean;
   /** Text-to-speech speed for "Speak message", percent of normal, 50..200 (LNG-USET-042). */
   ttsRate: number;
@@ -140,6 +142,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   dyslexiaFont: false,
   stickerAnimation: 'always',
   emojiAnimation: 'always',
+  gifAutoplay: true,
   showSendButton: true,
   ttsRate: 100,
   linkPreviews: true,
@@ -236,6 +239,7 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
     dyslexiaFont: bool(r.dyslexiaFont, d.dyslexiaFont),
     stickerAnimation: oneOf(r.stickerAnimation, anim, d.stickerAnimation),
     emojiAnimation: oneOf(r.emojiAnimation, anim, d.emojiAnimation),
+    gifAutoplay: bool(r.gifAutoplay, d.gifAutoplay),
     showSendButton: bool(r.showSendButton, d.showSendButton),
     ttsRate: clamp(r.ttsRate, TTS_RATE_RANGE[0], TTS_RATE_RANGE[1], d.ttsRate),
     linkPreviews: bool(r.linkPreviews, d.linkPreviews),

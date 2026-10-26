@@ -26,11 +26,15 @@ pub const LARGE_THRESHOLD_DEFAULT: u64 = 50;
 /// Discord's maximum `large_threshold`.
 pub const LARGE_THRESHOLD_MAX: u64 = 250;
 
+/// GUILD_CREATE bodies built at once while a session identifies (each is a dozen or more directory reads).
+const GUILD_CREATE_CONCURRENCY: usize = 4;
+
 #[derive(Clone)]
 pub struct GatewayConfig {
     /// Sent in HELLO. Docs/05 6.4: 41250 ms.
     pub heartbeat_interval: Duration,
-    /// Extra slack before a silent client is closed with 4009.
+    /// Extra slack before a silent client is closed with 4009: 30 s (P24-GW-1), so a stalled page or a
+    /// backgrounded tab whose timers Chrome aligns to one wake-up a minute is not timed out.
     pub heartbeat_grace: Duration,
     /// How long a disconnected session stays resumable (2 minutes).
     pub resume_window: Duration,
@@ -75,7 +79,7 @@ impl Default for GatewayConfig {
     fn default() -> Self {
         Self {
             heartbeat_interval: Duration::from_millis(41_250),
-            heartbeat_grace: Duration::from_secs(10),
+            heartbeat_grace: Duration::from_secs(30),
             resume_window: Duration::from_secs(120),
             resume_buffer: 5_000,
             resume_gateway_url: None,
@@ -653,12 +657,18 @@ impl Gateway {
         if let Some((id, n)) = shard {
             guilds.retain(|g| (g.get() >> 22) % u64::from(n.max(1)) == u64::from(id));
         }
-        let mut syncs = Vec::new();
-        let mut payloads = Vec::with_capacity(guilds.len());
-        for g in &guilds {
-            payloads.push(self.guild_create_body(user.user_id, *g).await);
-            syncs.push(self.inner.dir.thread_list_sync(user.user_id, *g).await);
-        }
+        // A few guilds at a time, in order (RDY-PERF-002: one after the other, READY of a member of 60
+        // servers waited for every GUILD_CREATE to be read in turn).
+        let built: Vec<(Value, Option<Value>)> = futures::stream::iter(guilds.iter().copied())
+            .map(|g| async move {
+                let body = self.guild_create_body(user.user_id, g).await;
+                let sync = self.inner.dir.thread_list_sync(user.user_id, g).await;
+                (body, sync)
+            })
+            .buffered(GUILD_CREATE_CONCURRENCY)
+            .collect()
+            .await;
+        let (payloads, syncs): (Vec<Value>, Vec<Option<Value>>) = built.into_iter().unzip();
         let extras = self.inner.dir.ready_extras(user.user_id).await;
         let mut fresh = Session::new(
             Self::new_session_id(),
@@ -1000,29 +1010,22 @@ impl Gateway {
         };
         let needs = required_guild_permission(name);
         let users: HashSet<UserId> = targets.iter().map(|s| s.user).collect();
-        let checks = users.into_iter().map(|u| {
-            let dir = self.inner.dir.clone();
-            async move {
-                let mut ok = true;
-                if let Some(ch) = channel {
-                    ok = dir.can_view_channel(u, guild, ch).await;
-                }
-                if ok && let Some(p) = needs {
-                    ok = dir.has_guild_permission(u, guild, p).await;
-                }
-                (u, ok)
-            }
-        });
-        let allowed: HashMap<UserId, bool> = futures::future::join_all(checks)
-            .await
-            .into_iter()
-            .collect();
+        // One directory call for the whole audience, not one per recipient (RDY-PERF-002).
+        let allowed: HashSet<UserId> = if channel.is_none() && needs.is_none() {
+            users
+        } else {
+            let users: Vec<UserId> = users.into_iter().collect();
+            self.inner
+                .dir
+                .dispatch_audience(guild, channel, needs, &users)
+                .await
+        };
         let gate = match channel {
             Some(ch) if age_gated(name) => self.inner.dir.channel_age_restricted(ch).await,
             _ => false,
         };
         for s in targets {
-            if !allowed.get(&s.user).copied().unwrap_or(false) {
+            if !allowed.contains(&s.user) {
                 continue;
             }
             if gate && !self.session_age_confirmed(&s).await {

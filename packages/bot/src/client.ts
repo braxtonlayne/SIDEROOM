@@ -234,6 +234,23 @@ export class Client {
     return any;
   }
 
+  /**
+   * Gateway op 4 (voice state update) on the shard that owns `guildId`: join, or with a null `channel_id` in
+   * `body` leave, a voice channel. See `voiceStateBody` and `E2eeCall.joinState` of `@sideroom/bot/voice`. The
+   * answer arrives as a `VOICE_SERVER_UPDATE` in the `raw` event. False when the shard is not connected.
+   */
+  voiceStateUpdate(guildId: string, body: Record<string, unknown>): boolean {
+    return this.shardFor(guildId)?.send(GatewayOp.VOICE_STATE_UPDATE, body) ?? false;
+  }
+
+  /**
+   * Gateway op 101 (`E2EE_MLS`) on the shard that owns `guildId`: the `d` objects an `E2eeCall` produces. The
+   * answers arrive as `E2EE_MLS` in the `raw` event. False when the shard is not connected.
+   */
+  e2eeMls(guildId: string, body: Record<string, unknown>): boolean {
+    return this.shardFor(guildId)?.send(GatewayOp.E2EE_MLS, body) ?? false;
+  }
+
   destroy(): void {
     for (const t of this.timers) clearTimeout(t);
     this.timers = [];

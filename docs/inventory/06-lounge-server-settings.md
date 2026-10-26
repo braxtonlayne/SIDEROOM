@@ -58,7 +58,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [x] **LNG-SSET-033** [FE] Role editor tab Permissions: grouped permission list with descriptions (General, Membership, Text, Voice, Apps, Events, Stage, Advanced, **SIDE ROOM**), search, Clear permissions, Administrator warning
 - [x] **LNG-SSET-034** [FE] Role editor tab Links (linked roles: placeholder for app role connections, Phase 6) *(p5: placeholder tab)*
 - [x] **LNG-SSET-035** [FE] Role editor tab Manage Members (search, add members modal, remove)
-- [x] **LNG-SSET-036** [FE] "View Server As Role" preview mode with exit banner *(p5: not built, it needs the channel visibility computation in the Lounge (View Server As Role))* *(p14 J-09: built as a dialog in the Roles section (`ViewAsRole.tsx`, `viewAs.ts`): pick roles, the shared `sr-permissions` WASM engine (`permEngine`) computes which channels they see over the loaded channels and overwrites; a dialog, not a Lounge-wide mode with an exit banner; tests `viewAs.test.ts`, `p14profile.test.tsx`)*
+- [x] **LNG-SSET-036** [FE] "View Server As Role" preview mode with exit banner *(p5: not built, it needs the channel visibility computation in the Lounge (View Server As Role))* *(p14 J-09: built as a dialog in the Roles section (`ViewAsRole.tsx`, `viewAs.ts`): pick roles, the shared `sr-permissions` WASM engine (`permEngine`) computes which channels they see over the loaded channels and overwrites; a dialog, not a Lounge-wide mode with an exit banner (p24 RDY-PAR-005 adds the Lounge mode and the banner); tests `viewAs.test.ts`, `p14profile.test.tsx`)*
 - [x] **LNG-SSET-037** [FE] Delete role confirm; hierarchy lock icons
 
 ## Invites

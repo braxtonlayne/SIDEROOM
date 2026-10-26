@@ -15,7 +15,7 @@ use crate::routes::messages::DmAnnouncer;
 use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{Json, extract::Path, http::StatusCode};
 use serde_json::{Value, json};
-use sr_chat::social::dm::{DmChannel, DmKind, GroupEdit, RequestState};
+use sr_chat::social::dm::{DmChannel, DmKind, GroupEdit, RequestReason, RequestState};
 use sr_chat::social::repo::DmRepository;
 use sr_core::{ChannelId, ErrorCode, UserId};
 use sr_storage::media::MediaKind;
@@ -45,12 +45,15 @@ pub async fn list(
     for dm in &dms {
         let mut obj = DmChannelObject::new(dm, me, &users);
         obj.sr_max_upload_bytes = limit;
-        if deps.service.request_state(me, dm.id).await? == Some(RequestState::Pending) {
+        // Pending requests, and the ones filed as spam ("Likely spam", RDY-PAR-004).
+        let state = deps.service.request_state(me, dm.id).await?;
+        if matches!(state, Some(RequestState::Pending | RequestState::Spam)) {
             obj.is_message_request = Some(true);
             obj.sr_request_reason = deps
                 .service
                 .request_reason(me, dm.id)
                 .await?
+                .or((state == Some(RequestState::Spam)).then_some(RequestReason::Spam))
                 .map(|r| r.as_str().to_owned());
         }
         out.push(obj);

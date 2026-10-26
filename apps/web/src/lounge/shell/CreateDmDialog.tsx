@@ -4,9 +4,10 @@ import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { HOME } from '../channels';
 import { useLoungeGoto } from '../nav';
-import { useDms, usePresenceMap } from '../data';
+import { useCurrentUser, useDms, usePresenceMap } from '../data';
 import { addRecipient } from './api';
 import { rememberDm, useOpenDm } from './dm';
+import { GroupInviteLink } from './GroupInviteLink';
 import { friendsOf, useSocial, wireName } from './social';
 
 /** A group DM holds you plus up to nine others. */
@@ -28,7 +29,13 @@ export function CreateDmDialog({
   const presence = usePresenceMap();
   const openDm = useOpenDm();
   const goto = useLoungeGoto();
-  const existing = useDms().find((d) => d.id === addTo)?.recipientIds ?? [];
+  const me = useCurrentUser();
+  const target = useDms().find((d) => d.id === addTo);
+  const existing = target?.recipientIds ?? [];
+  // The owner of an existing group can copy its invite link from here too (RDY-PAR-001).
+  const canInvite = !!target && existing.length > 1 && target.ownerId === me.id;
+  /** The group that was just created: the dialog then offers its invite link before closing. */
+  const [created, setCreated] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -66,7 +73,14 @@ export function CreateDmDialog({
           }
         }
         if (target !== addTo) goto(HOME, target);
-      } else await openDm(picked);
+      } else {
+        const dm = await openDm(picked);
+        if (dm.type === 3 || dm.recipients.length > 1) {
+          setCreated(dm.id);
+          setBusy(false);
+          return;
+        }
+      }
       onClose();
     } catch (err) {
       setError(
@@ -75,6 +89,18 @@ export function CreateDmDialog({
       setBusy(false);
     }
   };
+
+  if (created)
+    return (
+      <Modal open onClose={onClose} size="sm" title={t('lounge.createDm.createdTitle')}>
+        <div className="lng-form">
+          <GroupInviteLink channelId={created} />
+          <div className="lng-form-actions">
+            <Button onClick={onClose}>{t('lounge.createDm.done')}</Button>
+          </div>
+        </div>
+      </Modal>
+    );
 
   return (
     <Modal
@@ -134,6 +160,7 @@ export function CreateDmDialog({
             );
           })}
         </ul>
+        {canInvite && addTo && <GroupInviteLink channelId={addTo} />}
         {error && (
           <p role="alert" className="lng-form-error">
             {error}

@@ -176,15 +176,22 @@ async fn serve(h: SfuHandle, socket: WebSocket) {
     let mut deadline = Instant::now() + silence;
     let (mut window_start, mut window_ops) = (Instant::now(), 0u32);
     let mut actor_closed = false;
+    // Why the socket ended and the longest a write to the client blocked (RDY-VOX-002 diagnostics).
+    let mut why = "client went away";
+    let mut send_blocked_max = std::time::Duration::ZERO;
     loop {
         tokio::select! {
             () = sleep_until(deadline) => {
+                why = "heartbeat timeout";
                 let _ = sink.send(close_frame(close::HEARTBEAT_TIMEOUT, "heartbeat timeout")).await;
                 break;
             }
             out = out_rx.recv() => match out {
                 Some(WsOut::Msg(m)) => {
-                    if sink.send(text(&m)).await.is_err() { break; }
+                    let started = Instant::now();
+                    let sent = sink.send(text(&m)).await;
+                    send_blocked_max = send_blocked_max.max(started.elapsed());
+                    if sent.is_err() { why = "write failed"; break; }
                 }
                 Some(WsOut::Close(code, why)) => {
                     let _ = sink.send(close_frame(code, why)).await;
@@ -231,6 +238,12 @@ async fn serve(h: SfuHandle, socket: WebSocket) {
         }
     }
     if !actor_closed {
+        tracing::debug!(
+            pid = pid.0,
+            why,
+            send_blocked_max_ms = u64::try_from(send_blocked_max.as_millis()).unwrap_or(u64::MAX),
+            "voice WebSocket ended"
+        );
         // The socket went away on its own: keep the participant for the resume window.
         let _ = h.send(Cmd::WsLost { pid, conn_id }).await;
     }

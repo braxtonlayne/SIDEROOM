@@ -2,9 +2,11 @@ import { Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Attachment } from '../data';
 import { useT } from '../../i18n';
+import { isGif, useGifAutoplay } from '../../settings/user/gifAutoplay';
 import { useSavedPrefs } from '../../settings/user/prefs';
 import { decodeBlurhash } from './blurhash';
 import { formatBytes, formatDuration, isHttpUrl } from './format';
+import { useAnimatedSrc } from './staticFrame';
 
 const isImage = (a: Attachment) => a.contentType.startsWith('image/');
 const isVideo = (a: Attachment) => a.contentType.startsWith('video/');
@@ -90,6 +92,11 @@ function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
   const [revealed, setRevealed] = useState(!a.spoiler);
   const [loaded, setLoaded] = useState(false);
   const hidden = !revealed;
+  // RDY-PAR-006: a GIF plays on its own only when autoplay is on, the client is focused and motion is not reduced.
+  const gif = isGif(a.contentType, a.filename);
+  const autoplay = useGifAutoplay();
+  const [pointed, setPointed] = useState(false);
+  const src = useAnimatedSrc(gif ? a.url : null, autoplay ? 'always' : 'hover', pointed) ?? a.url;
   return (
     <div className="lng-tile" data-spoiler={hidden || undefined}>
       <button
@@ -101,10 +108,14 @@ function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
             : t('lounge.attachments.openImage', { name: a.filename })
         }
         onClick={() => (hidden ? setRevealed(true) : onOpen())}
+        onMouseEnter={() => setPointed(true)}
+        onMouseLeave={() => setPointed(false)}
+        onFocus={() => setPointed(true)}
+        onBlur={() => setPointed(false)}
       >
         {a.blurhash && !loaded && <BlurhashPlaceholder hash={a.blurhash} />}
         <img
-          src={a.url}
+          src={src}
           alt={hidden ? '' : (a.description ?? a.filename)}
           width={a.width}
           height={a.height}

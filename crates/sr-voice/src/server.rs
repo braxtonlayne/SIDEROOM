@@ -495,16 +495,33 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
 
 async fn udp_reader(sock: Arc<UdpSocket>, dst: SocketAddr, tx: mpsc::Sender<Packet>) {
     let mut buf = vec![0u8; 2048];
+    // Datagrams dropped since the last warning: a full queue means the shard cannot keep up, and a
+    // newcomer's ICE checks are lost with the media (RDY-VOX-002).
+    let mut dropped: u64 = 0;
+    let mut warned: Option<Instant> = None;
     loop {
         match sock.recv_from(&mut buf).await {
             Ok((n, src)) => {
                 // A full queue drops the datagram: UDP semantics, and better than unbounded memory.
-                let _ = tx.try_send(Packet {
+                let sent = tx.try_send(Packet {
                     proto: Protocol::Udp,
                     src,
                     dst,
                     data: buf[..n].to_vec(),
                 });
+                if matches!(sent, Err(mpsc::error::TrySendError::Full(_))) {
+                    dropped += 1;
+                    let now = Instant::now();
+                    if warned.is_none_or(|t| now.saturating_duration_since(t) >= DROP_WARN_EVERY) {
+                        tracing::warn!(
+                            port = dst.port(),
+                            dropped,
+                            "voice packet queue full: datagrams dropped"
+                        );
+                        warned = Some(now);
+                        dropped = 0;
+                    }
+                }
             }
             // Windows reports ICMP port-unreachable as a recv error on UDP sockets.
             Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
@@ -515,6 +532,9 @@ async fn udp_reader(sock: Arc<UdpSocket>, dst: SocketAddr, tx: mpsc::Sender<Pack
         }
     }
 }
+
+/// At most one "packet queue full" warning per UDP socket this often.
+const DROP_WARN_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// How long a flag change for a not-yet-joined participant is remembered (the token lifetime).
 const PENDING_FLAGS_TTL: std::time::Duration = std::time::Duration::from_secs(60);
@@ -729,11 +749,12 @@ impl Actor {
                 },
                 Some(p) = pkts.recv() => {
                     self.input(&p);
-                    // Batch whatever else is already queued before draining output.
+                    // Batch whatever else is already queued, then run the room once for all of it.
                     for _ in 0..64 {
                         let Ok(p) = pkts.try_recv() else { break };
                         self.input(&p);
                     }
+                    self.core.flush(Instant::now());
                 }
                 () = tokio::time::sleep(wait) => self.core.handle_timeout(Instant::now()),
                 _ = tick.tick() => self.on_tick(),
@@ -745,7 +766,7 @@ impl Actor {
     fn input(&mut self, p: &Packet) {
         let taken = self
             .core
-            .handle_input(Instant::now(), p.proto, p.src, p.dst, &p.data);
+            .queue_input(Instant::now(), p.proto, p.src, p.dst, &p.data);
         // An ICE-TCP peer is offered to every shard until one's participant accepts it.
         if taken && p.proto == Protocol::Tcp && self.shards > 1 {
             locked(&self.shared.tcp_shard).insert(p.src, self.shard);
@@ -797,6 +818,7 @@ impl Actor {
             .map(|(p, _)| *p)
             .collect();
         for pid in expired {
+            tracing::debug!(pid = pid.0, "voice WebSocket not resumed within the window");
             self.core.leave(pid, CloseReason::Left);
         }
     }
@@ -843,7 +865,15 @@ impl Actor {
                 conn,
                 reply,
             } => {
-                let _ = reply.send(self.join(now, claims, conn));
+                let (user, channel) = (claims.user_id, claims.channel_id);
+                let res = self.join(now, claims, conn);
+                match &res {
+                    Ok(j) => {
+                        tracing::debug!(%user, %channel, pid = j.pid.0, shard = self.shard, "voice participant joined")
+                    }
+                    Err(code) => tracing::debug!(%user, %channel, code, "voice join refused"),
+                }
+                let _ = reply.send(res);
             }
             Cmd::Resume {
                 session_id,
@@ -851,7 +881,12 @@ impl Actor {
                 conn,
                 reply,
             } => {
-                let _ = reply.send(self.resume(now, &session_id, &resume_token, conn));
+                let res = self.resume(now, &session_id, &resume_token, conn);
+                match &res {
+                    Ok(j) => tracing::debug!(pid = j.pid.0, "voice session resumed"),
+                    Err(code) => tracing::debug!(code, "voice resume refused"),
+                }
+                let _ = reply.send(res);
             }
             Cmd::Offer { pid, conn_id, sdp } => {
                 if !self.is_current(pid, conn_id) {
@@ -860,10 +895,13 @@ impl Actor {
                 match self.core.handle_offer(now, pid, &sdp) {
                     // Sent before the core's own follow-up offer is drained, so the client sees
                     // the answer first.
-                    Ok(answer) => self.send_ws(
-                        pid,
-                        WsOut::Msg(Message::new(op::SDP_ANSWER, wire::Sdp { sdp: answer })),
-                    ),
+                    Ok(answer) => {
+                        tracing::debug!(pid = pid.0, "voice client offer answered");
+                        self.send_ws(
+                            pid,
+                            WsOut::Msg(Message::new(op::SDP_ANSWER, wire::Sdp { sdp: answer })),
+                        );
+                    }
                     Err(e) => {
                         tracing::debug!(error = %e, "rejected client offer");
                         self.send_ws(pid, WsOut::Close(close::DECODE_ERROR, "bad offer"));
@@ -871,11 +909,14 @@ impl Actor {
                 }
             }
             Cmd::Answer { pid, conn_id, sdp } => {
-                if self.is_current(pid, conn_id)
-                    && let Err(e) = self.core.handle_answer(now, pid, &sdp)
-                {
-                    tracing::debug!(error = %e, "rejected client answer");
-                    self.send_ws(pid, WsOut::Close(close::DECODE_ERROR, "bad answer"));
+                if self.is_current(pid, conn_id) {
+                    match self.core.handle_answer(now, pid, &sdp) {
+                        Ok(()) => tracing::debug!(pid = pid.0, "voice client answer applied"),
+                        Err(e) => {
+                            tracing::debug!(error = %e, "rejected client answer");
+                            self.send_ws(pid, WsOut::Close(close::DECODE_ERROR, "bad answer"));
+                        }
+                    }
                 }
             }
             Cmd::Candidate { pid, conn_id, line } => {
@@ -903,6 +944,11 @@ impl Actor {
                 {
                     s.conn = None;
                     s.lost_at = Some(now);
+                    tracing::debug!(
+                        pid = pid.0,
+                        resume_window_s = self.cfg.resume_window.as_secs(),
+                        "voice WebSocket lost; waiting for a resume"
+                    );
                 }
             }
             Cmd::Control(c) => self.control(now, c),
@@ -1160,6 +1206,17 @@ impl Actor {
                         }
                     }
                     // Not asked for by the gateway: tell it, so it clears the voice state.
+                    if matches!(reason, CloseReason::Left | CloseReason::Connection) {
+                        tracing::info!(
+                            %user,
+                            %channel,
+                            pid = pid.0,
+                            ?reason,
+                            "voice participant lost; the gateway clears its voice state"
+                        );
+                    } else {
+                        tracing::debug!(%user, %channel, pid = pid.0, ?reason, "voice participant closed");
+                    }
                     if matches!(reason, CloseReason::Left | CloseReason::Connection) {
                         let _ = self.events.send(SfuEvent {
                             kind: SfuEventKind::Lost,

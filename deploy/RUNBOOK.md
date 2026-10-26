@@ -126,7 +126,7 @@ Every playbook from here to the end of the file has the same shape: what raised 
 
 ## Job backlog
 
-_Raised by:_ Admin > System or Dashboard "Jobs queued" staying high, members reporting slow thumbnails, mails or transcodes. There is no Prometheus rule for the queue depth: the server exports only `jobs_processed_total`, so the queue is watched on the Admin > System tile.
+_Raised by:_ Admin > System or Dashboard "Jobs queued" staying high, members reporting slow thumbnails, mails or transcodes. The Prometheus rule `JobBacklog` fires when `sr_jobs_oldest_queued_age_seconds` stays above 600 for 10 minutes (`sr_jobs_queued{kind}` says which kind); the health job sets both every 15 minutes. The queue is also on the Admin > System tile.
 
 1. Admin > Jobs, state "Queued": which `kind` fills the queue, and whether "Next run" is in the past (a worker is not picking them up) or in the future (they are waiting out a retry backoff).
 2. Rate: `sum(rate(jobs_processed_total[5m])) by (kind, outcome)` in Grafana (Prometheus). A queue that grows while this rate is zero means the job runner is stuck or the server is down: see Server down. A backlog of one kind only usually has one cause (mail relay down for `outcome="failed"`, storage full, transcoder worker gone: [TRANSCODER.md](TRANSCODER.md)).
@@ -136,7 +136,7 @@ _Raised by:_ Admin > System or Dashboard "Jobs queued" staying high, members rep
 
 ## Voice egress
 
-_Raised by:_ the "Voice egress" figure on the Admin Dashboard (bytes the embedded SFU has sent since it started; it only appears when the SFU runs in the server process) growing faster than the uplink pays for, or members reporting video that drops to low quality.
+_Raised by:_ the `VoiceEgress` rule (`sr_voice_egress_bits_per_second` above the budget for 10 minutes; edit the number in `alerts.yml` to match `voice.egress_budget_mbps`), the "Voice egress" figure on the Admin Dashboard (bytes the embedded SFU has sent since it started; it only appears when the SFU runs in the server process) growing faster than the uplink pays for, or members reporting video that drops to low quality.
 
 1. Dashboard: "Voice rooms" and "Voice egress". Sample the egress twice a minute apart: the difference over 60 s, times 8, over one million, is the current Mbit/s.
 2. Compare it with the governor budget `voice.egress_budget_mbps` (environment `SR_VOICE__EGRESS_BUDGET_MBPS`). Above the budget the SFU caps simulcast layers on its own, Level 0 first and Patrons last (doc 08 section 3), so a full uplink degrades quality instead of failing. `0` turns the governor off; a good value is about 70 percent of the measured uplink.
@@ -146,7 +146,7 @@ _Raised by:_ the "Voice egress" figure on the Admin Dashboard (bytes the embedde
 
 ## Invoice stuck
 
-_Raised by:_ a card in the Staff Server `#alerts` channel from the payment watcher ("payment attention": underpaid, overpaid or paid late), or a member writing that they paid and nothing happened.
+_Raised by:_ the `InvoiceStuck` rule (`sr_invoice_oldest_pending_age_seconds` above a day; `sr_invoices_pending` is the count), a card in the Staff Server `#alerts` channel from the payment watcher ("payment attention": underpaid, overpaid or paid late), or a member writing that they paid and nothing happened.
 
 1. Admin > Invoices: filter by state. `open`, `seen` and `confirming` are normal for a short time; `underpaid`, `overpaid` and `late_paid` need a person. Open the invoice: transactions seen, confirmations, the audit trail.
 2. Nothing seen at all although the member paid: Admin > System > Preflight, the Esplora row. The watcher job `payments.watch` polls every 15 s and talks to the chain source (the electrs of the `payments` profile, or an external Esplora); if the source is down, every invoice looks unpaid. Fix the source first, the watcher catches up by itself (polling is idempotent: a second poll never credits twice).
@@ -167,7 +167,9 @@ _Raised by:_ the "Storage used" figure on the Admin Dashboard, the Disk space ca
 
 ## Backup missing or stale
 
-_Raised by:_ a `backup_failed` card in `#alerts`, the Backups card of Admin > System showing "none" or an old time, or `restore-drill.sh` refusing an old dump.
+_Raised by:_ the `BackupMissingOrStale` rule (`sr_backup_last_success_timestamp_seconds` older than 26 hours, or 0 when there is no backup), a `backup_failed` card in `#alerts`, the Backups card of Admin > System showing "none" or an old time, or `restore-drill.sh` refusing an old dump.
+
+A fresh install pages here (and under Restore drill failed) until the first backup and the first restore-drill marker exist: both gauges are 0 for "never" on purpose, so a server that was never backed up is not silent. Run `deploy/scripts/backup.sh` and then `deploy/scripts/restore-drill.sh` once after installing.
 
 1. Is the setting pointing at the right folder? `ops.backup_dir` must be the `SR_BACKUP_DIR` of the backup job ([BACKUP.md](BACKUP.md), "On the Compose stack"). Empty switches the alert off.
 2. Did the timer run? `systemctl list-timers 'sideroom-*'` and `journalctl -u sideroom-backup.service -n 100`. Run it by hand: `deploy/scripts/backup.sh`.
@@ -176,7 +178,7 @@ _Raised by:_ a `backup_failed` card in `#alerts`, the Backups card of Admin > Sy
 
 ## WAL archive lag
 
-_Raised by:_ WAL files piling up in the `wal-archive` volume, a Postgres log full of `archive command failed`, or a recovery point older than the five minutes `archive_timeout=300` promises ([BACKUP.md](BACKUP.md), "Point-in-time recovery"). Nothing in Prometheus watches it: look in Postgres.
+_Raised by:_ WAL files piling up in the `wal-archive` volume, a Postgres log full of `archive command failed`, or a recovery point older than the five minutes `archive_timeout=300` promises ([BACKUP.md](BACKUP.md), "Point-in-time recovery"). The `WalArchiveLag` rule watches `sr_wal_archive_last_success_timestamp_seconds` and `sr_wal_archive_failed_total` (both come from `pg_stat_archiver` and are absent while Postgres `archive_mode` is off, so the rule stays quiet on a server that does not archive); for the cause look in Postgres.
 
 1. In the postgres container: `select last_archived_wal, last_archived_time, last_failed_wal, last_failed_time, failed_count from pg_stat_archiver;`. A `last_failed_time` newer than `last_archived_time` means the archive command is failing right now.
 2. Why: the archive volume is full or not writable (`df -h` inside the container, owner `postgres`, mode 700), or `wal-archive.sh` refuses a file that differs from the one already archived (it never overwrites). The script's message is in the postgres log (`dc logs postgres`).
@@ -186,7 +188,7 @@ _Raised by:_ WAL files piling up in the `wal-archive` volume, a Postgres log ful
 
 ## Restore drill failed
 
-_Raised by:_ the `sideroom-restore-drill.service` unit failing (wire it to `OnFailure=`, see BACKUP.md), a failed `drill` or `wal-drill` job in the weekly `backup-drill.yml` workflow, or the restore-check line of the Admin > System Backups card going stale.
+_Raised by:_ the `RestoreDrillFailed` rule (`sr_restore_check_last_success_timestamp_seconds` older than 8 days, or 0 when no drill marker exists yet), the `sideroom-restore-drill.service` unit failing (wire it to `OnFailure=`, see BACKUP.md), a failed `drill` or `wal-drill` job in the weekly `backup-drill.yml` workflow, or the restore-check line of the Admin > System Backups card going stale.
 
 1. `journalctl -u sideroom-restore-drill.service -n 100`. The script says which check failed: no dump, dump older than `SR_DRILL_MAX_AGE_HOURS` (default 36), checksum mismatch, a migration without success, a missing table.
 2. Old dump: this is Backup missing or stale; fix that first. Checksum mismatch: the file or its manifest is damaged; the next backup replaces it, and copies off the host should be compared.
@@ -196,7 +198,7 @@ _Raised by:_ the `sideroom-restore-drill.service` unit failing (wire it to `OnFa
 
 ## CSP reports spike
 
-_Raised by:_ the "Blocked content reports" card of Admin > System showing counts that jump, or members reporting a broken embed, player or image after a deploy.
+_Raised by:_ the `CspReportsSpike` rule (more than 50 reports in 5 minutes, from `sr_csp_reports_total{directive}`), the "Blocked content reports" card of Admin > System showing counts that jump, or members reporting a broken embed, player or image after a deploy.
 
 1. Read the card: the violated directive, the blocked origin and the page path (paths only, no members, no queries). A new origin on one directive after a deploy is a policy that is too strict for a feature (a separate voice host, activities, an image host).
 2. Compare with `deploy/compose/caddy/Caddyfile.prod` and `apps/web/src/security/csp.ts`; `apps/web/src/security/csp.test.ts` keeps the two equal. The [FAQ](FAQ.md) explains the origin variables.

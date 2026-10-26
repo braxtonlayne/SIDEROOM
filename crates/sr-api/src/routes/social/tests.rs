@@ -872,6 +872,43 @@ async fn guild_notification_settings_and_channel_overrides() {
     assert!(is_empty_list(&v["channel_overrides"]));
 }
 
+/// RDY-SCALE-002: one request returns every stored scope with its overrides.
+#[tokio::test]
+async fn guild_settings_list_returns_all_scopes_in_one_request() {
+    let e = env().await;
+    let g = e.guild;
+    // Nothing stored yet: an empty list, not an error.
+    let (s, v) = e.get("/users/@me/guild-settings", BOB).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(is_empty_list(&v["settings"]));
+
+    let (s, _) = e
+        .patch(
+            &format!("/users/@me/guilds/{g}/settings"),
+            BOB,
+            json!({
+                "muted": true,
+                "mute_config": {"selected_time_window": 3600},
+                "channel_overrides": {e.ch.to_string(): {"muted": true}}
+            }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, v) = e.get("/users/@me/guild-settings", BOB).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["settings"].as_array().unwrap().len(), 1);
+    assert_eq!(v["settings"][0]["guild_id"], g.to_string().as_str());
+    assert_eq!(v["settings"][0]["muted"], true);
+    assert_eq!(
+        v["settings"][0]["channel_overrides"][0]["channel_id"],
+        e.ch.to_string().as_str()
+    );
+    // Per user.
+    assert!(is_empty_list(
+        &e.get("/users/@me/guild-settings", CAROL).await.1["settings"]
+    ));
+}
+
 #[tokio::test]
 async fn notification_settings_validate_input_and_scope() {
     let e = env().await;
@@ -2127,4 +2164,70 @@ async fn a_first_message_opens_the_conversation_in_the_recipients_requests_only(
         mine[0].get("is_message_request").is_none_or(Value::is_null),
         "{mine}"
     );
+}
+
+/// RDY-PAR-004: the recipient's spam filter reads a stranger's first message and files a spammy one
+/// under "Likely spam" (reason `spam`), while an ordinary hello stays an ordinary request.
+#[tokio::test]
+async fn a_spammy_first_message_lands_under_likely_spam() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    e.share_guild(BOB, CAROL);
+    let hello_id = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    let spam_id = e.open_dm_with_chat_channel(CAROL, BOB).await;
+    let (s, v) = e
+        .post(
+            &format!("/channels/{hello_id}/messages"),
+            ALICE,
+            json!({"content": "hi, we are both in the book club"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (s, v) = e
+        .post(
+            &format!("/channels/{spam_id}/messages"),
+            CAROL,
+            json!({"content": "https://a.example.com https://b.example.org https://c.example.net"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    let find = |id: &str| {
+        bob.as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == id)
+            .unwrap_or_else(|| panic!("no {id} in {bob}"))
+            .clone()
+    };
+    let hello = find(&hello_id);
+    assert_eq!(hello["is_message_request"], true);
+    assert!(hello["sr_request_reason"].is_null(), "{hello}");
+    let spam = find(&spam_id);
+    assert_eq!(spam["is_message_request"], true);
+    assert_eq!(spam["sr_request_reason"], "spam");
+    // Carol's own list never names it.
+    let (_, carol) = e.get("/users/@me/channels", CAROL).await;
+    assert!(carol[0]["sr_request_reason"].is_null(), "{carol}");
+
+    // Bob accepts the flagged one: it is an ordinary conversation again.
+    assert_eq!(
+        e.put(
+            &format!("/users/@me/channels/{spam_id}/request"),
+            BOB,
+            Some(json!({"state": "accepted"}))
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    let accepted = bob
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == spam_id.as_str())
+        .unwrap();
+    assert!(accepted["is_message_request"].is_null(), "{accepted}");
 }

@@ -25,9 +25,11 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync", "time", "rt"] }
+tracing = "0.1"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "test-util"] }
+sr-memcount = { path = "../sr-memcount" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "std"] }
 
 [lints]

@@ -89,3 +89,44 @@ describe('TTS speed pref (LNG-USET-042)', () => {
     expect(sanitizePrefs({ ttsRate: 'fast' }).ttsRate).toBe(100);
   });
 });
+
+describe('profile preview shares the profile card pieces (RDY-PAR-003)', () => {
+  it('shows About Me markdown, the profile theme and the chosen server tag', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/profile', () =>
+        HttpResponse.json({
+          ...PROFILE,
+          user_profile: {
+            ...PROFILE.user_profile,
+            bio: 'I **love** trains',
+            theme_colors: [0x203040, 0xc2b08f],
+          },
+        }),
+      ),
+      http.get('*/api/v1/users/@me/presence', () =>
+        HttpResponse.json({ status: 'online', custom_status: null }),
+      ),
+      http.get('*/api/v1/sr/profile-catalog', () =>
+        HttpResponse.json({ effects: [], decorations: [] }),
+      ),
+      http.get('*/api/v1/users/@me/primary-guild', () =>
+        HttpResponse.json({
+          primary_guild: {
+            identity_guild_id: 'g1',
+            identity_enabled: true,
+            tag: 'RAIL',
+            badge: 0,
+            color: 0x336699,
+          },
+        }),
+      ),
+    );
+    openSettings('profile');
+    const preview = await screen.findByRole('complementary', { name: /preview/i });
+    await waitFor(() => expect(preview).toHaveAttribute('data-themed'));
+    expect(preview.style.getPropertyValue('--prf-start')).toBe('#203040');
+    await waitFor(() => expect(preview.querySelector('[data-profile-bio]')).not.toBeNull());
+    expect(preview).toHaveTextContent('I love trains');
+    expect(await screen.findAllByText(/RAIL/)).not.toHaveLength(0);
+  });
+});

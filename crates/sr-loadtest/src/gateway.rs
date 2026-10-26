@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use futures::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use std::{
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::watch;
@@ -27,10 +27,12 @@ pub struct Conn {
     pub origin: String,
 }
 
-/// Sessions that reached READY, in total and per guild.
+/// Sessions that reached READY, in total and per guild, and the load-test messages they have received so far.
 pub struct Ready {
     pub total: AtomicUsize,
     pub per_guild: Vec<AtomicUsize>,
+    /// Load-test `MESSAGE_CREATE`s received by every session together (the run waits for this to settle).
+    pub delivered: AtomicU64,
 }
 
 impl Ready {
@@ -38,6 +40,7 @@ impl Ready {
         Self {
             total: AtomicUsize::new(0),
             per_guild: (0..guilds).map(|_| AtomicUsize::new(0)).collect(),
+            delivered: AtomicU64::new(0),
         }
     }
 }
@@ -48,6 +51,8 @@ pub struct Report {
     pub ready: bool,
     /// Time from starting the connection to READY.
     pub ready_after: Option<Duration>,
+    /// Size of the READY frame in bytes (RDY-PERF-004: the payload of a member of many servers).
+    pub ready_bytes: usize,
     pub error: Option<String>,
     /// Load-test messages dispatched to this client.
     pub received: u64,
@@ -139,6 +144,7 @@ async fn session(
                             }
                             Some(0) => match v["t"].as_str() {
                                 Some("READY") => {
+                                    report.ready_bytes = t.as_str().len();
                                     report.ready = true;
                                     report.ready_after = Some(started.elapsed());
                                     ready.total.fetch_add(1, Ordering::Relaxed);
@@ -149,6 +155,7 @@ async fn session(
                                 Some("MESSAGE_CREATE") => {
                                     if let Some(sent) = v["d"]["content"].as_str().and_then(parse_marker) {
                                         report.received += 1;
+                                        ready.delivered.fetch_add(1, Ordering::Relaxed);
                                         report.fanout.record_us(now_us().saturating_sub(sent));
                                     }
                                 }

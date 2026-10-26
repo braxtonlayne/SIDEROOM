@@ -54,14 +54,19 @@ LIMIT $2";
 /// partitioned `messages` table, so it is deleted explicitly by the same statement
 /// (open question 94); `message_webhook_authors` has none either and goes the same way
 /// (D-235). The data-modifying CTEs commit together; attachment rows go
-/// with the message by cascade, after their stored objects were removed.
+/// with the message by cascade, after their stored objects were removed. A row another transaction
+/// holds locked (an edit, a pin, a moderation action) is passed by with `FOR UPDATE SKIP LOCKED` and
+/// comes round again on the next run instead of making the batch wait (RDY-PERF-003).
 pub(crate) const PURGE_SQL: &str = "\
-WITH doomed AS ( \
-    DELETE FROM messages WHERE id = ANY($2) \
+WITH free AS ( \
+    SELECT id FROM messages WHERE id = ANY($2) \
       AND purge_after IS NOT NULL \
       AND purge_after <= to_timestamp($1::double precision / 1000.0) AND hold_id IS NULL \
       AND NOT EXISTS (SELECT 1 FROM attachments a \
                       WHERE a.message_id = messages.id AND a.hold_id IS NOT NULL) \
+    FOR UPDATE SKIP LOCKED), \
+doomed AS ( \
+    DELETE FROM messages WHERE id IN (SELECT id FROM free) \
     RETURNING id), \
 edits AS ( \
     DELETE FROM message_edits WHERE message_id IN (SELECT id FROM doomed) \
@@ -153,11 +158,15 @@ pub(crate) async fn purge_deleted_messages(
             .copied()
             .filter(|id| !failed.contains(id))
             .collect();
+        // One bounded transaction per batch: a lock wait over a second or a statement over thirty
+        // seconds fails the run (retried on the next tick) instead of holding the table.
+        let mut tx = sr_db::bounded::begin(pool).await?;
         let n: i64 = sqlx::query_scalar(PURGE_SQL)
             .bind(now_ms)
             .bind(&doomed)
-            .fetch_one(pool)
+            .fetch_one(&mut *tx)
             .await?;
+        tx.commit().await?;
         total += n;
         if n == 0 || i64::try_from(due.len()).unwrap_or(i64::MAX) < PURGE_BATCH {
             break;

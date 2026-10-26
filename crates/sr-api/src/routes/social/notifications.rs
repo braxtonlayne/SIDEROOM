@@ -4,17 +4,60 @@
 use super::deps::SocialDeps;
 use super::error::{ApiJson, MsgResult, invalid};
 use super::events::SocialEvent;
-use super::model::{ChannelOverrideBody, GuildSettingsBody, MuteConfigIn, UserGuildSettingsObject};
+use super::model::{
+    ChannelOverrideBody, GuildSettingsBody, MuteConfigIn, UserGuildSettingsList,
+    UserGuildSettingsObject,
+};
 use super::util::{actor, channel_id};
 use crate::routes::messages::MessagesDeps;
 use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{Json, extract::Path};
 use serde_json::Value;
 use sr_chat::ChatError;
-use sr_chat::social::notifications::{ChannelOverride, MuteDuration, NotificationLevel};
+use sr_chat::social::notifications::{
+    ChannelOverride, MuteDuration, NotificationLevel, ScopeSettings,
+};
 use sr_chat::social::repo::NotificationRepository;
 use sr_chat::social::service::ScopeUpdate;
 use sr_core::{ErrorCode, GuildId, UserId};
+use std::collections::HashMap;
+
+/// Settings of every server (and the DM scope) the caller has changed anything in, with the
+/// channel overrides, in one response. The web app loads this once instead of one request per
+/// server (RDY-SCALE-002); a server missing from the list has the defaults.
+#[utoipa::path(
+    get,
+    path = "/users/@me/guild-settings",
+    responses((status = 200, body = UserGuildSettingsList)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn list_settings(
+    p: Principal,
+    Ext(deps): Ext<SocialDeps>,
+    Ext(messages): Ext<MessagesDeps>,
+) -> MsgResult<Json<UserGuildSettingsList>> {
+    let me = actor(&p)?;
+    let scopes = deps.service.repo().list_scopes(me).await?;
+    let mut by_guild: HashMap<Option<GuildId>, Vec<ChannelOverride>> = HashMap::new();
+    for o in deps.service.repo().list_overrides(me).await? {
+        if let Some(ch) = messages.repo.get_channel(o.channel).await? {
+            by_guild.entry(ch.guild_id).or_default().push(o);
+        }
+    }
+    let mut settings = Vec::with_capacity(scopes.len());
+    for s in &scopes {
+        let mine = by_guild.remove(&s.guild).unwrap_or_default();
+        settings.push(UserGuildSettingsObject::new(s, &mine));
+    }
+    // Overrides in a scope with no scope row still belong in the answer.
+    for (guild, mine) in by_guild {
+        settings.push(UserGuildSettingsObject::new(
+            &ScopeSettings::new(me, guild),
+            &mine,
+        ));
+    }
+    Ok(Json(UserGuildSettingsList { settings }))
+}
 
 /// Settings of one guild (`@me` for DMs) with the caller's channel overrides in it.
 #[utoipa::path(

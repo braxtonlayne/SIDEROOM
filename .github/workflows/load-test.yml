@@ -1,20 +1,30 @@
 name: Load test
-# XC-PERF-003: the full run (2,000 gateway sessions, 200 messages/s, REST p95 < 100 ms) against a release build.
-# Manual: it is long and wants a quiet runner. See docs/dev/load-testing.md.
+# XC-PERF-003 and RDY-PERF-002: the sizing claim on a release build over the seeded dataset.
+#   - sr-cli seed --scale: 20,000 accounts, 500 guilds, 5 million messages, 2,000 library chapters, 300 cinema titles
+#   - sr-loadtest: 2,000 gateway sessions, 200 messages/s, 300 REST/s, REST p95 < 100 ms, fan-out p95 < 250 ms,
+#     and one member of 60 servers loading the Lounge under that load (first paint < 1.5 s, no 429; K-22)
+# Manual only: it is long and wants a quiet standard runner. The numbers go into docs/dev/load-testing.md with the
+# link to the run. Written, not yet run (the owner dispatches it; the first run decides the numbers).
 on:
   workflow_dispatch:
     inputs:
+      seed_scale:
+        description: "Load the 20,000-account dataset first (false: skip, for a quick check)"
+        type: boolean
+        default: true
       sessions: { description: Gateway sessions, default: "2000" }
       msg_rate: { description: Messages per second, default: "200" }
-      duration: { description: Steady-state seconds, default: "60" }
+      rest_rps: { description: REST requests per second, default: "300" }
+      duration: { description: Steady-state seconds, default: "120" }
 permissions:
   contents: read
 env:
   SR_DATABASE__URL: postgres://sideroom:sideroom_ci@localhost:5432/sr_loadtest
+  SR_SERVER__PUBLIC_URL: http://127.0.0.1:8080
 jobs:
   load:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     services:
       postgres:
         image: postgres:17
@@ -24,29 +34,107 @@ jobs:
           POSTGRES_DB: sr_loadtest
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U sideroom" --health-interval 5s
+          --health-cmd "pg_isready -U sideroom -d sr_loadtest" --health-interval 5s
           --health-timeout 3s --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release -p sr-server -p sr-cli -p sr-loadtest
-      - run: ./target/release/sr-cli migrate
+      - run: cargo build --release --locked -p sr-server -p sr-cli -p sr-loadtest
+      - name: Record the runner and turn on pg_stat_statements
+        # Runs 40239291091 and 40246880848 ran the same code 1.5 to 5 times apart (the cold release build took
+        # 8m58s and 13m18s, the seed 114 s and 158 s) with no CPU figure in the log to tell a slower runner from a
+        # regression. machine.txt, vmstat.txt, top.txt and pg-statements.txt answer that next time.
+        # pg_stat_statements ships with the postgres image (contrib); it needs a preload, hence the restart.
+        run: |
+          { echo "nproc: $(nproc)"; lscpu | grep -E "Model name|^CPU.s.:|Thread|Core|Socket|MHz|Hypervisor"; free -m; } | tee machine.txt
+          psql "$SR_DATABASE__URL" -c "ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements'"
+          docker restart ${{ job.services.postgres.id }}
+          for i in $(seq 1 60); do pg_isready -h localhost -U sideroom -d sr_loadtest && break; sleep 1; done
+          psql "$SR_DATABASE__URL" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements" || echo "pg_stat_statements unavailable" | tee -a machine.txt
+      - name: Reach Postgres without the docker port proxy
+        # Through the published port every byte of every statement went through docker-proxy, a userland TCP
+        # relay: in run 40249411584 top.txt shows it at ~90 % of a CPU in the steady state (sr-server ~105 %,
+        # Postgres ~150 %, sr-loadtest ~10 %, ~10 % idle, of 4 vCPUs). A server and its database do not talk
+        # through such a relay in production, so the steps after this one use the container's own address.
+        run: |
+          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${{ job.services.postgres.id }})
+          echo "postgres container address: $ip" | tee -a machine.txt
+          echo "SR_DATABASE__URL=postgres://sideroom:sideroom_ci@$ip:5432/sr_loadtest" >> "$GITHUB_ENV"
+      - run: echo "database at ${SR_DATABASE__URL#*@}" && ./target/release/sr-cli migrate
+      - name: Seed the dataset (RDY-PERF-001, the target is under 30 minutes)
+        if: ${{ inputs.seed_scale }}
+        run: |
+          start=$(date +%s)
+          ./target/release/sr-cli seed --scale --seed-name ci 2>&1 | tee seed.log
+          echo "seed took $(( $(date +%s) - start )) s" | tee -a seed.log
+      - name: Settle the database after the bulk load
+        # A database that took 5 million rows a minute ago still owes autovacuum its first pass over every
+        # table and has a WAL-triggered checkpoint in flight (run 40239291091 logged checkpoints every 8-20 s through
+        # the seed and one starting 11 s before the server). A live server is not measured seconds after a bulk
+        # load, so the run starts after VACUUM (ANALYZE) and a CHECKPOINT, timed apart from the seed target.
+        # This did NOT remove the 20 s stall that starts about 20 s into the steady state: run 40246880848 had it
+        # again with nothing logged by Postgres after the CHECKPOINT. Its cause is open; vmstat.txt and top.txt
+        # are recorded for it.
+        if: ${{ inputs.seed_scale }}
+        run: |
+          start=$(date +%s)
+          psql "$SR_DATABASE__URL" -c "VACUUM (ANALYZE)" -c "CHECKPOINT"
+          echo "vacuum and checkpoint took $(( $(date +%s) - start )) s" | tee -a seed.log
+      - name: Table sizes after the seed
+        if: ${{ inputs.seed_scale }}
+        run: |
+          # messages is partitioned by month: its rows live in messages_YYYY_MM, so those are summed.
+          psql "$SR_DATABASE__URL" -c "select case when relname ~ '^messages_[0-9]{4}_[0-9]{2}$' then 'messages' else relname end as relname, sum(n_live_tup) as n_live_tup from pg_stat_user_tables where relname in ('accounts','guilds','guild_members','attachments','reactions','reading_chapters','video_titles') or relname ~ '^messages_[0-9]{4}_[0-9]{2}$' group by 1 order by 1" | tee tables.txt
       - name: Start the server
         run: |
-          SR_SERVER__BIND=127.0.0.1:8080 SR_SERVER__PUBLIC_URL=http://127.0.0.1:8080 \
+          SR_SERVER__BIND=127.0.0.1:8080 \
           SR_STORAGE__ENDPOINT=http://127.0.0.1:1 SR_STORAGE__ACCESS_KEY=x SR_STORAGE__SECRET_KEY=y SR_STORAGE__BUCKET=lt \
-          SR_SEARCH__DIR=$RUNNER_TEMP/search ./target/release/sr-server > server.log 2>&1 &
+          SR_SEARCH__DIR=$RUNNER_TEMP/search SR_LOG__FILTER=info,tantivy=warn ./target/release/sr-server > server.log 2>&1 &
+          echo $! > server.pid
           for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
+          psql "$SR_DATABASE__URL" -c "SELECT pg_stat_statements_reset()" || true
       - name: Load test
-        run: >-
-          ./target/release/sr-loadtest --base-url http://127.0.0.1:8080
-          --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --duration ${{ inputs.duration }}
-          --report load-report.json
+        # `shell: bash` adds -o pipefail: without it `| tee` hid sr-loadtest's exit code and the first run
+        # (every target missed) reported success.
+        # vmstat (CPU user/system/idle/iowait/steal each second) and top (per process every 5 s) run beside it.
+        shell: bash
+        run: |
+          vmstat -t 1 > vmstat.txt & vm=$!
+          top -b -d 5 -w 200 > top.txt & tp=$!
+          ./target/release/sr-loadtest --base-url http://127.0.0.1:8080 --sessions ${{ inputs.sessions }} --msg-rate ${{ inputs.msg_rate }} --rest-rps ${{ inputs.rest_rps }} --duration ${{ inputs.duration }} --guilds 100 --first-paint-guilds 60 --report load-report.json | tee load-output.txt
+          kill $vm $tp || true
+      - name: Top statements of the run (pg_stat_statements)
+        if: always()
+        run: |
+          psql "$SR_DATABASE__URL" -c "SELECT calls, round(total_exec_time) AS total_ms, round(mean_exec_time::numeric, 2) AS mean_ms, rows, left(regexp_replace(query, '[[:space:]]+', ' ', 'g'), 160) AS query FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 15" > pg-statements.txt 2>&1 || true
+          psql "$SR_DATABASE__URL" -c "SELECT sum(calls) AS statements, round(sum(total_exec_time)) AS total_ms FROM pg_stat_statements" >> pg-statements.txt 2>&1 || true
+          cat pg-statements.txt
+      - name: Server memory after the run (resident set; per session = this over the sessions)
+        if: always()
+        run: |
+          grep -E 'VmRSS|VmHWM' /proc/$(cat server.pid)/status | tee server-memory.txt || true
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Load test'
+            echo '```'
+            cat load-output.txt seed.log tables.txt server-memory.txt machine.txt 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: load-report
           path: |
             load-report.json
+            load-output.txt
+            seed.log
+            tables.txt
+            server-memory.txt
             server.log
+            machine.txt
+            vmstat.txt
+            top.txt
+            pg-statements.txt

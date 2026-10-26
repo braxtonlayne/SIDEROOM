@@ -128,7 +128,7 @@ Every alert rule in `deploy/monitoring/alerts.yml` names its playbook in the `ru
 
 [Lost or suspect secret key](RUNBOOK.md#lost-or-suspect-secret-key), [Locked-out owner](RUNBOOK.md#locked-out-owner), [Staff alerts and the second-factor window](RUNBOOK.md#staff-alerts-and-the-second-factor-window), [Preflight and the alert-path test](RUNBOOK.md#preflight-and-the-alert-path-test).
 
-The Prometheus rules cover what the server exports as metrics (requests, latency, database pool, job outcomes, gateway sessions). The rest is watched by the health job into `#alerts` and by the System tiles, because the server exports no metric for it; the playbooks say which.
+The Prometheus rules cover what the server exports as metrics: requests, latency, database pool, job outcomes, gateway sessions, and (RDY-OBS-001) the job backlog, backup, restore-drill and WAL-archive times, disk free ratio, stuck invoices, CSP report rate and voice egress. The health job (every 15 minutes), the invoice watcher and the CSP report handler set those gauges; each rule names its playbook. Suspicion cases have no gauge: the `#alerts` card when a case opens is the alert. A standalone SFU node is scraped by the `sr-voice` job in `prometheus.yml`. The Grafana overview has a panel per gauge.
 
 ## 6. When you are stuck
 

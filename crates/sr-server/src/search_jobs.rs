@@ -19,8 +19,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::lag_bus::TapItem;
-use futures::StreamExt;
 use futures::stream::BoxStream;
+use futures::{FutureExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sr_api::routes::search::SearchDeps;
@@ -41,7 +41,10 @@ pub const INDEX_MESSAGE_KIND: &str = "search.index_message";
 pub const REINDEX_KIND: &str = "search.reindex";
 
 /// Messages read per page during a reindex.
-const REINDEX_PAGE: usize = 500;
+const REINDEX_PAGE: usize = 1000;
+/// Documents added between two commits of a reindex (RDY-PERF-003): each commit writes a segment and reloads the
+/// reader, so committing per page made the job's time grow with the page count.
+const REINDEX_COMMIT_EVERY: u64 = 50_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -153,23 +156,39 @@ pub async fn enqueue_reindex(pool: &PgPool, id: i64) -> DbResult<()> {
 /// Mints job ids (snowflakes).
 pub type JobIds = Arc<dyn Fn() -> i64 + Send + Sync>;
 
-/// Sees one event on the firehose: refreshes the search access caches and
-/// enqueues its index jobs. `dedup` collapses the copies a multi-topic publish
-/// produces; the cache refresh is idempotent so it runs on every copy.
-async fn consume_event(
-    pool: &PgPool,
+/// Sees one event on the firehose: refreshes the search access caches and adds its index jobs to `out`.
+/// `dedup` collapses the copies a multi-topic publish produces; the cache refresh is idempotent so it runs
+/// on every copy.
+fn consume_event(
     next_id: &JobIds,
     search: &SearchDeps,
     dedup: &mut FirehoseDedup,
     ev: &DomainEvent,
+    out: &mut Vec<NewJob>,
 ) {
     search.apply_event(ev);
-    if jobs_for_event(ev).is_empty() || !dedup.is_new(ev) {
+    let payloads = jobs_for_event(ev);
+    if payloads.is_empty() || !dedup.is_new(ev) {
         return;
     }
-    if let Err(e) = enqueue_for_event(pool, || next_id(), ev).await {
-        tracing::error!(error = %e, "enqueueing search index jobs failed");
+    for p in &payloads {
+        let payload = serde_json::to_value(p).unwrap_or_else(|_| json!({}));
+        out.push(NewJob::new(next_id(), INDEX_MESSAGE_KIND, payload));
     }
+}
+
+/// Events the firehose consumer takes in one go when they are already waiting (RDY-PERF-002).
+const FIREHOSE_BATCH: usize = 512;
+
+/// Insert the index jobs gathered from a batch of events, in one statement.
+async fn flush_jobs(pool: &PgPool, pending: &mut Vec<NewJob>) {
+    if pending.is_empty() {
+        return;
+    }
+    if let Err(e) = jobs::enqueue_many(pool, pending).await {
+        tracing::error!(error = %e, jobs = pending.len(), "enqueueing search index jobs failed");
+    }
+    pending.clear();
 }
 
 /// Minimum time between two lag-triggered `search.reindex` jobs.
@@ -231,13 +250,27 @@ pub fn spawn_firehose_consumer(
     tokio::spawn(async move {
         let mut dedup = FirehoseDedup::new();
         let mut limiter = LagRecovery::default();
-        while let Some(item) = events.next().await {
-            match item {
-                Ok(ev) => consume_event(&pool, &next_id, &search, &mut dedup, &ev).await,
-                Err(BroadcastStreamRecvError::Lagged(missed)) => {
-                    recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
+        let mut pending = Vec::new();
+        while let Some(first) = events.next().await {
+            // Take what is already waiting too, so a slow database costs one insert per batch instead of one
+            // per message; one insert per message is what let the tap overflow under load (RDY-PERF-002).
+            let mut batch = vec![first];
+            while batch.len() < FIREHOSE_BATCH {
+                match events.next().now_or_never() {
+                    Some(Some(item)) => batch.push(item),
+                    _ => break,
                 }
             }
+            for item in batch {
+                match item {
+                    Ok(ev) => consume_event(&next_id, &search, &mut dedup, &ev, &mut pending),
+                    Err(BroadcastStreamRecvError::Lagged(missed)) => {
+                        flush_jobs(&pool, &mut pending).await;
+                        recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
+                    }
+                }
+            }
+            flush_jobs(&pool, &mut pending).await;
         }
     })
 }
@@ -262,15 +295,44 @@ pub enum IndexError {
 impl Indexer {
     /// Build the event for one stored message, with attachment flags.
     async fn event_for(&self, msg: &Message) -> Result<MessageEvent, IndexError> {
-        let event = MessageEvent::from(msg);
         if msg.attachment_ids.is_empty() {
-            return Ok(event);
+            return Ok(MessageEvent::from(msg));
         }
         let found = self
             .store
             .attachments_of(&[msg.id])
             .await
             .map_err(|e| IndexError::Repo(e.to_string()))?;
+        Ok(Self::event_with(msg, &found))
+    }
+
+    /// The events of a page of messages, with one attachment lookup for the whole page instead of one per
+    /// message (RDY-PERF-003, `search.reindex`).
+    async fn events_for_page(&self, page: &[Message]) -> Result<Vec<MessageEvent>, IndexError> {
+        let with: Vec<MessageId> = page
+            .iter()
+            .filter(|m| !m.attachment_ids.is_empty())
+            .map(|m| m.id)
+            .collect();
+        let found = if with.is_empty() {
+            Default::default()
+        } else {
+            self.store
+                .attachments_of(&with)
+                .await
+                .map_err(|e| IndexError::Repo(e.to_string()))?
+        };
+        Ok(page.iter().map(|m| Self::event_with(m, &found)).collect())
+    }
+
+    fn event_with(
+        msg: &Message,
+        found: &std::collections::HashMap<MessageId, Vec<sr_chat::repo::Attachment>>,
+    ) -> MessageEvent {
+        let event = MessageEvent::from(msg);
+        if msg.attachment_ids.is_empty() {
+            return event;
+        }
         let types: Vec<String> = found
             .get(&msg.id)
             .into_iter()
@@ -283,17 +345,32 @@ impl Indexer {
             })
             .collect();
         let kinds = types.iter().map(String::as_str);
-        Ok(match event {
+        match event {
             MessageEvent::Created(i) => MessageEvent::Created(i.with_attachments(kinds)),
             MessageEvent::Updated(i) => MessageEvent::Updated(i.with_attachments(kinds)),
             other => other,
-        })
+        }
     }
 
     /// Apply one job payload to the index.
     pub async fn handle(&self, p: IndexPayload) -> Result<(), IndexError> {
+        self.handle_many(&[p]).await
+    }
+
+    /// Apply several job payloads, in order, with one index commit (RDY-PERF-002: a commit and reader
+    /// reload per message capped indexing at a few dozen messages per second).
+    pub async fn handle_many(&self, payloads: &[IndexPayload]) -> Result<(), IndexError> {
+        let mut events = Vec::with_capacity(payloads.len());
+        for &p in payloads {
+            events.push(self.event_of(p).await?);
+        }
+        self.apply(events).await
+    }
+
+    /// What one job payload does to the index, read from the stored message.
+    async fn event_of(&self, p: IndexPayload) -> Result<MessageEvent, IndexError> {
         let channel = ChannelId::new(p.channel_id);
-        let event = match p.op {
+        Ok(match p.op {
             IndexOp::DeleteChannel => MessageEvent::ChannelDeleted(channel),
             IndexOp::DeleteGuild => MessageEvent::GuildDeleted(GuildId::new(p.guild_id)),
             IndexOp::Delete => MessageEvent::Deleted(MessageId::new(p.message_id)),
@@ -310,8 +387,7 @@ impl Indexer {
                     None => MessageEvent::Deleted(id),
                 }
             }
-        };
-        self.apply(vec![event]).await
+        })
     }
 
     async fn apply(&self, events: Vec<MessageEvent>) -> Result<(), IndexError> {
@@ -331,6 +407,7 @@ impl Indexer {
             .map_err(|e| IndexError::Search(e.to_string()))?
             .map_err(|e| IndexError::Search(e.to_string()))?;
         let mut total = 0u64;
+        let mut committed = 0u64;
         for &channel in channels {
             let mut after: Option<MessageId> = None;
             loop {
@@ -351,26 +428,94 @@ impl Indexer {
                     break;
                 };
                 let n = page.len();
-                let mut events = Vec::with_capacity(n);
-                for m in &page {
-                    events.push(self.event_for(m).await?);
-                }
+                let events = self.events_for_page(&page).await?;
                 total += n as u64;
-                self.apply(events).await?;
+                self.add_bulk(events).await?;
+                if total - committed >= REINDEX_COMMIT_EVERY {
+                    self.commit_bulk().await?;
+                    committed = total;
+                }
                 if n < REINDEX_PAGE {
                     break;
                 }
                 after = Some(last);
             }
         }
+        self.commit_bulk().await?;
         Ok(total)
+    }
+
+    async fn add_bulk(&self, events: Vec<MessageEvent>) -> Result<(), IndexError> {
+        let index = self.index.clone();
+        tokio::task::spawn_blocking(move || index.add_bulk(&events))
+            .await
+            .map_err(|e| IndexError::Search(e.to_string()))?
+            .map_err(|e| IndexError::Search(e.to_string()))
+    }
+
+    async fn commit_bulk(&self) -> Result<(), IndexError> {
+        let index = self.index.clone();
+        tokio::task::spawn_blocking(move || index.commit_bulk())
+            .await
+            .map_err(|e| IndexError::Search(e.to_string()))?
+            .map_err(|e| IndexError::Search(e.to_string()))
     }
 }
 
-async fn index_handler(indexer: Arc<Indexer>, job: Job) -> Result<(), HandlerError> {
-    let payload: IndexPayload = serde_json::from_value(job.payload.clone())
-        .map_err(|e| IndexError::Payload(e.to_string()))?;
-    indexer.handle(payload).await?;
+/// Index jobs applied together: the runner's job plus up to this many minus one more that are already due.
+pub const INDEX_BATCH: i64 = 256;
+/// `locked_by` of the jobs an index handler claims on top of the runner's.
+const INDEX_BATCH_WORKER: &str = "search-index-batch";
+
+fn index_payload(job: &Job) -> Result<IndexPayload, IndexError> {
+    serde_json::from_value(job.payload.clone()).map_err(|e| IndexError::Payload(e.to_string()))
+}
+
+/// Runs one `search.index_message` job and, in the same index commit, the other index jobs already queued
+/// behind it (RDY-PERF-002). The runner completes or fails its own job from the result; this handler does the
+/// same for the ones it claimed. Jobs stay in queue order, so an edit after a delete still lands last.
+async fn index_handler(indexer: Arc<Indexer>, pool: PgPool, job: Job) -> Result<(), HandlerError> {
+    let first = index_payload(&job)?;
+    let more = jobs::claim(
+        &pool,
+        &[INDEX_MESSAGE_KIND.to_owned()],
+        INDEX_BATCH_WORKER,
+        INDEX_BATCH - 1,
+    )
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "claiming more search index jobs failed; indexing one");
+        Vec::new()
+    });
+    let mut payloads = vec![first];
+    let mut claimed = Vec::with_capacity(more.len());
+    for j in &more {
+        match index_payload(j) {
+            Ok(p) => {
+                payloads.push(p);
+                claimed.push(j.id);
+            }
+            Err(e) => {
+                let _ = jobs::fail(&pool, j.id, &e.to_string()).await;
+            }
+        }
+    }
+    let outcome = indexer.handle_many(&payloads).await;
+    match &outcome {
+        Ok(()) => {
+            if let Err(e) = jobs::complete_many(&pool, &claimed).await {
+                tracing::error!(error = %e, "recording batched search index jobs failed");
+            }
+        }
+        Err(err) => {
+            for &id in &claimed {
+                if let Err(e) = jobs::fail(&pool, id, &err.to_string()).await {
+                    tracing::error!(job_id = id, error = %e, "recording a search index job failed");
+                }
+            }
+        }
+    }
+    outcome?;
     Ok(())
 }
 
@@ -396,14 +541,19 @@ async fn reindex_handler(
     Ok(())
 }
 
-/// Register both search job kinds on `runner`. Message jobs run one at a time:
-/// the index has a single writer.
+/// Register both search job kinds on `runner`. Message jobs run one handler at a time (the index has a
+/// single writer); each takes the queued backlog with it, see [`INDEX_BATCH`].
 pub fn register(runner: JobRunner, pool: &PgPool, indexer: Arc<Indexer>) -> JobRunner {
     let for_messages = indexer.clone();
     let pool = pool.clone();
+    let messages_pool = pool.clone();
     runner
         .register(INDEX_MESSAGE_KIND, 1, move |job| {
-            Box::pin(index_handler(for_messages.clone(), job))
+            Box::pin(index_handler(
+                for_messages.clone(),
+                messages_pool.clone(),
+                job,
+            ))
         })
         .register(REINDEX_KIND, 1, move |job| {
             Box::pin(reindex_handler(indexer.clone(), pool.clone(), job))
@@ -729,5 +879,156 @@ mod tests {
         assert_eq!(w.hits("message"), 7);
         assert_eq!(w.hits("stale"), 0);
         assert_eq!(w.hits("delete"), 0);
+    }
+
+    /// RDY-PERF-002: several payloads go in with one commit, in order (a delete after an upsert wins).
+    #[tokio::test]
+    async fn a_batch_of_payloads_is_applied_in_order() {
+        let w = world().await;
+        let a = w.say("alpha batch").await;
+        let b = w.say("bravo batch").await;
+        let up = |id: MessageId| IndexPayload {
+            op: IndexOp::Upsert,
+            channel_id: w.channel.get(),
+            message_id: id.get(),
+            guild_id: 0,
+        };
+        let del_b = IndexPayload {
+            op: IndexOp::Delete,
+            ..up(b)
+        };
+        w.indexer.handle_many(&[up(a), up(b), del_b]).await.unwrap();
+        assert_eq!(w.hits("alpha"), 1);
+        assert_eq!(w.hits("bravo"), 0, "the later delete wins");
+        w.indexer.handle_many(&[]).await.unwrap();
+    }
+
+    /// RDY-PERF-002: one handler run takes the queued index jobs with it and marks them done.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn the_index_handler_drains_the_queue_in_one_commit() {
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let w = world().await;
+        let indexer = Arc::new(Indexer {
+            index: w.indexer.index.clone(),
+            repo: w.indexer.repo.clone(),
+            store: w.indexer.store.clone(),
+        });
+        let ids: Vec<MessageId> = vec![
+            w.say("one queued").await,
+            w.say("two queued").await,
+            w.say("three queued").await,
+        ];
+        let base = i64::from(std::process::id()) * 1_000_000_000 + 7_000_000;
+        let mut job_ids = Vec::new();
+        for (n, id) in ids.iter().enumerate() {
+            let job_id = base + i64::try_from(n).unwrap_or(0);
+            let mut job = NewJob::new(
+                job_id,
+                INDEX_MESSAGE_KIND,
+                serde_json::to_value(IndexPayload {
+                    op: IndexOp::Upsert,
+                    channel_id: w.channel.get(),
+                    message_id: id.get(),
+                    guild_id: 0,
+                })
+                .unwrap(),
+            );
+            job.priority = i16::MAX; // ahead of anything another suite left queued
+            jobs::enqueue(&pool, &job).await.unwrap();
+            job_ids.push(job_id);
+        }
+        let first = jobs::claim(&pool, &[INDEX_MESSAGE_KIND.to_owned()], "runner", 1)
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(first.id, job_ids[0]);
+        index_handler(indexer, pool.clone(), first).await.unwrap();
+        assert_eq!(w.hits("queued"), 3, "all three in the index");
+        let states: Vec<(i64, String)> =
+            sqlx::query_as("SELECT id, state::text FROM jobs WHERE id = ANY($1) ORDER BY id")
+                .bind(&job_ids)
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        // The runner records its own job; the handler recorded the two it claimed.
+        assert_eq!(
+            states,
+            vec![
+                (job_ids[0], "running".to_owned()),
+                (job_ids[1], "succeeded".to_owned()),
+                (job_ids[2], "succeeded".to_owned()),
+            ]
+        );
+        sqlx::query("DELETE FROM jobs WHERE id = ANY($1)")
+            .bind(&job_ids)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+
+    /// RDY-PERF-002: a burst on the firehose becomes index jobs through batched inserts, one job per message
+    /// (the copies a multi-topic publish makes are collapsed).
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_firehose_burst_is_queued_in_batches() {
+        use crate::lag_bus::LagTapBus;
+        use sr_events::{EventBus, InProcessBus};
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let bus = LagTapBus::new(Arc::new(InProcessBus::new()));
+        let next = Arc::new(std::sync::atomic::AtomicI64::new(
+            i64::from(std::process::id()) * 1_000_000_000 + 8_000_000,
+        ));
+        let first_job = next.load(std::sync::atomic::Ordering::Relaxed);
+        let ids: JobIds = {
+            let next = next.clone();
+            Arc::new(move || next.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        };
+        let task = spawn_firehose_consumer(
+            bus.tap(),
+            pool.clone(),
+            ids,
+            Arc::new(SearchDeps::new(Arc::new(MessageIndex::in_ram().unwrap()))),
+        );
+        let base = 9_100_000_000u64 + u64::from(std::process::id()) * 1000;
+        for n in 0..300u64 {
+            let ev = ev_sent(77, base + n);
+            for t in ev.topics() {
+                bus.publish(t, ev.clone()).await.unwrap();
+            }
+        }
+        let mut queued = 0i64;
+        for _ in 0..100 {
+            queued = sqlx::query_scalar(
+                "SELECT count(*) FROM jobs WHERE kind = $1 AND id >= $2 AND id < $3",
+            )
+            .bind(INDEX_MESSAGE_KIND)
+            .bind(first_job)
+            .bind(first_job + 10_000)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            if queued >= 300 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        task.abort();
+        sqlx::query("DELETE FROM jobs WHERE id >= $1 AND id < $2")
+            .bind(first_job)
+            .bind(first_job + 10_000)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(queued, 300, "one index job per message, none lost");
     }
 }

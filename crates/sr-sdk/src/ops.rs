@@ -277,6 +277,22 @@ impl GatewayHandle {
             .map_err(|_| Error::Transport("the shard has stopped".into()))
     }
 
+    /// Send gateway op 101 (`E2EE_MLS`) on the shard that owns `guild_id`: `body` is one of the `d` objects
+    /// `sr_sdk::voice::Action::Send` produces (hello, key package, commit, ready, ...). The answers arrive as
+    /// `E2EE_MLS` dispatches (`Event::Other`) to feed to `E2eeCall::handle` (RDY-DEV-002).
+    pub async fn e2ee_mls(&self, guild_id: &str, body: Value) -> Result<()> {
+        let count = self.inner.lock().expect("gateway handle lock").count;
+        if count == 0 {
+            return Err(Error::Invalid("the client has not started".into()));
+        }
+        let shard = shard_for_guild(guild_id, count)
+            .ok_or_else(|| Error::Invalid("guild_id is not a snowflake".into()))?;
+        let tx = self.sender_for(shard)?;
+        tx.send(json!({"op": 101, "d": body}).to_string())
+            .await
+            .map_err(|_| Error::Transport("the shard has stopped".into()))
+    }
+
     /// Set the bot's presence on every shard running in this process.
     pub async fn update_presence(&self, p: &PresenceUpdate) -> Result<()> {
         let senders: Vec<_> = {
@@ -392,6 +408,25 @@ mod tests {
         assert_eq!(
             frame,
             json!({"op": 4, "d": {"channel_id": "7", "sr_e2ee": true}})
+        );
+    }
+
+    #[tokio::test]
+    async fn op101_goes_to_the_shard_of_the_guild() {
+        let h = GatewayHandle::default();
+        assert!(matches!(
+            h.e2ee_mls("42", json!({})).await,
+            Err(Error::Invalid(_))
+        ));
+        let (tx, mut wire) = mpsc::channel(4);
+        h.register_shards(1, HashMap::from([(0, tx)]));
+        h.e2ee_mls("42", json!({"type": "hello", "channel_id": "7"}))
+            .await
+            .expect("sent");
+        let frame: Value = serde_json::from_str(&wire.recv().await.expect("frame")).expect("json");
+        assert_eq!(
+            frame,
+            json!({"op": 101, "d": {"type": "hello", "channel_id": "7"}})
         );
     }
 

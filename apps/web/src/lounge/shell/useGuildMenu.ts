@@ -8,13 +8,23 @@ import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
 
-/** Loads the person's notification settings for each server once (feeds mute dimming on the rail). */
+/**
+ * Loads the person's notification settings for every server with one request (feeds mute dimming on the
+ * rail; RDY-SCALE-002). A server joined later is fetched on its own when it first appears.
+ */
 export function useLoadNotifSettings(guildIds: string[]) {
+  const loadAll = useNotifSettings((s) => s.loadAll);
   const load = useNotifSettings((s) => s.load);
   const key = guildIds.join(',');
   useEffect(() => {
-    for (const id of key ? key.split(',') : []) void load(id);
-  }, [key, load]);
+    const ids = key ? key.split(',') : [];
+    if (!ids.length) return;
+    void loadAll(ids).then((ok) => {
+      // After the batch only a server it did not know (joined since) is still missing. A failed
+      // batch is not retried per server (that is the stampede this avoids); opening a server loads it.
+      if (ok) for (const id of ids) void load(id);
+    });
+  }, [key, loadAll, load]);
 }
 
 /** "Mute Server" with its durations, or "Unmute Server" when already muted. */

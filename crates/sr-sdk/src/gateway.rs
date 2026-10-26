@@ -17,6 +17,7 @@ pub const OP_DISPATCH: u64 = 0;
 pub const OP_HEARTBEAT: u64 = 1;
 pub const OP_IDENTIFY: u64 = 2;
 pub const OP_PRESENCE_UPDATE: u64 = 3;
+pub const OP_VOICE_STATE_UPDATE: u64 = 4;
 pub const OP_RESUME: u64 = 6;
 pub const OP_RECONNECT: u64 = 7;
 pub const OP_REQUEST_GUILD_MEMBERS: u64 = 8;
@@ -204,6 +205,9 @@ pub async fn run_shard_with(
 ) -> Result<()> {
     let mut session: Option<SessionInfo> = None;
     let mut backoff = cfg.min_backoff;
+    // The last op 4 that asked to be in a voice channel. The server forgets voice state with a session that
+    // cannot be resumed, so it is sent again after the fresh READY that follows (RDY-DEV-002).
+    let mut voice_state: Option<String> = None;
     loop {
         let url = match session.as_ref().and_then(|s| s.resume_url.as_deref()) {
             Some(u) if host_allowed(u, &cfg.allowed_hosts) => u.to_owned(),
@@ -231,6 +235,7 @@ pub async fn run_shard_with(
             &tx,
             &mut backoff,
             &mut outbound,
+            &mut voice_state,
         )
         .await;
         match cycle {
@@ -259,6 +264,7 @@ async fn connection_cycle(
     tx: &mpsc::Sender<Dispatch>,
     backoff: &mut Duration,
     outbound: &mut Option<mpsc::Receiver<String>>,
+    voice_state: &mut Option<String>,
 ) -> Cycle {
     // HELLO first.
     let hello_ms = loop {
@@ -308,6 +314,7 @@ async fn connection_cycle(
                 }
             }
             Some(frame) = next_outbound(outbound) => {
+                remember_voice_state(voice_state, &frame);
                 if conn.send(frame).await.is_err() {
                     return Cycle::Reconnect { resume: true };
                 }
@@ -335,8 +342,18 @@ async fn connection_cycle(
                             });
                             *backoff = cfg.min_backoff;
                         }
+                        if name == "RESUMED" {
+                            *backoff = cfg.min_backoff;
+                        }
+                        let fresh = name == "READY";
                         if tx.send(Dispatch { shard: cfg.shard.0, name, data }).await.is_err() {
                             return Cycle::Stopped;
+                        }
+                        if fresh
+                            && let Some(frame) = voice_state.clone()
+                            && conn.send(frame).await.is_err()
+                        {
+                            return Cycle::Reconnect { resume: true };
                         }
                     }
                     Some(OP_HEARTBEAT) => {
@@ -363,6 +380,21 @@ async fn next_outbound(outbound: &mut Option<mpsc::Receiver<String>>) -> Option<
         Some(rx) => rx.recv().await,
         None => std::future::pending().await,
     }
+}
+
+/// Keep the latest op 4 body that joins a channel; a leave (null `channel_id`) clears it.
+fn remember_voice_state(slot: &mut Option<String>, frame: &str) {
+    let Ok(v) = serde_json::from_str::<Value>(frame) else {
+        return;
+    };
+    if v["op"].as_u64() != Some(OP_VOICE_STATE_UPDATE) {
+        return;
+    }
+    *slot = if v["d"]["channel_id"].is_null() {
+        None
+    } else {
+        Some(frame.to_owned())
+    };
 }
 
 fn heartbeat(session: &Option<SessionInfo>) -> String {
@@ -597,6 +629,86 @@ mod tests {
             json!({"token": "tok", "session_id": "sess1", "seq": 7})
         );
         assert_eq!(conn.urls.lock().expect("lock")[1], "wss://gw.test/resume");
+        h.abort();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_voice_channel_is_joined_again_after_a_session_that_could_not_resume() {
+        let (conn, links) = FakeConnector::new(3);
+        let (tx, mut rx) = mpsc::channel(8);
+        let (out_tx, out_rx) = mpsc::channel(4);
+        let h = tokio::spawn(async move { run_shard_with(cfg(), &conn, tx, Some(out_rx)).await });
+        let hello = || text(json!({"op": 10, "d": {"heartbeat_interval": 40000}}));
+        links[0].to_client.send(hello()).expect("hello");
+        links[0].to_client.send(ready(1)).expect("ready");
+        rx.recv().await.expect("ready dispatch");
+        let join = json!({"op": 4, "d": {"guild_id": "1", "channel_id": "5", "sr_e2ee": true}});
+        out_tx.send(join.to_string()).await.expect("queue");
+        sleep(Duration::from_millis(50)).await;
+        // The server drops the session for good (INVALID_SESSION false); the next connection identifies.
+        links[0]
+            .to_client
+            .send(text(json!({"op": 9, "d": false})))
+            .expect("invalid");
+        sleep(Duration::from_secs(2)).await;
+        links[1].to_client.send(hello()).expect("hello");
+        links[1].to_client.send(ready(1)).expect("ready");
+        rx.recv().await.expect("second ready dispatch");
+        sleep(Duration::from_millis(50)).await;
+        {
+            let sent = links[1].from_client.lock().expect("lock");
+            assert_eq!(sent[0]["op"], 2, "identify");
+            assert_eq!(sent[1], join, "the join is sent again after READY");
+        }
+        // After a leave the next fresh session does not rejoin.
+        out_tx
+            .send(json!({"op": 4, "d": {"guild_id": "1", "channel_id": null}}).to_string())
+            .await
+            .expect("queue");
+        sleep(Duration::from_millis(50)).await;
+        links[1]
+            .to_client
+            .send(text(json!({"op": 9, "d": false})))
+            .expect("invalid");
+        sleep(Duration::from_secs(2)).await;
+        links[2].to_client.send(hello()).expect("hello");
+        links[2].to_client.send(ready(1)).expect("ready");
+        rx.recv().await.expect("third ready dispatch");
+        sleep(Duration::from_millis(50)).await;
+        assert_eq!(links[2].from_client.lock().expect("lock").len(), 1);
+        h.abort();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_resume_resets_the_reconnect_delay() {
+        let (conn, links) = FakeConnector::new(3);
+        let conn = Arc::new(conn);
+        let c2 = conn.clone();
+        let (tx, mut rx) = mpsc::channel(8);
+        let mut c = cfg();
+        c.min_backoff = Duration::from_secs(1);
+        let h = tokio::spawn(async move { run_shard(c, &*c2, tx).await });
+        let hello = || text(json!({"op": 10, "d": {"heartbeat_interval": 40000}}));
+        links[0].to_client.send(hello()).expect("hello");
+        links[0].to_client.send(ready(3)).expect("ready");
+        rx.recv().await.expect("ready dispatch");
+        // Two server-requested reconnects in a row, each answered by RESUMED: the delay does not grow.
+        for i in 0..2 {
+            links[i]
+                .to_client
+                .send(text(json!({"op": 7, "d": null})))
+                .expect("reconnect");
+            // One second is enough each time; without the reset the second wait would be two seconds.
+            sleep(Duration::from_millis(1100)).await;
+            assert_eq!(conn.urls.lock().expect("lock").len(), i + 2);
+            links[i + 1].to_client.send(hello()).expect("hello");
+            links[i + 1]
+                .to_client
+                .send(text(json!({"op": 0, "t": "RESUMED", "s": 4 + i, "d": {}})))
+                .expect("resumed");
+            assert_eq!(rx.recv().await.expect("resumed").name, "RESUMED");
+        }
+        assert_eq!(links[2].from_client.lock().expect("lock")[0]["op"], 6);
         h.abort();
     }
 

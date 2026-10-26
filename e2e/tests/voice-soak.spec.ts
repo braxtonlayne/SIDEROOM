@@ -66,19 +66,181 @@ interface Snapshot {
   voiceSockets: number;
 }
 
-/** Counts the page's /voice/ws sockets (an SFU restart would reopen every member's). */
+/**
+ * Counts the page's /voice/ws sockets (an SFU restart would reopen every member's), and keeps a log of every
+ * gateway and voice socket (RDY-VOX-002, run 40246851668: gateways timed out with 4009 and voice sockets missed
+ * their heartbeats while the pages still painted): opens, closes with code, heartbeats sent and acked, identify /
+ * resume, per-socket frame and byte counts, the main thread's timer lag and visibility changes.
+ */
 async function trackVoiceSockets(page: Page) {
   await page.addInitScript(() => {
-    const w = window as unknown as { __voiceSockets: WebSocket[] };
+    type Ev = {
+      t: number;
+      s: number;
+      k: string;
+      e: string;
+      code?: number;
+      why?: string;
+      buffered?: number;
+    };
+    const w = window as unknown as {
+      __voiceSockets: WebSocket[];
+      __wsLog: Ev[];
+      __wsStats: Record<number, Record<string, number | string>>;
+      __lag: { at: number; maxMs: number }[];
+    };
     w.__voiceSockets = [];
+    w.__wsLog = [];
+    w.__wsStats = {};
+    w.__lag = [];
+    const log = (ev: Ev) => {
+      w.__wsLog.push(ev);
+      if (w.__wsLog.length > 600) w.__wsLog.splice(0, 100);
+    };
+    // Long main-thread tasks (over 1 s): busy JavaScript, unlike timer lag alone, which a descheduled
+    // renderer shows too.
+    const lt = window as unknown as { __longTasks: { at: number; ms: number; name: string }[] };
+    lt.__longTasks = [];
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) {
+          if (e.duration < 1000) continue;
+          lt.__longTasks.push({ at: Date.now(), ms: Math.round(e.duration), name: e.name });
+          if (lt.__longTasks.length > 200) lt.__longTasks.shift();
+        }
+      }).observe({ type: 'longtask', buffered: true });
+    } catch {
+      /* longtask entries are Chromium only */
+    }
+    // Main-thread timer lag: a 250 ms interval, worst drift per 5 s bucket (only buckets over 1 s are kept).
+    let last = Date.now();
+    let bucket = { at: last, maxMs: 0 };
+    setInterval(() => {
+      const now = Date.now();
+      bucket.maxMs = Math.max(bucket.maxMs, now - last - 250);
+      last = now;
+      if (now - bucket.at >= 5000) {
+        if (bucket.maxMs > 1000) w.__lag.push(bucket);
+        if (w.__lag.length > 200) w.__lag.shift();
+        bucket = { at: now, maxMs: 0 };
+      }
+    }, 250);
+    document.addEventListener('visibilitychange', () =>
+      log({ t: Date.now(), s: 0, k: 'page', e: `visibility ${document.visibilityState}` }),
+    );
+    const opOf = (d: unknown): number | null => {
+      if (typeof d !== 'string' || d.length > 400) return null;
+      const m = /"op"\s*:\s*(\d+)/.exec(d);
+      return m ? Number(m[1]) : null;
+    };
+    let ids = 0;
     const Native = window.WebSocket;
     window.WebSocket = class extends Native {
       constructor(url: string | URL, protocols?: string | string[]) {
         super(url, protocols);
-        if (/\/voice\/ws/.test(String(url))) w.__voiceSockets.push(this);
+        const u = String(url);
+        const k = /\/voice\/ws/.test(u) ? 'voice' : /\/gateway/.test(u) ? 'gw' : 'other';
+        if (k === 'voice') w.__voiceSockets.push(this);
+        if (k === 'other') return;
+        const s = ++ids;
+        const st: Record<string, number | string> = {
+          url: u.replace(/token=[^&]*/, 'token=x'),
+          created: Date.now(),
+          in: 0,
+          out: 0,
+          bytesIn: 0,
+          bytesOut: 0,
+          lastIn: 0,
+          lastOut: 0,
+        };
+        w.__wsStats[s] = st;
+        log({ t: Date.now(), s, k, e: 'create' });
+        this.addEventListener('open', () => log({ t: Date.now(), s, k, e: 'open' }));
+        this.addEventListener('error', () => log({ t: Date.now(), s, k, e: 'error' }));
+        this.addEventListener('close', (ev) => {
+          st.closed = Date.now();
+          log({ t: Date.now(), s, k, e: 'close', code: ev.code, why: ev.reason });
+        });
+        this.addEventListener('message', (ev) => {
+          const d: unknown = ev.data;
+          st.in = Number(st.in) + 1;
+          st.bytesIn =
+            Number(st.bytesIn) + (typeof d === 'string' ? d.length : (d as ArrayBuffer).byteLength);
+          st.lastIn = Date.now();
+          const op = opOf(d);
+          if ((k === 'gw' && op === 11) || (k === 'voice' && op === 3))
+            log({ t: Date.now(), s, k, e: 'ack' });
+          else if (k === 'gw' && (op === 7 || op === 9 || op === 10))
+            log({ t: Date.now(), s, k, e: `op ${op}` });
+        });
+        const send = this.send.bind(this);
+        this.send = (d: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+          st.out = Number(st.out) + 1;
+          st.bytesOut = Number(st.bytesOut) + (typeof d === 'string' ? d.length : 0);
+          st.lastOut = Date.now();
+          const op = opOf(d);
+          if ((k === 'gw' && op === 1) || (k === 'voice' && op === 2))
+            log({ t: Date.now(), s, k, e: 'heartbeat', buffered: this.bufferedAmount });
+          else if (k === 'gw' && (op === 2 || op === 6))
+            log({ t: Date.now(), s, k, e: op === 2 ? 'identify' : 'resume' });
+          return send(d);
+        };
       }
     } as typeof WebSocket;
   });
+}
+
+/** The socket log of one page (see trackVoiceSockets), with ISO times; bounded so a starved page cannot hang the dump. */
+async function socketDiagnostics(page: Page): Promise<unknown> {
+  const read = page.evaluate(() => {
+    const w = window as unknown as {
+      __wsLog?: { t: number }[];
+      __wsStats?: Record<number, Record<string, number | string>>;
+      __lag?: { at: number; maxMs: number }[];
+      __longTasks?: { at: number; ms: number; name: string }[];
+      __srE2ee?: () => {
+        active: boolean;
+        call: { status: string; epoch: number; members: unknown[] } | null;
+        workerError?: string | null;
+      };
+    };
+    const v = w.__srE2ee?.();
+    const iso = (t: unknown) => (typeof t === 'number' && t > 0 ? new Date(t).toISOString() : t);
+    const stats = Object.fromEntries(
+      Object.entries(w.__wsStats ?? {}).map(([id, s]) => [
+        id,
+        Object.fromEntries(
+          Object.entries(s).map(([k, v]) => [
+            k,
+            ['created', 'closed', 'lastIn', 'lastOut'].includes(k) ? iso(v) : v,
+          ]),
+        ),
+      ]),
+    );
+    return {
+      readAt: new Date().toISOString(),
+      sockets: stats,
+      events: (w.__wsLog ?? []).slice(-120).map((e) => ({ ...e, t: iso(e.t) })),
+      lag: (w.__lag ?? []).map((l) => ({ at: iso(l.at), maxMs: l.maxMs })),
+      longTasks: (w.__longTasks ?? []).map((l) => ({ ...l, at: iso(l.at) })),
+      e2ee: v
+        ? {
+            active: v.active,
+            status: v.call?.status ?? null,
+            epoch: v.call?.epoch ?? null,
+            members: v.call?.members.length ?? 0,
+            workerError: v.workerError ?? null,
+          }
+        : null,
+      callBar:
+        document.querySelector('[role="region"][aria-label="Voice connection"]')?.textContent ??
+        null,
+    };
+  });
+  const timeout = new Promise((r) =>
+    setTimeout(() => r({ error: 'page did not answer in 20 s' }), 20_000),
+  );
+  return Promise.race([read.catch((e: unknown) => ({ error: String(e) })), timeout]);
 }
 
 async function snapshot(page: Page): Promise<Snapshot> {
@@ -107,6 +269,40 @@ async function snapshot(page: Page): Promise<Snapshot> {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Where a member's join is stuck (run 40229221042: the ninth member's ICE never reached the SFU): every peer
+ * connection's signalling / ICE / connection state, whether it has a remote description, and the voice sockets'
+ * ready states. Printed, and attached to the report, when a join times out. A starved page can take seconds to
+ * answer (run 40237146331: 4 s), so both times are recorded: the state may be newer than the timeout.
+ */
+async function joinDiagnostics(page: Page): Promise<unknown> {
+  const timedOutAt = new Date().toISOString();
+  return page
+    .evaluate((timedOutAt) => {
+      const g = globalThis as unknown as {
+        __pcs?: RTCPeerConnection[];
+        __voiceSockets?: WebSocket[];
+      };
+      return {
+        timedOutAt,
+        readAt: new Date().toISOString(),
+        callBar:
+          document.querySelector('[role="region"][aria-label="Voice connection"]')?.textContent ??
+          null,
+        peers: (g.__pcs ?? []).map((pc) => ({
+          signaling: pc.signalingState,
+          ice: pc.iceConnectionState,
+          gathering: pc.iceGatheringState,
+          connection: pc.connectionState,
+          remoteDescription: pc.remoteDescription?.type ?? null,
+          transceivers: pc.getTransceivers().length,
+        })),
+        voiceSockets: (g.__voiceSockets ?? []).map((w) => w.readyState),
+      };
+    }, timedOutAt)
+    .catch((e: unknown) => ({ error: String(e) }));
+}
 
 test.describe('Voice soak', () => {
   test.skip(
@@ -143,8 +339,37 @@ test.describe('Voice soak', () => {
       'Soak Voice',
     );
 
+    // Every member's socket log, timer lag, long tasks and E2EE state, read in parallel (a starved page answers
+    // late, not never). Dumped once, on the first failure of any step (run 40252762759 failed after every join).
+    let dumped = false;
+    const dumpSockets = async (label: string, count = members.length) => {
+      if (dumped) return;
+      dumped = true;
+      const logs = await Promise.all(members.slice(0, count).map((x) => socketDiagnostics(x.page)));
+      const body = JSON.stringify(
+        logs.map((l, j) => ({ member: j, userId: users[j]!.id, ...(l as object) })),
+        null,
+        1,
+      );
+      console.log(`socket logs (${label}):\n${body}`);
+      await test.info().attach(`${label}-sockets.json`, { body, contentType: 'application/json' });
+    };
+
     try {
-      for (const m of members) await joinVoice(m.page, server);
+      for (const [i, m] of members.entries()) {
+        try {
+          await joinVoice(m.page, server);
+        } catch (e) {
+          const diag = JSON.stringify(await joinDiagnostics(m.page), null, 2);
+          console.log(`member ${i} did not connect:\n${diag}`);
+          await test.info().attach(`join-${i}-diagnostics.json`, {
+            body: diag,
+            contentType: 'application/json',
+          });
+          await dumpSockets(`join-${i}`, i + 1);
+          throw e;
+        }
+      }
       for (const [i, m] of members.entries()) {
         await expect
           .poll(async () => (await snapshot(m.page)).members, {
@@ -294,6 +519,9 @@ test.describe('Voice soak', () => {
         .info()
         .attach('soak-summary.json', { body: text, contentType: 'application/json' });
       expect(failures, 'failures seen while the soak ran').toEqual([]);
+    } catch (e) {
+      await dumpSockets('failure');
+      throw e;
     } finally {
       for (const m of members) await m.context.close();
     }

@@ -34,6 +34,20 @@ export function alertRules(yml) {
   });
 }
 
+/**
+ * Metric series the server exports: the string constants of observability.rs and, since RDY-OBS-001, of
+ * crates/sr-voice/src/metrics.rs (the SFU's own series), each with its histogram suffixes.
+ * @param {string[]} sources  Rust sources with `pub const NAME: &str = "metric_name";` lines
+ */
+export function knownMetrics(sources) {
+  const exported = new Set(
+    sources.flatMap((src) =>
+      [...src.matchAll(/pub const [A-Z_]+: &str = "([a-z_]+)";/g)].map((m) => m[1]),
+    ),
+  );
+  return new Set([...exported].flatMap((n) => [n, `${n}_bucket`, `${n}_sum`, `${n}_count`]));
+}
+
 const METRIC_PREFIX = /^(http|db|gateway|jobs|sr)_[a-z0-9_]+$/;
 
 /**

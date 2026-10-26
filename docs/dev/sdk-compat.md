@@ -17,9 +17,9 @@ It builds the real services (Postgres stores, the real REST router, the real gat
 | # | Behaviour | Expected |
 |---|---|---|
 | 1 | `GET /users/@me` with `Authorization: Bot <token>` | the bot user, `bot: true` |
-| 2 | `GET /gateway/bot` | `url`, `shards: 1`, `session_start_limit` |
+| 2 | `GET /gateway/bot` | `url`, `shards` (one per 1000 installs, at least 1), `session_start_limit` |
 | 3 | IDENTIFY with a wrong, malformed or revoked token | close `4004` |
-| 4 | IDENTIFY with `shard: [0, 2]` | close `4010` (differs from Discord: no sharding) |
+| 4 | IDENTIFY with a shard id at or above its count | close `4010`; `shard: [1, 2]` connects (sharding is supported, DEV-BOT-002) |
 | 5 | IDENTIFY with `MESSAGE_CONTENT` before the application enabled it | close `4014` |
 | 6 | IDENTIFY without privileged intents | `READY` with `user.bot`, `application.{id,flags}`, unavailable `guilds`; no person-only fields (`relationships`, `private_channels`, ...) |
 | 7 | `GUILD_CREATE` after READY | the guild with its roles (the bot's managed role) and the bot among `members` with `bot: true` |
@@ -51,7 +51,26 @@ Run one sample bot per library against a seeded server (`just serve` plus `sr-cl
 | serenity | `EventHandler::{ready, message, interaction_create}`, `create_interaction_response` | typed models must deserialize every field we send |
 | twilight | `twilight-gateway` shard 0/1, `twilight-http` create message and commands | strict model deserialization; `shard` handling |
 
-Known library-visible differences to expect (each is in the spec, section 2): the library must not ask for more than one shard; select menus and modal text inputs are not stored on messages (only buttons round trip); editing a posted interaction message changes content only; interactions work in servers only; no HTTP interactions endpoint; `guilds.join`, user installs and teams do not exist.
+Known library-visible differences to expect (each is in the spec, section 2): sharding follows `GET /gateway/bot` (one shard per 1000 installs); select menus and modal text inputs are not stored on messages (only buttons round trip); editing a posted interaction message changes content only; interactions work in servers only; `guilds.join`, user installs and teams do not exist.
+
+### Status of the weekly run (RDY-DEV-004, 2026-10-25)
+
+No scheduled run has happened yet: the first one is the Monday after the workflow reaches the default branch (D-306), and discord.py and twilight (RDY-DEV-003) wait for that run to be green. The last recorded result is the local walk of integration/phase17: discord.js 14.27.0 and serenity 0.12.5, 7 of 7 each. This file lists no per-library result for any later date; the dated results belong in the issue the workflow opens or in the run's `e2e/sdk-compat/report/*.xml` artifact, and are copied here after the first green run.
+
+## First-party SDKs (not Discord libraries)
+
+`sr-sdk` and `@sideroom/bot` are tested against SIDE ROOM's own gateway and SFU instead of this list. Reconnect behaviour of `sr-sdk` (RDY-DEV-002), all in-process against the real state machines, no network:
+
+| Behaviour | Test |
+|---|---|
+| A lost gateway connection resumes; the events published meanwhile are replayed, `RESUMED` follows, no second `READY`; a second loss resumes from the new sequence | `crates/sr-sdk/tests/gateway_resume.rs` |
+| A session the gateway cannot replay (buffer overflow) gets `INVALID_SESSION` false and a fresh IDENTIFY | same file |
+| The reconnect delay resets on `RESUMED`; a join to a voice channel (op 4) is sent again after a fresh `READY`, a leave is not | `crates/sr-sdk/src/gateway.rs` unit tests |
+| A dropped SFU WebSocket is re-attached with `RESUME`, media keeps flowing, `VoiceEvent::Resumed` | `crates/sr-sdk/tests/voice_reconnect.rs` |
+| A session the SFU forgot (resume window passed) is joined again with the frame transform kept, `VoiceEvent::Reconnected` | same file |
+| A moderator removal (close 4014) is final | same file |
+
+`examples/voice_bot.rs` runs for a minute against a live server and SFU in the `live` job of `e2e.yml` (`e2e/sdk-compat/voice-bot-live.mjs`), in an encrypted call: it answers the MLS handshake, sends frames under the epoch key and drops its SFU socket once to show the resume. The same driver with `--ts` (RDY-DEV-001) runs the TypeScript bot of `packages/bot` (`voice.live.test.ts`, werift) with the Rust bot as a partner in the call: each implementation must decrypt the other's frames, and the TypeScript one must also resume after its own drop. `packages/bot/src/voice.test.ts` covers the key agreement on the real wasm bundle without a server.
 
 ## Tier 3: conformance fixtures (planned)
 

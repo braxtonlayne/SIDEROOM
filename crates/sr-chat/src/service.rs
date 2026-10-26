@@ -56,6 +56,17 @@ pub struct ForwardRequest {
     pub snapshot: crate::message::ForwardSnapshot,
 }
 
+/// A channel resolved for one author, handed to [`ChatService::send_resolved`] by a caller that already
+/// checked access (see there).
+#[derive(Debug, Clone)]
+pub struct ResolvedChannel {
+    pub channel: Channel,
+    pub perms: Permissions,
+    pub roles: Vec<Role>,
+    /// The guild row of a guild channel; `None` for a DM (or to have it read).
+    pub guild: Option<Guild>,
+}
+
 /// Resolved view of a channel for one user.
 pub(crate) struct Access {
     pub(crate) channel: Channel,
@@ -373,6 +384,40 @@ impl<R: ChatRepository> ChatService<R> {
         req: SendMessage,
     ) -> ChatResult<Message> {
         let acc = self.access(author, channel_id).await?;
+        let guild = match acc.channel.guild_id {
+            Some(gid) => Some(self.guild(gid).await?),
+            None => None,
+        };
+        self.send_resolved(
+            author,
+            ResolvedChannel {
+                channel: acc.channel,
+                perms: acc.perms,
+                roles: acc.roles,
+                guild,
+            },
+            req,
+        )
+        .await
+    }
+
+    /// [`Self::send_message`] into a channel the caller has already resolved for `author` (RDY-PERF-002: the
+    /// message endpoint resolved channel, guild, member, roles and overwrites, then this service resolved them
+    /// again, five of the statements of every message sent). `resolved` must be what [`Self::send_message`]
+    /// would compute: the channel, the author's effective permissions and the guild's roles there, and the
+    /// guild row of a guild channel.
+    pub async fn send_resolved(
+        &self,
+        author: UserId,
+        resolved: ResolvedChannel,
+        req: SendMessage,
+    ) -> ChatResult<Message> {
+        let channel_id = resolved.channel.id;
+        let acc = Access {
+            channel: resolved.channel,
+            perms: resolved.perms,
+            roles: resolved.roles,
+        };
         if acc.channel.kind.is_thread() {
             crate::threads::rules::check_can_send(&acc.channel, acc.perms)?;
         }
@@ -421,9 +466,10 @@ impl<R: ChatRepository> ChatService<R> {
             ),
             None => v.mentions,
         };
-        let guild = match acc.channel.guild_id {
-            Some(gid) => Some(self.guild(gid).await?),
-            None => None,
+        let guild = match (acc.channel.guild_id, resolved.guild) {
+            (Some(_), Some(g)) => Some(g),
+            (Some(gid), None) => Some(self.guild(gid).await?),
+            (None, _) => None,
         };
         mentions.users = self
             .eligible_mentions(guild.as_ref(), &acc.channel, mentions.users)

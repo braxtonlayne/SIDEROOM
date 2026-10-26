@@ -6,7 +6,7 @@ use super::error::{ApiJson, MsgResult, invalid, parse_id};
 use super::model::{
     AllowedMentionsBody, BulkDeleteBody, CreateMessageBody, EditMessageBody, MessageObject,
 };
-use super::render::{actor, event_payload, render_one};
+use super::render::{actor, event_payload, render_created, render_one};
 use super::store::UploadState;
 use crate::routes::guilds::safety::MfaGate;
 use crate::routes::settings::{AutoModGateHandle, MessageCheck, alert_execution_payload};
@@ -215,7 +215,7 @@ pub async fn create_message(
     };
     // Decided before the send: storing the message reopens closed DMs.
     let dm_announce = deps.plan_dm_announce(&acc.channel, author).await;
-    let msg = deps.send(author, channel_id, req).await?;
+    let msg = deps.send_in(author, &acc, req).await?;
 
     for (mut att, description) in uploads {
         att.state = UploadState::Attached;
@@ -230,7 +230,7 @@ pub async fn create_message(
             .await?;
     }
 
-    let data = event_payload(&deps, &msg).await?;
+    let (mut out, data) = render_created(&deps, author, &msg, body.nonce.clone()).await?;
     // The channel object must reach a recipient before the first message in it.
     deps.announce_dm(channel_id, &dm_announce).await;
     deps.publish(DomainEvent::MessageSent {
@@ -255,7 +255,6 @@ pub async fn create_message(
     if !message_flags_suppress(msg.flags) {
         deps.schedule_unfurl(&msg).await;
     }
-    let mut out = render_one(&deps, author, &msg).await?;
     out.nonce.clone_from(&body.nonce);
     Ok(Json(out))
 }

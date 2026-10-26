@@ -1,11 +1,14 @@
 // View Server As Role (J-09, LNG-SSET-036): pick roles and see the channel list a member holding only those roles
 // would get. Nothing is saved; the visibility is computed in the browser with the shared permissions engine.
 import { Button, Checkbox, Modal, Notice } from '@sideroom/ui';
+import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../../../i18n';
+import { useGuild } from '../../../lounge/data';
 import { loadPermEngine, usePermEngine } from '../../../lounge/permEngine';
 import * as api from '../api';
 import { hasAdministrator, viewServerAs } from '../viewAs';
+import { useViewAs } from '../viewAsMode';
 
 const ICON: Record<number, string> = {
   0: '#',
@@ -25,6 +28,9 @@ export function ViewAsRoleDialog({
   onClose: () => void;
 }) {
   const t = useT();
+  const navigate = useNavigate();
+  const guildName = useGuild(guildId)?.name;
+  const startPreview = useViewAs((s) => s.start);
   const engine = usePermEngine();
   const [loadFailed, setLoadFailed] = useState(false);
   const [channels, setChannels] = useState<api.ChannelObject[] | null>(null);
@@ -60,6 +66,23 @@ export function ViewAsRoleDialog({
       return next;
     });
   const shown = entries?.filter((e) => e.visible) ?? [];
+  // RDY-PAR-005: carry the result into the Lounge and open the first channel those roles can read.
+  const preview = () => {
+    if (!entries) return;
+    const first = entries.find((e) => e.visible && (e.channel.type === 0 || e.channel.type === 5));
+    startPreview({
+      guildId,
+      guildName: guildName ?? guildId,
+      roleNames: pickable.filter((r) => picked.has(r.id)).map((r) => r.name),
+      visibleIds: new Set(shown.map((e) => e.channel.id)),
+    });
+    onClose();
+    void navigate(
+      first
+        ? { to: '/channels/$guildId/$channelId', params: { guildId, channelId: first.channel.id } }
+        : { to: '/channels/$guildId', params: { guildId } },
+    );
+  };
 
   return (
     <Modal
@@ -69,9 +92,14 @@ export function ViewAsRoleDialog({
       title={t('settings.viewAs.title')}
       description={t('settings.viewAs.description')}
       footer={
-        <Button variant="secondary" onClick={onClose}>
-          {t('settings.viewAs.close')}
-        </Button>
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {t('settings.viewAs.close')}
+          </Button>
+          <Button onClick={preview} disabled={!entries}>
+            {t('settings.viewAs.preview')}
+          </Button>
+        </>
       }
     >
       <div className="ss-form">

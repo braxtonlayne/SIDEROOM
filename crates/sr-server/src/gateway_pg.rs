@@ -11,7 +11,7 @@ use sr_chat::repo::UserLookup;
 use sr_chat::{
     repo::{ChannelRepository, GuildRepository},
     social::{
-        dm::RequestState,
+        dm::{RequestReason, RequestState},
         relationships::RelationshipKind,
         repo::{DmRepository, ReadStateRepository, RelationshipRepository},
     },
@@ -228,11 +228,14 @@ impl PgGuildDirectory {
             return Ok(json!({ "id": guild, "unavailable": true }));
         };
         let roles = self.chat.list_roles(guild).await?;
-        let mut channels = Vec::new();
-        for c in self.chat.list_guild_channels(guild).await? {
-            let overwrites = self.chat.get_overwrites(c.id).await?;
-            channels.push(ChannelObject::new(&c, &overwrites));
-        }
+        // Every channel's overwrites in one query (RDY-PERF-002).
+        let list = self.chat.list_guild_channels(guild).await?;
+        let ids: Vec<ChannelId> = list.iter().map(|c| c.id).collect();
+        let mut overwrites = self.chat.get_overwrites_of(&ids).await?;
+        let channels: Vec<ChannelObject> = list
+            .iter()
+            .map(|c| ChannelObject::new(c, &overwrites.remove(&c.id).unwrap_or_default()))
+            .collect();
         let mut body = serde_json::to_value(GuildObject::new(
             &g,
             Some(roles.as_slice()),
@@ -249,19 +252,23 @@ impl PgGuildDirectory {
         .bind(LARGE_THRESHOLD_DEFAULT as i64 + 1)
         .fetch_all(&self.pool)
         .await?;
+        // The viewer's own row, read once for the threads they can see and `joined_at` (RDY-PERF-002).
+        let me = self.chat.get_member(guild, user).await?;
         if let Some(obj) = body.as_object_mut() {
-            obj.insert(
-                "threads".into(),
-                json!(self.visible_threads(user, guild).await?.0),
-            );
+            let threads = match &me {
+                Some(m) => self.visible_threads_of(user, guild, &g, m, &roles).await?.0,
+                None => Vec::new(),
+            };
+            obj.insert("threads".into(), json!(threads));
             if member_ids.len() as u64 <= LARGE_THRESHOLD_DEFAULT {
-                let mut found = Vec::with_capacity(member_ids.len());
-                for id in member_ids {
-                    let user = UserId::new(id as u64);
-                    if let Some(m) = self.chat.get_member(guild, user).await? {
-                        found.push(m);
-                    }
-                }
+                // One query for the member rows, in the list's user id order (RDY-PERF-002: one per member
+                // made READY of a member of 60 servers cost thousands of queries).
+                let ids: Vec<UserId> = member_ids
+                    .iter()
+                    .map(|&id| UserId::new(id as u64))
+                    .collect();
+                let mut found = self.chat.get_members(guild, &ids).await?;
+                found.sort_by_key(|m| m.user_id);
                 // Name fields for the member objects (open question 157).
                 let ids: Vec<UserId> = found.iter().map(|m| m.user_id).collect();
                 let users: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> = self
@@ -321,11 +328,7 @@ impl PgGuildDirectory {
                 );
             }
             let member_count = self.chat.count_members(guild).await?;
-            let joined_at = self
-                .chat
-                .get_member(guild, user)
-                .await?
-                .map(|m| iso8601(m.joined_at_ms));
+            let joined_at = me.as_ref().map(|m| iso8601(m.joined_at_ms));
             fill_guild_create_fields(obj, member_count, joined_at);
         }
         Ok(body)
@@ -345,10 +348,23 @@ impl PgGuildDirectory {
             return Ok((Vec::new(), Vec::new()));
         };
         let roles = self.chat.list_roles(guild).await?;
+        self.visible_threads_of(user, guild, &g, &member, &roles)
+            .await
+    }
+
+    /// [`Self::visible_threads`] with the guild, the viewer's member row and the roles already read.
+    async fn visible_threads_of(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        g: &sr_chat::domain::Guild,
+        member: &sr_chat::domain::Member,
+        roles: &[sr_chat::domain::Role],
+    ) -> BuildResult<(Vec<Value>, Vec<Value>)> {
         let now = self.clock.now_unix_ms();
         let mut seen = Vec::new();
         for t in self.chat.list_active_threads(guild).await? {
-            let perms = guild_channel_permissions(&self.chat, &g, &member, &roles, &t, now).await?;
+            let perms = guild_channel_permissions(&self.chat, g, member, roles, &t, now).await?;
             if perms.contains(Permissions::VIEW_CHANNEL) {
                 seen.push(t);
             }
@@ -404,12 +420,14 @@ impl PgGuildDirectory {
         let mut private_channels: Vec<Value> = Vec::with_capacity(dms.len());
         for d in &dms {
             let mut obj = DmChannelObject::new(d, user, &users);
-            if self.social.get_request_state(user, d.id).await? == Some(RequestState::Pending) {
+            let state = self.social.get_request_state(user, d.id).await?;
+            if matches!(state, Some(RequestState::Pending | RequestState::Spam)) {
                 obj.is_message_request = Some(true);
                 obj.sr_request_reason = self
                     .social
                     .get_request_reason(user, d.id)
                     .await?
+                    .or((state == Some(RequestState::Spam)).then_some(RequestReason::Spam))
                     .map(|r| r.as_str().to_owned());
             }
             private_channels.push(json!(obj));
@@ -631,6 +649,73 @@ impl GuildDirectory for PgGuildDirectory {
         res.unwrap_or_else(|e| {
             tracing::error!(error = %e, "has_guild_permission failed");
             false
+        })
+    }
+
+    async fn dispatch_audience(
+        &self,
+        guild: GuildId,
+        channel: Option<ChannelId>,
+        needed: Option<Permissions>,
+        users: &[UserId],
+    ) -> std::collections::HashSet<UserId> {
+        use sr_chat::threads::access::{
+            needs_thread_membership, overwrite_source, permissions_with_overwrites,
+        };
+        if users.is_empty() {
+            return std::collections::HashSet::new();
+        }
+        // The same decision as `can_view_channel` and `has_guild_permission`, with the channel, guild, roles
+        // and overwrites read once and the members in one query (RDY-PERF-002).
+        let res: Result<std::collections::HashSet<UserId>, sr_chat::error::RepoError> = async {
+            let none = std::collections::HashSet::new();
+            let ch = match channel {
+                Some(id) => match self.chat.get_channel(id).await? {
+                    Some(ch) if ch.guild_id == Some(guild) => Some(ch),
+                    _ => return Ok(none),
+                },
+                None => None,
+            };
+            let Some(g) = self.chat.get_guild(guild).await? else {
+                return Ok(none);
+            };
+            let roles = self.chat.list_roles(guild).await?;
+            let overwrites = match ch.as_ref().and_then(overwrite_source) {
+                Some(source) => self.chat.get_overwrites(source).await?,
+                None => Vec::new(),
+            };
+            let now = self.clock.now_unix_ms();
+            let mut out = std::collections::HashSet::new();
+            for member in self.chat.get_members(guild, users).await? {
+                if let Some(p) = needed
+                    && !sr_chat::perms::guild_permissions(&g, &member, &roles).contains(p)
+                {
+                    continue;
+                }
+                if let Some(ch) = &ch {
+                    let joined = needs_thread_membership(ch)
+                        && self.chat.is_thread_member(ch.id, member.user_id).await?;
+                    let perms = permissions_with_overwrites(
+                        &g,
+                        &member,
+                        &roles,
+                        ch,
+                        &overwrites,
+                        joined,
+                        now,
+                    );
+                    if !perms.contains(Permissions::VIEW_CHANNEL) {
+                        continue;
+                    }
+                }
+                out.insert(member.user_id);
+            }
+            Ok(out)
+        }
+        .await;
+        res.unwrap_or_else(|e| {
+            tracing::error!(error = %e, "dispatch_audience failed");
+            std::collections::HashSet::new()
         })
     }
 
@@ -1410,6 +1495,189 @@ mod tests {
             got.iter().map(ToString::to_string).collect::<Vec<_>>()
         );
         assert_eq!(by_id.not_found, vec![stranger]);
+    }
+
+    /// RDY-PERF-002: the batched fan-out audience decides exactly as the per-user checks do (overwrites,
+    /// non-members, guild permissions, a channel of another guild), from a handful of queries.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn dispatch_audience_matches_the_per_user_checks() {
+        use sr_chat::{ChatLimits, ChatService, role_rules::NewRole};
+        use sr_core::permissions::{Overwrite, OverwriteKind};
+        use std::collections::HashSet;
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let w = ((std::process::id() % 4) * 4) as u8;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let svc = ChatService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), w + 16, w + 16).expect("ids"),
+            ChatLimits::default(),
+        );
+        let (owner, modr, member, stranger) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        let bp = svc.create_guild(owner, "Audience Club").await.unwrap();
+        let (guild, general) = (bp.guild.id, bp.channels[2].id);
+        let other = svc.create_guild(owner, "Elsewhere").await.unwrap();
+        for u in [modr, member] {
+            sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+                .bind(guild.get() as i64)
+                .bind(u.get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let mods = svc
+            .create_role(
+                owner,
+                guild,
+                NewRole {
+                    name: Some("mods".into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(guild.get() as i64)
+            .bind(modr.get() as i64)
+            .bind(mods.id.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let dir = PgGuildDirectory::new(pool.clone(), clock.clone());
+        let everyone = [owner, modr, member, stranger];
+        let set = |v: &[UserId]| v.iter().copied().collect::<HashSet<_>>();
+        let per_user = |ch: ChannelId| {
+            let dir = &dir;
+            async move {
+                let mut out = HashSet::new();
+                for u in everyone {
+                    if dir.can_view_channel(u, guild, ch).await {
+                        out.insert(u);
+                    }
+                }
+                out
+            }
+        };
+
+        // Open channel: every member, not the stranger.
+        let open = dir
+            .dispatch_audience(guild, Some(general), None, &everyone)
+            .await;
+        assert_eq!(open, set(&[owner, modr, member]));
+        assert_eq!(open, per_user(general).await);
+
+        // Only the role may look: the owner bypasses, the plain member drops out.
+        for o in [
+            Overwrite {
+                id: guild.snowflake(),
+                kind: OverwriteKind::Role,
+                allow: Permissions::empty(),
+                deny: Permissions::VIEW_CHANNEL,
+            },
+            Overwrite {
+                id: mods.id.snowflake(),
+                kind: OverwriteKind::Role,
+                allow: Permissions::VIEW_CHANNEL,
+                deny: Permissions::empty(),
+            },
+        ] {
+            svc.set_overwrite(owner, general, o).await.unwrap();
+        }
+        let closed = dir
+            .dispatch_audience(guild, Some(general), None, &everyone)
+            .await;
+        assert_eq!(closed, set(&[owner, modr]));
+        assert_eq!(closed, per_user(general).await);
+        // The batched overwrite read (GUILD_CREATE) agrees with the per-channel one.
+        let others: Vec<ChannelId> = bp.channels.iter().map(|c| c.id).collect();
+        let batched = dir.chat.get_overwrites_of(&others).await.unwrap();
+        assert_eq!(batched.len(), others.len());
+        for c in &others {
+            let mut one = dir.chat.get_overwrites(*c).await.unwrap();
+            let mut many = batched[c].clone();
+            one.sort_by_key(|o| o.id);
+            many.sort_by_key(|o| o.id);
+            assert_eq!(one, many);
+        }
+        assert_eq!(batched[&general].len(), 2);
+        let payload = dir.guild_payload(owner, guild).await;
+        let ch = payload["channels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == general.to_string())
+            .unwrap();
+        assert_eq!(ch["permission_overwrites"].as_array().unwrap().len(), 2);
+
+        // A guild-level permission, with and without a channel.
+        let manage = dir
+            .dispatch_audience(guild, None, Some(Permissions::MANAGE_GUILD), &everyone)
+            .await;
+        assert_eq!(manage, set(&[owner]));
+        for u in everyone {
+            assert_eq!(
+                manage.contains(&u),
+                dir.has_guild_permission(u, guild, Permissions::MANAGE_GUILD)
+                    .await
+            );
+        }
+        let both = dir
+            .dispatch_audience(
+                guild,
+                Some(general),
+                Some(Permissions::VIEW_CHANNEL),
+                &everyone,
+            )
+            .await;
+        assert_eq!(both, set(&[owner, modr]));
+
+        // A channel of another guild, an unknown guild and nobody asked: nobody.
+        let foreign = other.channels[2].id;
+        assert!(
+            dir.dispatch_audience(guild, Some(foreign), None, &everyone)
+                .await
+                .is_empty()
+        );
+        assert!(
+            dir.dispatch_audience(
+                GuildId::new(1),
+                None,
+                Some(Permissions::VIEW_CHANNEL),
+                &everyone
+            )
+            .await
+            .is_empty()
+        );
+        assert!(
+            dir.dispatch_audience(guild, Some(general), None, &[])
+                .await
+                .is_empty()
+        );
+        // The batched member read leaves out non-members.
+        let found = dir.chat.get_members(guild, &everyone).await.unwrap();
+        assert_eq!(
+            found.iter().map(|m| m.user_id).collect::<HashSet<_>>(),
+            set(&[owner, modr, member])
+        );
+        assert!(
+            found
+                .iter()
+                .find(|m| m.user_id == modr)
+                .unwrap()
+                .role_ids
+                .contains(&mods.id)
+        );
     }
 
     /// Age-restricted channels (and threads of them), GUILD_CREATE without the system user,

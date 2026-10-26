@@ -654,6 +654,48 @@ impl GuildRepository for PgChatRepo {
         }))
     }
 
+    async fn get_members(&self, guild: GuildId, users: &[UserId]) -> RepoResult<Vec<Member>> {
+        if users.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = sqlx::query(
+            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
+    gm.profile_effect, gm.avatar_decoration, gm.flags, \
+             (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
+             (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
+             COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
+                       WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id), '{}') AS role_ids \
+             FROM guild_members gm WHERE gm.guild_id = $1 AND gm.user_id = ANY($2)",
+        )
+        .bind(i(guild.get()))
+        .bind(users.iter().map(|x| i(x.get())).collect::<Vec<_>>())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(Member {
+                    guild_id: guild,
+                    user_id: UserId::new(u(r.try_get("user_id").map_err(db)?)),
+                    nick: r.try_get("nick").map_err(db)?,
+                    role_ids: r
+                        .try_get::<Vec<i64>, _>("role_ids")
+                        .map_err(db)?
+                        .into_iter()
+                        .map(|v| RoleId::new(u(v)))
+                        .collect(),
+                    joined_at_ms: r.try_get("joined_ms").map_err(db)?,
+                    communication_disabled_until_ms: r.try_get("timeout_ms").map_err(db)?,
+                    pending: r.try_get("pending").map_err(db)?,
+                    avatar_key: r.try_get("avatar_key").map_err(db)?,
+                    banner_key: r.try_get("banner_key").map_err(db)?,
+                    bio: r.try_get("bio").map_err(db)?,
+                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
     async fn list_roles(&self, guild: GuildId) -> RepoResult<Vec<Role>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {ROLE_COLS} FROM roles WHERE guild_id = $1 ORDER BY position, id"
@@ -810,6 +852,39 @@ impl ChannelRepository for PgChatRepo {
                 })
             })
             .collect()
+    }
+
+    async fn get_overwrites_of(
+        &self,
+        channels: &[ChannelId],
+    ) -> RepoResult<HashMap<ChannelId, Vec<Overwrite>>> {
+        let mut out: HashMap<ChannelId, Vec<Overwrite>> =
+            channels.iter().map(|&c| (c, Vec::new())).collect();
+        if channels.is_empty() {
+            return Ok(out);
+        }
+        let rows = sqlx::query(
+            "SELECT channel_id, target_id, target_type::text AS target_type, allow, deny              FROM permission_overwrites WHERE channel_id = ANY($1)",
+        )
+        .bind(channels.iter().map(|c| i(c.get())).collect::<Vec<_>>())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        for r in &rows {
+            let kind = match r.try_get::<String, _>("target_type").map_err(db)?.as_str() {
+                "role" => OverwriteKind::Role,
+                "member" => OverwriteKind::Member,
+                _ => return Err(bad("target_type")),
+            };
+            let channel = ChannelId::new(u(r.try_get("channel_id").map_err(db)?));
+            out.entry(channel).or_default().push(Overwrite {
+                id: Snowflake::new(u(r.try_get("target_id").map_err(db)?)),
+                kind,
+                allow: Permissions::from_bits_truncate(u(r.try_get("allow").map_err(db)?)),
+                deny: Permissions::from_bits_truncate(u(r.try_get("deny").map_err(db)?)),
+            });
+        }
+        Ok(out)
     }
 
     async fn insert_channel(&self, channel: &Channel, overwrites: &[Overwrite]) -> RepoResult<()> {

@@ -161,6 +161,7 @@ impl Session {
         if let Some(l) = &g.link
             && l.tx.try_send(Out::Frame(text)).is_err()
         {
+            tracing::warn!(user = %self.user, seq, "gateway session fell behind its connection; detached");
             g.link = None;
             g.detached_at = Some(now);
         }

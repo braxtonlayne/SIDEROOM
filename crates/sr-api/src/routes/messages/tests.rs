@@ -419,6 +419,8 @@ async fn create_get_and_list_have_discord_shape() {
             assert_eq!(author.get(), BOB);
             assert_eq!(data["id"], id.as_str());
             assert_eq!(data["content"], "hello <@1> and <#2>");
+            // RDY-PERF-002: rendered once; the author's answer is the gateway payload.
+            assert_eq!(data, m);
         }
         other => panic!("{other:?}"),
     }

@@ -24,6 +24,14 @@ impl<R: SocialRepository + 'static> MessageHooks for SocialService<R> {
         {
             tracing::warn!(error = %e, channel = %m.channel_id, "reopening DM after send failed");
         }
+        // RDY-PAR-004: the recipient's DM spam filter reads a stranger's message.
+        if m.guild_id.is_none()
+            && let Err(e) = self
+                .screen_dm_message(m.channel_id, m.author_id, &m.content)
+                .await
+        {
+            tracing::warn!(error = %e, channel = %m.channel_id, "DM spam screening failed");
+        }
         // Recipients were filtered for VIEW_CHANNEL before the message was stored.
         if let Err(e) = self
             .record_eligible_mentions(m.author_id, notify, m.channel_id, |_| true)

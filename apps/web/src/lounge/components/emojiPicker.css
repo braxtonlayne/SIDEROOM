@@ -1,0 +1,43 @@
+/* Emoji picker category sidebar (RDY-PAR-002). */
+.lng-emoji.lng-emoji {
+  inline-size: 320px;
+}
+.lng-emoji-body {
+  display: flex;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.lng-emoji-body > .lng-emoji-scroll {
+  flex: 1;
+  min-inline-size: 0;
+  position: relative;
+}
+.lng-emoji-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-block-size: 240px;
+  overflow-y: auto;
+  padding-inline-end: 4px;
+  border-inline-end: 1px solid var(--ui-border);
+}
+.lng-emoji-cat {
+  display: grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 32px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 18px;
+  color: var(--text-normal);
+  cursor: pointer;
+}
+.lng-emoji-cat:hover,
+.lng-emoji-cat[aria-pressed='true'] {
+  background: var(--ui-bg-hover);
+}
+.lng-emoji-cat img {
+  border-radius: 50%;
+}

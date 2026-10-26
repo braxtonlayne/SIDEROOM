@@ -661,6 +661,104 @@ async fn the_health_check_alerts_about_a_missing_backup_once_a_day() {
     f.db.cleanup().await.unwrap();
 }
 
+/// The value of the first `/metrics` line starting with `prefix`.
+fn metric(text: &str, prefix: &str) -> Option<f64> {
+    text.lines()
+        .find(|l| l.starts_with(prefix))
+        .and_then(|l| l.rsplit(' ').next())
+        .and_then(|v| v.parse().ok())
+}
+
+/// RDY-OBS-001: one health-job run (and one invoice watcher pass) puts every gauge on `/metrics`.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn one_health_run_sets_the_job_backup_disk_and_storage_gauges() {
+    let metrics = sr_api::observability::Metrics::global();
+    let f = fx().await;
+    let dir = std::env::temp_dir().join(format!("sr-gauges-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("sideroom-1.dump"), b"x").unwrap();
+    let c = f.admin.resolve(f.owner, None).await.unwrap();
+    f.admin
+        .patch_settings(
+            &c,
+            &[
+                (
+                    "ops.backup_dir".to_owned(),
+                    serde_json::json!(dir.to_string_lossy()),
+                ),
+                ("alerts.disk_percent".to_owned(), serde_json::json!(99)),
+            ],
+            Some("test"),
+        )
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO jobs (id, kind, run_at) VALUES (9001, 'obs.test', now() - interval '2 hours')",
+    )
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let bus: Arc<dyn EventBus> = f.bus.clone();
+
+    crate::admin_jobs::run_health(&f.pool, &f.admin, &bus).await;
+    crate::payments_jobs::record_invoice_gauges(&f.pool).await;
+    let text = metrics.render();
+
+    assert_eq!(
+        metric(&text, "sr_jobs_queued{kind=\"obs.test\"}"),
+        Some(1.0)
+    );
+    assert!(metric(&text, "sr_jobs_oldest_queued_age_seconds").is_some_and(|a| a >= 7200.0));
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64();
+    assert!(
+        metric(&text, "sr_backup_last_success_timestamp_seconds").is_some_and(|t| now - t < 120.0)
+    );
+    // No restore drill marker: 0 means "never", which the stale rule reads as a failure.
+    assert_eq!(
+        metric(&text, "sr_restore_check_last_success_timestamp_seconds"),
+        Some(0.0)
+    );
+    assert!(metric(&text, "sr_disk_free_ratio{").is_some_and(|r| (0.0..=1.0).contains(&r)));
+    assert!(metric(&text, "sr_storage_bytes{bucket=\"attachments\"}").is_some());
+    assert_eq!(metric(&text, "sr_invoices_pending"), Some(0.0));
+    assert_eq!(
+        metric(&text, "sr_invoice_oldest_pending_age_seconds"),
+        Some(0.0)
+    );
+    // The WAL series exist only while Postgres archives.
+    let archiving: bool = sqlx::query_scalar("SELECT current_setting('archive_mode') <> 'off'")
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        text.contains("sr_wal_archive_failed_total"),
+        archiving,
+        "the WAL series are absent while archive_mode is off"
+    );
+
+    // A queue that drains goes back to 0 instead of keeping its last figure.
+    sqlx::query("DELETE FROM jobs WHERE id = 9001")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    crate::admin_jobs::run_health(&f.pool, &f.admin, &bus).await;
+    let text = metrics.render();
+    assert_eq!(
+        metric(&text, "sr_jobs_queued{kind=\"obs.test\"}"),
+        Some(0.0)
+    );
+    assert_eq!(
+        metric(&text, "sr_jobs_oldest_queued_age_seconds"),
+        Some(0.0)
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+    f.db.cleanup().await.unwrap();
+}
+
 // ---- G-68: #review-queue cards ----------------------------------------------------------
 
 /// The smallest kind the pipeline needs: one item, publishing does nothing.

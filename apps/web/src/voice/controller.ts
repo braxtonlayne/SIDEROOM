@@ -775,7 +775,8 @@ export class VoiceController {
     // A refusal to leave the old guild can echo a state for another guild: only ours counts.
     if ((v.guild_id ?? DM_GUILD_ID) !== t.guildId) return;
     if (v.channel_id === null) {
-      // Disconnected by a moderator or the server (not by us: leave() clears the target first).
+      // Disconnected by a moderator or the server (not by us: leave() clears the target first, rejoin()
+      // clears joinedSeen first).
       if (this.joinedSeen) {
         const keep = {
           selfMute: useVoiceSession.getState().selfMute,
@@ -1118,6 +1119,10 @@ export class VoiceController {
       return;
     }
     patchSession({ status: 'reconnecting' });
+    // The gateway echoes our own leave as VOICE_STATE_UPDATE with `channel_id: null`. That echo is not a
+    // disconnect by the server: forget the join confirmation so onOwnState ignores it, and let the echo of the
+    // join below confirm it again (RDY-VOX-002: a slow first connect used to end the call right here).
+    this.joinedSeen = false;
     // Spec 4.5: a repeated op 4 for the channel we are in issues no new VOICE_SERVER_UPDATE, so leave first.
     const t = this.target;
     const s = useVoiceSession.getState();
