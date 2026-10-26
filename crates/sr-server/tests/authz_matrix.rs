@@ -672,6 +672,20 @@ async fn give_role(pool: &sqlx::PgPool, guild: i64, user: i64, role: i64) {
     .unwrap();
 }
 
+/// Open the staff step-up window of a session with a real TOTP code (the secret is the Owner's).
+async fn step_up(srv: &Server, who: &Cred, totp: &TotpSecret) -> Resp {
+    let now = SystemClock.now_unix_ms() as u64 / 1000;
+    let code =
+        sr_auth::totp::current_code(totp, "SIDE ROOM", "staffowner", now).expect("totp code");
+    srv.call(
+        who,
+        "POST",
+        "/admin/reauth",
+        Some(&json!({"method": "totp", "code": code})),
+    )
+    .await
+}
+
 /// Standard base64 with padding (the data URIs of stickers and sounds; no dependency for ten lines).
 fn b64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -1150,8 +1164,11 @@ async fn seed(
     cfg.voice.enabled = true;
     cfg.voice.bind_ip = "127.0.0.1".into();
     cfg.voice.announce_ips = vec!["127.0.0.1".into()];
-    cfg.voice.udp_port_min = 52_870;
-    cfg.voice.udp_port_max = 52_879;
+    // A range of its own per world: a stopped node frees its sockets a moment after the process says so.
+    static VOICE_N: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
+    let voice_base = 52_000 + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    cfg.voice.udp_port_min = voice_base;
+    cfg.voice.udp_port_max = voice_base + 9;
     cfg.server.shutdown_grace_secs = 1;
     static SEARCH_N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let search = std::env::temp_dir().join(format!(
@@ -1353,6 +1370,7 @@ async fn seed(
     // a hold, an announcement, a submission, a command, a grant and a running stage.
     let staff = Cred::Session(sess["staff_owner"].clone());
     let member_cred = Cred::Session(sess["member"].clone());
+    step_up(&srv, &staff, &totp).await;
     let bot_cred = Cred::Bot(app_a.bot_token.clone());
     let person: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
         .bind(u("victim"))
@@ -1548,7 +1566,7 @@ async fn seed(
     for (param, tpl, who, body) in recipes {
         let path = fill(tpl, &a);
         if let Some(v) = create(&srv, who, "POST", tpl, &path, infos, body).await
-            && let Some(id) = v["id"].as_str()
+            && let Some(id) = v["id"].as_str().or(v["sound_id"].as_str())
         {
             a.insert(param, id.to_owned());
         }
@@ -2393,18 +2411,7 @@ async fn write_phase(
     // The staff step-up, once per group: a real TOTP code for the Owner opens the 15-minute window of its
     // session, so that the gated staff writes are asserted (RDY-SEC-012).
     let owner = world.actor("staff_owner");
-    let now = SystemClock.now_unix_ms() as u64 / 1000;
-    let code = sr_auth::totp::current_code(&world.totp, "SIDE ROOM", "staffowner", now)
-        .expect("totp code");
-    let r = world
-        .srv
-        .call(
-            &owner.cred,
-            "POST",
-            "/admin/reauth",
-            Some(&json!({"method": "totp", "code": code})),
-        )
-        .await;
+    let r = step_up(&world.srv, &owner.cred, &world.totp).await;
     if r.status != 200 {
         failures.push(format!(
             "[{gname}] the staff step-up (POST /admin/reauth with a TOTP code) answered {} {}",
