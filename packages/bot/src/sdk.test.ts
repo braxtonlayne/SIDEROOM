@@ -139,6 +139,44 @@ describe('Shard', () => {
     sh.destroy();
   });
 
+  it('a voice join is sent again after a fresh READY, not after a resume, and a leave clears it (DEV-FU-001)', () => {
+    const f = socketFactory();
+    const sh = new Shard(opts(f));
+    const hello = { op: 10, d: { heartbeat_interval: 40000 } };
+    const join = { guild_id: '1', channel_id: '5', sr_e2ee: true };
+    sh.connect();
+    const s0 = f.sockets[0]!;
+    s0.serverSends(hello);
+    s0.serverSends(ready(1));
+    expect(sh.send(4, join)).toBe(true);
+    expect(s0.sent.at(-1)).toEqual({ op: 4, d: join });
+    // A resume keeps the voice state on the server: nothing is re-sent.
+    s0.serverSends({ op: 7, d: null });
+    vi.advanceTimersByTime(20);
+    const s1 = f.sockets[1]!;
+    s1.serverSends(hello);
+    expect(s1.sent[0]).toMatchObject({ op: 6 });
+    s1.serverSends({ op: 0, s: 2, t: 'RESUMED', d: {} });
+    expect(s1.sent).toHaveLength(1);
+    // The session is gone for good: a fresh IDENTIFY, then READY, then the same join again.
+    s1.serverSends({ op: 9, d: false });
+    vi.advanceTimersByTime(40);
+    const s2 = f.sockets[2]!;
+    s2.serverSends(hello);
+    expect(s2.sent[0]).toMatchObject({ op: 2 });
+    s2.serverSends(ready(1));
+    expect(s2.sent[1]).toEqual({ op: 4, d: join });
+    // After a leave the next fresh session does not join.
+    expect(sh.send(4, { guild_id: '1', channel_id: null })).toBe(true);
+    s2.serverSends({ op: 9, d: false });
+    vi.advanceTimersByTime(100);
+    const s3 = f.sockets[3]!;
+    s3.serverSends(hello);
+    s3.serverSends(ready(1));
+    expect(s3.sent).toHaveLength(1);
+    sh.destroy();
+  });
+
   it('invalid session (false) forgets the session and identifies on the base url', () => {
     const f = socketFactory();
     const sh = new Shard(opts(f));
