@@ -8,6 +8,27 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 26 - 2026-10-26
+
+- **Emoji, stickers and sounds work everywhere.** Your server's emoji, stickers and sounds can be used in your other
+  servers, in DMs and in group DMs. The emoji, sticker and soundboard pickers show one section per server you belong
+  to.
+- **Servers decide whether their expressions leave.** A new role permission, "Use Expressions Externally" (on by
+  default), controls whether members with a role may use the server's emoji, stickers and sounds elsewhere. A
+  channel that does not allow external emoji, stickers or sounds shows other servers' sections greyed out with the
+  reason.
+- **View as Role shows the member list and threads too.** While previewing a role, the member list and the thread
+  lists show only what that role could see.
+- **The DM spam filter's "All" level now covers friends.** A friend's message that looks like spam stays in the
+  conversation behind a "likely spam" notice you can open; it is never moved to Message Requests.
+- **The installed app updates and works offline more reliably.** After a visit to the offline page the app no longer
+  kept showing "You're offline" once you were back; the What's new badge also clears in every open tab at once.
+- **Phone fixes.** The Library footer links wrap and the Cinema's top bar scrolls instead of pushing the page
+  sideways.
+- **Bot developers:** both bot SDKs can now encode and decode Opus audio (`voice-opus` in sr-sdk, `OpusEncoder` in
+  @sideroom/bot), so a bot can play a sound without bringing its own encoder; the TypeScript bot also rejoins its voice
+  channel after a fresh gateway session. Building sr-sdk with `voice-opus` needs cmake.
+
 ## Phase 25 - 2026-10-26
 
 - **The developer portal's Review tab works again.** Opening Review on an application that had a version crashed
