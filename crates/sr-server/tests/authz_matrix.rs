@@ -829,6 +829,7 @@ fn pick_id(v: &Value) -> Option<String> {
     [
         &v["id"],
         &v["upload"]["id"],
+        &v["attachments"][0]["upload_id"],
         &v["token"]["id"],
         &v["bundle"]["id"],
         &v["submission"]["id"],
@@ -1949,6 +1950,12 @@ async fn seed(
                 format!("/admin/library/chapters/{c}/uploads"),
                 Some(json!({"filename": "a.zip", "size_bytes": 10}))
             );
+            put!(
+                "lib_upload2_id",
+                &staff,
+                format!("/admin/library/chapters/{c}/uploads"),
+                Some(json!({"filename": "b.zip", "size_bytes": 10}))
+            );
             put!("library_comment_id", &member_cred, format!("/library/chapters/{c}/comments"), None);
         }
         put!("cinema_comment_id", &member_cred, format!("/cinema/titles/{t}/comments"), None);
@@ -2246,7 +2253,16 @@ async fn seed(
             if j.status != 200 {
                 println!("authz_matrix: seed party join -> {} {}", j.status, j.body.chars().take(140).collect::<String>());
             }
-            let q = srv
+            let mut q = srv
+                .call(
+                    &member_cred,
+                    "POST",
+                    &format!("/watch-parties/{party}/queue"),
+                    Some(&json!({"title_id": t})),
+                )
+                .await;
+            // Two items: the write phase's `next` plays the first.
+            q = srv
                 .call(
                     &member_cred,
                     "POST",
@@ -2255,7 +2271,7 @@ async fn seed(
                 )
                 .await;
             let pv: Value = serde_json::from_str(&q.body).unwrap_or(Value::Null);
-            if let Some(id) = pv["queue"][0]["id"].as_str() {
+            if let Some(id) = pv["queue"][1]["id"].as_str() {
                 a.insert("queue_item_id", id.to_owned());
             } else {
                 println!("authz_matrix: seed queue item -> {} {}", q.status, q.body.chars().take(140).collect::<String>());
@@ -2286,6 +2302,19 @@ async fn seed(
     {
         let t = a.get("title_id").cloned().unwrap_or_default();
         a.insert("insider_id", u("insider").to_string());
+        a.insert("key", sr_admin::ENTRANCE_COPY_KEYS[0].to_owned());
+        a.insert("member_id", u("member").to_string());
+        if let Some(id) = mk(
+            &srv,
+            infos,
+            &staff,
+            "/submissions",
+            Some(json!({"kind": "library.series", "payload": {"title": "Owner series", "kind": "manga"}, "title": "Owner series", "summary": "authz matrix"})),
+        )
+        .await
+        {
+            a.insert("own_submission_id", id);
+        }
         let theme = |id: &str| {
             let m = json!({"id": id, "name": id, "version": "1.0.0", "author": "me", "targets": ["lounge"], "scheme": "dark"});
             zip_of(&[
@@ -2662,11 +2691,14 @@ fn rightful_of(r: &Route) -> &'static str {
         a
     } else if r.access != "authenticated" {
         "anon"
+    } else if r.path.contains("/commands") && r.path.starts_with("/applications/") {
+        // Slash command management is the bot's (the owner's session is refused: "Only bots").
+        "bot_in"
     } else if r.authz == "staff" || r.path.starts_with("/moderation") {
         "staff_owner"
     } else if r.authz == "owner" {
         "app_owner"
-    } else if r.path.contains("/call/") {
+    } else if r.path.contains("/call/") || r.path.starts_with("/packages") {
         "member"
     } else if (r.path.starts_with("/cinema/") || r.path.starts_with("/library/"))
         || r.path.starts_with("/users/{user_id}/guestbook")
@@ -3101,6 +3133,10 @@ fn write_late(method: &str, path: &str) -> bool {
             // Removing members ends what the member routes before them act on.
             | ("DELETE", "/guilds/{guild_id}/bans/{user_id}")
             | ("DELETE", "/webhooks/{webhook_id}")
+            // The host leaving ends the party.
+            | ("POST", "/watch-parties/{party_id}/leave")
+            | ("DELETE", "/channels/{channel_id}")
+            | ("DELETE", "/guilds/{guild_id}/channels/{channel_id}")
             | ("PUT", "/guilds/{guild_id}/bans/{user_id}")
             | ("POST", "/guilds/{guild_id}/prune")
             | ("POST", "/guilds/{guild_id}/bulk-ban")
@@ -3120,6 +3156,7 @@ fn write_root(path: &str) -> bool {
             | "/admin/cinema/titles/{title_id}"
             | "/admin/cinema/seasons/{season_id}"
             | "/watch-parties/{party_id}"
+            | "/guilds/{guild_id}"
     )
 }
 
@@ -3128,7 +3165,7 @@ fn write_root(path: &str) -> bool {
 fn write_ending(method: &str, path: &str) -> bool {
     matches!(
         (method, path),
-        ("POST", "/watch-parties/{party_id}/leave")
+        ("POST", "/never")
     )
 }
 
@@ -3151,6 +3188,8 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
             ("webhook_id", world.a["webhook2_id"].clone()),
             ("token", world.a["token2"].clone()),
         ]
+    } else if r.method == "DELETE" && r.path == "/admin/library/uploads/{upload_id}" {
+        vec![("upload_id", world.a["lib_upload2_id"].clone())]
     } else if r.path == "/admin/cinema/titles/{title_id}/merge" {
         vec![("title_id", world.a["merge_title_id"].clone())]
     } else if r.path == "/admin/library/series/{series_id}/merge" {
@@ -3171,7 +3210,11 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/admin/cinema/titles/{title_id}/merge") => r#"{"target_id":"{title_id}"}"#,
         ("POST", "/admin/library/series/{series_id}/merge") => r#"{"target_id":"{series_id}"}"#,
         ("POST", "/watch-parties") => r#"{"title_id":"{title_id}","channel_id":"{channel_id}"}"#,
-        ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{insider_id}"}"#,
+        // The host hands the party to itself: allowed, and the member keeps the control the rest needs.
+        ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
+        ("POST", "/developers/tester-invites/{invite_id}/respond")
+        | ("POST", "/staff/offers/{offer_id}/respond") => r#"{"accept":true}"#,
+        ("POST", "/applications/{application_id}/activity/submit") => r#"{"bundle_id":"{bundle_id}"}"#,
         ("POST", "/moderation/evasion-signals/{signal_id}/link-case") => r#"{"case_id":"{case_id}"}"#,
         ("POST", "/admin/data-requests") => r#"{"kind":"export","account_id":"{user_id}"}"#,
         ("POST", "/channels/{channel_id}/attachments") => {
@@ -3715,6 +3758,7 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/developers/tester-invites/"], "invite_id", "tester_invite_id"),
     (&["/staff/offers/"], "offer_id", "staff_offer_id"),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
+    (&["submissions/{submission_id}/publish-now"], "submission_id", "own_submission_id"),
     (&["/admin/data-requests/"], "request_id", "data_request_id"),
     (&["/admin/developers/packages/versions/"], "version_id", "pending_version_id"),
     (&["/packages/versions/"], "version_id", "withdraw_version_id"),
