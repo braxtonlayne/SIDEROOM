@@ -691,7 +691,8 @@ impl<R: SocialRepository> SocialService<R> {
     /// Message Requests as pending, and the message trips the spam heuristics
     /// ([`super::safety::dm_spam_reason`]), the request moves to "Likely spam" (state `Spam`, reason
     /// `spam`). It stays out of the recipient's DM list and notifications as every unaccepted request
-    /// does. Returns the heuristic that fired.
+    /// does. Returns the heuristic that fired. Friends are never moved: at level `All` a friend's hit is carried as a
+    /// message flag instead ([`Self::friend_dm_spam_flag`], PAR-FU-002).
     pub async fn screen_dm_message(
         &self,
         channel: ChannelId,
