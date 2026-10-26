@@ -1,7 +1,7 @@
 # feat/p26-lounge-followups (PAR-FU-001, PAR-FU-002)
 
-Resume here: both items are built and ticked (U-02, U-03). The only open point is the Playwright run of
-`view-as-role.spec.ts` (see "Tests run"); everything else is done.
+Resume here: both items are built, tested and ticked (U-02, U-03). Nothing is left open; the sections below are the
+record and the owner questions.
 
 ## Done
 
@@ -27,6 +27,8 @@ Resume here: both items are built and ticked (U-02, U-03). The only open point i
 - `cargo test -p sr-db --test p24_parity -- --include-ignored --test-threads=1` on scratch DB `sr_p26_lounge_followups`:
   2 passed (new: `the_all_level_flags_a_friends_spammy_message_without_filing_a_request`).
 - `cargo fmt --check` and `cargo clippy -p sr-chat -p sr-db --all-targets -D warnings`: clean.
+- Playwright (chromium, own ports 8082/5175, scratch DB, stopped by PID afterwards): `view-as-role.spec.ts` 2 passed,
+  including the new member-list test.
 - Web: `viewAsMode.test.tsx` (5), `p26LikelySpam.test.tsx` (3), `messages.test.tsx`, plus i18n, threads, live and
   settings/server suites (241 passed); typecheck and eslint clean; prettier applied.
 

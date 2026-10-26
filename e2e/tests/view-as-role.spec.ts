@@ -71,6 +71,8 @@ test('View Server As Role hides members who cannot view the open channel', async
     ],
   });
 
+  // The member is online (offline members sit in their own group, which is not what is under test).
+  await b.page.goto(`/channels/${guildId}`);
   await page.goto(`/settings/server/${guildId}/roles`);
   await page.getByRole('button', { name: 'View Server As Role' }).click();
   const dialog = page.getByRole('dialog', { name: 'View Server As Role' });
@@ -78,7 +80,9 @@ test('View Server As Role hides members who cannot view the open channel', async
   await dialog.getByRole('button', { name: 'Preview in the Lounge' }).click();
   await expect(page.getByTestId('view-as-banner')).toBeVisible();
   const members = page.getByRole('list', { name: 'Members' });
-  // #general is open to everyone: both people show.
+  // #general is open to everyone: both people show (the preview may open either channel first).
+  const sidebar = page.getByTestId('channel-sidebar');
+  await sidebar.getByRole('link', { name: 'general' }).click();
   await expect(members).toContainText(b.user.username);
   // A full page load would end the preview, so move to the staff channel through the sidebar.
   await page
