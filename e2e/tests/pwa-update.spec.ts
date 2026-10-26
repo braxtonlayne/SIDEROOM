@@ -282,9 +282,13 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
     await putLedgerRow(page, 'p26-ledger-row');
 
     // ---- 2. Offline with A: the cached shell serves the Lounge; with no shell cached the offline page shows.
+    // Code is cached the first time it is used (sw.js), so the Lounge's chunks are fetched once online. There is no
+    // API here, so the app ends on its signed-out or error screen; what matters is that the shell and its code ran.
+    await page.goto(`${ORIGIN}/channels`);
+    await page.waitForLoadState('networkidle');
     await context.setOffline(true);
     await page.goto(`${ORIGIN}/channels`);
-    await expect(page.locator('#root')).toBeAttached();
+    await expect(page.locator('#root > *').first()).toBeAttached();
     await expect(page.getByRole('heading', { name: "You're offline" })).toHaveCount(0);
     await expect(page).toHaveTitle(/SIDE ROOM/);
     await page.goto(`${ORIGIN}/login`);
@@ -310,6 +314,15 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
         ),
       )
       .toBe(true);
+
+    // Opening the offline page itself while online must not turn it into the shell (it once was stored as one, and
+    // every offline navigation then showed "You're offline" for as long as the worker lived).
+    await page.goto(`${ORIGIN}/offline.html`);
+    await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
+    await context.setOffline(true);
+    await page.goto(`${ORIGIN}/login`);
+    await expect(page.getByRole('heading', { name: 'Come on in.' })).toBeVisible();
+    await context.setOffline(false);
 
     // ---- 3. Deploy B: the new worker installs and waits; the page offers it.
     await serve(dirB);
