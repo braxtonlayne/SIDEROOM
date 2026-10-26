@@ -2,9 +2,8 @@
 
 ## Resume here
 
-Slices 1 (User Settings > Storage) and 2 (Guild Settings > Storage) done and committed. Next slices, in order:
+Done and committed: User Settings > Storage, Guild Settings > Storage, IAM policy examples, role editor Storage grants. Next slices, in order:
 
-2. Role editor "Storage" group: five toggles (view_cinema, view_library, view_music, upload, manage) in `settings/server/permissions.ts` + `RoleEditor`; payload field `sr_storage_grants`; NOT in channel overwrites (test for that). Route (byos-scopes): `PUT /guilds/{guild_id}/storage/grants`.
 3. Friend Shelf toggles (friend profile card, Settings > Friends): `PUT/DELETE /users/@me/storage/mounts/{mount_id}/shares/{user_id}`, `GET /users/@me/storage/shares`.
 4. Bucket browser `/storage/{mount}` (route, folder tree, object list, presigned previews, copy link with expiry).
 5. Appearance > Sections nav modes (Always show | Always hide | Auto from `GET /users/@me/shelves/summary`) + top tabs hook.
@@ -15,12 +14,14 @@ Mocks live in ONE file: `apps/web/src/settings/user/storage/mocks.ts` (`byosMock
 
 ## Done
 
+- Role editor Storage group (`settings/server/storage/GrantsCard.tsx`, inside the role's Permissions tab; five switches saved at once via `PUT /guilds/{gid}/storage/grants` body `{ role_id, grants: [...] }` -> 204; current set read from `role.sr_storage_grants`; not in `permissions.ts`, so never in channel overwrites, asserted by a test).
+- Connect guidance: least-privilege policy JSON (s3, wasabi, minio; bucket and prefix filled in live from the form) with Copy button and a check-your-provider's-docs line; R2/B2/Garage give scopes in words plus the same reminder (`storage/policy.ts`).
 - Guild Settings > Storage (`settings/server/storage/StorageSection.tsx`, section `storage` in the APPS group, visible with MANAGE_GUILD which implies the `manage` grant; the real grant check is server-side): reuses `MountsPanel` with the guild scope.
 - BYOS-UI-001 (part): User Settings > Storage (`storage/MountsPanel.tsx`, `StorageSection.tsx`, nav entry `storage`, search index): mount list with status and key hint, connect form with per-provider defaults and guidance, test table (pass/warn/fail), CORS card (check, Apply CORS, manual steps), enable/disable, remove with confirm.
 
 ## Still open
 
-Everything in "Resume here" (items renumbered from 2).
+Everything in "Resume here".
 
 ## Tests run
 

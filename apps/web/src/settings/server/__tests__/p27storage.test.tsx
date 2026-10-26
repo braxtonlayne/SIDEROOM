@@ -1,7 +1,8 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { byosMockHandlers, mockMount } from '../../user/storage/mocks';
-import { MANAGE, openSettings, seed, server } from './helpers';
+import { PERMISSIONS } from '../permissions';
+import { http, HttpResponse, MANAGE, openSettings, restRoles, seed, server } from './helpers';
 
 vi.mock('../../../store/connect', () => ({
   connectGateway: vi.fn(),
@@ -34,5 +35,34 @@ describe('Server settings > Storage (BYOS-UI-001, against MSW mocks)', () => {
     expect(
       await screen.findByRole('table', { name: 'Connection test results' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('Role editor > Storage grants', () => {
+  it('shows the five grants, saves one through the grants route, and keeps them out of the permission catalog', async () => {
+    seed({ perms: [MANAGE.roles, MANAGE.guild], position: 7 });
+    const user = userEvent.setup();
+    let put: unknown;
+    server.use(
+      http.get('*/api/v1/guilds/g1/roles', () =>
+        HttpResponse.json(
+          restRoles().map((r) =>
+            r.name === 'Member' ? { ...r, sr_storage_grants: ['view_cinema'] } : r,
+          ),
+        ),
+      ),
+      http.put('*/api/v1/guilds/g1/storage/grants', async ({ request }) => {
+        put = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await openSettings('roles');
+    await user.click(await screen.findByRole('button', { name: 'Member' }));
+    await user.click(screen.getByRole('tab', { name: 'Permissions' }));
+    expect(screen.getAllByRole('switch', { name: /storage|shelf/i })).toHaveLength(5);
+    expect(screen.getByRole('switch', { name: 'View shelf movies and shows' })).toBeChecked();
+    await user.click(screen.getByRole('switch', { name: 'Upload to the shelf' }));
+    await waitFor(() => expect(put).toEqual({ role_id: 'low', grants: ['view_cinema', 'upload'] }));
+    expect(PERMISSIONS.some((p) => /storage|shelf/i.test(p.id))).toBe(false);
   });
 });

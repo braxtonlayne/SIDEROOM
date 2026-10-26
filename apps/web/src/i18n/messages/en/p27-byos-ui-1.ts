@@ -5,6 +5,15 @@ export default {
   'settings.serverStorage.title': 'Storage',
   'settings.serverStorage.description':
     'Connect a bucket as the shared Guild Shelf of this server. Members see it according to the storage permissions of their roles.',
+  'settings.storageGrants.title': 'Storage',
+  'settings.storageGrants.description':
+    'What members with this role can do with the Guild Shelf. These are storage grants, not channel permissions, so they cannot be overridden per channel.',
+  'settings.storageGrants.failed': 'Could not save the storage grants',
+  'settings.storageGrants.grant.view_cinema': 'View shelf movies and shows',
+  'settings.storageGrants.grant.view_library': 'View shelf books and comics',
+  'settings.storageGrants.grant.view_music': 'View shelf music',
+  'settings.storageGrants.grant.upload': 'Upload to the shelf',
+  'settings.storageGrants.grant.manage': 'Manage storage',
   'settings.storage.title': 'Storage',
   'settings.storage.what': 'storage connections',
   'settings.storage.listTitle': 'Media Shelf buckets',
