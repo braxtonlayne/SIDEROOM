@@ -35,6 +35,9 @@ base64 = { version = "0.23.1", optional = true }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "std"], optional = true }
 sr-e2ee = { path = "../sr-e2ee", optional = true }
 str0m = { version = "0.24.1", default-features = false, features = ["rust-crypto"], optional = true }
+# D-377, D-378: an Opus encoder for bots (libopus 1.6.1 vendored by opusic-sys, built with cmake). The
+# `voice-opus` feature that turns it on is wave 26's DEV-FU-002; D-201 (no libopus in the server) stands.
+opus = { version = "0.4.0", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "time", "sync", "macros", "net", "test-util", "rt-multi-thread"] }
