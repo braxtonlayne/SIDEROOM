@@ -8,6 +8,21 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 25 - 2026-10-26
+
+- **The developer portal's Review tab works again.** Opening Review on an application that had a version crashed
+  the page; it now lists what changed in each version.
+- **Watch parties keep their playback to themselves.** Someone who is not in a watch party no longer learns what is
+  playing or where it is; a participant who was dropped still sees "You are no longer in this watch party".
+- **Duplicate-account checks look at the newest ban first.** When a new account is linked to several banned people,
+  staff now always get the signal for the most recent ban.
+- **Operators:** Admin > System has a "Stored data" card with the size of the object store, Library media and
+  Cinema media, measured once a day (a very large bucket shows a lower bound until you raise
+  `ops.storage_measure_max_objects` in Limits & settings); the same figures are on the `sr_storage_bytes` gauge.
+  Backups now remove a half-written `.dump.partial` older than an hour. `deploy/UPGRADE.md` gained the deploy-file
+  and `.env.prod` step, the Compose backup command and a rollback that restores into a fresh database, and CI now
+  rehearses an upgrade and a rollback on seeded data.
+
 ## Phase 24 - 2026-10-25
 
 - **Group DM invite links from the picker.** Creating a group DM now offers its invite link right away, with a copy
