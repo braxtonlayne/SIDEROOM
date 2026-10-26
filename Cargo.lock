@@ -6606,6 +6606,7 @@ dependencies = [
  "futures",
  "hmac 0.13.0",
  "image",
+ "moka",
  "object_store",
  "reqwest 0.13.5",
  "sha2 0.11.0",

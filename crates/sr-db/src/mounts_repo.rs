@@ -206,4 +206,73 @@ impl MountRepo for PgMountRepo {
         .map_err(repo_err)?;
         Ok(res.rows_affected() > 0)
     }
+
+    async fn record_test(
+        &self,
+        id: i64,
+        at_ms: i64,
+        result_json: String,
+        status: Option<MountStatus>,
+    ) -> MountResult<bool> {
+        let res = sqlx::query(
+            "UPDATE storage_mounts SET last_test_at = to_timestamp($2::double precision / 1000.0),
+                last_test = $3::jsonb, status = COALESCE($4, status), updated_at = now()
+             WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .bind(at_ms)
+        .bind(result_json)
+        .bind(status.map(MountStatus::as_str))
+        .execute(&self.pool)
+        .await
+        .map_err(repo_err)?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    async fn set_cors_ok(&self, id: i64, at_ms: Option<i64>) -> MountResult<bool> {
+        let res = sqlx::query(
+            "UPDATE storage_mounts SET cors_ok_at = to_timestamp($2::double precision / 1000.0), updated_at = now()
+             WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .bind(at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(repo_err)?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    async fn list_enabled(&self) -> MountResult<Vec<Mount>> {
+        let sql = format!(
+            "SELECT {COLS} FROM storage_mounts
+             WHERE deleted_at IS NULL AND status <> 'disabled' ORDER BY id"
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(repo_err)?;
+        rows.iter().map(row_to_mount).collect()
+    }
+
+    async fn list_all(&self) -> MountResult<Vec<Mount>> {
+        let sql = format!("SELECT {COLS} FROM storage_mounts WHERE deleted_at IS NULL ORDER BY id");
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(repo_err)?;
+        rows.iter().map(row_to_mount).collect()
+    }
+
+    async fn set_sealed(&self, id: i64, sealed: SealedSecret) -> MountResult<bool> {
+        let res = sqlx::query(
+            "UPDATE storage_mounts SET secret_key_enc = $2, updated_at = now()
+             WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .bind(sealed.as_bytes())
+        .execute(&self.pool)
+        .await
+        .map_err(repo_err)?;
+        Ok(res.rows_affected() > 0)
+    }
 }

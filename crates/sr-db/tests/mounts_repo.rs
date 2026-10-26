@@ -165,3 +165,81 @@ async fn concurrent_creates_cannot_pass_the_cap() {
     assert_eq!(repo.for_owner(me).await.unwrap().len(), 3);
     db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn test_results_cors_flag_listing_and_rotation() {
+    let db = TestDb::new().await.expect("db");
+    let repo = PgMountRepo::new(db.pool().clone());
+    let old = SecretBox::new([3; 32]);
+    let me = MountOwner::User(3003);
+    repo.create(new_mount(&old, 8001, me, "A"), None)
+        .await
+        .unwrap();
+    repo.create(new_mount(&old, 8002, me, "B"), None)
+        .await
+        .unwrap();
+
+    assert!(
+        repo.record_test(
+            8001,
+            1_700_000_000_000,
+            r#"{"rows":[]}"#.into(),
+            Some(MountStatus::Failing)
+        )
+        .await
+        .unwrap()
+    );
+    let m = repo.by_id(8001).await.unwrap().unwrap();
+    assert_eq!(m.status, MountStatus::Failing);
+    assert_eq!(m.last_test_at, Some(1_700_000_000_000));
+    assert!(m.last_test.unwrap().contains("rows"));
+    assert!(!repo.record_test(999, 1, "{}".into(), None).await.unwrap());
+
+    assert!(
+        repo.set_cors_ok(8002, Some(1_700_000_001_000))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        repo.by_id(8002).await.unwrap().unwrap().cors_ok_at,
+        Some(1_700_000_001_000)
+    );
+    assert!(repo.set_cors_ok(8002, None).await.unwrap());
+    assert!(
+        repo.by_id(8002)
+            .await
+            .unwrap()
+            .unwrap()
+            .cors_ok_at
+            .is_none()
+    );
+
+    repo.update(
+        8002,
+        MountPatch {
+            status: Some(MountStatus::Disabled),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(repo.list_enabled().await.unwrap().len(), 1);
+    assert_eq!(repo.list_all().await.unwrap().len(), 2);
+
+    // Rotation: re-seal every row under a new key; the old key alone no longer opens them.
+    let rotated = SecretBox::new([4; 32]).with_previous_keys(vec![[3; 32]]);
+    for m in repo.list_all().await.unwrap() {
+        let sealed = m.secret_key_enc.reseal(&rotated, m.id).unwrap();
+        assert!(repo.set_sealed(m.id, sealed).await.unwrap());
+    }
+    let only_new = SecretBox::new([4; 32]);
+    for m in repo.list_all().await.unwrap() {
+        assert_eq!(
+            m.secret_key_enc.open(&only_new, m.id).unwrap().expose(),
+            SECRET
+        );
+        assert!(m.secret_key_enc.open(&old, m.id).is_err());
+    }
+    db.cleanup().await.unwrap();
+}

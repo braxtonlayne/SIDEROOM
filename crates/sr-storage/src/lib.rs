@@ -9,6 +9,7 @@ pub mod cdn;
 pub mod error;
 pub mod img;
 pub mod media;
+pub mod mount_cache;
 pub mod mounts;
 pub mod s3admin;
 pub mod s3multipart;

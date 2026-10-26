@@ -398,6 +398,24 @@ pub trait MountRepo: MountResolver {
     async fn update(&self, id: i64, patch: MountPatch) -> MountResult<Option<Mount>>;
     /// Soft delete; `false` when there was no live mount.
     async fn soft_delete(&self, id: i64) -> MountResult<bool>;
+
+    /// Store a connection test result (`result_json`) at `at_ms` and, when given, set the status
+    /// (a failed test sets `failing`; a clean one on a `failing` mount sets `active`). `false` when no live mount.
+    async fn record_test(
+        &self,
+        id: i64,
+        at_ms: i64,
+        result_json: String,
+        status: Option<MountStatus>,
+    ) -> MountResult<bool>;
+    /// Set or clear (`None`) when the CORS check last passed. `false` when no live mount.
+    async fn set_cors_ok(&self, id: i64, at_ms: Option<i64>) -> MountResult<bool>;
+    /// Every live mount that is not disabled, for the daily CORS recheck.
+    async fn list_enabled(&self) -> MountResult<Vec<Mount>>;
+    /// Every live mount, any status, platform included, for `rotate-secret-key`.
+    async fn list_all(&self) -> MountResult<Vec<Mount>>;
+    /// Replace only the sealed secret (key rotation). `false` when no live mount.
+    async fn set_sealed(&self, id: i64, sealed: SealedSecret) -> MountResult<bool>;
 }
 
 type Rows = BTreeMap<i64, (Mount, bool)>;
@@ -553,6 +571,70 @@ impl MountRepo for MemoryMountRepo {
         Ok(match rows.get_mut(&id) {
             Some((_, deleted)) if !*deleted => {
                 *deleted = true;
+                true
+            }
+            _ => false,
+        })
+    }
+
+    async fn record_test(
+        &self,
+        id: i64,
+        at_ms: i64,
+        result_json: String,
+        status: Option<MountStatus>,
+    ) -> MountResult<bool> {
+        let mut rows = self.lock()?;
+        Ok(match rows.get_mut(&id) {
+            Some((m, false)) => {
+                m.last_test_at = Some(at_ms);
+                m.last_test = Some(result_json);
+                if let Some(s) = status {
+                    m.status = s;
+                }
+                m.updated_at = now_ms();
+                true
+            }
+            _ => false,
+        })
+    }
+
+    async fn set_cors_ok(&self, id: i64, at_ms: Option<i64>) -> MountResult<bool> {
+        let mut rows = self.lock()?;
+        Ok(match rows.get_mut(&id) {
+            Some((m, false)) => {
+                m.cors_ok_at = at_ms;
+                m.updated_at = now_ms();
+                true
+            }
+            _ => false,
+        })
+    }
+
+    async fn list_enabled(&self) -> MountResult<Vec<Mount>> {
+        Ok(self
+            .lock()?
+            .values()
+            .filter(|(m, d)| !d && m.status != MountStatus::Disabled)
+            .map(|(m, _)| m.clone())
+            .collect())
+    }
+
+    async fn list_all(&self) -> MountResult<Vec<Mount>> {
+        Ok(self
+            .lock()?
+            .values()
+            .filter(|(_, d)| !d)
+            .map(|(m, _)| m.clone())
+            .collect())
+    }
+
+    async fn set_sealed(&self, id: i64, sealed: SealedSecret) -> MountResult<bool> {
+        let mut rows = self.lock()?;
+        Ok(match rows.get_mut(&id) {
+            Some((m, false)) => {
+                m.secret_key_enc = sealed;
+                m.updated_at = now_ms();
                 true
             }
             _ => false,
@@ -780,5 +862,37 @@ mod tests {
         repo.create(new_mount(15, me, "One"), Some(2))
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn memory_repo_records_tests_cors_and_lists() {
+        let repo = MemoryMountRepo::new();
+        let me = MountOwner::User(1);
+        repo.create(new_mount(10, me, "A"), None).await.unwrap();
+        repo.create(new_mount(11, me, "B"), None).await.unwrap();
+        assert!(
+            repo.record_test(10, 5, "{}".into(), Some(MountStatus::Failing))
+                .await
+                .unwrap()
+        );
+        let m = repo.by_id(10).await.unwrap().unwrap();
+        assert_eq!((m.status, m.last_test_at), (MountStatus::Failing, Some(5)));
+        assert!(repo.set_cors_ok(11, Some(9)).await.unwrap());
+        assert_eq!(repo.by_id(11).await.unwrap().unwrap().cors_ok_at, Some(9));
+        let off = MountPatch {
+            status: Some(MountStatus::Disabled),
+            ..Default::default()
+        };
+        repo.update(11, off).await.unwrap();
+        assert_eq!(repo.list_enabled().await.unwrap().len(), 1);
+        assert_eq!(repo.list_all().await.unwrap().len(), 2);
+        let s = SealedSecret::seal(&XorSealer(1), 10, &Secret::new("n")).unwrap();
+        assert!(repo.set_sealed(10, s).await.unwrap());
+        assert!(
+            !repo
+                .set_sealed(99, SealedSecret::from_bytes(vec![]))
+                .await
+                .unwrap()
+        );
     }
 }
