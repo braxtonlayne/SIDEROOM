@@ -28,7 +28,8 @@ pub const CORS_METHODS: [&str; 3] = ["PUT", "GET", "HEAD"];
 /// PUT (the p24 library gate); the composer never noticed because its part PUTs carry no content type.
 pub const CORS_ALLOWED_HEADERS: [&str; 1] = ["content-type"];
 /// Response headers the page may read.
-pub const CORS_EXPOSE_HEADERS: [&str; 1] = ["ETag"];
+pub const CORS_EXPOSE_HEADERS: [&str; 4] =
+    ["ETag", "Content-Range", "Accept-Ranges", "Content-Length"];
 const CORS_MAX_AGE_SECONDS: u32 = 3600;
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
@@ -219,6 +220,69 @@ impl std::fmt::Debug for S3Admin {
     }
 }
 
+/// An S3 answer: the status and the (text) body. Binary bodies are not needed by the admin calls.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct S3Reply {
+    /// HTTP status.
+    pub status: u16,
+    /// Response body as text.
+    pub body: String,
+}
+
+impl S3Reply {
+    /// A 2xx answer.
+    pub fn ok(&self) -> bool {
+        (200..300).contains(&self.status)
+    }
+    /// The S3 error `<Code>` of an XML error body.
+    pub fn code(&self) -> Option<String> {
+        xml_tag(&self.body, "Code")
+    }
+    /// A short English reason for a failed call, with no body text beyond the S3 error code.
+    pub fn reason(&self) -> String {
+        match (self.status, self.code()) {
+            (_, Some(c)) => format!("{} ({c})", status_words(self.status)),
+            (s, None) => status_words(s).to_owned(),
+        }
+    }
+}
+
+fn status_words(status: u16) -> &'static str {
+    match status {
+        301 | 307 | 308 => "the bucket is in another region or endpoint",
+        400 => "the service rejected the request",
+        401 | 403 => "access denied for this key",
+        404 => "not found",
+        405 | 501 => "the service does not support this call",
+        409 => "conflict",
+        500..=599 => "the service had an error",
+        _ => "unexpected answer",
+    }
+}
+
+/// The text of the first `<tag>..</tag>` in `xml`.
+pub(crate) fn xml_tag(xml: &str, tag: &str) -> Option<String> {
+    let open = format!("<{tag}>");
+    let start = xml.find(&open)? + open.len();
+    let end = xml[start..].find(&format!("</{tag}>"))? + start;
+    Some(xml[start..end].to_owned())
+}
+
+/// Percent-encode per SigV4 (unreserved characters stay; `/` stays when `keep_slash`).
+fn uri_encode(s: &str, keep_slash: bool) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                out.push(b as char);
+            }
+            b'/' if keep_slash => out.push('/'),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
 impl S3Admin {
     /// Build a client for `endpoint` (e.g. `http://127.0.0.1:3900`) and `bucket`.
     pub fn new(
@@ -256,44 +320,190 @@ impl S3Admin {
     }
 
     /// Replace the bucket's CORS configuration with one rule allowing `origins`
-    /// to `PUT`, `GET` and `HEAD` (`Content-Type` allowed, `ETag` exposed).
+    /// to `PUT`, `GET` and `HEAD` (`Content-Type` allowed, `ETag` and the range headers exposed).
     /// Repeating the call is harmless: S3 replaces the configuration.
     pub async fn put_bucket_cors(&self, origins: &[String]) -> Result<()> {
+        let reply = self.put_bucket_cors_raw(origins).await?;
+        if reply.ok() {
+            Ok(())
+        } else {
+            Err(StorageError::Backend(format!(
+                "PUT bucket cors failed with {}: {}",
+                reply.status,
+                reply.body.chars().take(300).collect::<String>()
+            )))
+        }
+    }
+
+    /// [`Self::put_bucket_cors`] returning the service's answer instead of failing on a refusal.
+    pub async fn put_bucket_cors_raw(&self, origins: &[String]) -> Result<S3Reply> {
         let body = cors_xml(origins)?;
         let checksum = STANDARD.encode(Sha256::digest(body.as_bytes()));
-        self.send("PUT", Some((body, checksum))).await.map(|_| ())
+        let extra = [
+            ("x-amz-checksum-sha256", checksum),
+            ("x-amz-sdk-checksum-algorithm", "SHA256".to_owned()),
+            ("content-type", "application/xml".to_owned()),
+        ];
+        self.call(
+            "PUT",
+            Some(""),
+            &[("cors", "")],
+            Some(body.as_bytes()),
+            &extra,
+            None,
+        )
+        .await
     }
 
     /// The raw CORS configuration, or `None` when the bucket has none.
     pub async fn get_bucket_cors(&self) -> Result<Option<String>> {
-        self.send("GET", None).await
+        let reply = self.get_bucket_cors_raw().await?;
+        if reply.ok() {
+            return Ok(Some(reply.body));
+        }
+        if reply.status == 404 && reply.body.contains("NoSuchCORSConfiguration") {
+            return Ok(None);
+        }
+        Err(StorageError::Backend(format!(
+            "GET bucket cors failed with {}: {}",
+            reply.status,
+            reply.body.chars().take(300).collect::<String>()
+        )))
     }
 
-    async fn send(&self, method: &str, body: Option<(String, String)>) -> Result<Option<String>> {
+    /// [`Self::get_bucket_cors`] returning the service's answer as it is.
+    pub async fn get_bucket_cors_raw(&self) -> Result<S3Reply> {
+        self.call("GET", Some(""), &[("cors", "")], None, &[], None)
+            .await
+    }
+
+    /// `HeadBucket`.
+    pub async fn head_bucket(&self, timeout: Duration) -> Result<S3Reply> {
+        self.call("HEAD", Some(""), &[], None, &[], Some(timeout))
+            .await
+    }
+
+    /// `ListObjectsV2` with `max-keys=1` under `prefix`.
+    pub async fn list_one(&self, prefix: &str, timeout: Duration) -> Result<S3Reply> {
+        let q = [("list-type", "2"), ("max-keys", "1"), ("prefix", prefix)];
+        self.call("GET", Some(""), &q, None, &[], Some(timeout))
+            .await
+    }
+
+    /// `PutObject`.
+    pub async fn put_object(&self, key: &str, body: &[u8], timeout: Duration) -> Result<S3Reply> {
+        let extra = [("content-type", "application/octet-stream".to_owned())];
+        self.call("PUT", Some(key), &[], Some(body), &extra, Some(timeout))
+            .await
+    }
+
+    /// `GetObject` (the whole object; the admin calls only read tiny probe objects).
+    pub async fn get_object(&self, key: &str, timeout: Duration) -> Result<S3Reply> {
+        self.call("GET", Some(key), &[], None, &[], Some(timeout))
+            .await
+    }
+
+    /// `DeleteObject`.
+    pub async fn delete_object(&self, key: &str, timeout: Duration) -> Result<S3Reply> {
+        self.call("DELETE", Some(key), &[], None, &[], Some(timeout))
+            .await
+    }
+
+    /// `CreateMultipartUpload`; the reply body carries `<UploadId>`.
+    pub async fn create_multipart(&self, key: &str, timeout: Duration) -> Result<S3Reply> {
+        self.call(
+            "POST",
+            Some(key),
+            &[("uploads", "")],
+            None,
+            &[],
+            Some(timeout),
+        )
+        .await
+    }
+
+    /// `AbortMultipartUpload`.
+    pub async fn abort_multipart(
+        &self,
+        key: &str,
+        upload_id: &str,
+        timeout: Duration,
+    ) -> Result<S3Reply> {
+        let q = [("uploadId", upload_id)];
+        self.call("DELETE", Some(key), &q, None, &[], Some(timeout))
+            .await
+    }
+
+    /// `ListBuckets` (a service-level call; a bucket-scoped key is expected to be refused).
+    pub async fn list_buckets(&self, timeout: Duration) -> Result<S3Reply> {
+        self.call("GET", None, &[], None, &[], Some(timeout)).await
+    }
+
+    /// One signed request. `key` is `None` for the service root, `Some("")` for the bucket itself.
+    /// `query` values may be empty (a sub-resource such as `cors`). Transport failures are `Err`;
+    /// any HTTP answer is `Ok`.
+    async fn call(
+        &self,
+        method: &str,
+        key: Option<&str>,
+        query: &[(&str, &str)],
+        body: Option<&[u8]>,
+        extra: &[(&str, String)],
+        timeout: Option<Duration>,
+    ) -> Result<S3Reply> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
         let amz_date = amz_date(now);
         let host = self.host()?;
-        let payload = body.as_ref().map_or("", |(b, _)| b.as_str());
-        let payload_hash = sha256_hex(payload.as_bytes());
+        let payload = body.unwrap_or(&[]);
+        let payload_hash = sha256_hex(payload);
         let mut headers: Vec<(String, String)> = vec![
             ("host".into(), host),
             ("x-amz-content-sha256".into(), payload_hash.clone()),
             ("x-amz-date".into(), amz_date.clone()),
         ];
-        if let Some((_, checksum)) = &body {
-            // S3 requires an integrity header on PutBucketCors (Content-MD5 or a
-            // flexible checksum); SHA-256 needs no extra crate.
-            headers.push(("x-amz-checksum-sha256".into(), checksum.clone()));
-            headers.push(("x-amz-sdk-checksum-algorithm".into(), "SHA256".into()));
+        for (k, v) in extra {
+            // content-type is sent but not signed.
+            if *k != "content-type" {
+                headers.push(((*k).to_owned(), v.clone()));
+            }
         }
         headers.sort();
-        let uri = format!("/{}", self.bucket);
+        let uri = match key {
+            None => "/".to_owned(),
+            Some("") => format!("/{}", uri_encode(&self.bucket, false)),
+            Some(k) => format!(
+                "/{}/{}",
+                uri_encode(&self.bucket, false),
+                uri_encode(k.trim_start_matches('/'), true)
+            ),
+        };
+        let mut pairs: Vec<(String, String)> = query
+            .iter()
+            .map(|(k, v)| (uri_encode(k, false), uri_encode(v, false)))
+            .collect();
+        pairs.sort();
+        let canonical_query = pairs
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect::<Vec<_>>()
+            .join("&");
+        let url_query = pairs
+            .iter()
+            .map(|(k, v)| {
+                if v.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{k}={v}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("&");
         let auth = authorization(&SigningInput {
             method,
             canonical_uri: &uri,
-            canonical_query: "cors=",
+            canonical_query: &canonical_query,
             headers: &headers,
             payload_hash: &payload_hash,
             access_key: &self.access_key,
@@ -302,9 +512,16 @@ impl S3Admin {
             service: "s3",
             amz_date: &amz_date,
         });
-        let url = format!("{}{uri}?cors", self.endpoint);
+        let url = if url_query.is_empty() {
+            format!("{}{uri}", self.endpoint)
+        } else {
+            format!("{}{uri}?{url_query}", self.endpoint)
+        };
         let mut req = match method {
             "PUT" => self.client.put(&url),
+            "POST" => self.client.post(&url),
+            "DELETE" => self.client.delete(&url),
+            "HEAD" => self.client.head(&url),
             _ => self.client.get(&url),
         };
         for (k, v) in &headers {
@@ -312,30 +529,28 @@ impl S3Admin {
                 req = req.header(k.as_str(), v.as_str());
             }
         }
+        for (k, v) in extra {
+            if *k == "content-type" {
+                req = req.header("content-type", v.as_str());
+            }
+        }
         req = req.header("authorization", auth);
-        if let Some((b, _)) = body {
-            req = req.header("content-type", "application/xml").body(b);
+        if let Some(b) = body {
+            req = req.body(b.to_vec());
+        }
+        if let Some(t) = timeout {
+            req = req.timeout(t);
         }
         let resp = req
             .send()
             .await
             .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
-        let status = resp.status();
-        let text = resp
+        let status = resp.status().as_u16();
+        let body = resp
             .text()
             .await
             .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
-        if status.is_success() {
-            return Ok(Some(text));
-        }
-        if method == "GET" && status.as_u16() == 404 && text.contains("NoSuchCORSConfiguration") {
-            return Ok(None);
-        }
-        // Do not echo the whole body: it can be large and is not ours.
-        let snippet: String = text.chars().take(300).collect();
-        Err(StorageError::Backend(format!(
-            "{method} bucket cors failed with {status}: {snippet}"
-        )))
+        Ok(S3Reply { status, body })
     }
 }
 
