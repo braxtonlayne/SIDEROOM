@@ -257,7 +257,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // and bearer credentials authenticate against its stores (open question 56).
     let apps_repo = Arc::new(sr_db::apps_repo::PgAppsRepo::new(
         pool.clone(),
-        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys),
+        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys.clone()),
     ));
     // The plaintext signing-seed column is gone (migration 0803, G-85); seeds are sealed at rest.
     // Upgrading from before 0771: run the previous release once so its apps.seal_seeds job runs.
@@ -303,6 +303,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .context("configuring object storage")?,
         )
     };
+
+    // The instance bucket is mount 1 (BYOS-INS-001). Seed its row on first start and refuse to start when it
+    // names another bucket than `storage.bucket`. Services keep using `storage` below: mount 1 always
+    // resolves to this very handle (`MountStorages::for_mount(1)`), so the instance path is unchanged.
+    let mount_sealer =
+        sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys.clone());
+    let mount_repo = Arc::new(sr_db::mounts_repo::PgMountRepo::new(pool.clone()));
+    if s.endpoint != "memory:" {
+        crate::instance_mount::ensure_instance_mount(mount_repo.as_ref(), &mount_sealer, s)
+            .await
+            .context("seeding the instance storage mount")?;
+    }
+    let mount_storages =
+        sr_storage::mount_storage::MountStorages::new(storage, mount_repo, Arc::new(mount_sealer));
+    let storage: Arc<dyn ObjectStorage> = mount_storages.instance();
 
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.

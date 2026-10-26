@@ -59,3 +59,9 @@ Upgrading across several releases: step through each release in order, running `
 ## Release notes: the plaintext signing seed is gone (migration 0803, G-85)
 
 Migration `0803_drop_plaintext_signing_seed.sql` drops `applications.interactions_signing_seed`. Seeds have lived encrypted in `interactions_signing_seed_sealed` since `0771`, and the old column was emptied by the startup job `apps.seal_seeds` of the release that shipped `0771`. The upgrade order is therefore: first run a release that contains `0771` (any release after it) once, with `server.secret_key` set, then upgrade. If a plaintext seed is left, the migration stops with "run the previous release once to seal seeds" and changes nothing; start the previous release, then retry. The one-version rule does not cover this migration: the release before it still reads the dropped column at startup, so go back to the pre-upgrade dump (the second case of "Rolling back") if you must roll back past it.
+
+## Release notes: the instance bucket is storage mount 1 (migration 1420, BYOS-INS-001)
+
+No operator action. On first start the server records your `[storage]` bucket as mount 1 in `storage_mounts` (the access key's secret is sealed with `server.secret_key`, like every mount secret) and the media tables gain a `mount_id` column that defaults to 1, so existing rows keep pointing at the same bucket and the same keys. The `[storage]` config stays the source of truth for the instance bucket and nothing is copied or moved.
+
+One new refusal: if mount 1 already exists and `storage.bucket` names a different bucket, the server will not start (every existing media row names mount 1, so a silent switch would break them). Restore the old bucket name, or move the objects and then run `sr-cli storage set-instance-mount`. With `storage.endpoint = "memory:"` (test use) no mount is seeded.
