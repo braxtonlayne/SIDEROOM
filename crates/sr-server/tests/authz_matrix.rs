@@ -737,6 +737,7 @@ fn pick_id(v: &Value) -> Option<String> {
     [
         &v["id"],
         &v["upload"]["id"],
+        &v["token"]["id"],
         &v["submission"]["id"],
         &v["sound_id"],
     ]
@@ -1780,23 +1781,41 @@ async fn seed(
         let t = a.get("title_id").cloned().unwrap_or_default();
         let s = a.get("series_id").cloned().unwrap_or_default();
         let tv = a.get("tv_channel_id").cloned().unwrap_or_default();
-        mk(&srv, infos, &staff, &format!("/admin/cinema/titles/{t}/publish"), None).await;
+        // A published film with a playable asset and a runtime: Live TV can place it, comments can be made.
+        // The playable asset is a plain reference (no foreign key): the object store of this world cannot start an upload.
+        let asset: Option<i64> = Some(ids.generate().get() as i64);
+        sqlx::query("UPDATE video_titles SET published = true, published_at = now(), runtime_min = 90, asset_id = $2 WHERE id = $1")
+            .bind(t.parse::<i64>().unwrap_or(0))
+            .bind(asset)
+            .execute(&pool)
+            .await
+            .unwrap();
         put!("season_id", &staff, format!("/admin/cinema/titles/{t}/seasons"), None);
         if let Some(se) = a.get("season_id").cloned() {
             put!("episode_id", &staff, format!("/admin/cinema/seasons/{se}/episodes"), None);
         }
+        if let Some(e) = a.get("episode_id").and_then(|x| x.parse::<i64>().ok()) {
+            sqlx::query("UPDATE video_episodes SET published = true, published_at = now() WHERE id = $1")
+                .bind(e)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
         put!("trailer_id", &staff, format!("/admin/cinema/titles/{t}/trailers"), None);
         put!("variant_id", &staff, format!("/admin/cinema/titles/{t}/variants"), None);
-        put!("cinema_asset_id", &staff, "/admin/cinema/assets".into(), None);
         put!("collection_id", &staff, "/admin/cinema/collections".into(), None);
         mk(&srv, infos, &staff, &format!("/admin/library/series/{s}/publish"), None).await;
-        put!("edition_id", &staff, format!("/admin/library/series/{s}/editions"), None);
+        put!("edition_id", &staff, format!("/admin/library/series/{s}/editions"), Some(json!({"language": "en", "label": "Official"})));
         if let Some(e) = a.get("edition_id").cloned() {
             put!("volume_id", &staff, format!("/admin/library/editions/{e}/volumes"), None);
             put!("lib_chapter_id", &staff, format!("/admin/library/editions/{e}/chapters"), None);
         }
         if let Some(c) = a.get("lib_chapter_id").cloned() {
-            mk(&srv, infos, &staff, &format!("/admin/library/chapters/{c}/publish"), None).await;
+            sqlx::query("UPDATE reading_chapters SET published = true, published_at = now() WHERE id = $1")
+                .bind(c.parse::<i64>().unwrap_or(0))
+                .execute(&pool)
+                .await
+                .unwrap();
             put!(
                 "lib_upload_id",
                 &staff,
@@ -1808,10 +1827,20 @@ async fn seed(
         put!("cinema_comment_id", &member_cred, format!("/cinema/titles/{t}/comments"), None);
         put!("cinema_list_id", &member_cred, "/cinema/lists".into(), None);
         put!("library_list_id", &member_cred, "/library/lists".into(), None);
-        put!("source_id", &staff, "/admin/ingest-sources".into(), None);
+        put!(
+            "source_id",
+            &staff,
+            "/admin/ingest-sources".into(),
+            Some(json!({"label": "authz", "kind": "storage_import", "backend": "storage", "location": "imports/authz", "owner_id": u("staffowner").to_string()}))
+        );
         put!("token_id", &staff, "/admin/transcode/tokens".into(), None);
         if !tv.is_empty() {
-            put!("block_id", &staff, format!("/admin/tv/channels/{tv}/blocks"), None);
+            put!(
+                "block_id",
+                &staff,
+                format!("/admin/tv/channels/{tv}/blocks"),
+                Some(json!({"title_id": t.clone(), "start_ms": clock.now_unix_ms() + 2 * 86_400_000}))
+            );
             mk(&srv, infos, &staff, &format!("/admin/tv/channels/{tv}/publish"), None).await;
         }
     }
