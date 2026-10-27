@@ -110,7 +110,7 @@ impl Conn {
 }
 
 fn join(guild: GuildId, channel: ChannelId) -> Value {
-    json!({"op": 4, "d": {"guild_id": guild.to_string(), "channel_id": channel.to_string()}})
+    json!({"op": 4, "d": {"guild_id": guild.to_string(), "channel_id": channel.to_string(), "sr_e2ee": true}})
 }
 
 #[tokio::test]
@@ -191,7 +191,6 @@ async fn voice_joins_and_moderation_run_on_postgres_data() {
                 relay: None,
                 session_grace: Duration::from_secs(20),
                 calls: None,
-                e2ee: false,
             }),
             ..GatewayConfig::default()
         },

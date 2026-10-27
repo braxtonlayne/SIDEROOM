@@ -352,6 +352,7 @@ fn control_channel(c: &VoiceCommand) -> ChannelId {
         VoiceCommand::SetFlags { channel, .. }
         | VoiceCommand::Disconnect { channel, .. }
         | VoiceCommand::StreamViewers { channel, .. }
+        | VoiceCommand::E2eeKeyed { channel, .. }
         | VoiceCommand::CloseRoom { channel } => *channel,
     }
 }
@@ -483,8 +484,9 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
             tcp: HashMap::new(),
             next_sock: 0,
             draining: false,
-            last_counts: (0, 0, 0),
+            last_counts: (0, 0, 0, 0),
             pending_flags: HashMap::new(),
+            pending_keyed: HashMap::new(),
             events: events.clone(),
             live: live.clone(),
         };
@@ -538,6 +540,8 @@ const DROP_WARN_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// How long a flag change for a not-yet-joined participant is remembered (the token lifetime).
 const PENDING_FLAGS_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+/// Most keyed notices held for members who have not joined yet.
+const MAX_PENDING_KEYED: usize = 8192;
 
 /// Largest RFC 4571 frame accepted (a WebRTC datagram never exceeds the MTU).
 const TCP_MAX_FRAME: usize = 2048;
@@ -661,11 +665,13 @@ struct Actor {
     tcp: HashMap<SocketAddr, mpsc::Sender<Vec<u8>>>,
     next_sock: usize,
     draining: bool,
-    last_counts: (u64, u64, u64),
+    last_counts: (u64, u64, u64, u64),
     /// Flag changes that arrived before the participant joined (a moderator muted someone
     /// between `VOICE_SERVER_UPDATE` and their connection). Applied at join, dropped after
     /// the token lifetime.
     pending_flags: HashMap<(ChannelId, UserId), (Flags, Instant)>,
+    /// E2EE-keyed notices that arrived before the member joined the SFU (OPS-IMM-001), with their time.
+    pending_keyed: HashMap<(ChannelId, UserId), Instant>,
     events: tokio::sync::broadcast::Sender<SfuEvent>,
     live: Arc<LiveStats>,
 }
@@ -691,6 +697,7 @@ fn merge_snapshots(all: &[Snapshot]) -> Snapshot {
         forwarded_frames: all.iter().map(|s| s.forwarded_frames).sum(),
         governor_severity: all.iter().map(|s| s.governor_severity).max().unwrap_or(0),
         keyframe_requests: all.iter().map(|s| s.keyframe_requests).sum(),
+        unkeyed_frames: all.iter().map(|s| s.unkeyed_frames).sum(),
     }
 }
 
@@ -786,17 +793,20 @@ impl Actor {
             forwarded_packets: own.forwarded_packets,
             forwarded_frames: own.forwarded_frames,
             keyframe_requests: own.keyframe_requests,
+            unkeyed_frames: own.unkeyed_frames,
             ..snap
         };
         let counts = (
             snap.forwarded_packets,
             snap.forwarded_frames,
             snap.keyframe_requests,
+            snap.unkeyed_frames,
         );
         let deltas = metrics::Deltas {
             packets: counts.0.saturating_sub(self.last_counts.0),
             frames: counts.1.saturating_sub(self.last_counts.1),
             keyframes: counts.2.saturating_sub(self.last_counts.2),
+            unkeyed: counts.3.saturating_sub(self.last_counts.3),
         };
         self.last_counts = counts;
         metrics::publish(&snap, deltas);
@@ -807,6 +817,8 @@ impl Actor {
             .fetch_add((own.egress_bps.max(0.0) / 8.0) as u64, Ordering::Relaxed);
         self.pending_flags
             .retain(|_, (_, at)| now.saturating_duration_since(*at) <= PENDING_FLAGS_TTL);
+        self.pending_keyed
+            .retain(|_, at| now.saturating_duration_since(*at) <= PENDING_FLAGS_TTL);
         // Participants whose WebSocket stayed away past the resume window are dropped.
         let expired: Vec<_> = self
             .sessions
@@ -1011,6 +1023,10 @@ impl Actor {
         {
             flags = f;
         }
+        let e2ee_keyed = self
+            .pending_keyed
+            .remove(&(c.channel_id, c.user_id))
+            .is_some_and(|at| now.saturating_duration_since(at) <= PENDING_FLAGS_TTL);
         let pid = self
             .core
             .join(
@@ -1020,6 +1036,7 @@ impl Actor {
                     guild: c.guild_id,
                     channel: c.channel_id,
                     flags,
+                    e2ee_keyed,
                     candidates,
                 },
             )
@@ -1143,6 +1160,7 @@ impl Actor {
             }
             VoiceCommand::Disconnect { channel, user } => {
                 self.pending_flags.remove(&(channel, user));
+                self.pending_keyed.remove(&(channel, user));
                 self.core
                     .disconnect_user(channel, user, CloseReason::Disconnected);
             }
@@ -1154,7 +1172,26 @@ impl Actor {
             } => self
                 .core
                 .set_stream_viewers(now, channel, owner, viewers, live),
-            VoiceCommand::CloseRoom { channel } => self.core.close_room(channel),
+            VoiceCommand::E2eeKeyed {
+                channel,
+                user,
+                keyed,
+            } => {
+                if !self.core.set_e2ee_keyed(now, channel, user, keyed) {
+                    // Said before the member reached the SFU (or after they left): remember it for the join.
+                    if keyed {
+                        if self.pending_keyed.len() < MAX_PENDING_KEYED {
+                            self.pending_keyed.insert((channel, user), now);
+                        }
+                    } else {
+                        self.pending_keyed.remove(&(channel, user));
+                    }
+                }
+            }
+            VoiceCommand::CloseRoom { channel } => {
+                self.pending_keyed.retain(|(c, _), _| *c != channel);
+                self.core.close_room(channel);
+            }
         }
     }
 

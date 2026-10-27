@@ -106,7 +106,6 @@ pub async fn start(cfg: &Config, master_key: &[u8; 32]) -> anyhow::Result<VoiceS
             relay: Some(Arc::new(sfu.clone())),
             session_grace: std::time::Duration::from_secs(v.session_grace_secs),
             calls: None,
-            e2ee: v.e2ee,
         },
         sfu,
     })

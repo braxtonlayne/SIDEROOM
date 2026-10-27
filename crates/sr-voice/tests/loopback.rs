@@ -39,6 +39,8 @@ struct World {
     closed: Vec<(UserId, CloseReason)>,
     /// Feed each tick's datagrams as the node's actor does: queue them all, then flush once.
     batched: bool,
+    /// Whether new joiners start as E2EE-keyed (the gateway has seen their key package).
+    keyed: bool,
 }
 
 fn sfu_addr() -> SocketAddr {
@@ -55,6 +57,7 @@ impl World {
             clients: Vec::new(),
             closed: Vec::new(),
             batched: false,
+            keyed: true,
         }
     }
 
@@ -91,6 +94,7 @@ impl World {
                     guild: None,
                     channel: ChannelId::new(CHANNEL),
                     flags,
+                    e2ee_keyed: self.keyed,
                     candidates: vec![Candidate::host(sfu_addr(), "udp").unwrap()],
                 },
             )
@@ -555,6 +559,7 @@ fn room_and_sfu_limits_are_enforced() {
                 guild: None,
                 channel: ChannelId::new(ch),
                 flags: World::flags(),
+                e2ee_keyed: true,
                 candidates: vec![],
             },
         )
@@ -672,4 +677,53 @@ fn e2ee_frames_cross_the_sfu_opaque_and_undecodable_without_keys() {
         // ...and exact with it.
         assert_eq!(&rx.decrypt(E2eeCodec::Opus, got).unwrap(), plain);
     }
+}
+
+/// OPS-IMM-001: E2EE is the only voice mode. A sender whose handshake the gateway has not reported (no
+/// op 101 key package yet) is joined and heard by nobody; the frames are counted. Once keyed, the same
+/// sender is forwarded, and a withdrawn key package stops it again.
+#[test]
+fn an_unkeyed_sender_is_not_forwarded_until_its_key_package() {
+    let ch = ChannelId::new(CHANNEL);
+    let mut w = World::new();
+    w.keyed = false;
+    let a = w.join(1, World::flags());
+    w.keyed = true;
+    let b = w.join(2, World::flags());
+    w.connect_all();
+
+    w.talk(a, 400, -30);
+    w.run(Duration::from_millis(200));
+    assert_eq!(
+        w.frames_from(b, a),
+        0,
+        "an unkeyed sender must not be forwarded"
+    );
+    assert!(
+        w.core.snapshot().unkeyed_frames >= 10,
+        "the dropped frames are counted"
+    );
+    assert!(w.speaking_events(b, 1).iter().all(|s| *s == 0));
+
+    // B is keyed and heard: the gate is per sender.
+    w.talk(b, 400, -30);
+    assert!(w.frames_from(a, b) >= 10, "a keyed sender is forwarded");
+
+    // The key package arrives.
+    assert!(w.core.set_e2ee_keyed(w.now, ch, UserId::new(1), true));
+    w.run(Duration::from_millis(800));
+    w.talk(a, 600, -30);
+    w.run(Duration::from_millis(200));
+    assert!(
+        w.frames_from(b, a) >= 10,
+        "heard only {} frames after the key package",
+        w.frames_from(b, a)
+    );
+
+    // Withdrawn again: nothing more is forwarded.
+    assert!(w.core.set_e2ee_keyed(w.now, ch, UserId::new(1), false));
+    w.run(Duration::from_millis(300));
+    let at_withdrawal = w.frames_from(b, a);
+    w.talk(a, 400, -30);
+    assert_eq!(w.frames_from(b, a), at_withdrawal);
 }

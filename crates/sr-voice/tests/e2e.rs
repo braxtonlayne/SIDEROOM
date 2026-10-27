@@ -61,6 +61,18 @@ async fn start_server_with(tcp: bool, resume_window: Duration) -> Server {
     }
 }
 
+/// What the gateway sends after it sees a member's key package (or withdraws it).
+async fn key(server: &Server, user: u64, channel: u64, keyed: bool) {
+    server
+        .handle
+        .apply(VoiceCommand::E2eeKeyed {
+            channel: ChannelId::new(channel),
+            user: UserId::new(user),
+            keyed,
+        })
+        .await;
+}
+
 fn token(user: u64, exp: u64, speak: bool) -> String {
     token_in(user, CHANNEL, exp, speak)
 }
@@ -117,7 +129,15 @@ impl Vc {
         Self::connect_in(server, user, CHANNEL, tcp_only).await
     }
 
+    /// A client the gateway has already keyed: it said so before the client reached the SFU, like the
+    /// real order of op 101 `key_package` and the WebSocket join (OPS-IMM-001).
     async fn connect_in(server: &Server, user: u64, channel: u64, tcp_only: bool) -> Vc {
+        key(server, user, channel, true).await;
+        Self::connect_unkeyed_in(server, user, channel, tcp_only).await
+    }
+
+    /// A client whose op 101 key package the gateway has not reported: joined, never heard.
+    async fn connect_unkeyed_in(server: &Server, user: u64, channel: u64, tcp_only: bool) -> Vc {
         let (mut ws, _) = tokio_tungstenite::connect_async(&server.ws_url)
             .await
             .unwrap();
@@ -943,5 +963,34 @@ async fn ice_tcp_reaches_the_shard_that_owns_the_participant() {
             b.frames_from(base + 1)
         );
     }
+    server.handle.shutdown().await;
+}
+
+/// OPS-IMM-001 over the real WebSocket and sockets: a client the gateway has not keyed (no op 101 key package)
+/// joins but is not heard; the gateway's `E2eeKeyed` makes it heard; withdrawing it silences it again.
+#[tokio::test]
+async fn a_client_is_not_heard_until_the_gateway_keys_it() {
+    let server = start_server(false).await;
+    let mut a = Vc::connect_unkeyed_in(&server, 1, CHANNEL, false).await;
+    let mut b = Vc::connect(&server, 2, false).await;
+    settle(&mut a, &mut b).await;
+    a.talk = Some(-28);
+    both(&mut a, &mut b, Duration::from_millis(1000)).await;
+    assert_eq!(b.frames_from(1), 0, "an unkeyed sender must not be heard");
+
+    key(&server, 1, CHANNEL, true).await;
+    both(&mut a, &mut b, Duration::from_millis(2500)).await;
+    let heard = b.frames_from(1);
+    assert!(heard >= 20, "heard only {heard} frames once keyed");
+
+    key(&server, 1, CHANNEL, false).await;
+    both(&mut a, &mut b, Duration::from_millis(500)).await;
+    let at_withdrawal = b.frames_from(1);
+    both(&mut a, &mut b, Duration::from_millis(1000)).await;
+    assert_eq!(
+        b.frames_from(1),
+        at_withdrawal,
+        "a withdrawn key silences it"
+    );
     server.handle.shutdown().await;
 }

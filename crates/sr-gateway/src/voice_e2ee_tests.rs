@@ -147,18 +147,71 @@ async fn a_lone_committer_executes_at_once_and_leaving_unblocks_a_transition() {
     assert_eq!(exec[0]["epoch"], 2);
 }
 
+/// The keyed-sender commands the SFU was sent (waiting a moment for the gateway task).
+async fn keyed_commands(e: &Env) -> Vec<(ChannelId, UserId, bool)> {
+    for _ in 0..50 {
+        let got: Vec<_> = e
+            .relay
+            .take()
+            .into_iter()
+            .filter_map(|c| match c {
+                VoiceCommand::E2eeKeyed {
+                    channel,
+                    user,
+                    keyed,
+                } => Some((channel, user, keyed)),
+                _ => None,
+            })
+            .collect();
+        if !got.is_empty() {
+            return got;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    Vec::new()
+}
+
+/// OPS-IMM-001: the SFU forwards a member's media only after the gateway saw its op 101 key package (or the
+/// `ready` of the member that starts the group). Joining, `hello`, and other people's messages key nobody.
 #[tokio::test]
-async fn the_relay_is_off_unless_configured() {
-    let e = env_full(true, false);
+async fn the_sfu_is_told_a_member_is_keyed_only_after_its_key_package_or_ready() {
+    let e = env();
     let mut a = join(&e, MEMBER, LOBBY).await;
-    let mut b = join(&e, FRIEND, LOBBY).await;
-    a.drain().await;
-    b.send(mls("key_package", json!({ "data": "QUJD" }))).await;
-    b.send(mls("commit", json!({ "epoch": 0, "data": "QUJD" })))
+    let b = join(&e, FRIEND, LOBBY).await;
+    let outsider = join(&e, MOD, ROOM_B).await;
+    e.relay.take();
+
+    // Hello alone keys nobody.
+    a.send(mls("hello", json!({}))).await;
+    a.event("E2EE_MLS").await;
+    assert!(keyed_commands(&e).await.is_empty());
+
+    // A malformed key package (not base64) keys nobody.
+    b.send(mls("key_package", json!({ "data": "not base64!" })))
         .await;
-    assert!(mls_events(&a.drain().await).is_empty());
-    assert!(mls_events(&b.drain().await).is_empty());
-    assert_eq!(e.gw.e2ee_epoch(LOBBY), 0);
+    assert!(keyed_commands(&e).await.is_empty());
+
+    // B's key package keys B (and only B).
+    b.send(mls("key_package", json!({ "data": "S1AtRlJJRU5E" })))
+        .await;
+    assert_eq!(
+        keyed_commands(&e).await,
+        vec![(LOBBY, UserId::new(FRIEND), true)]
+    );
+
+    // A, the member that starts the group, has no key package: its `ready` is the proof.
+    a.send(mls("ready", json!({ "epoch": 0, "leaf": 0 }))).await;
+    assert_eq!(
+        keyed_commands(&e).await,
+        vec![(LOBBY, UserId::new(MEMBER), true)]
+    );
+
+    // Someone who is not in the channel cannot key themselves into it.
+    outsider
+        .send(mls("key_package", json!({ "data": "S1AtRlJJRU5E" })))
+        .await;
+    assert!(keyed_commands(&e).await.is_empty());
+    drop((a, b, outsider));
 }
 
 mod with_mls {
@@ -341,22 +394,6 @@ async fn a_join_without_the_e2ee_declaration_is_refused_and_gets_no_token() {
         update["sr_e2ee"], true,
         "the client is told the call is E2EE"
     );
-    assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
-}
-
-#[tokio::test]
-async fn without_e2ee_nothing_is_required_at_join() {
-    let e = env_full(true, false);
-    let mut c = client(&e, MEMBER).await;
-    c.send_exact(join_frame(None)).await;
-    let update = c.event("VOICE_SERVER_UPDATE").await;
-    assert_eq!(
-        update["sr_e2ee"], false,
-        "the client is told the call is not E2EE"
-    );
-    // And there is no hello to wait for.
-    e.gw.e2ee_hello_sweep(Instant::now() + Duration::from_secs(60))
-        .await;
     assert!(e.gw.voice_state(UserId::new(MEMBER)).is_some());
 }
 

@@ -198,13 +198,13 @@ pub struct VoiceConfig {
     /// the available cores, at most 8; it never exceeds the number
     /// of bound media sockets.
     pub shards: usize,
-    /// End-to-end encryption for calls (`voice.e2ee`, D-053, D-249): the gateway is the MLS
-    /// delivery service over op 101 E2EE_MLS. On by default (D-249): the media path passed in
-    /// Chromium and Firefox in CI. While on, a join that does not declare E2EE is refused (D-263),
-    /// so browsers without the encoded-frame transform API, and bots whose SDK does not speak MLS,
-    /// cannot join calls. `false` makes calls DTLS-SRTP only: `VOICE_SERVER_UPDATE` then carries
-    /// `sr_e2ee: false` and web clients join without E2EE (doc 12, operator note).
-    pub e2ee: bool,
+    /// The removed `voice.e2ee` switch (OPS-IMM-001). End-to-end encryption of calls is the only voice
+    /// mode (D-053, D-249, D-263): the gateway is the MLS delivery service over op 101 E2EE_MLS, a join
+    /// that does not declare E2EE is refused, and the SFU forwards a sender only after its key package.
+    /// The key is still read so that an old `e2ee = false` is an error instead of being ignored;
+    /// `e2ee = true` is accepted and does nothing. Never serialized.
+    #[serde(rename = "e2ee", skip_serializing_if = "Option::is_none")]
+    removed_e2ee: Option<bool>,
     pub turn: TurnSection,
 }
 
@@ -246,7 +246,7 @@ impl Default for VoiceConfig {
             session_grace_secs: 20,
             egress_budget_mbps: 0,
             video_bwe: false,
-            e2ee: true,
+            removed_e2ee: None,
             shards: 1,
             turn: TurnSection::default(),
         }
@@ -683,6 +683,11 @@ impl Config {
         if self.gateway.max_connections == 0 {
             return Err(bad("gateway.max_connections must be > 0"));
         }
+        if self.voice.removed_e2ee == Some(false) {
+            return Err(bad(
+                "voice.e2ee was removed: end-to-end encryption is the only voice mode, so delete the e2ee = false line (or SR_VOICE__E2EE=false)",
+            ));
+        }
         let v = &self.voice;
         if v.enabled {
             if v.udp_port_min > v.udp_port_max {
@@ -752,8 +757,8 @@ mod tests {
         assert_eq!(c.voice.turn.ttl_secs, 3600);
         // One media actor until the AX42 run is recorded (H-44); 0 keeps the auto rule.
         assert_eq!(c.voice.shards, 1);
-        // D-249: calls are end-to-end encrypted unless the operator turns it off.
-        assert!(c.voice.e2ee);
+        // OPS-IMM-001: there is no switch for call encryption.
+        assert!(c.voice.removed_e2ee.is_none());
         let on = |toml: &str| {
             Config::from_figment(
                 &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
@@ -765,8 +770,11 @@ enabled = true
                 )),
             )
         };
-        assert!(on("").is_ok_and(|c| c.voice.e2ee));
-        assert!(on("e2ee = false").is_ok_and(|c| !c.voice.e2ee));
+        assert!(on("").is_ok());
+        // The removed switch: false is an error (never silently ignored), true is harmless.
+        let err = on("e2ee = false").unwrap_err().to_string();
+        assert!(err.contains("voice.e2ee was removed"), "{err}");
+        assert!(on("e2ee = true").is_ok());
         assert_eq!(on("shards = 0").unwrap().voice.shards, 0);
         assert!(
             on("udp_port_min = 60000
