@@ -25,10 +25,12 @@ use sr_storage::mounts::{
 };
 use utoipa::{OpenApi, ToSchema};
 
-use crate::routes::Ext;
+use super::flags::MountPolicy;
+use crate::routes::admin::AdminDeps;
 use crate::routes::developer::iso;
 use crate::routes::messages::error::{ApiJson, MsgError, MsgResult, invalid, parse_id};
 use crate::routes::settings::deps::SettingsDeps;
+use crate::routes::{Ext, MaybeExt};
 use crate::{AuthKind, Principal, openapi::ErrorBody, state::AppState};
 
 /// Default most mounts one member may keep (`byos.max_mounts_per_user`).
@@ -59,6 +61,8 @@ pub struct MountsDeps {
     /// The storage-scope facts: who may manage a server's mounts (`sr_storage::scopes::may_manage_guild`,
     /// so a role with the `manage` grant counts). Unset only in unit tests, which fall back to `MANAGE_GUILD`.
     pub facts: Option<Arc<dyn sr_storage::scopes::ScopeFacts>>,
+    /// Patron and staff standing, for `byos.who_may_mount` (BYOS-FLG-001). Unset: a restricted setting refuses all.
+    pub standing: Option<Arc<dyn sr_storage::mount_policy::MemberStanding>>,
 }
 
 impl MountsDeps {
@@ -99,7 +103,17 @@ impl MountsDeps {
             public_origin: String::new(),
             test_budget: sr_storage::probe::PROBE_BUDGET,
             facts: None,
+            standing: None,
         }
+    }
+
+    /// Answer `byos.who_may_mount` from the member's patron and staff standing.
+    pub fn with_standing(
+        mut self,
+        standing: Arc<dyn sr_storage::mount_policy::MemberStanding>,
+    ) -> Self {
+        self.standing = Some(standing);
+        self
     }
 }
 
@@ -413,6 +427,7 @@ fn default_region(provider: Provider) -> &'static str {
 /// Resolve the endpoint (default for S3) and check it against the SSRF policy.
 async fn endpoint_for(
     deps: &MountsDeps,
+    policy: &MountPolicy,
     provider: Provider,
     region: &str,
     given: Option<&str>,
@@ -435,6 +450,10 @@ async fn endpoint_for(
         || url.fragment().is_some()
     {
         return Err(bad("Use the bare endpoint URL, without a path or query."));
+    }
+    // The operator's allow-list (`byos.endpoint_allow`) comes before any lookup.
+    if !url.host_str().is_some_and(|h| policy.allow.allows(h)) {
+        return Err(bad("This server does not allow buckets at that address."));
     }
     let private_ok = deps.net_policy.allow_private_hosts || deps.net_policy.allow_private_for_tests;
     if url.scheme() == "http" && !private_ok {
@@ -483,6 +502,7 @@ async fn list(deps: &MountsDeps, scope: Scope) -> MsgResult<Json<Vec<MountObject
 
 async fn create(
     deps: &MountsDeps,
+    policy: &MountPolicy,
     scope: Scope,
     body: CreateMountBody,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
@@ -500,7 +520,7 @@ async fn create(
         owner: scope.owner(),
         label: trimmed("label", &body.label, LABEL_MAX, 1)?,
         provider,
-        endpoint: endpoint_for(deps, provider, &region, body.endpoint.as_deref()).await?,
+        endpoint: endpoint_for(deps, policy, provider, &region, body.endpoint.as_deref()).await?,
         region,
         bucket: bucket_name(&body.bucket)?,
         prefix: key_prefix(body.prefix.as_deref().unwrap_or(""))?,
@@ -524,6 +544,7 @@ async fn create(
 
 async fn patch(
     deps: &MountsDeps,
+    policy: &MountPolicy,
     scope: Scope,
     mount_id: &str,
     body: PatchMountBody,
@@ -560,7 +581,7 @@ async fn patch(
         connection_changed = true;
     }
     if let Some(e) = body.endpoint.as_deref() {
-        let endpoint = endpoint_for(deps, provider, &region, Some(e)).await?;
+        let endpoint = endpoint_for(deps, policy, provider, &region, Some(e)).await?;
         if endpoint != current.endpoint {
             patch.endpoint = Some(endpoint);
             connection_changed = true;
@@ -686,9 +707,13 @@ pub async fn list_user(p: Principal, Ext(d): Ext<MountsDeps>) -> MsgResult<Json<
 pub async fn create_user(
     p: Principal,
     Ext(d): Ext<MountsDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
     ApiJson(body): ApiJson<CreateMountBody>,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
-    create(&d, user_scope(&p)?, body).await
+    let scope = user_scope(&p)?;
+    let policy = MountPolicy::load(admin.as_deref()).await;
+    policy.may_connect(d.standing.as_deref(), p.user_id).await?;
+    create(&d, &policy, scope, body).await
 }
 
 /// Change one of your buckets (label, address, keys, prefix, or switch it on or off).
@@ -709,10 +734,12 @@ pub async fn create_user(
 pub async fn patch_user(
     p: Principal,
     Ext(d): Ext<MountsDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
     Path(mount_id): Path<String>,
     ApiJson(body): ApiJson<PatchMountBody>,
 ) -> MsgResult<Json<MountObject>> {
-    patch(&d, user_scope(&p)?, &mount_id, body).await
+    let policy = MountPolicy::load(admin.as_deref()).await;
+    patch(&d, &policy, user_scope(&p)?, &mount_id, body).await
 }
 
 /// Disconnect one of your buckets. Nothing in the bucket is touched.
@@ -769,10 +796,12 @@ pub async fn create_guild(
     p: Principal,
     Ext(d): Ext<MountsDeps>,
     Ext(s): Ext<SettingsDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateMountBody>,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
-    create(&d, guild_scope(&d, &s, &p, &guild_id).await?, body).await
+    let policy = MountPolicy::load(admin.as_deref()).await;
+    create(&d, &policy, guild_scope(&d, &s, &p, &guild_id).await?, body).await
 }
 
 /// Change one of the server's buckets.
@@ -797,11 +826,14 @@ pub async fn patch_guild(
     p: Principal,
     Ext(d): Ext<MountsDeps>,
     Ext(s): Ext<SettingsDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
     Path((guild_id, mount_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<PatchMountBody>,
 ) -> MsgResult<Json<MountObject>> {
+    let policy = MountPolicy::load(admin.as_deref()).await;
     patch(
         &d,
+        &policy,
         guild_scope(&d, &s, &p, &guild_id).await?,
         &mount_id,
         body,

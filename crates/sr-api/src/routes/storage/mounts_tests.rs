@@ -64,7 +64,29 @@ struct Env {
     guild: String,
 }
 
+/// Operator policy for a test: settings rows, and the standing the fake member lookup reports.
+#[derive(Default)]
+struct Extra {
+    settings: Vec<(&'static str, Value)>,
+    standing: Option<(bool, bool)>,
+}
+
+struct FakeStanding(bool, bool);
+#[async_trait::async_trait]
+impl sr_storage::mount_policy::MemberStanding for FakeStanding {
+    async fn is_patron(&self, _user: i64) -> Result<bool, String> {
+        Ok(self.0)
+    }
+    async fn is_staff(&self, _user: i64) -> Result<bool, String> {
+        Ok(self.1)
+    }
+}
+
 async fn env() -> Env {
+    env_with(Extra::default()).await
+}
+
+async fn env_with(extra: Extra) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
     let backend = MemoryBackend::new();
@@ -167,16 +189,48 @@ async fn env() -> Env {
     .with_public_origin("https://chat.example.test");
     mounts.max_per_user = 2;
     mounts.max_per_guild = 1;
+    if let Some((patron, staff)) = extra.standing {
+        mounts = mounts.with_standing(Arc::new(FakeStanding(patron, staff)));
+    }
+    let admin = if extra.settings.is_empty() {
+        None
+    } else {
+        let repo = Arc::new(sr_admin::memory::MemoryAdminRepo::default());
+        let values: Vec<(String, Value)> = extra
+            .settings
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), v.clone()))
+            .collect();
+        let audit = sr_admin::AuditEntry {
+            actor_id: 1,
+            kind: sr_admin::AccessKind::AdminAction,
+            action: "settings.test".into(),
+            target_kind: None,
+            target_id: None,
+            reason: "test".into(),
+            ip: None,
+            detail: "{}".into(),
+        };
+        sr_admin::AdminRepository::put_settings(repo.as_ref(), &values, 1, &audit)
+            .await
+            .unwrap();
+        Some(Arc::new(crate::routes::admin::AdminDeps::new(
+            sr_admin::AdminService::new(repo),
+        )))
+    };
 
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
-    let state = AppState::builder()
+    let mut builder = AppState::builder()
         .settings(settings)
         .sessions(sessions)
         .bots(bots)
         .extension(Arc::new(settings_deps))
-        .extension(Arc::new(mounts))
-        .build();
+        .extension(Arc::new(mounts));
+    if let Some(a) = admin {
+        builder = builder.extension(a);
+    }
+    let state = builder.build();
     Env {
         app: build_router(state, router()),
         tokens,
@@ -866,4 +920,101 @@ async fn cors_check_apply_and_the_presign_flag() {
         )
         .await;
     assert_eq!(st, StatusCode::NOT_FOUND);
+}
+
+// ---------------------------------------------------------------- BYOS-FLG-001: operator policy
+
+#[tokio::test]
+async fn the_endpoint_allow_list_refuses_other_hosts() {
+    let allow = |v: &str| Extra {
+        settings: vec![(sr_admin::settings::BYOS_ENDPOINT_ALLOW, json!(v))],
+        standing: None,
+    };
+    let base = "/users/@me/storage/mounts";
+    // Not on the list: 400 ENDPOINT_INVALID, nothing stored.
+    let e = env_with(allow("s3.example.com, *.r2.example.net")).await;
+    let (st, body, _) = e
+        .call(Some(MEMBER), Method::POST, base, Some(create_body("Home")))
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.to_string().contains("ENDPOINT_INVALID"), "{body}");
+    let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert!(list.as_array().unwrap().is_empty());
+    // On the list: accepted.
+    let e = env_with(allow("127.0.0.1")).await;
+    let (st, body, _) = e
+        .call(Some(MEMBER), Method::POST, base, Some(create_body("Home")))
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{body}");
+    // A change of address is held to the same list.
+    let id = body["id"].as_str().unwrap().to_owned();
+    let (st, _, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PATCH,
+            &format!("{base}/{id}"),
+            Some(json!({"endpoint": "http://localhost:3900"})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    // Guild buckets too.
+    let e = env_with(allow("s3.example.com")).await;
+    let (st, _, _) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &format!("/guilds/{}/storage/mounts", e.guild),
+            Some(create_body("Shelf")),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn who_may_mount_limits_who_can_connect_a_bucket() {
+    let with = |who: &str, standing: Option<(bool, bool)>| Extra {
+        settings: vec![(sr_admin::settings::BYOS_WHO_MAY_MOUNT, json!(who))],
+        standing,
+    };
+    let base = "/users/@me/storage/mounts";
+    let try_create = |extra: Extra| async move {
+        let e = env_with(extra).await;
+        let (st, body, _) = e
+            .call(Some(MEMBER), Method::POST, base, Some(create_body("Home")))
+            .await;
+        // Listing never depends on the setting.
+        let (ls, _, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
+        assert_eq!(ls, StatusCode::OK);
+        (st, body)
+    };
+    // all (and the empty default): anyone.
+    assert_eq!(try_create(with("all", None)).await.0, StatusCode::CREATED);
+    assert_eq!(try_create(with("", None)).await.0, StatusCode::CREATED);
+    // patrons: a plain member is refused, a patron and staff are not.
+    assert_eq!(
+        try_create(with("patrons", Some((false, false)))).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        try_create(with("patrons", Some((true, false)))).await.0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        try_create(with("patrons", Some((false, true)))).await.0,
+        StatusCode::CREATED
+    );
+    // staff: a patron is refused too.
+    assert_eq!(
+        try_create(with("staff", Some((true, false)))).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        try_create(with("staff", Some((false, true)))).await.0,
+        StatusCode::CREATED
+    );
+    // Without a standing source a restricted setting fails closed.
+    assert_eq!(
+        try_create(with("patrons", None)).await.0,
+        StatusCode::FORBIDDEN
+    );
 }

@@ -684,7 +684,10 @@ mod tests {
         }
         // Defaults: everyone may mount, any safe endpoint, no remux demand.
         assert_eq!(find(BYOS_WHO_MAY_MOUNT).unwrap().default_value(), json!(""));
-        assert_eq!(find(BYOS_ENDPOINT_ALLOW).unwrap().default_value(), json!(""));
+        assert_eq!(
+            find(BYOS_ENDPOINT_ALLOW).unwrap().default_value(),
+            json!("")
+        );
         assert_eq!(
             find(BYOS_REQUIRE_CLIENT_REMUX).unwrap().default_value(),
             json!(false)
@@ -708,10 +711,18 @@ mod tests {
         let d = find(BYOS_ENDPOINT_ALLOW).unwrap();
         assert!(d.validate(&json!("")).is_ok());
         assert!(
-            d.validate(&json!("s3.example.com, *.r2.cloudflarestorage.com\nlocalhost"))
-                .is_ok()
+            d.validate(&json!(
+                "s3.example.com, *.r2.cloudflarestorage.com\nlocalhost"
+            ))
+            .is_ok()
         );
-        for bad in ["a*.example.com", "*", "bad host!", "exa$mple.com", "*.a.*.b"] {
+        for bad in [
+            "a*.example.com",
+            "*",
+            "bad host!",
+            "exa$mple.com",
+            "*.a.*.b",
+        ] {
             assert!(d.validate(&json!(bad)).is_err(), "{bad}");
         }
         let many = (0..=ENDPOINT_ALLOW_MAX_PATTERNS)

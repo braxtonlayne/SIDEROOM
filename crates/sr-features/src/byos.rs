@@ -109,11 +109,7 @@ mod tests {
     fn service() -> FeatureService {
         let mut reg = FeatureRegistry::new();
         reg.register(ByosFeature).unwrap();
-        FeatureService::new(
-            Arc::new(reg),
-            Arc::new(InMemorySettingsStore::new()),
-            None,
-        )
+        FeatureService::new(Arc::new(reg), Arc::new(InMemorySettingsStore::new()), None)
     }
 
     #[test]

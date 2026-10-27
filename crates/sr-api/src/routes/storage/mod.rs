@@ -9,6 +9,7 @@
 //!
 //! Every read goes through `sr_storage::scopes`.
 
+pub mod flags;
 pub mod mount_ops;
 pub mod mounts;
 #[cfg(test)]

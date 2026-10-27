@@ -41,6 +41,10 @@ pub fn build_router(state: AppState, extra_v1: Router<AppState>) -> Router {
         .route("/users/@me", get(openapi::current_user))
         .route("/sr/csrf", get(openapi::csrf_token))
         .merge(extra_v1)
+        .route_layer(from_fn_with_state(
+            state.clone(),
+            crate::routes::storage::flags::byos_gate,
+        ))
         .route_layer(from_fn_with_state(state.clone(), rate_limit))
         .route_layer(from_fn_with_state(
             state.clone(),

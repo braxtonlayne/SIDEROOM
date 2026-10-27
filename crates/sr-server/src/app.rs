@@ -1138,7 +1138,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_public_origin(&cfg.server.public_url)
         .with_resolver(mount_resolver.clone())
-        .with_facts(scope_facts.clone()),
+        .with_facts(scope_facts.clone())
+        .with_standing(scope_facts.clone()),
     );
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.

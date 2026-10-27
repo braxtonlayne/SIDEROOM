@@ -112,8 +112,9 @@ fn normalise(raw: &str) -> Option<String> {
     };
     let s = s.trim_end_matches('.').to_owned();
     let chars_ok = !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '*' | '[' | ']' | ':' | '_'));
+        && s.chars().all(|c| {
+            c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '*' | '[' | ']' | ':' | '_')
+        });
     let star_ok = !s.contains('*') || (s.starts_with("*.") && s.len() > 2 && !s[2..].contains('*'));
     (chars_ok && star_ok).then_some(s)
 }
