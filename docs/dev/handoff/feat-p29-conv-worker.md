@@ -4,21 +4,18 @@ Branch `feat/p29-conv-worker`, base `integration/phase29`. Migrations 1500 and 1
 
 ## Resume here
 
-Status at the last commit (see `git log`): **worker side done and tested; Postgres store done and compiled but its tests have
-not run (no Postgres password file on this machine); API routes, server wiring, matrix rows, OpenAPI, media.yml stage,
-TRANSCODER.md and the Admin column are the open slices.**
+Status at the last commit (see `git log`): **code complete for all of BYOS-CNV-003; proofs that need Postgres, a server or a
+browser toolchain have not run** (no Postgres password file, no node_modules in this worktree). Open slices:
 
-Next slices, in order:
-
-1. `crates/sr-api/src/routes/storage/transcode.rs` (new) with the five routes below, `mod.rs` merge + OpenAPI merge,
-   `byos.worker_for_members` in `crates/sr-admin/src/settings.rs` (boolean, group `storage`, default off).
-2. `crates/sr-server/src/app.rs`: `mounts: Some(Arc::new(MountBucket::new(mount_repo, mount_sealer).with_guard(mount_guard)))`
-   on the `WorkerService`, and the `TranscodeDeps` extension.
-3. `route_matrix.tsv` rows (separate block), `authz_matrix.rs` seeds in their own block (body override, a mount-scoped
-   `worker_token_id` per tenant), regenerate OpenAPI, api-client and mocks.
-4. `.github/workflows/media.yml` one stage, `deploy/TRANSCODER.md` member section, Admin > Transcoding "Mount" column
-   (`JobSummary.mount_id`) and token `scope`.
-5. Fill the "Tests run" section below.
+1. Run the Postgres tests (see "Tests run") and the authz matrix: `SR_TEST_DATABASE_URL=... cargo test -p sr-server --test authz_matrix
+   -- --include-ignored --test-threads=1` and `storage_scopes_hold_over_http` / `every_route_enforces_its_authz_row`. The seeds
+   (`worker_token_id`, two body overrides) are in their own block in `crates/sr-server/tests/authz_matrix.rs`; if a route answers
+   unexpectedly there, fix the route or the seed, never add to `WRITE_OBSERVED`.
+2. Regenerate OpenAPI, the api-client and the MSW mocks (the integrator does this at the end of the wave; commands in the brief).
+3. Web: `pnpm install --offline --frozen-lockfile`, then vitest `src/admin src/i18n` (--maxWorkers=2), typecheck, prettier for the
+   Bucket column in Admin > Transcoding (`apps/web/src/admin/cinema/TranscodingSection.tsx`, fragment `p29-conv-worker-1.ts`).
+4. `media.yml` has not run (CI runs it): the new step is "Mount conversion smoke", stage `mount` of `deploy/scripts/media-smoke.mjs`.
+5. Tick `docs/inventory/21-feature-phase.md` BYOS-CNV-003 only after 1 and 4 are green.
 
 ## Design (what is built)
 
@@ -43,9 +40,27 @@ Next slices, in order:
   `WORKER_NOT_ENABLED`. Guild and platform mounts: the operator (`MANAGE_TRANSCODE`), `operator_worker` always true.
 - `JobSummary.mount_id` and `WorkerToken.scope` are new fields (the Admin > Transcoding column).
 
-## Route shapes (planned; section filled when the routes land)
+## Route shapes
 
-See the "Done" list in the final report of this branch.
+All session-only, all under `/storage/mounts/{mount_id}`, AUTHZ class `mount_owner` (404 for a mount the caller cannot reach, 403
+for one they reach but may not run conversions in; an operator with `MANAGE_TRANSCODE` is admitted on a mount that is not a member's).
+
+| Route | Body | Answer |
+|---|---|---|
+| `POST /storage/mounts/{mount_id}/transcode` | `{ key, format: "hls"|"mp4", preset?: "low"|"standard"|"high" }` | 202 `{ job_id, operator_worker, output_prefix }`; 400 key not a video; 404 object missing; 409 `WORKER_NOT_ENABLED` |
+| `GET /storage/mounts/{mount_id}/transcode` | none | 200 `JobSummary[]` (latest 50 of the mount) |
+| `POST /storage/mounts/{mount_id}/worker-tokens` | `{ name }` | 201 `{ token, secret }` (secret once); 409 `TOO_MANY_TOKENS` at 5 live |
+| `GET /storage/mounts/{mount_id}/worker-tokens` | none | 200 `WorkerToken[]` (scope `mount:<id>`, never the secret) |
+| `DELETE /storage/mounts/{mount_id}/worker-tokens/{worker_token_id}` | none | 204; 404 for a token of another mount |
+
+The worker-facing routes (`/api/v1/transcode/worker/*`, bearer worker token) are unchanged in shape: a `mount_transcode` claim returns
+`source.download_url` as a presigned GET of the bucket, and `init_upload` returns one presigned PUT part per file. Setting added:
+`byos.worker_for_members` (boolean, group storage, default off).
+
+Files touched outside the Split row (small, mechanical): `crates/sr-admin/src/settings.rs` (one const, one def),
+`crates/sr-api/src/routes/storage/{mod,objects,shelves}.rs` (module line, two `pub(super)`), `crates/sr-server/src/app.rs` (wiring),
+`crates/sr-server/tests/authz_matrix.rs` (own block), `deploy/scripts/media-smoke.mjs` (the stage lives there, like every other
+media stage).
 
 ## Tests run
 
