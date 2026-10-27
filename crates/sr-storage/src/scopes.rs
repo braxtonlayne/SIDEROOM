@@ -365,6 +365,10 @@ pub async fn access(
     if mount.status == MountStatus::Disabled {
         return Err(Refused::Disabled.into());
     }
+    // A whole-mount delisting binds everyone, the owner and staff included.
+    if mount.status == MountStatus::Delisted {
+        return Err(Refused::Delisted.into());
+    }
     if !facts.owner_active(mount.owner).await? {
         return Err(Refused::OwnerInactive.into());
     }
@@ -601,6 +605,15 @@ impl MemoryScopeFacts {
     /// Attach a non-guild mount to a guild.
     pub fn attach(&self, mount_id: i64, guild: i64) {
         self.with(|m| m.attached.entry(mount_id).or_default().push(guild));
+    }
+    /// Remove an attachment made with [`Self::attach`].
+    pub fn detach(&self, mount_id: i64, guild: i64) -> bool {
+        self.with(|m| {
+            let list = m.attached.entry(mount_id).or_default();
+            let before = list.len();
+            list.retain(|g| *g != guild);
+            list.len() != before
+        })
     }
     /// Delist a key.
     pub fn delist(&self, mount_id: i64, key: &str) {
@@ -1022,6 +1035,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_delisted_mount_is_refused_for_everyone_the_owner_and_staff_included() {
+        let f = MemoryScopeFacts::new();
+        let mut m = mount(MountOwner::User(OWNER));
+        m.status = MountStatus::Delisted;
+        assert_eq!(
+            go(&f, viewer(OWNER), &m, "a.mp3").await,
+            Err(Refused::Delisted)
+        );
+        let s = Viewer {
+            id: 99,
+            staff: true,
+        };
+        assert_eq!(go(&f, s, &m, "a.mp3").await, Err(Refused::Delisted));
+        assert_eq!(go(&f, s, &m, "").await, Err(Refused::Delisted));
+    }
+
+    #[tokio::test]
     async fn a_failing_mount_is_still_readable() {
         // `failing` is a health flag for the owner's screen, not a refusal: the listing is how they diagnose.
         let f = MemoryScopeFacts::new();
@@ -1294,4 +1324,11 @@ pub trait ScopeStore: ScopeFacts {
     async fn catalog_counts(&self) -> Result<(i64, i64), FactsError>;
     /// How many shelves of each kind `viewer` reaches.
     async fn shelves_summary(&self, viewer: i64) -> Result<ShelvesSummary, FactsError>;
+    /// Whether a server exists (attaching the platform bucket to it).
+    async fn guild_exists(&self, guild_id: i64) -> Result<bool, FactsError>;
+    /// Attach the platform mount to a server as a Guild Shelf; `false` when it already was (BYOS-BRW-001).
+    async fn attach_mount(&self, mount_id: i64, guild_id: i64, by: i64)
+    -> Result<bool, FactsError>;
+    /// Remove the attachment; `false` when there was none.
+    async fn detach_mount(&self, mount_id: i64, guild_id: i64) -> Result<bool, FactsError>;
 }

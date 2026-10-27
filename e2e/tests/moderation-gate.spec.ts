@@ -13,6 +13,8 @@ import { nextWindowCode, secretFromOtpauth, totp } from '../support/totp';
  *     overturns it.
  *  3. A takedown notice is registered against a Library chapter, upheld (the chapter leaves the reader for a
  *     member), a counter-notice is filed, and staff restore the chapter (it is back).
+ *  3b. (BYOS-LEG-001) A takedown notice against one object in B's own bucket delists it (the bucket stays), staff
+ *     delist and relist the whole bucket, and a counter-notice restores the object.
  *  4. A second account of B is flagged as a likely duplicate; staff review the signal and fold it into the Person.
  *  5. A data-subject export is run for B and downloaded; an erasure runs with the deletion of B's messages and the
  *     content is gone for A.
@@ -340,6 +342,79 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
       expect((await pages()).status(), 'the chapter is back').toBe(200);
     });
 
+    await test.step('a takedown against one object of B’s own bucket delists it; staff delist and relist the whole bucket', async () => {
+      // A bucket is only a row of ours plus sealed credentials: creating it connects to nothing.
+      await loginApi(b, userB); // the ban ended B's sessions; the overturn does not restore them
+      const mount = await call<{ id: string; status: string }>(
+        b,
+        'POST',
+        '/users/@me/storage/mounts',
+        {
+          label: `Gate shelf ${stamp}`,
+          provider: 's3',
+          region: 'us-east-1',
+          bucket: `gate-${stamp}`,
+          path_style: true,
+          access_key_id: 'AKIAGATEEXAMPLE',
+          secret_access_key: 'gate-example-secret',
+        },
+      );
+      expect(mount.status).toBe('active');
+      const notice = await call<{ id: string }>(s, 'POST', '/moderation/takedowns', {
+        kind: 'copyright',
+        notifier_name: 'Rights Holder Ltd',
+        notifier_contact: 'rights@example.test',
+        legal_basis: 'I own the film and have not licensed it.',
+        locations: [],
+        original_text: 'Please stop showing films/leak.mkv.',
+      });
+      await call(s, 'POST', `/moderation/takedowns/${notice.id}/items`, {
+        kind: 'storage_object',
+        id: mount.id,
+        key: 'films/leak.mkv',
+      });
+      await reauth();
+      await call(s, 'POST', `/moderation/takedowns/${notice.id}/uphold`, {
+        reason: 'The notice is complete; the object is delisted, not deleted.',
+      });
+      const listed = async () =>
+        (
+          await call<{ id: string; status: string; delisted_objects: number }[]>(
+            s,
+            'GET',
+            '/admin/storage/mounts?limit=500',
+          )
+        ).find((m) => m.id === mount.id);
+      expect((await listed())?.delisted_objects, 'the object is delisted').toBe(1);
+      expect((await listed())?.status, 'the bucket itself is untouched').toBe('active');
+
+      await reauth();
+      await call(s, 'POST', `/admin/storage/mounts/${mount.id}/delist`, {
+        reason: 'The whole bucket is the subject of the notice.',
+      });
+      expect((await listed())?.status).toBe('delisted');
+      const mine = await call<{ id: string; status: string }[]>(
+        b,
+        'GET',
+        '/users/@me/storage/mounts',
+      );
+      expect(mine.find((m) => m.id === mount.id)?.status, 'the owner sees it delisted').toBe(
+        'delisted',
+      );
+      await call(s, 'POST', `/admin/storage/mounts/${mount.id}/relist`, {
+        reason: 'Counter-notice received.',
+      });
+      expect((await listed())?.status).toBe('active');
+
+      await call(s, 'POST', `/moderation/takedowns/${notice.id}/counter-notice`, {
+        text: 'The member says they hold the licence.',
+      });
+      await call(s, 'POST', `/moderation/takedowns/${notice.id}/restore`, {
+        reason: 'Counter-notice received and the notifier did not go to court.',
+      });
+      expect((await listed())?.delisted_objects, 'the object is listed again').toBe(0);
+    });
+
     await test.step('the duplicate account is folded into B’s Person (nobody is banned any more)', async () => {
       await call(o, 'POST', `/admin/persons/${bPerson}/link`, {
         account_id: userB2.id,
@@ -452,11 +527,13 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
         ['moderation.hold.place', 1],
         ['moderation.case.ban', 1],
         ['person.ban', 1],
-        ['moderation.takedown.create', 1],
-        ['moderation.takedown.item_add', 1],
-        ['moderation.takedown.uphold', 1],
-        ['moderation.takedown.counter_notice', 1],
-        ['moderation.takedown.restore', 1],
+        ['moderation.takedown.create', 2],
+        ['moderation.takedown.item_add', 2],
+        ['moderation.takedown.uphold', 2],
+        ['moderation.takedown.counter_notice', 2],
+        ['moderation.takedown.restore', 2],
+        ['storage.mount.delist', 1],
+        ['storage.mount.relist', 1],
         ['moderation.evasion.resolve', 1],
         ['data_request.create', 2],
         ['data_request.verify', 2],

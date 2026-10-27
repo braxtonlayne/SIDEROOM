@@ -14,16 +14,24 @@ Decisions: D-029, D-043, D-053, D-120–D-126.
 | Attachments > 30 MB ("large", donor/level perk) | **Expire 7 days after upload**. The message shows an "This file has expired" chip. The object is purged | Nobody after expiry, unless held |
 | Account (deleted/deactivated/banned) | Forever (D-124). After erasure the member is told what stays: the Person record, invite graph, invoices, staff-side moderation history, messages, uploads, reactions and poll votes they did not delete (shown as Deleted User, D-029, D-123, D-332), content under a hold, the linked Discord identity (D-030), a staff-only archive of the original username, email address and display name that staff may view only through a logged read (D-326), and the request log (D-318); an erasure run may also delete the member's messages when the member asked for it (N-06); session and sign-in addresses are blanked. Profile scrubbed to "Deleted User" for deleted accounts; the avatar, the banner and the profile page pictures (`profile_media`, D-260) are deleted with it and the data export lists the pictures | Staff see the full record and the Person link |
 | Sessions, login IPs | Sessions until expiry. Login IP history 180 days (security), deleted by the daily job `moderation.suspicion_housekeeping` (P19); no hold exception, the finding is kept on the case instead (D-347) | Staff with `MANAGE_ACCOUNTS` |
-| Voice/video media | Never recorded or stored. E2EE | Nobody |
+| Voice/video media | Never recorded or stored. End-to-end encrypted, always: no setting, flag or build option turns it off (OPS-IMM-001) | Nobody |
 | Watch/read history | Until the user clears it | Per privacy settings |
 | Invoices / donations | `compliance.invoice_retention_years` (default 10, N-07, D-325) after the end of the year of payment, then detached from the member by the monthly job `payments.detach_expired_invoices` (N-08): the row, amounts, dates and chain address stay for the books, the account link is set to null | Staff with `MANAGE_DONATIONS` |
 | Invite graph | Forever | Staff with `MANAGE_INVITES` |
 | Staff access log | Forever, hash-chained | Owner and `VIEW_ACCESS_LOG` |
 | Library submissions that were rejected | Files purged 14 days after rejection. Metadata kept | Reviewers |
+| Storage mount (a member's or a server's own bucket; BYOS-LEG-001) | Until the member or the server owner removes it. The secret access key is stored sealed (AES-256-GCM under `server.secret_key`), never returned by any API, never in a log or a package. **Erasure of the account soft-deletes the member's mounts and wipes the sealed secret and the key id** | Staff with `MANAGE_TAKEDOWNS` see the mount list (owner, label, provider, bucket, status, key hint; never the secret) |
+| The objects in a member's bucket | Never stored, copied or deleted by the instance: the bucket is the member's. A takedown **delists** an object (the instance stops showing it and refuses links to it); a counter-notice restores it | The member, and whoever the member shared the shelf with |
+| Delisting records (takedown items of kind `storage_object`, whole-mount delists) | Forever with the notice (D-212); the access log records every staff delist and relist | Staff with `MANAGE_TAKEDOWNS` |
+| Presigned links to a member's bucket | Minutes (the presign TTL, roadmap section 2); never stored, never put in a message or a crawlable document | The holder of the link until it expires |
 
 Jobs (doc 02 §6) enforce purges (and `payments.detach_expired_invoices`, monthly, N-08): `purge_deleted_messages` (hourly), `expire_large_attachments` (hourly), `purge_rejected_submissions` (daily).
 
 **Member self-delete (N-05, D-324):** Settings, Privacy, "Delete all my messages" hides every message and upload the member wrote and removes their reactions and poll votes (a closed poll keeps its totals as anonymous counts, rows under a hold stay, D-332), in servers (including ones they left) and in direct messages, with an optional cut-off date, as a job (one run at a time, once per 24 hours). Same window: `user_deleted`, purged 30 days later, never while under a hold; the run is written to the access log as `messages.self_delete`, and staff can ask for the same run on an erasure request (N-06). **Bulk-delete and channel/server deletion:** messages move to `user_deleted` with the same 30-day window. Deleting a server marks all its channels deleted. Server metadata is kept for staff.
+
+**Data requests and mounts (BYOS-LEG-001):** a data package gains `storage.json`: the member's own mounts (label, provider, bucket, prefix, status, counts of delisted objects, and who each shelf is shared with) and the shelves friends shared with them. It never carries a key, a secret or an object key. Erasure reports how many mounts it removed in the request's outcome.
+
+**Search engines (D-384, OPS-IDX-001):** only the landing page is indexable; `robots.txt` allows `/` alone, every other response carries `X-Robots-Tag: noindex, nofollow` and every other SPA route carries `<meta name="robots" content="noindex">`, so no member, profile, message or library item is ever discoverable through a search engine.
 
 ## 2. Encryption
 

@@ -317,14 +317,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let mount_resolver = Arc::new(sr_storage::mount_cache::CachedMountResolver::new(
         mount_repo.clone(),
     ));
-    // Bucket mounts, read side (BYOS-SCP-001/002): scoped listing and presign over the same repo and sealer.
-    let scope_facts = Arc::new(sr_db::scopes_repo::PgScopeFacts::new(pool.clone()));
-    let storage_scope_deps = Arc::new(routes::storage::ScopeDeps {
-        // Uncached on purpose: a disabled mount or a cleared CORS flag (the recheck job, sr-cli, a direct
-        // write) must stop presigning at once, not after the 60 s cache.
-        mounts: mount_repo.clone(),
-        store: scope_facts.clone(),
-        sealer: mount_sealer.clone(),
+    // The shelves (BYOS-CAT-002) and the indexer (BYOS-CAT-001) share one store type over the same pool.
+    let index_store = Arc::new(sr_db::index_repo::PgIndexStore::new(
+        pool.clone(),
+        id_src.clone(),
+    ));
+    let shelf_deps = Arc::new(routes::storage::ShelfDeps {
+        store: Arc::new(sr_db::shelf_repo::PgShelfStore::new(
+            pool.clone(),
+            id_src.clone(),
+        )),
+        index: index_store.clone(),
     });
     if s.endpoint != "memory:" {
         crate::instance_mount::ensure_instance_mount(mount_repo.as_ref(), mount_sealer.as_ref(), s)
@@ -492,6 +495,35 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         ..sr_unfurl::Policy::default()
     };
     let unfurl_policy_for_feeds = unfurl_policy.clone();
+    // Member buckets are reached only at addresses that were resolved and checked once, just before the call
+    // (the DNS-rebind gap of wave 27).
+    let mount_guard: Arc<dyn sr_storage::guard::EndpointGuard> = Arc::new(
+        routes::storage::NetGuard::new(unfurl_policy_for_feeds.clone()),
+    );
+    // Bucket mounts, read side (BYOS-SCP-001/002): scoped listing and presign over the same repo and sealer.
+    let scope_facts = Arc::new(sr_db::scopes_repo::PgScopeFacts::new(pool.clone()));
+    let storage_scope_deps = Arc::new(routes::storage::ScopeDeps {
+        // Uncached on purpose: a disabled mount or a cleared CORS flag (the recheck job, sr-cli, a direct
+        // write) must stop presigning at once, not after the 60 s cache.
+        mounts: mount_repo.clone(),
+        store: scope_facts.clone(),
+        sealer: mount_sealer.clone(),
+        guard: Some(mount_guard.clone()),
+    });
+    // Browser uploads and object changes in a mount (BYOS-BRW-001): the ledger, the signed bucket calls, ids.
+    let upload_io: Arc<dyn sr_storage::uploads::MountIo> = Arc::new(
+        sr_storage::uploads::S3MountIo::new(mount_sealer.clone()).with_guard(mount_guard.clone()),
+    );
+    let upload_ledger: Arc<dyn sr_storage::uploads::UploadLedger> =
+        Arc::new(sr_db::mount_uploads_repo::PgUploadLedger::new(pool.clone()));
+    let upload_deps = Arc::new(routes::storage::UploadDeps {
+        ledger: upload_ledger.clone(),
+        io: upload_io.clone(),
+        next_id: {
+            let ids = ids.clone();
+            Arc::new(move || ids.generate().get())
+        },
+    });
     let unfurler = Arc::new(sr_unfurl::production(
         unfurl_policy.clone(),
         unfurl_cfg.per_host_per_minute.max(1),
@@ -1138,7 +1170,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .with_public_origin(&cfg.server.public_url)
         .with_resolver(mount_resolver.clone())
-        .with_facts(scope_facts.clone()),
+        .with_facts(scope_facts.clone())
+        .with_standing(scope_facts.clone()),
     );
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
@@ -1462,6 +1495,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
         .extension(storage_scope_deps)
+        .extension(upload_deps)
+        .extension(shelf_deps)
+        // The browser's delete and move update the index at once (wave-28 integration).
+        .extension(Arc::new(routes::storage::IndexHooks {
+            changes: index_store.clone(),
+            index: index_store.clone(),
+        }))
         .extension(Arc::new(
             routes::donations::DonationsDeps::new(payments.service.clone())
                 .with_chat_slot(payments.chat.clone()),
@@ -1472,7 +1512,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(
             routes::cdn::CdnDeps::new(storage.clone(), cdn_signer)
                 .with_playlists(playback_deps)
-                .with_blocklist(media_blocklist.clone()),
+                .with_blocklist(media_blocklist.clone())
+                .with_mounts(Arc::new(mount_storages.clone())),
         ))
         .extension(external_images)
         .extension(Arc::new(routes::internal::CspReports::new(Arc::new(
@@ -1576,6 +1617,22 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mount_repo.clone(),
         mount_sealer.clone(),
         cfg.server.public_url.clone(),
+        mount_guard.clone(),
+    );
+    let runner = crate::upload_jobs::register(
+        runner,
+        &pool,
+        upload_ledger.clone(),
+        mount_repo.clone(),
+        upload_io.clone(),
+    );
+    // Catalog indexing of storage mounts (BYOS-CAT-001): the one-shot and the daily `storage.index` job.
+    let runner = crate::storage_jobs::register(
+        runner,
+        &pool,
+        index_store.clone(),
+        mount_storages.clone(),
+        mount_repo.clone(),
     );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
@@ -1626,8 +1683,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;
+    crate::storage_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
+    crate::upload_jobs::schedule(&pool).await?;
     crate::activities_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::library_jobs::schedule_sources(&pool).await?;
@@ -1770,6 +1829,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::IntegrationsPolicyFeature)
         .context("registering the platform.integrations feature")?;
+    registry
+        .register(sr_features::ByosFeature)
+        .context("registering the platform.byos feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,

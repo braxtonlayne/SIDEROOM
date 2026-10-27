@@ -474,3 +474,43 @@ mod tests {
         );
     }
 }
+
+/// Percent-encode one path segment, leaving only `A-Z a-z 0-9 - . _ ~` (the alphabet of the CDN paths).
+fn encode_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// The CDN path of an object on a storage mount other than the instance bucket (BYOS): `/cdn/mount/<id>/<key
+/// segments>`, to be signed with [`CdnSigner::signed_url`]. The server answers it with a redirect to a short
+/// presigned URL of the member's bucket and never streams the bytes. `key` is mount-relative and has passed
+/// `path::safe_key`.
+pub fn mount_path(mount_id: i64, key: &str) -> String {
+    let mut p = format!("/cdn/mount/{mount_id}");
+    for seg in key.split('/').filter(|s| !s.is_empty()) {
+        p.push('/');
+        p.push_str(&encode_segment(seg));
+    }
+    p
+}
+
+#[cfg(test)]
+mod mount_path_tests {
+    use super::*;
+
+    #[test]
+    fn a_mount_key_becomes_encoded_segments() {
+        assert_eq!(
+            mount_path(77, "Movies/Alien (1979)/poster.jpg"),
+            "/cdn/mount/77/Movies/Alien%20%281979%29/poster.jpg"
+        );
+        assert_eq!(mount_path(7, "a//b"), "/cdn/mount/7/a/b");
+    }
+}

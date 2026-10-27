@@ -40,7 +40,7 @@ pub(crate) fn ms(col: &str, name: &str) -> String {
 /// Columns of a series row, read by [`series_from`].
 pub(crate) fn series_cols(a: &str) -> String {
     format!(
-        "{a}.id, {a}.kind, {a}.title, {a}.alt_titles, {a}.authors, {a}.artists, {a}.status, \
+        "{a}.id, {a}.mount_id, {a}.kind, {a}.title, {a}.alt_titles, {a}.authors, {a}.artists, {a}.status, \
          {a}.year, {a}.synopsis, {a}.genres, {a}.tags, {a}.reading_direction, {a}.age_restricted, \
          {a}.cover_key, {a}.published, {a}.merged_into, {a}.chapter_count, {a}.follower_count, {}, {}, {}, {}",
         ms(&format!("{a}.published_at"), "published_at_ms"),
@@ -68,6 +68,7 @@ pub(crate) fn series_from(r: &PgRow) -> LibraryResult<SeriesRecord> {
     };
     Ok(SeriesRecord {
         id: r.try_get("id").map_err(g)?,
+        mount_id: r.try_get("mount_id").map_err(g)?,
         kind,
         title: r.try_get("title").map_err(g)?,
         alt_titles: r.try_get("alt_titles").map_err(g)?,
@@ -94,7 +95,7 @@ pub(crate) fn series_from(r: &PgRow) -> LibraryResult<SeriesRecord> {
 
 pub(crate) fn chapter_cols() -> String {
     format!(
-        "c.id, c.series_id, c.edition_id, c.volume_id, c.number::float8 AS number, c.title, \
+        "c.id, c.mount_id, c.series_id, c.edition_id, c.volume_id, c.number::float8 AS number, c.title, \
          c.page_count, c.format, c.source_key, c.release_group, c.published, {}, \
          s.published AS series_published, s.age_restricted AS series_age_restricted, \
          s.reading_direction AS series_direction, (s.merged_into IS NOT NULL) AS series_merged, \
@@ -127,6 +128,7 @@ pub(crate) fn chapter_from(r: &PgRow) -> LibraryResult<ChapterRecord> {
     };
     Ok(ChapterRecord {
         id: r.try_get("id").map_err(g)?,
+        mount_id: r.try_get("mount_id").map_err(g)?,
         series_id: r.try_get("series_id").map_err(g)?,
         edition_id: r.try_get("edition_id").map_err(g)?,
         volume_id: r.try_get("volume_id").map_err(g)?,

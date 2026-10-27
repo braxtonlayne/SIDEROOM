@@ -9,6 +9,7 @@ const GROUP_LABEL: Record<string, MessageKey> = {
   invites: 'admin.limits.groupInvites',
   retention: 'admin.limits.groupRetention',
   abuse: 'admin.limits.groupAbuse',
+  storage: 'admin.limits.groupStorage',
 };
 const groupLabel = (g: string, t: (key: MessageKey) => string) =>
   GROUP_LABEL[g] ? t(GROUP_LABEL[g]) : g.charAt(0).toUpperCase() + g.slice(1);

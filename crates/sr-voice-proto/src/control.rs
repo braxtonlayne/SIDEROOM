@@ -34,6 +34,16 @@ pub enum VoiceCommand {
         viewers: Vec<UserId>,
         live: bool,
     },
+    /// `user` has taken part in the call's MLS handshake (op 101 `key_package`, or `ready` for the member
+    /// that starts the group), so the SFU may forward their media (OPS-IMM-001). Until then a sender's
+    /// frames are dropped and counted (`sr_voice_unkeyed_frames_total`): end-to-end encryption is the only
+    /// voice mode, and a client or bot that never speaks it joins but is never heard. `keyed: false`
+    /// withdraws it. The gateway sends this; it is forgotten with `Disconnect` and `CloseRoom`.
+    E2eeKeyed {
+        channel: ChannelId,
+        user: UserId,
+        keyed: bool,
+    },
     /// Drop a whole room (channel deleted).
     CloseRoom { channel: ChannelId },
 }

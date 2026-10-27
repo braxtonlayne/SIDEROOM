@@ -334,6 +334,7 @@ This archive holds the data tied to your account, as JSON files.\n\
   reactions.json      the reactions you added (message, channel, emoji, time)\n\
   poll_votes.json     the poll votes you cast (message, channel, answer, time)\n\
   attachments.json    an index of files you uploaded (the files themselves are not included)\n\
+  storage.json        your connected storage buckets (label, bucket, status, who you shared them with; never keys or secrets)\n\
   messages/           the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
 \n\
@@ -464,6 +465,13 @@ pub async fn build_package<W: Write + Seek>(
         &mut zip,
         "attachments.json",
         &rows(pool, "SELECT id::text AS id, message_id::text AS message_id, filename, content_type, size_bytes, width, height, description, is_large, expires_at, state::text AS state, created_at FROM attachments WHERE uploader_id = $1 ORDER BY id", user).await?,
+    )?;
+
+    // BYOS-LEG-001 (Art. 15): bucket connections (labels, buckets, counts, shares), never keys or secrets.
+    put(
+        &mut zip,
+        "storage.json",
+        &crate::storage_legal::export_for(pool, user).await?,
     )?;
 
     // N-15 (Art. 15): the member's own reactions and poll votes. They name the message and channel but

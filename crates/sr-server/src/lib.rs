@@ -42,9 +42,11 @@ pub mod rich_jobs;
 pub mod search_jobs;
 pub mod settings_pg;
 pub mod staff_feed;
+pub mod storage_jobs;
 pub mod suspicion_jobs;
 pub mod takedown_jobs;
 pub mod tv_catalog;
+pub mod upload_jobs;
 pub mod upload_limits;
 pub mod userfeat;
 pub mod userset_jobs;
@@ -85,6 +87,8 @@ mod jobs_scale_pg_tests;
 mod party_cards_pg_tests;
 #[cfg(test)]
 mod staff_feed_pg_tests;
+#[cfg(test)]
+mod storage_index_pg_tests;
 #[cfg(test)]
 mod storage_measure_pg_tests;
 #[cfg(test)]

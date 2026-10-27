@@ -57,7 +57,7 @@ fn like_escape(s: &str) -> String {
 
 fn title_cols(a: &str) -> String {
     format!(
-        "{a}.id, {a}.kind, {a}.title, {a}.original_title, {a}.alt_titles, {a}.sort_title, {a}.year, \
+        "{a}.id, {a}.mount_id, {a}.kind, {a}.title, {a}.original_title, {a}.alt_titles, {a}.sort_title, {a}.year, \
          {a}.runtime_min, {a}.content_rating, {a}.synopsis, {a}.tagline, {a}.genres, {a}.tags, \
          {a}.languages, {a}.subtitle_languages, {a}.cast_list, {a}.directors, {a}.writers, \
          {a}.studios, {a}.crew, {a}.age_restricted, {a}.poster_key, {a}.backdrop_key, {a}.logo_key, \
@@ -89,6 +89,7 @@ fn title_from(r: &PgRow) -> CinemaResult<TitleRecord> {
         .unwrap_or_default();
     Ok(TitleRecord {
         id: r.try_get("id").map_err(g)?,
+        mount_id: r.try_get("mount_id").map_err(g)?,
         kind,
         title: r.try_get("title").map_err(g)?,
         original_title: r.try_get("original_title").map_err(g)?,
@@ -149,7 +150,7 @@ fn season_sql(public: bool) -> String {
 
 fn episode_cols() -> String {
     format!(
-        "e.id, e.title_id, e.season_id, s.number AS season_number, e.number, e.absolute_number, \
+        "e.id, e.mount_id, e.title_id, e.season_id, s.number AS season_number, e.number, e.absolute_number, \
          e.title, e.synopsis, e.air_date::text AS air_date, e.runtime_min, e.still_key, e.asset_id, \
          e.published, {}, t.published AS title_published, (t.merged_into IS NOT NULL) AS title_merged, \
          t.age_restricted AS title_age_restricted",
@@ -164,6 +165,7 @@ fn episode_from(r: &PgRow) -> CinemaResult<EpisodeRecord> {
     let g = db;
     Ok(EpisodeRecord {
         id: r.try_get("id").map_err(g)?,
+        mount_id: r.try_get("mount_id").map_err(g)?,
         title_id: r.try_get("title_id").map_err(g)?,
         season_id: r.try_get("season_id").map_err(g)?,
         season_number: r.try_get("season_number").map_err(g)?,

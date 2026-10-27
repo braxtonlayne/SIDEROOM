@@ -224,6 +224,7 @@ fn to_playback_asset(pb: sr_media::assets::AssetPlayback) -> sr_media::playback:
         .collect();
     PlaybackAsset {
         id: pb.asset_id,
+        mount_id: pb.mount_id,
         storage_prefix: pb.base_path.trim_start_matches("/cdn/").to_owned(),
         duration_ms: Some((pb.duration_secs * 1000.0).round() as i64),
         media: pb.media,
@@ -254,6 +255,7 @@ mod tests {
     fn the_storage_prefix_is_the_cdn_base_without_the_cdn_root() {
         let pb = sr_media::assets::AssetPlayback {
             asset_id: 9,
+            mount_id: 1,
             base_path: "/cdn/transcode/9/1".to_owned(),
             duration_secs: 18.5,
             profile_version: 1,

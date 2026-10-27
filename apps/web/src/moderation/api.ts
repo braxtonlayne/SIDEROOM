@@ -330,7 +330,8 @@ export type TakedownItemKind =
   | 'library_series'
   | 'library_chapter'
   | 'cinema_title'
-  | 'cinema_episode';
+  | 'cinema_episode'
+  | 'storage_object';
 export type TakedownItemState = 'identified' | 'held' | 'disabled' | 'restored';
 
 export interface NoticeSummary {
@@ -352,6 +353,8 @@ export interface TakedownItem {
   kind: TakedownItemKind;
   target_id: string;
   label: string;
+  /** For storage_object: the mount-relative key that was delisted. */
+  object_key?: string;
   subject_account_id: string | null;
   state: TakedownItemState;
   hold_id: string | null;
@@ -412,8 +415,8 @@ export const listNotices = (p: { state?: NoticeState | ''; limit?: number } = {}
   get<NoticeSummary[]>(`${tk}${qs({ ...p })}`);
 export const createNotice = (body: NewNotice) => send<NoticeDetail>(tk, 'POST', body);
 export const getNotice = (id: string) => get<NoticeDetail>(`${tk}/${id}`);
-export const addNoticeItem = (id: string, kind: TakedownItemKind, target: string) =>
-  send<NoticeDetail>(`${tk}/${id}/items`, 'POST', { kind, id: target });
+export const addNoticeItem = (id: string, kind: TakedownItemKind, target: string, key?: string) =>
+  send<NoticeDetail>(`${tk}/${id}/items`, 'POST', { kind, id: target, ...(key ? { key } : {}) });
 export const removeNoticeItem = (id: string, itemId: string) =>
   send<NoticeDetail>(`${tk}/${id}/items/${itemId}`, 'DELETE');
 export const holdNotice = (id: string, reason: string) =>

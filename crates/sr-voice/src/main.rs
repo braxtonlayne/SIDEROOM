@@ -53,13 +53,16 @@ async fn main() -> anyhow::Result<()> {
         .install_recorder()
         .context("installing the metrics recorder")?;
     let handle = sr_voice::start(cfg).await?;
-    let app = sr_voice::router(handle.clone()).route(
-        "/metrics",
-        axum::routing::get(move || {
-            let prom = prom.clone();
-            async move { prom.render() }
-        }),
-    );
+    let app = sr_voice::router(handle.clone())
+        .route(
+            "/metrics",
+            axum::routing::get(move || {
+                let prom = prom.clone();
+                async move { prom.render() }
+            }),
+        )
+        // OPS-IDX-001: the layer inside `router` does not cover the route added here.
+        .layer(axum::middleware::map_response(sr_voice::noindex));
     let listener = tokio::net::TcpListener::bind(&bind)
         .await
         .with_context(|| format!("binding {bind}"))?;

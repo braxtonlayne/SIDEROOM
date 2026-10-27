@@ -1644,6 +1644,104 @@ async fn seed(
         let ids_map = if tenant_b { &mut b } else { &mut a };
         ids_map.insert(slot, id.to_string());
     }
+    // BYOS-LEG-001 (own block): a mount per tenant for `/admin/storage/mounts/{mount_id}/delist|relist` (OVERLAYS maps
+    // `{mount_id}` there), so that a staff sweep that delists it cannot take the storage-scope routes' mount away.
+    for (owner, tenant_b) in [(u("member"), false), (u("ownerb"), true)] {
+        let id = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, \
+             secret_key_enc, key_hint) VALUES ($1, 'user', $2, 'Legal', 'minio', 'http://127.0.0.1:9', 'legal', \
+             'AKIALEGAL', '\\xdeadbeef', 'EGAL')",
+        )
+        .bind(id)
+        .bind(owner)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let ids_map = if tenant_b { &mut b } else { &mut a };
+        ids_map.insert("legal_mount_id", id.to_string());
+    }
+    // --- BYOS-BRW-001 seeds (byos-browser): one open upload per tenant, for the `{mount_upload_id}` routes ---
+    for (who, ids_map) in [("member", &mut a), ("ownerb", &mut b)] {
+        use sr_storage::uploads::UploadLedger as _;
+        let upload_id = ids.generate().get() as i64;
+        let mount_id: i64 = ids_map["mount_id"].parse().unwrap();
+        sr_db::mount_uploads_repo::PgUploadLedger::new(pool.clone())
+            .insert(sr_storage::uploads::MountUpload {
+                id: upload_id,
+                mount_id,
+                user_id: u(who),
+                key: "Music/seed.flac".into(),
+                s3_upload_id: "authz-matrix-upload".into(),
+                size: 40 * 1024 * 1024,
+                part_size: sr_storage::uploads::PART_SIZE,
+                part_count: 3,
+                content_type: "audio/flac".into(),
+                state: sr_storage::uploads::UploadState::Open,
+                created_at: 1_900_000_000_000,
+                updated_at: 1_900_000_000_000,
+            })
+            .await
+            .unwrap();
+        ids_map.insert("mount_upload_id", upload_id.to_string());
+    }
+    // The platform bucket, for the attach and detach routes (nothing else is attachable).
+    let platform_id =
+        insert_mount(&pool, &ids, sr_storage::mounts::MountOwner::Platform, true).await;
+    a.insert("platform_mount_id", platform_id.to_string());
+    // --- end BYOS-BRW-001 seeds ---
+    // BYOS-CAT-001/002 (wave 28, byos-catalog): a series on each tenant's mount, indexed the way the indexer
+    // writes it (unpublished, `source = 'mount'`), for the `/shelves/{section}/{item_id}[/parts/{part_id}]`
+    // routes and their cross-tenant sweep.
+    b.insert("section", "cinema".to_owned());
+    a.insert("section", "cinema".to_owned());
+    for ids_map in [&mut a, &mut b] {
+        let mount: i64 = ids_map["mount_id"].parse().unwrap();
+        let (obj, title, season, ep) = (
+            ids.generate().get() as i64,
+            ids.generate().get() as i64,
+            ids.generate().get() as i64,
+            ids.generate().get() as i64,
+        );
+        sqlx::query(
+            "INSERT INTO storage_objects (id, mount_id, key, class, container, web_native, kind) \
+             VALUES ($1, $2, 'Series/Authz/Authz S01E01.mp4', 'episode', 'mp4', TRUE, 'cinema')",
+        )
+        .bind(obj)
+        .bind(mount)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO video_titles (id, kind, title, sort_title, published, mount_id, source, shelf_key) \
+             VALUES ($1, 'series', 'Authz Show', 'authz show', FALSE, $2, 'mount', 'series/Authz')",
+        )
+        .bind(title)
+        .bind(mount)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO video_seasons (id, title_id, number) VALUES ($1, $2, 1)")
+            .bind(season)
+            .bind(title)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO video_episodes (id, title_id, season_id, number, published, mount_id, source, mount_object_id) \
+             VALUES ($1, $2, $3, 1, FALSE, $4, 'mount', $5)",
+        )
+        .bind(ep)
+        .bind(title)
+        .bind(season)
+        .bind(mount)
+        .bind(obj)
+        .execute(&pool)
+        .await
+        .unwrap();
+        ids_map.insert("shelf_item_id", title.to_string());
+        ids_map.insert("shelf_part_id", ep.to_string());
+    }
     // More objects, so that a refusal is not just "no such id": a moderation case, a takedown notice,
     // a hold, an announcement, a submission, a command, a grant and a running stage.
     let staff = Cred::Session(sess["staff_owner"].clone());
@@ -2875,7 +2973,7 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 33] = [
+const TENANT: [&str; 36] = [
     "sticker_id",
     "sound_id",
     "request_id",
@@ -2909,6 +3007,10 @@ const TENANT: [&str; 33] = [
     "party_id",
     "case_id",
     "mount_id",
+    // BYOS-BRW-001 (byos-browser)
+    "mount_upload_id",
+    "shelf_item_id",
+    "shelf_part_id",
 ];
 
 fn scoped(path: &str) -> bool {
@@ -2929,6 +3031,8 @@ fn fill(path: &str, ids: &HashMap<&'static str, String>) -> String {
             "token" | "code" | "key" | "board" | "username" | "stream_key" | "hmac" | "url_b64"
             | "path" | "file" | "*path" => "x".to_owned(),
             "index" => "0".to_owned(),
+            // BYOS-BRW-001 (byos-browser): a part number that exists in the seeded upload.
+            "part_number" => "1".to_owned(),
             _ => BOGUS.to_owned(),
         });
         out.push_str(&v);
@@ -2966,6 +3070,19 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
         // BYOS-SCP-002: a presign for an audio key, a grants body naming the seeded role.
         ("POST", "/storage/mounts/{mount_id}/presign") => r#"{"key":"a.mp3","method":"GET"}"#,
+        // BYOS-BRW-001 (byos-browser): the write side of the bucket browser.
+        ("POST", "/storage/mounts/{mount_id}/uploads") => {
+            r#"{"key":"Music/a.flac","size":1048576,"content_type":"audio/flac"}"#
+        }
+        ("POST", "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete") => {
+            r#"{"parts":[]}"#
+        }
+        ("POST", "/admin/storage/mounts/{platform_mount_id}/attach")
+        | ("POST", "/admin/storage/mounts/{platform_mount_id}/detach") => {
+            r#"{"guild_id":"{guild_id}"}"#
+        }
+        ("POST", "/storage/mounts/{mount_id}/folders") => r#"{"key":"Albums/"}"#,
+        ("POST", "/storage/mounts/{mount_id}/move") => r#"{"from":"a.mp3","to":"b.mp3"}"#,
         ("PUT", "/guilds/{guild_id}/storage/grants") => {
             r#"{"role_id":"{role_id}","grants":["view_music"]}"#
         }
@@ -4156,6 +4273,9 @@ async fn run_group(
     let calls = plan_calls(&world, routes, g, infos);
     let mut failures = Vec::new();
     let mut obs: Vec<Obs> = Vec::new();
+    // OPS-IMM-002: under a flag state (immutable_rules.rs) only the refusal phase runs, after the state is applied.
+    let refusals_only = harness::current().is_some();
+    harness::after_seed(&world, g, &mut failures).await;
 
     let (denials, others): (Vec<&Call>, Vec<&Call>) =
         calls.iter().partition(|c| c.exp == Exp::Deny);
@@ -4207,7 +4327,7 @@ async fn run_group(
     let mut group_fail = 0usize;
     let mut n = 0usize;
     for (phase, list) in [(0, denials), (1, reads), (2, rest)] {
-        if write_only && phase != 2 {
+        if (write_only && phase != 2) || (refusals_only && phase != 0) {
             continue;
         }
         if phase == 2 && write_on {
@@ -4338,7 +4458,7 @@ async fn run_group(
     }
 
     // R-03: the weak refusals of a group may only go down (lower WEAK_CEILING when they do).
-    if !write_only && weak > WEAK_CEILING[g] {
+    if !write_only && !refusals_only && weak > WEAK_CEILING[g] {
         group_fail += 1;
         failures.push(format!(
             "[{gname}] {weak} weak refusals, the ceiling is {}: a seeded id stopped reaching its resource",
@@ -4368,6 +4488,9 @@ async fn run_group(
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn every_route_enforces_its_authz_row() {
+    if harness::embedded() {
+        return;
+    }
     let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
     let routes = parse_matrix();
     let infos = op_infos();
@@ -4580,6 +4703,8 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         "package_id",
         "recipe_id",
     ),
+    // BYOS-LEG-001: the staff delist acts on its own mount (see the seeding block).
+    (&["/admin/storage/mounts/"], "mount_id", "legal_mount_id"),
     // A server's mount routes act on the server's own mount, not the plain member's.
     (
         &["/guilds/{guild_id}/storage/mounts"],
@@ -4733,6 +4858,9 @@ async fn insert_mount(
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn storage_scopes_hold_over_http() {
+    if harness::embedded() {
+        return;
+    }
     let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
     let routes = parse_matrix();
     let infos = op_infos();
@@ -5239,6 +5367,939 @@ async fn storage_scopes_hold_over_http() {
     assert!(
         failures.is_empty(),
         "{} storage scope failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// OPS-IMM-002: the library entry of `immutable_rules.rs`. Everything below is that harness's own; the
+// matrix above only calls `harness::current()` and `harness::after_seed()` from `run_group`.
+// ---------------------------------------------------------------------------------------------
+
+/// The IMMUTABLE RULE harness (docs/dev/roadmap-p27.md section 2): the refusal phase of a group run again
+/// with every feature killed at platform scope and with every setting at an end of its range, plus the
+/// checks that staff reads and admin actions are still logged and the log chain still verifies.
+#[allow(dead_code)]
+pub mod harness {
+    use super::*;
+    use std::sync::Mutex;
+
+    /// A state of the platform flags the refusal phase runs under.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Flip {
+        /// Every registered feature switched off at platform scope.
+        KillFeatures,
+        /// Every setting at its minimum (throttles stay at their maximum, see [`throttle`]).
+        SettingsMin,
+        /// Every setting at its maximum.
+        SettingsMax,
+    }
+
+    static CURRENT: Mutex<Option<Flip>> = Mutex::new(None);
+
+    /// True when this file is compiled into `immutable_rules.rs` (as its `matrix` module): the two big tests
+    /// above then return at once, because their own binary runs them and the harness only needs the library.
+    pub(super) fn embedded() -> bool {
+        module_path!().starts_with("immutable_rules")
+    }
+
+    pub(super) fn current() -> Option<Flip> {
+        *CURRENT.lock().unwrap()
+    }
+
+    /// What a run produced.
+    #[derive(Default, Debug)]
+    pub struct Report {
+        /// One line per group: the matrix summary.
+        pub lines: Vec<String>,
+        /// Everything that went wrong, one line each.
+        pub failures: Vec<String>,
+    }
+
+    /// Run the refusal phase of `groups` (indexes into [`GROUPS`]) under `flip`, each on a freshly seeded world.
+    pub async fn run(flip: Flip, groups: &[usize]) -> Report {
+        *CURRENT.lock().unwrap() = Some(flip);
+        let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+        let routes = parse_matrix();
+        let infos = op_infos();
+        let mut rep = Report::default();
+        for &g in groups {
+            let res = run_group(g, &base, &routes, &infos).await;
+            rep.lines.push(res.line);
+            rep.failures.extend(res.failures);
+        }
+        *CURRENT.lock().unwrap() = None;
+        rep
+    }
+
+    /// The group indexes whose refusals the IMMUTABLE RULE names: moderation, admin, and the rest (which holds
+    /// the storage and voice routes).
+    pub const RULE_GROUPS: [usize; 3] = [0, 1, 5];
+
+    /// Settings that throttle the harness itself (HTTP rate limits and the abuse limiters). At their minimum
+    /// every call would answer 429, which proves nothing about authorization, so they stay at their maximum
+    /// in every state; the handoff names them.
+    pub fn throttle(key: &str, group: &str) -> bool {
+        key.starts_with("limits.rate.") || group == "abuse"
+    }
+
+    struct Logs {
+        access: i64,
+        audit: i64,
+        private: i64,
+    }
+
+    async fn count(pool: &sqlx::PgPool, sql: &'static str) -> i64 {
+        sqlx::query_scalar::<_, i64>(sql)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(-1)
+    }
+
+    async fn logs(pool: &sqlx::PgPool) -> Logs {
+        Logs {
+            access: count(pool, "SELECT count(*) FROM staff_access_log").await,
+            audit: count(pool, "SELECT count(*) FROM platform_audit_log").await,
+            private: count(
+                pool,
+                "SELECT count(*) FROM staff_access_log WHERE kind = 'private_read'",
+            )
+            .await,
+        }
+    }
+
+    fn json_of(r: &Resp) -> Value {
+        serde_json::from_str(&r.body).unwrap_or(Value::Null)
+    }
+
+    /// The value a setting takes at the end of its range `flip` names.
+    pub fn setting_value(s: &Value, flip: Flip) -> Option<Value> {
+        let key = s["key"].as_str()?;
+        let group = s["group"].as_str().unwrap_or("");
+        let to_max = flip == Flip::SettingsMax || throttle(key, group);
+        match s["kind"].as_str()? {
+            "integer" => {
+                let v = if to_max { &s["max"] } else { &s["min"] };
+                Some(json!(v.as_f64()? as i64))
+            }
+            "number" => Some(json!(if to_max {
+                s["max"].as_f64()?
+            } else {
+                s["min"].as_f64()?
+            })),
+            "boolean" => Some(json!(to_max)),
+            // A text has no range: empty at the minimum, the most restrictive known value at the maximum.
+            "text" if flip == Flip::SettingsMax => Some(match key {
+                "byos.who_may_mount" => json!("staff"),
+                "byos.endpoint_allow" => json!("immutable.invalid"),
+                _ => s["default"].clone(),
+            }),
+            "text" => Some(json!("")),
+            _ => None,
+        }
+    }
+
+    /// Put the platform into the state of `flip` through the Admin API as the Owner. Returns what it did.
+    async fn apply(world: &World, flip: Flip) -> Result<String, String> {
+        let owner = &world.actor("staff_owner").cred;
+        let srv = &world.srv;
+        match flip {
+            Flip::KillFeatures => {
+                let r = srv.call(owner, "GET", "/admin/features", None).await;
+                let list = json_of(&r);
+                let list = list
+                    .as_array()
+                    .ok_or(format!("GET /admin/features: {} {}", r.status, r.body))?;
+                let (mut killed, mut skipped) = (0, Vec::new());
+                for f in list {
+                    let id = f["id"].as_str().unwrap_or_default();
+                    if f["enabled"] != json!(true) {
+                        continue;
+                    }
+                    let r = srv
+                        .call_reason(
+                            owner,
+                            "PATCH",
+                            &format!("/admin/features/{id}"),
+                            Some(&json!({"enabled": false})),
+                        )
+                        .await;
+                    if r.status == 200 {
+                        killed += 1;
+                    } else {
+                        skipped.push(format!("{id} ({})", r.status));
+                    }
+                }
+                if killed == 0 || skipped.len() * 10 > list.len() {
+                    return Err(format!(
+                        "only {killed} of {} features killed; skipped {skipped:?}",
+                        list.len()
+                    ));
+                }
+                Ok(format!(
+                    "{killed} of {} features killed, skipped {skipped:?}",
+                    list.len()
+                ))
+            }
+            Flip::SettingsMin | Flip::SettingsMax => {
+                let r = srv.call(owner, "GET", "/admin/settings", None).await;
+                let list = json_of(&r);
+                let list = list
+                    .as_array()
+                    .ok_or(format!("GET /admin/settings: {} {}", r.status, r.body))?;
+                let mut values = serde_json::Map::new();
+                for s in list {
+                    if let (Some(k), Some(v)) = (s["key"].as_str(), setting_value(s, flip)) {
+                        values.insert(k.to_owned(), v);
+                    }
+                }
+                let batch = srv
+                    .call_reason(
+                        owner,
+                        "PATCH",
+                        "/admin/settings",
+                        Some(&json!({"values": values})),
+                    )
+                    .await;
+                if batch.status == 200 {
+                    return Ok(format!("{} settings set in one patch", values.len()));
+                }
+                // Some settings are validated against each other (thresholds): one key at a time then.
+                let (mut set, mut skipped) = (0, Vec::new());
+                for (k, v) in &values {
+                    let r = srv
+                        .call_reason(
+                            owner,
+                            "PATCH",
+                            "/admin/settings",
+                            Some(&json!({"values": {k: v}})),
+                        )
+                        .await;
+                    if r.status == 200 {
+                        set += 1;
+                    } else {
+                        skipped.push(k.clone());
+                    }
+                }
+                if set * 2 < values.len() {
+                    return Err(format!(
+                        "only {set} of {} settings applied; skipped {skipped:?}",
+                        values.len()
+                    ));
+                }
+                Ok(format!(
+                    "{set} of {} settings set one by one; skipped {skipped:?}",
+                    values.len()
+                ))
+            }
+        }
+    }
+
+    /// Called by `run_group` right after the world is seeded, when a flip is current: apply it, then prove that
+    /// admin actions and staff reads still write their logs and that the chain still verifies.
+    pub(super) async fn after_seed(world: &World, g: usize, failures: &mut Vec<String>) {
+        let Some(flip) = current() else { return };
+        let tag = format!("[{} under {flip:?}]", GROUPS[g]);
+        let owner = &world.actor("staff_owner").cred;
+        let srv = &world.srv;
+        let r = step_up(srv, owner, &world.totp).await;
+        if r.status != 200 {
+            failures.push(format!(
+                "{tag} the staff step-up answered {} {}",
+                r.status, r.body
+            ));
+            return;
+        }
+        let before = logs(&world.pool).await;
+        match apply(world, flip).await {
+            Ok(note) => println!("immutable_rules: {tag} {note}"),
+            Err(e) => {
+                failures.push(format!("{tag} could not apply the state: {e}"));
+                return;
+            }
+        }
+        // The state change itself was an admin action: the access log grew.
+        let changed = logs(&world.pool).await;
+        if changed.access <= before.access {
+            failures.push(format!(
+                "{tag} the admin actions that set the state wrote no staff_access_log row"
+            ));
+        }
+        // And an audited admin action (a settings change; a feature switch is access-logged only) writes the
+        // audit log and the access log: send a setting its own current value.
+        let r = srv.call(owner, "GET", "/admin/settings", None).await;
+        let list = json_of(&r);
+        let probe = list
+            .as_array()
+            .and_then(|l| l.iter().find(|s| s["key"] == "retention.large_file_days"))
+            .cloned();
+        match probe {
+            Some(p) => {
+                let r = srv
+                    .call_reason(
+                        owner,
+                        "PATCH",
+                        "/admin/settings",
+                        Some(&json!({"values": {"retention.large_file_days": p["value"]}})),
+                    )
+                    .await;
+                if r.status != 200 {
+                    failures.push(format!(
+                        "{tag} the audited admin action answered {} {}",
+                        r.status, r.body
+                    ));
+                }
+            }
+            None => failures.push(format!("{tag} the probe setting is not in the catalog")),
+        }
+        let after = logs(&world.pool).await;
+        if after.audit <= changed.audit {
+            failures.push(format!(
+                "{tag} an audited admin action wrote no platform_audit_log row"
+            ));
+        }
+        if after.access <= changed.access {
+            failures.push(format!(
+                "{tag} an audited admin action wrote no staff_access_log row"
+            ));
+        }
+        // A staff read of a member archive is logged.
+        let member = world.member_id;
+        let r = srv
+            .call_reason(
+                owner,
+                "GET",
+                &format!("/admin/private/accounts/{member}/dms"),
+                None,
+            )
+            .await;
+        if r.status != 200 {
+            failures.push(format!(
+                "{tag} the staff read of a member archive answered {} {}",
+                r.status, r.body
+            ));
+        }
+        let read = logs(&world.pool).await;
+        if read.private <= after.private {
+            failures.push(format!(
+                "{tag} the staff read of a member archive wrote no private_read access-log row"
+            ));
+        }
+        // And the chain still verifies.
+        let r = srv
+            .call(owner, "GET", "/admin/access-log/verify", None)
+            .await;
+        let report = json_of(&r);
+        if r.status != 200 || report["ok"] != json!(true) {
+            failures.push(format!(
+                "{tag} the access-log chain does not verify: {} {}",
+                r.status, r.body
+            ));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// BYOS-BRW-001 (byos-browser): the write side of the bucket browser. Nothing listens on the mounts'
+// endpoint, so an admitted write answers 409 `BUCKET_UNREACHABLE` after the authorization decision (that is
+// the proof it got past it); a refused one answers 403 or 404 before any bucket call. The part URL is local
+// signing, so it answers 200 for the right caller.
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn storage_writes_hold_over_http() {
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 21).expect("ids");
+    let id_src: sr_db::auth_repo::IdSource = {
+        let g = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 22).expect("ids"));
+        Arc::new(move || g.generate().get() as i64)
+    };
+    let auth = PgAuthRepo::new(
+        world.pool.clone(),
+        id_src,
+        sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap(),
+    );
+    let friend_unshared = Cred::Session(session_for(&auth, &ids, world.users["friendtwo"]).await);
+    let friend_shared = world.actor("victim").cred.clone();
+    let member = world.actor("member").cred.clone();
+    let owner_a = world.actor("owner_a").cred.clone();
+    let insider = world.actor("insider").cred.clone();
+    let outsider = world.actor("outsider").cred.clone();
+    let owner_b = world.actor("owner_b").cred.clone();
+    let pool = &world.pool;
+    let srv = &world.srv;
+    let m = world.a["mount_id"].clone();
+    let up = world.a["mount_upload_id"].clone();
+    let m_id: i64 = m.parse().unwrap();
+    let g_mount = insert_mount(
+        pool,
+        &ids,
+        sr_storage::mounts::MountOwner::Guild(world.guild_a),
+        true,
+    )
+    .await
+    .to_string();
+
+    let mut failures: Vec<String> = Vec::new();
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(160).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+    let begin = |mount: &str| format!("/storage/mounts/{mount}/uploads");
+    let body = json!({"key": "Music/a.flac", "size": 1_048_576});
+
+    // The owner is admitted past the decision: the dead bucket is what stops the call.
+    let r = expect!(
+        "owner begins an upload",
+        srv.call(&member, "POST", &begin(&m), Some(&body)).await,
+        409
+    );
+    if !r.body.contains("BUCKET_UNREACHABLE") {
+        failures.push(format!("owner begin should reach the bucket: {}", r.body));
+    }
+    // The owner's part URL is signed locally and carries no secret.
+    let part = format!("{}/{up}/parts/1", begin(&m));
+    let r = expect!(
+        "owner asks for a part URL",
+        srv.call(&member, "POST", &part, None).await,
+        200
+    );
+    if !r.body.contains("partNumber=1") || r.body.contains("authz-matrix-secret") {
+        failures.push(format!("part URL shape: {}", r.body));
+    }
+    expect!(
+        "owner lists open uploads",
+        srv.call(&member, "GET", &begin(&m), None).await,
+        200
+    );
+
+    // A friend the mount is shared with reaches it and still cannot write; one it is not shared with cannot see it.
+    let victim = world.users["victim"];
+    expect!(
+        "the owner shares everything",
+        srv.call(
+            &member,
+            "PUT",
+            &format!("/users/@me/storage/mounts/{m}/shares/{victim}"),
+            Some(&json!({"cinema": true, "library": true, "music": true}))
+        )
+        .await,
+        200
+    );
+    for (what, method, path, b) in [
+        ("begin", "POST", begin(&m), Some(&body)),
+        ("part", "POST", part.clone(), None),
+        ("list", "GET", begin(&m), None),
+    ] {
+        expect!(
+            &format!("shared friend: {what}"),
+            srv.call(&friend_shared, method, &path, b).await,
+            403
+        );
+    }
+    let folder = json!({"key": "New/"});
+    expect!(
+        "shared friend: folder",
+        srv.call(
+            &friend_shared,
+            "POST",
+            &format!("/storage/mounts/{m}/folders"),
+            Some(&folder)
+        )
+        .await,
+        403
+    );
+    expect!(
+        "shared friend: move",
+        srv.call(
+            &friend_shared,
+            "POST",
+            &format!("/storage/mounts/{m}/move"),
+            Some(&json!({"from": "a.mp3", "to": "b.mp3"}))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "shared friend: delete",
+        srv.call(
+            &friend_shared,
+            "DELETE",
+            &format!("/storage/mounts/{m}/objects/a.mp3"),
+            None
+        )
+        .await,
+        403
+    );
+    expect!(
+        "unshared friend: begin",
+        srv.call(&friend_unshared, "POST", &begin(&m), Some(&body))
+            .await,
+        404
+    );
+    expect!(
+        "another tenant's owner: begin",
+        srv.call(&owner_b, "POST", &begin(&m), Some(&body)).await,
+        404
+    );
+    expect!(
+        "another tenant's owner: the upload id",
+        srv.call(&owner_b, "DELETE", &format!("{}/{up}", begin(&m)), None)
+            .await,
+        404
+    );
+
+    // A server shelf: the server owner may write; a member without the upload grant and a stranger may not.
+    expect!(
+        "server owner begins",
+        srv.call(&owner_a, "POST", &begin(&g_mount), Some(&body))
+            .await,
+        409
+    );
+    expect!(
+        "server owner makes a folder",
+        srv.call(
+            &owner_a,
+            "POST",
+            &format!("/storage/mounts/{g_mount}/folders"),
+            Some(&folder)
+        )
+        .await,
+        409
+    );
+    let r = srv
+        .call(&insider, "POST", &begin(&g_mount), Some(&body))
+        .await;
+    if r.status != 403 && r.status != 404 {
+        failures.push(format!("insider begin: {} {}", r.status, r.body));
+    }
+    expect!(
+        "server stranger begins",
+        srv.call(&outsider, "POST", &begin(&g_mount), Some(&body))
+            .await,
+        404
+    );
+
+    // The gate behind the decision: a mount that has not passed its CORS check starts nothing, and a disabled
+    // mount is not there.
+    sqlx::query("UPDATE storage_mounts SET cors_ok_at = NULL WHERE id = $1")
+        .bind(m_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    let r = expect!(
+        "no CORS, no upload",
+        srv.call(&member, "POST", &begin(&m), Some(&body)).await,
+        409
+    );
+    if !r.body.contains("CORS_NOT_READY") {
+        failures.push(format!("expected CORS_NOT_READY: {}", r.body));
+    }
+    sqlx::query("UPDATE storage_mounts SET status = 'disabled' WHERE id = $1")
+        .bind(m_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    expect!(
+        "a disabled mount takes no upload",
+        srv.call(&member, "POST", &begin(&m), Some(&body)).await,
+        404
+    );
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} storage write failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// BYOS-CAT-002 (byos-catalog): the shelves over HTTP. The seed put an unpublished series on each tenant's mount
+// (`shelf_item_id`, `shelf_part_id`); who sees it, who may edit it and who may start a re-index follows
+// `sr_storage::scopes`, and nothing of it is in the instance catalog.
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn shelves_hold_over_http() {
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 23).expect("ids");
+    let id_src: sr_db::auth_repo::IdSource = {
+        let g = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 24).expect("ids"));
+        Arc::new(move || g.generate().get() as i64)
+    };
+    let auth = PgAuthRepo::new(
+        world.pool.clone(),
+        id_src,
+        sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap(),
+    );
+    let stranger = Cred::Session(session_for(&auth, &ids, world.users["friendtwo"]).await);
+    let friend = world.actor("victim").cred.clone();
+    let owner = world.actor("member").cred.clone();
+    let srv = &world.srv;
+    let pool = &world.pool;
+    let m = world.a["mount_id"].clone();
+    let item = world.a["shelf_item_id"].clone();
+    let part = world.a["shelf_part_id"].clone();
+    let other_item = world.b["shelf_item_id"].clone();
+    let other_part = world.b["shelf_part_id"].clone();
+    let victim = world.users["victim"];
+
+    let mut failures: Vec<String> = Vec::new();
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(160).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+    macro_rules! lists {
+        ($what:expr, $who:expr, $yes:expr) => {{
+            let r = expect!(
+                $what,
+                srv.call($who, "GET", "/shelves/cinema", None).await,
+                200
+            );
+            if r.body.contains(&item) != $yes {
+                failures.push(format!("{}: the item should be listed = {}", $what, $yes));
+            }
+            r
+        }};
+    }
+
+    // The owner sees it, as "own", with its episode.
+    let r = lists!("owner lists", &owner, true);
+    if !r.body.contains("\"scope\":\"own\"") || !r.body.contains(&m) {
+        failures.push("the owner's card names its source".into());
+    }
+    let r = expect!(
+        "owner opens it",
+        srv.call(&owner, "GET", &format!("/shelves/cinema/{item}"), None)
+            .await,
+        200
+    );
+    if !r.body.contains(&part) || !r.body.contains("\"can_edit\":true") {
+        failures.push(format!(
+            "owner detail: {}",
+            r.body.chars().take(200).collect::<String>()
+        ));
+    }
+    // It is not in the instance catalog.
+    expect!(
+        "the instance catalog does not know it",
+        srv.call(&owner, "GET", &format!("/cinema/titles/{item}"), None)
+            .await,
+        404
+    );
+
+    // A friend without a share, and a stranger, see nothing.
+    lists!("friend before the share", &friend, false);
+    lists!("stranger", &stranger, false);
+    for (who, name) in [(&friend, "friend"), (&stranger, "stranger")] {
+        expect!(
+            &format!("{name} opens it"),
+            srv.call(who, "GET", &format!("/shelves/cinema/{item}"), None)
+                .await,
+            404
+        );
+        expect!(
+            &format!("{name} edits it"),
+            srv.call(
+                who,
+                "PATCH",
+                &format!("/shelves/cinema/{item}"),
+                Some(&json!({"title": "x"}))
+            )
+            .await,
+            404
+        );
+        expect!(
+            &format!("{name} starts an index"),
+            srv.call(who, "POST", &format!("/storage/mounts/{m}/index"), None)
+                .await,
+            404
+        );
+    }
+
+    // A library-only share shows no film; a cinema share shows it, read-only.
+    expect!(
+        "the owner shares the library",
+        srv.call(
+            &owner,
+            "PUT",
+            &format!("/users/@me/storage/mounts/{m}/shares/{victim}"),
+            Some(&json!({"cinema": false, "library": true, "music": false}))
+        )
+        .await,
+        200
+    );
+    lists!("friend with a library share", &friend, false);
+    expect!(
+        "the owner shares cinema",
+        srv.call(
+            &owner,
+            "PUT",
+            &format!("/users/@me/storage/mounts/{m}/shares/{victim}"),
+            Some(&json!({"cinema": true, "library": false, "music": false}))
+        )
+        .await,
+        200
+    );
+    let r = lists!("friend with a cinema share", &friend, true);
+    if !r.body.contains("\"scope\":\"friend\"") {
+        failures.push("the friend's card says friend".into());
+    }
+    let r = expect!(
+        "friend opens it",
+        srv.call(&friend, "GET", &format!("/shelves/cinema/{item}"), None)
+            .await,
+        200
+    );
+    if !r.body.contains("\"can_edit\":false") {
+        failures.push("a friend cannot edit".into());
+    }
+    expect!(
+        "friend edits it",
+        srv.call(
+            &friend,
+            "PATCH",
+            &format!("/shelves/cinema/{item}"),
+            Some(&json!({"title": "x"}))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "friend edits a part",
+        srv.call(
+            &friend,
+            "PATCH",
+            &format!("/shelves/cinema/{item}/parts/{part}"),
+            Some(&json!({"title": "x"}))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "friend starts an index",
+        srv.call(&friend, "POST", &format!("/storage/mounts/{m}/index"), None)
+            .await,
+        403
+    );
+    expect!(
+        "friend reads the index status",
+        srv.call(&friend, "GET", &format!("/storage/mounts/{m}/index"), None)
+            .await,
+        403
+    );
+    // The shelf of music is not the shelf of cinema.
+    expect!(
+        "friend opens the item in the wrong section",
+        srv.call(&friend, "GET", &format!("/shelves/music/{item}"), None)
+            .await,
+        404
+    );
+
+    // The owner edits; the edit is an override and shows.
+    let r = expect!(
+        "owner edits",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/cinema/{item}"),
+            Some(&json!({"title": "Renamed", "year": 1999, "tags": ["Cult"],
+                         "details": {"provider": "tmdb", "external_id": "603"}}))
+        )
+        .await,
+        200
+    );
+    for needle in [
+        "\"title\":\"Renamed\"",
+        "\"overridden\"",
+        "\"cult\"",
+        "not endorsed",
+    ] {
+        if !r.body.contains(needle) {
+            failures.push(format!(
+                "the edit shows {needle}: {}",
+                r.body.chars().take(300).collect::<String>()
+            ));
+        }
+    }
+    expect!(
+        "owner edits a part",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/cinema/{item}/parts/{part}"),
+            Some(&json!({"title": "Pilot", "number": 3}))
+        )
+        .await,
+        200
+    );
+    expect!(
+        "an unknown attribution source",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/cinema/{item}"),
+            Some(&json!({"details": {"provider": "evil", "external_id": "1"}}))
+        )
+        .await,
+        400
+    );
+    expect!(
+        "a key that climbs out of the mount",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/cinema/{item}"),
+            Some(&json!({"poster_key": "../secret"}))
+        )
+        .await,
+        400
+    );
+    expect!(
+        "the owner queues a re-index",
+        srv.call(&owner, "POST", &format!("/storage/mounts/{m}/index"), None)
+            .await,
+        202
+    );
+    let r = expect!(
+        "a second request while one is queued",
+        srv.call(&owner, "POST", &format!("/storage/mounts/{m}/index"), None)
+            .await,
+        202
+    );
+    if !r.body.contains("\"queued\":false") {
+        failures.push("one queued index job per mount".into());
+    }
+    expect!(
+        "the owner reads the status",
+        srv.call(&owner, "GET", &format!("/storage/mounts/{m}/index"), None)
+            .await,
+        200
+    );
+    expect!(
+        "the instance bucket is not indexed",
+        srv.call(&owner, "POST", "/storage/mounts/1/index", None)
+            .await,
+        404
+    );
+
+    // The other tenant's item is nobody else's, and a made-up section is nothing.
+    expect!(
+        "cross tenant read",
+        srv.call(
+            &owner,
+            "GET",
+            &format!("/shelves/cinema/{other_item}"),
+            None
+        )
+        .await,
+        404
+    );
+    expect!(
+        "cross tenant edit",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/cinema/{other_item}"),
+            Some(&json!({"title": "x"}))
+        )
+        .await,
+        404
+    );
+    expect!(
+        "cross tenant part",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/cinema/{other_item}/parts/{part}"),
+            Some(&json!({"title": "x"}))
+        )
+        .await,
+        404
+    );
+    expect!(
+        "a part of another item",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/cinema/{item}/parts/{other_part}"),
+            Some(&json!({"title": "x"}))
+        )
+        .await,
+        404
+    );
+    expect!(
+        "no such section",
+        srv.call(&owner, "GET", "/shelves/podcasts", None).await,
+        404
+    );
+
+    // A disabled mount takes the item off every shelf.
+    sqlx::query("UPDATE storage_mounts SET status = 'disabled' WHERE id = $1")
+        .bind(m.parse::<i64>().unwrap())
+        .execute(pool)
+        .await
+        .unwrap();
+    lists!("owner with the mount disabled", &owner, false);
+    lists!("friend with the mount disabled", &friend, false);
+    expect!(
+        "owner opens it while disabled",
+        srv.call(&owner, "GET", &format!("/shelves/cinema/{item}"), None)
+            .await,
+        404
+    );
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} shelf failures:\n{}",
         failures.len(),
         failures.join("\n")
     );

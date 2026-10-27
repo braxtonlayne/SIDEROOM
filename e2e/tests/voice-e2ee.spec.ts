@@ -17,8 +17,12 @@ import {
  * channel and looks at the encoded frames the SFU forwards: every one of them carries the SR frame trailer,
  * so nothing reaches it, or the SFU, in the clear.
  *
- * Needs sr-server with `SR_VOICE__ENABLED=true SR_VOICE__E2EE=true` and this config's web server
- * (`VITE_SR_VOICE_E2EE=1`); set SR_E2E_VOICE=1.
+ * Needs sr-server with `SR_VOICE__ENABLED=true` (end-to-end encryption is the only voice mode, OPS-IMM-001: there is
+ * no setting for it) and the web server of `playwright.config.ts` (`VITE_SR_E2E=1`); set SR_E2E_VOICE=1. It used to
+ * have a config of its own (`playwright.e2ee.config.ts`); that config is folded into the main one, whose projects
+ * carry the fake-media browser settings. Run it like any spec:
+ *
+ *   pnpm --filter /e2e exec playwright test --project=chromium tests/voice-e2ee.spec.ts
  */
 
 interface FrameCounters {
@@ -123,10 +127,9 @@ async function observeFrames(page: Page) {
 }
 
 test.describe('Voice E2EE (real browsers)', () => {
-  test.skip(
-    !VOICE_STACK,
-    'Needs sr-server with SR_VOICE__ENABLED=true and SR_VOICE__E2EE=true; set SR_E2E_VOICE=1.',
-  );
+  // The old e2ee config's budget: three clients, a handshake and a media check per test.
+  test.describe.configure({ timeout: 180_000 });
+  test.skip(!VOICE_STACK, 'Needs sr-server with SR_VOICE__ENABLED=true; set SR_E2E_VOICE=1.');
 
   test('two clients form an MLS group, share a call code and exchange encrypted audio and video', async ({
     browser,

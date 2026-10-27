@@ -117,6 +117,8 @@ pub struct JoinParams {
     pub guild: Option<GuildId>,
     pub channel: ChannelId,
     pub flags: Flags,
+    /// The sender has completed the E2EE handshake already (tests; the gateway says so in production).
+    pub e2ee_keyed: bool,
     /// Local candidates to advertise in the SDP answer (ICE-lite, so these are all there is).
     pub candidates: Vec<Candidate>,
 }
@@ -200,6 +202,8 @@ pub struct Snapshot {
     pub governor_severity: u8,
     /// Keyframe requests sent to publishers.
     pub keyframe_requests: u64,
+    /// Frames dropped because their sender had not completed the E2EE handshake (OPS-IMM-001).
+    pub unkeyed_frames: u64,
 }
 
 /// What a remote m-line carries.
@@ -355,6 +359,8 @@ struct Participant {
     guild: Option<GuildId>,
     channel: ChannelId,
     flags: Flags,
+    /// Passed the E2EE handshake (OPS-IMM-001): nothing the participant sends is forwarded before.
+    e2ee_keyed: bool,
     rtc: Rtc,
     /// Inbound m-lines by the client's mid.
     tracks: HashMap<Mid, Inbound>,
@@ -393,7 +399,7 @@ struct Participant {
 impl Participant {
     /// Whether audio from this participant is forwarded right now.
     fn may_send(&self, now: Instant) -> bool {
-        if !self.flags.speak {
+        if !self.e2ee_keyed || !self.flags.speak {
             return false;
         }
         if !self.flags.ptt_required {
@@ -419,6 +425,9 @@ impl Participant {
 
     /// The gateway lets this participant publish `source`.
     fn allowed(&self, source: TrackSource) -> bool {
+        if !self.e2ee_keyed {
+            return false;
+        }
         match source {
             TrackSource::Mic => true,
             TrackSource::Camera => self.flags.camera,
@@ -470,6 +479,7 @@ pub struct SfuCore {
     forwarded: u64,
     forwarded_frames: u64,
     keyframe_requests: u64,
+    unkeyed_frames: u64,
     /// Who may receive each screen share: `(channel, owner) -> viewers`.
     acl: HashMap<(ChannelId, UserId), HashSet<UserId>>,
     /// Participants whose subscriptions must be re-derived before the next negotiation.
@@ -500,6 +510,7 @@ impl SfuCore {
             forwarded: 0,
             forwarded_frames: 0,
             keyframe_requests: 0,
+            unkeyed_frames: 0,
             acl: HashMap::new(),
             dirty: HashSet::new(),
             selector_cfg: SelectorConfig::default(),
@@ -638,6 +649,7 @@ impl SfuCore {
             forwarded_frames: self.forwarded_frames,
             governor_severity: self.governor.severity(),
             keyframe_requests: self.keyframe_requests,
+            unkeyed_frames: self.unkeyed_frames,
             ..Snapshot::default()
         };
         let (mut loss, mut n) = (0.0f64, 0u32);
@@ -730,6 +742,7 @@ impl SfuCore {
                 guild: p.guild,
                 channel: p.channel,
                 flags: p.flags,
+                e2ee_keyed: p.e2ee_keyed,
                 rtc,
                 tracks: HashMap::new(),
                 declared: HashMap::new(),
@@ -1095,6 +1108,40 @@ impl SfuCore {
         }
         if publish_changed {
             self.refresh_published(pid);
+        }
+        self.pump(now);
+        true
+    }
+
+    /// Record that `user` completed (or lost) the E2EE handshake. Returns whether `user` is in `channel`.
+    pub fn set_e2ee_keyed(
+        &mut self,
+        now: Instant,
+        channel: ChannelId,
+        user: UserId,
+        keyed: bool,
+    ) -> bool {
+        let Some(pid) = self.by_user.get(&user).copied() else {
+            return false;
+        };
+        let Some(p) = self.parts.get_mut(&pid) else {
+            return false;
+        };
+        if p.channel != channel {
+            return false;
+        }
+        let changed = p.e2ee_keyed != keyed;
+        p.e2ee_keyed = keyed;
+        if changed {
+            // What they publish becomes visible (or hidden) to the others, and a speaker who may no
+            // longer send stops speaking for everyone at once.
+            let was_speaking = p.detector.is_speaking();
+            if !keyed && p.detector.reset() && was_speaking {
+                self.announce_speaking(pid, false, None);
+            }
+            self.refresh_published(pid);
+            // Their microphone joins (or leaves) everyone else's subscriptions.
+            self.mark_room_dirty(channel);
         }
         self.pump(now);
         true
@@ -1785,6 +1832,10 @@ impl SfuCore {
         let Some(track) = p.tracks.get(&d.mid) else {
             return;
         };
+        if !p.e2ee_keyed {
+            self.unkeyed_frames += 1;
+            return;
+        }
         let allowed = match source {
             TrackSource::Mic => p.may_send(now),
             _ => track.declared_active && track.receiving && p.allowed(source),
@@ -1858,6 +1909,10 @@ impl SfuCore {
         let Some(p) = self.parts.get_mut(&src) else {
             return;
         };
+        if !p.e2ee_keyed {
+            self.unkeyed_frames += 1;
+            return;
+        }
         let channel = p.channel;
         let user = p.user;
         let live = p.allowed(source);

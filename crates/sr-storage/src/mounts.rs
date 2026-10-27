@@ -146,6 +146,8 @@ text_enum! {
         Failing => "failing",
         /// Switched off by the owner or staff.
         Disabled => "disabled",
+        /// Taken down by staff (BYOS-LEG-001): nothing of the mount is served, whoever asks. Only staff clear it.
+        Delisted => "delisted",
     }
 }
 
@@ -389,6 +391,30 @@ impl Mount {
                 .map_err(|e| MountError::Invalid(e.to_string()))?,
         );
         Ok(ObjectStoreStorage::new(s3.clone(), Some(s3)))
+    }
+
+    /// The signed multipart, copy, delete and raw-listing client of this mount (BYOS-BRW-001). Its calls take
+    /// bucket keys: pass keys through [`Self::bucket_key`]. Requests give up after `timeout`.
+    pub fn multipart(
+        &self,
+        sealer: &dyn Sealer,
+        timeout: std::time::Duration,
+    ) -> MountResult<crate::s3multipart::S3Multipart> {
+        let secret = self.secret_key_enc.open(sealer, self.id)?;
+        if !(self.endpoint.starts_with("https://") || self.endpoint.starts_with("http://")) {
+            return Err(MountError::Invalid(
+                "endpoint must be an http(s) URL".into(),
+            ));
+        }
+        crate::s3multipart::S3Multipart::new(
+            &self.endpoint,
+            &self.bucket,
+            &self.provider.signing_region(&self.region),
+            &self.access_key_id,
+            secret.expose(),
+        )
+        .map(|m| m.with_path_style(self.path_style).with_timeout(timeout))
+        .map_err(|e| MountError::Invalid(e.to_string()))
     }
 }
 

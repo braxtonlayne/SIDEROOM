@@ -185,6 +185,9 @@ fn default_status() -> SeriesStatus {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SeriesRecord {
     pub id: i64,
+    /// The storage mount holding this row's objects (1 is the instance bucket). Media URLs and reads go
+    /// through it (`MountStorages::for_mount`), never through the instance handle.
+    pub mount_id: i64,
     pub kind: SeriesKind,
     pub title: String,
     pub alt_titles: Vec<String>,
@@ -305,6 +308,9 @@ fn default_format() -> ChapterFormat {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChapterRecord {
     pub id: i64,
+    /// The storage mount holding this row's objects (1 is the instance bucket). Media URLs and reads go
+    /// through it (`MountStorages::for_mount`), never through the instance handle.
+    pub mount_id: i64,
     pub series_id: i64,
     pub edition_id: i64,
     pub volume_id: Option<i64>,

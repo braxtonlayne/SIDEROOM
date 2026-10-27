@@ -72,6 +72,7 @@ export const loadLibrary = once(async (wasmUrl) => {
     precheck: (head, tail, fileLen, maxArchiveBytes = 0) =>
       JSON.parse(m.precheckArchive(head, tail, fileLen, maxArchiveBytes)),
     firstTail: m.firstTail(),
+    listPages: (tail, fileLen) => JSON.parse(m.listPages(tail, fileLen)),
     defaults: { maxArchive, maxEntries, maxEntry, maxTotal },
   };
 });

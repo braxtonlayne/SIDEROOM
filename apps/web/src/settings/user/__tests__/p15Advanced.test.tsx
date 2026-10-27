@@ -1,7 +1,6 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PrivacyCodes } from '../../../lounge/voice/PrivacyCodes';
-import { noteServerE2ee, useServerE2ee } from '../../../voice/e2ee/serverFlag';
 import { verifiedStore } from '../../../voice/e2ee/verified';
 import {
   DEFAULT_VOICE_SETTINGS,
@@ -43,14 +42,10 @@ describe('Advanced voice settings (LNG-USET-050)', () => {
 
   it('switches QoS and privacy codes and explains the encryption state', async () => {
     const user = userEvent.setup();
-    useServerE2ee.setState({ on: null });
     render(<AdvancedVoiceCards />);
-    // On by default (D-249), until a call tells us the server turned it off.
+    // Always on (OPS-IMM-001): nothing can turn it off, so there is no other state to show.
     expect(screen.getByText('Calls are end-to-end encrypted')).toBeInTheDocument();
-    act(() => noteServerE2ee(false));
-    expect(screen.getByText('Calls are encrypted in transit')).toBeInTheDocument();
-    act(() => noteServerE2ee(true));
-    expect(screen.getByText('Calls are end-to-end encrypted')).toBeInTheDocument();
+    expect(screen.queryByText('Calls are encrypted in transit')).not.toBeInTheDocument();
     await user.click(screen.getByRole('switch', { name: /High packet priority/ }));
     expect(useVoiceSettings.getState().settings.qosHighPriority).toBe(true);
     await user.click(screen.getByRole('switch', { name: /Show privacy codes/ }));

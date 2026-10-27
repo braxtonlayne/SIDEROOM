@@ -93,6 +93,7 @@ describe('admin shell', () => {
       'Platform bans',
       'Moderation',
       'Data requests',
+      'Storage',
       'Invites',
       'Invite graph',
       'Servers',

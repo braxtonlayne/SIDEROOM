@@ -17,4 +17,4 @@ pub mod ws;
 
 pub use config::SfuConfig;
 pub use server::{LiveStats, SfuEvent, SfuEventKind, SfuHandle, StartError, start};
-pub use ws::router;
+pub use ws::{noindex, router};

@@ -542,6 +542,7 @@ impl DataRequestRepository for PgAdminRepo {
                 report.avatar_key = d.avatar_key;
                 report.banner_key = d.banner_key;
                 report.profile_media_keys = d.profile_media_keys;
+                report.mounts_erased = d.mounts_erased;
             }
             Err(Blocked::NotActive) => {
                 // Deleted by its owner in the meantime, or never active: finish the request only

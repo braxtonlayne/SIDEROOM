@@ -172,7 +172,8 @@ impl MountRepo for PgMountRepo {
                 region = COALESCE($4, region), bucket = COALESCE($5, bucket),
                 prefix = COALESCE($6, prefix), path_style = COALESCE($7, path_style),
                 access_key_id = COALESCE($8, access_key_id), secret_key_enc = COALESCE($9, secret_key_enc),
-                key_hint = COALESCE($10, key_hint), status = COALESCE($11, status), updated_at = now()
+                key_hint = COALESCE($10, key_hint),
+                status = CASE WHEN status = 'delisted' THEN status ELSE COALESCE($11, status) END, updated_at = now()
              WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
@@ -216,7 +217,8 @@ impl MountRepo for PgMountRepo {
     ) -> MountResult<bool> {
         let res = sqlx::query(
             "UPDATE storage_mounts SET last_test_at = to_timestamp($2::double precision / 1000.0),
-                last_test = $3::jsonb, status = COALESCE($4, status), updated_at = now()
+                last_test = $3::jsonb,
+                status = CASE WHEN status = 'delisted' THEN status ELSE COALESCE($4, status) END, updated_at = now()
              WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)

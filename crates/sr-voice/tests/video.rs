@@ -143,6 +143,7 @@ impl World {
                     guild: None,
                     channel: ChannelId::new(CHANNEL),
                     flags,
+                    e2ee_keyed: true,
                     candidates: vec![Candidate::host(sfu_addr(), "udp").unwrap()],
                 },
             )

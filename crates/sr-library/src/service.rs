@@ -140,6 +140,17 @@ impl LibraryService {
         self.signer.signed_url(&format!("/cdn/{key}"), expires_at)
     }
 
+    /// The link of a media key of a row: `/cdn/<key>` for the instance bucket (mount 1), else the mount-scoped
+    /// `/cdn/mount/<id>/<key>`, answered by a redirect to a presigned URL of that bucket (BYOS).
+    pub(crate) fn media_url(&self, mount_id: i64, key: &str, expires_at: u64) -> String {
+        if mount_id == sr_storage::mounts::INSTANCE_MOUNT_ID {
+            self.url(key, expires_at)
+        } else {
+            self.signer
+                .signed_url(&sr_storage::cdn::mount_path(mount_id, key), expires_at)
+        }
+    }
+
     pub(crate) fn series(&self, r: SeriesRecord, exp: u64) -> Series {
         Series {
             id: r.id,
@@ -155,7 +166,10 @@ impl LibraryService {
             tags: r.tags,
             reading_direction: r.reading_direction,
             age_restricted: r.age_restricted,
-            cover_url: r.cover_key.as_deref().map(|k| self.url(k, exp)),
+            cover_url: r
+                .cover_key
+                .as_deref()
+                .map(|k| self.media_url(r.mount_id, k, exp)),
             published: r.published,
             published_at_ms: r.published_at_ms,
             merged_into: r.merged_into,
@@ -349,13 +363,13 @@ impl LibraryService {
                     is_double_spread: p.is_double_spread,
                     blurhash: p.blurhash,
                     crop: p.crop,
-                    url: self.url(&p.key, exp),
+                    url: self.media_url(c.mount_id, &p.key, exp),
                     variants: p
                         .variants
                         .iter()
                         .map(|(w, k)| PageVariant {
                             width: *w,
-                            url: self.url(k, exp),
+                            url: self.media_url(c.mount_id, k, exp),
                         })
                         .collect(),
                 })
@@ -364,7 +378,11 @@ impl LibraryService {
             next_chapter_id: neighbours.next,
             expires_at: exp,
             source_url: (c.format != ChapterFormat::Images)
-                .then(|| c.source_key.as_deref().map(|k| self.url(k, exp)))
+                .then(|| {
+                    c.source_key
+                        .as_deref()
+                        .map(|k| self.media_url(c.mount_id, k, exp))
+                })
                 .flatten(),
         })
     }

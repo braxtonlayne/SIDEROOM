@@ -169,6 +169,7 @@ mod tests {
         };
         AssetPlayback {
             asset_id: 5,
+            mount_id: 1,
             base_path: "/cdn/hls/9/1".into(),
             duration_secs: 12.0,
             profile_version: 1,

@@ -5,7 +5,7 @@
 export type MountProvider = 's3' | 'r2' | 'b2' | 'minio' | 'wasabi' | 'garage';
 export const MOUNT_PROVIDERS: MountProvider[] = ['s3', 'r2', 'b2', 'wasabi', 'minio', 'garage'];
 
-export type MountStatus = 'active' | 'failing' | 'disabled';
+export type MountStatus = 'active' | 'failing' | 'disabled' | 'delisted';
 export type MountOwnerKind = 'user' | 'guild' | 'platform';
 
 export type ProbeStatus = 'pass' | 'warn' | 'fail';

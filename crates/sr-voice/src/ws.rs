@@ -27,11 +27,21 @@ const RATE_OPS: u32 = 200;
 const RATE_WINDOW: Duration = Duration::from_secs(10);
 const MAX_MESSAGE_BYTES: usize = 128 * 1024;
 
+/// OPS-IDX-001 (D-384): nothing but the landing page is indexable, so every HTTP answer of this listener says so.
+pub async fn noindex(mut res: Response) -> Response {
+    res.headers_mut().insert(
+        axum::http::HeaderName::from_static("x-robots-tag"),
+        axum::http::HeaderValue::from_static("noindex, nofollow"),
+    );
+    res
+}
+
 /// Routes to mount on the public listener: `GET /voice/ws`.
 pub fn router(handle: SfuHandle) -> Router {
     Router::new()
         .route("/voice/ws", get(upgrade))
         .with_state(handle)
+        .layer(axum::middleware::map_response(noindex))
 }
 
 async fn upgrade(State(h): State<SfuHandle>, ws: WebSocketUpgrade) -> Response {
@@ -330,4 +340,13 @@ async fn handle_client(
 async fn send(h: &SfuHandle, cmd: Cmd) -> Result<Option<Message>, u16> {
     h.send(cmd).await.map_err(|()| close::SERVER_RESTARTING)?;
     Ok(None)
+}
+
+#[cfg(test)]
+mod noindex_tests {
+    #[tokio::test]
+    async fn every_http_answer_says_noindex() {
+        let res = super::noindex(axum::response::Response::new(axum::body::Body::empty())).await;
+        assert_eq!(res.headers()["x-robots-tag"], "noindex, nofollow");
+    }
 }

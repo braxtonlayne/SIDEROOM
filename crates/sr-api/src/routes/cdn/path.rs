@@ -44,6 +44,9 @@ pub const KINDS: &[(&str, &str)] = &[
 
 const MAX_PATH: usize = 1024;
 const MAX_SEGMENTS: usize = 8;
+/// A mount key is a folder path, so its URL may have far more segments (and bytes) than the instance kinds.
+const MAX_MOUNT_SEGMENTS: usize = 48;
+const MAX_MOUNT_PATH: usize = 4096;
 const MAX_SEGMENT: usize = 255;
 
 /// Why a path was refused.
@@ -73,6 +76,9 @@ pub struct CdnPath {
     pub public: bool,
     /// Output format named by the extension of a public-kind URL.
     pub format_hint: Option<sr_storage::img::ImgFormat>,
+    /// `mount` kind: the storage mount the (mount-relative) `key` lives on. The server redirects to a presigned URL
+    /// of that bucket and never streams it.
+    pub mount: Option<i64>,
 }
 
 /// Kinds addressed by an unguessable content hash (see the module docs).
@@ -126,17 +132,26 @@ fn decode_segment(raw: &str) -> Result<String, PathError> {
 /// Validate a raw request path (as received on the wire, no query) and map it
 /// to an object key.
 pub fn parse(raw: &str) -> Result<CdnPath, PathError> {
-    if raw.len() > MAX_PATH {
+    let rest = raw.strip_prefix("/cdn/").ok_or(PathError::Invalid)?;
+    let is_mount = rest.starts_with("mount/");
+    if raw.len() > if is_mount { MAX_MOUNT_PATH } else { MAX_PATH } {
         return Err(PathError::Invalid);
     }
-    let rest = raw.strip_prefix("/cdn/").ok_or(PathError::Invalid)?;
     if rest.contains('\\') {
         return Err(PathError::Invalid);
     }
     let raw_segs: Vec<&str> = rest.split('/').collect();
-    if raw_segs.len() < 2 || raw_segs.len() > MAX_SEGMENTS {
+    let max_segs = if is_mount {
+        MAX_MOUNT_SEGMENTS
+    } else {
+        MAX_SEGMENTS
+    };
+    if raw_segs.len() < 2 || raw_segs.len() > max_segs {
         // A kind alone (or nothing) never names an object.
         return Err(PathError::Invalid);
+    }
+    if is_mount {
+        return parse_mount(&raw_segs);
     }
     let prefix = KINDS
         .iter()
@@ -184,6 +199,42 @@ pub fn parse(raw: &str) -> Result<CdnPath, PathError> {
         filename: stored.last().cloned().unwrap_or_default(),
         public,
         format_hint,
+        mount: None,
+    })
+}
+
+/// `/cdn/mount/<id>/<key segments>`: an object of a member's or a server's bucket. The mount id is a plain number
+/// above 1 (mount 1 is the instance bucket and has its own kinds), the key goes through `safe_key`.
+fn parse_mount(raw_segs: &[&str]) -> Result<CdnPath, PathError> {
+    let id: i64 = raw_segs
+        .get(1)
+        .filter(|s| s.bytes().all(|b| b.is_ascii_digit()))
+        .and_then(|s| s.parse().ok())
+        .filter(|id| *id > sr_storage::mounts::INSTANCE_MOUNT_ID)
+        .ok_or(PathError::Invalid)?;
+    if raw_segs.len() < 3 {
+        return Err(PathError::Invalid);
+    }
+    let mut decoded = Vec::with_capacity(raw_segs.len() - 2);
+    for seg in &raw_segs[2..] {
+        if seg.is_empty() {
+            return Err(PathError::Invalid);
+        }
+        decoded.push(decode_segment(seg)?);
+    }
+    let key = decoded.join("/");
+    sr_storage::path::safe_key(&key, false).map_err(|_| PathError::Invalid)?;
+    let id_text = id.to_string();
+    let mut refs: Vec<&str> = vec![id_text.as_str()];
+    refs.extend(decoded.iter().map(String::as_str));
+    Ok(CdnPath {
+        kind: "mount".to_owned(),
+        canonical: cdn_path("mount", &refs),
+        key,
+        filename: decoded.last().cloned().unwrap_or_default(),
+        public: false,
+        format_hint: None,
+        mount: Some(id),
     })
 }
 
@@ -263,5 +314,41 @@ mod tests {
         assert_eq!(parse("/cdn/secrets/1/x"), Err(PathError::UnknownKind));
         assert_eq!(parse("/cdn/chat/1/x"), Err(PathError::UnknownKind));
         assert_eq!(parse("/cdn/avatars%2F1/x"), Err(PathError::UnknownKind));
+    }
+}
+
+#[cfg(test)]
+mod mount_tests {
+    use super::*;
+
+    #[test]
+    fn a_mount_path_names_the_mount_and_a_folder_key() {
+        let p = parse("/cdn/mount/77/Movies/Alien%20%281979%29/poster.jpg").unwrap();
+        assert_eq!((p.kind.as_str(), p.mount), ("mount", Some(77)));
+        assert_eq!(p.key, "Movies/Alien (1979)/poster.jpg");
+        assert_eq!(p.filename, "poster.jpg");
+        assert!(!p.public);
+        assert_eq!(
+            p.canonical,
+            sr_storage::cdn::mount_path(77, "Movies/Alien (1979)/poster.jpg")
+        );
+        let deep = format!("/cdn/mount/5/{}x.jpg", "d/".repeat(30));
+        assert!(parse(&deep).is_ok());
+        assert!(parse("/cdn/attachments/1/2/3/4/5/6/7/8/9.png").is_err());
+    }
+
+    #[test]
+    fn mount_paths_refuse_the_instance_bucket_and_unsafe_keys() {
+        for p in [
+            "/cdn/mount/1/x.jpg",
+            "/cdn/mount/0/x.jpg",
+            "/cdn/mount/-5/x.jpg",
+            "/cdn/mount/7x/x.jpg",
+            "/cdn/mount/7",
+            "/cdn/mount/7/x/./y",
+            "/cdn/mount/7/%00",
+        ] {
+            assert!(parse(p).is_err(), "{p} must be refused");
+        }
     }
 }

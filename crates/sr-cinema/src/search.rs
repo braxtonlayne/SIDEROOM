@@ -400,6 +400,7 @@ mod tests {
     fn indexed_title_collects_people_and_labels() {
         let rec = TitleRecord {
             id: 5,
+            mount_id: 1,
             kind: TitleKind::Movie,
             title: "T".into(),
             original_title: Some("Orig".into()),

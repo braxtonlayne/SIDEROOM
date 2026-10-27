@@ -17321,6 +17321,534 @@
         ]
       }
     },
+    "/admin/storage/mounts": {
+      "get": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Every live storage mount, newest first (`MANAGE_TAKEDOWNS`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "owner_kind",
+            "in": "query",
+            "description": "Only one owner kind: `user`, `guild` or `platform`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner_id",
+            "in": "query",
+            "description": "With `owner_kind`: the owner's snowflake.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Only one status: `active`, `failing`, `disabled` or `delisted`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 500, default 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Page: only mounts with a smaller id than this one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminStorageMount"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{mount_id}/delist": {
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Delist a whole mount: nothing of it is served to anyone, the owner is told why, the bucket is untouched. The\nreason is required (body or `X-Audit-Log-Reason`).",
+        "operationId": "delist",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageMountLegal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{mount_id}/relist": {
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Relist a delisted mount (it returns to the status it had). The reason is required.",
+        "operationId": "relist",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageMountLegal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{platform_mount_id}/attach": {
+      "post": {
+        "tags": [
+          "attach"
+        ],
+        "summary": "Attach the instance bucket to a server (`OPERATOR`, audited). Attaching twice is not an error.",
+        "operationId": "attach",
+        "parameters": [
+          {
+            "name": "platform_mount_id",
+            "in": "path",
+            "description": "The platform mount (1 on a standard install)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{platform_mount_id}/attachments": {
+      "get": {
+        "tags": [
+          "attach"
+        ],
+        "summary": "The servers the instance bucket is attached to (`OPERATOR`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "platform_mount_id",
+            "in": "path",
+            "description": "The platform mount",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttachmentView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{platform_mount_id}/detach": {
+      "post": {
+        "tags": [
+          "attach"
+        ],
+        "summary": "Take the instance bucket away from a server (`OPERATOR`, audited). 404 when it was not attached.",
+        "operationId": "detach",
+        "parameters": [
+          {
+            "name": "platform_mount_id",
+            "in": "path",
+            "description": "The platform mount",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/suspicion": {
       "get": {
         "tags": [
@@ -55386,6 +55914,356 @@
         ]
       }
     },
+    "/shelves/{section}": {
+      "get": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "A page of the section's shelves.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema, library or music",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Title substring",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "movie, series, anime, manga, comic or book",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount",
+            "in": "query",
+            "description": "Only this mount",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild",
+            "in": "query",
+            "description": "The server whose section is showing: its shelves, plus members' own shelves unless the server turned them off",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfListView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{section}/{shelf_item_id}": {
+      "get": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "One item with its episodes or chapters.",
+        "operationId": "get_item",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema, library or music",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_item_id",
+            "in": "path",
+            "description": "Row snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfDetailView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "Edit an item's metadata. The edited fields become overrides a re-index leaves alone.",
+        "operationId": "patch_item",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema, library or music",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_item_id",
+            "in": "path",
+            "description": "Row snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShelfPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfDetailView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}": {
+      "patch": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "Edit one episode or chapter (title, number, season).",
+        "operationId": "patch_part",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema or library",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_item_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_part_id",
+            "in": "path",
+            "description": "Episode or chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfDetailView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/soundboard-default-sounds": {
       "get": {
         "tags": [
@@ -57517,6 +58395,292 @@
         ]
       }
     },
+    "/storage/mounts/{mount_id}/folders": {
+      "post": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "Create an empty folder: a zero-byte `folder/` marker, which is how S3 clients show an empty folder.",
+        "operationId": "create_folder",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/index": {
+      "get": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "The last index run of a mount.",
+        "operationId": "index_status",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexStatusView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "Queue an index run of a mount (the Re-index button). Answers with the last run; `queued` is false when a run\nis already queued or running.",
+        "operationId": "start_index",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexStatusView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/move": {
+      "post": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "Rename or move a file or a folder inside the bucket: a server-side copy of each object, then the\ndelete of the originals (nothing is deleted when a copy fails). Refuses a target that already exists,\na file over 5 GiB, and a folder with more than 500 entries.",
+        "operationId": "move_objects",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "TARGET_EXISTS, OBJECT_TOO_LARGE or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/storage/mounts/{mount_id}/objects": {
       "get": {
         "tags": [
@@ -57685,6 +58849,90 @@
             "session": []
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "Delete a file, or a folder with everything in it (a key ending in `/`; at most 500 entries). The bucket\nis the only copy of the bytes: there is no undo.",
+        "operationId": "delete_objects",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Mount-relative key; a trailing slash deletes a folder",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FOLDER_TOO_LARGE or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/storage/mounts/{mount_id}/presign": {
@@ -57758,6 +59006,487 @@
           },
           "409": {
             "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "The caller's open uploads on this mount, newest first (what a reload resumes).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UploadView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Start an upload of one file.",
+        "operationId": "begin",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY, TOO_MANY_UPLOADS or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "One upload with the parts the bucket already holds.",
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatusView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Abandon an upload and free its parts at the bucket.",
+        "operationId": "abort",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Finish an upload: the parts must all be in the bucket with the declared sizes.",
+        "operationId": "complete",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletedUploadView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "UPLOAD_INCOMPLETE or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/parts/{part_number}": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "A presigned `PUT` for one part, valid for an hour. Counted against `byos.upload_parts_per_hour`.",
+        "operationId": "part_url",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "part_number",
+            "in": "path",
+            "description": "Part number, from 1",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartUrlView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "byos.upload_parts_per_hour reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -69527,6 +71256,75 @@
           }
         }
       },
+      "AdminStorageMount": {
+        "type": "object",
+        "description": "One mount as staff see it.",
+        "required": [
+          "id",
+          "owner_kind",
+          "owner_id",
+          "owner_name",
+          "label",
+          "provider",
+          "bucket",
+          "status",
+          "key_hint",
+          "created_at_ms",
+          "delist_reason",
+          "delisted_objects"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delist_reason": {
+            "type": "string"
+          },
+          "delisted_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "delisted_objects": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Objects of this mount delisted by an upheld takedown notice."
+          },
+          "id": {
+            "type": "string"
+          },
+          "key_hint": {
+            "type": "string",
+            "description": "The last four characters of the access key id."
+          },
+          "label": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "owner_kind": {
+            "type": "string"
+          },
+          "owner_name": {
+            "type": "string",
+            "description": "The owner's username, or the owning server's name; empty for the instance bucket."
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`active`, `failing`, `disabled` or `delisted`."
+          }
+        }
+      },
       "AdminTitleDetail": {
         "type": "object",
         "description": "Everything about a title, unpublished parts included (staff).",
@@ -70692,6 +72490,10 @@
           "id": {
             "type": "string"
           },
+          "mount_id": {
+            "type": "string",
+            "description": "The storage mount holding the asset's files (1 is the instance bucket)."
+          },
           "original_deleted": {
             "type": "boolean",
             "description": "The original file is gone (retention deleted it); a re-transcode needs a new upload."
@@ -70825,6 +72627,19 @@
           }
         }
       },
+      "AttachBody": {
+        "type": "object",
+        "description": "Body of attach and detach.",
+        "required": [
+          "guild_id"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": "string",
+            "description": "The server (guild snowflake)."
+          }
+        }
+      },
       "AttachmentObject": {
         "type": "object",
         "required": [
@@ -70951,6 +72766,19 @@
               "null"
             ],
             "description": "Voice messages: base64 waveform of up to 256 amplitude bytes."
+          }
+        }
+      },
+      "AttachmentView": {
+        "type": "object",
+        "description": "A server the platform bucket is attached to.",
+        "required": [
+          "guild_id"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": "string",
+            "description": "The server (guild snowflake)."
           }
         }
       },
@@ -71609,6 +73437,33 @@
           },
           "options": {
             "description": "`PublicKeyCredentialCreationOptions` / `RequestOptions` JSON with base64url\nbinary fields; pass to `navigator.credentials.create/get({ publicKey })`\nafter decoding those fields."
+          }
+        }
+      },
+      "BeginUploadBody": {
+        "type": "object",
+        "description": "Body of `POST /storage/mounts/{mount_id}/uploads`.",
+        "required": [
+          "key",
+          "size"
+        ],
+        "properties": {
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Content type the object is stored with; defaults to `application/octet-stream`."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key of the object to create (an existing object is replaced)."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the file in bytes (at least 1, at most 156 GiB).",
+            "minimum": 0
           }
         }
       },
@@ -75293,6 +77148,39 @@
           }
         }
       },
+      "CompletePart": {
+        "type": "object",
+        "description": "One part the client says it sent.",
+        "required": [
+          "number",
+          "etag"
+        ],
+        "properties": {
+          "etag": {
+            "type": "string",
+            "description": "The `ETag` the bucket answered."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Part number.",
+            "minimum": 0
+          }
+        }
+      },
+      "CompleteUploadBody": {
+        "type": "object",
+        "description": "Body of `POST .../uploads/{mount_upload_id}/complete`.",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompletePart"
+            },
+            "description": "Optional: the parts and etags the client holds. When given they must match what the bucket lists."
+          }
+        }
+      },
       "CompleteUploadRequest": {
         "type": "object",
         "required": [
@@ -75308,6 +77196,26 @@
           },
           "upload_id": {
             "type": "string"
+          }
+        }
+      },
+      "CompletedUploadView": {
+        "type": "object",
+        "description": "The finished object.",
+        "required": [
+          "key",
+          "size"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes.",
+            "minimum": 0
           }
         }
       },
@@ -75776,6 +77684,21 @@
           "count": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "CountView": {
+        "type": "object",
+        "description": "What a move or delete touched.",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Objects moved or deleted (folder markers included).",
+            "minimum": 0
           }
         }
       },
@@ -78072,6 +79995,24 @@
           }
         }
       },
+      "DetailsBody": {
+        "type": "object",
+        "description": "Which provider the details came from.",
+        "required": [
+          "provider",
+          "external_id"
+        ],
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "description": "The provider's id for the entry."
+          },
+          "provider": {
+            "type": "string",
+            "description": "`tmdb`, `anilist`, `mangadex`, `mangaupdates` or `comicvine`."
+          }
+        }
+      },
       "DeveloperApplicationObject": {
         "type": "object",
         "description": "An application. The client secret is never part of it.",
@@ -80122,6 +82063,19 @@
           }
         }
       },
+      "FolderBody": {
+        "type": "object",
+        "description": "Body of `POST /storage/mounts/{mount_id}/folders`.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Mount-relative folder key, ending in `/`."
+          }
+        }
+      },
       "FolderGroup": {
         "type": "object",
         "description": "Pages that share a folder inside the archive (a chapter folder, a volume folder, the root).",
@@ -80138,6 +82092,19 @@
           "path": {
             "type": "string",
             "description": "Folder path inside the archive; empty for the top level."
+          }
+        }
+      },
+      "FolderView": {
+        "type": "object",
+        "description": "A created folder.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Mount-relative folder key, ending in `/`."
           }
         }
       },
@@ -82118,6 +84085,68 @@
           }
         }
       },
+      "IndexStatusView": {
+        "type": "object",
+        "description": "Last index run of a mount.",
+        "required": [
+          "queued",
+          "state",
+          "objects",
+          "added",
+          "vanished",
+          "truncated"
+        ],
+        "properties": {
+          "added": {
+            "type": "integer",
+            "format": "int32",
+            "description": "New or changed."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The failure."
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Finished (ISO 8601)."
+          },
+          "objects": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Objects listed."
+          },
+          "queued": {
+            "type": "boolean",
+            "description": "A job was queued by this call (`false`: one is already queued or running)."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Started (ISO 8601)."
+          },
+          "state": {
+            "type": "string",
+            "description": "`idle`, `running`, `done`, `failed`, or `never` before the first run."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "The listing stopped at the cap or the time budget."
+          },
+          "vanished": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Vanished."
+          }
+        }
+      },
       "IngestSource": {
         "type": "object",
         "description": "A configured source.",
@@ -83223,7 +85252,8 @@
           "library_series",
           "library_chapter",
           "cinema_title",
-          "cinema_episode"
+          "cinema_episode",
+          "storage_object"
         ]
       },
       "ItemState": {
@@ -86868,7 +88898,25 @@
           },
           "status": {
             "type": "string",
-            "description": "`active`, `failing` or `disabled`."
+            "description": "`active`, `failing`, `disabled` or `delisted` (set by staff after a takedown; the owner cannot clear it)."
+          }
+        }
+      },
+      "MoveBody": {
+        "type": "object",
+        "description": "Body of `POST /storage/mounts/{mount_id}/move` (rename and move are the same call).",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Mount-relative key of an object, or of a folder (ending in `/`)."
+          },
+          "to": {
+            "type": "string",
+            "description": "The new key: an object stays an object, a folder stays a folder."
           }
         }
       },
@@ -87192,7 +89240,15 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "The content id; for `storage_object` the mount id."
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `storage_object` only: the mount-relative object key. Required there, refused for any other kind."
           },
           "kind": {
             "$ref": "#/components/schemas/ItemKind"
@@ -87642,9 +89698,19 @@
         "description": "A page of a listing.",
         "required": [
           "folders",
-          "objects"
+          "objects",
+          "can_upload",
+          "can_manage"
         ],
         "properties": {
+          "can_manage": {
+            "type": "boolean",
+            "description": "Whether the caller may rename, move and delete here (`scopes::may_manage`)."
+          },
+          "can_upload": {
+            "type": "boolean",
+            "description": "Whether the caller may upload and make folders here (`scopes::may_upload`); the UI shows the write\nside only when it is true. The write routes decide again."
+          },
           "folders": {
             "type": "array",
             "items": {
@@ -88838,6 +90904,35 @@
           }
         }
       },
+      "PartPatchBody": {
+        "type": "object",
+        "description": "Body of the part editor.",
+        "properties": {
+          "number": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Episode, chapter or volume number."
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Season (episodes)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title."
+          }
+        }
+      },
       "PartUrl": {
         "type": "object",
         "description": "One presigned part URL.",
@@ -88853,6 +90948,65 @@
           },
           "url": {
             "type": "string"
+          }
+        }
+      },
+      "PartUrlView": {
+        "type": "object",
+        "description": "A presigned part `PUT`.",
+        "required": [
+          "part_number",
+          "size",
+          "url",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "description": "When it stops working (ISO 8601)."
+          },
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Part number.",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes this part must have.",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string",
+            "description": "Send the part body with `PUT` to this URL; never stored or logged by the server."
+          }
+        }
+      },
+      "PartView": {
+        "type": "object",
+        "description": "A part the bucket holds.",
+        "required": [
+          "number",
+          "size",
+          "etag"
+        ],
+        "properties": {
+          "etag": {
+            "type": "string",
+            "description": "The bucket's entity tag for the part."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Part number, from 1.",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes the bucket stored.",
+            "minimum": 0
           }
         }
       },
@@ -94509,6 +96663,32 @@
           "dropped"
         ]
       },
+      "ShelfDetailView": {
+        "type": "object",
+        "description": "One item with its parts.",
+        "required": [
+          "item",
+          "parts",
+          "can_edit"
+        ],
+        "properties": {
+          "can_edit": {
+            "type": "boolean",
+            "description": "The viewer may edit the metadata."
+          },
+          "item": {
+            "$ref": "#/components/schemas/ShelfItemView",
+            "description": "The card."
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfPartView"
+            },
+            "description": "Episodes or chapters, in order."
+          }
+        }
+      },
       "ShelfItem": {
         "type": "object",
         "description": "An Activity in the launcher's shelf.",
@@ -94534,6 +96714,321 @@
           }
         }
       },
+      "ShelfItemView": {
+        "type": "object",
+        "description": "One card.",
+        "required": [
+          "id",
+          "section",
+          "kind",
+          "title",
+          "subtitle",
+          "source",
+          "tags",
+          "genres",
+          "synopsis",
+          "external_ids",
+          "overridden",
+          "parts",
+          "container",
+          "web_native"
+        ],
+        "properties": {
+          "attribution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The metadata provider's attribution, to show next to fetched details."
+          },
+          "backdrop_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived URL of the backdrop."
+          },
+          "container": {
+            "type": "string",
+            "description": "Its container."
+          },
+          "external_ids": {
+            "type": "object",
+            "description": "Provider ids.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row snowflake."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`movie`, `series`, `anime`, `manga`, `comic`, `book` or `track`."
+          },
+          "object_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The file of a film, track or single book (mount-relative), for `POST /storage/mounts/{id}/presign`."
+          },
+          "overridden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields the member edited."
+          },
+          "parts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Episodes or chapters."
+          },
+          "poster_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived URL of the poster or cover."
+          },
+          "section": {
+            "type": "string",
+            "description": "`cinema`, `library` or `music`."
+          },
+          "source": {
+            "$ref": "#/components/schemas/ShelfSourceView",
+            "description": "Where it lives."
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Line under the title (a track's artist and album)."
+          },
+          "synopsis": {
+            "type": "string",
+            "description": "Synopsis."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title."
+          },
+          "web_native": {
+            "type": "boolean",
+            "description": "Plays in a browser as is; otherwise it is greyed with \"Convert to play\"."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year."
+          }
+        }
+      },
+      "ShelfListView": {
+        "type": "object",
+        "description": "A page of cards and the sources behind the chips.",
+        "required": [
+          "items",
+          "total",
+          "sources"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfItemView"
+            },
+            "description": "Cards."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfSourceView"
+            },
+            "description": "The mounts the viewer reaches for this section (the \"Shelves\" chips), even when this page shows none."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "All that match."
+          }
+        }
+      },
+      "ShelfPartView": {
+        "type": "object",
+        "description": "An episode, chapter or volume.",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "object_key",
+          "container",
+          "web_native",
+          "size"
+        ],
+        "properties": {
+          "container": {
+            "type": "string",
+            "description": "Container."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row snowflake."
+          },
+          "number": {
+            "type": "number",
+            "format": "double",
+            "description": "Episode, chapter or volume number."
+          },
+          "object_key": {
+            "type": "string",
+            "description": "The file (mount-relative)."
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Season (episodes)."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title."
+          },
+          "web_native": {
+            "type": "boolean",
+            "description": "Plays in a browser as is."
+          }
+        }
+      },
+      "ShelfPatchBody": {
+        "type": "object",
+        "description": "Body of the editor. Every field present is written and becomes an override.",
+        "properties": {
+          "album": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Album (tracks)."
+          },
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist (tracks)."
+          },
+          "backdrop_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Backdrop (Cinema); `null` clears."
+          },
+          "details": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DetailsBody",
+                "description": "Details fetched from a provider through `GET /submissions/lookup`: stores the provider's id and its\nattribution text."
+              }
+            ]
+          },
+          "genres": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`movie`, `series`, `anime` (Cinema); `manga`, `comic`, `book` (Library)."
+          },
+          "poster_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Poster or cover: a key on the same mount; `null` clears."
+          },
+          "synopsis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Synopsis (at most 4000 characters)."
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags (lower-cased, at most 30)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title (1 to 300 characters)."
+          },
+          "track_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Track number (tracks); `null` clears."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year; `null` clears."
+          }
+        }
+      },
       "ShelfResponse": {
         "type": "object",
         "required": [
@@ -94550,6 +97045,43 @@
             "items": {
               "$ref": "#/components/schemas/ShelfItem"
             }
+          }
+        }
+      },
+      "ShelfSourceView": {
+        "type": "object",
+        "description": "How the viewer reaches a mount: the chip on a card.",
+        "required": [
+          "mount_id",
+          "label",
+          "scope"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server (`guild`)."
+          },
+          "label": {
+            "type": "string",
+            "description": "The mount's label."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "Mount snowflake."
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The friend who owns the mount (`friend`), or the owner of a user mount."
+          },
+          "scope": {
+            "type": "string",
+            "description": "`own`, `friend`, `guild` or `staff`."
           }
         }
       },
@@ -95536,6 +98068,38 @@
           "truncated": {
             "type": "boolean",
             "description": "The walk hit its object cap or time budget, so the figures are a lower bound."
+          }
+        }
+      },
+      "StorageMountLegal": {
+        "type": "object",
+        "description": "The answer of a delist or relist.",
+        "required": [
+          "id",
+          "owner_kind",
+          "owner_id",
+          "label",
+          "status",
+          "delist_reason"
+        ],
+        "properties": {
+          "delist_reason": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "owner_kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
           }
         }
       },
@@ -96839,6 +99403,13 @@
           },
           "label": {
             "type": "string"
+          },
+          "object_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `storage_object`: the mount-relative key that was delisted."
           },
           "restored_at_ms": {
             "type": [
@@ -100014,6 +102585,76 @@
           "failed",
           "expired"
         ]
+      },
+      "UploadStatusView": {
+        "type": "object",
+        "description": "An upload with the parts that already arrived.",
+        "required": [
+          "upload",
+          "parts"
+        ],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartView"
+            },
+            "description": "Parts in the bucket, in order."
+          },
+          "upload": {
+            "$ref": "#/components/schemas/UploadView",
+            "description": "The ledger row."
+          }
+        }
+      },
+      "UploadView": {
+        "type": "object",
+        "description": "One upload in the ledger.",
+        "required": [
+          "id",
+          "key",
+          "size",
+          "part_size",
+          "part_count",
+          "content_type",
+          "created_at"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "description": "Stored content type."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "Started (ISO 8601)."
+          },
+          "id": {
+            "type": "string",
+            "description": "Upload id (snowflake)."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "part_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many parts the file needs.",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes per part (the last part is smaller).",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Declared size in bytes.",
+            "minimum": 0
+          }
+        }
       },
       "UrlMapping": {
         "type": "object",

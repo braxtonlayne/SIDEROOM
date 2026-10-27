@@ -37,6 +37,7 @@ const ITEM_KIND_KEYS: Record<api.TakedownItemKind, MessageKey> = {
   library_chapter: 'admin.takedowns.item.libraryChapter',
   cinema_title: 'admin.takedowns.item.cinemaTitle',
   cinema_episode: 'admin.takedowns.item.cinemaEpisode',
+  storage_object: 'admin.takedowns.item.storageObject',
 };
 const ITEM_KINDS = Object.keys(ITEM_KIND_KEYS) as api.TakedownItemKind[];
 
@@ -314,6 +315,7 @@ function NoticePage({
   const [error, setError] = useState<string | null>(null);
   const [kind, setKind] = useState<api.TakedownItemKind>('library_series');
   const [target, setTarget] = useState('');
+  const [objectKey, setObjectKey] = useState('');
   const [counter, setCounter] = useState('');
 
   const run = async (fn: () => Promise<unknown>, done?: string) => {
@@ -473,6 +475,9 @@ function NoticePage({
                         </div>
                         <div className="ss-meta">
                           {t(ITEM_KIND_KEYS[i.kind])} · {i.target_id}
+                          {i.object_key
+                            ? ` · ${t('admin.takedowns.objectKey', { key: i.object_key })}`
+                            : ''}
                           {i.subject_account_id
                             ? ` · ${t('admin.takedowns.uploader', { id: i.subject_account_id })}`
                             : ''}
@@ -498,10 +503,16 @@ function NoticePage({
                   aria-label={t('admin.takedowns.addForm')}
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (!target.trim()) return;
+                    if (!target.trim() || (kind === 'storage_object' && !objectKey.trim())) return;
                     void run(async () => {
-                      await api.addNoticeItem(n.id, kind, target.trim());
+                      await api.addNoticeItem(
+                        n.id,
+                        kind,
+                        target.trim(),
+                        kind === 'storage_object' ? objectKey.trim() : undefined,
+                      );
                       setTarget('');
+                      setObjectKey('');
                     });
                   }}
                 >
@@ -512,12 +523,27 @@ function NoticePage({
                     onValueChange={(v) => setKind(v as api.TakedownItemKind)}
                   />
                   <TextInput
-                    label={t('admin.takedowns.addId')}
+                    label={t(
+                      kind === 'storage_object'
+                        ? 'admin.takedowns.addMountId'
+                        : 'admin.takedowns.addId',
+                    )}
                     value={target}
                     inputMode="numeric"
                     onChange={(e) => setTarget(e.target.value.replace(/\D/g, ''))}
                   />
-                  <Button type="submit" variant="secondary" disabled={!target.trim()}>
+                  {kind === 'storage_object' && (
+                    <TextInput
+                      label={t('admin.takedowns.addObjectKey')}
+                      value={objectKey}
+                      onChange={(e) => setObjectKey(e.target.value)}
+                    />
+                  )}
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    disabled={!target.trim() || (kind === 'storage_object' && !objectKey.trim())}
+                  >
                     {t('admin.takedowns.addItem')}
                   </Button>
                 </form>

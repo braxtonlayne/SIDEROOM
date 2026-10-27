@@ -58,4 +58,13 @@ jobs:
       # share one database; sr-storage's live S3 suite has its own workflow (storage.yml).
       - name: Postgres-backed tests (ignored suite)
         run: cargo nextest run --workspace --exclude sr-storage --run-ignored only -j1
+      # OPS-IMM-002 (wave 28): the IMMUTABLE RULE harness (crates/sr-server/tests/immutable_rules.rs) is one of the
+      # #[ignore]d suites above, so it runs there on every build: every feature killed, every setting at both ends of its
+      # range, and the refusal phase of the authorization matrix, the access log, the audit log and the log chain still
+      # hold. This step only fails when the harness is no longer in that suite (a harness that does not run proves nothing).
+      - name: The IMMUTABLE RULE harness is in the ignored suite (OPS-IMM-002)
+        shell: bash
+        run: |
+          listed="$(cargo nextest list --workspace --exclude sr-storage --run-ignored only 2>/dev/null)"
+          grep -q 'refusals_and_logs_hold_in_every_flag_state' <<< "$listed"
       - run: cargo deny check

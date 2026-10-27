@@ -255,6 +255,7 @@ function PolicyBlock({ text }: { text: string }) {
       <p>
         <strong>{t('settings.storage.policyTitle')}</strong>
       </p>
+      <p className="us-muted">{t('settings.storage.keepListingOff')}</p>
       <pre tabIndex={0} aria-label={t('settings.storage.policyAria')}>
         <code>{text}</code>
       </pre>
@@ -311,10 +312,12 @@ function MountRow({
             {t('settings.storage.keyLine', { id: mount.access_key_id, hint: mount.key_hint })}
           </p>
         </div>
+        {mount.status === 'delisted' && <p role="status">{t('settings.storage.delistedNote')}</p>}
         <div className="us-actions">
           <Button
             variant="secondary"
             size="sm"
+            disabled={mount.status === 'delisted'}
             loading={busy === 'test'}
             onClick={() =>
               void run('test', async () => {
@@ -336,6 +339,7 @@ function MountRow({
           <Button
             variant="secondary"
             size="sm"
+            disabled={mount.status === 'delisted'}
             loading={busy === 'toggle'}
             onClick={() =>
               void run('toggle', async () => {

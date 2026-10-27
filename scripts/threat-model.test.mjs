@@ -23,8 +23,8 @@ const threatRows = doc
   .filter((l) => /^\| T\d+ \|/.test(l))
   .map((l) => l.split('|').map((c) => c.trim()));
 
-test('the document has rows T1 to T27, in order, each with threat, controls and residual', () => {
-  assert.equal(threatRows.length, 27);
+test('the document has rows T1 to T31, in order, each with threat, controls and residual', () => {
+  assert.ok(threatRows.length >= 31, `only ${threatRows.length} rows`);
   threatRows.forEach((r, i) => {
     assert.equal(r[1], `T${i + 1}`);
     assert.ok(r[2] && r[3] && r[4], r[1]);

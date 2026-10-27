@@ -26,6 +26,7 @@ pub mod service;
 pub mod snapshot;
 mod suspicion;
 pub mod suspicion_rules;
+mod takedown_mounts;
 pub mod takedown_rules;
 mod takedowns;
 
@@ -40,5 +41,6 @@ pub use service::{
     GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, PolicySource, RemovalSink,
     SubjectNotifier,
 };
+pub use sr_db::storage_legal::{AdminMountRow, MountLegal};
 pub use suspicion::{HOUSEKEEPING_JOB_ID, SCAN_BATCH};
 pub use takedowns::register_csv;

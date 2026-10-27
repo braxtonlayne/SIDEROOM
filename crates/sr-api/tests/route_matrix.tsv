@@ -101,6 +101,8 @@ DELETE	/requests/{request_id}/vote	authenticated	self	allow	-	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
 DELETE	/sr/invites/{code}	authenticated	self	deny	-	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
+DELETE	/storage/mounts/{mount_id}/objects/{key}	authenticated	storage_scope	deny	-	-
+DELETE	/storage/mounts/{mount_id}/uploads/{mount_upload_id}	authenticated	storage_scope	deny	-	-
 DELETE	/submissions/{submission_id}/cinema/episodes/{episode_id}	authenticated	author	allow	-	-
 DELETE	/submissions/{submission_id}/cinema/uploads/{asset_id}	authenticated	author	allow	-	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-	-
@@ -207,6 +209,8 @@ GET	/admin/staff/former	authenticated	staff	deny	-	APPOINT_STAFF
 GET	/admin/staff/offers	authenticated	staff	deny	-	APPOINT_STAFF
 GET	/admin/staff/roles	authenticated	staff	deny	-	APPOINT_STAFF
 GET	/admin/stats	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/storage/mounts	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/admin/storage/mounts/{platform_mount_id}/attachments	authenticated	staff	deny	-	OPERATOR
 GET	/admin/suspicion	authenticated	staff	deny	-	MANAGE_INVITES
 GET	/admin/system	authenticated	staff	deny	-	OPERATOR
 GET	/admin/system/csp-reports	authenticated	staff	deny	-	OPERATOR
@@ -440,6 +444,8 @@ GET	/packages/{package_id}	authenticated	user	deny	-	-
 GET	/profile-pages/{username}	authenticated	visibility	deny	-	-
 GET	/push/vapid-key	authenticated	self	deny	-	-
 GET	/requests	authenticated	user	allow	-	-
+GET	/shelves/{section}	authenticated	self	deny	-	-
+GET	/shelves/{section}/{shelf_item_id}	authenticated	storage_scope	deny	-	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-	-
 GET	/sr/appearance/defaults	public	none	deny	-	-
@@ -460,8 +466,11 @@ GET	/sr/voice/turn	authenticated	user	allow	-	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 GET	/sticker-packs	authenticated	user	allow	-	-
 GET	/stickers/{sticker_id}/url	authenticated	user	allow	-	-
+GET	/storage/mounts/{mount_id}/index	authenticated	mount_owner	deny	-	-
 GET	/storage/mounts/{mount_id}/objects	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/objects/{key}	authenticated	storage_scope	deny	-	-
+GET	/storage/mounts/{mount_id}/uploads	authenticated	storage_scope	deny	-	-
+GET	/storage/mounts/{mount_id}/uploads/{mount_upload_id}	authenticated	storage_scope	deny	-	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
 GET	/submissions	authenticated	self	allow	-	-
 GET	/submissions/kinds	authenticated	user	allow	-	-
@@ -582,6 +591,8 @@ PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-	-
 PATCH	/library/comments/{comment_id}	authenticated	author	allow	-	-
 PATCH	/library/lists/{list_id}	authenticated	author	allow	-	-
+PATCH	/shelves/{section}/{shelf_item_id}	authenticated	mount_owner	deny	-	-
+PATCH	/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}	authenticated	mount_owner	deny	-	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
 PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 PATCH	/submissions/{submission_id}	authenticated	author	allow	-	-
@@ -692,6 +703,10 @@ POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	sta
 POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staff	deny	-	PUBLISH_READING
 POST	/admin/staff	authenticated	staff	deny	-	APPOINT_STAFF
 POST	/admin/staff/offers	authenticated	staff	deny	-	APPOINT_STAFF
+POST	/admin/storage/mounts/{mount_id}/delist	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/storage/mounts/{mount_id}/relist	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/admin/storage/mounts/{platform_mount_id}/attach	authenticated	staff	deny	-	OPERATOR
+POST	/admin/storage/mounts/{platform_mount_id}/detach	authenticated	staff	deny	-	OPERATOR
 POST	/admin/system/email-test	authenticated	staff	deny	-	OPERATOR
 POST	/admin/system/preflight	authenticated	staff	deny	-	OPERATOR
 POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-	MANAGE_TRANSCODE
@@ -851,7 +866,13 @@ POST	/sr/invites	authenticated	self	deny	-	-
 POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-	-
 POST	/stage-instances	authenticated	membership	allow	-	-
+POST	/storage/mounts/{mount_id}/folders	authenticated	storage_scope	deny	-	-
+POST	/storage/mounts/{mount_id}/index	authenticated	mount_owner	deny	-	-
+POST	/storage/mounts/{mount_id}/move	authenticated	storage_scope	deny	-	-
 POST	/storage/mounts/{mount_id}/presign	authenticated	storage_scope	deny	-	-
+POST	/storage/mounts/{mount_id}/uploads	authenticated	storage_scope	deny	-	-
+POST	/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete	authenticated	storage_scope	deny	-	-
+POST	/storage/mounts/{mount_id}/uploads/{mount_upload_id}/parts/{part_number}	authenticated	storage_scope	deny	-	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
 POST	/submissions	authenticated	self	allow	-	-
 POST	/submissions/naming/parse	authenticated	user	allow	-	-

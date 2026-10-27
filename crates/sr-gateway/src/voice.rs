@@ -48,9 +48,6 @@ pub struct VoiceConfig {
     pub session_grace: Duration,
     /// Told when a DM call ends, to write the call record. `None`: no record.
     pub calls: Option<Arc<dyn crate::voice_call::CallHooks>>,
-    /// `voice.e2ee`: the MLS delivery service over op 101 E2EE_MLS (VOX-E2E-004), and the D-263 join
-    /// rule. Told to clients as `sr_e2ee` in `VOICE_SERVER_UPDATE`. `sr-core` turns it on by default.
-    pub e2ee: bool,
 }
 
 impl std::fmt::Debug for VoiceConfig {
@@ -215,7 +212,7 @@ pub enum JoinDenied {
     NotInVoice,
     /// The caller already shares this screen.
     AlreadyStreaming,
-    /// `voice.e2ee` is on and the client did not declare `sr_e2ee` at join, or did not start the
+    /// The client did not declare `sr_e2ee` at join (E2EE is the only voice mode, OPS-IMM-001), or did not start the
     /// MLS handshake (op 101 `hello`) within 10 seconds (D-263).
     E2eeRequired,
 }
@@ -462,8 +459,8 @@ pub(crate) struct VoiceStateIn {
     self_deaf: bool,
     #[serde(default)]
     self_video: bool,
-    /// SIDE ROOM field: this client does the voice E2EE handshake (D-263). Required to join while
-    /// `voice.e2ee` is on.
+    /// SIDE ROOM field: this client does the voice E2EE handshake (D-263). Required to join: end-to-end
+    /// encryption is the only voice mode (OPS-IMM-001).
     #[serde(default)]
     sr_e2ee: bool,
     // `self_stream` is not read: only STREAM_CREATE / STREAM_DELETE set it, after the
@@ -683,9 +680,9 @@ impl Gateway {
                     "channel_id": st.channel_id,
                     "endpoint": endpoint,
                     "ice_servers": vc.turn.ice_servers(st.user_id, now),
-                    // SIDE ROOM field: whether this call is end-to-end encrypted (`voice.e2ee`). A client
-                    // runs E2EE only when it is true, so turning it off on the server is enough (doc 12).
-                    "sr_e2ee": vc.e2ee,
+                    // SIDE ROOM field, kept for clients and bots built before OPS-IMM-001: always true. Every
+                    // call is end-to-end encrypted and no setting turns it off.
+                    "sr_e2ee": true,
                 }),
             );
         }
@@ -777,11 +774,8 @@ impl Gateway {
         let inside = cur.as_ref().is_some_and(|c| c.channel_id == channel);
         let age_ok = !info.age_restricted || dir.age_confirmed(s.user).await;
         check_join(&info, perms, occupants, inside, age_ok)?;
-        // D-263: with E2EE on, a join must declare the capability; no token is issued without it.
-        if !(inside && cur.as_ref().is_some_and(|c| c.session_id == s.id))
-            && self.e2ee_enabled()
-            && !inp.sr_e2ee
-        {
+        // D-263: a join must declare the E2EE capability; no token is issued without it.
+        if !(inside && cur.as_ref().is_some_and(|c| c.session_id == s.id)) && !inp.sr_e2ee {
             return Err(JoinDenied::E2eeRequired);
         }
 

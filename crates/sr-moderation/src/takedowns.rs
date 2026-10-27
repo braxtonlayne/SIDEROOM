@@ -127,6 +127,7 @@ fn item_from(r: &sqlx::postgres::PgRow) -> ModResult<TakedownItem> {
         kind: ItemKind::parse(&kind).ok_or_else(|| ModError::Storage("item kind".into()))?,
         target_id: r.try_get("target_id")?,
         label: r.try_get("label")?,
+        object_key: r.try_get("object_key")?,
         subject_account_id: r.try_get("subject_account_id")?,
         state: ItemState::parse(&state).ok_or_else(|| ModError::Storage("item state".into()))?,
         hold_id: r.try_get("hold_id")?,
@@ -135,7 +136,7 @@ fn item_from(r: &sqlx::postgres::PgRow) -> ModResult<TakedownItem> {
     })
 }
 
-const ITEM_SELECT: &str = "SELECT id, kind, target_id, label, subject_account_id, state, hold_id, \
+const ITEM_SELECT: &str = "SELECT id, kind, target_id, label, object_key, subject_account_id, state, hold_id, \
     (extract(epoch FROM disabled_at) * 1000)::bigint AS disabled_ms, \
     (extract(epoch FROM restored_at) * 1000)::bigint AS restored_ms \
     FROM takedown_items";
@@ -282,8 +283,84 @@ async fn person_of(conn: &mut PgConnection, account: Option<i64>) -> ModResult<O
     )
 }
 
-async fn resolve_item(conn: &mut PgConnection, kind: ItemKind, id: i64) -> ModResult<Resolved> {
+/// A mount-relative object key: no leading slash, no folder, no empty or dot segments, no control characters.
+fn valid_object_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= 1024
+        && !key.starts_with('/')
+        && !key.ends_with('/')
+        && !key.chars().any(char::is_control)
+        && key
+            .split('/')
+            .all(|s| !s.is_empty() && s != "." && s != "..")
+}
+
+async fn resolve_item(
+    conn: &mut PgConnection,
+    kind: ItemKind,
+    id: i64,
+    key: Option<&str>,
+) -> ModResult<Resolved> {
+    if (kind == ItemKind::StorageObject) != key.is_some() {
+        return Err(ModError::Invalid(
+            "A key is given for a storage object and for nothing else".into(),
+        ));
+    }
     let (label, account): (String, Option<i64>) = match kind {
+        ItemKind::StorageObject => {
+            let key = key.unwrap_or_default();
+            if !valid_object_key(key) {
+                return Err(ModError::Invalid("That is not an object key".into()));
+            }
+            let r = sqlx::query(
+                "SELECT m.owner_kind, m.owner_id, m.label, g.owner_id AS guild_owner \
+                 FROM storage_mounts m LEFT JOIN guilds g ON m.owner_kind = 'guild' AND g.id = m.owner_id \
+                 WHERE m.id = $1 AND m.deleted_at IS NULL",
+            )
+            .bind(id)
+            .fetch_optional(&mut *conn)
+            .await?
+            .ok_or(ModError::NotFound("storage mount"))?;
+            let owner_kind: String = r.try_get("owner_kind")?;
+            let mount: String = r.try_get("label")?;
+            match owner_kind.as_str() {
+                "user" => (
+                    format!("Object {key} in bucket {mount}"),
+                    Some(r.try_get::<i64, _>("owner_id")?),
+                ),
+                // P28-LEG-1: on a server's bucket the strike goes to the member who uploaded the object when the
+                // upload ledger knows them (the latest completed upload of that key), else to the server owner.
+                "guild" => {
+                    let guild_owner = r.try_get::<Option<i64>, _>("guild_owner")?;
+                    let uploader: Option<i64> = sqlx::query_scalar(
+                        "SELECT user_id FROM storage_mount_uploads \
+                         WHERE mount_id = $1 AND object_key = $2 AND state = 'completed' \
+                         ORDER BY updated_at DESC LIMIT 1",
+                    )
+                    .bind(id)
+                    .bind(key)
+                    .fetch_optional(&mut *conn)
+                    .await?;
+                    match uploader {
+                        Some(u) => (
+                            format!("Object {key} in bucket {mount} (uploaded by {u})"),
+                            Some(u),
+                        ),
+                        None => (
+                            format!("Object {key} in bucket {mount} (server bucket, owner)"),
+                            guild_owner,
+                        ),
+                    }
+                }
+                // The instance bucket is the platform's own: its content has its own kinds above.
+                _ => {
+                    return Err(ModError::Invalid(
+                        "The instance bucket is not a member's: name the message, attachment, library or cinema item"
+                            .into(),
+                    ));
+                }
+            }
+        }
         ItemKind::Message => {
             let r = sqlx::query("SELECT author_id FROM messages WHERE id = $1")
                 .bind(id)
@@ -372,6 +449,8 @@ fn scope_of(kind: ItemKind, id: i64) -> HoldScope {
         ItemKind::LibraryChapter => HoldScope::LibraryChapter(id),
         ItemKind::CinemaTitle => HoldScope::CinemaTitle(id),
         ItemKind::CinemaEpisode => HoldScope::CinemaEpisode(id),
+        // Nothing of ours to freeze: hold_item never asks for a storage object.
+        ItemKind::StorageObject => HoldScope::Attachment(id),
     }
 }
 
@@ -419,6 +498,14 @@ async fn hold_item(
     actor: Option<i64>,
     reason: &str,
 ) -> ModResult<Option<i64>> {
+    if item.kind == ItemKind::StorageObject {
+        // The object lives in the member's bucket: there is no row of ours to hold, only a delisting to record.
+        sqlx::query("UPDATE takedown_items SET state = 'held' WHERE id = $1")
+            .bind(item.id)
+            .execute(&mut *conn)
+            .await?;
+        return Ok(None);
+    }
     let case_id = notice
         .summary
         .case_id
@@ -527,6 +614,8 @@ async fn disable_item(
 ) -> ModResult<Value> {
     let id = item.target_id;
     let prior = match item.kind {
+        // Delisted, not deleted, and never blocked on /cdn: its key means nothing in the instance's namespace.
+        ItemKind::StorageObject => json!({}),
         ItemKind::Message => {
             let channel: Option<i64> = sqlx::query_scalar(
                 "UPDATE messages SET visibility = 'staff_removed', deleted_at = now(), pinned = FALSE, \
@@ -1237,11 +1326,12 @@ impl Moderation {
                 "Items can only be added while the notice is being triaged",
             ));
         }
-        let r = resolve_item(&mut tx, item.kind, item.id).await?;
+        let key = item.key.as_deref().map(str::trim);
+        let r = resolve_item(&mut tx, item.kind, item.id, key).await?;
         let item_id = self.next_id();
         let inserted = sqlx::query(
-            "INSERT INTO takedown_items (id, notice_id, kind, target_id, label, subject_account_id, subject_person_id) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (notice_id, kind, target_id) DO NOTHING",
+            "INSERT INTO takedown_items (id, notice_id, kind, target_id, label, subject_account_id, subject_person_id, object_key) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING",
         )
         .bind(item_id)
         .bind(notice_id)
@@ -1250,6 +1340,7 @@ impl Moderation {
         .bind(&r.label)
         .bind(r.account)
         .bind(r.person)
+        .bind(key)
         .execute(&mut *tx)
         .await?
         .rows_affected();
@@ -1269,6 +1360,7 @@ impl Moderation {
             let (tk, tid) = match item.kind {
                 ItemKind::Message => ("message", Some(item.id)),
                 ItemKind::Attachment => ("other", Some(item.id)),
+                ItemKind::StorageObject => ("other", None),
                 ItemKind::LibrarySeries | ItemKind::LibraryChapter => ("library", Some(item.id)),
                 ItemKind::CinemaTitle | ItemKind::CinemaEpisode => ("cinema", Some(item.id)),
             };
@@ -1622,6 +1714,24 @@ impl Moderation {
             if self.dm_subject(account, &text(&labels)).await {
                 delivered += 1;
             }
+        }
+        // P28-LEG-1: the owner of a server's bucket is told too when the subject is someone else (the uploader):
+        // the same text, informational, no strike. Not counted in `delivered`.
+        let mut contacts: Vec<(i64, Vec<String>)> = Vec::new();
+        for i in items.iter().filter(|i| i.kind == ItemKind::StorageObject) {
+            let Ok(Some(contact)) = self.guild_mount_contact(i.target_id).await else {
+                continue;
+            };
+            if i.subject_account_id == Some(contact) {
+                continue;
+            }
+            match contacts.iter_mut().find(|(c, _)| *c == contact) {
+                Some((_, labels)) => labels.push(i.label.clone()),
+                None => contacts.push((contact, vec![i.label.clone()])),
+            }
+        }
+        for (contact, labels) in contacts {
+            let _ = self.dm_subject(contact, &text(&labels)).await;
         }
         delivered
     }

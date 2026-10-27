@@ -128,7 +128,7 @@ jobs:
       # where smoke.localhost reaches Caddy, and it fails on any row the smoke stack should pass.
       - name: sr-cli preflight --insecure-tls against the running stack
         run: deploy/scripts/prod-smoke.sh preflight
-      - name: Playwright entrance-smoke through Caddy
+      - name: Playwright entrance-smoke and noindex (OPS-IDX-001) through Caddy
         run: |
           pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
           # Same specs and settings as playwright.config.ts, but against the running stack: no dev server, no
@@ -147,7 +147,7 @@ jobs:
             use: { ...base.use, baseURL: 'https://smoke.localhost', ignoreHTTPSErrors: true },
           });
           EOF
-          pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke
+          SR_E2E_NOINDEX=1 pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke noindex
       - name: Backup, restore and WAL drills against the running stack
         run: deploy/scripts/prod-smoke.sh backups
       - name: sr-cli backup, restore --force and upgrade --dry-run

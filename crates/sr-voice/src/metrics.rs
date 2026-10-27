@@ -13,6 +13,8 @@ pub const FORWARDED: &str = "sr_voice_forwarded_packets_total";
 pub const FORWARDED_FRAMES: &str = "sr_voice_forwarded_video_frames_total";
 pub const GOVERNOR_SEVERITY: &str = "sr_voice_governor_severity";
 pub const KEYFRAME_REQUESTS: &str = "sr_voice_keyframe_requests_total";
+/// Frames dropped because the sender had not completed the E2EE handshake (OPS-IMM-001).
+pub const UNKEYED_FRAMES: &str = "sr_voice_unkeyed_frames_total";
 
 /// Describe the metrics once at startup.
 pub fn describe() {
@@ -34,6 +36,10 @@ pub fn describe() {
         KEYFRAME_REQUESTS,
         "Keyframe requests sent to publishers (after coalescing)"
     );
+    metrics::describe_counter!(
+        UNKEYED_FRAMES,
+        "Frames dropped because their sender had not sent an MLS key package (E2EE is the only voice mode)"
+    );
 }
 
 /// Counter increments since the last [`publish`].
@@ -42,6 +48,7 @@ pub struct Deltas {
     pub packets: u64,
     pub frames: u64,
     pub keyframes: u64,
+    pub unkeyed: u64,
 }
 
 /// Publish a snapshot and the counter increments since the last call.
@@ -54,5 +61,6 @@ pub fn publish(s: &Snapshot, deltas: Deltas) {
     metrics::counter!(FORWARDED).increment(deltas.packets);
     metrics::counter!(FORWARDED_FRAMES).increment(deltas.frames);
     metrics::counter!(KEYFRAME_REQUESTS).increment(deltas.keyframes);
+    metrics::counter!(UNKEYED_FRAMES).increment(deltas.unkeyed);
     metrics::gauge!(GOVERNOR_SEVERITY).set(f64::from(s.governor_severity));
 }
