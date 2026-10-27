@@ -838,8 +838,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             downloads: Arc::new(cdn_signer.clone()),
             clock: secs_clock,
             config: worker_config,
+            // BYOS-CNV-003: presigned GET/PUT for the buckets of storage mounts, so a worker converts a
+            // member's file in place. The server signs; the worker never holds bucket credentials.
+            mounts: Some(Arc::new(
+                sr_media::mount_job::MountBucket::new(mount_repo.clone(), mount_sealer.clone())
+                    .with_guard(mount_guard.clone()),
+            )),
         },
     )));
+    let mount_transcode_deps = Arc::new(routes::storage::TranscodeDeps {
+        media: media_service_shared.clone(),
+    });
 
     // Cinema social and progress (CIN-PLY-007/009, CIN-MY-002, CIN-SOC-001/002): the service built above.
     let cinema_social_deps = Arc::new(
@@ -1495,6 +1504,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
         .extension(storage_scope_deps)
+        .extension(mount_transcode_deps)
         .extension(upload_deps)
         .extension(shelf_deps)
         // The browser's delete and move update the index at once (wave-28 integration).

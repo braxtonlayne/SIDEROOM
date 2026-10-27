@@ -172,6 +172,9 @@ pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
 pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
 pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
 pub const BYOS_UPLOAD_PARTS_PER_HOUR: &str = "byos.upload_parts_per_hour";
+/// Whether the operator's own transcoder workers serve members' conversions in their own buckets (wave 29,
+/// conv-worker; BYOS-CNV-003). Off by default: a member then needs a worker token of their own.
+pub const BYOS_WORKER_FOR_MEMBERS: &str = "byos.worker_for_members";
 
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
@@ -356,6 +359,15 @@ pub const CATALOG: &[SettingDef] = &[
         max: 2000.0,
         default_int: 0,
         description: "Hosts a bucket endpoint may use, separated by commas or spaces (s3.example.com or *.example.com). Empty: any https endpoint that is reachable from the public internet; http only for localhost and the development Garage.",
+    },
+    SettingDef {
+        key: BYOS_WORKER_FOR_MEMBERS,
+        group: "storage",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 0,
+        description: "Let this server's transcoder workers convert a member's videos inside the member's own bucket (the member's files stay in their bucket; the worker gets presigned links). Off: members run their own worker with a token of their bucket.",
     },
     SettingDef {
         key: BYOS_REQUIRE_CLIENT_REMUX,
