@@ -397,3 +397,53 @@ async fn slots_imports_and_favorites_round_trip() {
 async fn anchor(repo: &PgTvRepo, channel: i64) -> Option<ChainAnchor> {
     repo.get_channel(channel).await.unwrap().unwrap().chain
 }
+
+/// BYOS-TV-001 (migration 1510): the pool source columns round trip, the CHECK keeps them consistent, and a
+/// channel number is unique within its source, not across the instance.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn pool_sources_round_trip_and_numbers_are_unique_per_source() {
+    let db = TestDb::new().await.expect("test database");
+    let repo = PgTvRepo::new(db.pool().clone());
+    let with = |number: i32, pool: PoolSource| ChannelInput {
+        pool,
+        ..input(number)
+    };
+    let club = repo
+        .create_channel(1, &with(1, PoolSource::Guild { guild_id: 900 }), 1, 0)
+        .await
+        .unwrap();
+    assert_eq!(club.input.pool, PoolSource::Guild { guild_id: 900 });
+    // Another server and the instance may use number 1 as well; a personal channel too.
+    repo.create_channel(2, &with(1, PoolSource::Guild { guild_id: 901 }), 1, 0)
+        .await
+        .unwrap();
+    repo.create_channel(3, &with(1, PoolSource::Instance), 1, 0)
+        .await
+        .unwrap();
+    let mine = repo
+        .create_channel(4, &with(1, PoolSource::Personal { user_id: 5 }), 1, 0)
+        .await
+        .unwrap();
+    assert_eq!(mine.input.pool, PoolSource::Personal { user_id: 5 });
+    // The same number inside one source is taken.
+    let dup = repo
+        .create_channel(5, &with(1, PoolSource::Guild { guild_id: 900 }), 1, 0)
+        .await;
+    assert!(matches!(dup, Err(sr_tv::TvError::Conflict(_))), "{dup:?}");
+    // An update can move a channel to another source and the numbering follows.
+    let moved = repo
+        .update_channel(2, &with(2, PoolSource::Guild { guild_id: 900 }), 0)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(moved.input.pool, PoolSource::Guild { guild_id: 900 });
+    // The CHECK refuses a row whose columns disagree.
+    let bad = sqlx::query(
+        "UPDATE tv_channels SET pool_source = 'guild', guild_id = NULL WHERE id = 3",
+    )
+    .execute(db.pool())
+    .await;
+    assert!(bad.is_err());
+    db.cleanup().await.unwrap();
+}
