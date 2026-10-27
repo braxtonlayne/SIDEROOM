@@ -15,7 +15,9 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use serde_json::json;
 use sqlx::{PgPool, Postgres, Row, Transaction};
-use sr_storage::index::{Class, Classified, IndexStore, RunReport, StoreError};
+use sr_storage::index::{
+    Class, Classified, IndexControl, IndexStore, JOB_KIND, RunReport, RunStatus, StoreError,
+};
 
 /// Source of snowflake ids.
 pub type IdSource = std::sync::Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -675,5 +677,55 @@ impl PgIndexStore {
         .await
         .map_err(se)?;
         Ok(())
+    }
+}
+
+#[async_trait]
+impl IndexControl for PgIndexStore {
+    async fn request(&self, mount_id: i64) -> Result<bool, StoreError> {
+        let busy: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM jobs WHERE kind = $1 AND state IN ('queued', 'running') \
+                AND payload->>'mount_id' = $2)",
+        )
+        .bind(JOB_KIND)
+        .bind(mount_id.to_string())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(se)?;
+        if busy {
+            return Ok(false);
+        }
+        let job = crate::jobs::NewJob::new((self.ids)(), JOB_KIND, json!({ "mount_id": mount_id }));
+        crate::jobs::enqueue(&self.pool, &job)
+            .await
+            .map_err(|e| StoreError(e.to_string()))?;
+        Ok(true)
+    }
+
+    async fn status(&self, mount_id: i64) -> Result<Option<RunStatus>, StoreError> {
+        let r = sqlx::query(
+            "SELECT run, state, (extract(epoch FROM started_at) * 1000)::bigint AS started_ms, \
+                    (extract(epoch FROM finished_at) * 1000)::bigint AS finished_ms, \
+                    objects, added, vanished, truncated, error \
+             FROM storage_index_runs WHERE mount_id = $1",
+        )
+        .bind(mount_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(se)?;
+        r.map(|r| {
+            Ok(RunStatus {
+                run: r.try_get("run").map_err(se)?,
+                state: r.try_get("state").map_err(se)?,
+                started_ms: r.try_get("started_ms").map_err(se)?,
+                finished_ms: r.try_get("finished_ms").map_err(se)?,
+                objects: r.try_get("objects").map_err(se)?,
+                added: r.try_get("added").map_err(se)?,
+                vanished: r.try_get("vanished").map_err(se)?,
+                truncated: r.try_get("truncated").map_err(se)?,
+                error: r.try_get("error").map_err(se)?,
+            })
+        })
+        .transpose()
     }
 }

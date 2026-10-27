@@ -19,6 +19,9 @@ pub use classify::{
 
 use async_trait::async_trait;
 
+/// The job kind of the indexer (`storage.index`): a one-shot job carries `{"mount_id": n}`, the daily singleton none.
+pub const JOB_KIND: &str = "storage.index";
+
 /// The folder sidecar file name.
 pub const SIDECAR_NAME: &str = ".sideroom.json";
 
@@ -68,3 +71,35 @@ pub trait IndexStore: Send + Sync {
 #[derive(Debug, thiserror::Error)]
 #[error("index store: {0}")]
 pub struct StoreError(pub String);
+
+/// The last index run of a mount, as the Re-index button shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunStatus {
+    /// Run number.
+    pub run: i64,
+    /// `idle`, `running`, `done` or `failed`.
+    pub state: String,
+    /// Start, unix ms.
+    pub started_ms: Option<i64>,
+    /// End, unix ms.
+    pub finished_ms: Option<i64>,
+    /// Objects listed.
+    pub objects: i32,
+    /// New or changed objects.
+    pub added: i32,
+    /// Objects that vanished.
+    pub vanished: i32,
+    /// The listing stopped at the cap or the budget.
+    pub truncated: bool,
+    /// The failure, when `state` is `failed`.
+    pub error: Option<String>,
+}
+
+/// What the routes use to ask for a run and read the last one.
+#[async_trait]
+pub trait IndexControl: Send + Sync {
+    /// Queue a run for `mount_id` unless one is already queued or running. `true` when a job was queued.
+    async fn request(&self, mount_id: i64) -> Result<bool, StoreError>;
+    /// The last run of the mount; `None` before the first.
+    async fn status(&self, mount_id: i64) -> Result<Option<RunStatus>, StoreError>;
+}

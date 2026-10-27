@@ -1577,6 +1577,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mount_sealer.clone(),
         cfg.server.public_url.clone(),
     );
+    // Catalog indexing of storage mounts (BYOS-CAT-001): the one-shot and the daily `storage.index` job.
+    let index_store = Arc::new(sr_db::index_repo::PgIndexStore::new(
+        pool.clone(),
+        id_src.clone(),
+    ));
+    let runner = crate::storage_jobs::register(
+        runner,
+        &pool,
+        index_store.clone(),
+        mount_storages.clone(),
+        mount_repo.clone(),
+    );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
@@ -1626,6 +1638,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;
+    crate::storage_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::activities_jobs::schedule(&pool).await?;
