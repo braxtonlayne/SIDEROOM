@@ -1278,6 +1278,7 @@ async fn a_case_restore_refuses_a_message_a_takedown_holds() {
             &NewItem {
                 kind: ItemKind::Message,
                 id: msg.get() as i64,
+                key: None,
             },
         )
         .await

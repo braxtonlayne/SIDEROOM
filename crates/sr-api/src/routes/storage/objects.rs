@@ -456,7 +456,6 @@ pub async fn meta(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     MaybeExt(admin): MaybeExt<AdminDeps>,
-    MaybeExt(hooks): MaybeExt<super::IndexHooks>,
     headers: HeaderMap,
     Path((mount_id, key)): Path<(String, String)>,
 ) -> MsgResult<Json<ObjectMetaView>> {
@@ -866,12 +865,14 @@ pub async fn move_objects(
     ),
     security(("session" = []))
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn delete_objects(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(u): Ext<UploadDeps>,
     MaybeExt(admin): MaybeExt<AdminDeps>,
+    MaybeExt(hooks): MaybeExt<super::IndexHooks>,
     headers: HeaderMap,
     Path((mount_id, key)): Path<(String, String)>,
 ) -> MsgResult<Json<CountView>> {

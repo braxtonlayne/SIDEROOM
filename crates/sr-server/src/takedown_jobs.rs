@@ -244,6 +244,7 @@ mod retention_tests {
                 &NewItem {
                     kind: ItemKind::Message,
                     id: msg,
+                    key: None,
                 },
             )
             .await

@@ -465,6 +465,14 @@ async fn export_lists_mounts_without_keys_and_erasure_wipes_the_secret() {
     );
 }
 
+async fn person_of(pool: &PgPool, account: i64) -> i64 {
+    sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+        .bind(account)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
 /// P28-LEG-1: on a server's bucket the strike goes to the uploader the ledger knows (the server owner is told,
 /// without a strike), else to the server owner.
 #[tokio::test]
@@ -494,13 +502,6 @@ async fn a_server_bucket_strikes_the_uploader_when_the_ledger_knows_them_else_th
         .await
         .unwrap();
     }
-    let person = |a: i64| async move {
-        sqlx::query_scalar::<_, i64>("SELECT person_id FROM accounts WHERE id = $1")
-            .bind(a)
-            .fetch_one(w.pool())
-            .await
-            .unwrap()
-    };
     let c = w.caller();
     let who = Who::Staff(&c);
 
@@ -516,7 +517,7 @@ async fn a_server_bucket_strikes_the_uploader_when_the_ledger_knows_them_else_th
     .await
     .unwrap();
     assert_eq!(subject, Some(uploader));
-    assert_eq!(struck, Some(person(uploader).await));
+    assert_eq!(struck, Some(person_of(w.pool(), uploader).await));
     assert!(
         label.contains(&format!("(uploaded by {uploader})")),
         "{label}"
@@ -542,7 +543,7 @@ async fn a_server_bucket_strikes_the_uploader_when_the_ledger_knows_them_else_th
     .await
     .unwrap();
     assert_eq!(subject, Some(w.owner));
-    assert_eq!(struck, Some(person(w.owner).await));
+    assert_eq!(struck, Some(person_of(w.pool(), w.owner).await));
     assert!(label.ends_with("(server bucket, owner)"), "{label}");
     let dms = w.dms.0.lock().unwrap();
     assert_eq!(dms.len(), 1);
