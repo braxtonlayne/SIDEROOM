@@ -353,6 +353,7 @@ function QueueTab() {
               <tr>
                 <th scope="col">{t('admin.transcoding.col.job')}</th>
                 <th scope="col">{t('admin.transcoding.col.asset')}</th>
+                <th scope="col">{t('admin.transcoding.col.mount')}</th>
                 <th scope="col">{t('admin.transcoding.col.state')}</th>
                 <th scope="col">{t('admin.transcoding.col.priority')}</th>
                 <th scope="col">{t('admin.transcoding.col.worker')}</th>
@@ -372,6 +373,7 @@ function QueueTab() {
                   <td>
                     <span className="adm-mono">{j.asset_id}</span>
                   </td>
+                  <td>{j.mount_id ? <span className="adm-mono">{j.mount_id}</span> : null}</td>
                   <td>
                     <StateBadge state={j.state} />
                     {j.state === 'running' && (

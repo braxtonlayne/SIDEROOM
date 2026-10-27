@@ -64,6 +64,8 @@ export const JOB_STATES: JobState[] = ['queued', 'running', 'succeeded', 'failed
 export interface TranscodeJob {
   id: string;
   asset_id: string;
+  /** The storage mount a mount_transcode job works in (BYOS-CNV-003); absent for the Cinema kinds. */
+  mount_id?: string | null;
   kind: 'proxy' | 'ladder' | 'remux' | string;
   state: JobState;
   priority: number;
@@ -98,6 +100,7 @@ export interface QueueCounts {
 interface WireJob {
   job_id: string;
   asset_id: string;
+  mount_id?: string | null;
   kind: string;
   state: JobState;
   priority: number;
@@ -114,6 +117,7 @@ interface WireJob {
 const toJob = (j: WireJob): TranscodeJob => ({
   id: j.job_id,
   asset_id: j.asset_id,
+  mount_id: j.mount_id ?? null,
   kind: j.kind,
   state: j.state,
   priority: j.priority,
