@@ -131,6 +131,15 @@ export interface Converter {
     file: File,
     o?: ConvertOptions & { probe?: ProbeResult },
   ): Promise<ExtractResult>;
+  /**
+   * Runs `fn` with the loaded engine and the source mounted (what a Transcoder needs). One job at a time, the
+   * same size guard and cancel as the other methods.
+   */
+  withInput<T>(
+    file: File,
+    o: ConvertOptions | undefined,
+    fn: (engine: FfmpegEngine, inputPath: string) => Promise<T>,
+  ): Promise<T>;
   /** Stops the engine and frees its memory. The converter can be used again (it reloads). */
   dispose(): void;
 }
@@ -177,14 +186,18 @@ export type Decider = (
  * Registered by conv-webcodecs. Gets the source and the ffmpeg engine (to demux with `-c copy -f mp4`) and
  * returns the playable file. It must honour `o.signal` and report `o.onProgress` with phase `transcoding`.
  */
+export interface TranscodeContext {
+  file: File;
+  probe: ProbeResult;
+  options: ConvertOptions;
+  engine: FfmpegEngine;
+  /** Where the source is readable inside the engine (`/in/input.mkv`). */
+  inputPath: string;
+}
+
 export interface Transcoder {
   id: string;
-  run(
-    file: File,
-    probe: ProbeResult,
-    o: ConvertOptions,
-    engine: FfmpegEngine,
-  ): Promise<ConvertedFile>;
+  run(ctx: TranscodeContext): Promise<ConvertedFile>;
 }
 
 // ---- The ffmpeg engine (what the Converter needs from ffmpeg.wasm) ------------------------------------------

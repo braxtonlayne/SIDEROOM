@@ -226,6 +226,8 @@ export function createConverter(makeEngine: () => FfmpegEngine): Converter {
         }),
       ),
 
+    withInput: (file, o, fn) => run(() => session(file, o, (e, path) => fn(e, path))),
+
     dispose() {
       engine?.terminate();
       engine = null;
