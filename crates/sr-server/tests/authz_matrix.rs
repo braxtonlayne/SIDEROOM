@@ -4156,6 +4156,9 @@ async fn run_group(
     let calls = plan_calls(&world, routes, g, infos);
     let mut failures = Vec::new();
     let mut obs: Vec<Obs> = Vec::new();
+    // OPS-IMM-002: under a flag state (immutable_rules.rs) only the refusal phase runs, after the state is applied.
+    let refusals_only = harness::current().is_some();
+    harness::after_seed(&world, g, &mut failures).await;
 
     let (denials, others): (Vec<&Call>, Vec<&Call>) =
         calls.iter().partition(|c| c.exp == Exp::Deny);
@@ -4207,7 +4210,7 @@ async fn run_group(
     let mut group_fail = 0usize;
     let mut n = 0usize;
     for (phase, list) in [(0, denials), (1, reads), (2, rest)] {
-        if write_only && phase != 2 {
+        if (write_only && phase != 2) || (refusals_only && phase != 0) {
             continue;
         }
         if phase == 2 && write_on {
@@ -4338,7 +4341,7 @@ async fn run_group(
     }
 
     // R-03: the weak refusals of a group may only go down (lower WEAK_CEILING when they do).
-    if !write_only && weak > WEAK_CEILING[g] {
+    if !write_only && !refusals_only && weak > WEAK_CEILING[g] {
         group_fail += 1;
         failures.push(format!(
             "[{gname}] {weak} weak refusals, the ceiling is {}: a seeded id stopped reaching its resource",
@@ -5242,4 +5245,291 @@ async fn storage_scopes_hold_over_http() {
         failures.len(),
         failures.join("\n")
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// OPS-IMM-002: the library entry of `immutable_rules.rs`. Everything below is that harness's own; the
+// matrix above only calls `harness::current()` and `harness::after_seed()` from `run_group`.
+// ---------------------------------------------------------------------------------------------
+
+/// The IMMUTABLE RULE harness (docs/dev/roadmap-p27.md section 2): the refusal phase of a group run again
+/// with every feature killed at platform scope and with every setting at an end of its range, plus the
+/// checks that staff reads and admin actions are still logged and the log chain still verifies.
+#[allow(dead_code)]
+pub mod harness {
+    use super::*;
+    use std::sync::Mutex;
+
+    /// A state of the platform flags the refusal phase runs under.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Flip {
+        /// Every registered feature switched off at platform scope.
+        KillFeatures,
+        /// Every setting at its minimum (throttles stay at their maximum, see [`throttle`]).
+        SettingsMin,
+        /// Every setting at its maximum.
+        SettingsMax,
+    }
+
+    static CURRENT: Mutex<Option<Flip>> = Mutex::new(None);
+
+    pub(super) fn current() -> Option<Flip> {
+        *CURRENT.lock().unwrap()
+    }
+
+    /// What a run produced.
+    #[derive(Default, Debug)]
+    pub struct Report {
+        /// One line per group: the matrix summary.
+        pub lines: Vec<String>,
+        /// Everything that went wrong, one line each.
+        pub failures: Vec<String>,
+    }
+
+    /// Run the refusal phase of `groups` (indexes into [`GROUPS`]) under `flip`, each on a freshly seeded world.
+    pub async fn run(flip: Flip, groups: &[usize]) -> Report {
+        *CURRENT.lock().unwrap() = Some(flip);
+        let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+        let routes = parse_matrix();
+        let infos = op_infos();
+        let mut rep = Report::default();
+        for &g in groups {
+            let res = run_group(g, &base, &routes, &infos).await;
+            rep.lines.push(res.line);
+            rep.failures.extend(res.failures);
+        }
+        *CURRENT.lock().unwrap() = None;
+        rep
+    }
+
+    /// The group indexes whose refusals the IMMUTABLE RULE names: moderation, admin, and the rest (which holds
+    /// the storage and voice routes).
+    pub const RULE_GROUPS: [usize; 3] = [0, 1, 5];
+
+    /// Settings that throttle the harness itself (HTTP rate limits and the abuse limiters). At their minimum
+    /// every call would answer 429, which proves nothing about authorization, so they stay at their maximum
+    /// in every state; the handoff names them.
+    pub fn throttle(key: &str, group: &str) -> bool {
+        key.starts_with("limits.rate.") || group == "abuse"
+    }
+
+    struct Logs {
+        access: i64,
+        audit: i64,
+        private: i64,
+    }
+
+    async fn count(pool: &sqlx::PgPool, sql: &str) -> i64 {
+        sqlx::query_scalar::<_, i64>(sql)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(-1)
+    }
+
+    async fn logs(pool: &sqlx::PgPool) -> Logs {
+        Logs {
+            access: count(pool, "SELECT count(*) FROM staff_access_log").await,
+            audit: count(pool, "SELECT count(*) FROM platform_audit_log").await,
+            private: count(
+                pool,
+                "SELECT count(*) FROM staff_access_log WHERE kind = 'private_read'",
+            )
+            .await,
+        }
+    }
+
+    fn json_of(r: &Resp) -> Value {
+        serde_json::from_str(&r.body).unwrap_or(Value::Null)
+    }
+
+    /// The value a setting takes at the end of its range `flip` names.
+    pub fn setting_value(s: &Value, flip: Flip) -> Option<Value> {
+        let key = s["key"].as_str()?;
+        let group = s["group"].as_str().unwrap_or("");
+        let to_max = flip == Flip::SettingsMax || throttle(key, group);
+        match s["kind"].as_str()? {
+            "integer" => {
+                let v = if to_max { &s["max"] } else { &s["min"] };
+                Some(json!(v.as_f64()? as i64))
+            }
+            "number" => Some(json!(if to_max {
+                s["max"].as_f64()?
+            } else {
+                s["min"].as_f64()?
+            })),
+            "boolean" => Some(json!(to_max)),
+            // A text has no range: empty at the minimum, the most restrictive known value at the maximum.
+            "text" if flip == Flip::SettingsMax => Some(match key {
+                "byos.who_may_mount" => json!("staff"),
+                "byos.endpoint_allow" => json!("immutable.invalid"),
+                _ => s["default"].clone(),
+            }),
+            "text" => Some(json!("")),
+            _ => None,
+        }
+    }
+
+    /// Put the platform into the state of `flip` through the Admin API as the Owner. Returns what it did.
+    async fn apply(world: &World, flip: Flip) -> Result<String, String> {
+        let owner = &world.actor("staff_owner").cred;
+        let srv = &world.srv;
+        match flip {
+            Flip::KillFeatures => {
+                let r = srv.call(owner, "GET", "/admin/features", None).await;
+                let list = json_of(&r);
+                let list = list
+                    .as_array()
+                    .ok_or(format!("GET /admin/features: {} {}", r.status, r.body))?;
+                let (mut killed, mut skipped) = (0, Vec::new());
+                for f in list {
+                    let id = f["id"].as_str().unwrap_or_default();
+                    if f["enabled"] != json!(true) {
+                        continue;
+                    }
+                    let r = srv
+                        .call_reason(
+                            owner,
+                            "PATCH",
+                            &format!("/admin/features/{id}"),
+                            Some(&json!({"enabled": false})),
+                        )
+                        .await;
+                    if r.status == 200 {
+                        killed += 1;
+                    } else {
+                        skipped.push(format!("{id} ({})", r.status));
+                    }
+                }
+                if killed == 0 || skipped.len() * 10 > list.len() {
+                    return Err(format!(
+                        "only {killed} of {} features killed; skipped {skipped:?}",
+                        list.len()
+                    ));
+                }
+                Ok(format!(
+                    "{killed} of {} features killed, skipped {skipped:?}",
+                    list.len()
+                ))
+            }
+            Flip::SettingsMin | Flip::SettingsMax => {
+                let r = srv.call(owner, "GET", "/admin/settings", None).await;
+                let list = json_of(&r);
+                let list = list
+                    .as_array()
+                    .ok_or(format!("GET /admin/settings: {} {}", r.status, r.body))?;
+                let mut values = serde_json::Map::new();
+                for s in list {
+                    if let (Some(k), Some(v)) = (s["key"].as_str(), setting_value(s, flip)) {
+                        values.insert(k.to_owned(), v);
+                    }
+                }
+                let batch = srv
+                    .call_reason(
+                        owner,
+                        "PATCH",
+                        "/admin/settings",
+                        Some(&json!({"values": values})),
+                    )
+                    .await;
+                if batch.status == 200 {
+                    return Ok(format!("{} settings set in one patch", values.len()));
+                }
+                // Some settings are validated against each other (thresholds): one key at a time then.
+                let (mut set, mut skipped) = (0, Vec::new());
+                for (k, v) in &values {
+                    let r = srv
+                        .call_reason(
+                            owner,
+                            "PATCH",
+                            "/admin/settings",
+                            Some(&json!({"values": {k: v}})),
+                        )
+                        .await;
+                    if r.status == 200 {
+                        set += 1;
+                    } else {
+                        skipped.push(k.clone());
+                    }
+                }
+                if set * 2 < values.len() {
+                    return Err(format!(
+                        "only {set} of {} settings applied; skipped {skipped:?}",
+                        values.len()
+                    ));
+                }
+                Ok(format!(
+                    "{set} of {} settings set one by one; skipped {skipped:?}",
+                    values.len()
+                ))
+            }
+        }
+    }
+
+    /// Called by `run_group` right after the world is seeded, when a flip is current: apply it, then prove that
+    /// admin actions and staff reads still write their logs and that the chain still verifies.
+    pub(super) async fn after_seed(world: &World, g: usize, failures: &mut Vec<String>) {
+        let Some(flip) = current() else { return };
+        let tag = format!("[{} under {flip:?}]", GROUPS[g]);
+        let owner = &world.actor("staff_owner").cred;
+        let srv = &world.srv;
+        let r = step_up(srv, owner, &world.totp).await;
+        if r.status != 200 {
+            failures.push(format!(
+                "{tag} the staff step-up answered {} {}",
+                r.status, r.body
+            ));
+            return;
+        }
+        let before = logs(&world.pool).await;
+        match apply(world, flip).await {
+            Ok(note) => println!("immutable_rules: {tag} {note}"),
+            Err(e) => {
+                failures.push(format!("{tag} could not apply the state: {e}"));
+                return;
+            }
+        }
+        // An admin action writes the audit log and the access log.
+        let after = logs(&world.pool).await;
+        if after.audit <= before.audit {
+            failures.push(format!(
+                "{tag} admin actions wrote no platform_audit_log row"
+            ));
+        }
+        if after.access <= before.access {
+            failures.push(format!("{tag} admin actions wrote no staff_access_log row"));
+        }
+        // A staff read of a member archive is logged.
+        let member = world.member_id;
+        let r = srv
+            .call_reason(
+                owner,
+                "GET",
+                &format!("/admin/private/accounts/{member}/dms"),
+                None,
+            )
+            .await;
+        if r.status != 200 {
+            failures.push(format!(
+                "{tag} the staff read of a member archive answered {} {}",
+                r.status, r.body
+            ));
+        }
+        let read = logs(&world.pool).await;
+        if read.private <= after.private {
+            failures.push(format!(
+                "{tag} the staff read of a member archive wrote no private_read access-log row"
+            ));
+        }
+        // And the chain still verifies.
+        let r = srv
+            .call(owner, "GET", "/admin/access-log/verify", None)
+            .await;
+        let report = json_of(&r);
+        if r.status != 200 || report["ok"] != json!(true) {
+            failures.push(format!(
+                "{tag} the access-log chain does not verify: {} {}",
+                r.status, r.body
+            ));
+        }
+    }
 }
