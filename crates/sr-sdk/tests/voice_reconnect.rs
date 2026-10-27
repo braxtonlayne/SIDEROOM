@@ -38,6 +38,23 @@ async fn start(resume_window: Duration) -> Sfu {
     let addr = listener.local_addr().unwrap();
     let app = sr_voice::router(handle.clone());
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    // OPS-IMM-001: the SFU forwards only senders the gateway reported as E2EE-keyed (op 101). There is no
+    // gateway here, so the test plays its part and keeps re-announcing the test users (it also covers a rejoin).
+    let keyer = handle.clone();
+    tokio::spawn(async move {
+        loop {
+            for user in 1..=4u64 {
+                keyer
+                    .apply(sr_voice_proto::VoiceCommand::E2eeKeyed {
+                        channel: ChannelId::new(CHANNEL),
+                        user: UserId::new(user),
+                        keyed: true,
+                    })
+                    .await;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    });
     Sfu {
         handle,
         url: format!("ws://{addr}/voice/ws"),
