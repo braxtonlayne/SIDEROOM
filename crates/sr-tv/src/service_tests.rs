@@ -105,6 +105,7 @@ fn input(number: i32, rules: ChannelRules) -> ChannelInput {
         age_restricted: false,
         filler_policy: FillerPolicy::Slate,
         rules,
+        pool: PoolSource::Instance,
     }
 }
 

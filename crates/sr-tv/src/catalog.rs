@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 
 use crate::error::TvResult;
-use crate::model::{MediaKind, PoolFilter, Restricted};
+use crate::model::{MediaKind, PoolFilter, PoolSource, Restricted};
 
 /// One thing that can air: a film or one episode, with the asset that carries it.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +29,11 @@ pub struct CatalogItem {
     pub genres: Vec<String>,
     /// Lower case.
     pub tags: Vec<String>,
+    /// The storage mount that holds the object (1: the instance bucket, which every catalog row has always
+    /// lived in). A channel with a shelf pool airs only items whose mount it may draw from.
+    pub mount_id: i64,
+    /// Whether the item can air as it is (web-native, or converted); `false` items are left out of the pools.
+    pub playable: bool,
 }
 
 impl CatalogItem {
@@ -123,6 +128,39 @@ pub trait TvCatalog: Send + Sync {
         Ok(out)
     }
 
+    /// The mounts a pool source may draw from: `None` for the instance catalog (not limited by mount), else
+    /// the list (a server: its own mounts and the instance bucket when attached; a member: their own).
+    /// A store that cannot tell answers an error, never `None` (fail closed).
+    async fn mounts_of(&self, _source: PoolSource) -> TvResult<Option<Vec<i64>>> {
+        Ok(None)
+    }
+
+    /// [`TvCatalog::pool`] limited to what `source` may draw from (BYOS-TV-001): the same items for everyone
+    /// who may watch the channel, so the guide is one per server, not one per viewer.
+    async fn pool_in(
+        &self,
+        source: PoolSource,
+        filter: &PoolFilter,
+        channel_restricted: bool,
+        limit: usize,
+    ) -> TvResult<Vec<CatalogItem>> {
+        let Some(mounts) = self.mounts_of(source).await? else {
+            return self.pool(filter, channel_restricted, limit).await;
+        };
+        let mut items = self.pool(filter, channel_restricted, usize::MAX).await?;
+        items.retain(|i| mounts.contains(&i.mount_id));
+        items.truncate(limit);
+        Ok(items)
+    }
+
+    /// Whether `source` may air `item`.
+    async fn admits(&self, source: PoolSource, item: &CatalogItem) -> TvResult<bool> {
+        Ok(self
+            .mounts_of(source)
+            .await?
+            .is_none_or(|m| m.contains(&item.mount_id)))
+    }
+
     /// Playable items (published, with an asset and a runtime) that pass `filter`, in a stable order:
     /// the order of `filter.title_ids` when given, else by title; episodes of a series by season and
     /// number. At most `limit` items.
@@ -145,6 +183,8 @@ pub trait TvCatalog: Send + Sync {
 pub struct MemoryCatalog {
     items: Arc<Mutex<Vec<CatalogItem>>>,
     collections: Arc<Mutex<HashMap<i64, Vec<i64>>>>,
+    /// The mounts each shelf source may draw from (a source without an entry draws from none).
+    mounts: Arc<Mutex<HashMap<PoolSource, Vec<i64>>>>,
 }
 
 impl MemoryCatalog {
@@ -169,6 +209,15 @@ impl MemoryCatalog {
         self
     }
 
+    /// Declare the mounts a shelf source may draw from.
+    pub fn allow_mounts(&self, source: PoolSource, mounts: Vec<i64>) -> &Self {
+        self.mounts
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .insert(source, mounts);
+        self
+    }
+
     pub fn clear(&self) {
         self.items.lock().unwrap_or_else(|p| p.into_inner()).clear();
     }
@@ -176,6 +225,20 @@ impl MemoryCatalog {
 
 #[async_trait]
 impl TvCatalog for MemoryCatalog {
+    async fn mounts_of(&self, source: PoolSource) -> TvResult<Option<Vec<i64>>> {
+        if source == PoolSource::Instance {
+            return Ok(None);
+        }
+        Ok(Some(
+            self.mounts
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .get(&source)
+                .cloned()
+                .unwrap_or_default(),
+        ))
+    }
+
     async fn pool(
         &self,
         filter: &PoolFilter,
@@ -267,6 +330,8 @@ pub fn item(title_id: i64, title: &str, minutes: i64) -> CatalogItem {
         age_restricted: false,
         genres: Vec::new(),
         tags: Vec::new(),
+        mount_id: 1,
+        playable: true,
     }
 }
 
