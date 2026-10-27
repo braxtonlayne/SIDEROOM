@@ -1342,7 +1342,16 @@ async fn expressions_updates_dispatch_with_the_expressions_intent() {
         c.expect_event("GUILD_STICKERS_UPDATE").await["d"]["guild_id"],
         "1"
     );
-    // BYOS-NAV-001: a server's mount change reaches its sessions as STORAGE_MOUNT_UPDATE (no intent gate).
+    other.silent().await;
+}
+
+/// BYOS-NAV-001: a server's mount change reaches the server's sessions as `STORAGE_MOUNT_UPDATE`. It carries only
+/// ids and the kind of change, so it has no intent gate.
+#[tokio::test]
+async fn storage_mount_updates_are_dispatched_to_members() {
+    let e = env();
+    let mut member = connect(&e);
+    member.identify("bot:1", intents::GUILDS, 1).await;
     emit(
         &e.bus,
         DomainEvent::StorageMountUpdated {
@@ -1351,11 +1360,9 @@ async fn expressions_updates_dispatch_with_the_expressions_intent() {
         },
     )
     .await;
-    assert_eq!(
-        c.expect_event("STORAGE_MOUNT_UPDATE").await["d"]["mount_id"],
-        "9"
-    );
-    other.silent().await;
+    let d = member.expect_event("STORAGE_MOUNT_UPDATE").await;
+    assert_eq!(d["d"]["mount_id"], "9");
+    assert_eq!(d["d"]["change"], "created");
 }
 
 #[tokio::test]
