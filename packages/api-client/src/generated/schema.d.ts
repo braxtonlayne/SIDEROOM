@@ -3464,6 +3464,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/storage/mounts/{platform_mount_id}/attach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach the instance bucket to a server (`OPERATOR`, audited). Attaching twice is not an error. */
+        post: operations["attach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/storage/mounts/{platform_mount_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The servers the instance bucket is attached to (`OPERATOR`). */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/storage/mounts/{platform_mount_id}/detach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take the instance bucket away from a server (`OPERATOR`, audited). 404 when it was not attached. */
+        post: operations["detach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/suspicion": {
         parameters: {
             query?: never;
@@ -11590,6 +11641,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/storage/mounts/{mount_id}/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an empty folder: a zero-byte `folder/` marker, which is how S3 clients show an empty folder. */
+        post: operations["create_folder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/storage/mounts/{mount_id}/index": {
         parameters: {
             query?: never;
@@ -11605,6 +11673,27 @@ export interface paths {
          *     is already queued or running.
          */
         post: operations["start_index"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rename or move a file or a folder inside the bucket: a server-side copy of each object, then the
+         *     delete of the originals (nothing is deleted when a copy fails). Refuses a target that already exists,
+         *     a file over 5 GiB, and a folder with more than 500 entries.
+         */
+        post: operations["move_objects"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11639,7 +11728,11 @@ export interface paths {
         get: operations["meta"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a file, or a folder with everything in it (a key ending in `/`; at most 500 entries). The bucket
+         *     is the only copy of the bytes: there is no undo.
+         */
+        delete: operations["delete_objects"];
         options?: never;
         head?: never;
         patch?: never;
@@ -11660,6 +11753,76 @@ export interface paths {
          *     `CORS_NOT_READY`.
          */
         post: operations["presign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's open uploads on this mount, newest first (what a reload resumes). */
+        get: operations["list"];
+        put?: never;
+        /** Start an upload of one file. */
+        post: operations["begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One upload with the parts the bucket already holds. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        /** Abandon an upload and free its parts at the bucket. */
+        delete: operations["abort"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish an upload: the parts must all be in the bucket with the declared sizes. */
+        post: operations["complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/parts/{part_number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A presigned `PUT` for one part, valid for an hour. Counted against `byos.upload_parts_per_hour`. */
+        post: operations["part_url"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14898,6 +15061,11 @@ export interface components {
             jobs: components["schemas"]["JobSummary"][];
             probe?: null | components["schemas"]["ProbeSummary"];
         };
+        /** @description Body of attach and detach. */
+        AttachBody: {
+            /** @description The server (guild snowflake). */
+            guild_id: string;
+        };
         AttachmentObject: {
             /** @description BlurHash placeholder to show until the image loads. */
             blurhash?: string | null;
@@ -14942,6 +15110,11 @@ export interface components {
             uploaded_filename?: string | null;
             /** @description Voice messages: base64 waveform of up to 256 amplitude bytes. */
             waveform?: string | null;
+        };
+        /** @description A server the platform bucket is attached to. */
+        AttachmentView: {
+            /** @description The server (guild snowflake). */
+            guild_id: string;
         };
         AuditChangeObject: {
             key: string;
@@ -15148,6 +15321,18 @@ export interface components {
              *     after decoding those fields.
              */
             options: unknown;
+        };
+        /** @description Body of `POST /storage/mounts/{mount_id}/uploads`. */
+        BeginUploadBody: {
+            /** @description Content type the object is stored with; defaults to `application/octet-stream`. */
+            content_type?: string | null;
+            /** @description Mount-relative key of the object to create (an existing object is replaced). */
+            key: string;
+            /**
+             * Format: int64
+             * @description Size of the file in bytes (at least 1, at most 156 GiB).
+             */
+            size: number;
         };
         Birthday: {
             /** Format: int32 */
@@ -16287,9 +16472,34 @@ export interface components {
             warn_new_account_days: number;
             welcome_screen_enabled: boolean;
         };
+        /** @description One part the client says it sent. */
+        CompletePart: {
+            /** @description The `ETag` the bucket answered. */
+            etag: string;
+            /**
+             * Format: int32
+             * @description Part number.
+             */
+            number: number;
+        };
+        /** @description Body of `POST .../uploads/{mount_upload_id}/complete`. */
+        CompleteUploadBody: {
+            /** @description Optional: the parts and etags the client holds. When given they must match what the bucket lists. */
+            parts?: components["schemas"]["CompletePart"][];
+        };
         CompleteUploadRequest: {
             parts: components["schemas"]["PartDone"][];
             upload_id: string;
+        };
+        /** @description The finished object. */
+        CompletedUploadView: {
+            /** @description Mount-relative key. */
+            key: string;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
         };
         /** @description What the owner may change. */
         ConfigInput: {
@@ -16433,6 +16643,14 @@ export interface components {
         /** @description A count after a vote. */
         CountBody: {
             /** Format: int32 */
+            count: number;
+        };
+        /** @description What a move or delete touched. */
+        CountView: {
+            /**
+             * Format: int32
+             * @description Objects moved or deleted (folder markers included).
+             */
             count: number;
         };
         /** @description One notice that counts as a strike. */
@@ -17927,12 +18145,22 @@ export interface components {
             /** @description `true` once the welcome is closed or finished, `false` to show it again. */
             done: boolean;
         };
+        /** @description Body of `POST /storage/mounts/{mount_id}/folders`. */
+        FolderBody: {
+            /** @description Mount-relative folder key, ending in `/`. */
+            key: string;
+        };
         /** @description Pages that share a folder inside the archive (a chapter folder, a volume folder, the root). */
         FolderGroup: {
             /** Format: int32 */
             pages: number;
             /** @description Folder path inside the archive; empty for the top level. */
             path: string;
+        };
+        /** @description A created folder. */
+        FolderView: {
+            /** @description Mount-relative folder key, ending in `/`. */
+            key: string;
         };
         /** @description A followed series with the user's shelf. */
         Follow: {
@@ -20091,8 +20319,15 @@ export interface components {
             /** @description `s3`, `r2`, `b2`, `minio`, `wasabi` or `garage`. */
             provider: string;
             region?: string | null;
-            /** @description `active`, `failing` or `disabled`. */
+            /** @description `active`, `failing`, `disabled` or `delisted` (set by staff after a takedown; the owner cannot clear it). */
             status: string;
+        };
+        /** @description Body of `POST /storage/mounts/{mount_id}/move` (rename and move are the same call). */
+        MoveBody: {
+            /** @description Mount-relative key of an object, or of a folder (ending in `/`). */
+            from: string;
+            /** @description The new key: an object stays an object, a folder stays a folder. */
+            to: string;
         };
         /** @description Body of `POST /admin/persons/{person_id}/identities/{identity_id}/move`. */
         MoveIdentityBody: {
@@ -20343,6 +20578,13 @@ export interface components {
         };
         /** @description A page of a listing. */
         ObjectList: {
+            /** @description Whether the caller may rename, move and delete here (`scopes::may_manage`). */
+            can_manage: boolean;
+            /**
+             * @description Whether the caller may upload and make folders here (`scopes::may_upload`); the UI shows the write
+             *     side only when it is true. The write routes decide again.
+             */
+            can_upload: boolean;
             /** @description Sub-folder prefixes (mount-relative, ending in `/`). */
             folders: string[];
             /** @description Cursor of the next page, `null` at the end. */
@@ -20718,6 +20960,38 @@ export interface components {
             /** Format: int32 */
             part_number: number;
             url: string;
+        };
+        /** @description A presigned part `PUT`. */
+        PartUrlView: {
+            /** @description When it stops working (ISO 8601). */
+            expires_at: string;
+            /**
+             * Format: int32
+             * @description Part number.
+             */
+            part_number: number;
+            /**
+             * Format: int64
+             * @description Bytes this part must have.
+             */
+            size: number;
+            /** @description Send the part body with `PUT` to this URL; never stored or logged by the server. */
+            url: string;
+        };
+        /** @description A part the bucket holds. */
+        PartView: {
+            /** @description The bucket's entity tag for the part. */
+            etag: string;
+            /**
+             * Format: int32
+             * @description Part number, from 1.
+             */
+            number: number;
+            /**
+             * Format: int64
+             * @description Bytes the bucket stored.
+             */
+            size: number;
         };
         PartialEmoji: {
             id?: string | null;
@@ -24429,6 +24703,39 @@ export interface components {
          * @enum {string}
          */
         UploadStatus: "awaiting_upload" | "queued" | "running" | "done" | "failed" | "expired";
+        /** @description An upload with the parts that already arrived. */
+        UploadStatusView: {
+            /** @description Parts in the bucket, in order. */
+            parts: components["schemas"]["PartView"][];
+            /** @description The ledger row. */
+            upload: components["schemas"]["UploadView"];
+        };
+        /** @description One upload in the ledger. */
+        UploadView: {
+            /** @description Stored content type. */
+            content_type: string;
+            /** @description Started (ISO 8601). */
+            created_at: string;
+            /** @description Upload id (snowflake). */
+            id: string;
+            /** @description Mount-relative key. */
+            key: string;
+            /**
+             * Format: int32
+             * @description How many parts the file needs.
+             */
+            part_count: number;
+            /**
+             * Format: int64
+             * @description Bytes per part (the last part is smaller).
+             */
+            part_size: number;
+            /**
+             * Format: int64
+             * @description Declared size in bytes.
+             */
+            size: number;
+        };
         /** @description One URL mapping: requests to `<activity origin><prefix>/...` are fetched from `target`. */
         UrlMapping: {
             /** @description `/api`: a path of one or more segments, never `/`. */
@@ -36736,6 +37043,174 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    attach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The platform mount (1 on a standard install) */
+                platform_mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The platform mount */
+                platform_mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentView"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    detach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The platform mount */
+                platform_mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -60679,6 +61154,8 @@ export interface operations {
                 kind?: string;
                 /** @description Only this mount */
                 mount?: string;
+                /** @description The server whose section is showing: its shelves, plus members' own shelves unless the server turned them off */
+                guild?: string;
                 /** @description At most 50 */
                 limit?: number;
                 /** @description Offset */
@@ -62424,6 +62901,65 @@ export interface operations {
             };
         };
     };
+    create_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description BUCKET_UNREACHABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     index_status: {
         parameters: {
             query?: never;
@@ -62491,6 +63027,65 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_objects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description TARGET_EXISTS, OBJECT_TOO_LARGE or BUCKET_UNREACHABLE */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -62601,6 +63196,63 @@ export interface operations {
             };
         };
     };
+    delete_objects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Mount-relative key; a trailing slash deletes a folder */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description FOLDER_TOO_LARGE or BUCKET_UNREACHABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     presign: {
         parameters: {
             query?: never;
@@ -62651,6 +63303,320 @@ export interface operations {
             };
             /** @description CORS_NOT_READY */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BeginUploadBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY, TOO_MANY_UPLOADS or BUCKET_UNREACHABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Upload id */
+                mount_upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadStatusView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description BUCKET_UNREACHABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    abort: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Upload id */
+                mount_upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description BUCKET_UNREACHABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Upload id */
+                mount_upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteUploadBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompletedUploadView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description UPLOAD_INCOMPLETE or BUCKET_UNREACHABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    part_url: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Upload id */
+                mount_upload_id: string;
+                /** @description Part number, from 1 */
+                part_number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartUrlView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description byos.upload_parts_per_hour reached */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

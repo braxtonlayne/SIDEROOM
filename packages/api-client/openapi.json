@@ -17602,6 +17602,253 @@
         ]
       }
     },
+    "/admin/storage/mounts/{platform_mount_id}/attach": {
+      "post": {
+        "tags": [
+          "attach"
+        ],
+        "summary": "Attach the instance bucket to a server (`OPERATOR`, audited). Attaching twice is not an error.",
+        "operationId": "attach",
+        "parameters": [
+          {
+            "name": "platform_mount_id",
+            "in": "path",
+            "description": "The platform mount (1 on a standard install)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{platform_mount_id}/attachments": {
+      "get": {
+        "tags": [
+          "attach"
+        ],
+        "summary": "The servers the instance bucket is attached to (`OPERATOR`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "platform_mount_id",
+            "in": "path",
+            "description": "The platform mount",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttachmentView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{platform_mount_id}/detach": {
+      "post": {
+        "tags": [
+          "attach"
+        ],
+        "summary": "Take the instance bucket away from a server (`OPERATOR`, audited). 404 when it was not attached.",
+        "operationId": "detach",
+        "parameters": [
+          {
+            "name": "platform_mount_id",
+            "in": "path",
+            "description": "The platform mount",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/suspicion": {
       "get": {
         "tags": [
@@ -55712,6 +55959,15 @@
             }
           },
           {
+            "name": "guild",
+            "in": "query",
+            "description": "The server whose section is showing: its shelves, plus members' own shelves unless the server turned them off",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "description": "At most 50",
@@ -58139,6 +58395,93 @@
         ]
       }
     },
+    "/storage/mounts/{mount_id}/folders": {
+      "post": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "Create an empty folder: a zero-byte `folder/` marker, which is how S3 clients show an empty folder.",
+        "operationId": "create_folder",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/storage/mounts/{mount_id}/index": {
       "get": {
         "tags": [
@@ -58235,6 +58578,93 @@
           },
           "404": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/move": {
+      "post": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "Rename or move a file or a folder inside the bucket: a server-side copy of each object, then the\ndelete of the originals (nothing is deleted when a copy fails). Refuses a target that already exists,\na file over 5 GiB, and a folder with more than 500 entries.",
+        "operationId": "move_objects",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "TARGET_EXISTS, OBJECT_TOO_LARGE or BUCKET_UNREACHABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -58419,6 +58849,90 @@
             "session": []
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "Delete a file, or a folder with everything in it (a key ending in `/`; at most 500 entries). The bucket\nis the only copy of the bytes: there is no undo.",
+        "operationId": "delete_objects",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Mount-relative key; a trailing slash deletes a folder",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FOLDER_TOO_LARGE or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
       }
     },
     "/storage/mounts/{mount_id}/presign": {
@@ -58492,6 +59006,487 @@
           },
           "409": {
             "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "The caller's open uploads on this mount, newest first (what a reload resumes).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UploadView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Start an upload of one file.",
+        "operationId": "begin",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY, TOO_MANY_UPLOADS or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "One upload with the parts the bucket already holds.",
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatusView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Abandon an upload and free its parts at the bucket.",
+        "operationId": "abort",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Finish an upload: the parts must all be in the bucket with the declared sizes.",
+        "operationId": "complete",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletedUploadView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "UPLOAD_INCOMPLETE or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/parts/{part_number}": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "A presigned `PUT` for one part, valid for an hour. Counted against `byos.upload_parts_per_hour`.",
+        "operationId": "part_url",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_upload_id",
+            "in": "path",
+            "description": "Upload id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "part_number",
+            "in": "path",
+            "description": "Part number, from 1",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartUrlView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "byos.upload_parts_per_hour reached",
             "content": {
               "application/json": {
                 "schema": {
@@ -71632,6 +72627,19 @@
           }
         }
       },
+      "AttachBody": {
+        "type": "object",
+        "description": "Body of attach and detach.",
+        "required": [
+          "guild_id"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": "string",
+            "description": "The server (guild snowflake)."
+          }
+        }
+      },
       "AttachmentObject": {
         "type": "object",
         "required": [
@@ -71758,6 +72766,19 @@
               "null"
             ],
             "description": "Voice messages: base64 waveform of up to 256 amplitude bytes."
+          }
+        }
+      },
+      "AttachmentView": {
+        "type": "object",
+        "description": "A server the platform bucket is attached to.",
+        "required": [
+          "guild_id"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": "string",
+            "description": "The server (guild snowflake)."
           }
         }
       },
@@ -72416,6 +73437,33 @@
           },
           "options": {
             "description": "`PublicKeyCredentialCreationOptions` / `RequestOptions` JSON with base64url\nbinary fields; pass to `navigator.credentials.create/get({ publicKey })`\nafter decoding those fields."
+          }
+        }
+      },
+      "BeginUploadBody": {
+        "type": "object",
+        "description": "Body of `POST /storage/mounts/{mount_id}/uploads`.",
+        "required": [
+          "key",
+          "size"
+        ],
+        "properties": {
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Content type the object is stored with; defaults to `application/octet-stream`."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key of the object to create (an existing object is replaced)."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the file in bytes (at least 1, at most 156 GiB).",
+            "minimum": 0
           }
         }
       },
@@ -76100,6 +77148,39 @@
           }
         }
       },
+      "CompletePart": {
+        "type": "object",
+        "description": "One part the client says it sent.",
+        "required": [
+          "number",
+          "etag"
+        ],
+        "properties": {
+          "etag": {
+            "type": "string",
+            "description": "The `ETag` the bucket answered."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Part number.",
+            "minimum": 0
+          }
+        }
+      },
+      "CompleteUploadBody": {
+        "type": "object",
+        "description": "Body of `POST .../uploads/{mount_upload_id}/complete`.",
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompletePart"
+            },
+            "description": "Optional: the parts and etags the client holds. When given they must match what the bucket lists."
+          }
+        }
+      },
       "CompleteUploadRequest": {
         "type": "object",
         "required": [
@@ -76115,6 +77196,26 @@
           },
           "upload_id": {
             "type": "string"
+          }
+        }
+      },
+      "CompletedUploadView": {
+        "type": "object",
+        "description": "The finished object.",
+        "required": [
+          "key",
+          "size"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes.",
+            "minimum": 0
           }
         }
       },
@@ -76583,6 +77684,21 @@
           "count": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "CountView": {
+        "type": "object",
+        "description": "What a move or delete touched.",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Objects moved or deleted (folder markers included).",
+            "minimum": 0
           }
         }
       },
@@ -80947,6 +82063,19 @@
           }
         }
       },
+      "FolderBody": {
+        "type": "object",
+        "description": "Body of `POST /storage/mounts/{mount_id}/folders`.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Mount-relative folder key, ending in `/`."
+          }
+        }
+      },
       "FolderGroup": {
         "type": "object",
         "description": "Pages that share a folder inside the archive (a chapter folder, a volume folder, the root).",
@@ -80963,6 +82092,19 @@
           "path": {
             "type": "string",
             "description": "Folder path inside the archive; empty for the top level."
+          }
+        }
+      },
+      "FolderView": {
+        "type": "object",
+        "description": "A created folder.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Mount-relative folder key, ending in `/`."
           }
         }
       },
@@ -87756,7 +88898,25 @@
           },
           "status": {
             "type": "string",
-            "description": "`active`, `failing` or `disabled`."
+            "description": "`active`, `failing`, `disabled` or `delisted` (set by staff after a takedown; the owner cannot clear it)."
+          }
+        }
+      },
+      "MoveBody": {
+        "type": "object",
+        "description": "Body of `POST /storage/mounts/{mount_id}/move` (rename and move are the same call).",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Mount-relative key of an object, or of a folder (ending in `/`)."
+          },
+          "to": {
+            "type": "string",
+            "description": "The new key: an object stays an object, a folder stays a folder."
           }
         }
       },
@@ -88538,9 +89698,19 @@
         "description": "A page of a listing.",
         "required": [
           "folders",
-          "objects"
+          "objects",
+          "can_upload",
+          "can_manage"
         ],
         "properties": {
+          "can_manage": {
+            "type": "boolean",
+            "description": "Whether the caller may rename, move and delete here (`scopes::may_manage`)."
+          },
+          "can_upload": {
+            "type": "boolean",
+            "description": "Whether the caller may upload and make folders here (`scopes::may_upload`); the UI shows the write\nside only when it is true. The write routes decide again."
+          },
           "folders": {
             "type": "array",
             "items": {
@@ -89778,6 +90948,65 @@
           },
           "url": {
             "type": "string"
+          }
+        }
+      },
+      "PartUrlView": {
+        "type": "object",
+        "description": "A presigned part `PUT`.",
+        "required": [
+          "part_number",
+          "size",
+          "url",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "description": "When it stops working (ISO 8601)."
+          },
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Part number.",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes this part must have.",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string",
+            "description": "Send the part body with `PUT` to this URL; never stored or logged by the server."
+          }
+        }
+      },
+      "PartView": {
+        "type": "object",
+        "description": "A part the bucket holds.",
+        "required": [
+          "number",
+          "size",
+          "etag"
+        ],
+        "properties": {
+          "etag": {
+            "type": "string",
+            "description": "The bucket's entity tag for the part."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Part number, from 1.",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes the bucket stored.",
+            "minimum": 0
           }
         }
       },
@@ -101356,6 +102585,76 @@
           "failed",
           "expired"
         ]
+      },
+      "UploadStatusView": {
+        "type": "object",
+        "description": "An upload with the parts that already arrived.",
+        "required": [
+          "upload",
+          "parts"
+        ],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartView"
+            },
+            "description": "Parts in the bucket, in order."
+          },
+          "upload": {
+            "$ref": "#/components/schemas/UploadView",
+            "description": "The ledger row."
+          }
+        }
+      },
+      "UploadView": {
+        "type": "object",
+        "description": "One upload in the ledger.",
+        "required": [
+          "id",
+          "key",
+          "size",
+          "part_size",
+          "part_count",
+          "content_type",
+          "created_at"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "description": "Stored content type."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "Started (ISO 8601)."
+          },
+          "id": {
+            "type": "string",
+            "description": "Upload id (snowflake)."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "part_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many parts the file needs.",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes per part (the last part is smaller).",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Declared size in bytes.",
+            "minimum": 0
+          }
+        }
       },
       "UrlMapping": {
         "type": "object",
