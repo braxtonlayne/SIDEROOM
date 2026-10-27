@@ -129,10 +129,7 @@ async function observeFrames(page: Page) {
 test.describe('Voice E2EE (real browsers)', () => {
   // The old e2ee config's budget: three clients, a handshake and a media check per test.
   test.describe.configure({ timeout: 180_000 });
-  test.skip(
-    !VOICE_STACK,
-    'Needs sr-server with SR_VOICE__ENABLED=true; set SR_E2E_VOICE=1.',
-  );
+  test.skip(!VOICE_STACK, 'Needs sr-server with SR_VOICE__ENABLED=true; set SR_E2E_VOICE=1.');
 
   test('two clients form an MLS group, share a call code and exchange encrypted audio and video', async ({
     browser,
