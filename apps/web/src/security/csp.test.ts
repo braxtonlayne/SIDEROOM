@@ -23,8 +23,8 @@ const robotsTxt = readFileSync(resolve(__dirname, '../../public/robots.txt'), 'u
 describe('CSP', () => {
   it('tells crawlers that only the landing page is indexable (OPS-IDX-001, D-384)', () => {
     expect(caddy).toContain('@notLanding not path /');
-    expect(caddy).toContain('header @notLanding X-Robots-Tag "noindex, nofollow"');
-    expect(snippet).toContain('X-Robots-Tag "noindex, nofollow"');
+    expect(caddy).toContain('header @notLanding >X-Robots-Tag "noindex, nofollow"');
+    expect(snippet).toContain('>X-Robots-Tag "noindex, nofollow"');
     expect(robotsTxt).toBe(
       ['User-agent: *', 'Allow: /$', 'Disallow: /', ''].join(String.fromCharCode(10)),
     );
