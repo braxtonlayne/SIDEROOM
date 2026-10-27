@@ -345,6 +345,7 @@ mod tests {
     fn chapter(pages: i32, format: ChapterFormat) -> ChapterRecord {
         ChapterRecord {
             id: 5,
+            mount_id: 1,
             series_id: 4,
             edition_id: 3,
             volume_id: None,

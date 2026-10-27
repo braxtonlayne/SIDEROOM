@@ -20,7 +20,9 @@ const MIN_REDIRECT_TTL: u64 = 60;
 
 pub(super) async fn redirect(deps: &CdnDeps, mount_id: i64, key: &str, left_secs: u64) -> Response {
     if let Some(list) = deps.blocklist.as_ref()
-        && list.is_blocked_key(&format!("mount/{mount_id}/{key}")).await
+        && list
+            .is_blocked_key(&format!("mount/{mount_id}/{key}"))
+            .await
     {
         return plain(
             StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
@@ -53,7 +55,10 @@ pub(super) async fn redirect(deps: &CdnDeps, mount_id: i64, key: &str, left_secs
     let h = r.headers_mut();
     h.insert(header::LOCATION, location);
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    h.insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    h.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
     h.insert(
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),

@@ -568,7 +568,7 @@ impl PgIndexStore {
         let format = match c.container.as_str() {
             "pdf" => "pdf",
             "epub" => "epub",
-            _ => "cbz",
+            _ => "images",
         };
         let chapter_title = clip(&c.title, 300);
         let existing_ch: Option<i64> =

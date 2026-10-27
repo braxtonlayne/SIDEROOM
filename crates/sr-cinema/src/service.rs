@@ -204,6 +204,17 @@ impl CinemaService {
         self.signer.signed_url(&format!("/cdn/{key}"), expires_at)
     }
 
+    /// The link of a media key of a row: the instance's `/cdn/<key>` for mount 1, else `/cdn/mount/<id>/<key>`,
+    /// which the CDN answers with a redirect to a presigned URL of that mount's bucket (BYOS).
+    pub(crate) fn media_url(&self, mount_id: i64, key: &str, expires_at: u64) -> String {
+        if mount_id == sr_storage::mounts::INSTANCE_MOUNT_ID {
+            self.url(key, expires_at)
+        } else {
+            self.signer
+                .signed_url(&sr_storage::cdn::mount_path(mount_id, key), expires_at)
+        }
+    }
+
     pub(crate) fn title(&self, r: &TitleRecord, exp: u64, staff: bool) -> Title {
         Title {
             id: r.id,
@@ -226,9 +237,18 @@ impl CinemaService {
             studios: r.studios.clone(),
             crew: r.crew.clone(),
             age_restricted: r.age_restricted,
-            poster_url: r.poster_key.as_deref().map(|k| self.url(k, exp)),
-            backdrop_url: r.backdrop_key.as_deref().map(|k| self.url(k, exp)),
-            logo_url: r.logo_key.as_deref().map(|k| self.url(k, exp)),
+            poster_url: r
+                .poster_key
+                .as_deref()
+                .map(|k| self.media_url(r.mount_id, k, exp)),
+            backdrop_url: r
+                .backdrop_key
+                .as_deref()
+                .map(|k| self.media_url(r.mount_id, k, exp)),
+            logo_url: r
+                .logo_key
+                .as_deref()
+                .map(|k| self.media_url(r.mount_id, k, exp)),
             external_ids: r.external_ids.clone(),
             season_count: r.season_count,
             episode_count: r.episode_count,
@@ -272,7 +292,10 @@ impl CinemaService {
             synopsis: r.synopsis.clone(),
             air_date: r.air_date.clone(),
             runtime_min: r.runtime_min,
-            still_url: r.still_key.as_deref().map(|k| self.url(k, exp)),
+            still_url: r
+                .still_key
+                .as_deref()
+                .map(|k| self.media_url(r.mount_id, k, exp)),
             playable: r.asset_id.is_some(),
             published: r.published,
             published_at_ms: r.published_at_ms,

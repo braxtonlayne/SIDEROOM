@@ -154,7 +154,7 @@ async fn index_builds_catalog_rows_hidden_from_member_queries() {
     .fetch_one(db.pool())
     .await
     .unwrap();
-    assert_eq!(fmt, "cbz");
+    assert_eq!(fmt, "images");
     assert_eq!(
         count(&db, "SELECT count(*) FROM music_tracks WHERE mount_id = 7").await,
         2

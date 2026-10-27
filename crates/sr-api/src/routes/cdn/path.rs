@@ -141,7 +141,11 @@ pub fn parse(raw: &str) -> Result<CdnPath, PathError> {
         return Err(PathError::Invalid);
     }
     let raw_segs: Vec<&str> = rest.split('/').collect();
-    let max_segs = if is_mount { MAX_MOUNT_SEGMENTS } else { MAX_SEGMENTS };
+    let max_segs = if is_mount {
+        MAX_MOUNT_SEGMENTS
+    } else {
+        MAX_SEGMENTS
+    };
     if raw_segs.len() < 2 || raw_segs.len() > max_segs {
         // A kind alone (or nothing) never names an object.
         return Err(PathError::Invalid);

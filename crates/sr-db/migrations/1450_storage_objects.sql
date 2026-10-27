@@ -63,10 +63,8 @@ ALTER TABLE reading_series ADD COLUMN mount_object_id BIGINT, ADD COLUMN shelf_k
 ALTER TABLE reading_chapters ADD COLUMN mount_object_id BIGINT,
     ADD COLUMN overridden TEXT[] NOT NULL DEFAULT '{}',
     ADD COLUMN shelf_state TEXT NOT NULL DEFAULT 'listed' CHECK (shelf_state IN ('listed', 'vanished'));
--- A CBZ on a mount is read in the browser by range requests; `source_key` names it.
-ALTER TABLE reading_chapters DROP CONSTRAINT IF EXISTS reading_chapters_format_check;
-ALTER TABLE reading_chapters ADD CONSTRAINT reading_chapters_format_check
-    CHECK (format IN ('images', 'pdf', 'epub', 'cbz'));
+-- A CBZ on a mount is a chapter of format 'images' with no stored pages: `source_key` names the archive, which the
+-- browser reads by range requests. (Unpublished, so no instance reader ever asks for its pages.)
 
 CREATE UNIQUE INDEX video_titles_shelf_uq ON video_titles (mount_id, shelf_key)
     WHERE source = 'mount' AND shelf_key IS NOT NULL;
