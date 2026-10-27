@@ -1770,6 +1770,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::IntegrationsPolicyFeature)
         .context("registering the platform.integrations feature")?;
+    registry
+        .register(sr_features::ByosFeature)
+        .context("registering the platform.byos feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,

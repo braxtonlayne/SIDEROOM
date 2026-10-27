@@ -6,6 +6,7 @@
 //! only through the [`actions::FeatureActions`] port.
 
 pub mod actions;
+pub mod byos;
 pub mod compliance;
 pub mod directory;
 pub mod feature;
@@ -20,6 +21,7 @@ pub mod store;
 pub mod template;
 pub mod testing;
 
+pub use byos::{BYOS_ID, ByosFeature, ByosSettings};
 pub use compliance::{COMPLIANCE_ID, ComplianceFeature, ComplianceSettings, INVOICE_YEARS_RANGE};
 pub use directory::{DirectoryHiddenCategoriesFeature, HIDDEN_CATEGORIES_ID, hidden_from};
 pub use feature::{

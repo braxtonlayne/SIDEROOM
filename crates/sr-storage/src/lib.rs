@@ -12,6 +12,7 @@ pub mod error;
 pub mod img;
 pub mod media;
 pub mod mount_cache;
+pub mod mount_policy;
 pub mod mount_storage;
 pub mod mounts;
 pub mod path;

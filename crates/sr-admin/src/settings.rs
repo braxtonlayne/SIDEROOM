@@ -63,6 +63,15 @@ impl SettingDef {
                 if self.key == TV_SLATE_ASSET && !s.chars().all(|c| c.is_ascii_digit()) {
                     return Err("must be an asset id (digits) or empty".to_owned());
                 }
+                if self.key == BYOS_WHO_MAY_MOUNT
+                    && !s.is_empty()
+                    && !WHO_MAY_MOUNT_VALUES.contains(&s)
+                {
+                    return Err("must be all, patrons or staff".to_owned());
+                }
+                if self.key == BYOS_ENDPOINT_ALLOW {
+                    endpoint_allow_valid(s)?;
+                }
                 if s.chars().count() as f64 > self.max {
                     return Err(format!("must be at most {} characters", self.max));
                 }
@@ -70,6 +79,33 @@ impl SettingDef {
             }
         }
     }
+}
+
+/// Each item of the endpoint allow-list is a host or a `*.suffix` (the parser in `sr-storage` is the
+/// authority; this refuses obvious junk at the door so the Admin form can say so).
+fn endpoint_allow_valid(text: &str) -> Result<(), String> {
+    let items: Vec<&str> = text
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|i| !i.is_empty())
+        .collect();
+    if items.len() > ENDPOINT_ALLOW_MAX_PATTERNS {
+        return Err(format!("at most {ENDPOINT_ALLOW_MAX_PATTERNS} patterns"));
+    }
+    for i in items {
+        let host = i
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
+        let chars_ok = host.chars().all(|c| {
+            c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '*' | '_' | ':' | '/' | '[' | ']')
+        });
+        let star_ok = !host.contains('*') || (host.starts_with("*.") && !host[2..].contains('*'));
+        if host.is_empty() || !chars_ok || !star_ok {
+            return Err(format!(
+                "`{i}` is not a host or a *.suffix pattern (for example s3.example.com or *.example.com)"
+            ));
+        }
+    }
+    Ok(())
 }
 
 const fn int(
@@ -122,6 +158,16 @@ pub const ABUSE_DATA_EXPORT_COOLDOWN: &str = "abuse.data_export_cooldown_hours";
 /// Presign lifetime of bucket mounts (BYOS-SCP-002).
 pub const BYOS_PRESIGN_TTL: &str = "byos.presign_ttl_secs";
 pub const BYOS_PRESIGN_TTL_CAP: &str = "byos.presign_ttl_cap_secs";
+/// Host patterns a bucket endpoint must match (BYOS-FLG-001). Empty: any endpoint that passes the SSRF policy.
+pub const BYOS_ENDPOINT_ALLOW: &str = "byos.endpoint_allow";
+/// Whether the client must remux before upload (read by the wave-29 media pipeline).
+pub const BYOS_REQUIRE_CLIENT_REMUX: &str = "byos.require_client_remux";
+/// Who may connect a bucket of their own: `all`, `patrons` or `staff` (empty means `all`).
+pub const BYOS_WHO_MAY_MOUNT: &str = "byos.who_may_mount";
+/// The accepted values of [`BYOS_WHO_MAY_MOUNT`].
+pub const WHO_MAY_MOUNT_VALUES: &[&str] = &["all", "patrons", "staff"];
+/// Most host patterns [`BYOS_ENDPOINT_ALLOW`] may list.
+pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
 
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
@@ -298,6 +344,33 @@ pub const CATALOG: &[SettingDef] = &[
         3600,
         "Longest lifetime in seconds a presigned read URL of a bucket mount may have. The hard ceiling is 86400.",
     ),
+    SettingDef {
+        key: BYOS_ENDPOINT_ALLOW,
+        group: "storage",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 2000.0,
+        default_int: 0,
+        description: "Hosts a bucket endpoint may use, separated by commas or spaces (s3.example.com or *.example.com). Empty: any https endpoint that is reachable from the public internet; http only for localhost and the development Garage.",
+    },
+    SettingDef {
+        key: BYOS_REQUIRE_CLIENT_REMUX,
+        group: "storage",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 0,
+        description: "Ask the browser to remux a video into a web-playable container before it is uploaded to a bucket (read by the media pipeline of wave 29).",
+    },
+    SettingDef {
+        key: BYOS_WHO_MAY_MOUNT,
+        group: "storage",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 10.0,
+        default_int: 0,
+        description: "Who may connect a bucket of their own: all, patrons or staff (empty means all). A server's own buckets follow its Manage Storage grant instead.",
+    },
     int(
         "invites.initial_credits",
         "invites",
@@ -594,6 +667,58 @@ mod tests {
         assert!(d.validate(&json!("")).is_ok());
         assert!(d.validate(&json!("12ab")).is_err());
         assert!(d.validate(&json!(12)).is_err());
+    }
+
+    #[test]
+    fn byos_settings_are_in_the_storage_group_with_safe_defaults() {
+        for key in [
+            BYOS_PRESIGN_TTL,
+            BYOS_PRESIGN_TTL_CAP,
+            BYOS_ENDPOINT_ALLOW,
+            BYOS_REQUIRE_CLIENT_REMUX,
+            BYOS_WHO_MAY_MOUNT,
+        ] {
+            let d = find(key).unwrap_or_else(|| panic!("{key} missing"));
+            assert_eq!(d.group, "storage", "{key}");
+            assert!(d.validate(&d.default_value()).is_ok(), "{key}");
+        }
+        // Defaults: everyone may mount, any safe endpoint, no remux demand.
+        assert_eq!(find(BYOS_WHO_MAY_MOUNT).unwrap().default_value(), json!(""));
+        assert_eq!(find(BYOS_ENDPOINT_ALLOW).unwrap().default_value(), json!(""));
+        assert_eq!(
+            find(BYOS_REQUIRE_CLIENT_REMUX).unwrap().default_value(),
+            json!(false)
+        );
+    }
+
+    #[test]
+    fn who_may_mount_takes_only_the_three_words() {
+        let d = find(BYOS_WHO_MAY_MOUNT).unwrap();
+        for ok in ["", "all", "patrons", "staff"] {
+            assert!(d.validate(&json!(ok)).is_ok(), "{ok}");
+        }
+        for bad in ["everyone", "Staff ", "admins", "1"] {
+            assert!(d.validate(&json!(bad)).is_err(), "{bad}");
+        }
+        assert!(d.validate(&json!(true)).is_err());
+    }
+
+    #[test]
+    fn endpoint_allow_takes_hosts_and_suffix_patterns() {
+        let d = find(BYOS_ENDPOINT_ALLOW).unwrap();
+        assert!(d.validate(&json!("")).is_ok());
+        assert!(
+            d.validate(&json!("s3.example.com, *.r2.cloudflarestorage.com\nlocalhost"))
+                .is_ok()
+        );
+        for bad in ["a*.example.com", "*", "bad host!", "exa$mple.com", "*.a.*.b"] {
+            assert!(d.validate(&json!(bad)).is_err(), "{bad}");
+        }
+        let many = (0..=ENDPOINT_ALLOW_MAX_PATTERNS)
+            .map(|i| format!("h{i}.example.com"))
+            .collect::<Vec<_>>()
+            .join(",");
+        assert!(d.validate(&json!(many)).is_err());
     }
 
     #[test]
