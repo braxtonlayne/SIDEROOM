@@ -110,7 +110,7 @@ export interface Packet {
 
 /** Demuxer output: config for the decoders plus the packets. */
 export interface DemuxedSource {
-  video?: { config: VideoDecoderConfig; width: number; height: number };
+  video?: { config: VideoDecoderConfig; width: number; height: number; frameRate?: number };
   audio?: { config: AudioDecoderConfig; sampleRate: number; channels: number };
   packets: AsyncIterable<Packet>;
   durationSec: number;
@@ -156,7 +156,8 @@ export interface WebCodecsApi {
   AudioEncoder: typeof AudioEncoder;
   EncodedVideoChunk: typeof EncodedVideoChunk;
   EncodedAudioChunk: typeof EncodedAudioChunk;
-  createMuxer(opts: MuxerSetup): MuxerHandle;
+  AudioData: typeof AudioData;
+  createMuxer(opts: MuxerSetup): Promise<MuxerHandle>;
   /** Draws a frame at a new size; returns a frame the caller owns. */
   scaleFrame(frame: VideoFrame, width: number, height: number): VideoFrame;
 }

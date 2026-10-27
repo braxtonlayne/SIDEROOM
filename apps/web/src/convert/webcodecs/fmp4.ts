@@ -498,6 +498,7 @@ export async function demuxFmp4(
       },
       width: video.width,
       height: video.height,
+      frameRate: video.defaults.duration ? video.timescale / video.defaults.duration : undefined,
     },
     audio: audio && {
       config: {

@@ -177,3 +177,19 @@ describe('ladder and estimate', () => {
     expect(codecFamily('ec-3')).toBe('eac3');
   });
 });
+
+describe('decide: audio copy is limited to what the muxers can write', () => {
+  it('re-encodes playable MP3 when video needs transcoding', async () => {
+    const d = await decide(
+      { ...hevcMkv, audio: { codec: 'mp3', sampleRate: 44100, channels: 2 } },
+      caps({
+        play: ['audio/mp4; codecs="mp3"'],
+        vdec: ['hvc1'],
+        venc: ['avc1'],
+        adec: ['mp3'],
+        aenc: ['mp4a'],
+      }),
+    );
+    expect(d).toMatchObject({ path: 'webcodecs', audio: { mode: 'transcode', to: 'aac' } });
+  });
+});

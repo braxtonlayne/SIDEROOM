@@ -167,7 +167,11 @@ async function planAudio(
   container: OutputContainer,
 ): Promise<AudioPlan | 'fail'> {
   if (!a) return { mode: 'none' };
-  if (trackPlayable(caps, container, 'audio', a.codec)) return { mode: 'copy', codec: a.codec };
+  // The muxers can only write AAC (MP4) and Opus; other playable audio is re-encoded here.
+  const copyable: CodecFamily[] = container === 'mp4' ? ['aac', 'opus'] : ['opus'];
+  if (copyable.includes(codecFamily(a.codec)) && trackPlayable(caps, container, 'audio', a.codec)) {
+    return { mode: 'copy', codec: a.codec };
+  }
   const decodable = await caps.audioDecode({
     codec: a.codec,
     sampleRate: a.sampleRate,
