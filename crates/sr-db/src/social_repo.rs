@@ -199,6 +199,16 @@ impl RelationshipRepository for PgSocialRepo {
                     .execute(&mut *tx)
                     .await
                     .map_err(db)?;
+                    // A pair that stops being friends (a block replaces the row) loses its Friend Shelf shares.
+                    if *kind != RelationshipKind::Friend {
+                        crate::scopes_repo::revoke_shares_between(
+                            &mut tx,
+                            i(user.get()),
+                            i(target.get()),
+                        )
+                        .await
+                        .map_err(db)?;
+                    }
                 }
                 RelOp::Delete { user, target } => {
                     sqlx::query("DELETE FROM relationships WHERE user_id = $1 AND target_id = $2")
@@ -207,6 +217,14 @@ impl RelationshipRepository for PgSocialRepo {
                         .execute(&mut *tx)
                         .await
                         .map_err(db)?;
+                    // Unfriend hook (BYOS-SCP-001): the shares between the pair end with the friendship.
+                    crate::scopes_repo::revoke_shares_between(
+                        &mut tx,
+                        i(user.get()),
+                        i(target.get()),
+                    )
+                    .await
+                    .map_err(db)?;
                 }
                 RelOp::SetNickname {
                     user,

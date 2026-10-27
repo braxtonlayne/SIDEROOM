@@ -59,7 +59,12 @@ pub async fn run(cli: Cli) -> Result<()> {
         return Ok(());
     }
     // Storage administration talks to the bucket only; no database needed.
-    if let Command::Storage(StorageCmd::EnsureCors { origins }) = &cli.command {
+    if let Command::Storage(StorageCmd::EnsureCors {
+        origins,
+        mount: None,
+        all: false,
+    }) = &cli.command
+    {
         return ensure_cors(&cfg, origins).await;
     }
     let pool = sr_db::connect(&DbConfig {
@@ -162,10 +167,14 @@ pub async fn run(cli: Cli) -> Result<()> {
             crate::tv::make_slate(&pool, &cfg, ids, &opts).await?;
         }
         Command::Package(PackageCmd::Seed { dir }) => package_seed(&pool, &cfg, ids, &dir).await?,
+        Command::Storage(StorageCmd::EnsureCors {
+            origins,
+            mount,
+            all,
+        }) => ensure_mounts_cors(&pool, &cfg, &origins, mount, all).await?,
+        Command::Storage(StorageCmd::SetInstanceMount) => set_instance_mount(&pool, &cfg).await?,
         // Handled before the database connection above.
-        Command::Storage(_)
-        | Command::Preflight { .. }
-        | Command::Package(PackageCmd::Validate { .. }) => {}
+        Command::Preflight { .. } | Command::Package(PackageCmd::Validate { .. }) => {}
     }
     Ok(())
 }
@@ -655,6 +664,15 @@ async fn rotate_secret_key(pool: &PgPool, cfg: &Config, ids: IdSource) -> Result
         .await
         .map_err(|e| anyhow::anyhow!("re-encrypting interactions signing seeds: {e}"))?;
     println!("re-encrypted {seeds} interactions signing seed(s) under the current key");
+    // Storage mount secrets (BYOS-MNT-001) are sealed with the same key, bound to their row id.
+    let box_ = sr_db::sealed::SecretBox::new(current)
+        .with_previous_keys(parse_previous(cfg).map_err(|e| anyhow::anyhow!("{e}"))?);
+    let mounts = crate::mounts_cli::rotate_mounts(
+        &sr_db::mounts_repo::PgMountRepo::new(pool.clone()),
+        &box_,
+    )
+    .await?;
+    println!("re-encrypted {mounts} storage mount secret(s) under the current key");
     Ok(())
 }
 
@@ -1017,6 +1035,75 @@ fn package_validate_other(
         }
     }
 }
+/// `server.secret_key_previous` as keys.
+fn parse_previous(cfg: &Config) -> Result<Vec<[u8; 32]>> {
+    cfg.server
+        .secret_key_previous
+        .iter()
+        .map(|k| parse_secret_key(k.expose()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))
+}
+
+fn mount_box(cfg: &Config) -> Result<sr_db::sealed::SecretBox> {
+    let current = parse_secret_key(cfg.server.secret_key.expose())
+        .map_err(|e| anyhow::anyhow!("server.secret_key: {e}"))?;
+    Ok(sr_db::sealed::SecretBox::new(current).with_previous_keys(parse_previous(cfg)?))
+}
+
+/// `storage ensure-cors --mount <id>` or `--all`: apply and re-check the CORS rule on stored mounts.
+async fn ensure_mounts_cors(
+    pool: &PgPool,
+    cfg: &Config,
+    origins: &[String],
+    mount: Option<i64>,
+    all: bool,
+) -> Result<()> {
+    use crate::mounts_cli::{Which, ensure_mount_cors};
+    if origins.len() > 1 {
+        bail!("stored mounts take exactly one --origin");
+    }
+    let origin = origins
+        .first()
+        .cloned()
+        .unwrap_or_else(|| cfg.server.public_url.clone());
+    let which = match (mount, all) {
+        (Some(id), false) => Which::One(id),
+        (None, true) => Which::All,
+        _ => bail!("give --mount <id> or --all"),
+    };
+    let repo = sr_db::mounts_repo::PgMountRepo::new(pool.clone());
+    let outcomes = ensure_mount_cors(&repo, &mount_box(cfg)?, which, &origin).await?;
+    let mut failed = 0;
+    for o in &outcomes {
+        match &o.result {
+            Ok(state) => println!("mount {} ({}): CORS {}", o.id, o.label, state.as_str()),
+            Err(why) => {
+                failed += 1;
+                eprintln!("mount {} ({}): {why}", o.id, o.label);
+            }
+        }
+    }
+    if outcomes.is_empty() {
+        println!("no mounts to check");
+    }
+    if failed > 0 {
+        bail!("{failed} mount(s) failed");
+    }
+    Ok(())
+}
+
+/// `storage set-instance-mount`: repoint mount 1 at `storage.*`.
+async fn set_instance_mount(pool: &PgPool, cfg: &Config) -> Result<()> {
+    let repo = sr_db::mounts_repo::PgMountRepo::new(pool.clone());
+    let m = crate::mounts_cli::set_instance_mount(&repo, &mount_box(cfg)?, &cfg.storage).await?;
+    println!(
+        "mount 1 now points at bucket {} on {} (region {}); run `sr-cli storage ensure-cors --mount 1` to prove CORS again",
+        m.bucket, m.endpoint, m.region
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -30,6 +30,7 @@ import { PERM, bitsToValues, has, permissionGroups, toBig } from '../permissions
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, ColorDot, NotAvailable, SectionHeader, useAction } from '../ui';
 import { ImageField } from './ImageField';
+import { StorageGrantsCard } from '../storage/GrantsCard';
 import { ViewAsRoleDialog } from './ViewAsRole';
 
 const GROUPS = permissionGroups();
@@ -610,6 +611,14 @@ function RoleEditor({
                 {t('settings.roles.clearPermissions')}
               </Button>
             }
+          />
+          <StorageGrantsCard
+            key={role.id}
+            guildId={guildId}
+            roleId={role.id}
+            grants={role.sr_storage_grants ?? []}
+            locked={locked || !viewer.can('MANAGE_ROLES')}
+            onChanged={onChanged}
           />
         </div>
       ),

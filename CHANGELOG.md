@@ -8,6 +8,26 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 27 - 2026-10-26
+
+- **Bring your own storage.** Under User Settings > Storage you can connect your own S3-compatible bucket (S3, R2,
+  B2, Wasabi, MinIO or Garage). A connection test shows what works and what does not, with least-privilege policy
+  examples for your provider, and a CORS card checks the bucket and can apply the rule for you. Your secret key is
+  sealed on the server and never shown again; the list shows only the last four characters of the key id.
+- **Servers can connect buckets too.** Guild Settings > Storage does the same for a server, for those who manage it.
+  Five new storage grants in the role editor (under Permissions, Storage) decide who may view, upload or manage the
+  server's shelves.
+- **Friend Shelf.** On a mutual friend's profile, or from the Friends page row menu, you can share your cinema,
+  library or music shelf with that friend, kind by kind. Removing the friend removes the share.
+- **Browse a bucket.** `/storage/{mount}` lists the folders and files you are allowed to see; every file is opened
+  through a short-lived signed link, and a bucket that has not passed its CORS check opens nothing.
+- **Choose which tabs show.** Appearance > Sections sets each media tab to show, hide or Auto.
+- **For the operator:** the instance bucket is now "mount 1" and is recorded at start; the server refuses to start
+  if `storage.bucket` names a different bucket (see UPGRADE.md and `sr-cli storage set-instance-mount`). A daily
+  `storage.cors_recheck` job re-checks every mount, `sr-cli storage ensure-cors --mount/--all` applies the rule, new
+  settings `byos.presign_ttl_secs`, `byos.presign_ttl_cap_secs` and `abuse.storage_tests_per_hour`. Staff reads of a
+  member's bucket are written to the access log.
+
 ## Phase 26 - 2026-10-26
 
 - **Phase 6 is proven.** The first scheduled SDK compatibility run passed 7 of 7 for discord.js and serenity, so the developer platform's exit gate is closed (P26-NEXT-1).

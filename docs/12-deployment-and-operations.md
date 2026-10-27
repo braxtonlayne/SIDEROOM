@@ -62,6 +62,7 @@ The `payments` profile ships `electrs` only. The Bitcoin node it reads stays on 
 | Transcode worker token | SHA-256 hex digest (`worker_tokens.token_sha256`) |
 | TOTP secret | AES-GCM ciphertext under `server.secret_key` (`secret_enc`); it must be recoverable to verify codes |
 | Interactions signing seed (bots with an HTTP endpoint) | AES-GCM ciphertext under `server.secret_key` (`applications.interactions_signing_seed_sealed`, D-185); the public key is derived on read |
+| Storage mount secret access key (a member's or server's own bucket, mount 1 included; BYOS-MNT-001) | AES-GCM ciphertext under `server.secret_key`, bound to the mount id (`storage_mounts.secret_key_enc`); the access key id is stored as is, the API shows only its last four characters |
 | Passkeys | public key only (`passkey_credentials.cose_key`) |
 | Platform invite, server invite, server template and watch-party codes | plaintext, deliberately: shareable identifiers the issuer must be able to re-display; they grant a narrow, revocable, rate-limited capability and never account access |
 
@@ -69,7 +70,7 @@ The crate test `crates/sr-db/tests/secret_columns.rs` scans every migration and 
 
 **Rotation.**
 
-- `server.secret_key` (TOTP encryption): generate a new key (`openssl rand -hex 32`), move the old one to `server.secret_key_previous`, restart, then run `sr-cli rotate-secret-key` to re-encrypt every TOTP secret and every sealed interactions signing seed. After it reports zero remaining, remove the old key from `server.secret_key_previous`.
+- `server.secret_key` (TOTP encryption): generate a new key (`openssl rand -hex 32`), move the old one to `server.secret_key_previous`, restart, then run `sr-cli rotate-secret-key` to re-encrypt every TOTP secret, every sealed interactions signing seed and every storage mount secret (each is re-sealed under the current key, so a mount whose secret still needs the old key makes the command fail with a hint instead of losing it). After it reports zero remaining, remove the old key from `server.secret_key_previous`.
 - `database.url` password: create the new password in Postgres, update the secret file, restart, then drop the old password. Use a separate Postgres role per service so each rotates independently.
 - `storage.*` keys: create a second key pair at the provider, switch the secret files, restart, delete the old pair.
 - `voice.token_secret`: the gateway and every SFU must share it. Change it on all nodes and restart them together; open voice sessions reconnect and fetch new join tokens. `voice.turn.secret` must match coturn's `static-auth-secret`; change both and restart coturn then the server.

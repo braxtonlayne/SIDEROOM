@@ -12,6 +12,7 @@ async-trait = "0.1.92"
 base64 = "0.23.1"
 bytes = "1.12.1"
 futures = "0.3.34"
+moka = { workspace = true, features = ["sync"] }
 hmac = "0.13.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }

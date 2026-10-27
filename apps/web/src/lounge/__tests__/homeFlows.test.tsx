@@ -13,6 +13,7 @@ import { useSelfPresence } from '../shell/selfPresence';
 import { usePlatformStaff } from '../shell/platformStaff';
 import { useSocial } from '../shell/social';
 import { warmLoungeRoute } from '../../test/warmRoutes';
+import { byosMockHandlers, mockMount } from '../../settings/user/storage/mocks';
 
 warmLoungeRoute();
 
@@ -237,6 +238,16 @@ describe('Friends page', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Message Bob B' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/channels/@me/dm1'));
     expect(body).toEqual({ recipient_id: '2' });
+  });
+
+  it('offers the Friend Shelf share toggles from the row menu (BYOS-UI-001)', async () => {
+    server.use(...byosMockHandlers({ mounts: [mockMount()] }));
+    at('/channels/@me');
+    await screen.findByRole('list', { name: 'Online' });
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for Bob B' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Share my Media Shelf…' }));
+    expect(await screen.findByRole('switch', { name: 'Cinema' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Library' })).toBeInTheDocument();
   });
 
   it('removes a friend from the row menu and dismisses the info banner for good', async () => {

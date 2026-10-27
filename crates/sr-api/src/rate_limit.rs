@@ -115,11 +115,13 @@ pub enum Abuse {
     StickerUploads,
     /// Ban appeals, per address per hour.
     AppealAttempts,
+    /// Storage-mount connection tests, per credential per hour (BYOS-MNT-002).
+    StorageTests,
 }
 
 impl Abuse {
     /// Every limit, in the order of [`RateConfig::abuse`].
-    pub const ALL: [Abuse; 9] = [
+    pub const ALL: [Abuse; 10] = [
         Abuse::FriendRequests,
         Abuse::DmOpens,
         Abuse::WebhookExecute,
@@ -129,6 +131,7 @@ impl Abuse {
         Abuse::EmojiUploads,
         Abuse::StickerUploads,
         Abuse::AppealAttempts,
+        Abuse::StorageTests,
     ];
 
     /// The index into [`RateConfig::abuse`].
@@ -149,6 +152,7 @@ impl Abuse {
             Abuse::EmojiUploads => k::ABUSE_EMOJI_UPLOADS,
             Abuse::StickerUploads => k::ABUSE_STICKER_UPLOADS,
             Abuse::AppealAttempts => k::ABUSE_APPEAL_ATTEMPTS,
+            Abuse::StorageTests => k::ABUSE_STORAGE_TESTS,
         }
     }
 
@@ -159,7 +163,8 @@ impl Abuse {
             | Abuse::DmOpens
             | Abuse::EmojiUploads
             | Abuse::StickerUploads
-            | Abuse::AppealAttempts => 3600,
+            | Abuse::AppealAttempts
+            | Abuse::StorageTests => 3600,
             Abuse::WebhookExecute
             | Abuse::OauthAuthorize
             | Abuse::InteractionCallbacks
@@ -216,6 +221,14 @@ pub const ABUSE_ROUTES: &[(&str, Abuse)] = &[
     ),
     ("POST /guilds/{guild_id}/stickers", Abuse::StickerUploads),
     ("POST /moderation/appeals", Abuse::AppealAttempts),
+    (
+        "POST /users/@me/storage/mounts/{mount_id}/test",
+        Abuse::StorageTests,
+    ),
+    (
+        "POST /guilds/{guild_id}/storage/mounts/{mount_id}/test",
+        Abuse::StorageTests,
+    ),
 ];
 
 /// The limit that guards `route_key`, if any.
@@ -913,7 +926,7 @@ mod tests {
                 "{a:?} guards no route"
             );
         }
-        assert_eq!(Abuse::ALL.len(), 9);
+        assert_eq!(Abuse::ALL.len(), 10);
         assert_eq!(RateConfig::of(&RateLimitConfig::default()), d);
     }
 

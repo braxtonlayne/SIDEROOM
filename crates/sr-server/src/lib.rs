@@ -19,6 +19,7 @@ pub mod features_store;
 pub mod gateway_pg;
 pub mod healthcheck;
 pub mod inbox_pg;
+pub mod instance_mount;
 pub mod integration_policy;
 pub mod jobs;
 pub mod lag_bus;
@@ -76,6 +77,8 @@ mod cinema_wiring_pg_tests;
 
 #[cfg(test)]
 mod bot_pg_tests;
+#[cfg(test)]
+mod instance_mount_pg_tests;
 #[cfg(test)]
 mod jobs_scale_pg_tests;
 #[cfg(test)]

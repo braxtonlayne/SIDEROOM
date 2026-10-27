@@ -85,6 +85,15 @@ export const USER_SETTINGS_SECTIONS = [
     },
   },
   {
+    id: 'storage',
+    get label() {
+      return t('settings.userNav.storage');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
     id: 'support',
     get label() {
       return t('settings.userNav.support');

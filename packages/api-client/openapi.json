@@ -42672,6 +42672,609 @@
         ]
       }
     },
+    "/guilds/{guild_id}/storage/grants": {
+      "put": {
+        "tags": [
+          "scopes"
+        ],
+        "summary": "Replace the storage grants of a role. Needs `MANAGE_ROLES` and the `manage` storage grant (owner and\n`ADMINISTRATOR` hold both; `MANAGE_GUILD` implies `manage`).",
+        "operationId": "put_grants",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/storage/mounts": {
+      "get": {
+        "tags": [],
+        "summary": "The server's connected buckets (the caller manages the server).",
+        "operationId": "list_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MountObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Connect a bucket to the server (at most 5).",
+        "operationId": "create_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MountObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "MOUNT_CAP_REACHED or MOUNT_LABEL_TAKEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/storage/mounts/{mount_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Disconnect one of the server's buckets.",
+        "operationId": "delete_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Change one of the server's buckets.",
+        "operationId": "patch_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchMountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MountObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/storage/mounts/{mount_id}/cors/apply": {
+      "post": {
+        "tags": [],
+        "summary": "Write the needed CORS rule to one of the server's buckets, then check it again.",
+        "operationId": "apply_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorsResultObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/storage/mounts/{mount_id}/cors/check": {
+      "post": {
+        "tags": [],
+        "summary": "Compare one of the server's bucket's CORS rules with the one this site needs.",
+        "operationId": "check_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorsResultObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/storage/mounts/{mount_id}/test": {
+      "post": {
+        "tags": [],
+        "summary": "Run the connection test on one of the server's buckets (20 s budget).",
+        "operationId": "test_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResultObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/suggestions": {
       "get": {
         "tags": [
@@ -56914,6 +57517,263 @@
         ]
       }
     },
+    "/storage/mounts/{mount_id}/objects": {
+      "get": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "List one folder of a mount.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "prefix",
+            "in": "query",
+            "description": "Folder, mount-relative",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "delimiter",
+            "in": "query",
+            "description": "`/` (default) or empty",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "next_cursor of the previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/objects/{key}": {
+      "get": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "Metadata of one object (size, modification time, etag), without its bytes.",
+        "operationId": "meta",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Mount-relative key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectMetaView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/presign": {
+      "post": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "A presigned `GET` for one object. The URL lives `byos.presign_ttl_secs` (never past the cap, the hard\nceiling of a day, or the caller's session). A mount that has not passed its CORS check answers 409\n`CORS_NOT_READY`.",
+        "operationId": "presign",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/streams/{stream_key}/preview": {
       "get": {
         "tags": [],
@@ -64453,6 +65313,32 @@
         ]
       }
     },
+    "/users/@me/shelves/summary": {
+      "get": {
+        "tags": [
+          "scopes"
+        ],
+        "summary": "How many shelves of each kind the caller reaches (the nav modes read this).",
+        "operationId": "summary",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelvesSummaryView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/sr/features": {
       "get": {
         "tags": [
@@ -64585,6 +65471,654 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/mounts": {
+      "get": {
+        "tags": [],
+        "summary": "The caller's own connected buckets.",
+        "operationId": "list_user",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MountObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Connect a bucket of your own (at most 3). The secret is sealed at rest and never shown again.",
+        "operationId": "create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MountObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "MOUNT_CAP_REACHED or MOUNT_LABEL_TAKEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/mounts/{mount_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Disconnect one of your buckets. Nothing in the bucket is touched.",
+        "operationId": "delete_user",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Change one of your buckets (label, address, keys, prefix, or switch it on or off).",
+        "operationId": "patch_user",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchMountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MountObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/mounts/{mount_id}/cors/apply": {
+      "post": {
+        "tags": [],
+        "summary": "Write the needed CORS rule to one of your buckets, then check it again.",
+        "operationId": "apply_user",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorsResultObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/mounts/{mount_id}/cors/check": {
+      "post": {
+        "tags": [],
+        "summary": "Compare one of your bucket's CORS rules with the one this site needs.",
+        "operationId": "check_user",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorsResultObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/mounts/{mount_id}/shares": {
+      "get": {
+        "tags": [
+          "scopes"
+        ],
+        "summary": "The shares the owner of a mount has given out.",
+        "operationId": "list_shares",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShareView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/mounts/{mount_id}/shares/{user_id}": {
+      "put": {
+        "tags": [
+          "scopes"
+        ],
+        "summary": "Share a mount with a friend, per kind. Mutual friends only; the share ends when the friendship does.",
+        "operationId": "put_share",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "Friend snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "scopes"
+        ],
+        "summary": "Stop sharing a mount with a friend (idempotent).",
+        "operationId": "delete_share",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "Friend snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/mounts/{mount_id}/test": {
+      "post": {
+        "tags": [],
+        "summary": "Run the connection test on one of your buckets (20 s budget).",
+        "operationId": "test_user",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResultObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/storage/shares": {
+      "get": {
+        "tags": [
+          "scopes"
+        ],
+        "summary": "What friends share with the caller.",
+        "operationId": "incoming_shares",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IncomingShare"
+                  }
                 }
               }
             }
@@ -71114,6 +72648,26 @@
           }
         }
       },
+      "CatalogCounts": {
+        "type": "object",
+        "description": "Instance catalog counts the viewer can see.",
+        "required": [
+          "cinema",
+          "library"
+        ],
+        "properties": {
+          "cinema": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cinema titles."
+          },
+          "library": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Library series."
+          }
+        }
+      },
       "CatalogEntryObject": {
         "type": "object",
         "description": "One approved effect or decoration.",
@@ -74171,6 +75725,47 @@
           }
         }
       },
+      "CorsResultObject": {
+        "type": "object",
+        "description": "The state of a bucket's CORS rules against the one this site needs.",
+        "required": [
+          "state",
+          "required",
+          "found",
+          "checked_at"
+        ],
+        "properties": {
+          "checked_at": {
+            "type": "string",
+            "description": "When it was checked (ISO 8601)."
+          },
+          "found": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The rules the bucket has now, as lines of text."
+          },
+          "manual_steps": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Provider steps when `state` is `manual`."
+          },
+          "required": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The required rule, as lines of text."
+          },
+          "state": {
+            "type": "string",
+            "description": "`ok`, `missing`, `different` or `manual`."
+          }
+        }
+      },
       "CountBody": {
         "type": "object",
         "description": "A count after a vote.",
@@ -74831,6 +76426,58 @@
               "boolean",
               "null"
             ]
+          }
+        }
+      },
+      "CreateMountBody": {
+        "type": "object",
+        "description": "Connect a bucket. `secret_access_key` is write-only.",
+        "required": [
+          "label",
+          "provider",
+          "bucket",
+          "path_style",
+          "access_key_id",
+          "secret_access_key"
+        ],
+        "properties": {
+          "access_key_id": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required except for `s3` (default `https://s3.<region>.amazonaws.com`)."
+          },
+          "label": {
+            "type": "string"
+          },
+          "path_style": {
+            "type": "boolean"
+          },
+          "prefix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Default `us-east-1` for `s3`, `auto` otherwise."
+          },
+          "secret_access_key": {
+            "type": "string"
           }
         }
       },
@@ -79068,6 +80715,27 @@
           }
         }
       },
+      "GrantsBody": {
+        "type": "object",
+        "description": "Body of `PUT /guilds/{guild_id}/storage/grants`.",
+        "required": [
+          "role_id",
+          "grants"
+        ],
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`."
+          },
+          "role_id": {
+            "type": "string",
+            "description": "The role (snowflake)."
+          }
+        }
+      },
       "GuestbookEntry": {
         "type": "object",
         "required": [
@@ -80409,6 +82077,44 @@
               "null"
             ],
             "description": "When the join-rate alert last fired, or `null`."
+          }
+        }
+      },
+      "IncomingShare": {
+        "type": "object",
+        "description": "A mount a friend shares with the caller.",
+        "required": [
+          "mount_id",
+          "owner_id",
+          "label",
+          "cinema",
+          "library",
+          "music"
+        ],
+        "properties": {
+          "cinema": {
+            "type": "boolean",
+            "description": "Cinema shared."
+          },
+          "label": {
+            "type": "string",
+            "description": "The mount's label."
+          },
+          "library": {
+            "type": "boolean",
+            "description": "Library shared."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The mount (snowflake)."
+          },
+          "music": {
+            "type": "boolean",
+            "description": "Music shared."
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "The friend who owns it (snowflake)."
           }
         }
       },
@@ -85070,6 +86776,102 @@
           }
         }
       },
+      "MountObject": {
+        "type": "object",
+        "description": "A storage mount. The secret access key is never returned.",
+        "required": [
+          "id",
+          "owner_kind",
+          "label",
+          "provider",
+          "bucket",
+          "prefix",
+          "path_style",
+          "access_key_id",
+          "key_hint",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "access_key_id": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "cors_ok_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the CORS check last passed (ISO 8601); presigning is refused until it has."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake."
+          },
+          "key_hint": {
+            "type": "string",
+            "description": "The last four characters of the access key id."
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_test": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The last connection test: `{ at, rows: [{ id, status, message }] }`."
+          },
+          "last_test_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The owner's snowflake; `null` for the platform."
+          },
+          "owner_kind": {
+            "type": "string",
+            "description": "`user`, `guild` or `platform`."
+          },
+          "path_style": {
+            "type": "boolean"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "description": "`s3`, `r2`, `b2`, `minio`, `wasabi` or `garage`."
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`active`, `failing` or `disabled`."
+          }
+        }
+      },
       "MoveIdentityBody": {
         "type": "object",
         "description": "Body of `POST /admin/persons/{person_id}/identities/{identity_id}/move`.",
@@ -85798,6 +87600,112 @@
               "object",
               "null"
             ]
+          }
+        }
+      },
+      "ObjectEntry": {
+        "type": "object",
+        "description": "An object in a listing.",
+        "required": [
+          "key",
+          "size"
+        ],
+        "properties": {
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Content type guessed from the extension."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "last_modified": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last modified (ISO 8601), `null` when the service did not say."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes.",
+            "minimum": 0
+          }
+        }
+      },
+      "ObjectList": {
+        "type": "object",
+        "description": "A page of a listing.",
+        "required": [
+          "folders",
+          "objects"
+        ],
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sub-folder prefixes (mount-relative, ending in `/`)."
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor of the next page, `null` at the end."
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObjectEntry"
+            },
+            "description": "Objects the viewer may read."
+          }
+        }
+      },
+      "ObjectMetaView": {
+        "type": "object",
+        "description": "Metadata of one object.",
+        "required": [
+          "key",
+          "size"
+        ],
+        "properties": {
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Content type guessed from the extension."
+          },
+          "etag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Entity tag."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "last_modified": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last modified (ISO 8601)."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes.",
+            "minimum": 0
           }
         }
       },
@@ -87253,6 +89161,72 @@
           }
         }
       },
+      "PatchMountBody": {
+        "type": "object",
+        "description": "Change a mount: any create field, plus `status` (`active` or `disabled`). A new `secret_access_key`\nre-seals the credential; a new `access_key_id` needs one with it.",
+        "properties": {
+          "access_key_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bucket": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path_style": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "prefix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "secret_access_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PatchNotificationDefaultsBody": {
         "type": "object",
         "description": "Body of `PATCH /users/@me/notification-defaults`.",
@@ -88125,6 +90099,49 @@
           }
         }
       },
+      "PresignBody": {
+        "type": "object",
+        "description": "Body of `POST /storage/mounts/{mount_id}/presign`.",
+        "required": [
+          "key",
+          "method"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "method": {
+            "type": "string",
+            "description": "`GET` (the only method; writes arrive with the upload routes)."
+          },
+          "range": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A request range the client will send, `bytes=a-b`; checked for shape."
+          }
+        }
+      },
+      "PresignView": {
+        "type": "object",
+        "description": "A presigned URL.",
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "description": "When it stops working (ISO 8601)."
+          },
+          "url": {
+            "type": "string",
+            "description": "The URL; never stored or logged by the server."
+          }
+        }
+      },
       "PreviewBody": {
         "type": "object",
         "description": "What the kind shows reviewers: for the Library kinds the series facts, editions and chapters.",
@@ -88402,6 +90419,29 @@
               "null"
             ],
             "description": "Pass as `before` for the next (older) page."
+          }
+        }
+      },
+      "ProbeRowObject": {
+        "type": "object",
+        "description": "One row of a connection test.",
+        "required": [
+          "id",
+          "status",
+          "message"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`head_bucket`, `list`, `put`, `multipart`, `cors` or `list_buckets`."
+          },
+          "message": {
+            "type": "string",
+            "description": "One English sentence, shown as it is."
+          },
+          "status": {
+            "type": "string",
+            "description": "`pass`, `warn` or `fail`."
           }
         }
       },
@@ -90934,6 +92974,16 @@
             "type": "integer",
             "format": "int32"
           },
+          "sr_storage_grants": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The storage grants of the role (BYOS): `view_cinema`, `view_library`, `view_music`, `upload`,\n`manage`. Present on the role list; edited through `PUT /guilds/{guild_id}/storage/grants`."
+          },
           "unicode_emoji": {
             "type": [
               "string",
@@ -92374,6 +94424,52 @@
           "value": {}
         }
       },
+      "ShareBody": {
+        "type": "object",
+        "description": "Body of `PUT .../shares/{user_id}`.",
+        "properties": {
+          "cinema": {
+            "type": "boolean",
+            "description": "Share the Cinema kind."
+          },
+          "library": {
+            "type": "boolean",
+            "description": "Share the Library kind."
+          },
+          "music": {
+            "type": "boolean",
+            "description": "Share the Music kind."
+          }
+        }
+      },
+      "ShareView": {
+        "type": "object",
+        "description": "One friend's share of a mount.",
+        "required": [
+          "friend_id",
+          "cinema",
+          "library",
+          "music"
+        ],
+        "properties": {
+          "cinema": {
+            "type": "boolean",
+            "description": "Cinema shared."
+          },
+          "friend_id": {
+            "type": "string",
+            "description": "The friend (snowflake)."
+          },
+          "library": {
+            "type": "boolean",
+            "description": "Library shared."
+          },
+          "music": {
+            "type": "boolean",
+            "description": "Music shared."
+          }
+        }
+      },
       "SharedAddress": {
         "type": "object",
         "description": "One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged).",
@@ -92454,6 +94550,43 @@
             "items": {
               "$ref": "#/components/schemas/ShelfItem"
             }
+          }
+        }
+      },
+      "ShelvesSummaryView": {
+        "type": "object",
+        "description": "Shelves the caller reaches, per kind.",
+        "required": [
+          "cinema",
+          "library",
+          "music"
+        ],
+        "properties": {
+          "catalog": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CatalogCounts",
+                "description": "Instance catalog counts (absent until the catalog reports them)."
+              }
+            ]
+          },
+          "cinema": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cinema shelves."
+          },
+          "library": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Library shelves."
+          },
+          "music": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Music shelves."
           }
         }
       },
@@ -94853,6 +96986,26 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "TestResultObject": {
+        "type": "object",
+        "description": "A connection test; the same object is stored as the mount's `last_test`.",
+        "required": [
+          "at",
+          "rows"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "description": "When it ran (ISO 8601)."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProbeRowObject"
+            }
           }
         }
       },

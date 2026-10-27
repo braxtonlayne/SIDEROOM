@@ -37,12 +37,17 @@ export type Animation = 'always' | 'hover' | 'never';
 export type SpoilerMode = 'click' | 'mine' | 'always';
 export type TimeFormat = 'auto' | '12h' | '24h';
 export type MediaSize = 'small' | 'medium' | 'large';
+/** Top-tab mode of Cinema and Library (BYOS-UI-001): always show, always hide, or hide when nothing is there. */
+export type NavMode = 'show' | 'hide' | 'auto';
 
 export interface UserPrefs {
   // Appearance
   theme: ThemeChoice;
   /** Per-section overrides; a missing section follows the theme above (Lounge) or its own default. */
   sectionThemes: SectionThemes;
+  /** Cinema and Library top tabs (Appearance > Sections). */
+  navCinema: NavMode;
+  navLibrary: NavMode;
   messageDisplay: MessageDisplay;
   /** A small avatar before the name on every line in Compact mode (LNG-USET-040). */
   compactAvatars: boolean;
@@ -128,6 +133,8 @@ export const DEFAULT_PREFS: UserPrefs = {
   // The Lounge has always been dark by default; "Sync with computer" is opt-in.
   theme: 'lounge-dark',
   sectionThemes: {},
+  navCinema: 'show',
+  navLibrary: 'show',
   messageDisplay: 'cozy',
   compactAvatars: false,
   messageGap: 16,
@@ -225,6 +232,8 @@ export function sanitizePrefs(raw: unknown): UserPrefs {
   return {
     theme: oneOf(r.theme, ['system', ...THEME_CHOICES] as const, d.theme),
     sectionThemes,
+    navCinema: oneOf(r.navCinema, ['show', 'hide', 'auto'] as const, d.navCinema),
+    navLibrary: oneOf(r.navLibrary, ['show', 'hide', 'auto'] as const, d.navLibrary),
     messageDisplay: oneOf(r.messageDisplay, ['cozy', 'compact'] as const, d.messageDisplay),
     compactAvatars: bool(r.compactAvatars, d.compactAvatars),
     messageGap: clamp(r.messageGap, ...MESSAGE_GAP_RANGE, d.messageGap),

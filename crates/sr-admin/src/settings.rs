@@ -115,8 +115,13 @@ pub const ABUSE_WATCH_PARTY_JOINS: &str = "abuse.watch_party_joins_per_minute";
 pub const ABUSE_EMOJI_UPLOADS: &str = "abuse.emoji_uploads_per_hour";
 pub const ABUSE_STICKER_UPLOADS: &str = "abuse.sticker_uploads_per_hour";
 pub const ABUSE_APPEAL_ATTEMPTS: &str = "abuse.appeal_attempts_per_hour";
+pub const ABUSE_STORAGE_TESTS: &str = "abuse.storage_tests_per_hour";
 pub const ABUSE_COUNTER_NOTICES: &str = "abuse.counter_notices_per_day";
 pub const ABUSE_DATA_EXPORT_COOLDOWN: &str = "abuse.data_export_cooldown_hours";
+
+/// Presign lifetime of bucket mounts (BYOS-SCP-002).
+pub const BYOS_PRESIGN_TTL: &str = "byos.presign_ttl_secs";
+pub const BYOS_PRESIGN_TTL_CAP: &str = "byos.presign_ttl_cap_secs";
 
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
@@ -254,6 +259,14 @@ pub const CATALOG: &[SettingDef] = &[
         "Ban appeals per hour from one address, whatever the account (one appeal per ban besides, D-215).",
     ),
     int(
+        ABUSE_STORAGE_TESTS,
+        "abuse",
+        1,
+        1000,
+        20,
+        "Connection tests of storage mounts per hour by one member (applies on the next request).",
+    ),
+    int(
         ABUSE_COUNTER_NOTICES,
         "abuse",
         1,
@@ -268,6 +281,22 @@ pub const CATALOG: &[SettingDef] = &[
         720,
         24,
         "Hours a member must wait between data-package requests (one open request at a time besides).",
+    ),
+    int(
+        BYOS_PRESIGN_TTL,
+        "storage",
+        60,
+        86400,
+        900,
+        "Seconds a presigned read URL of a member's or server's bucket stays valid (never more than the cap below, never longer than the caller's session has left).",
+    ),
+    int(
+        BYOS_PRESIGN_TTL_CAP,
+        "storage",
+        60,
+        86400,
+        3600,
+        "Longest lifetime in seconds a presigned read URL of a bucket mount may have. The hard ceiling is 86400.",
     ),
     int(
         "invites.initial_credits",
@@ -545,7 +574,7 @@ mod tests {
     #[test]
     fn abuse_limits_are_in_their_own_group_with_a_floor_of_one() {
         let abuse: Vec<_> = CATALOG.iter().filter(|d| d.group == "abuse").collect();
-        assert_eq!(abuse.len(), 11);
+        assert_eq!(abuse.len(), 12);
         for d in abuse {
             assert!(d.key.starts_with("abuse."), "{}", d.key);
             assert!(d.min >= 1.0 && d.max > d.min, "{}", d.key);

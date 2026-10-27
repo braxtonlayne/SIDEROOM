@@ -64,6 +64,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/gifs/")
         || p.starts_with("/users/@me/mentions")
         // User-scope feature routes (D-189): a bot has no reminders, bookmarks or birthday.
+        // Bucket mounts and shelves belong to people: a bot has none (BYOS).
+        || p.starts_with("/users/@me/storage")
+        || p.starts_with("/users/@me/shelves")
+        || p.starts_with("/storage/mounts")
         || p.starts_with("/users/@me/reminders")
         || p.starts_with("/users/@me/scheduled-messages")
         || p.starts_with("/users/@me/bookmarks")
@@ -71,6 +75,9 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/users/@me/sr/features")
         || p.starts_with("/users/@me/primary-guild")
         || p.starts_with("/tv/reminders")
+        // BYOS mounts hold the member's or the server's own bucket credentials: people only (BYOS-MNT-001).
+        || p.starts_with("/users/@me/storage")
+        || (p.starts_with("/guilds/") && p.contains("/storage/"))
     {
         return true;
     }

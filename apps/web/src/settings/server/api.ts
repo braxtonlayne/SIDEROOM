@@ -132,6 +132,8 @@ export interface RoleObject {
   mentionable: boolean;
   icon?: string | null;
   unicode_emoji?: string | null;
+  /** Storage grants of the role (BYOS-SCP-001): view_cinema, view_library, view_music, upload, manage. */
+  sr_storage_grants?: string[];
   /** Gradient stops (J-08); `primary_color` mirrors `color`. */
   colors?: RoleColors;
 }

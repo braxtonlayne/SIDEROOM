@@ -12,6 +12,7 @@ import {
 } from '@sideroom/ui';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
+import { FriendShelfShare } from '../../settings/user/storage/FriendShelfShare';
 import { useT } from '../../i18n';
 import { usePresenceMap, type Presence } from '../data';
 import { useLoungeUi } from '../store';
@@ -47,6 +48,7 @@ function FriendRow({
   const t = useT();
   const p = presence[r.id];
   const name = wireName(r.user);
+  const [shareOpen, setShareOpen] = useState(false);
   return (
     <li className="lng-friend-row">
       <Avatar name={name} size={32} status={p?.status ?? 'offline'} />
@@ -67,6 +69,10 @@ function FriendRow({
         items={[
           { label: t('lounge.friends.videoCall'), disabled: true },
           { label: t('lounge.friends.voiceCall'), disabled: true },
+          {
+            label: t('settings.storageShare.menu'),
+            onSelect: () => setShareOpen((v) => !v),
+          },
           { type: 'separator' },
           {
             label: t('lounge.friends.removeFriend'),
@@ -94,6 +100,11 @@ function FriendRow({
           </button>
         }
       />
+      {shareOpen && (
+        <div className="sto-share-row">
+          <FriendShelfShare userId={r.id} showEmpty />
+        </div>
+      )}
     </li>
   );
 }

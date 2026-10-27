@@ -8248,6 +8248,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/storage/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the storage grants of a role. Needs `MANAGE_ROLES` and the `manage` storage grant (owner and
+         *     `ADMINISTRATOR` hold both; `MANAGE_GUILD` implies `manage`).
+         */
+        put: operations["put_grants"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/storage/mounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's connected buckets (the caller manages the server). */
+        get: operations["list_guild"];
+        put?: never;
+        /** Connect a bucket to the server (at most 5). */
+        post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/storage/mounts/{mount_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect one of the server's buckets. */
+        delete: operations["delete_guild"];
+        options?: never;
+        head?: never;
+        /** Change one of the server's buckets. */
+        patch: operations["patch_guild"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/storage/mounts/{mount_id}/cors/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Write the needed CORS rule to one of the server's buckets, then check it again. */
+        post: operations["apply_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/storage/mounts/{mount_id}/cors/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare one of the server's bucket's CORS rules with the one this site needs. */
+        post: operations["check_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/storage/mounts/{mount_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run the connection test on one of the server's buckets (20 s budget). */
+        post: operations["test_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/suggestions": {
         parameters: {
             query?: never;
@@ -11377,6 +11484,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/storage/mounts/{mount_id}/objects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List one folder of a mount. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/objects/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Metadata of one object (size, modification time, etag), without its bytes. */
+        get: operations["meta"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A presigned `GET` for one object. The URL lives `byos.presign_ttl_secs` (never past the cap, the hard
+         *     ceiling of a day, or the caller's session). A mount that has not passed its CORS check answers 409
+         *     `CORS_NOT_READY`.
+         */
+        post: operations["presign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/streams/{stream_key}/preview": {
         parameters: {
             query?: never;
@@ -13137,6 +13299,23 @@ export interface paths {
         patch: operations["patch_settings"];
         trace?: never;
     };
+    "/users/@me/shelves/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many shelves of each kind the caller reaches (the nav modes read this). */
+        get: operations["summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/sr/features": {
         parameters: {
             query?: never;
@@ -13173,6 +13352,145 @@ export interface paths {
         head?: never;
         /** Change the caller's own preferences for one module. */
         patch: operations["patch_user_feature"];
+        trace?: never;
+    };
+    "/users/@me/storage/mounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own connected buckets. */
+        get: operations["list_user"];
+        put?: never;
+        /** Connect a bucket of your own (at most 3). The secret is sealed at rest and never shown again. */
+        post: operations["create_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/storage/mounts/{mount_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect one of your buckets. Nothing in the bucket is touched. */
+        delete: operations["delete_user"];
+        options?: never;
+        head?: never;
+        /** Change one of your buckets (label, address, keys, prefix, or switch it on or off). */
+        patch: operations["patch_user"];
+        trace?: never;
+    };
+    "/users/@me/storage/mounts/{mount_id}/cors/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Write the needed CORS rule to one of your buckets, then check it again. */
+        post: operations["apply_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/storage/mounts/{mount_id}/cors/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare one of your bucket's CORS rules with the one this site needs. */
+        post: operations["check_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/storage/mounts/{mount_id}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The shares the owner of a mount has given out. */
+        get: operations["list_shares"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/storage/mounts/{mount_id}/shares/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Share a mount with a friend, per kind. Mutual friends only; the share ends when the friendship does. */
+        put: operations["put_share"];
+        post?: never;
+        /** Stop sharing a mount with a friend (idempotent). */
+        delete: operations["delete_share"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/storage/mounts/{mount_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run the connection test on one of your buckets (20 s budget). */
+        post: operations["test_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/storage/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What friends share with the caller. */
+        get: operations["incoming_shares"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/users/{user_id}/guestbook": {
@@ -14992,6 +15310,19 @@ export interface components {
             kind: components["schemas"]["TakedownKind"];
             notice_id: string;
         };
+        /** @description Instance catalog counts the viewer can see. */
+        CatalogCounts: {
+            /**
+             * Format: int64
+             * @description Cinema titles.
+             */
+            cinema: number;
+            /**
+             * Format: int64
+             * @description Library series.
+             */
+            library: number;
+        };
         /** @description One approved effect or decoration. */
         CatalogEntryObject: {
             /** @description Image file stem under `/cdn/avatar-decorations/` (decorations only). */
@@ -15932,6 +16263,19 @@ export interface components {
             name: string;
             user_id?: string | null;
         };
+        /** @description The state of a bucket's CORS rules against the one this site needs. */
+        CorsResultObject: {
+            /** @description When it was checked (ISO 8601). */
+            checked_at: string;
+            /** @description The rules the bucket has now, as lines of text. */
+            found: string[];
+            /** @description Provider steps when `state` is `manual`. */
+            manual_steps?: string | null;
+            /** @description The required rule, as lines of text. */
+            required: string[];
+            /** @description `ok`, `missing`, `different` or `manual`. */
+            state: string;
+        };
         /** @description A count after a vote. */
         CountBody: {
             /** Format: int32 */
@@ -16159,6 +16503,20 @@ export interface components {
             /** @description Not supported yet (stickers/polls have no storage); a non-empty value is rejected. */
             sticker_ids?: string[] | null;
             tts?: boolean | null;
+        };
+        /** @description Connect a bucket. `secret_access_key` is write-only. */
+        CreateMountBody: {
+            access_key_id: string;
+            bucket: string;
+            /** @description Required except for `s3` (default `https://s3.<region>.amazonaws.com`). */
+            endpoint?: string | null;
+            label: string;
+            path_style: boolean;
+            prefix?: string | null;
+            provider: string;
+            /** @description Default `us-east-1` for `s3`, `auto` otherwise. */
+            region?: string | null;
+            secret_access_key: string;
         };
         CreateRequestBody: {
             creator?: string | null;
@@ -17599,6 +17957,13 @@ export interface components {
             usd_cents?: number | null;
             user_id?: string | null;
         };
+        /** @description Body of `PUT /guilds/{guild_id}/storage/grants`. */
+        GrantsBody: {
+            /** @description The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`. */
+            grants: string[];
+            /** @description The role (snowflake). */
+            role_id: string;
+        };
         GuestbookEntry: {
             author: components["schemas"]["ProfilePageUser"];
             body: string;
@@ -18058,6 +18423,21 @@ export interface components {
             invites_disabled_until?: string | null;
             /** @description When the join-rate alert last fired, or `null`. */
             raid_detected_at?: string | null;
+        };
+        /** @description A mount a friend shares with the caller. */
+        IncomingShare: {
+            /** @description Cinema shared. */
+            cinema: boolean;
+            /** @description The mount's label. */
+            label: string;
+            /** @description Library shared. */
+            library: boolean;
+            /** @description The mount (snowflake). */
+            mount_id: string;
+            /** @description Music shared. */
+            music: boolean;
+            /** @description The friend who owns it (snowflake). */
+            owner_id: string;
         };
         /** @description A configured source. */
         IngestSource: {
@@ -19495,6 +19875,34 @@ export interface components {
                 [key: string]: boolean;
             };
         };
+        /** @description A storage mount. The secret access key is never returned. */
+        MountObject: {
+            access_key_id: string;
+            bucket: string;
+            /** @description When the CORS check last passed (ISO 8601); presigning is refused until it has. */
+            cors_ok_at?: string | null;
+            created_at: string;
+            endpoint?: string | null;
+            /** @description Snowflake. */
+            id: string;
+            /** @description The last four characters of the access key id. */
+            key_hint: string;
+            label: string;
+            /** @description The last connection test: `{ at, rows: [{ id, status, message }] }`. */
+            last_test?: Record<string, never> | null;
+            last_test_at?: string | null;
+            /** @description The owner's snowflake; `null` for the platform. */
+            owner_id?: string | null;
+            /** @description `user`, `guild` or `platform`. */
+            owner_kind: string;
+            path_style: boolean;
+            prefix: string;
+            /** @description `s3`, `r2`, `b2`, `minio`, `wasabi` or `garage`. */
+            provider: string;
+            region?: string | null;
+            /** @description `active`, `failing` or `disabled`. */
+            status: string;
+        };
         /** @description Body of `POST /admin/persons/{person_id}/identities/{identity_id}/move`. */
         MoveIdentityBody: {
             /** @description Why; required, kept in the access log and told to the old account. */
@@ -19724,6 +20132,45 @@ export interface components {
             expires: string;
             scopes: string[];
             user?: Record<string, never> | null;
+        };
+        /** @description An object in a listing. */
+        ObjectEntry: {
+            /** @description Content type guessed from the extension. */
+            content_type?: string | null;
+            /** @description Mount-relative key. */
+            key: string;
+            /** @description Last modified (ISO 8601), `null` when the service did not say. */
+            last_modified?: string | null;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
+        };
+        /** @description A page of a listing. */
+        ObjectList: {
+            /** @description Sub-folder prefixes (mount-relative, ending in `/`). */
+            folders: string[];
+            /** @description Cursor of the next page, `null` at the end. */
+            next_cursor?: string | null;
+            /** @description Objects the viewer may read. */
+            objects: components["schemas"]["ObjectEntry"][];
+        };
+        /** @description Metadata of one object. */
+        ObjectMetaView: {
+            /** @description Content type guessed from the extension. */
+            content_type?: string | null;
+            /** @description Entity tag. */
+            etag?: string | null;
+            /** @description Mount-relative key. */
+            key: string;
+            /** @description Last modified (ISO 8601). */
+            last_modified?: string | null;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
         };
         OfferBody: {
             /** @description Account to invite to the staff. */
@@ -20152,6 +20599,22 @@ export interface components {
             /** @description Replace this server's setting overrides (validated against the schema). */
             settings?: Record<string, never> | null;
         };
+        /**
+         * @description Change a mount: any create field, plus `status` (`active` or `disabled`). A new `secret_access_key`
+         *     re-seals the credential; a new `access_key_id` needs one with it.
+         */
+        PatchMountBody: {
+            access_key_id?: string | null;
+            bucket?: string | null;
+            endpoint?: string | null;
+            label?: string | null;
+            path_style?: boolean | null;
+            prefix?: string | null;
+            provider?: string | null;
+            region?: string | null;
+            secret_access_key?: string | null;
+            status?: string | null;
+        };
         /** @description Body of `PATCH /users/@me/notification-defaults`. */
         PatchNotificationDefaultsBody: {
             /**
@@ -20405,6 +20868,22 @@ export interface components {
             status: string;
             status_expires_at?: string | null;
         };
+        /** @description Body of `POST /storage/mounts/{mount_id}/presign`. */
+        PresignBody: {
+            /** @description Mount-relative key. */
+            key: string;
+            /** @description `GET` (the only method; writes arrive with the upload routes). */
+            method: string;
+            /** @description A request range the client will send, `bytes=a-b`; checked for shape. */
+            range?: string | null;
+        };
+        /** @description A presigned URL. */
+        PresignView: {
+            /** @description When it stops working (ISO 8601). */
+            expires_at: string;
+            /** @description The URL; never stored or logged by the server. */
+            url: string;
+        };
         /** @description What the kind shows reviewers: for the Library kinds the series facts, editions and chapters. */
         PreviewBody: {
             preview: Record<string, never>;
@@ -20505,6 +20984,15 @@ export interface components {
             items: components["schemas"]["PrivateMessage"][];
             /** @description Pass as `before` for the next (older) page. */
             next_before?: string | null;
+        };
+        /** @description One row of a connection test. */
+        ProbeRowObject: {
+            /** @description `head_bucket`, `list`, `put`, `multipart`, `cors` or `list_buckets`. */
+            id: string;
+            /** @description One English sentence, shown as it is. */
+            message: string;
+            /** @description `pass`, `warn` or `fail`. */
+            status: string;
         };
         ProbeSummary: {
             audio_languages: string[];
@@ -21388,6 +21876,11 @@ export interface components {
             permissions: string;
             /** Format: int32 */
             position: number;
+            /**
+             * @description The storage grants of the role (BYOS): `view_cinema`, `view_library`, `view_music`, `upload`,
+             *     `manage`. Present on the role list; edited through `PUT /guilds/{guild_id}/storage/grants`.
+             */
+            sr_storage_grants?: string[] | null;
             unicode_emoji?: string | null;
         };
         RolesBody: {
@@ -21808,6 +22301,26 @@ export interface components {
             updated_at_ms?: number | null;
             value: unknown;
         };
+        /** @description Body of `PUT .../shares/{user_id}`. */
+        ShareBody: {
+            /** @description Share the Cinema kind. */
+            cinema?: boolean;
+            /** @description Share the Library kind. */
+            library?: boolean;
+            /** @description Share the Music kind. */
+            music?: boolean;
+        };
+        /** @description One friend's share of a mount. */
+        ShareView: {
+            /** @description Cinema shared. */
+            cinema: boolean;
+            /** @description The friend (snowflake). */
+            friend_id: string;
+            /** @description Library shared. */
+            library: boolean;
+            /** @description Music shared. */
+            music: boolean;
+        };
         /** @description One address both Persons signed in from inside the window (staff with `MANAGE_ACCOUNTS`; the read is logged). */
         SharedAddress: {
             ip: string;
@@ -21838,6 +22351,25 @@ export interface components {
             /** @description `[activities] enabled`. */
             enabled: boolean;
             items: components["schemas"]["ShelfItem"][];
+        };
+        /** @description Shelves the caller reaches, per kind. */
+        ShelvesSummaryView: {
+            catalog?: null | components["schemas"]["CatalogCounts"];
+            /**
+             * Format: int64
+             * @description Cinema shelves.
+             */
+            cinema: number;
+            /**
+             * Format: int64
+             * @description Library shelves.
+             */
+            library: number;
+            /**
+             * Format: int64
+             * @description Music shelves.
+             */
+            music: number;
         };
         SignBody: {
             /** @description 1 to 500 characters. */
@@ -22626,6 +23158,12 @@ export interface components {
             updated_at: string;
             /** Format: int32 */
             usage_count: number;
+        };
+        /** @description A connection test; the same object is stored as the mount's `last_test`. */
+        TestResultObject: {
+            /** @description When it ran (ISO 8601). */
+            at: string;
+            rows: components["schemas"]["ProbeRowObject"][];
         };
         TestWalletBody: {
             descriptor: string;
@@ -51411,6 +51949,393 @@ export interface operations {
             };
         };
     };
+    put_grants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantsBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MountObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMountBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MountObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description MOUNT_CAP_REACHED or MOUNT_LABEL_TAKEN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchMountBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MountObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    apply_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorsResultObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    check_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorsResultObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    test_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResultObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_suggestions: {
         parameters: {
             query?: {
@@ -60779,6 +61704,166 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Folder, mount-relative */
+                prefix?: string;
+                /** @description `/` (default) or empty */
+                delimiter?: string;
+                /** @description next_cursor of the previous page */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    meta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Mount-relative key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectMetaView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    presign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresignBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_stream_preview: {
         parameters: {
             query?: never;
@@ -65731,6 +66816,25 @@ export interface operations {
             };
         };
     };
+    summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelvesSummaryView"];
+                };
+            };
+        };
+    };
     list_user_features: {
         parameters: {
             query?: never;
@@ -65824,6 +66928,436 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MountObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMountBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MountObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description MOUNT_CAP_REACHED or MOUNT_LABEL_TAKEN */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchMountBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MountObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    apply_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorsResultObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    check_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorsResultObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_shares: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_share: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Friend snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_share: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Friend snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    test_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResultObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    incoming_shares: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncomingShare"][];
                 };
             };
         };

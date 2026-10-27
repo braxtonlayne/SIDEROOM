@@ -11,6 +11,7 @@ import {
   THEMED_SECTIONS,
   ZOOM_RANGE,
   type MessageDisplay,
+  type NavMode,
   type ThemeChoice,
   type ThemedSection,
   type UserPrefs,
@@ -131,6 +132,32 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
           checked={sectionBar}
           onChange={(e) => useLoungeUi.setState({ showSectionBar: e.target.checked })}
         />
+      </Card>
+      <Card
+        id="us-nav-sections"
+        title={t('settings.storageNav.title')}
+        description={t('settings.storageNav.description')}
+      >
+        <div className="us-stack">
+          {(['navCinema', 'navLibrary'] as const).map((key) => (
+            <div key={key}>
+              <SegmentedControl
+                label={
+                  key === 'navCinema'
+                    ? t('settings.storageNav.cinema')
+                    : t('settings.storageNav.library')
+                }
+                value={prefs[key]}
+                onValueChange={(v) => setPrefs({ [key]: v as NavMode })}
+                options={[
+                  { value: 'show', label: t('settings.storageNav.show') },
+                  { value: 'hide', label: t('settings.storageNav.hide') },
+                  { value: 'auto', label: t('settings.storageNav.auto') },
+                ]}
+              />
+            </div>
+          ))}
+        </div>
       </Card>
       <Card id="us-messages" title={t('settings.appearance.messageDisplay')}>
         <div className="us-stack">
