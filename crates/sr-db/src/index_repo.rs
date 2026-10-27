@@ -188,6 +188,30 @@ impl IndexStore for PgIndexStore {
         Ok(changed_n)
     }
 
+    async fn delisted(&self, mount_id: i64, keys: &[String]) -> Result<Vec<String>, StoreError> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        // The same rows as `storage_legal::delisted_keys` (byos-legal, migration 1460). On a schema without them the
+        // answer is "none"; any other failure stops the run (fail closed).
+        let r = sqlx::query_scalar(
+            "SELECT DISTINCT object_key FROM takedown_items              WHERE kind = 'storage_object' AND state = 'disabled' AND target_id = $1 AND object_key = ANY($2)",
+        )
+        .bind(mount_id)
+        .bind(keys)
+        .fetch_all(&self.pool)
+        .await;
+        match r {
+            Ok(v) => Ok(v),
+            Err(sqlx::Error::Database(d))
+                if matches!(d.code().as_deref(), Some("42703" | "42P01")) =>
+            {
+                Ok(Vec::new())
+            }
+            Err(e) => Err(se(e)),
+        }
+    }
+
     async fn finish(
         &self,
         mount_id: i64,
@@ -728,4 +752,149 @@ impl IndexControl for PgIndexStore {
         })
         .transpose()
     }
+}
+
+/// Keys named by a delete or a move: the key itself, or everything below it when it names a folder.
+const MATCH: &str =
+    "(key = $2 OR starts_with(key, CASE WHEN right($2, 1) = '/' THEN $2 ELSE $2 || '/' END))";
+
+impl PgIndexStore {
+    /// An object (or a folder of them) was deleted through `DELETE /storage/mounts/{id}/objects/{key}`: hide its
+    /// rows now instead of at the next run. Returns how many objects were hidden. Call it after the bucket delete
+    /// succeeded; a run that never hears of it reaches the same state, only later.
+    pub async fn on_objects_deleted(&self, mount_id: i64, key: &str) -> Result<u64, StoreError> {
+        let mut tx = self.pool.begin().await.map_err(se)?;
+        let sql = format!(
+            "UPDATE storage_objects SET state = 'vanished', vanished_at = now() \
+             WHERE mount_id = $1 AND state = 'indexed' AND {MATCH} RETURNING id"
+        );
+        let ids: Vec<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .bind(mount_id)
+            .bind(key)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(se)?;
+        hide_rows(&mut tx, mount_id, &ids).await?;
+        tx.commit().await.map_err(se)?;
+        Ok(ids.len() as u64)
+    }
+
+    /// An object (or a folder) moved through `POST /storage/mounts/{id}/move {from,to}`: re-key its rows so the
+    /// member's edits go with it. A series keyed by its folder is found again by the next run (queue one with
+    /// `IndexControl::request`). Returns how many objects were re-keyed.
+    pub async fn on_objects_moved(
+        &self,
+        mount_id: i64,
+        from: &str,
+        to: &str,
+    ) -> Result<u64, StoreError> {
+        let mut tx = self.pool.begin().await.map_err(se)?;
+        let sql = format!(
+            "SELECT id, key FROM storage_objects WHERE mount_id = $1 AND {MATCH} FOR UPDATE"
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(mount_id)
+            .bind(from)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(se)?;
+        let base = from.trim_end_matches('/');
+        let mut n = 0u64;
+        for r in &rows {
+            let id: i64 = r.try_get("id").map_err(se)?;
+            let old: String = r.try_get("key").map_err(se)?;
+            let new = if old == from {
+                to.to_owned()
+            } else {
+                format!(
+                    "{}/{}",
+                    to.trim_end_matches('/'),
+                    old[base.len()..].trim_start_matches('/')
+                )
+            };
+            // Something already indexed at the target is replaced by the moved object.
+            sqlx::query(
+                "DELETE FROM storage_objects WHERE mount_id = $1 AND key = $2 AND id <> $3",
+            )
+            .bind(mount_id)
+            .bind(&new)
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(se)?;
+            sqlx::query("UPDATE storage_objects SET key = $2 WHERE id = $1")
+                .bind(id)
+                .bind(&new)
+                .execute(&mut *tx)
+                .await
+                .map_err(se)?;
+            sqlx::query("UPDATE reading_chapters SET source_key = $2 WHERE mount_object_id = $1")
+                .bind(id)
+                .bind(&new)
+                .execute(&mut *tx)
+                .await
+                .map_err(se)?;
+            // A film is keyed by its own object key.
+            sqlx::query(
+                "UPDATE video_titles SET shelf_key = $3 \
+                 WHERE mount_id = $1 AND source = 'mount' AND shelf_key = $2",
+            )
+            .bind(mount_id)
+            .bind(&old)
+            .bind(&new)
+            .execute(&mut *tx)
+            .await
+            .map_err(se)?;
+            n += 1;
+        }
+        tx.commit().await.map_err(se)?;
+        Ok(n)
+    }
+}
+
+/// Hide the catalog rows of vanished objects and the series left with nothing listed.
+async fn hide_rows(
+    tx: &mut Transaction<'_, Postgres>,
+    mount_id: i64,
+    ids: &[i64],
+) -> Result<(), StoreError> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    for t in [
+        "video_titles",
+        "video_episodes",
+        "reading_chapters",
+        "music_tracks",
+    ] {
+        let sql =
+            format!("UPDATE {t} SET shelf_state = 'vanished' WHERE mount_object_id = ANY($1)");
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(ids)
+            .execute(&mut **tx)
+            .await
+            .map_err(se)?;
+    }
+    sqlx::query(
+        "UPDATE video_titles t SET shelf_state = CASE WHEN EXISTS ( \
+             SELECT 1 FROM video_episodes e WHERE e.title_id = t.id AND e.shelf_state = 'listed') \
+             THEN 'listed' ELSE 'vanished' END \
+         WHERE t.mount_id = $1 AND t.source = 'mount' AND t.kind IN ('series', 'anime') \
+           AND t.mount_object_id IS NULL",
+    )
+    .bind(mount_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(se)?;
+    sqlx::query(
+        "UPDATE reading_series s SET shelf_state = CASE WHEN EXISTS ( \
+             SELECT 1 FROM reading_chapters c WHERE c.series_id = s.id AND c.shelf_state = 'listed') \
+             THEN 'listed' ELSE 'vanished' END \
+         WHERE s.mount_id = $1 AND s.source = 'mount'",
+    )
+    .bind(mount_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(se)?;
+    Ok(())
 }

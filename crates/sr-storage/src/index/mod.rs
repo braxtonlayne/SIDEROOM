@@ -55,6 +55,12 @@ pub trait IndexStore: Send + Sync {
     /// the batch were new or changed.
     async fn apply(&self, mount_id: i64, run: i64, batch: &[Classified])
     -> Result<u64, StoreError>;
+    /// Which of `keys` a takedown delisted on this mount (BYOS-LEG-001). The indexer leaves them out, so a delisted
+    /// object never gets a catalog row and one indexed earlier is hidden as vanished. Fails closed: an error stops
+    /// the run.
+    async fn delisted(&self, _mount_id: i64, _keys: &[String]) -> Result<Vec<String>, StoreError> {
+        Ok(Vec::new())
+    }
     /// End a run. With `complete` the objects of the mount that `run` did not see are marked vanished and their
     /// catalog rows hidden; returns how many vanished. A partial run (`complete = false`) hides nothing.
     async fn finish(

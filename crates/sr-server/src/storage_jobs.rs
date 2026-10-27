@@ -22,7 +22,7 @@ use sr_storage::index::{
     Sidecar, SidecarMap, StoreError, VideoFacts, VideoRole, classify_all, is_sidecar_name,
 };
 use sr_storage::mount_storage::MountStorages;
-use sr_storage::mounts::{INSTANCE_MOUNT_ID, MountOwner, MountRepo};
+use sr_storage::mounts::{INSTANCE_MOUNT_ID, MountOwner, MountRepo, MountStatus};
 
 /// The daily singleton. Unique among `*_JOB_ID` constants (the admin-jobs test greps for duplicates).
 pub const STORAGE_INDEX_JOB_ID: i64 = 1450;
@@ -193,10 +193,19 @@ async fn run_inner(
     }
 
     let classified = classify_all(&listing, &MediaNames, &sidecars, opts);
-    let storable: Vec<_> = classified
+    let mut storable: Vec<_> = classified
         .into_iter()
         .filter(|c| !c.ignored && c.class.kind().is_some())
         .collect();
+    // Takedowns: a delisted key gets no catalog row.
+    let mut gone: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for chunk in storable.chunks(APPLY_BATCH) {
+        let keys: Vec<String> = chunk.iter().map(|c| c.key.clone()).collect();
+        gone.extend(store.delisted(mount_id, &keys).await?);
+    }
+    if !gone.is_empty() {
+        storable.retain(|c| !gone.contains(&c.key));
+    }
     let mut added = 0u64;
     for chunk in storable.chunks(APPLY_BATCH) {
         added += store.apply(mount_id, run, chunk).await?;
@@ -269,7 +278,10 @@ pub fn register(
                     .map(|ms| {
                         ms.into_iter()
                             .filter(|m| {
-                                m.id != INSTANCE_MOUNT_ID
+                                // Only mounts in good standing: a disabled, delisted or otherwise unusable mount
+                                // is left alone (an allow-list, so a new status is skipped until named here).
+                                matches!(m.status, MountStatus::Active | MountStatus::Failing)
+                                    && m.id != INSTANCE_MOUNT_ID
                                     && m.owner != MountOwner::Platform
                                     && m.cors_ok_at.is_some()
                             })
@@ -344,12 +356,17 @@ mod tests {
     struct Memory {
         seen: Mutex<Vec<Classified>>,
         finished: Mutex<Vec<(bool, Option<String>)>>,
+        delist: Mutex<Vec<String>>,
     }
 
     #[async_trait]
     impl IndexStore for Memory {
         async fn begin(&self, _m: i64, _now: i64) -> Result<i64, StoreError> {
             Ok(1)
+        }
+        async fn delisted(&self, _m: i64, keys: &[String]) -> Result<Vec<String>, StoreError> {
+            let d = self.delist.lock().unwrap();
+            Ok(keys.iter().filter(|k| d.contains(k)).cloned().collect())
         }
         async fn apply(&self, _m: i64, _r: i64, b: &[Classified]) -> Result<u64, StoreError> {
             self.seen.lock().unwrap().extend_from_slice(b);
@@ -478,6 +495,29 @@ mod tests {
             Some("Music/Artist 1/Album 1 (2001)/cover.jpg")
         );
         assert_eq!(store.finished.lock().unwrap().as_slice(), &[(true, None)]);
+    }
+
+    #[tokio::test]
+    async fn delisted_keys_get_no_catalog_row() {
+        let storage = ObjectStoreStorage::in_memory();
+        for k in ["Movies/A.mp4", "Movies/B.mp4"] {
+            storage.put(k, Bytes::from_static(b"x")).await.unwrap();
+        }
+        let store = Memory::default();
+        store.delist.lock().unwrap().push("Movies/A.mp4".into());
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        let seen = store.seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].key, "Movies/B.mp4");
     }
 
     #[tokio::test]

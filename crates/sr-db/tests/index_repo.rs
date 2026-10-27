@@ -357,3 +357,83 @@ async fn one_run_at_a_time_and_mounts_do_not_mix() {
         .get::<i64, _>("n");
     assert_eq!(n, 1);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn deleting_and_moving_objects_updates_the_rows_at_once() {
+    let db = TestDb::new().await.expect("db");
+    let s = store(&db);
+    run(&s, 7, TREE, true).await;
+    // A delete hides the track; deleting the manga folder hides the series.
+    assert_eq!(
+        s.on_objects_deleted(7, "Music/Daft Punk/Discovery (2001)/02 - Aerodynamic.flac")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT count(*) FROM music_tracks WHERE shelf_state = 'listed'"
+        )
+        .await,
+        1
+    );
+    assert_eq!(s.on_objects_deleted(7, "Manga/Berserk").await.unwrap(), 2);
+    assert_eq!(
+        count(
+            &db,
+            "SELECT count(*) FROM reading_series WHERE title = 'Berserk' AND shelf_state = 'listed'"
+        )
+        .await,
+        0
+    );
+    // Another mount's identical key is untouched.
+    assert_eq!(s.on_objects_deleted(8, "Books/Dune.epub").await.unwrap(), 0);
+
+    // A move keeps the row and its edit: the film is re-keyed with its object.
+    sqlx::query(
+        "UPDATE video_titles SET title = 'Mine', overridden = ARRAY['title'] \
+         WHERE shelf_key = 'Movies/Alien (1979)/Alien.mp4'",
+    )
+    .execute(db.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        s.on_objects_moved(7, "Movies/Alien (1979)/Alien.mp4", "Films/Alien.mp4")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT count(*) FROM storage_objects WHERE mount_id = 7 AND key = 'Films/Alien.mp4'"
+        )
+        .await,
+        1
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT count(*) FROM video_titles WHERE title = 'Mine' AND shelf_key = 'Films/Alien.mp4'"
+        )
+        .await,
+        1
+    );
+    // A folder move re-keys everything below it.
+    assert_eq!(
+        s.on_objects_moved(7, "Books/", "Library/Books/")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT count(*) FROM reading_chapters WHERE source_key = 'Library/Books/Dune.epub'"
+        )
+        .await,
+        1
+    );
+}

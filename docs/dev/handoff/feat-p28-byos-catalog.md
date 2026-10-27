@@ -99,3 +99,26 @@ sr-db `index_repo`, `shelf_repo`, `cinema_repo`, `library_repo`, `library_wiring
 touched crates; web vitest (`src/storage/shelves`, `src/library`, `src/cinema`, `src/i18n`), tsc, eslint, prettier,
 i18n-audit, check-css-tokens, `mocks:check`.
 Not run: full workspace `cargo test`, the full authorization matrix, web build and bundle budget, Playwright.
+
+## Integration notes from the commander's messages
+
+- **Takedown and delisting (byos-legal, 5386073f).** Shelves decide through `scopes::reachable`, which calls
+  `scopes::access` (refuses a `delisted` mount, an inactive owner, a disabled mount) and `ScopeFacts::delisted` for
+  every page and for single files and parts, so the shelves honour delisting as soon as the merged `PgScopeFacts`
+  implements `delisted` with `storage_legal::delisted_keys`. Erased mounts are soft-deleted, which `MountResolver`
+  already hides. The indexer: `IndexStore::delisted(mount, keys)` leaves delisted keys without a row (and an object
+  indexed earlier is hidden as vanished); `PgIndexStore::delisted` runs the same query as `storage_legal::delisted_keys`
+  against `takedown_items` and answers "none" only when that table or column is absent (a schema without
+  migration 1460). At integration, replace its body with `crate::storage_legal::delisted_keys(&self.pool, mount_id,
+  keys)`. The daily job indexes only mounts whose status is `Active` or `Failing` (an allow-list, so `Delisted` and any
+  later status are skipped).
+- **Delete and move through the browser (byos-browser).** Chosen: immediate re-keying, with the next run as the
+  safety net. `PgIndexStore::on_objects_deleted(mount_id, key_or_folder)` hides the object rows and their catalog
+  rows (and series left empty); `on_objects_moved(mount_id, from, to)` re-keys `storage_objects`, a chapter's
+  `source_key` and a film's `shelf_key` so edits travel with the file. Test: `index_repo
+  deleting_and_moving_objects_updates_the_rows_at_once`. The integrator calls them from `DELETE
+  /storage/mounts/{id}/objects/{key}` and `POST /storage/mounts/{id}/move` after the bucket call succeeded, then
+  `IndexControl::request(mount_id)` after a move (a series keyed by a moved folder is found again by that run). If
+  not wired, the next `storage.index` run reaches the same state without the preserved edits of a moved file.
+- Job id 1450 does not clash with byos-browser's 138. I implement no `ScopeStore` methods of my own; `PgShelfStore`
+  and `PgIndexStore` are separate types.
