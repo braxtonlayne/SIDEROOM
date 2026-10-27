@@ -8,7 +8,7 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
-## Wave 27 - 2026-10-26
+## Phase 27 - 2026-10-26
 
 - **Bring your own storage.** Under User Settings > Storage you can connect your own S3-compatible bucket (S3, R2,
   B2, Wasabi, MinIO or Garage). A connection test shows what works and what does not, with least-privilege policy
