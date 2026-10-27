@@ -15,7 +15,6 @@ import {
   type VoiceEngine,
 } from '../engine';
 import { HANG_MS } from '../vad';
-import { useServerE2ee } from '../e2ee/serverFlag';
 import { IDLE_SESSION, PING_HISTORY, resetSession, useVoiceSession } from '../session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../settings';
 import { fakeAudio } from './fakes';
@@ -956,23 +955,16 @@ describe('end-to-end encryption (VOX-E2E-003)', () => {
     expect(sess().status).toBe('error');
   });
 
-  it('joins without E2EE when the server has voice.e2ee off, even in a build that has it on', async () => {
-    for (const extra of [{ sr_e2ee: false }, {}]) {
+  it('starts E2EE whatever the server update says: there is no switch (OPS-IMM-001)', async () => {
+    for (const extra of [{ sr_e2ee: false }, {}, encrypted]) {
       const h = harness();
-      const starter = vi.fn();
+      const starter = vi.fn(() => new Promise<never>(() => {}));
       h.c.configure({ e2ee: starter, e2eeDeclared: () => true });
       joinAndServe(h, target, extra);
       await flushAll();
-      expect(starter).not.toHaveBeenCalled();
-      expect(h.engines).toHaveLength(1);
-      expect(h.last().connectParams!.e2ee).toBeUndefined();
-      expect(h.sent.filter((s) => s.op === Op.E2EE_MLS)).toEqual([]);
-      expect(useServerE2ee.getState().on).toBe(false);
+      expect(starter).toHaveBeenCalledTimes(1);
       h.c.leave();
     }
-    const h = harness();
-    joinAndServe(h, target, encrypted);
-    expect(useServerE2ee.getState().on).toBe(true);
   });
 });
 

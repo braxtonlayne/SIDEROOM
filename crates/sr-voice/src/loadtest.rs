@@ -154,6 +154,7 @@ impl Net {
                         camera: true,
                         ..Flags::default()
                     },
+                    e2ee_keyed: true,
                     candidates: vec![Candidate::host(sfu_addr(), "udp").unwrap()],
                 },
             )

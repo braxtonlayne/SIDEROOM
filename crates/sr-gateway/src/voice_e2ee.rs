@@ -30,9 +30,12 @@
 //!   passed).
 //!
 //! Only members of the channel, on the session that joined it, may send, and only members
-//! receive. Everything is off unless `voice.e2ee` is set.
+//! receive. The service runs wherever voice does: end-to-end encryption is the only voice mode.
 //!
-//! With `voice.e2ee` on a join (op 4) must carry `sr_e2ee: true` (answered with `SR_VOICE_ERROR`
+//! The SFU forwards a member's media only once the member has sent a `key_package` or reported
+//! `ready` (OPS-IMM-001): the gateway tells it with `VoiceCommand::E2eeKeyed`.
+//!
+//! A join (op 4) must carry `sr_e2ee: true` (answered with `SR_VOICE_ERROR`
 //! `e2ee_required` and no token otherwise), and a member who has been given `VOICE_SERVER_UPDATE`
 //! but does not send `hello` within [`HELLO_TIMEOUT`] is removed from the channel with the same
 //! code (D-263).
@@ -127,8 +130,20 @@ fn ms() -> u64 {
 }
 
 impl Gateway {
+    /// Voice is configured. End-to-end encryption is not optional (OPS-IMM-001): no flag turns the
+    /// delivery service or the join rule off.
     pub(crate) fn e2ee_enabled(&self) -> bool {
-        self.voice_cfg().is_some_and(|v| v.e2ee)
+        self.voice_cfg().is_some()
+    }
+
+    /// Tell the SFU `user` has taken part in the handshake, so their media may be forwarded.
+    async fn e2ee_keyed(&self, channel: ChannelId, user: UserId) {
+        self.relay(sr_voice_proto::VoiceCommand::E2eeKeyed {
+            channel,
+            user,
+            keyed: true,
+        })
+        .await;
     }
 
     /// The delivery service's external-sender key, made on first use (per node, in memory).
@@ -211,6 +226,10 @@ impl Gateway {
                     return;
                 };
                 let out = json!({ "type": m.kind, "channel_id": ch, "from": me, "data": data });
+                if m.kind == "key_package" {
+                    // Before the peers hear of it: the SFU must be ready to forward when they react.
+                    self.e2ee_keyed(ch, me).await;
+                }
                 self.e2ee_send(&members, |u| u != me, &out);
             }
             "commit" => {
@@ -268,6 +287,8 @@ impl Gateway {
                     }
                     call.seq.ready(me.get(), epoch)
                 };
+                // The member that starts the group sends no key package: `ready` is its proof.
+                self.e2ee_keyed(ch, me).await;
                 if let Some(epoch) = done {
                     self.e2ee_execute(ch, &members, epoch);
                 }

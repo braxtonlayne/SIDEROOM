@@ -374,3 +374,32 @@ impl ScopeFacts for PgScopeFacts {
         Ok(Vec::new())
     }
 }
+
+/// Patron and staff standing for `byos.who_may_mount` (BYOS-FLG-001).
+#[async_trait]
+impl sr_storage::mount_policy::MemberStanding for PgScopeFacts {
+    async fn is_patron(&self, user_id: i64) -> Result<bool, String> {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM entitlement_grants e \
+             WHERE e.kind = 'patron' AND e.user_id = $1 AND e.revoked_ms IS NULL \
+               AND (e.permanent OR e.ends_ms > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT \
+                    OR e.starts_ms + COALESCE(e.days, 0) * 86400000 \
+                       > (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT))",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| e.to_string())
+    }
+
+    async fn is_staff(&self, user_id: i64) -> Result<bool, String> {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM staff_appointments s \
+             WHERE s.account_id = $1 AND s.revoked_at IS NULL)",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| e.to_string())
+    }
+}

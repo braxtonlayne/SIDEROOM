@@ -1,4 +1,5 @@
 import { useT } from '../../../i18n';
+import { ByosOffNotice, useByosOn } from '../../byos';
 import { MountsPanel } from '../../user/storage/MountsPanel';
 import type { SectionProps } from '../ServerSettings';
 import { SectionHeader } from '../ui';
@@ -9,13 +10,14 @@ import { SectionHeader } from '../ui';
  */
 export function ServerStorageSection({ guildId }: SectionProps) {
   const t = useT();
+  const on = useByosOn();
   return (
     <>
       <SectionHeader
         title={t('settings.serverStorage.title')}
         description={t('settings.serverStorage.description')}
       />
-      <MountsPanel scope={{ kind: 'guild', guildId }} />
+      {on ? <MountsPanel scope={{ kind: 'guild', guildId }} /> : <ByosOffNotice />}
     </>
   );
 }
