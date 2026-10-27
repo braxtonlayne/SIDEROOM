@@ -443,6 +443,8 @@ describe('Cinema > Submit draft', () => {
     await user.type(within(proposal).getByRole('textbox', { name: 'Season of holiday.mkv' }), '2');
     await user.type(within(proposal).getByRole('textbox', { name: 'Episode of holiday.mkv' }), '5');
     await user.click(await within(proposal).findByRole('button', { name: /Upload 3 videos/ }));
+    // MKV and friends go through the Convert step first (BYOS-CNV-001); these tests are about the upload.
+    await user.click(await screen.findByRole('button', { name: 'Upload as they are' }));
     expect(go).toBeDefined();
     await waitFor(() => expect(begun).toHaveLength(3));
     expect(begun.map((b) => b.target).sort()).toEqual(['se:1:1', 'se:1:2', 'se:2:5']);
@@ -620,6 +622,8 @@ describe('Cinema > Submit draft', () => {
     });
     expect(await screen.findByText(/A film has one video/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Upload 1 video/ }));
+    // MKV and friends go through the Convert step first (BYOS-CNV-001); these tests are about the upload.
+    await user.click(await screen.findByRole('button', { name: 'Upload as they are' }));
     await waitFor(() => expect(begun).toEqual([{ name: 'Quiet Film (2024).mkv', target: 'auto' }]));
   });
 

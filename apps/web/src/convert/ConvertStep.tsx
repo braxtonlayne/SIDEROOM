@@ -44,6 +44,7 @@ const REASON_KEY: Record<string, string> = {
 export function ConvertStep({
   files,
   required = false,
+  subtitles = true,
   maxMiB,
   converter,
   onDone,
@@ -54,6 +55,8 @@ export function ConvertStep({
   files: File[];
   /** The server refuses files that were not converted (`byos.require_client_remux`): no "upload as they are". */
   required?: boolean;
+  /** Offer subtitle extraction (a dialog with nowhere to put sidecar files passes false). */
+  subtitles?: boolean;
   /** `byos.client_convert_max_mib`; the converter's default (4096) when unset. */
   maxMiB?: number;
   converter?: Converter;
@@ -65,7 +68,7 @@ export function ConvertStep({
 }) {
   const t = useT();
   const [rows, setRows] = useState<Row[]>(() => files.map(() => ({ state: 'waiting' })));
-  const [subs, setSubs] = useState(true);
+  const [subs, setSubs] = useState(subtitles);
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState<{ items: ConvertItem[]; native: File[] } | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -223,12 +226,14 @@ export function ConvertStep({
         </>
       ) : (
         <>
-          <Checkbox
-            checked={subs}
-            disabled={running}
-            onChange={(e) => setSubs(e.target.checked)}
-            label={t('convert.step.extractSubtitles')}
-          />
+          {subtitles && (
+            <Checkbox
+              checked={subs}
+              disabled={running}
+              onChange={(e) => setSubs(e.target.checked)}
+              label={t('convert.step.extractSubtitles')}
+            />
+          )}
           <div className="us-actions">
             {running ? (
               <Button variant="secondary" onClick={stop}>

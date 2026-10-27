@@ -3,6 +3,8 @@
 // placed by season and episode (read from the name, editable here); a film takes one file.
 import { Button, Checkbox, TextInput } from '@sideroom/ui';
 import { useRef, useState } from 'react';
+import { ConvertStep } from '../../convert/ConvertStep';
+import { needsConversion } from '../../convert/plan';
 import { useT } from '../../i18n';
 import * as rv from '../../review/api';
 import { fromFileList, readDropped, type PickedFile } from '../../review/folderDrop';
@@ -63,6 +65,8 @@ export function VideoPicker({
   const folder = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<Proposal[] | null>(null);
   const [busy, setBusy] = useState(false);
+  // MKV, AVI ... are repackaged in the browser first (BYOS-CNV-001), when the person agrees.
+  const [converting, setConverting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const take = async (picked: PickedFile[]) => {
@@ -83,15 +87,17 @@ export function VideoPicker({
       seen.set(`${r.season}:${r.episode}`, (seen.get(`${r.season}:${r.episode}`) ?? 0) + 1);
   const clashes = [...seen].filter(([, n]) => n > 1).map(([k]) => k);
 
-  const start = async () => {
+  const convertible = ready.filter((r) => needsConversion(r.pick.path));
+  const start = async (swap?: Map<File, File>) => {
     setBusy(true);
     setError(null);
     try {
       for (const r of ready) {
+        const file = swap?.get(r.pick.file as File) ?? (r.pick.file as File);
         const target = film
           ? encodeTarget({ kind: 'auto' })
           : encodeTarget({ kind: 'numbers', season: r.season!, episode: r.episode! });
-        void manager.enqueue(submissionId, target, r.pick.file as File).catch(() => undefined);
+        void manager.enqueue(submissionId, target, file).catch(() => undefined);
       }
       setRows(null);
       onQueued();
@@ -209,11 +215,26 @@ export function VideoPicker({
               })}
             </p>
           ))}
+          {converting && (
+            <ConvertStep
+              files={convertible.map((r) => r.pick.file as File)}
+              subtitles={false}
+              onDone={(items) => {
+                setConverting(false);
+                void start(new Map(items.map((i) => [i.original, i.output.file])));
+              }}
+              onAsIs={() => {
+                setConverting(false);
+                void start();
+              }}
+              onCancel={() => setConverting(false)}
+            />
+          )}
           <div className="rv-row">
             <Button
-              onClick={() => void start()}
+              onClick={() => (convertible.length > 0 ? setConverting(true) : void start())}
               loading={busy}
-              disabled={ready.length === 0 || clashes.length > 0}
+              disabled={ready.length === 0 || clashes.length > 0 || converting}
             >
               {t('cinema.submit.picker.upload', { count: ready.length })}
             </Button>
