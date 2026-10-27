@@ -49,7 +49,8 @@ pub trait IndexStore: Send + Sync {
     async fn begin(&self, mount_id: i64, now_ms: i64) -> Result<i64, StoreError>;
     /// Upsert a batch: `storage_objects` rows seen in `run` and the catalog rows they build. Returns how many of
     /// the batch were new or changed.
-    async fn apply(&self, mount_id: i64, run: i64, batch: &[Classified]) -> Result<u64, StoreError>;
+    async fn apply(&self, mount_id: i64, run: i64, batch: &[Classified])
+    -> Result<u64, StoreError>;
     /// End a run. With `complete` the objects of the mount that `run` did not see are marked vanished and their
     /// catalog rows hidden; returns how many vanished. A partial run (`complete = false`) hides nothing.
     async fn finish(

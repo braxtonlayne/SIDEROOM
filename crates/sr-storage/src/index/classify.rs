@@ -411,7 +411,9 @@ fn series_from_stem(stem: &str) -> String {
     }
     s = out.split_whitespace().collect::<Vec<_>>().join(" ");
     let lower = s.to_ascii_lowercase();
-    for m in [" vol", " v", " ch", " chapter", " #", " issue", " c", " tome"] {
+    for m in [
+        " vol", " v", " ch", " chapter", " #", " issue", " c", " tome",
+    ] {
         if let Some(p) = lower.rfind(m) {
             let rest = lower[p + m.len()..].trim_start_matches(['.', ' ', '_']);
             if rest.chars().next().is_some_and(|c| c.is_ascii_digit()) {
@@ -920,7 +922,10 @@ mod tests {
         let d2 = c("Music/A/B/CD2/07. Song.mp3");
         assert_eq!((d2.disc_no, d2.track_no), (Some(2), Some(7)));
         let flat = c("Music/Queen - Bohemian Rhapsody.mp3");
-        assert_eq!((flat.artist.as_str(), flat.title.as_str()), ("Queen", "Bohemian Rhapsody"));
+        assert_eq!(
+            (flat.artist.as_str(), flat.title.as_str()),
+            ("Queen", "Bohemian Rhapsody")
+        );
     }
 
     #[test]
@@ -943,7 +948,13 @@ mod tests {
                 ..Sidecar::default()
             },
         );
-        let x = classify("Series/Odd/Odd S01E02.mkv", 1, &Fake, &m, Options::default());
+        let x = classify(
+            "Series/Odd/Odd S01E02.mkv",
+            1,
+            &Fake,
+            &m,
+            Options::default(),
+        );
         assert_eq!(x.title, "Fixed Name");
         assert_eq!(x.year, Some(1999));
         assert!(x.anime);

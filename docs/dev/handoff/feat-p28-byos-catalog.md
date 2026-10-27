@@ -6,7 +6,7 @@ Scratch DB `sr_p28_byos_catalog` (not created yet). Migration 1450 only. Job id 
 
 ## Resume here
 
-Slice 1 done: migration `1450_storage_objects.sql` (not yet run against Postgres), `crates/sr-storage/src/index/`
+Slice 1+2 done: migration 1450 (applied and tested on Postgres), sr-storage index core (15 unit tests), sr-db index_repo (4 Postgres tests green).
 (`classify.rs`, `sniff.rs`, `mod.rs` with the `IndexStore` trait), 15 unit tests green.
 
 Next: (2) `sr-db` index store (`index_repo.rs`: `storage_objects` upsert, catalog rows for Cinema/Library/Music,
