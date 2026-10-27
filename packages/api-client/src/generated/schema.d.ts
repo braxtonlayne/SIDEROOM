@@ -3410,6 +3410,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/storage/mounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every live storage mount, newest first (`MANAGE_TAKEDOWNS`). */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/storage/mounts/{mount_id}/delist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delist a whole mount: nothing of it is served to anyone, the owner is told why, the bucket is untouched. The
+         *     reason is required (body or `X-Audit-Log-Reason`).
+         */
+        post: operations["delist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/storage/mounts/{mount_id}/relist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Relist a delisted mount (it returns to the status it had). The reason is required. */
+        post: operations["relist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/suspicion": {
         parameters: {
             query?: never;
@@ -14317,6 +14371,31 @@ export interface components {
             last_seen_at_ms: number;
             user_agent?: string | null;
         };
+        /** @description One mount as staff see it. */
+        AdminStorageMount: {
+            bucket: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            delist_reason: string;
+            /** Format: int64 */
+            delisted_at_ms?: number | null;
+            /**
+             * Format: int64
+             * @description Objects of this mount delisted by an upheld takedown notice.
+             */
+            delisted_objects: number;
+            id: string;
+            /** @description The last four characters of the access key id. */
+            key_hint: string;
+            label: string;
+            owner_id: string;
+            owner_kind: string;
+            /** @description The owner's username, or the owning server's name; empty for the instance bucket. */
+            owner_name: string;
+            provider: string;
+            /** @description `active`, `failing`, `disabled` or `delisted`. */
+            status: string;
+        };
         /** @description Everything about a title, unpublished parts included (staff). */
         AdminTitleDetail: {
             episodes: components["schemas"]["Episode"][];
@@ -18782,7 +18861,7 @@ export interface components {
          * @description What a notice item points at.
          * @enum {string}
          */
-        ItemKind: "message" | "attachment" | "library_series" | "library_chapter" | "cinema_title" | "cinema_episode";
+        ItemKind: "message" | "attachment" | "library_series" | "library_chapter" | "cinema_title" | "cinema_episode" | "storage_object";
         /**
          * @description Decision state of one item (a chapter, an episode).
          * @enum {string}
@@ -20004,7 +20083,10 @@ export interface components {
         };
         /** @description A piece of content found for a notice. */
         NewItem: {
+            /** @description The content id; for `storage_object` the mount id. */
             id: string;
+            /** @description For `storage_object` only: the mount-relative object key. Required there, refused for any other kind. */
+            key?: string | null;
             kind: components["schemas"]["ItemKind"];
         };
         /** @description What staff enter for a notice (spec 5, step 1). */
@@ -22671,6 +22753,15 @@ export interface components {
             /** @description The walk hit its object cap or time budget, so the figures are a lower bound. */
             truncated: boolean;
         };
+        /** @description The answer of a delist or relist. */
+        StorageMountLegal: {
+            delist_reason: string;
+            id: string;
+            label: string;
+            owner_id: string;
+            owner_kind: string;
+            status: string;
+        };
         StreamPreviewBody: {
             /** @description `data:image/jpeg;base64,...`, at most 256 KiB once decoded. */
             thumbnail: string;
@@ -23105,6 +23196,8 @@ export interface components {
             id: string;
             kind: components["schemas"]["ItemKind"];
             label: string;
+            /** @description For `storage_object`: the mount-relative key that was delisted. */
+            object_key?: string | null;
             /** Format: int64 */
             restored_at_ms?: number | null;
             state: components["schemas"]["ItemState"];
@@ -36203,6 +36296,176 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only one owner kind: `user`, `guild` or `platform`. */
+                owner_kind?: string;
+                /** @description With `owner_kind`: the owner's snowflake. */
+                owner_id?: string;
+                /** @description Only one status: `active`, `failing`, `disabled` or `delisted`. */
+                status?: string;
+                /** @description 1 to 500, default 100. */
+                limit?: number;
+                /** @description Page: only mounts with a smaller id than this one. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStorageMount"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageMountLegal"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    relist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageMountLegal"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

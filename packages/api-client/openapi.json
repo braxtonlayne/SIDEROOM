@@ -17321,6 +17321,287 @@
         ]
       }
     },
+    "/admin/storage/mounts": {
+      "get": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Every live storage mount, newest first (`MANAGE_TAKEDOWNS`).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "owner_kind",
+            "in": "query",
+            "description": "Only one owner kind: `user`, `guild` or `platform`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "owner_id",
+            "in": "query",
+            "description": "With `owner_kind`: the owner's snowflake.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Only one status: `active`, `failing`, `disabled` or `delisted`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 500, default 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Page: only mounts with a smaller id than this one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminStorageMount"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{mount_id}/delist": {
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Delist a whole mount: nothing of it is served to anyone, the owner is told why, the bucket is untouched. The\nreason is required (body or `X-Audit-Log-Reason`).",
+        "operationId": "delist",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageMountLegal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/storage/mounts/{mount_id}/relist": {
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Relist a delisted mount (it returns to the status it had). The reason is required.",
+        "operationId": "relist",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageMountLegal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/suspicion": {
       "get": {
         "tags": [
@@ -69527,6 +69808,75 @@
           }
         }
       },
+      "AdminStorageMount": {
+        "type": "object",
+        "description": "One mount as staff see it.",
+        "required": [
+          "id",
+          "owner_kind",
+          "owner_id",
+          "owner_name",
+          "label",
+          "provider",
+          "bucket",
+          "status",
+          "key_hint",
+          "created_at_ms",
+          "delist_reason",
+          "delisted_objects"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delist_reason": {
+            "type": "string"
+          },
+          "delisted_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "delisted_objects": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Objects of this mount delisted by an upheld takedown notice."
+          },
+          "id": {
+            "type": "string"
+          },
+          "key_hint": {
+            "type": "string",
+            "description": "The last four characters of the access key id."
+          },
+          "label": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "owner_kind": {
+            "type": "string"
+          },
+          "owner_name": {
+            "type": "string",
+            "description": "The owner's username, or the owning server's name; empty for the instance bucket."
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`active`, `failing`, `disabled` or `delisted`."
+          }
+        }
+      },
       "AdminTitleDetail": {
         "type": "object",
         "description": "Everything about a title, unpublished parts included (staff).",
@@ -83223,7 +83573,8 @@
           "library_series",
           "library_chapter",
           "cinema_title",
-          "cinema_episode"
+          "cinema_episode",
+          "storage_object"
         ]
       },
       "ItemState": {
@@ -87192,7 +87543,15 @@
         ],
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "description": "The content id; for `storage_object` the mount id."
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `storage_object` only: the mount-relative object key. Required there, refused for any other kind."
           },
           "kind": {
             "$ref": "#/components/schemas/ItemKind"
@@ -95539,6 +95898,38 @@
           }
         }
       },
+      "StorageMountLegal": {
+        "type": "object",
+        "description": "The answer of a delist or relist.",
+        "required": [
+          "id",
+          "owner_kind",
+          "owner_id",
+          "label",
+          "status",
+          "delist_reason"
+        ],
+        "properties": {
+          "delist_reason": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
+          },
+          "owner_kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "StreamPreviewBody": {
         "type": "object",
         "required": [
@@ -96839,6 +97230,13 @@
           },
           "label": {
             "type": "string"
+          },
+          "object_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `storage_object`: the mount-relative key that was delisted."
           },
           "restored_at_ms": {
             "type": [
