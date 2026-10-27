@@ -58,6 +58,9 @@ export default defineConfig({
   ],
   // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.
   worker: { format: 'es' },
+  // BYOS-CNV-001: ffmpeg.wasm starts its worker with new URL('./worker.js', import.meta.url), which the dev
+  // pre-bundler would break. The core (@ffmpeg/core) is imported with ?url: a separate static file, never inlined.
+  optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@ffmpeg/core'] },
   server: {
     port: 5173,
     // Report-only in dev: the HMR socket and react-refresh preamble are inline, and a header must never
