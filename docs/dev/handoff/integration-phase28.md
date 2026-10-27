@@ -7,8 +7,11 @@ command at a time; `CMAKE` = the VS 2019 Build Tools copy (see integration-phase
 
 ## Resume here
 
-Status 11:40: the four merges are done and committed. Next: fmt, workspace clippy, then the P28 decisions
-and integration notes, then the generated client, then gates.
+Status 12:15: merges, decisions, integration notes, OpenAPI/api-client/MSW, CHANGELOG are committed; fmt, workspace
+clippy, cargo deny, route_matrix, openapi_names, typecheck, eslint, prettier, i18n-audit, check-css-tokens, node
+script tests and YAML parse are green; unit tests of the leaf crates green (1116). Running: `cargo test -p sr-db -p
+sr-api -p sr-server` (no DB). Next: vitest on the touched areas, web build plus bundle budget, inventory section, then
+the Postgres gates once `%TEMP%\sr_pg_pw.txt` exists.
 
 The Postgres password file `%TEMP%\sr_pg_pw.txt` is missing: every database step is skipped until it is back.
 
