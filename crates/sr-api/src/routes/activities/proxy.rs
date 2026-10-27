@@ -359,6 +359,12 @@ fn harden(d: &ActivitiesDeps, h: &mut HeaderMap) {
     };
     set(h, header::CONTENT_SECURITY_POLICY, &csp);
     set(h, header::X_CONTENT_TYPE_OPTIONS, "nosniff");
+    // OPS-IDX-001 (D-384): an activity host is never indexable.
+    set(
+        h,
+        header::HeaderName::from_static("x-robots-tag"),
+        "noindex, nofollow",
+    );
     set(h, header::REFERRER_POLICY, "no-referrer");
     set(h, header::CACHE_CONTROL, "no-cache");
     set(

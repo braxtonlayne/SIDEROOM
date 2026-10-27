@@ -13,6 +13,7 @@ import { useT } from './i18n';
 import { CatalogGate } from './i18n/CatalogGate';
 import { isCorePath } from './i18n/corePaths';
 import { RouteFallback } from './lib/lazyRoute';
+import { useNoindex } from './lib/useNoindex';
 import { createCinemaRoutes } from './cinema/routes';
 import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
@@ -59,6 +60,7 @@ const isHelpPath = (p: string) => p === '/help' || p.startsWith('/help/');
 
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useNoindex(pathname);
   return (
     <>
       {/* Entrance routes paint from the core catalog; every other route waits for the full one. */}

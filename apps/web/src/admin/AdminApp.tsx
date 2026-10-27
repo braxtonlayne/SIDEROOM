@@ -45,6 +45,7 @@ import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
 import { ServersSection } from './sections/Servers';
 import { StaffSection } from './sections/Staff';
+import { StorageSection } from './storage/StorageSection';
 import { ReviewHubSection } from './sections/ReviewHub';
 import { PrivateContentSection } from './sections/PrivateContent';
 import { ModerationSection } from './moderation/ModerationSection';
@@ -116,6 +117,14 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.people',
     visible: (v) => v.can('MANAGE_TAKEDOWNS'),
     component: DataRequestsSection,
+  },
+  {
+    // BYOS-LEG-001: every storage mount, its owner and status, and the whole-bucket delist.
+    id: 'storage',
+    label: 'admin.adminApp.section.storage',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_TAKEDOWNS'),
+    component: StorageSection,
   },
   {
     id: 'invites',

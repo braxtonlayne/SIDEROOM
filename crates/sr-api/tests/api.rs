@@ -493,6 +493,7 @@ async fn security_headers_on_every_response() {
         let (_, h, _) = send(&app(&f), get_req(p)).await;
         assert_eq!(h["x-content-type-options"], "nosniff", "{p}");
         assert_eq!(h["referrer-policy"], "no-referrer", "{p}");
+        assert_eq!(h["x-robots-tag"], "noindex, nofollow", "{p}");
         assert!(
             h["content-security-policy"]
                 .to_str()
@@ -502,6 +503,24 @@ async fn security_headers_on_every_response() {
         assert!(h.contains_key("permissions-policy"), "{p}");
         // Plain-http public URL: HSTS would be wrong.
         assert!(!h.contains_key("strict-transport-security"), "{p}");
+    }
+}
+
+/// OPS-IDX-001 (D-384): nothing but the landing page is indexable, so everything sr-server answers says so: the
+/// API, `/cdn`, the gateway upgrade path, the API reference (which has no CSP of ours) and the health endpoints.
+#[tokio::test]
+async fn every_response_says_noindex() {
+    let f = fixture();
+    for p in [
+        "/healthz",
+        "/api/v1/openapi.json",
+        "/nope",
+        "/cdn/none",
+        "/developers/",
+        "/gateway",
+    ] {
+        let (_, h, _) = send(&app(&f), get_req(p)).await;
+        assert_eq!(h["x-robots-tag"], "noindex, nofollow", "{p}");
     }
 }
 

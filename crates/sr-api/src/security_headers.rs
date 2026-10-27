@@ -48,6 +48,9 @@ pub async fn security_headers(
         }
     };
     set(header::X_CONTENT_TYPE_OPTIONS, "nosniff");
+    // OPS-IDX-001 (D-384): only the landing page's HTML is indexable and that is served by the proxy or the static
+    // host, never by sr-server: everything this layer covers (API, /cdn, /developers, health) is noindex.
+    set(HeaderName::from_static("x-robots-tag"), "noindex, nofollow");
     set(header::REFERRER_POLICY, "no-referrer");
     set(HeaderName::from_static("permissions-policy"), PERMISSIONS);
     set(
