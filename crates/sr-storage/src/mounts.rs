@@ -373,10 +373,12 @@ impl Mount {
                 .with_access_key_id(&self.access_key_id)
                 .with_secret_access_key(secret.expose())
                 .with_virtual_hosted_style_request(!self.path_style)
-                .with_allow_http(self.endpoint.starts_with("http://"))
-                // A dead endpoint must fail in seconds, not minutes.
+                // A dead endpoint must fail in seconds, not minutes. `allow_http` lives in the client options,
+                // so it is set on them: a `with_allow_http` before `with_client_options` was overwritten and
+                // every request to an http:// endpoint failed with "builder error" (storage.yml on PR #56).
                 .with_client_options(
                     object_store::ClientOptions::new()
+                        .with_allow_http(self.endpoint.starts_with("http://"))
                         .with_connect_timeout(std::time::Duration::from_secs(5))
                         .with_timeout(std::time::Duration::from_secs(8)),
                 )
@@ -824,6 +826,23 @@ mod tests {
         let mut bad = mount_for_keys("");
         bad.endpoint = "ftp://x".into();
         assert!(matches!(bad.storage(&s), Err(MountError::Invalid(_))));
+    }
+
+    /// An http:// endpoint must reach the network: a refused connection, never reqwest's "builder error"
+    /// (which is what an overwritten `allow_http` produced, before any byte was sent).
+    #[tokio::test]
+    async fn an_http_endpoint_is_allowed_to_connect() {
+        use crate::storage::ObjectStorage;
+        let mut m = mount_for_keys("p/");
+        m.endpoint = "http://127.0.0.1:9".into();
+        m.path_style = true;
+        let st = m.storage(&XorSealer(1)).unwrap();
+        let err = st
+            .put(&m.bucket_key("a.txt"), bytes::Bytes::from_static(b"x"))
+            .await
+            .expect_err("nothing listens on port 9");
+        let text = format!("{err:?}");
+        assert!(!text.contains("builder error"), "{text}");
     }
 
     #[tokio::test]

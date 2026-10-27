@@ -8,7 +8,7 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
-## Wave 28 - 2026-10-27
+## Phase 28 - 2026-10-27
 
 - **Fill your buckets from the app.** The bucket browser uploads files or a whole folder (drag and drop works), in
   16 MiB parts that resume after a reload. You can make folders, rename and move files and folders, and delete them.
@@ -33,7 +33,7 @@ what the operator now has to know. Keep each wave to a handful of lines.
   `storage.uploads_sweep` (hourly) and `storage.index` (daily, and after uploads and moves). Data-subject exports
   list a member's buckets, and account erasure wipes their keys.
 
-## Wave 27 - 2026-10-26
+## Phase 27 - 2026-10-26
 
 - **Bring your own storage.** Under User Settings > Storage you can connect your own S3-compatible bucket (S3, R2,
   B2, Wasabi, MinIO or Garage). A connection test shows what works and what does not, with least-privilege policy
