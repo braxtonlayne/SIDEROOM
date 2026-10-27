@@ -718,6 +718,7 @@ mod tests {
             BYOS_ENDPOINT_ALLOW,
             BYOS_REQUIRE_CLIENT_REMUX,
             BYOS_WHO_MAY_MOUNT,
+            BYOS_WORKER_FOR_MEMBERS,
         ] {
             let d = find(key).unwrap_or_else(|| panic!("{key} missing"));
             assert_eq!(d.group, "storage", "{key}");
@@ -731,6 +732,11 @@ mod tests {
         );
         assert_eq!(
             find(BYOS_REQUIRE_CLIENT_REMUX).unwrap().default_value(),
+            json!(false)
+        );
+        // The operator's workers serve members only when the operator says so (BYOS-CNV-003).
+        assert_eq!(
+            find(BYOS_WORKER_FOR_MEMBERS).unwrap().default_value(),
             json!(false)
         );
     }

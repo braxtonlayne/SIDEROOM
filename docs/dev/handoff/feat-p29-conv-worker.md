@@ -62,7 +62,16 @@ Files touched outside the Split row (small, mechanical): `crates/sr-admin/src/se
 `crates/sr-server/tests/authz_matrix.rs` (own block), `deploy/scripts/media-smoke.mjs` (the stage lives there, like every other
 media stage).
 
-## Tests run
+## Tests run (2026-10-27, one cargo command at a time, -j 2)
+
+- `cargo test -p sr-api --test route_matrix`: 6 passed (five new rows, class `mount_owner`; `authz_agrees_with_handler_extractors` green).
+- `cargo test -p sr-api --lib --test openapi_names -- storage cinema_media openapi`: 52 + 1 passed.
+- `cargo test -p sr-admin --lib settings`: 9 passed (`byos.worker_for_members`, default off).
+- `cargo clippy -p sr-api -p sr-admin -p sr-server -p sr-media -p sr-db -p sr-transcoder --tests -- -D warnings` and `cargo fmt --all --check`: clean
+  (this compiles the new authz_matrix seeds, which have **not run**).
+- Web: vitest `src/admin/__tests__/cinema.test.tsx src/i18n` 70 passed (+ the new Bucket column test), `tsc --noEmit`, eslint on the touched
+  files and prettier: clean. OpenAPI, api-client types and MSW handlers regenerated (`mocks:check` green).
+- Not run: Postgres suites (no password file), `authz_matrix` / `immutable_rules` (Postgres), `media.yml` (CI), a real GPU/ffmpeg run.
 
 - `cargo test -p sr-media -j 2`: 122 passed (new: mount job claim/upload/complete, scope isolation, sandbox, wire format, planning).
 - `cargo test -p sr-transcoder -j 2`: 61 passed (new: mount job MP4, HLS, unreadable file, ffprobe lookup).
