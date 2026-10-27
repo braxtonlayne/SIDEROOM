@@ -56,6 +56,7 @@ const R_BASIC: i64 = 3;
 fn record(id: i64) -> TitleRecord {
     TitleRecord {
         id,
+        mount_id: 1,
         kind: TitleKind::Movie,
         title: "Stub".into(),
         original_title: None,

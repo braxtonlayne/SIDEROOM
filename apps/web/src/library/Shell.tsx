@@ -59,6 +59,7 @@ interface NavItem {
     | '/library/history'
     | '/library/lists'
     | '/library/submissions'
+    | '/library/shelves'
     | '/library/upload';
   labelKey: MessageKey;
   icon: 'compass' | 'grid' | 'clock' | 'bookmark' | 'list' | 'upload' | 'edit' | 'heart';
@@ -70,6 +71,7 @@ const DISCOVER: NavItem[] = [
   { to: '/library/browse', labelKey: 'library.shell.nav.browse', icon: 'grid' },
   { to: '/library/updates', labelKey: 'library.shell.nav.latestUpdates', icon: 'clock' },
   { to: '/library/requests', labelKey: 'library.shell.nav.requests', icon: 'heart' },
+  { to: '/library/shelves', labelKey: 'shelves.nav', icon: 'bookmark' },
 ];
 const YOUR_SPACE: NavItem[] = [
   { to: '/library/me', labelKey: 'library.shell.nav.myLibrary', icon: 'bookmark' },

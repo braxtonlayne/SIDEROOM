@@ -11,6 +11,7 @@ pub mod cors_check;
 pub mod error;
 pub mod guard;
 pub mod img;
+pub mod index;
 pub mod media;
 pub mod mount_cache;
 pub mod mount_policy;

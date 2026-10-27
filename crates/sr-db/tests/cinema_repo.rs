@@ -1929,6 +1929,41 @@ async fn artwork_is_signed_and_external_ids_round_trip() {
     w.db.cleanup().await.unwrap();
 }
 
+/// BYOS: a row carries the mount its objects live on, and its media links name that mount; mount 1 keeps the
+/// instance's `/cdn/<key>` links.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_row_on_another_mount_gets_mount_scoped_media_links() {
+    let w = world().await;
+    let t = w
+        .film("On a shelf", |i| {
+            i.backdrop_key = Some("cinema/9/backdrop.webp".into());
+        })
+        .await;
+    let before = w.svc.title_detail(w.member, t.id).await.unwrap().title;
+    assert!(
+        before
+            .backdrop_url
+            .as_deref()
+            .unwrap()
+            .starts_with("/cdn/cinema/9/")
+    );
+    sqlx::query(
+        "UPDATE video_titles SET mount_id = 5, backdrop_key = 'Movies/On a shelf/backdrop.jpg' WHERE id = $1",
+    )
+    .bind(t.id)
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    let after = w.svc.title_detail(w.member, t.id).await.unwrap().title;
+    let u = after.backdrop_url.as_deref().unwrap();
+    assert!(
+        u.starts_with("/cdn/mount/5/Movies/On%20a%20shelf/backdrop.jpg?"),
+        "{u}"
+    );
+    w.db.cleanup().await.unwrap();
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn assets_are_authorized_through_their_catalog_owner() {

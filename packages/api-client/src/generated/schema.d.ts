@@ -10811,6 +10811,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/shelves/{section}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page of the section's shelves. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shelves/{section}/{shelf_item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One item with its episodes or chapters. */
+        get: operations["get_item"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit an item's metadata. The edited fields become overrides a re-index leaves alone. */
+        patch: operations["patch_item"];
+        trace?: never;
+    };
+    "/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit one episode or chapter (title, number, season). */
+        patch: operations["patch_part"];
+        trace?: never;
+    };
     "/soundboard-default-sounds": {
         parameters: {
             query?: never;
@@ -11532,6 +11584,27 @@ export interface paths {
         get: operations["sticker_url"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The last index run of a mount. */
+        get: operations["index_status"];
+        put?: never;
+        /**
+         * Queue an index run of a mount (the Re-index button). Answers with the last run; `queued` is false when a run
+         *     is already queued or running.
+         */
+        post: operations["start_index"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14785,6 +14858,8 @@ export interface components {
             /** @description A review proxy exists. */
             has_proxy: boolean;
             id: string;
+            /** @description The storage mount holding the asset's files (1 is the instance bucket). */
+            mount_id?: string;
             /** @description The original file is gone (retention deleted it); a re-transcode needs a new upload. */
             original_deleted: boolean;
             /** @description Members with the download perk may fetch the original. */
@@ -17222,6 +17297,13 @@ export interface components {
             /** @description Whether the system DM went out. */
             delivered: boolean;
         };
+        /** @description Which provider the details came from. */
+        DetailsBody: {
+            /** @description The provider's id for the entry. */
+            external_id: string;
+            /** @description `tmdb`, `anilist`, `mangadex`, `mangaupdates` or `comicvine`. */
+            provider: string;
+        };
         /** @description An application. The client secret is never part of it. */
         DeveloperApplicationObject: {
             bot: components["schemas"]["BotUserObject"];
@@ -18517,6 +18599,36 @@ export interface components {
             music: boolean;
             /** @description The friend who owns it (snowflake). */
             owner_id: string;
+        };
+        /** @description Last index run of a mount. */
+        IndexStatusView: {
+            /**
+             * Format: int32
+             * @description New or changed.
+             */
+            added: number;
+            /** @description The failure. */
+            error?: string | null;
+            /** @description Finished (ISO 8601). */
+            finished_at?: string | null;
+            /**
+             * Format: int32
+             * @description Objects listed.
+             */
+            objects: number;
+            /** @description A job was queued by this call (`false`: one is already queued or running). */
+            queued: boolean;
+            /** @description Started (ISO 8601). */
+            started_at?: string | null;
+            /** @description `idle`, `running`, `done`, `failed`, or `never` before the first run. */
+            state: string;
+            /** @description The listing stopped at the cap or the time budget. */
+            truncated: boolean;
+            /**
+             * Format: int32
+             * @description Vanished.
+             */
+            vanished: number;
         };
         /** @description A configured source. */
         IngestSource: {
@@ -20586,6 +20698,21 @@ export interface components {
             /** Format: int32 */
             part_number: number;
         };
+        /** @description Body of the part editor. */
+        PartPatchBody: {
+            /**
+             * Format: double
+             * @description Episode, chapter or volume number.
+             */
+            number?: number | null;
+            /**
+             * Format: int32
+             * @description Season (episodes).
+             */
+            season?: number | null;
+            /** @description Title. */
+            title?: string | null;
+        };
         /** @description One presigned part URL. */
         PartUrl: {
             /** Format: int32 */
@@ -22421,6 +22548,15 @@ export interface components {
          * @enum {string}
          */
         Shelf: "reading" | "plan_to_read" | "completed" | "on_hold" | "dropped";
+        /** @description One item with its parts. */
+        ShelfDetailView: {
+            /** @description The viewer may edit the metadata. */
+            can_edit: boolean;
+            /** @description The card. */
+            item: components["schemas"]["ShelfItemView"];
+            /** @description Episodes or chapters, in order. */
+            parts: components["schemas"]["ShelfPartView"][];
+        };
         /** @description An Activity in the launcher's shelf. */
         ShelfItem: {
             application_id: string;
@@ -22429,10 +22565,144 @@ export interface components {
             development: boolean;
             name: string;
         };
+        /** @description One card. */
+        ShelfItemView: {
+            /** @description The metadata provider's attribution, to show next to fetched details. */
+            attribution?: string | null;
+            /** @description Short-lived URL of the backdrop. */
+            backdrop_url?: string | null;
+            /** @description Its container. */
+            container: string;
+            /** @description Provider ids. */
+            external_ids: {
+                [key: string]: string;
+            };
+            /** @description Genres. */
+            genres: string[];
+            /** @description Row snowflake. */
+            id: string;
+            /** @description `movie`, `series`, `anime`, `manga`, `comic`, `book` or `track`. */
+            kind: string;
+            /** @description The file of a film, track or single book (mount-relative), for `POST /storage/mounts/{id}/presign`. */
+            object_key?: string | null;
+            /** @description Fields the member edited. */
+            overridden: string[];
+            /**
+             * Format: int64
+             * @description Episodes or chapters.
+             */
+            parts: number;
+            /** @description Short-lived URL of the poster or cover. */
+            poster_url?: string | null;
+            /** @description `cinema`, `library` or `music`. */
+            section: string;
+            /** @description Where it lives. */
+            source: components["schemas"]["ShelfSourceView"];
+            /** @description Line under the title (a track's artist and album). */
+            subtitle: string;
+            /** @description Synopsis. */
+            synopsis: string;
+            /** @description Tags. */
+            tags: string[];
+            /** @description Title. */
+            title: string;
+            /** @description Plays in a browser as is; otherwise it is greyed with "Convert to play". */
+            web_native: boolean;
+            /**
+             * Format: int32
+             * @description Year.
+             */
+            year?: number | null;
+        };
+        /** @description A page of cards and the sources behind the chips. */
+        ShelfListView: {
+            /** @description Cards. */
+            items: components["schemas"]["ShelfItemView"][];
+            /** @description The mounts the viewer reaches for this section (the "Shelves" chips), even when this page shows none. */
+            sources: components["schemas"]["ShelfSourceView"][];
+            /**
+             * Format: int64
+             * @description All that match.
+             */
+            total: number;
+        };
+        /** @description An episode, chapter or volume. */
+        ShelfPartView: {
+            /** @description Container. */
+            container: string;
+            /** @description Row snowflake. */
+            id: string;
+            /**
+             * Format: double
+             * @description Episode, chapter or volume number.
+             */
+            number: number;
+            /** @description The file (mount-relative). */
+            object_key: string;
+            /**
+             * Format: int32
+             * @description Season (episodes).
+             */
+            season?: number | null;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
+            /** @description Title. */
+            title: string;
+            /** @description Plays in a browser as is. */
+            web_native: boolean;
+        };
+        /** @description Body of the editor. Every field present is written and becomes an override. */
+        ShelfPatchBody: {
+            /** @description Album (tracks). */
+            album?: string | null;
+            /** @description Artist (tracks). */
+            artist?: string | null;
+            /** @description Backdrop (Cinema); `null` clears. */
+            backdrop_key?: string | null;
+            details?: null | components["schemas"]["DetailsBody"];
+            /** @description Genres. */
+            genres?: string[] | null;
+            /** @description `movie`, `series`, `anime` (Cinema); `manga`, `comic`, `book` (Library). */
+            kind?: string | null;
+            /** @description Poster or cover: a key on the same mount; `null` clears. */
+            poster_key?: string | null;
+            /** @description Synopsis (at most 4000 characters). */
+            synopsis?: string | null;
+            /** @description Tags (lower-cased, at most 30). */
+            tags?: string[] | null;
+            /** @description Title (1 to 300 characters). */
+            title?: string | null;
+            /**
+             * Format: int32
+             * @description Track number (tracks); `null` clears.
+             */
+            track_no?: number | null;
+            /**
+             * Format: int32
+             * @description Year; `null` clears.
+             */
+            year?: number | null;
+        };
         ShelfResponse: {
             /** @description `[activities] enabled`. */
             enabled: boolean;
             items: components["schemas"]["ShelfItem"][];
+        };
+        /** @description How the viewer reaches a mount: the chip on a card. */
+        ShelfSourceView: {
+            /** @description The server (`guild`). */
+            guild_id?: string | null;
+            /** @description The mount's label. */
+            label: string;
+            /** @description Mount snowflake. */
+            mount_id: string;
+            /** @description The friend who owns the mount (`friend`), or the owner of a user mount. */
+            owner_id?: string | null;
+            /** @description `own`, `friend`, `guild` or `staff`. */
+            scope: string;
         };
         /** @description Shelves the caller reaches, per kind. */
         ShelvesSummaryView: {
@@ -60400,6 +60670,193 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Title substring */
+                q?: string;
+                /** @description movie, series, anime, manga, comic or book */
+                kind?: string;
+                /** @description Only this mount */
+                mount?: string;
+                /** @description At most 50 */
+                limit?: number;
+                /** @description Offset */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description cinema, library or music */
+                section: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfListView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description cinema, library or music */
+                section: string;
+                /** @description Row snowflake */
+                shelf_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfDetailView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description cinema, library or music */
+                section: string;
+                /** @description Row snowflake */
+                shelf_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShelfPatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfDetailView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_part: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description cinema or library */
+                section: string;
+                /** @description Series snowflake */
+                shelf_item_id: string;
+                /** @description Episode or chapter snowflake */
+                shelf_part_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartPatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfDetailView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_default_sounds: {
         parameters: {
             query?: never;
@@ -61950,6 +62407,82 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    index_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexStatusView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    start_index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexStatusView"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

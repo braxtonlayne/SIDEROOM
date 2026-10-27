@@ -444,6 +444,8 @@ GET	/packages/{package_id}	authenticated	user	deny	-	-
 GET	/profile-pages/{username}	authenticated	visibility	deny	-	-
 GET	/push/vapid-key	authenticated	self	deny	-	-
 GET	/requests	authenticated	user	allow	-	-
+GET	/shelves/{section}	authenticated	self	deny	-	-
+GET	/shelves/{section}/{shelf_item_id}	authenticated	storage_scope	deny	-	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-	-
 GET	/sr/appearance/defaults	public	none	deny	-	-
@@ -464,6 +466,7 @@ GET	/sr/voice/turn	authenticated	user	allow	-	-
 GET	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 GET	/sticker-packs	authenticated	user	allow	-	-
 GET	/stickers/{sticker_id}/url	authenticated	user	allow	-	-
+GET	/storage/mounts/{mount_id}/index	authenticated	mount_owner	deny	-	-
 GET	/storage/mounts/{mount_id}/objects	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/objects/{key}	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/uploads	authenticated	storage_scope	deny	-	-
@@ -588,6 +591,8 @@ PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-	-
 PATCH	/library/comments/{comment_id}	authenticated	author	allow	-	-
 PATCH	/library/lists/{list_id}	authenticated	author	allow	-	-
+PATCH	/shelves/{section}/{shelf_item_id}	authenticated	mount_owner	deny	-	-
+PATCH	/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}	authenticated	mount_owner	deny	-	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
 PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 PATCH	/submissions/{submission_id}	authenticated	author	allow	-	-
@@ -862,6 +867,7 @@ POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-	-
 POST	/stage-instances	authenticated	membership	allow	-	-
 POST	/storage/mounts/{mount_id}/folders	authenticated	storage_scope	deny	-	-
+POST	/storage/mounts/{mount_id}/index	authenticated	mount_owner	deny	-	-
 POST	/storage/mounts/{mount_id}/move	authenticated	storage_scope	deny	-	-
 POST	/storage/mounts/{mount_id}/presign	authenticated	storage_scope	deny	-	-
 POST	/storage/mounts/{mount_id}/uploads	authenticated	storage_scope	deny	-	-

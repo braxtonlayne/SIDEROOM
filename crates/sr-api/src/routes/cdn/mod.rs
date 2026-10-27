@@ -26,12 +26,15 @@
 //!   permits ignoring Range). `If-Range` with a non-matching validator also
 //!   serves 200.
 //! * Rate limit: the process-wide limiter, bucket `GET /cdn/{*path}` per client IP.
+//! * `/cdn/mount/<id>/<key>` is media of a storage mount (BYOS): a signed link answered with a redirect to a short
+//!   presigned URL of the member's bucket ([`mount`]); the server never streams those bytes.
 //! * `/cdn/external/{hmac}/{url_b64}` is the third-party image proxy
 //!   ([`external`]); it has its own buckets and no storage object of its own
 //!   beyond the cache.
 
 pub mod content;
 pub mod external;
+mod mount;
 pub mod path;
 mod serve;
 mod variant;
@@ -44,6 +47,9 @@ mod external_tests;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod mount_tests;
 
 pub use path::{cdn_path, encode_segment};
 
@@ -105,6 +111,8 @@ pub struct CdnDeps {
     pub playlists: Option<Arc<dyn PlaylistRenderer>>,
     /// Objects a takedown blocked (MOD-TKD-004): answered with 451 instead of being served.
     pub blocklist: Option<Arc<sr_moderation::blocklist::MediaBlocklist>>,
+    /// Where `/cdn/mount/<id>/...` links go: the buckets of storage mounts (BYOS). Without it they are 404.
+    pub mounts: Option<Arc<sr_storage::mount_storage::MountStorages>>,
 }
 
 /// Resize jobs allowed at once.
@@ -120,7 +128,14 @@ impl CdnDeps {
             render_permits: Arc::new(tokio::sync::Semaphore::new(RENDER_CONCURRENCY)),
             playlists: None,
             blocklist: None,
+            mounts: None,
         }
+    }
+
+    /// Answer `/cdn/mount/<id>/...` links with a redirect to a presigned URL of that mount's bucket.
+    pub fn with_mounts(mut self, mounts: Arc<sr_storage::mount_storage::MountStorages>) -> Self {
+        self.mounts = Some(mounts);
+        self
     }
 
     /// Render the `hls` playlists on request.

@@ -317,6 +317,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let mount_resolver = Arc::new(sr_storage::mount_cache::CachedMountResolver::new(
         mount_repo.clone(),
     ));
+    // The shelves (BYOS-CAT-002) and the indexer (BYOS-CAT-001) share one store type over the same pool.
+    let index_store = Arc::new(sr_db::index_repo::PgIndexStore::new(
+        pool.clone(),
+        id_src.clone(),
+    ));
+    let shelf_deps = Arc::new(routes::storage::ShelfDeps {
+        store: Arc::new(sr_db::shelf_repo::PgShelfStore::new(
+            pool.clone(),
+            id_src.clone(),
+        )),
+        index: index_store.clone(),
+    });
     if s.endpoint != "memory:" {
         crate::instance_mount::ensure_instance_mount(mount_repo.as_ref(), mount_sealer.as_ref(), s)
             .await
@@ -1484,6 +1496,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(user_feature_deps)
         .extension(storage_scope_deps)
         .extension(upload_deps)
+        .extension(shelf_deps)
         .extension(Arc::new(
             routes::donations::DonationsDeps::new(payments.service.clone())
                 .with_chat_slot(payments.chat.clone()),
@@ -1494,7 +1507,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(
             routes::cdn::CdnDeps::new(storage.clone(), cdn_signer)
                 .with_playlists(playback_deps)
-                .with_blocklist(media_blocklist.clone()),
+                .with_blocklist(media_blocklist.clone())
+                .with_mounts(Arc::new(mount_storages.clone())),
         ))
         .extension(external_images)
         .extension(Arc::new(routes::internal::CspReports::new(Arc::new(
@@ -1607,6 +1621,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mount_repo.clone(),
         upload_io.clone(),
     );
+    // Catalog indexing of storage mounts (BYOS-CAT-001): the one-shot and the daily `storage.index` job.
+    let runner = crate::storage_jobs::register(
+        runner,
+        &pool,
+        index_store.clone(),
+        mount_storages.clone(),
+        mount_repo.clone(),
+    );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
@@ -1656,6 +1678,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;
+    crate::storage_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::upload_jobs::schedule(&pool).await?;

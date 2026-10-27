@@ -182,6 +182,14 @@ export interface LibraryApi {
   ): ArchivePrecheck;
   /** Bytes from the end of the file to read first. */
   firstTail: number;
+  /**
+   * Every page of a CBZ in reading order, from the last bytes of the file (a CBZ in a bucket is read by range
+   * requests, BYOS-CAT-002). `need_tail`: read that many bytes from the end and call again.
+   */
+  listPages(
+    tail: Uint8Array,
+    fileLen: number,
+  ): { need_tail: number } | { ok: true; pages: ZipProbe[] } | { ok: false; message: string };
   defaults: { maxArchive: number; maxEntries: number; maxEntry: number; maxTotal: number };
 }
 

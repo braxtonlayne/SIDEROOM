@@ -55,6 +55,7 @@ const R_BASIC: i64 = 3;
 fn record(id: i64, restricted: bool) -> SeriesRecord {
     SeriesRecord {
         id,
+        mount_id: 1,
         kind: SeriesKind::Manga,
         title: "Stub".into(),
         alt_titles: vec![],
@@ -117,6 +118,7 @@ impl LibraryPrefs for Hiders {
 fn chapter_record(id: i64) -> ChapterRecord {
     ChapterRecord {
         id,
+        mount_id: 1,
         series_id: if id == 90 { 9 } else { 7 },
         edition_id: 1,
         volume_id: None,

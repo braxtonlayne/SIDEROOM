@@ -70,3 +70,32 @@ Cinema equivalent: `title.json` with the matching fields.
 
 ## 3. Parser
 `sr-media::naming` and `sr-reader::naming` (pure Rust, with a fixture test suite ≥ 300 real-world names). There's a **tester** in Admin → Ingest Sources and in the upload dialog: paste names and see the parsed result.
+
+## 4. Folders in a storage mount (BYOS-CAT-001)
+The `storage.index` job reads a member's or a server's bucket (a "mount") and builds shelves from its folders. Nothing is moved or renamed; the bucket stays the member's. The first folder under the mount's prefix picks the section (names are case-insensitive); anything outside them is placed by its extension.
+
+| Folder | Section | Layout it reads |
+|---|---|---|
+| `Movies/` (`Films/`) | Cinema, films | `Movies/Alien (1979)/Alien.mp4` or `Movies/Alien (1979).mp4`; `Director's Cut` and the other cuts of section 1 apply |
+| `Series/` (`Shows/`, `TV/`) | Cinema, series | `Series/<show>/Season 01/<show> S01E02.mkv`; a file without an episode number is left out |
+| `Anime/` | Cinema, anime | as series, absolute numbering (`Show - 05`) allowed; a file without an episode number is a film; titles carry the tag `anime` |
+| `Books/` | Library, books | `Books/Dune.epub`, `Books/<author>/<title>.pdf` (EPUB, PDF) |
+| `Comics/` | Library, comics | `Comics/<series>/<series> #012.cbz` (CBZ; CBR only when `library.ingest.rar_enabled`) |
+| `Manga/` | Library, manga | `Manga/<series>/<series> v03.cbz` or `c112.cbz` (a chapter number beats a volume number) |
+| `Music/` | Music | `Music/<artist>/<album> (year)/03 - Title.flac`; `Disc 2/` and `CD2/` folders, `1-07 Title`, and flat `Artist - Title.mp3` are read |
+
+Video names go through `sr-media::naming` (S01E02, year, group and quality tags), so a title is spelled the same way here as in a submission. A `cover.jpg`, `folder.jpg` or `poster.jpg` in a title, series or album folder becomes its artwork (`backdrop.jpg` and `fanart.jpg` its backdrop). Loose chapters without a number follow the numbered ones of their series, in key order.
+
+### 4.1 Folder sidecar (optional)
+`.sideroom.json` in any folder overrides what the names say for everything below it (the nearest folder wins per field):
+```json
+{ "title": "Cowboy Bebop", "year": 1998, "kind": "anime", "tags": ["classic"],
+  "artist": "…", "album": "…", "ignore": false }
+```
+`kind` is one of `movie`, `series`, `anime`, `book`, `comic`, `manga`, `music` and forces the section; `ignore` skips the folder. A malformed file changes nothing.
+
+### 4.2 Edits survive a re-index
+Anything a member changes in the metadata editor (title, year, kind, tags, genres, synopsis, artwork, an episode's number or title) becomes an override recorded on the row; a re-index rewrites only the fields that were not edited. A row whose files disappear from the bucket is hidden, and returns, with its edits, when the files come back. Two files for one episode number keep the first indexed; a chapter number already taken moves to the next free one (the editor fixes it).
+
+### 4.3 Playing from a mount
+MP4 (H.264 or AV1 and AAC), WebM, MP3, FLAC, Ogg and the other web-native containers play from a presigned URL with range requests; MKV, HEVC and the like show "Convert to play" until the converter ships (wave 29). Fetched details carry the metadata provider's attribution text on the row and wherever it is shown.

@@ -55667,6 +55667,347 @@
         ]
       }
     },
+    "/shelves/{section}": {
+      "get": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "A page of the section's shelves.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema, library or music",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Title substring",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "movie, series, anime, manga, comic or book",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mount",
+            "in": "query",
+            "description": "Only this mount",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfListView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{section}/{shelf_item_id}": {
+      "get": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "One item with its episodes or chapters.",
+        "operationId": "get_item",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema, library or music",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_item_id",
+            "in": "path",
+            "description": "Row snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfDetailView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "Edit an item's metadata. The edited fields become overrides a re-index leaves alone.",
+        "operationId": "patch_item",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema, library or music",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_item_id",
+            "in": "path",
+            "description": "Row snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShelfPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfDetailView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}": {
+      "patch": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "Edit one episode or chapter (title, number, season).",
+        "operationId": "patch_part",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "description": "cinema or library",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_item_id",
+            "in": "path",
+            "description": "Series snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_part_id",
+            "in": "path",
+            "description": "Episode or chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfDetailView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/soundboard-default-sounds": {
       "get": {
         "tags": [
@@ -57792,6 +58133,118 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/index": {
+      "get": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "The last index run of a mount.",
+        "operationId": "index_status",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexStatusView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "shelves"
+        ],
+        "summary": "Queue an index run of a mount (the Re-index button). Answers with the last run; `queued` is false when a run\nis already queued or running.",
+        "operationId": "start_index",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexStatusView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -71042,6 +71495,10 @@
           "id": {
             "type": "string"
           },
+          "mount_id": {
+            "type": "string",
+            "description": "The storage mount holding the asset's files (1 is the instance bucket)."
+          },
           "original_deleted": {
             "type": "boolean",
             "description": "The original file is gone (retention deleted it); a re-transcode needs a new upload."
@@ -78422,6 +78879,24 @@
           }
         }
       },
+      "DetailsBody": {
+        "type": "object",
+        "description": "Which provider the details came from.",
+        "required": [
+          "provider",
+          "external_id"
+        ],
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "description": "The provider's id for the entry."
+          },
+          "provider": {
+            "type": "string",
+            "description": "`tmdb`, `anilist`, `mangadex`, `mangaupdates` or `comicvine`."
+          }
+        }
+      },
       "DeveloperApplicationObject": {
         "type": "object",
         "description": "An application. The client secret is never part of it.",
@@ -82465,6 +82940,68 @@
           "owner_id": {
             "type": "string",
             "description": "The friend who owns it (snowflake)."
+          }
+        }
+      },
+      "IndexStatusView": {
+        "type": "object",
+        "description": "Last index run of a mount.",
+        "required": [
+          "queued",
+          "state",
+          "objects",
+          "added",
+          "vanished",
+          "truncated"
+        ],
+        "properties": {
+          "added": {
+            "type": "integer",
+            "format": "int32",
+            "description": "New or changed."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The failure."
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Finished (ISO 8601)."
+          },
+          "objects": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Objects listed."
+          },
+          "queued": {
+            "type": "boolean",
+            "description": "A job was queued by this call (`false`: one is already queued or running)."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Started (ISO 8601)."
+          },
+          "state": {
+            "type": "string",
+            "description": "`idle`, `running`, `done`, `failed`, or `never` before the first run."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "The listing stopped at the cap or the time budget."
+          },
+          "vanished": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Vanished."
           }
         }
       },
@@ -89197,6 +89734,35 @@
           }
         }
       },
+      "PartPatchBody": {
+        "type": "object",
+        "description": "Body of the part editor.",
+        "properties": {
+          "number": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Episode, chapter or volume number."
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Season (episodes)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title."
+          }
+        }
+      },
       "PartUrl": {
         "type": "object",
         "description": "One presigned part URL.",
@@ -94868,6 +95434,32 @@
           "dropped"
         ]
       },
+      "ShelfDetailView": {
+        "type": "object",
+        "description": "One item with its parts.",
+        "required": [
+          "item",
+          "parts",
+          "can_edit"
+        ],
+        "properties": {
+          "can_edit": {
+            "type": "boolean",
+            "description": "The viewer may edit the metadata."
+          },
+          "item": {
+            "$ref": "#/components/schemas/ShelfItemView",
+            "description": "The card."
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfPartView"
+            },
+            "description": "Episodes or chapters, in order."
+          }
+        }
+      },
       "ShelfItem": {
         "type": "object",
         "description": "An Activity in the launcher's shelf.",
@@ -94893,6 +95485,321 @@
           }
         }
       },
+      "ShelfItemView": {
+        "type": "object",
+        "description": "One card.",
+        "required": [
+          "id",
+          "section",
+          "kind",
+          "title",
+          "subtitle",
+          "source",
+          "tags",
+          "genres",
+          "synopsis",
+          "external_ids",
+          "overridden",
+          "parts",
+          "container",
+          "web_native"
+        ],
+        "properties": {
+          "attribution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The metadata provider's attribution, to show next to fetched details."
+          },
+          "backdrop_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived URL of the backdrop."
+          },
+          "container": {
+            "type": "string",
+            "description": "Its container."
+          },
+          "external_ids": {
+            "type": "object",
+            "description": "Provider ids.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row snowflake."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`movie`, `series`, `anime`, `manga`, `comic`, `book` or `track`."
+          },
+          "object_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The file of a film, track or single book (mount-relative), for `POST /storage/mounts/{id}/presign`."
+          },
+          "overridden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields the member edited."
+          },
+          "parts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Episodes or chapters."
+          },
+          "poster_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived URL of the poster or cover."
+          },
+          "section": {
+            "type": "string",
+            "description": "`cinema`, `library` or `music`."
+          },
+          "source": {
+            "$ref": "#/components/schemas/ShelfSourceView",
+            "description": "Where it lives."
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Line under the title (a track's artist and album)."
+          },
+          "synopsis": {
+            "type": "string",
+            "description": "Synopsis."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title."
+          },
+          "web_native": {
+            "type": "boolean",
+            "description": "Plays in a browser as is; otherwise it is greyed with \"Convert to play\"."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year."
+          }
+        }
+      },
+      "ShelfListView": {
+        "type": "object",
+        "description": "A page of cards and the sources behind the chips.",
+        "required": [
+          "items",
+          "total",
+          "sources"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfItemView"
+            },
+            "description": "Cards."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfSourceView"
+            },
+            "description": "The mounts the viewer reaches for this section (the \"Shelves\" chips), even when this page shows none."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "All that match."
+          }
+        }
+      },
+      "ShelfPartView": {
+        "type": "object",
+        "description": "An episode, chapter or volume.",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "object_key",
+          "container",
+          "web_native",
+          "size"
+        ],
+        "properties": {
+          "container": {
+            "type": "string",
+            "description": "Container."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row snowflake."
+          },
+          "number": {
+            "type": "number",
+            "format": "double",
+            "description": "Episode, chapter or volume number."
+          },
+          "object_key": {
+            "type": "string",
+            "description": "The file (mount-relative)."
+          },
+          "season": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Season (episodes)."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title."
+          },
+          "web_native": {
+            "type": "boolean",
+            "description": "Plays in a browser as is."
+          }
+        }
+      },
+      "ShelfPatchBody": {
+        "type": "object",
+        "description": "Body of the editor. Every field present is written and becomes an override.",
+        "properties": {
+          "album": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Album (tracks)."
+          },
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist (tracks)."
+          },
+          "backdrop_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Backdrop (Cinema); `null` clears."
+          },
+          "details": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DetailsBody",
+                "description": "Details fetched from a provider through `GET /submissions/lookup`: stores the provider's id and its\nattribution text."
+              }
+            ]
+          },
+          "genres": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`movie`, `series`, `anime` (Cinema); `manga`, `comic`, `book` (Library)."
+          },
+          "poster_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Poster or cover: a key on the same mount; `null` clears."
+          },
+          "synopsis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Synopsis (at most 4000 characters)."
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags (lower-cased, at most 30)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title (1 to 300 characters)."
+          },
+          "track_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Track number (tracks); `null` clears."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year; `null` clears."
+          }
+        }
+      },
       "ShelfResponse": {
         "type": "object",
         "required": [
@@ -94909,6 +95816,43 @@
             "items": {
               "$ref": "#/components/schemas/ShelfItem"
             }
+          }
+        }
+      },
+      "ShelfSourceView": {
+        "type": "object",
+        "description": "How the viewer reaches a mount: the chip on a card.",
+        "required": [
+          "mount_id",
+          "label",
+          "scope"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server (`guild`)."
+          },
+          "label": {
+            "type": "string",
+            "description": "The mount's label."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "Mount snowflake."
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The friend who owns the mount (`friend`), or the owner of a user mount."
+          },
+          "scope": {
+            "type": "string",
+            "description": "`own`, `friend`, `guild` or `staff`."
           }
         }
       },

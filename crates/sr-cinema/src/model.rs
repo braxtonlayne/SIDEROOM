@@ -248,6 +248,9 @@ pub struct TitleInput {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TitleRecord {
     pub id: i64,
+    /// The storage mount holding this row's objects (1 is the instance bucket). Media URLs and reads go
+    /// through it (`MountStorages::for_mount`), never through the instance handle.
+    pub mount_id: i64,
     pub kind: TitleKind,
     pub title: String,
     pub original_title: Option<String>,
@@ -402,6 +405,9 @@ pub struct EpisodeInput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpisodeRecord {
     pub id: i64,
+    /// The storage mount holding this row's objects (1 is the instance bucket). Media URLs and reads go
+    /// through it (`MountStorages::for_mount`), never through the instance handle.
+    pub mount_id: i64,
     pub title_id: i64,
     pub season_id: i64,
     pub season_number: i32,

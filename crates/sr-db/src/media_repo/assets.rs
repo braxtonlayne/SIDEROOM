@@ -17,7 +17,7 @@ use sr_media::worker_api::{
 
 fn asset_cols() -> String {
     format!(
-        "id, title_id, episode_id, uploaded_by, state, error, filename, original_key, original_ext, \
+        "id, mount_id, title_id, episode_id, uploaded_by, state, error, filename, original_key, original_ext, \
          original_size, original_tier, (original_deleted_at IS NOT NULL) AS original_deleted, \
          original_downloads, auto_ladder, duration_ms, profile_version, hls_prefix, proxy_key, \
          (proxy_key IS NOT NULL) AS has_proxy, {}, {}, {}",
@@ -32,6 +32,7 @@ fn asset_from_row(r: &PgRow) -> MediaResult<Asset> {
     let hls_prefix: Option<String> = r.try_get("hls_prefix").map_err(be)?;
     Ok(Asset {
         id: r.try_get("id").map_err(be)?,
+        mount_id: r.try_get("mount_id").map_err(be)?,
         title_id: r.try_get("title_id").map_err(be)?,
         episode_id: r.try_get("episode_id").map_err(be)?,
         uploaded_by: r.try_get("uploaded_by").map_err(be)?,
@@ -613,6 +614,7 @@ impl MediaRepository for PgMediaRepo {
             });
         Ok(Some(AssetPlayback {
             asset_id,
+            mount_id: asset.mount_id,
             base_path,
             duration_secs,
             profile_version,
