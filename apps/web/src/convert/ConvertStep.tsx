@@ -7,7 +7,8 @@ import { Button, Checkbox, Notice } from '@sideroom/ui';
 import { useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { ConvertProgressBar } from './ConvertProgress';
-import { decide, getConverter, getTranscoder } from './index';
+import { decide, getConverter } from './index';
+import { planWithWebCodecs, transcodeInTab } from './webcodecsBridge';
 import {
   ConvertError,
   type ConvertedFile,
@@ -122,7 +123,15 @@ export function ConvertStep({
       });
       try {
         const probe = await conv.probe(file, opts);
-        const decision = decide(probe, file);
+        // conv-webcodecs's table first (when its module is in the build), else the built-in remux-or-worker rule.
+        const wcPlan = await planWithWebCodecs(probe, file);
+        const decision: Decision = wcPlan
+          ? wcPlan.path === 'webcodecs'
+            ? { route: 'webcodecs', reason: 'webcodecs' }
+            : wcPlan.path === 'remux'
+              ? decide(probe, file)
+              : { route: wcPlan.path, reason: wcPlan.path }
+          : decide(probe, file);
         if (decision.route === 'native') {
           native.push(file);
           setRow(i, { state: 'native' });
@@ -134,11 +143,8 @@ export function ConvertStep({
         if (decision.route === 'remux') {
           const r = await conv.remux(file, { ...opts, probe });
           output = r.output;
-        } else if (decision.route === 'webcodecs' && getTranscoder()) {
-          const tc = getTranscoder()!;
-          output = await conv.withInput(file, opts, (engine, inputPath) =>
-            tc.run({ file, probe, options: opts, engine, inputPath }),
-          );
+        } else if (decision.route === 'webcodecs' && wcPlan) {
+          output = await transcodeInTab(conv, file, probe, wcPlan, opts);
         } else {
           // `ffmpeg-transcode` and `worker`: not something a remux can do; say so with the reason.
           throw new ConvertError(
