@@ -1,5 +1,5 @@
 import { Button, EmptyState, FilterChips, Notice, PosterCard, TextInput } from '@sideroom/ui';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import { listShelf, shelfKeys, type ShelfItem, type ShelfSection } from './api';
@@ -60,6 +60,8 @@ export function ShelfList({ section }: { section: ShelfSection }) {
       return shown < last.total ? shown : undefined;
     },
     retry: false,
+    // Keep the cards and the Shelves chips on screen while a filter loads, so the chips do not blink away.
+    placeholderData: keepPreviousData,
   });
   const pages = list.data?.pages ?? [];
   const items = pages.flatMap((p) => p.items);
@@ -102,7 +104,7 @@ export function ShelfList({ section }: { section: ShelfSection }) {
         />
       )}
       {list.isPending && <p className="shv-muted">{t('shelves.loading')}</p>}
-      {list.isError && <Notice variant="error">{t('shelves.error')}</Notice>}
+      {list.isError && <Notice variant="danger">{t('shelves.error')}</Notice>}
       {list.isSuccess && items.length === 0 && (
         <EmptyState
           title={noFilter ? t('shelves.empty.title') : t('shelves.noMatch')}
@@ -111,6 +113,7 @@ export function ShelfList({ section }: { section: ShelfSection }) {
       )}
       {items.length > 0 && (
         <>
+          <h2 className="shv-visually-hidden">{t('shelves.results')}</h2>
           <p className="shv-muted" aria-live="polite">
             {t('shelves.count', { shown: items.length, total })}
           </p>

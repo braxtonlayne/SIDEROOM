@@ -31,7 +31,7 @@ export function PresignedReader({
       alive = false;
     };
   }, [mountId, objectKey]);
-  if (failed) return <Notice variant="error">{t('shelves.reader.failed')}</Notice>;
+  if (failed) return <Notice variant="danger">{t('shelves.reader.failed')}</Notice>;
   if (!url) return <Spinner label={t('shelves.reader.loading')} />;
   // No `chapter`: a shelf book has no row in the instance's progress tables, so nothing is saved.
   return kind === 'epub' ? (

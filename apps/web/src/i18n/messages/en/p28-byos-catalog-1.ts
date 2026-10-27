@@ -6,7 +6,8 @@ export default {
   'shelves.title.music': 'Shelves',
   'shelves.sub.cinema':
     'Films and shows found in the buckets you and your friends connect, read from their folders.',
-  'shelves.sub.library': 'Books, comics and manga found in connected buckets, read from their folders.',
+  'shelves.sub.library':
+    'Books, comics and manga found in connected buckets, read from their folders.',
   'shelves.sub.music': 'Tracks found in connected buckets, read from their folders.',
   'shelves.search': 'Search shelves',
   'shelves.filter.shelves': 'Shelves',
@@ -33,6 +34,7 @@ export default {
     'Connect a bucket in Settings > Storage, put files in folders such as Movies, Series, Manga or Music, and press Re-index.',
   'shelves.noMatch': 'Nothing matches that search.',
   'shelves.more': 'Load more',
+  'shelves.results': 'Results',
   'shelves.count': '{shown} of {total}',
   'shelves.parts.episodes': '{count} episodes',
   'shelves.parts.chapters': '{count} chapters',
@@ -46,7 +48,8 @@ export default {
   'shelves.convertHint':
     'This file needs converting before a browser can play it. Conversion arrives in a later update.',
   'shelves.linkExpired': 'The link expired. Press the button again.',
-  'shelves.cors': 'This bucket has not passed its browser access check yet. Check it in Settings > Storage.',
+  'shelves.cors':
+    'This bucket has not passed its browser access check yet. Check it in Settings > Storage.',
   'shelves.playFailed': 'Could not open that file',
   'shelves.episodes': 'Episodes',
   'shelves.chapters': 'Chapters',

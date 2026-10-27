@@ -96,13 +96,17 @@ export function CbzReader({
     [],
   );
 
-  if (failed) return <Notice variant="error">{t('shelves.reader.failed')}</Notice>;
+  if (failed) return <Notice variant="danger">{t('shelves.reader.failed')}</Notice>;
   if (!book) return <Spinner label={t('shelves.reader.loading')} />;
   const last = book.pages.length - 1;
   return (
     <section className="shv-reader" aria-label={title}>
       {src ? (
-        <img className="shv-page-img" src={src} alt={t('shelves.reader.page', { n: index + 1, total: book.pages.length })} />
+        <img
+          className="shv-page-img"
+          src={src}
+          alt={t('shelves.reader.page', { n: index + 1, total: book.pages.length })}
+        />
       ) : (
         <Spinner label={t('shelves.reader.loading')} />
       )}
@@ -110,7 +114,9 @@ export function CbzReader({
         <Button variant="secondary" disabled={index <= 0} onClick={() => setIndex(index - 1)}>
           {t('shelves.reader.prev')}
         </Button>
-        <span aria-live="polite">{t('shelves.reader.page', { n: index + 1, total: book.pages.length })}</span>
+        <span aria-live="polite">
+          {t('shelves.reader.page', { n: index + 1, total: book.pages.length })}
+        </span>
         <Button variant="secondary" disabled={index >= last} onClick={() => setIndex(index + 1)}>
           {t('shelves.reader.next')}
         </Button>

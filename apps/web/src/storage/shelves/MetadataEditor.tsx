@@ -211,7 +211,7 @@ export function MetadataEditor({ detail, onSaved }: { detail: ShelfDetail; onSav
         </div>
       )}
 
-      {message && <Notice variant={message.ok ? 'success' : 'error'}>{message.text}</Notice>}
+      {message && <Notice variant={message.ok ? 'success' : 'danger'}>{message.text}</Notice>}
       <div className="shv-actions">
         <Button type="submit" loading={save.isPending}>
           {t('shelves.editor.save')}
@@ -310,7 +310,7 @@ function PartRow({
       >
         {t('shelves.editor.partSave', { label })}
       </Button>
-      {err && <Notice variant="error">{err}</Notice>}
+      {err && <Notice variant="danger">{err}</Notice>}
     </li>
   );
 }

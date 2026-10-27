@@ -34,6 +34,7 @@ function stub(answers: ArchivePrecheck[]): LibraryApi & { calls: number[] } {
   return {
     calls,
     firstTail: 16,
+    listPages: () => ({ ok: false, message: 'not used' }),
     defaults: { maxArchive: 0, maxEntries: 0, maxEntry: 0, maxTotal: 0 },
     precheck: (_h, tail) => {
       calls.push(tail.length);

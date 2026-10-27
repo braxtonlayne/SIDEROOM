@@ -39,7 +39,8 @@ export function ShelfPlayer({
         if (!live()) return;
         const media = el.current;
         if (media && !media.paused) resume.current = { at: media.currentTime, playing: true };
-        else if (media && media.currentTime > 0) resume.current = { at: media.currentTime, playing: false };
+        else if (media && media.currentTime > 0)
+          resume.current = { at: media.currentTime, playing: false };
         setUrl(p.url);
         setError(null);
         const wait = Date.parse(p.expires_at) - Date.now() - REFRESH_BEFORE_MS;
@@ -75,7 +76,7 @@ export function ShelfPlayer({
     if (r.playing) void media.play().catch(() => undefined);
   };
 
-  if (error) return <Notice variant="error">{error}</Notice>;
+  if (error) return <Notice variant="danger">{error}</Notice>;
   if (!url) return <Spinner label={t('shelves.loading')} />;
   const common = {
     ref: el,

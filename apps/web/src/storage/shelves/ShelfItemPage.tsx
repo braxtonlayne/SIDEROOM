@@ -89,7 +89,10 @@ export function ShelfItemPage({ section, id }: { section: ShelfSection; id: stri
   const reindex = useMutation({
     mutationFn: () => startIndex(mountId ?? ''),
     onSuccess: (s) => {
-      setNote({ ok: true, text: s.queued ? t('shelves.reindexQueued') : t('shelves.reindexRunning') });
+      setNote({
+        ok: true,
+        text: s.queued ? t('shelves.reindexQueued') : t('shelves.reindexRunning'),
+      });
       qc.setQueryData(shelfKeys.index(mountId ?? ''), s);
     },
     onError: (e) =>
@@ -151,7 +154,9 @@ export function ShelfItemPage({ section, id }: { section: ShelfSection; id: stri
           )}
           {item.synopsis && <p>{item.synopsis}</p>}
           {item.attribution && (
-            <p className="shv-attribution">{t('shelves.attribution', { text: item.attribution })}</p>
+            <p className="shv-attribution">
+              {t('shelves.attribution', { text: item.attribution })}
+            </p>
           )}
           {item.overridden.length > 0 && <p className="shv-attribution">{t('shelves.edited')}</p>}
           <div className="shv-actions">
@@ -180,7 +185,7 @@ export function ShelfItemPage({ section, id }: { section: ShelfSection; id: stri
               </>
             )}
           </div>
-          {note && <Notice variant={note.ok ? 'info' : 'error'}>{note.text}</Notice>}
+          {note && <Notice variant={note.ok ? 'info' : 'danger'}>{note.text}</Notice>}
           {last && (
             <p className="shv-attribution">
               {t('shelves.reindexLast', {
@@ -224,11 +229,15 @@ export function ShelfItemPage({ section, id }: { section: ShelfSection; id: stri
         </section>
       )}
 
-      {editing && detail.can_edit && <MetadataEditor key={String(item.overridden)} detail={detail} />}
+      {editing && detail.can_edit && (
+        <MetadataEditor key={String(item.overridden)} detail={detail} />
+      )}
 
       {parts.length > 0 && (
         <section aria-labelledby="shv-parts-h">
-          <h2 id="shv-parts-h">{t(section === 'cinema' ? 'shelves.episodes' : 'shelves.chapters')}</h2>
+          <h2 id="shv-parts-h">
+            {t(section === 'cinema' ? 'shelves.episodes' : 'shelves.chapters')}
+          </h2>
           <ul className="shv-parts">
             {parts.map((p) => (
               <li key={p.id} className="shv-part" data-current={opened?.key === p.object_key}>
