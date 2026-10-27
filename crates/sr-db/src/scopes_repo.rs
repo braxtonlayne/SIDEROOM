@@ -369,8 +369,10 @@ impl ScopeFacts for PgScopeFacts {
         Ok(Vec::new())
     }
 
-    async fn delisted(&self, _mount_id: i64, _keys: &[String]) -> Result<Vec<String>, FactsError> {
-        // Delisting arrives with BYOS-LEG-001 (wave 28); until then nothing is delisted.
-        Ok(Vec::new())
+    async fn delisted(&self, mount_id: i64, keys: &[String]) -> Result<Vec<String>, FactsError> {
+        // BYOS-LEG-001: the keys of an upheld takedown notice (register item kind `storage_object`).
+        crate::storage_legal::delisted_keys(&self.pool, mount_id, keys)
+            .await
+            .map_err(|e| FactsError(e.to_string()))
     }
 }

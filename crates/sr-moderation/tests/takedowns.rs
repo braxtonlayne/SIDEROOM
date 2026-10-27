@@ -296,6 +296,7 @@ impl World {
                     &NewItem {
                         kind: *kind,
                         id: *id,
+                        key: None,
                     },
                 )
                 .await
@@ -577,6 +578,7 @@ async fn holding_first_shows_held_and_upholding_still_works() {
             &NewItem {
                 kind: ItemKind::Message,
                 id: extra,
+                key: None,
             },
         )
         .await
@@ -599,7 +601,8 @@ async fn holding_first_shows_held_and_upholding_still_works() {
             id,
             &NewItem {
                 kind: ItemKind::LibraryChapter,
-                id: chapter
+                id: chapter,
+                key: None
             }
         )
         .await,
@@ -1005,8 +1008,16 @@ async fn unknown_content_is_not_found() {
         ItemKind::CinemaEpisode,
     ] {
         assert!(matches!(
-            w.m.add_item(&who, d.summary.id, &NewItem { kind, id: uid() })
-                .await,
+            w.m.add_item(
+                &who,
+                d.summary.id,
+                &NewItem {
+                    kind,
+                    id: uid(),
+                    key: None
+                }
+            )
+            .await,
             Err(ModError::NotFound(_))
         ));
     }

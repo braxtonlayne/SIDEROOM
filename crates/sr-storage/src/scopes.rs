@@ -365,6 +365,10 @@ pub async fn access(
     if mount.status == MountStatus::Disabled {
         return Err(Refused::Disabled.into());
     }
+    // A whole-mount delisting binds everyone, the owner and staff included.
+    if mount.status == MountStatus::Delisted {
+        return Err(Refused::Delisted.into());
+    }
     if !facts.owner_active(mount.owner).await? {
         return Err(Refused::OwnerInactive.into());
     }
@@ -1019,6 +1023,23 @@ mod tests {
             staff: true,
         };
         assert_eq!(go(&f, s, &m, "a.mp3").await, Err(Refused::Disabled));
+    }
+
+    #[tokio::test]
+    async fn a_delisted_mount_is_refused_for_everyone_the_owner_and_staff_included() {
+        let f = MemoryScopeFacts::new();
+        let mut m = mount(MountOwner::User(OWNER));
+        m.status = MountStatus::Delisted;
+        assert_eq!(
+            go(&f, viewer(OWNER), &m, "a.mp3").await,
+            Err(Refused::Delisted)
+        );
+        let s = Viewer {
+            id: 99,
+            staff: true,
+        };
+        assert_eq!(go(&f, s, &m, "a.mp3").await, Err(Refused::Delisted));
+        assert_eq!(go(&f, s, &m, "").await, Err(Refused::Delisted));
     }
 
     #[tokio::test]

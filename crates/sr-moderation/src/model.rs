@@ -551,6 +551,8 @@ text_enum! {
         LibraryChapter => "library_chapter",
         CinemaTitle => "cinema_title",
         CinemaEpisode => "cinema_episode",
+        // An object in a member's own bucket (BYOS-LEG-001): delisted, never deleted. `target_id` is the mount.
+        StorageObject => "storage_object",
     }
 }
 
@@ -587,9 +589,13 @@ pub struct NewNotice {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct NewItem {
     pub kind: ItemKind,
+    /// The content id; for `storage_object` the mount id.
     #[serde(with = "id")]
     #[schema(value_type = String)]
     pub id: i64,
+    /// For `storage_object` only: the mount-relative object key. Required there, refused for any other kind.
+    #[serde(default)]
+    pub key: Option<String>,
 }
 
 /// One content item of a notice.
@@ -603,6 +609,9 @@ pub struct TakedownItem {
     #[schema(value_type = String)]
     pub target_id: i64,
     pub label: String,
+    /// For `storage_object`: the mount-relative key that was delisted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_key: Option<String>,
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub subject_account_id: Option<i64>,

@@ -44,6 +44,9 @@ pub struct DeletionReport {
     /// Object keys (`avatars/<user>/<hash>`) of the profile page pictures the account had (K-17), for
     /// the media pipeline to delete.
     pub profile_media_keys: Vec<String>,
+    /// Storage mounts (user-owned buckets) that were soft-deleted with their sealed secrets wiped
+    /// (BYOS-LEG-001). The objects stay in the member's own bucket.
+    pub mounts_erased: i64,
 }
 
 /// Why a deletion did not happen.
@@ -173,6 +176,9 @@ pub async fn delete_account(
     .await?
     .rows_affected();
     report.invites_revoked = i32::try_from(revoked).unwrap_or(i32::MAX);
+
+    // BYOS-LEG-001: the member's bucket connections go with the account; the bucket and its objects are theirs.
+    report.mounts_erased = crate::storage_legal::erase_for(&mut tx, id).await?.mounts;
 
     // Credentials and sessions.
     sqlx::query("UPDATE sessions SET revoked_at = now(), updated_at = now() WHERE account_id = $1 AND revoked_at IS NULL")

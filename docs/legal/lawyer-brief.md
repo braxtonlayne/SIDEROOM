@@ -145,6 +145,34 @@ Every default below is the project's own, taken "by default (owner-delegated)" u
 - **Default and where.** `IP_WINDOW_DAYS` = 180 in `crates/sr-moderation/src/suspicion_rules.rs`, enforced by the daily job `moderation.suspicion_housekeeping`; no hold exception; a confirmed signal keeps counts and dates, never an address.
 - **If the answer differs.** The window is a code constant; naming the review in the privacy summary is copy in doc 09 and the privacy page.
 
+## Part E. Features of the feature phase (roadmap-p27, section 20)
+
+These four were added by wave 28 (byos-legal) from [the roadmap](../dev/roadmap-p27.md) section 20, so the lawyer sees them with the rest. Q20 is built in wave 28 (BYOS-LEG-001); the features behind Q21 (the Discord bridge, wave 35), Q22 (metadata providers, waves 29 and 30) and Q23 (the emulator, waves 36 to 38) are not built yet and run on the defaults below. Q24 and Q26 belong to the deferred game servers (D-383) and are kept in the roadmap until wave 38 is resumed.
+
+### Q20. User-owned buckets: brokered access, takedown and delisting (BYOS-LEG-001, D-380)
+
+- **Question.** Friend and guild shelves mean the platform brokers access to media it does not store (scoped, short-lived presigned links to a member's own bucket). Does brokering make the operator a host or an intermediary for that content? Is delisting (hiding the catalog rows and refusing the links, because the bytes belong to the member and deleting them is not in the operator's power) an adequate response to a notice? Does a whole-mount delisting, applied by staff, change the answer?
+- **Default and where.** The takedown register has the item kind `storage_object` (`crates/sr-moderation/src/takedowns.rs`, migration 1460). An upheld notice delists the object (`crates/sr-storage/src/scopes.rs` refuses the key, whoever asks, the owner too), the owner gets the same direct message as an uploader (D-336 (c)), a counter-notice restores on the existing ten-business-day clock, and the strike counts against the owner's Person as for an upload. Staff may delist a whole mount (status `delisted`, reason required, the owner told why). A platform ban or a suspension refuses every mount of the account until it is lifted. A data-subject export lists the member's mounts (labels, buckets, counts, shares; no keys) and erasure soft-deletes them and wipes the sealed secret keys. The operator's own instance bucket is mount 1, so nothing changes for staff-uploaded media.
+- **If the answer differs.** If brokering makes the operator a host, a notice must also stop the presign path for the whole bucket and not only the key (a setting in code); if deletion were expected, the platform would need write credentials to member buckets, which the design deliberately avoids.
+
+### Q21. The Discord bridge privacy notice (BRG-UI-001, D-381)
+
+- **Question.** Mirroring sends members' names, avatars (a 24-hour signed URL) and messages to Discord Inc. and shows Discord users' names and messages here. Are a channel banner, a system message and the privacy page an adequate notice? Is a per-member opt-out enough, or is consent needed before a channel is mapped? What retention applies to the message map?
+- **Default and where.** Banner, system message, privacy page and per-channel opt-out; the module is off on every server and only the server owner switches it on; map rows are kept with the messages; erasure deletes the webhook messages the bridge posted. Built in wave 35.
+- **If the answer differs.** Consent before mapping adds a prompt to each member of a mapped channel; a shorter map retention is a job setting.
+
+### Q22. Metadata-provider terms (BYOS-CAT-001, MUS-IDX-001)
+
+- **Question.** The lookup calls TMDB, AniList, MangaDex, MangaUpdates and ComicVine, and wave 30 adds MusicBrainz (no key, one request a second, a user agent naming the instance). TMDB's terms allow free use for non-commercial purposes and require attribution: does an instance that sells Patron tiers count as commercial? Do the terms of MangaDex and ComicVine allow caching covers?
+- **Default and where.** Attribution text and logo on every page that shows fetched metadata (`lookup.attribution` on the row); covers cached as thumbnails only; each provider can be switched off with `review.lookup.enabled`.
+- **If the answer differs.** A commercial finding means a commercial TMDB agreement or turning TMDB off; cover caching is a job setting.
+
+### Q23. Emulator cores and BIOS (ACT-EMU-001, ACT-EMU-003)
+
+- **Question.** The cores are GPL-2.0, GPL-3.0 and MPL-2.0, served as separate files, and the web bundle is served to members, so the distribution caveat of D-309 applies in full (the corresponding-source offer of Q3 would now cover ffmpeg.wasm and the cores). Is a link to each project's source plus the exact build set an adequate offer? The PS1 BIOS is Sony's copyright and is never shipped or stored (the member supplies it from their own bucket and it is hash-checked): does hash-checking a member's BIOS create any exposure?
+- **Default and where.** No BIOS on the instance; the shell refuses unknown hashes; the member handbook says only ROMs the member owns, or homebrew, are legal to play. Built in waves 36 to 38.
+- **If the answer differs.** A stricter finding removes the PS1 core or the hash check; the source offer is text on `/help`.
+
 ## Considered, no question
 
 D-351 (a demoted automatic case stays listed in the suspicion panel) changes only where staff find the case. It stores nothing that Q19 does not already cover, so it adds no question for the lawyer.

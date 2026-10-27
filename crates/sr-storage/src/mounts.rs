@@ -146,6 +146,8 @@ text_enum! {
         Failing => "failing",
         /// Switched off by the owner or staff.
         Disabled => "disabled",
+        /// Taken down by staff (BYOS-LEG-001): nothing of the mount is served, whoever asks. Only staff clear it.
+        Delisted => "delisted",
     }
 }
 

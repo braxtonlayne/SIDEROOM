@@ -489,10 +489,18 @@ async fn global_rate_limit_sets_global_header() {
 #[tokio::test]
 async fn security_headers_on_every_response() {
     let f = fixture();
-    for p in ["/healthz", "/api/v1/openapi.json", "/nope"] {
+    for p in [
+        "/healthz",
+        "/api/v1/openapi.json",
+        "/nope",
+        "/cdn/none",
+        "/developers/",
+        "/gateway",
+    ] {
         let (_, h, _) = send(&app(&f), get_req(p)).await;
         assert_eq!(h["x-content-type-options"], "nosniff", "{p}");
         assert_eq!(h["referrer-policy"], "no-referrer", "{p}");
+        assert_eq!(h["x-robots-tag"], "noindex, nofollow", "{p}");
         assert!(
             h["content-security-policy"]
                 .to_str()

@@ -279,6 +279,8 @@ pub struct ErasureReport {
     pub avatar_key: Option<String>,
     pub banner_key: Option<String>,
     pub profile_media_keys: Vec<String>,
+    /// Storage mounts soft-deleted, their sealed secrets wiped (BYOS-LEG-001).
+    pub mounts_erased: i64,
     /// Messages and attachments kept because a moderation hold covers them.
     pub held_rows: i64,
     /// The holds that keep them, flagged for a decision (MOD-DSR-005): how many.
@@ -409,6 +411,12 @@ pub fn erasure_outcome(report: &ErasureReport, invoice_years: u8) -> String {
             .join("; "),
     );
     s.push('.');
+    if report.mounts_erased > 0 {
+        s.push_str(&format!(
+            " {} storage connection(s) removed and their secret keys wiped; the objects stay in the member's own bucket.",
+            report.mounts_erased
+        ));
+    }
     if report.held_rows > 0 {
         s.push_str(&format!(
             " {} held row(s) stay while their hold lasts (D-122); the request does not release them.",

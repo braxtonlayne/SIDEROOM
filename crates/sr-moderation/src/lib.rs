@@ -26,6 +26,7 @@ pub mod service;
 pub mod snapshot;
 mod suspicion;
 pub mod suspicion_rules;
+mod takedown_mounts;
 pub mod takedown_rules;
 mod takedowns;
 
