@@ -140,6 +140,7 @@ fn worker_service(repo: Arc<PgMediaRepo>, now: Arc<std::sync::atomic::AtomicU64>
         downloads: Arc::new(CdnSigner::new(b"secret".to_vec())),
         clock: Arc::new(move || now.load(Ordering::SeqCst)),
         config: ServiceConfig::default(),
+        mounts: None,
     }
 }
 
@@ -349,10 +350,14 @@ async fn claim_orders_by_priority_is_exclusive_and_keeps_leases() {
     // Three claimers race for three jobs: each gets a different one, best first.
     let kinds = [JobKind::Ladder];
     let (r1, r2, r3, r4) = tokio::join!(
-        w.repo.claim_next(&worker.worker_id, &kinds, 1000, 120),
-        w.repo.claim_next(&worker.worker_id, &kinds, 1000, 120),
-        w.repo.claim_next(&worker.worker_id, &kinds, 1000, 120),
-        w.repo.claim_next(&worker.worker_id, &kinds, 1000, 120),
+        w.repo
+            .claim_next(&worker.worker_id, &kinds, TokenScope::Instance, 1000, 120),
+        w.repo
+            .claim_next(&worker.worker_id, &kinds, TokenScope::Instance, 1000, 120),
+        w.repo
+            .claim_next(&worker.worker_id, &kinds, TokenScope::Instance, 1000, 120),
+        w.repo
+            .claim_next(&worker.worker_id, &kinds, TokenScope::Instance, 1000, 120),
     );
     let mut got: Vec<String> = [r1, r2, r3, r4]
         .into_iter()
@@ -409,7 +414,7 @@ async fn claim_orders_by_priority_is_exclusive_and_keeps_leases() {
     let mut order = Vec::new();
     while let Some(j) = w2
         .repo
-        .claim_next(&wk.worker_id, &kinds, 1000, 120)
+        .claim_next(&wk.worker_id, &kinds, TokenScope::Instance, 1000, 120)
         .await
         .unwrap()
     {
@@ -454,7 +459,7 @@ async fn claim_orders_by_priority_is_exclusive_and_keeps_leases() {
     for round in 2..=3u32 {
         let j = w2
             .repo
-            .claim_next(&wk.worker_id, &kinds, 2000, 120)
+            .claim_next(&wk.worker_id, &kinds, TokenScope::Instance, 2000, 120)
             .await
             .unwrap()
             .unwrap();
@@ -489,7 +494,7 @@ async fn claim_orders_by_priority_is_exclusive_and_keeps_leases() {
         .unwrap();
     let c = w2
         .repo
-        .claim_next(&wk.worker_id, &kinds, 3000, 120)
+        .claim_next(&wk.worker_id, &kinds, TokenScope::Instance, 3000, 120)
         .await
         .unwrap()
         .unwrap();
@@ -509,7 +514,7 @@ async fn claim_orders_by_priority_is_exclusive_and_keeps_leases() {
         FailOutcome::Requeued
     );
     w2.repo
-        .claim_next(&wk.worker_id, &kinds, 3000, 120)
+        .claim_next(&wk.worker_id, &kinds, TokenScope::Instance, 3000, 120)
         .await
         .unwrap()
         .unwrap();
@@ -1153,4 +1158,201 @@ async fn original_downloads_need_the_staff_switch() {
             .await
             .is_err()
     );
+}
+
+// ---- BYOS-CNV-003 (own block): mount_transcode jobs and mount-scoped worker tokens ----------------------
+
+async fn register_worker(w: &World, info: &TokenInfo, name: &str) -> String {
+    w.repo
+        .upsert_worker(
+            info,
+            &RegisterRequest {
+                name: name.into(),
+                version: "1".into(),
+                capabilities: WorkerCapabilities::default(),
+            },
+            1000,
+        )
+        .await
+        .unwrap()
+        .worker_id
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_members_worker_token_claims_only_its_own_mounts_jobs() {
+    use sr_media::mount_job::{MountFormat, MountPreset};
+    let w = world(probe_ok()).await;
+    let admin = account(&w.pool).await;
+    let t7 = w
+        .svc
+        .create_mount_token(admin, "member-7", 7)
+        .await
+        .unwrap();
+    let t8 = w
+        .svc
+        .create_mount_token(admin, "member-8", 8)
+        .await
+        .unwrap();
+    let op = w.svc.create_token(admin, "operator").await.unwrap();
+    assert_eq!(t7.token.scope, "mount:7");
+    assert_eq!(op.token.scope, "instance");
+    let auth = |secret: String| {
+        let repo = w.repo.clone();
+        async move {
+            repo.authenticate(&token_hash(&secret))
+                .await
+                .unwrap()
+                .unwrap()
+        }
+    };
+    let (i7, i8, io) = (
+        auth(t7.secret.clone()).await,
+        auth(t8.secret.clone()).await,
+        auth(op.secret.clone()).await,
+    );
+    assert_eq!(i7.scope, TokenScope::Mount(7));
+    assert_eq!(io.scope, TokenScope::Instance);
+    let (w7, w8, wo) = (
+        register_worker(&w, &i7, "box7").await,
+        register_worker(&w, &i8, "box8").await,
+        register_worker(&w, &io, "ops").await,
+    );
+
+    // A private job of mount 7 (the operator did not offer its workers), a shared one of mount 9, a ladder.
+    let private = w
+        .svc
+        .queue_mount_transcode(
+            7,
+            "Films/a.mkv",
+            10,
+            MountFormat::Mp4,
+            MountPreset::Low,
+            false,
+        )
+        .await
+        .unwrap();
+    let shared = w
+        .svc
+        .queue_mount_transcode(
+            9,
+            "Films/b.mkv",
+            10,
+            MountFormat::Hls,
+            MountPreset::High,
+            true,
+        )
+        .await
+        .unwrap();
+    let asset = upload(&w, admin, true).await;
+    let ladder = w
+        .repo
+        .enqueue(new_job(asset.id, ladder_spec(), 5))
+        .await
+        .unwrap();
+    let all = JobKind::ALL;
+
+    // Mount 8's token: nothing, whatever kinds it asks for.
+    assert!(
+        w.repo
+            .claim_next(&w8, &all, i8.scope, 1000, 120)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    // The operator's token: the shared mount job and the ladder, never the private job.
+    let mut got = Vec::new();
+    while let Some(j) = w
+        .repo
+        .claim_next(&wo, &all, io.scope, 1000, 120)
+        .await
+        .unwrap()
+    {
+        got.push(j.job_id);
+    }
+    got.sort();
+    let mut want = vec![shared.clone(), ladder.clone()];
+    want.sort();
+    assert_eq!(got, want);
+    // Mount 7's token: its private job only (not mount 9's, not the ladder).
+    let j = w
+        .repo
+        .claim_next(&w7, &all, i7.scope, 1000, 120)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(j.job_id, private);
+    assert_eq!(j.spec.mount_id(), Some(7));
+    assert!(
+        w.repo
+            .claim_next(&w7, &all, i7.scope, 1000, 120)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // Finishing records what the member's player opens.
+    w.repo
+        .complete_job(
+            &private,
+            &w7,
+            &CompleteRequest {
+                outputs: vec![OutputRef {
+                    path: "proxy/480p.mp4".into(),
+                    size: 5,
+                }],
+                segment_index: Vec::new(),
+                encoder: "libx264".into(),
+                wall_secs: 1.0,
+                log_tail: None,
+            },
+        )
+        .await
+        .unwrap();
+    let (entry, prefix): (String, String) = sqlx::query_as(
+        "SELECT entry, prefix FROM storage_object_transcodes WHERE mount_id = 7 AND key = 'Films/a.mkv'",
+    )
+    .fetch_one(&w.pool)
+    .await
+    .unwrap();
+    assert_eq!(entry, "proxy/480p.mp4");
+    assert_eq!(prefix, "transcoded/Films/a.mkv/");
+
+    // The jobs of one mount list by mount; a token revokes only through its own mount.
+    let listed = w.svc.mount_jobs(7, 10).await.unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].mount_id, Some(7));
+    let id7: i64 = t7.token.id;
+    assert!(w.svc.revoke_mount_token(8, id7).await.is_err());
+    assert_eq!(w.svc.mount_tokens(7).await.unwrap().len(), 1);
+    w.svc.revoke_mount_token(7, id7).await.unwrap();
+    assert!(
+        w.repo
+            .authenticate(&token_hash(&t7.secret))
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_database_refuses_a_malformed_token_scope_and_a_mount_job_without_a_mount() {
+    let w = world(probe_ok()).await;
+    let bad = sqlx::query(
+        "INSERT INTO worker_tokens (id, name, token_sha256, scope) VALUES ($1, 'x', $2, 'guild:3')",
+    )
+    .bind(next_id())
+    .bind("0".repeat(64))
+    .execute(&w.pool)
+    .await;
+    assert!(bad.is_err(), "scope must be instance or mount:<id>");
+    let bad = sqlx::query(
+        "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext) \
+         VALUES ($1, 0, 'mount_transcode', '{}'::jsonb, 'a.mkv', 1, 'mkv')",
+    )
+    .bind(next_id())
+    .execute(&w.pool)
+    .await;
+    assert!(bad.is_err(), "a mount job names its mount");
 }

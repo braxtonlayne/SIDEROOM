@@ -10,7 +10,7 @@ use crate::playlist::MediaSet;
 use crate::retention::{AssetFacts, AssetState as RetentionState};
 use crate::retranscode::AssetSummary;
 use crate::worker_api::{
-    JobKind, JobState, JobStore, ProgressRequest, Stage, StoreError, WorkerCapabilities,
+    JobKind, JobState, JobStore, ProgressRequest, Stage, StoreError, TokenScope, WorkerCapabilities,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -273,6 +273,10 @@ pub struct JobSummary {
     #[schema(value_type = String)]
     pub asset_id: i64,
     pub kind: JobKind,
+    /// The storage mount a `mount_transcode` job works in (BYOS-CNV-003).
+    #[serde(with = "ids::opt_id", default, skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<String>)]
+    pub mount_id: Option<i64>,
     pub state: JobState,
     pub priority: u8,
     pub attempt: u32,
@@ -310,6 +314,8 @@ pub struct JobQuery {
     pub state: Option<JobState>,
     pub kind: Option<JobKind>,
     pub asset_id: Option<i64>,
+    /// Only the jobs working in this storage mount (BYOS-CNV-003).
+    pub mount_id: Option<i64>,
     pub limit: u32,
     pub before: Option<i64>,
 }
@@ -328,6 +334,9 @@ pub struct WorkerToken {
     #[schema(value_type = String)]
     pub id: i64,
     pub name: String,
+    /// `instance` or `mount:<id>` (BYOS-CNV-003).
+    #[serde(default = "instance_scope")]
+    pub scope: String,
     #[serde(with = "ids::opt_id", default, skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<String>)]
     pub created_by: Option<i64>,
@@ -336,6 +345,10 @@ pub struct WorkerToken {
     pub last_used_at_ms: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revoked_at_ms: Option<i64>,
+}
+
+fn instance_scope() -> String {
+    "instance".to_owned()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -418,8 +431,13 @@ pub trait MediaRepository: JobStore {
         name: &str,
         sha256: &str,
         created_by: i64,
+        scope: TokenScope,
     ) -> MediaResult<WorkerToken>;
     async fn list_tokens(&self) -> MediaResult<Vec<WorkerToken>>;
+    /// The tokens scoped to one mount (BYOS-CNV-003), newest first.
+    async fn list_mount_tokens(&self, mount_id: i64) -> MediaResult<Vec<WorkerToken>>;
+    /// Revoke a token only if it is scoped to `mount_id`. `false` when it is not (or already revoked).
+    async fn revoke_mount_token(&self, mount_id: i64, id: i64) -> MediaResult<bool>;
     /// Revoking also tells the token's workers to drain. `false` when unknown or already revoked.
     async fn revoke_token(&self, id: i64) -> MediaResult<bool>;
     async fn list_workers(&self) -> MediaResult<Vec<WorkerView>>;
@@ -487,6 +505,7 @@ mod tests {
         let t = WorkerToken {
             id: 42,
             name: "gpu".into(),
+            scope: "instance".into(),
             created_by: Some(7),
             created_at_ms: 1,
             last_used_at_ms: None,

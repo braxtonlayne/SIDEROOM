@@ -127,6 +127,11 @@ pub enum JobSpec {
         key: String,
         format: MountFormat,
         preset: MountPreset,
+        /// Whether the operator's own (instance-scoped) workers may take the job. False: only a worker token
+        /// scoped to this mount does (the member runs the worker, BYOC). Set from `byos.worker_for_members`
+        /// at queue time; guild mounts are always the operator's.
+        #[serde(default)]
+        operator_worker: bool,
     },
 }
 
@@ -408,7 +413,12 @@ impl TokenScope {
     /// Whether a job of `spec` may be claimed with this scope.
     pub fn admits(self, spec: &JobSpec) -> bool {
         match self {
-            Self::Instance => true,
+            Self::Instance => match spec {
+                JobSpec::MountTranscode {
+                    operator_worker, ..
+                } => *operator_worker,
+                _ => true,
+            },
             Self::Mount(m) => spec.mount_id() == Some(m),
         }
     }
@@ -1699,6 +1709,7 @@ pub(crate) mod test_support {
             key: "Films/Heat (1995).mkv".into(),
             format,
             preset: crate::mount_job::MountPreset::Standard,
+            operator_worker: true,
         }
     }
 
@@ -2734,6 +2745,16 @@ mod tests {
         assert!(TokenScope::Instance.admits(&proxy_spec()));
         assert!(!TokenScope::Mount(1).admits(&proxy_spec()));
         assert!(TokenScope::Mount(7).admits(&mount_spec(7, MountFormat::Hls)));
+        // A job the operator did not offer to its own workers is the member's alone.
+        let mut private = mount_spec(7, MountFormat::Hls);
+        if let JobSpec::MountTranscode {
+            operator_worker, ..
+        } = &mut private
+        {
+            *operator_worker = false;
+        }
+        assert!(!TokenScope::Instance.admits(&private));
+        assert!(TokenScope::Mount(7).admits(&private));
         assert!(!TokenScope::Mount(7).admits(&mount_spec(8, MountFormat::Hls)));
     }
 
