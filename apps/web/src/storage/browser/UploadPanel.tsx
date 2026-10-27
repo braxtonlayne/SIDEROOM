@@ -124,6 +124,7 @@ export function UploadPanel({
         <input
           ref={folder}
           type="file"
+          multiple
           hidden
           data-testid="sto-pick-folder"
           {...{ webkitdirectory: '' }}

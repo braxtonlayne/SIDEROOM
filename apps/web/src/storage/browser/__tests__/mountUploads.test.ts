@@ -56,7 +56,12 @@ function fake(opts: { partSize?: number; failPartOnce?: number; deny?: number } 
     async partUrl(_m, id, part): Promise<PartUrl> {
       state.urlsAsked += 1;
       if (opts.deny) throw new ApiError(opts.deny, 'no');
-      return { part_number: part, size: partSize, url: `https://bucket.test/${id}/${part}`, expires_at: 'x' };
+      return {
+        part_number: part,
+        size: partSize,
+        url: `https://bucket.test/${id}/${part}`,
+        expires_at: 'x',
+      };
     },
     async complete(_m, id) {
       const slot = state.begun.find((s) => s.id === id)!;
@@ -94,9 +99,9 @@ describe('serverCode', () => {
       errors: { mount: { _errors: [{ code: 'CORS_NOT_READY', message: 'x' }] } },
     } as never);
     expect(serverCode(nested)).toBe('CORS_NOT_READY');
-    expect(serverCode(new ApiError(409, 'x', { message: 'x', code: 'TARGET_EXISTS' } as never))).toBe(
-      'TARGET_EXISTS',
-    );
+    expect(
+      serverCode(new ApiError(409, 'x', { message: 'x', code: 'TARGET_EXISTS' } as never)),
+    ).toBe('TARGET_EXISTS');
     expect(serverCode(new Error('plain'))).toBeUndefined();
   });
 });

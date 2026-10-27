@@ -4,11 +4,15 @@
 
 const MAX_KEY_BYTES = 1024;
 const bytes = (s: string) => new TextEncoder().encode(s).length;
-const CONTROL = /[\u0000-\u001f\u007f\\]/;
+/** A control character (C0, DEL) or a backslash. */
+const hasControl = (s: string) =>
+  [...s].some(
+    (c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 || c === String.fromCharCode(92),
+  );
 
 /** One name (a file or folder, no slash in it): non-empty, not `.` or `..`, no control characters. */
 export function validName(name: string): boolean {
-  return name !== '' && name !== '.' && name !== '..' && !name.includes('/') && !CONTROL.test(name);
+  return name !== '' && name !== '.' && name !== '..' && !name.includes('/') && !hasControl(name);
 }
 
 /**

@@ -153,7 +153,7 @@ pub struct MountObject {
     pub access_key_id: String,
     /// The last four characters of the access key id.
     pub key_hint: String,
-    /// `active`, `failing` or `disabled`.
+    /// `active`, `failing`, `disabled` or `delisted` (set by staff after a takedown; the owner cannot clear it).
     pub status: String,
     /// When the CORS check last passed (ISO 8601); presigning is refused until it has.
     pub cors_ok_at: Option<String>,

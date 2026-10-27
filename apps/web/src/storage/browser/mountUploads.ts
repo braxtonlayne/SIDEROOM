@@ -319,7 +319,8 @@ export class MountUploadManager {
       if (l.abort.signal.aborted) return;
       this.fail(l, err, 'The upload failed.');
       // The server no longer knows it (swept, aborted elsewhere): nothing to resume.
-      if (l.row && err instanceof ApiError && err.status === 404) await this.ledger.remove(l.row.id);
+      if (l.row && err instanceof ApiError && err.status === 404)
+        await this.ledger.remove(l.row.id);
       else await this.persist(l);
       this.emit();
       l.settle?.(false);

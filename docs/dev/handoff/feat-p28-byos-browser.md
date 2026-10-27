@@ -9,14 +9,7 @@ Nothing pushed, no PR, no server was started.
 
 ## Resume here
 
-Backend is done and committed (routes, ledger, sweep job, pinning, attach/detach, settings, route matrix, authz matrix).
-Next, in order:
-1. Web write side in `apps/web/src/storage` (see "Still open"): `storage/browser/*` per the conflict watch, upload modal,
-   `lib/uploadLedger.ts` `mount` kind, new-folder / rename / move / delete actions, i18n fragment
-   `apps/web/src/i18n/messages/en/p28-byos-browser-1.ts`, tests.
-2. Regenerate generated files once (the integrator may redo): `cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json`
-   (from bash), then `pnpm --filter @sideroom/api-client generate` and `mocks:generate`.
-3. Live `storage.yml` case (CI only, Garage), doc 05 section.
+Backend and web write side are done and committed. Left: (1) regenerate OpenAPI / api-client / MSW once (`cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json` from bash, then `pnpm --filter @sideroom/api-client generate` and `mocks:generate`): the integrator may redo it; (2) the live `storage.yml` Garage case (CI only); (3) doc 05 section; (4) the Delisted reason text once byos-legal's API carries one.
 
 ## Done (all with tests that ran)
 
@@ -93,7 +86,8 @@ code at `errors.mount._errors[0].code`.
 
 ## Still open
 
-- **Web write side** (not started at the time of writing; see Resume here).
+- Web done: `storage/browser/*` (mountUploads engine, UploadPanel with files / folder / drag and drop and a dock, NewFolder, RowActions for rename-move and delete, keys, writeErrors, browser.css), ledger store `mount` (IndexedDB v3, aborted at sign-out), `api.ts` write calls, `ObjectList.can_upload/can_manage` drive which controls show, fragment `p28-byos-browser-1.ts`. Commander items: Settings > Storage shows a Delisted badge and a note, test/enable are disabled for `delisted`, the policy block says to keep public listing off, the `MountObject.status` doc lists four statuses. `settings/user/storage/errors.ts` now reads the nested 409 code (it read only `body.code`, which the real server does not send). The UploadManager itself was not extended: its API is chapter-shaped, so the mount manager is a sibling reusing its constants, states and part PUT.
+- Web tests: vitest src/storage (37), src/review + src/lounge/msg + src/settings/user (308 together), eslint, prettier, tsc, i18n-audit 0, check-css-tokens clean, vite build + bundle budget ok.
 - Live `storage.yml` Garage case: upload 40 MiB, reload, resume, `ListParts` equals the ledger (CI only; no Garage on Windows).
 - `lib/uploadLedger.ts` `mount` kind and `review/uploadManager.ts` reuse (web).
 - OpenAPI / api-client / MSW regeneration (once at the end, or left to the integrator).

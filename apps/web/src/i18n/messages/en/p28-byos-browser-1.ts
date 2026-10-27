@@ -1,4 +1,8 @@
 export default {
+  'settings.storage.status.delisted': 'Delisted',
+  'settings.storage.delistedNote':
+    'Staff delisted this bucket after a takedown. It cannot be tested or enabled again.',
+  'settings.storage.keepListingOff': 'Keep public bucket listing off; SIDE ROOM never needs it.',
   // ---- Bucket browser, write side (BYOS-BRW-001, phase 28): uploads, folders, rename, move, delete ----
   'storage.write.upload.files': 'Upload files',
   'storage.write.upload.folder': 'Upload a folder',

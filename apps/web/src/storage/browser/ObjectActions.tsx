@@ -205,7 +205,9 @@ export function RowActions({
         loading={busy}
         title={t('storage.write.delete.title', { name })}
         description={t(
-          fileKey.endsWith('/') ? 'storage.write.delete.folderBody' : 'storage.write.delete.fileBody',
+          fileKey.endsWith('/')
+            ? 'storage.write.delete.folderBody'
+            : 'storage.write.delete.fileBody',
         )}
         confirmLabel={t('storage.write.delete.confirm')}
         cancelLabel={t('storage.write.cancel')}
