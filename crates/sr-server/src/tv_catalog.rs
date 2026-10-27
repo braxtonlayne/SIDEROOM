@@ -482,3 +482,155 @@ impl sr_tv::SlateSource for PgSlateSetting {
         }
     }
 }
+
+#[cfg(test)]
+mod shelf_tests {
+    use super::*;
+    use sr_storage::mounts::{
+        MemoryMountRepo, MountError, MountInput, MountPatch, NewMount, Provider, Sealer, Secret,
+    };
+    use sr_storage::scopes::{GrantSet, GuildStanding, MemoryScopeFacts};
+    use sr_tv::ChannelAccess;
+
+    struct Xor;
+    impl Sealer for Xor {
+        fn seal(&self, _aad: &[u8], plain: &[u8]) -> Result<Vec<u8>, MountError> {
+            Ok(plain.iter().map(|b| b ^ 0x5a).collect())
+        }
+        fn open(&self, _aad: &[u8], blob: &[u8]) -> Result<Vec<u8>, MountError> {
+            Ok(blob.iter().map(|b| b ^ 0x5a).collect())
+        }
+    }
+
+    async fn add(repo: &dyn MountRepo, id: i64, owner: MountOwner, label: &str) {
+        let input = MountInput {
+            owner,
+            label: label.into(),
+            provider: Provider::Garage,
+            endpoint: "http://127.0.0.1:3900".into(),
+            region: "garage".into(),
+            bucket: "shelf".into(),
+            prefix: String::new(),
+            path_style: true,
+            access_key_id: "GK1234567890abcd".into(),
+        };
+        let new = NewMount::seal(&Xor, id, input, &Secret::new("s")).unwrap();
+        repo.create(new, None).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_server_draws_from_its_own_mounts_and_the_attached_instance_bucket_only() {
+        let repo: Arc<dyn MountRepo> = MemoryMountRepo::shared();
+        add(repo.as_ref(), 1, MountOwner::Platform, "Instance").await;
+        add(repo.as_ref(), 2, MountOwner::Guild(900), "Club").await;
+        add(repo.as_ref(), 3, MountOwner::Guild(901), "Other club").await;
+        add(repo.as_ref(), 4, MountOwner::User(5), "Mine").await;
+        add(repo.as_ref(), 5, MountOwner::User(6), "A friend's").await;
+        add(repo.as_ref(), 6, MountOwner::Guild(900), "Switched off").await;
+        repo.update(
+            6,
+            MountPatch {
+                status: Some(MountStatus::Disabled),
+                ..MountPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+        let facts = Arc::new(MemoryScopeFacts::new());
+        let shelves = ShelfMounts::new(repo, facts.clone());
+
+        // Not attached yet: the server's own live mount only.
+        let guild = PoolSource::Guild { guild_id: 900 };
+        assert_eq!(shelves.of(guild).await.unwrap(), [2]);
+        facts.attach(1, 900);
+        assert_eq!(shelves.of(guild).await.unwrap(), [2, 1]);
+        // Another server never gets this server's mount, nor a member's.
+        assert_eq!(
+            shelves
+                .of(PoolSource::Guild { guild_id: 901 })
+                .await
+                .unwrap(),
+            [3]
+        );
+        // A personal channel: the member's own mount, never a friend's.
+        assert_eq!(
+            shelves
+                .of(PoolSource::Personal { user_id: 5 })
+                .await
+                .unwrap(),
+            [4]
+        );
+        // A failing facts store is an error, never an empty or open answer.
+        facts.break_store();
+        assert!(shelves.of(guild).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn the_catalog_limits_server_and_personal_channels_and_leaves_the_instance_open() {
+        let repo: Arc<dyn MountRepo> = MemoryMountRepo::shared();
+        add(repo.as_ref(), 2, MountOwner::Guild(900), "Club").await;
+        let facts = Arc::new(MemoryScopeFacts::new());
+        // A lazy pool never connects: the shelf lookups under test do not read the catalog.
+        let lazy = sqlx::PgPool::connect_lazy("postgres://u:p@127.0.0.1:1/none").unwrap();
+        let cinema = Arc::new(sr_db::cinema_repo::PgCinemaRepo::new(lazy));
+        let bare = RepoTvCatalog::new(cinema.clone());
+        // Without the shelf port a shelf channel draws from nothing (fail closed).
+        let g = PoolSource::Guild { guild_id: 900 };
+        assert_eq!(bare.mounts_of(g).await.unwrap(), Some(vec![]));
+        assert_eq!(bare.mounts_of(PoolSource::Instance).await.unwrap(), None);
+        let wired = RepoTvCatalog::new(cinema).with_shelves(ShelfMounts::new(repo, facts));
+        assert_eq!(wired.mounts_of(g).await.unwrap(), Some(vec![2]));
+        assert_eq!(wired.mounts_of(PoolSource::Instance).await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn only_members_with_the_view_cinema_grant_may_watch_a_server_channel() {
+        let facts = Arc::new(MemoryScopeFacts::new());
+        let guild = PoolSource::Guild { guild_id: 900 };
+        // Member 5 has a role with the grant, member 6 a role without, 8 owns the server, 7 is no member.
+        facts.member(
+            900,
+            5,
+            GuildStanding {
+                role_ids: vec![900, 31],
+                ..GuildStanding::default()
+            },
+        );
+        facts.member(
+            900,
+            6,
+            GuildStanding {
+                role_ids: vec![900],
+                ..GuildStanding::default()
+            },
+        );
+        facts.member(
+            900,
+            8,
+            GuildStanding {
+                is_owner: true,
+                role_ids: vec![900],
+                ..GuildStanding::default()
+            },
+        );
+        facts.grant(900, 31, GrantSet::of([Grant::ViewCinema]));
+        let access = GuildChannelAccess::new(facts.clone());
+        let v = |id| sr_tv::Viewer {
+            user_id: id,
+            adult: true,
+        };
+        assert!(access.may_watch(v(5), guild).await.unwrap());
+        assert!(!access.may_watch(v(6), guild).await.unwrap());
+        assert!(access.may_watch(v(8), guild).await.unwrap());
+        assert!(!access.may_watch(v(7), guild).await.unwrap());
+        // Not a server pool: never watched through this port.
+        assert!(
+            !access
+                .may_watch(v(5), PoolSource::Personal { user_id: 5 })
+                .await
+                .unwrap()
+        );
+        facts.break_store();
+        assert!(access.may_watch(v(5), guild).await.is_err());
+    }
+}

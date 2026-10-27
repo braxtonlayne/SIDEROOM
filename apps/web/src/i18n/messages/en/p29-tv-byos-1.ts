@@ -14,6 +14,4 @@ export default {
     'This channel airs only what this server keeps on its shelves.',
   'cinema.tv.chip.personal': 'Your shelf',
   'cinema.tv.chip.personalTitle': 'A personal channel from your own shelf. Only you see it.',
-  'cinema.tv.skipped':
-    '{count, plural, one {# item was left out because it does not play in a browser yet.} other {# items were left out because they do not play in a browser yet.}}',
 };
