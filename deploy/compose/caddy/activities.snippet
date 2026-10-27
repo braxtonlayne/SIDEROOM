@@ -30,6 +30,8 @@
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		-Server
+		# D-384: only the landing page is indexable, and an activity host never is.
+		X-Robots-Tag "noindex, nofollow"
 	}
 
 	# Defence in depth: the server also sets this, but a response it did not produce still may be framed by

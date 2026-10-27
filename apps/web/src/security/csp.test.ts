@@ -14,7 +14,23 @@ const caddy = readFileSync(
   'utf8',
 );
 
+const snippet = readFileSync(
+  resolve(__dirname, '../../../../deploy/compose/caddy/activities.snippet'),
+  'utf8',
+);
+const robotsTxt = readFileSync(resolve(__dirname, '../../public/robots.txt'), 'utf8');
+
 describe('CSP', () => {
+  it('tells crawlers that only the landing page is indexable (OPS-IDX-001, D-384)', () => {
+    expect(caddy).toContain('@notLanding not path /');
+    expect(caddy).toContain('header @notLanding X-Robots-Tag "noindex, nofollow"');
+    expect(snippet).toContain('X-Robots-Tag "noindex, nofollow"');
+    expect(robotsTxt).toBe(
+      ['User-agent: *', 'Allow: /$', 'Disallow: /', ''].join(String.fromCharCode(10)),
+    );
+    expect(robotsTxt).not.toMatch(/sitemap/i);
+  });
+
   it('matches the policy shipped in the production Caddyfile', () => {
     expect(caddy).toContain(`header Content-Security-Policy "${buildCsp()}"`);
     expect(caddy).toContain(`Permissions-Policy "${PERMISSIONS_POLICY}"`);

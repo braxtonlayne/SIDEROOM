@@ -31,6 +31,12 @@
 		-Server
 	}
 
+	# Only the landing page is indexable (D-384, OPS-IDX-001): every response except the document at `/` says
+	# noindex, so a crawler that never runs JavaScript still reads the rule (robots.txt and the SPA's robots meta
+	# are the other two layers). Set per matcher, not removed later, so it does not depend on directive order.
+	@notLanding not path /
+	header @notLanding X-Robots-Tag "noindex, nofollow"
+
 	# The one internal path browsers must reach: Content-Security-Policy violation reports (RDY-SEC-009). The server
 	# rate limits it, caps the body and keeps counters only.
 	@cspReport {
