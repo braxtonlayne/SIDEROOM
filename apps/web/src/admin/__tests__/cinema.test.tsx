@@ -657,6 +657,32 @@ describe('Cinema transcoding', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('shows the bucket a member conversion job works in (BYOS-CNV-003)', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TRANSCODE'] });
+    server.use(
+      http.get('*/api/v1/admin/transcode/jobs', () =>
+        HttpResponse.json([
+          {
+            job_id: '31',
+            asset_id: '0',
+            mount_id: '5550001',
+            kind: 'mount_transcode',
+            state: 'queued',
+            priority: 4,
+            attempt: 0,
+            cancel_requested: false,
+            created_at_ms: 1_700_000_000_000,
+          },
+        ]),
+      ),
+    );
+    openAdmin('cinema-transcoding');
+    const table = await screen.findByRole('table', { name: /jobs/i });
+    expect(within(table).getByRole('columnheader', { name: 'Bucket' })).toBeInTheDocument();
+    expect(within(table).getByText('5550001')).toBeInTheDocument();
+    expect(within(table).getByText(/mount_transcode/)).toBeInTheDocument();
+  });
+
   it('shows a one-time token secret after creating a token', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TRANSCODE'] });
     let created: unknown;
