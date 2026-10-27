@@ -8,7 +8,7 @@ use sr_media::runner::ProcessRunner;
 use sr_transcoder::cli::{self, USAGE};
 use sr_transcoder::encoders;
 use sr_transcoder::http_client::{HttpTransfer, HttpWorkerApi};
-use sr_transcoder::worker::{Worker, WorkerConfig};
+use sr_transcoder::worker::{Worker, WorkerConfig, ffprobe_beside};
 use std::process::ExitCode;
 use std::sync::atomic::AtomicBool;
 
@@ -80,6 +80,7 @@ fn main() -> ExitCode {
     let mut cfg = WorkerConfig::new(cli.work_dir.clone());
     cfg.name = cli.name.clone();
     cfg.ffmpeg = cli.ffmpeg.clone();
+    cfg.ffprobe = ffprobe_beside(&cli.ffmpeg);
     cfg.force_cpu = cli.force_cpu;
     cfg.concurrency = cli.concurrency;
     let worker = Worker::new(&api, &transfer, &ProcessRunner, cfg, caps);
