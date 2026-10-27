@@ -344,6 +344,7 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
 
     await test.step('a takedown against one object of B’s own bucket delists it; staff delist and relist the whole bucket', async () => {
       // A bucket is only a row of ours plus sealed credentials: creating it connects to nothing.
+      await loginApi(b, userB); // the ban ended B's sessions; the overturn does not restore them
       const mount = await call<{ id: string; status: string }>(
         b,
         'POST',

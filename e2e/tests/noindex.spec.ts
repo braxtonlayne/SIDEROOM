@@ -7,7 +7,14 @@ import { expect, test } from '@playwright/test';
  * OPS-IDX-001 (D-384): only the landing page is indexable. Run by the `stack` job of prod-smoke.yml against the
  * installed Caddy (the dev server does not send X-Robots-Tag). Later waves append their hosts and routes to SAMPLE
  * (`/public/profiles/x` in wave 34, the activities host in wave 36).
+ *
+ * The spec sits in e2e/tests, so the `playwright` job of e2e.yml collects it too; there it runs against the Vite dev
+ * server, which sends no X-Robots-Tag. It only runs where prod-smoke.yml sets SR_E2E_NOINDEX=1.
  */
+test.skip(
+  process.env.SR_E2E_NOINDEX !== '1',
+  'Runs through Caddy in the stack job of prod-smoke.yml (SR_E2E_NOINDEX=1); the dev server sends no X-Robots-Tag.',
+);
 const SAMPLE = [
   '/login',
   '/register',

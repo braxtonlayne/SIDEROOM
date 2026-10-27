@@ -147,7 +147,7 @@ jobs:
             use: { ...base.use, baseURL: 'https://smoke.localhost', ignoreHTTPSErrors: true },
           });
           EOF
-          pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke noindex
+          SR_E2E_NOINDEX=1 pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke noindex
       - name: Backup, restore and WAL drills against the running stack
         run: deploy/scripts/prod-smoke.sh backups
       - name: sr-cli backup, restore --force and upgrade --dry-run
