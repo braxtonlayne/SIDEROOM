@@ -331,6 +331,60 @@ pub fn precheck_archive(head: &[u8], tail: &[u8], file_len: f64, max_archive_byt
     precheck(head, tail, file_len as u64, &limits).to_string()
 }
 
+
+/// Every page of a ZIP in reading order, from the last bytes of the file (BYOS-CAT-002: a CBZ in a member's
+/// bucket is read by range requests, one for this listing and one per page). Judged by the same rules as
+/// [`precheck`] (unsafe names, junk, encrypted entries, page order, per-entry limits); the archive size is not
+/// limited here because nothing is uploaded. Answers `{need_tail: N}`, `{ok: false, message}` or
+/// `{ok: true, pages: [{name, local_offset, compressed, size, method}]}`.
+pub fn list_pages(tail: &[u8], file_len: u64, limits: &Limits) -> serde_json::Value {
+    use serde_json::json;
+    let entries = match read_central_directory(tail, file_len) {
+        Tail::Entries(e) => e,
+        Tail::NeedTail(n) => return json!({ "need_tail": n }),
+        Tail::Invalid(why) => return json!({ "ok": false, "message": why }),
+    };
+    if entries.len() > limits.max_entries {
+        return json!({ "ok": false, "message": "The archive has too many entries." });
+    }
+    let raws: Vec<Raw> = entries
+        .iter()
+        .enumerate()
+        .map(|(index, e)| Raw {
+            index,
+            name: e.name.clone(),
+            is_dir: e.name.ends_with('/'),
+            encrypted: e.flags & 1 != 0,
+            symlink: e.symlink,
+            size: e.size,
+            packed: Some(e.compressed),
+        })
+        .collect();
+    match classify(raws, limits, false) {
+        Err(e) => json!({ "ok": false, "message": rule_error(&e)["message"] }),
+        Ok(c) if c.pages.is_empty() => {
+            json!({ "ok": false, "message": "The archive contains no readable pages." })
+        }
+        Ok(c) => {
+            let pages: Vec<_> = c
+                .pages
+                .iter()
+                .map(|p| {
+                    let e = &entries[p.index];
+                    json!({ "name": e.name, "local_offset": e.local_offset,
+                        "compressed": e.compressed, "size": e.size, "method": e.method })
+                })
+                .collect();
+            json!({ "ok": true, "pages": pages })
+        }
+    }
+}
+
+/// [`list_pages`] for the browser: `tail` is the last bytes of the file (see [`first_tail`]).
+#[wasm_bindgen(js_name = listPages)]
+pub fn list_pages_js(tail: &[u8], file_len: f64) -> String {
+    list_pages(tail, file_len as u64, &Limits::default()).to_string()
+}
 // Native only: the parity test pulls the server crate, which does not build for wasm32.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
@@ -435,6 +489,48 @@ mod tests {
         assert_eq!(r["pages"], 40, "{r}");
     }
 
+
+    #[test]
+    fn list_pages_gives_every_page_in_order_with_offsets() {
+        let z = build(&[
+            ("c/10.jpg", 30),
+            ("c/2.png", 20),
+            ("Thumbs.db", 5),
+            ("c/1.webp", 10),
+        ]);
+        let r = list_pages(&z, z.len() as u64, &Limits::default());
+        assert_eq!(r["ok"], true, "{r}");
+        let names: Vec<_> = r["pages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["name"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(names, ["c/1.webp", "c/2.png", "c/10.jpg"]);
+        // The offsets point at local headers a browser can read by range.
+        for p in r["pages"].as_array().unwrap() {
+            let at = p["local_offset"].as_u64().unwrap() as usize;
+            assert_eq!(&z[at..at + 4], b"PK\x03\x04");
+        }
+        // Only the tail: the directory may need more.
+        let files: Vec<(String, usize)> =
+            (0..40).map(|i| (format!("page-{i:03}.jpg"), 50)).collect();
+        let refs: Vec<(&str, usize)> = files.iter().map(|(n, l)| (n.as_str(), *l)).collect();
+        let big = build(&refs);
+        let r = list_pages(&big[big.len() - 100..], big.len() as u64, &Limits::default());
+        let need = r["need_tail"].as_u64().expect("asks for more");
+        let r = list_pages(
+            &big[big.len() - need as usize..],
+            big.len() as u64,
+            &Limits::default(),
+        );
+        assert_eq!(r["pages"].as_array().unwrap().len(), 40);
+        // Refusals carry a message and no pages.
+        let bad = list_pages(&build(&[("../evil.jpg", 5)]), 0, &Limits::default());
+        assert_eq!(bad["ok"], false);
+        let none = build(&[("notes.txt", 5)]);
+        assert_eq!(list_pages(&none, none.len() as u64, &Limits::default())["ok"], false);
+    }
     #[test]
     fn other_containers_and_garbage() {
         let l = Limits::default();

@@ -69,7 +69,7 @@ export function ShelfList({ section }: { section: ShelfSection }) {
   const kinds = KINDS[section];
 
   return (
-    <main className="shv-page" aria-labelledby="shv-h">
+    <section className="shv-page" aria-labelledby="shv-h">
       <header className="shv-head">
         <h1 id="shv-h">{t(`shelves.title.${section}` as 'shelves.title.cinema')}</h1>
         <p className="shv-muted">{t(`shelves.sub.${section}` as 'shelves.sub.cinema')}</p>
@@ -130,7 +130,7 @@ export function ShelfList({ section }: { section: ShelfSection }) {
           )}
         </>
       )}
-    </main>
+    </section>
   );
 }
 

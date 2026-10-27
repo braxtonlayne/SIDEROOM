@@ -1,4 +1,5 @@
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
+import { createShelfRoutes } from '../storage/shelves/routes';
 import { lazyNamed } from '../lib/lazyRoute';
 import { Browse, validateBrowseSearch } from './Browse';
 // Pages load on demand (XC-PERF-001); the reader alone is the bulk of the section.
@@ -109,5 +110,6 @@ export function createLibraryRoutes(root: AnyRoute) {
     submissions,
     submission,
     child('upload', () => <SoonPage page="upload" />),
+    ...createShelfRoutes(layout, 'library'),
   ]);
 }

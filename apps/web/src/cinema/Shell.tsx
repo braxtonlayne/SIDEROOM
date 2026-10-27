@@ -62,6 +62,7 @@ export const NAV: NavItem[] = [
   { href: '/cinema/anime', label: 'cinema.shell.navAnime', mark: 'sparkle', anime: true },
   { href: '/cinema/tv', label: 'cinema.shell.navLiveTv', mark: 'dot' },
   { href: '/cinema/my-list', label: 'cinema.shell.navMyList' },
+  { href: '/cinema/shelves', label: 'shelves.nav' },
   { href: '/cinema/submit', label: 'cinema.submit.nav' },
 ];
 
