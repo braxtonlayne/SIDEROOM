@@ -66,6 +66,11 @@ pub struct ObjectList {
     pub objects: Vec<ObjectEntry>,
     /// Cursor of the next page, `null` at the end.
     pub next_cursor: Option<String>,
+    /// Whether the caller may upload and make folders here (`scopes::may_upload`); the UI shows the write
+    /// side only when it is true. The write routes decide again.
+    pub can_upload: bool,
+    /// Whether the caller may rename, move and delete here (`scopes::may_manage`).
+    pub can_manage: bool,
 }
 
 /// Metadata of one object.
@@ -138,6 +143,25 @@ pub(super) struct Reach {
     pub(super) access: Access,
     /// Set when the read is a staff read: the caller to log.
     pub(super) staff: Option<Caller>,
+}
+
+/// What the caller may do to the mount beyond reading it. A staff read is read-only; a failed fact is "no".
+pub(super) async fn capabilities(d: &ScopeDeps, r: &Reach, user: i64) -> (bool, bool) {
+    if r.staff.is_some() {
+        return (false, false);
+    }
+    let facts: &dyn ScopeFacts = &*d.store;
+    let viewer = Viewer {
+        id: user,
+        staff: false,
+    };
+    let up = sr_storage::scopes::may_upload(facts, viewer, &r.mount)
+        .await
+        .unwrap_or(false);
+    let manage = sr_storage::scopes::may_manage(facts, viewer, &r.mount)
+        .await
+        .unwrap_or(false);
+    (up, manage)
 }
 
 /// Look the mount up and decide how the caller reaches it. Refusals are 404 (403 for a missing grant).
@@ -401,10 +425,13 @@ pub async fn list(
             key,
         });
     }
+    let (can_upload, can_manage) = capabilities(&d, &r, uid(&p)).await;
     Ok(Json(ObjectList {
         folders: page.folders.iter().map(|f| strip(f)).collect(),
         objects,
         next_cursor: page.next_cursor,
+        can_upload,
+        can_manage,
     }))
 }
 

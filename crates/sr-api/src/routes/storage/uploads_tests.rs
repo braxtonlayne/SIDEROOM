@@ -812,3 +812,58 @@ async fn the_net_guard_applies_the_ssrf_policy_to_every_answer() {
     assert_eq!(addrs.len(), 1);
     assert_eq!(addrs[0].port(), 9);
 }
+
+#[tokio::test]
+async fn the_listing_tells_the_ui_what_the_caller_may_do() {
+    let e = env().await;
+    let d = ScopeDeps {
+        mounts: e.repo.clone(),
+        store: Arc::new(Store({
+            // The same facts as env(): rebuilt here because the router owns the originals.
+            let f = Arc::new(MemoryScopeFacts::new());
+            f.befriend(OWNER, FRIEND);
+            f.share_with(
+                e.user_mount,
+                FRIEND,
+                Share {
+                    cinema: true,
+                    library: true,
+                    music: true,
+                },
+            );
+            f.member(GUILD, UPLOADER, standing(&[72]));
+            f.member(GUILD, MANAGER, standing(&[73]));
+            f.grant(GUILD, 72, GrantSet::of([Grant::ViewMusic, Grant::Upload]));
+            f.grant(GUILD, 73, GrantSet::of([Grant::Manage]));
+            f
+        })),
+        sealer: Arc::new(XorSealer),
+        guard: None,
+    };
+    let user_mount = e.repo.by_id(e.user_mount).await.unwrap().unwrap();
+    let guild_mount = e.repo.by_id(e.guild_mount).await.unwrap().unwrap();
+    // Own mount: everything. A friend with a share: nothing. Server shelf: the grants decide.
+    let caps = |m: &Mount, user: i64| {
+        let r = super::objects::Reach {
+            access: sr_storage::scopes::Access {
+                scope: sr_storage::scopes::Scope::Own,
+                kinds: Share {
+                    cinema: true,
+                    library: true,
+                    music: true,
+                },
+                unrestricted: true,
+                mount_id: m.id,
+            },
+            mount: m.clone(),
+            staff: None,
+        };
+        let d = &d;
+        async move { super::objects::capabilities(d, &r, user).await }
+    };
+    assert_eq!(caps(&user_mount, OWNER).await, (true, true));
+    assert_eq!(caps(&user_mount, FRIEND).await, (false, false));
+    assert_eq!(caps(&guild_mount, UPLOADER).await, (true, false));
+    assert_eq!(caps(&guild_mount, MANAGER).await, (true, true));
+    assert_eq!(caps(&guild_mount, STRANGER).await, (false, false));
+}
