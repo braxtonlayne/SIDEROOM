@@ -66,10 +66,10 @@ fn keys_of(v: &Value, out: &mut Vec<String>) {
     match v {
         Value::Object(m) => {
             for (k, x) in m {
-                if k == "key" {
-                    if let Some(s) = x.as_str() {
-                        out.push(s.to_owned());
-                    }
+                if k == "key"
+                    && let Some(s) = x.as_str()
+                {
+                    out.push(s.to_owned());
                 }
                 keys_of(x, out);
             }
@@ -99,10 +99,10 @@ fn texts_of(v: &Value, out: &mut Vec<String>) {
     match v {
         Value::Object(m) => {
             for (k, x) in m {
-                if matches!(k.as_str(), "label" | "help" | "description" | "name") {
-                    if let Some(s) = x.as_str() {
-                        out.push(s.to_owned());
-                    }
+                if matches!(k.as_str(), "label" | "help" | "description" | "name")
+                    && let Some(s) = x.as_str()
+                {
+                    out.push(s.to_owned());
                 }
                 texts_of(x, out);
             }
@@ -142,10 +142,10 @@ fn all_flag_names() -> Vec<(String, String)> {
 fn no_flag_name_matches_the_deny_pattern() {
     let mut hits: BTreeSet<String> = BTreeSet::new();
     for (what, name) in all_flag_names() {
-        if let Some(d) = denied(&name) {
-            if !LEGACY.contains(&name.as_str()) {
-                hits.insert(format!("{what} `{name}` contains `{d}`"));
-            }
+        if let Some(d) = denied(&name)
+            && !LEGACY.contains(&name.as_str())
+        {
+            hits.insert(format!("{what} `{name}` contains `{d}`"));
         }
     }
     assert!(
