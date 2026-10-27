@@ -209,6 +209,7 @@ GET	/admin/staff/former	authenticated	staff	deny	-	APPOINT_STAFF
 GET	/admin/staff/offers	authenticated	staff	deny	-	APPOINT_STAFF
 GET	/admin/staff/roles	authenticated	staff	deny	-	APPOINT_STAFF
 GET	/admin/stats	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/storage/mounts/{platform_mount_id}/attachments	authenticated	staff	deny	-	OPERATOR
 GET	/admin/suspicion	authenticated	staff	deny	-	MANAGE_INVITES
 GET	/admin/system	authenticated	staff	deny	-	OPERATOR
 GET	/admin/system/csp-reports	authenticated	staff	deny	-	OPERATOR
@@ -696,6 +697,8 @@ POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	sta
 POST	/admin/review/submissions/{submission_id}/revoke-credits	authenticated	staff	deny	-	PUBLISH_READING
 POST	/admin/staff	authenticated	staff	deny	-	APPOINT_STAFF
 POST	/admin/staff/offers	authenticated	staff	deny	-	APPOINT_STAFF
+POST	/admin/storage/mounts/{platform_mount_id}/attach	authenticated	staff	deny	-	OPERATOR
+POST	/admin/storage/mounts/{platform_mount_id}/detach	authenticated	staff	deny	-	OPERATOR
 POST	/admin/system/email-test	authenticated	staff	deny	-	OPERATOR
 POST	/admin/system/preflight	authenticated	staff	deny	-	OPERATOR
 POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-	MANAGE_TRANSCODE

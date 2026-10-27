@@ -1644,6 +1644,10 @@ async fn seed(
             .unwrap();
         ids_map.insert("mount_upload_id", upload_id.to_string());
     }
+    // The platform bucket, for the attach and detach routes (nothing else is attachable).
+    let platform_id =
+        insert_mount(&pool, &ids, sr_storage::mounts::MountOwner::Platform, true).await;
+    a.insert("platform_mount_id", platform_id.to_string());
     // --- end BYOS-BRW-001 seeds ---
     // More objects, so that a refusal is not just "no such id": a moderation case, a takedown notice,
     // a hold, an announcement, a submission, a command, a grant and a running stage.
@@ -2977,6 +2981,10 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         }
         ("POST", "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete") => {
             r#"{"parts":[]}"#
+        }
+        ("POST", "/admin/storage/mounts/{platform_mount_id}/attach")
+        | ("POST", "/admin/storage/mounts/{platform_mount_id}/detach") => {
+            r#"{"guild_id":"{guild_id}"}"#
         }
         ("POST", "/storage/mounts/{mount_id}/folders") => r#"{"key":"Albums/"}"#,
         ("POST", "/storage/mounts/{mount_id}/move") => r#"{"from":"a.mp3","to":"b.mp3"}"#,

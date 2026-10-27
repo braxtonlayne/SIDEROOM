@@ -88,6 +88,16 @@ impl ScopeFacts for Store {
 
 #[async_trait]
 impl ScopeStore for Store {
+    async fn guild_exists(&self, _: i64) -> Result<bool, FactsError> {
+        Ok(true)
+    }
+    async fn attach_mount(&self, m: i64, g: i64, _: i64) -> Result<bool, FactsError> {
+        self.0.attach(m, g);
+        Ok(true)
+    }
+    async fn detach_mount(&self, m: i64, g: i64) -> Result<bool, FactsError> {
+        Ok(self.0.detach(m, g))
+    }
     async fn role_in_guild(&self, _: i64, _: i64) -> Result<bool, FactsError> {
         Ok(true)
     }

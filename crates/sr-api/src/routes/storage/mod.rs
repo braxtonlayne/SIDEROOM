@@ -6,10 +6,12 @@
 //!   guild storage grants (`PUT /guilds/{id}/storage/grants`) and `GET /users/@me/shelves/summary`.
 //! * `objects`: the scoped listing, object metadata and presign (`/storage/mounts/{id}/objects*`,
 //!   `/storage/mounts/{id}/presign`), and the write side: folders, move, delete (BYOS-BRW-001).
+//! * `attach`: `/admin/storage/mounts/{id}/attach|detach|attachments`, the instance bucket as a Guild Shelf.
 //! * `uploads`: multipart uploads through the ledger (`/storage/mounts/{id}/uploads*`, BYOS-BRW-001).
 //!
 //! Every read goes through `sr_storage::scopes`.
 
+mod attach;
 pub mod mount_ops;
 pub mod mounts;
 #[cfg(test)]
@@ -119,6 +121,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .merge(mounts::router())
         .merge(mount_ops::router())
+        .merge(attach::router())
         .route(
             "/users/@me/storage/mounts/{mount_id}/shares",
             get(scopes::list_shares),
@@ -171,6 +174,9 @@ pub fn router() -> Router<AppState> {
         scopes::incoming_shares,
         scopes::summary,
         scopes::put_grants,
+        attach::attach,
+        attach::detach,
+        attach::list,
         objects::list,
         objects::meta,
         objects::presign,
@@ -192,6 +198,8 @@ pub fn router() -> Router<AppState> {
         scopes::ShelvesSummaryView,
         scopes::CatalogCounts,
         scopes::GrantsBody,
+        attach::AttachBody,
+        attach::AttachmentView,
         objects::ObjectList,
         objects::ObjectEntry,
         objects::ObjectMetaView,
