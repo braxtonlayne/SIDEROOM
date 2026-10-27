@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import { loadE2ee, type E2eeApi } from '@sideroom/wasm';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { attachTransform, peerConfigFor } from '../e2ee/attach';
-import { e2eeDeclared, e2eeFlagEnabled } from '../e2ee/flag';
 import { handleRtcTransform, handleWorkerMessage } from '../e2ee/handler';
 import {
   loadOrCreateIdentity,
@@ -13,7 +12,7 @@ import {
   type KeyStore,
 } from '../e2ee/identity';
 import { E2eeMedia } from '../e2ee/media';
-import { detectTransformMode } from '../e2ee/support';
+import { detectTransformMode, e2eeDeclared, e2eOptOut } from '../e2ee/support';
 import { runTransform, transformFrame, type EncodedFrameLike } from '../e2ee/transform';
 import { keyFingerprint, verifiedStore } from '../e2ee/verified';
 
@@ -31,24 +30,24 @@ const frame = (bytes: number[], mime?: string): EncodedFrameLike => ({
   getMetadata: () => (mime ? { mimeType: mime } : {}),
 });
 
-describe('feature flag and browser support', () => {
-  it('voice.e2ee is on unless the build turns it off (D-249)', () => {
-    expect(e2eeFlagEnabled({})).toBe(true);
-    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '' })).toBe(true);
-    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '1' })).toBe(true);
-    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: '0' })).toBe(false);
-    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: 'false' })).toBe(false);
-    expect(e2eeFlagEnabled({ VITE_SR_VOICE_E2EE: ' FALSE ' })).toBe(false);
-    expect(e2eeFlagEnabled()).toBe(true);
+describe('browser support (E2EE is the only voice mode, OPS-IMM-001)', () => {
+  it('declares sr_e2ee exactly when the browser can transform frames', () => {
+    expect(e2eeDeclared('script-transform')).toBe(true);
+    expect(e2eeDeclared('encoded-streams')).toBe(true);
+    expect(e2eeDeclared('none')).toBe(false);
   });
 
-  it('declares sr_e2ee only when the build has the feature and the browser can transform frames', () => {
-    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'script-transform')).toBe(true);
-    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'encoded-streams')).toBe(true);
-    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '1' }, 'none')).toBe(false);
-    expect(e2eeDeclared({}, 'script-transform')).toBe(true);
-    expect(e2eeDeclared({}, 'none')).toBe(false);
-    expect(e2eeDeclared({ VITE_SR_VOICE_E2EE: '0' }, 'script-transform')).toBe(false);
+  it('has no build flag: VITE_SR_VOICE_E2EE changes nothing and the e2e opt-out needs the e2e build', () => {
+    vi.stubEnv('VITE_SR_VOICE_E2EE', '0');
+    expect(e2eeDeclared('script-transform')).toBe(true);
+    vi.stubEnv('VITE_SR_E2E', '');
+    localStorage.setItem('sr.e2e.noVoiceE2ee', '1');
+    expect(e2eOptOut()).toBe(false);
+    vi.stubEnv('VITE_SR_E2E', '1');
+    expect(e2eOptOut()).toBe(true);
+    localStorage.removeItem('sr.e2e.noVoiceE2ee');
+    expect(e2eOptOut()).toBe(false);
+    vi.unstubAllEnvs();
   });
 
   it('prefers RTCRtpScriptTransform, falls back to createEncodedStreams, else none', () => {

@@ -44,8 +44,8 @@ jobs:
     timeout-minutes: 200
     env:
       SR_VOICE__ENABLED: "true"
-      # Voice E2EE is on by default (D-249); stated here so the soak never silently runs in the clear.
-      SR_VOICE__E2EE: "true"
+      # No voice E2EE setting: end-to-end encryption is the only voice mode (D-249, OPS-IMM-001), so the soak can never
+      # run in the clear.
       SR_ADMIN_REQUIRE_REAUTH: "0"
       SR_E2E_VOICE: "1"
       SR_E2E_SOAK: "1"

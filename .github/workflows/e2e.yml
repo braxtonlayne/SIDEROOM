@@ -77,8 +77,8 @@ jobs:
     timeout-minutes: 75
     env:
       SR_VOICE__ENABLED: "true"
-      # Voice E2EE is on by default in sr-server and the web build (D-249), so the first step runs voice and Activities
-      # calls encrypted with the defaults; the E2EE steps set SR_VOICE__E2EE explicitly.
+      # End-to-end encryption is the only voice mode (D-249, OPS-IMM-001): there is no setting for it, so every voice and
+      # Activities call below is encrypted and the three E2EE steps run the same spec in each engine.
       SR_ACTIVITIES__ENABLED: "true"
       # The staff offer card spec appoints staff; the e2e Owner has no second factor.
       SR_ADMIN_REQUIRE_REAUTH: "0"
@@ -102,11 +102,10 @@ jobs:
         if: always()
         run: |
           cp server.log server-live.log || true
-          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=chromium
+          ./deploy/compose/e2e-run.sh --project=chromium tests/voice-e2ee.spec.ts
           cp server.log server-e2ee-chromium.log || true
         env:
           CI: "true"
-          SR_VOICE__E2EE: "true"
       # Required since run 39224043323 passed it 5 of 5 (--repeat-each=5 --retries=0), which turned the E2EE defaults
       # on (D-249, VOX-E2E-003).
       - name: Voice E2EE (Firefox)
@@ -127,15 +126,14 @@ jobs:
               pactl set-default-sink sr_null; } || echo "PulseAudio null sink not available"
           fi
           status=0
-          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=firefox || status=$?
+          ./deploy/compose/e2e-run.sh --project=firefox tests/voice-e2ee.spec.ts || status=$?
           # The WebKit step reuses the report folder and server.log: keep Firefox's.
           cp server.log server-e2ee-firefox.log || true
-          cp -r e2e/playwright-report-e2ee e2e/playwright-report-e2ee-firefox || true
-          cp -r e2e/test-results-e2ee e2e/test-results-e2ee-firefox || true
+          cp -r e2e/playwright-report e2e/playwright-report-e2ee-firefox || true
+          cp -r e2e/test-results e2e/test-results-e2ee-firefox || true
           exit "$status"
         env:
           CI: "true"
-          SR_VOICE__E2EE: "true"
           # SFU signalling and ICE detail in server.log, in case Firefox fails.
           SR_LOG__FILTER: "info,sr_voice=debug,str0m=debug"
       # Informational: Playwright's Linux WebKit has no RTCRtpScriptTransform, so the spec skips itself with a reason
@@ -146,10 +144,9 @@ jobs:
         run: |
           SR_VOICE__ANNOUNCE_IPS="$(node scripts/ice-announce.mjs)"
           export SR_VOICE__ANNOUNCE_IPS
-          ./deploy/compose/e2e-run.sh -c playwright.e2ee.config.ts --project=webkit
+          ./deploy/compose/e2e-run.sh --project=webkit tests/voice-e2ee.spec.ts
         env:
           CI: "true"
-          SR_VOICE__E2EE: "true"
       # RDY-VOX-001: voice through a TURN relay. coturn runs the PRODUCTION template (turnserver.prod.conf.example,
       # rendered by deploy/compose/coturn/render-test-conf.sh) on the host network; sr-server hands out REST credentials
       # derived from the same secret (voice.turn.secret) and the browsers are forced to `iceTransportPolicy: 'relay'`.
@@ -280,9 +277,7 @@ jobs:
           name: e2e-live
           path: |
             e2e/playwright-report
-            e2e/playwright-report-e2ee
             e2e/test-results
-            e2e/test-results-e2ee
             server.log
             server-live.log
             server-voice-bot.log

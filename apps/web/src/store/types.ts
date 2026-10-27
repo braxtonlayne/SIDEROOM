@@ -327,6 +327,4 @@ export interface VoiceServerInfo {
   /** Short-lived token for the voice IDENTIFY. */
   token: string;
   ice_servers?: VoiceIceServer[];
-  /** SIDE ROOM: the call is end-to-end encrypted (the server's `voice.e2ee`, D-249). */
-  sr_e2ee?: boolean;
 }

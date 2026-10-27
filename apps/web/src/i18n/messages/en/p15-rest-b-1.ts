@@ -25,9 +25,6 @@ export default {
   'settings.advanced.e2eeOn': 'Calls are end-to-end encrypted',
   'settings.advanced.e2eeOnBody':
     'Voice and video are encrypted on your device and only the people in the call can read them, not even the server. A shield in the call shows the privacy codes you can compare with the other people.',
-  'settings.advanced.e2eeOff': 'Calls are encrypted in transit',
-  'settings.advanced.e2eeOffBody':
-    'Voice and video are encrypted between you and the server. End-to-end encryption for calls is not switched on for this server yet.',
   'settings.advanced.privacyCodes': 'Show privacy codes',
   'settings.advanced.privacyCodesDesc':
     'List the verification codes in the call shield so you can compare them out loud.',
