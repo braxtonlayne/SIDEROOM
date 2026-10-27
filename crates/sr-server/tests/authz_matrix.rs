@@ -4371,6 +4371,9 @@ async fn run_group(
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn every_route_enforces_its_authz_row() {
+    if harness::embedded() {
+        return;
+    }
     let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
     let routes = parse_matrix();
     let infos = op_infos();
@@ -4736,6 +4739,9 @@ async fn insert_mount(
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn storage_scopes_hold_over_http() {
+    if harness::embedded() {
+        return;
+    }
     let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
     let routes = parse_matrix();
     let infos = op_infos();
@@ -5273,6 +5279,12 @@ pub mod harness {
 
     static CURRENT: Mutex<Option<Flip>> = Mutex::new(None);
 
+    /// True when this file is compiled into `immutable_rules.rs` (as its `matrix` module): the two big tests
+    /// above then return at once, because their own binary runs them and the harness only needs the library.
+    pub(super) fn embedded() -> bool {
+        module_path!().starts_with("immutable_rules")
+    }
+
     pub(super) fn current() -> Option<Flip> {
         *CURRENT.lock().unwrap()
     }
@@ -5319,7 +5331,7 @@ pub mod harness {
         private: i64,
     }
 
-    async fn count(pool: &sqlx::PgPool, sql: &str) -> i64 {
+    async fn count(pool: &sqlx::PgPool, sql: &'static str) -> i64 {
         sqlx::query_scalar::<_, i64>(sql)
             .fetch_one(pool)
             .await
@@ -5488,15 +5500,50 @@ pub mod harness {
                 return;
             }
         }
-        // An admin action writes the audit log and the access log.
-        let after = logs(&world.pool).await;
-        if after.audit <= before.audit {
+        // The state change itself was an admin action: the access log grew.
+        let changed = logs(&world.pool).await;
+        if changed.access <= before.access {
             failures.push(format!(
-                "{tag} admin actions wrote no platform_audit_log row"
+                "{tag} the admin actions that set the state wrote no staff_access_log row"
             ));
         }
-        if after.access <= before.access {
-            failures.push(format!("{tag} admin actions wrote no staff_access_log row"));
+        // And an audited admin action (a settings change; a feature switch is access-logged only) writes the
+        // audit log and the access log: send a setting its own current value.
+        let r = srv.call(owner, "GET", "/admin/settings", None).await;
+        let list = json_of(&r);
+        let probe = list
+            .as_array()
+            .and_then(|l| l.iter().find(|s| s["key"] == "retention.large_file_days"))
+            .cloned();
+        match probe {
+            Some(p) => {
+                let r = srv
+                    .call_reason(
+                        owner,
+                        "PATCH",
+                        "/admin/settings",
+                        Some(&json!({"values": {"retention.large_file_days": p["value"]}})),
+                    )
+                    .await;
+                if r.status != 200 {
+                    failures.push(format!(
+                        "{tag} the audited admin action answered {} {}",
+                        r.status, r.body
+                    ));
+                }
+            }
+            None => failures.push(format!("{tag} the probe setting is not in the catalog")),
+        }
+        let after = logs(&world.pool).await;
+        if after.audit <= changed.audit {
+            failures.push(format!(
+                "{tag} an audited admin action wrote no platform_audit_log row"
+            ));
+        }
+        if after.access <= changed.access {
+            failures.push(format!(
+                "{tag} an audited admin action wrote no staff_access_log row"
+            ));
         }
         // A staff read of a member archive is logged.
         let member = world.member_id;

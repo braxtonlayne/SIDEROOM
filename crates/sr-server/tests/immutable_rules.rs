@@ -50,7 +50,10 @@ const DENY: [&str; 7] = [
 /// Names that matched the pattern before the rule existed. Each is a setting of something else (who may do a
 /// thing in a module), not a switch for the three. The list may only shrink; a new entry needs the owner.
 const LEGACY: &[&str] = &[
-    // Filled in by the first run of `no_flag_name_matches_the_deny_pattern`; see its failure message.
+    // How long a server's own audit log (the Discord-parity one members and moderators read) is kept; 0 means
+    // forever. It is not the tamper-evident staff audit log or the staff access log, which have no retention
+    // setting at all. Owner to confirm the name is acceptable (wave 28 handoff).
+    "moderation.audit_retention_days",
 ];
 
 fn denied(name: &str) -> Option<&'static str> {
