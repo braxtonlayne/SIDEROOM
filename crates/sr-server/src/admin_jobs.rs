@@ -269,20 +269,27 @@ pub fn register_cors_recheck(
     repo: Arc<dyn sr_storage::mounts::MountRepo>,
     sealer: Arc<dyn sr_storage::mounts::Sealer>,
     origin: String,
+    guard: Arc<dyn sr_storage::guard::EndpointGuard>,
 ) -> JobRunner {
     let pool = pool.clone();
     runner.register(CORS_RECHECK_KIND, 1, move |job: Job| {
-        let (pool, repo, sealer, origin) =
-            (pool.clone(), repo.clone(), sealer.clone(), origin.clone());
+        let (pool, repo, sealer, origin, guard) = (
+            pool.clone(),
+            repo.clone(),
+            sealer.clone(),
+            origin.clone(),
+            guard.clone(),
+        );
         Box::pin(async move {
             if let Ok(origin) = sr_storage::s3admin::normalize_origin(&origin) {
                 let iso = |ms: i64| sr_api::routes::developer::iso(ms);
-                match sr_storage::recheck::recheck_all(
+                match sr_storage::recheck::recheck_all_guarded(
                     repo.as_ref(),
                     sealer.as_ref(),
                     &origin,
                     now_ms(),
                     &iso,
+                    Some(guard.as_ref()),
                 )
                 .await
                 {

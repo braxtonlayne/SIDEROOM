@@ -168,6 +168,10 @@ pub const BYOS_WHO_MAY_MOUNT: &str = "byos.who_may_mount";
 pub const WHO_MAY_MOUNT_VALUES: &[&str] = &["all", "patrons", "staff"];
 /// Most host patterns [`BYOS_ENDPOINT_ALLOW`] may list.
 pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
+/// Mount caps and the upload part quota (wave 28, byos-browser; BYOS-BRW-001).
+pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
+pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
+pub const BYOS_UPLOAD_PARTS_PER_HOUR: &str = "byos.upload_parts_per_hour";
 
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
@@ -371,6 +375,31 @@ pub const CATALOG: &[SettingDef] = &[
         default_int: 0,
         description: "Who may connect a bucket of their own: all, patrons or staff (empty means all). A server's own buckets follow its Manage Storage grant instead.",
     },
+    // --- wave 28 byos-browser block (kept apart from the presign settings above) ---
+    int(
+        BYOS_MAX_MOUNTS_PER_USER,
+        "storage",
+        0,
+        50,
+        3,
+        "Most buckets one member may connect. Lowering it keeps the buckets already connected.",
+    ),
+    int(
+        BYOS_MAX_MOUNTS_PER_GUILD,
+        "storage",
+        0,
+        100,
+        5,
+        "Most buckets one server may connect. Lowering it keeps the buckets already connected.",
+    ),
+    int(
+        BYOS_UPLOAD_PARTS_PER_HOUR,
+        "storage",
+        10,
+        100_000,
+        2_000,
+        "Most upload part URLs one member may request per hour across their buckets (a 16 MiB part each).",
+    ),
     int(
         "invites.initial_credits",
         "invites",

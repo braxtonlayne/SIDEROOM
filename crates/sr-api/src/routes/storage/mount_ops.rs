@@ -125,7 +125,9 @@ async fn admin_for(deps: &MountsDeps, m: &Mount) -> MsgResult<S3Admin> {
     };
     let url =
         url::Url::parse(&m.endpoint).map_err(|_| bad("The stored endpoint is not a valid URL."))?;
-    sr_net::resolve_validated(&deps.net_policy, &sr_net::SystemResolver, &url)
+    // Resolve once, check, and connect to exactly those addresses: the name cannot rebind between the
+    // check and the call.
+    let addrs = sr_net::resolve_validated(&deps.net_policy, &sr_net::SystemResolver, &url)
         .await
         .map_err(|_| bad("This endpoint is not reachable from the public internet."))?;
     let secret = m
@@ -139,6 +141,7 @@ async fn admin_for(deps: &MountsDeps, m: &Mount) -> MsgResult<S3Admin> {
         &m.access_key_id,
         secret.expose(),
     )
+    .and_then(|a| a.pinned(&addrs))
     .map_err(|e| {
         tracing::error!(error = %e, "building the S3 admin client failed");
         MsgError::from(ErrorCode::SrInternal)

@@ -1661,6 +1661,35 @@ async fn seed(
         let ids_map = if tenant_b { &mut b } else { &mut a };
         ids_map.insert("legal_mount_id", id.to_string());
     }
+    // --- BYOS-BRW-001 seeds (byos-browser): one open upload per tenant, for the `{mount_upload_id}` routes ---
+    for (who, ids_map) in [("member", &mut a), ("ownerb", &mut b)] {
+        use sr_storage::uploads::UploadLedger as _;
+        let upload_id = ids.generate().get() as i64;
+        let mount_id: i64 = ids_map["mount_id"].parse().unwrap();
+        sr_db::mount_uploads_repo::PgUploadLedger::new(pool.clone())
+            .insert(sr_storage::uploads::MountUpload {
+                id: upload_id,
+                mount_id,
+                user_id: u(who),
+                key: "Music/seed.flac".into(),
+                s3_upload_id: "authz-matrix-upload".into(),
+                size: 40 * 1024 * 1024,
+                part_size: sr_storage::uploads::PART_SIZE,
+                part_count: 3,
+                content_type: "audio/flac".into(),
+                state: sr_storage::uploads::UploadState::Open,
+                created_at: 1_900_000_000_000,
+                updated_at: 1_900_000_000_000,
+            })
+            .await
+            .unwrap();
+        ids_map.insert("mount_upload_id", upload_id.to_string());
+    }
+    // The platform bucket, for the attach and detach routes (nothing else is attachable).
+    let platform_id =
+        insert_mount(&pool, &ids, sr_storage::mounts::MountOwner::Platform, true).await;
+    a.insert("platform_mount_id", platform_id.to_string());
+    // --- end BYOS-BRW-001 seeds ---
     // More objects, so that a refusal is not just "no such id": a moderation case, a takedown notice,
     // a hold, an announcement, a submission, a command, a grant and a running stage.
     let staff = Cred::Session(sess["staff_owner"].clone());
@@ -2892,7 +2921,7 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 33] = [
+const TENANT: [&str; 34] = [
     "sticker_id",
     "sound_id",
     "request_id",
@@ -2926,6 +2955,8 @@ const TENANT: [&str; 33] = [
     "party_id",
     "case_id",
     "mount_id",
+    // BYOS-BRW-001 (byos-browser)
+    "mount_upload_id",
 ];
 
 fn scoped(path: &str) -> bool {
@@ -2946,6 +2977,8 @@ fn fill(path: &str, ids: &HashMap<&'static str, String>) -> String {
             "token" | "code" | "key" | "board" | "username" | "stream_key" | "hmac" | "url_b64"
             | "path" | "file" | "*path" => "x".to_owned(),
             "index" => "0".to_owned(),
+            // BYOS-BRW-001 (byos-browser): a part number that exists in the seeded upload.
+            "part_number" => "1".to_owned(),
             _ => BOGUS.to_owned(),
         });
         out.push_str(&v);
@@ -2983,6 +3016,19 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
         // BYOS-SCP-002: a presign for an audio key, a grants body naming the seeded role.
         ("POST", "/storage/mounts/{mount_id}/presign") => r#"{"key":"a.mp3","method":"GET"}"#,
+        // BYOS-BRW-001 (byos-browser): the write side of the bucket browser.
+        ("POST", "/storage/mounts/{mount_id}/uploads") => {
+            r#"{"key":"Music/a.flac","size":1048576,"content_type":"audio/flac"}"#
+        }
+        ("POST", "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete") => {
+            r#"{"parts":[]}"#
+        }
+        ("POST", "/admin/storage/mounts/{platform_mount_id}/attach")
+        | ("POST", "/admin/storage/mounts/{platform_mount_id}/detach") => {
+            r#"{"guild_id":"{guild_id}"}"#
+        }
+        ("POST", "/storage/mounts/{mount_id}/folders") => r#"{"key":"Albums/"}"#,
+        ("POST", "/storage/mounts/{mount_id}/move") => r#"{"from":"a.mp3","to":"b.mp3"}"#,
         ("PUT", "/guilds/{guild_id}/storage/grants") => {
             r#"{"role_id":"{role_id}","grants":["view_music"]}"#
         }
@@ -5598,4 +5644,239 @@ pub mod harness {
             ));
         }
     }
+// BYOS-BRW-001 (byos-browser): the write side of the bucket browser. Nothing listens on the mounts'
+// endpoint, so an admitted write answers 409 `BUCKET_UNREACHABLE` after the authorization decision (that is
+// the proof it got past it); a refused one answers 403 or 404 before any bucket call. The part URL is local
+// signing, so it answers 200 for the right caller.
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn storage_writes_hold_over_http() {
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 21).expect("ids");
+    let id_src: sr_db::auth_repo::IdSource = {
+        let g = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 22).expect("ids"));
+        Arc::new(move || g.generate().get() as i64)
+    };
+    let auth = PgAuthRepo::new(
+        world.pool.clone(),
+        id_src,
+        sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap(),
+    );
+    let friend_unshared = Cred::Session(session_for(&auth, &ids, world.users["friendtwo"]).await);
+    let friend_shared = world.actor("victim").cred.clone();
+    let member = world.actor("member").cred.clone();
+    let owner_a = world.actor("owner_a").cred.clone();
+    let insider = world.actor("insider").cred.clone();
+    let outsider = world.actor("outsider").cred.clone();
+    let owner_b = world.actor("owner_b").cred.clone();
+    let pool = &world.pool;
+    let srv = &world.srv;
+    let m = world.a["mount_id"].clone();
+    let up = world.a["mount_upload_id"].clone();
+    let m_id: i64 = m.parse().unwrap();
+    let g_mount = insert_mount(
+        pool,
+        &ids,
+        sr_storage::mounts::MountOwner::Guild(world.guild_a),
+        true,
+    )
+    .await
+    .to_string();
+
+    let mut failures: Vec<String> = Vec::new();
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(160).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+    let begin = |mount: &str| format!("/storage/mounts/{mount}/uploads");
+    let body = json!({"key": "Music/a.flac", "size": 1_048_576});
+
+    // The owner is admitted past the decision: the dead bucket is what stops the call.
+    let r = expect!(
+        "owner begins an upload",
+        srv.call(&member, "POST", &begin(&m), Some(&body)).await,
+        409
+    );
+    if !r.body.contains("BUCKET_UNREACHABLE") {
+        failures.push(format!("owner begin should reach the bucket: {}", r.body));
+    }
+    // The owner's part URL is signed locally and carries no secret.
+    let part = format!("{}/{up}/parts/1", begin(&m));
+    let r = expect!(
+        "owner asks for a part URL",
+        srv.call(&member, "POST", &part, None).await,
+        200
+    );
+    if !r.body.contains("partNumber=1") || r.body.contains("authz-matrix-secret") {
+        failures.push(format!("part URL shape: {}", r.body));
+    }
+    expect!(
+        "owner lists open uploads",
+        srv.call(&member, "GET", &begin(&m), None).await,
+        200
+    );
+
+    // A friend the mount is shared with reaches it and still cannot write; one it is not shared with cannot see it.
+    let victim = world.users["victim"];
+    expect!(
+        "the owner shares everything",
+        srv.call(
+            &member,
+            "PUT",
+            &format!("/users/@me/storage/mounts/{m}/shares/{victim}"),
+            Some(&json!({"cinema": true, "library": true, "music": true}))
+        )
+        .await,
+        200
+    );
+    for (what, method, path, b) in [
+        ("begin", "POST", begin(&m), Some(&body)),
+        ("part", "POST", part.clone(), None),
+        ("list", "GET", begin(&m), None),
+    ] {
+        expect!(
+            &format!("shared friend: {what}"),
+            srv.call(&friend_shared, method, &path, b).await,
+            403
+        );
+    }
+    let folder = json!({"key": "New/"});
+    expect!(
+        "shared friend: folder",
+        srv.call(
+            &friend_shared,
+            "POST",
+            &format!("/storage/mounts/{m}/folders"),
+            Some(&folder)
+        )
+        .await,
+        403
+    );
+    expect!(
+        "shared friend: move",
+        srv.call(
+            &friend_shared,
+            "POST",
+            &format!("/storage/mounts/{m}/move"),
+            Some(&json!({"from": "a.mp3", "to": "b.mp3"}))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "shared friend: delete",
+        srv.call(
+            &friend_shared,
+            "DELETE",
+            &format!("/storage/mounts/{m}/objects/a.mp3"),
+            None
+        )
+        .await,
+        403
+    );
+    expect!(
+        "unshared friend: begin",
+        srv.call(&friend_unshared, "POST", &begin(&m), Some(&body))
+            .await,
+        404
+    );
+    expect!(
+        "another tenant's owner: begin",
+        srv.call(&owner_b, "POST", &begin(&m), Some(&body)).await,
+        404
+    );
+    expect!(
+        "another tenant's owner: the upload id",
+        srv.call(&owner_b, "DELETE", &format!("{}/{up}", begin(&m)), None)
+            .await,
+        404
+    );
+
+    // A server shelf: the server owner may write; a member without the upload grant and a stranger may not.
+    expect!(
+        "server owner begins",
+        srv.call(&owner_a, "POST", &begin(&g_mount), Some(&body))
+            .await,
+        409
+    );
+    expect!(
+        "server owner makes a folder",
+        srv.call(
+            &owner_a,
+            "POST",
+            &format!("/storage/mounts/{g_mount}/folders"),
+            Some(&folder)
+        )
+        .await,
+        409
+    );
+    let r = srv
+        .call(&insider, "POST", &begin(&g_mount), Some(&body))
+        .await;
+    if r.status != 403 && r.status != 404 {
+        failures.push(format!("insider begin: {} {}", r.status, r.body));
+    }
+    expect!(
+        "server stranger begins",
+        srv.call(&outsider, "POST", &begin(&g_mount), Some(&body))
+            .await,
+        404
+    );
+
+    // The gate behind the decision: a mount that has not passed its CORS check starts nothing, and a disabled
+    // mount is not there.
+    sqlx::query("UPDATE storage_mounts SET cors_ok_at = NULL WHERE id = $1")
+        .bind(m_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    let r = expect!(
+        "no CORS, no upload",
+        srv.call(&member, "POST", &begin(&m), Some(&body)).await,
+        409
+    );
+    if !r.body.contains("CORS_NOT_READY") {
+        failures.push(format!("expected CORS_NOT_READY: {}", r.body));
+    }
+    sqlx::query("UPDATE storage_mounts SET status = 'disabled' WHERE id = $1")
+        .bind(m_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    expect!(
+        "a disabled mount takes no upload",
+        srv.call(&member, "POST", &begin(&m), Some(&body)).await,
+        404
+    );
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} storage write failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
 }

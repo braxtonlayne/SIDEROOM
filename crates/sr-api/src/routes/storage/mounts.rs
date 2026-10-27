@@ -166,7 +166,7 @@ pub struct MountObject {
     pub access_key_id: String,
     /// The last four characters of the access key id.
     pub key_hint: String,
-    /// `active`, `failing` or `disabled`.
+    /// `active`, `failing`, `disabled` or `delisted` (set by staff after a takedown; the owner cannot clear it).
     pub status: String,
     /// When the CORS check last passed (ISO 8601); presigning is refused until it has.
     pub cors_ok_at: Option<String>,
@@ -500,9 +500,31 @@ async fn list(deps: &MountsDeps, scope: Scope) -> MsgResult<Json<Vec<MountObject
     Ok(Json(rows.iter().map(MountObject::of).collect()))
 }
 
+/// The cap for a new mount: the setting when the admin service is wired, else the deps' default.
+async fn cap_for(deps: &MountsDeps, admin: Option<&AdminDeps>, scope: Scope) -> u32 {
+    let (key, default) = match scope {
+        Scope::User(_) => (
+            sr_admin::settings::BYOS_MAX_MOUNTS_PER_USER,
+            deps.max_per_user,
+        ),
+        Scope::Guild(_) => (
+            sr_admin::settings::BYOS_MAX_MOUNTS_PER_GUILD,
+            deps.max_per_guild,
+        ),
+    };
+    match admin {
+        Some(a) => match a.service.setting_value_i64(key).await {
+            Ok(v) => u32::try_from(v).unwrap_or(default),
+            Err(_) => default,
+        },
+        None => default,
+    }
+}
+
 async fn create(
     deps: &MountsDeps,
     policy: &MountPolicy,
+    admin: Option<&AdminDeps>,
     scope: Scope,
     body: CreateMountBody,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
@@ -530,10 +552,7 @@ async fn create(
     let secret = secret(&body.secret_access_key)?;
     let id = i64::try_from((deps.next_id)()).unwrap_or(0);
     let new = NewMount::seal(deps.sealer.as_ref(), id, input, &secret).map_err(repo_failure)?;
-    let cap = match scope {
-        Scope::User(_) => deps.max_per_user,
-        Scope::Guild(_) => deps.max_per_guild,
-    };
+    let cap = cap_for(deps, admin, scope).await;
     let mount = deps
         .repo
         .create(new, Some(cap))
@@ -713,7 +732,7 @@ pub async fn create_user(
     let scope = user_scope(&p)?;
     let policy = MountPolicy::load(admin.as_deref()).await;
     policy.may_connect(d.standing.as_deref(), p.user_id).await?;
-    create(&d, &policy, scope, body).await
+    create(&d, &policy, admin.as_deref(), scope, body).await
 }
 
 /// Change one of your buckets (label, address, keys, prefix, or switch it on or off).
@@ -801,7 +820,8 @@ pub async fn create_guild(
     ApiJson(body): ApiJson<CreateMountBody>,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
     let policy = MountPolicy::load(admin.as_deref()).await;
-    create(&d, &policy, guild_scope(&d, &s, &p, &guild_id).await?, body).await
+    let scope = guild_scope(&d, &s, &p, &guild_id).await?;
+    create(&d, &policy, admin.as_deref(), scope, body).await
 }
 
 /// Change one of the server's buckets.

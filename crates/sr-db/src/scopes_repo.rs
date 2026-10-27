@@ -53,6 +53,45 @@ impl ScopeStore for PgScopeFacts {
         Ok((cinema, library))
     }
 
+    async fn guild_exists(&self, guild_id: i64) -> Result<bool, FactsError> {
+        sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM guilds WHERE id = $1)")
+            .bind(guild_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(fe)
+    }
+
+    async fn attach_mount(
+        &self,
+        mount_id: i64,
+        guild_id: i64,
+        by: i64,
+    ) -> Result<bool, FactsError> {
+        let r = sqlx::query(
+            "INSERT INTO storage_mount_attachments (mount_id, guild_id, attached_by) VALUES ($1, $2, $3) 
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(mount_id)
+        .bind(guild_id)
+        .bind(by)
+        .execute(&self.pool)
+        .await
+        .map_err(fe)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn detach_mount(&self, mount_id: i64, guild_id: i64) -> Result<bool, FactsError> {
+        let r = sqlx::query(
+            "DELETE FROM storage_mount_attachments WHERE mount_id = $1 AND guild_id = $2",
+        )
+        .bind(mount_id)
+        .bind(guild_id)
+        .execute(&self.pool)
+        .await
+        .map_err(fe)?;
+        Ok(r.rows_affected() > 0)
+    }
+
     async fn role_in_guild(&self, guild_id: i64, role_id: i64) -> Result<bool, FactsError> {
         sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM roles WHERE id = $1 AND guild_id = $2)")
             .bind(role_id)
@@ -363,10 +402,15 @@ impl ScopeFacts for PgScopeFacts {
         Ok(GrantSet::of(names.iter().filter_map(|n| Grant::parse(n))))
     }
 
-    async fn attached_guilds(&self, _mount_id: i64) -> Result<Vec<i64>, FactsError> {
-        // The attach table arrives with BYOS-INS-001 (byos-instance); until then no guild has the instance
-        // mount as a shelf.
-        Ok(Vec::new())
+    async fn attached_guilds(&self, mount_id: i64) -> Result<Vec<i64>, FactsError> {
+        // Migration 1441: the servers an operator attached the platform mount to.
+        sqlx::query_scalar(
+            "SELECT guild_id FROM storage_mount_attachments WHERE mount_id = $1 ORDER BY guild_id",
+        )
+        .bind(mount_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(fe)
     }
 
     async fn delisted(&self, mount_id: i64, keys: &[String]) -> Result<Vec<String>, FactsError> {

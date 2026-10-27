@@ -1,11 +1,14 @@
 import { Button, Notice } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError } from '../api/client';
 import { formatDateTime, useT } from '../i18n';
-import { storageErrorText } from '../settings/user/storage/errors';
 import '../settings/user/storage/storage.css';
 import { listObjects, presignGet, type ObjectEntry, type ObjectPage, type Presigned } from './api';
+import './browser/browser.css';
+import { NewFolder, RowActions } from './browser/ObjectActions';
+import { serverCode } from './browser/mountUploads';
+import { UploadPanel } from './browser/UploadPanel';
+import { writeErrorText } from './browser/writeErrors';
 
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
 const AUDIO = /\.(mp3|flac|ogg|oga|opus|m4a|aac|wav)$/i;
@@ -35,12 +38,13 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
   const [preview, setPreview] = useState<{ key: string; signed: Presigned } | null>(null);
   const [copied, setCopied] = useState<{ key: string; expires_at: string } | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // Bumped after an upload, a new folder, a move or a delete: the listing is read again.
+  const [reload, setReload] = useState(0);
+  const refresh = useCallback(() => setReload((n) => n + 1), []);
 
   const failText = useCallback(
     (e: unknown) =>
-      e instanceof ApiError && e.status === 409 && String(e.body?.code) === 'CORS_NOT_READY'
-        ? t('storage.browser.corsNotReady')
-        : storageErrorText(e),
+      serverCode(e) === 'CORS_NOT_READY' ? t('storage.browser.corsNotReady') : writeErrorText(e),
     [t],
   );
 
@@ -57,7 +61,7 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
     return () => {
       live = false;
     };
-  }, [mountId, prefix, failText]);
+  }, [mountId, prefix, failText, reload]);
 
   // Drop a presigned URL the moment it expires.
   useEffect(() => {
@@ -140,6 +144,12 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
           })}
         </p>
       )}
+      {page?.can_upload && (
+        <div className="sto-write">
+          <NewFolder mountId={mountId} prefix={prefix} onChanged={refresh} />
+          <UploadPanel mountId={mountId} prefix={prefix} onUploaded={refresh} />
+        </div>
+      )}
       {loading && <p role="status">{t('storage.browser.loading')}</p>}
       {page && !loading && (
         <>
@@ -152,6 +162,17 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
                 <Link to="/storage/$mountId" params={{ mountId }} search={{ prefix: f }}>
                   {baseName(f)}/
                 </Link>
+                {page.can_manage && (
+                  <span className="us-actions">
+                    <RowActions
+                      mountId={mountId}
+                      fileKey={f}
+                      onChanged={refresh}
+                      onNote={setNote}
+                      onError={setError}
+                    />
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -188,6 +209,15 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
                       >
                         {t('storage.browser.copyLink')}
                       </Button>
+                      {page.can_manage && (
+                        <RowActions
+                          mountId={mountId}
+                          fileKey={o.key}
+                          onChanged={refresh}
+                          onNote={setNote}
+                          onError={setError}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -606,6 +606,15 @@ impl MemoryScopeFacts {
     pub fn attach(&self, mount_id: i64, guild: i64) {
         self.with(|m| m.attached.entry(mount_id).or_default().push(guild));
     }
+    /// Remove an attachment made with [`Self::attach`].
+    pub fn detach(&self, mount_id: i64, guild: i64) -> bool {
+        self.with(|m| {
+            let list = m.attached.entry(mount_id).or_default();
+            let before = list.len();
+            list.retain(|g| *g != guild);
+            list.len() != before
+        })
+    }
     /// Delist a key.
     pub fn delist(&self, mount_id: i64, key: &str) {
         self.with(|m| m.delisted.insert((mount_id, key.to_owned())));
@@ -1315,4 +1324,11 @@ pub trait ScopeStore: ScopeFacts {
     async fn catalog_counts(&self) -> Result<(i64, i64), FactsError>;
     /// How many shelves of each kind `viewer` reaches.
     async fn shelves_summary(&self, viewer: i64) -> Result<ShelvesSummary, FactsError>;
+    /// Whether a server exists (attaching the platform bucket to it).
+    async fn guild_exists(&self, guild_id: i64) -> Result<bool, FactsError>;
+    /// Attach the platform mount to a server as a Guild Shelf; `false` when it already was (BYOS-BRW-001).
+    async fn attach_mount(&self, mount_id: i64, guild_id: i64, by: i64)
+    -> Result<bool, FactsError>;
+    /// Remove the attachment; `false` when there was none.
+    async fn detach_mount(&self, mount_id: i64, guild_id: i64) -> Result<bool, FactsError>;
 }

@@ -8,6 +8,7 @@
 //! * a failed call (network, permissions): nothing changes; the next run tries again.
 
 use crate::cors_check::{self, CorsState};
+use crate::guard::EndpointGuard;
 use crate::mounts::{Mount, MountRepo, MountStatus, Sealer};
 use crate::s3admin::S3Admin;
 
@@ -55,10 +56,24 @@ pub async fn recheck_all(
     now_ms: i64,
     iso: &(dyn Fn(i64) -> String + Sync),
 ) -> crate::mounts::MountResult<Vec<Rechecked>> {
+    recheck_all_guarded(repo, sealer, origin, now_ms, iso, None).await
+}
+
+/// [`recheck_all`] that resolves and vets every member endpoint once and connects only to the checked addresses
+/// (a name that rebinds to an internal address fails that mount, it is not followed). The platform mount is the
+/// operator's own and is not vetted.
+pub async fn recheck_all_guarded(
+    repo: &dyn MountRepo,
+    sealer: &dyn Sealer,
+    origin: &str,
+    now_ms: i64,
+    iso: &(dyn Fn(i64) -> String + Sync),
+    guard: Option<&dyn EndpointGuard>,
+) -> crate::mounts::MountResult<Vec<Rechecked>> {
     let mounts = repo.list_enabled().await?;
     let mut out = Vec::with_capacity(mounts.len());
     for m in mounts {
-        let result = recheck_one(repo, sealer, &m, origin, now_ms, iso).await;
+        let result = recheck_one(repo, sealer, &m, origin, now_ms, iso, guard).await;
         out.push(Rechecked { id: m.id, result });
     }
     Ok(out)
@@ -71,6 +86,7 @@ async fn recheck_one(
     origin: &str,
     now_ms: i64,
     iso: &(dyn Fn(i64) -> String + Sync),
+    guard: Option<&dyn EndpointGuard>,
 ) -> Result<CorsState, String> {
     let secret = m
         .secret_key_enc
@@ -84,6 +100,16 @@ async fn recheck_one(
         secret.expose(),
     )
     .map_err(|e| e.to_string())?;
+    let admin = match (guard, m.owner) {
+        (Some(g), owner) if owner != crate::mounts::MountOwner::Platform => {
+            let addrs = g
+                .validated_addrs(admin.endpoint())
+                .await
+                .map_err(|_| "its endpoint is not reachable from the public internet".to_owned())?;
+            admin.pinned(&addrs).map_err(|e| e.to_string())?
+        }
+        _ => admin,
+    };
     let report = cors_check::check(&admin, m.provider, origin)
         .await
         .map_err(|e| e.to_string())?;

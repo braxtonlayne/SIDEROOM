@@ -9,6 +9,7 @@ pub mod browse;
 pub mod cdn;
 pub mod cors_check;
 pub mod error;
+pub mod guard;
 pub mod img;
 pub mod media;
 pub mod mount_cache;
@@ -23,6 +24,7 @@ pub mod s3multipart;
 pub mod scopes;
 pub mod storage;
 pub mod upload;
+pub mod uploads;
 
 pub use error::{Result, StorageError};
 pub use storage::{
