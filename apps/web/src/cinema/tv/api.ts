@@ -4,7 +4,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiFetch } from '../../api/client';
 import { getTitle } from '../api';
-import type { ChannelCategory, ChannelNow, TuneGrant, TvBlock, TvChannel, TvGuide } from './types';
+import type {
+  ChannelCategory,
+  ChannelNow,
+  TuneGrant,
+  TvBlock,
+  TvChannel,
+  TvGuide,
+  TvPool,
+} from './types';
 
 const enc = encodeURIComponent;
 const BASE = '/tv';
@@ -64,6 +72,7 @@ export interface WireChannel {
   timezone: string;
   age_restricted: boolean;
   viewers?: number;
+  pool?: TvPool | null;
 }
 
 /** "S1 · E3 · The Long Night", whatever of it the server knows. */
@@ -113,6 +122,7 @@ export function toChannel(w: WireChannel): TvChannel {
     timezone: w.timezone,
     age_restricted: w.age_restricted,
     viewers: w.viewers ?? 0,
+    pool: w.pool ?? null,
   };
 }
 

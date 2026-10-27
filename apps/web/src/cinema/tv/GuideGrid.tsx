@@ -17,6 +17,7 @@ import {
   type CellId,
   type NavKey,
 } from './model';
+import { PoolChip } from './PoolChip';
 import type { TvBlock, TvChannel } from './types';
 
 export type TzMode = 'local' | 'channel';
@@ -220,7 +221,10 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
                   ) : (
                     <span className="tv-call">{ch.call_sign}</span>
                   )}
-                  <span className="tv-chan-sub">{ch.network ?? ch.name}</span>
+                  <span className="tv-chan-sub">
+                    {ch.network ?? ch.name}
+                    <PoolChip pool={ch.pool} />
+                  </span>
                 </button>
               </div>
               <div role="presentation" className="tv-track" style={{ width: trackW }}>

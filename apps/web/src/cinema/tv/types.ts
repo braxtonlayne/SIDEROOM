@@ -6,6 +6,12 @@ export type ChannelKind = 'imported_guide' | 'rule_based' | 'manual';
 export type ChannelCategory = 'anime' | 'movies' | 'series' | 'custom';
 export type ProgramKind = 'movie' | 'series' | 'anime' | 'filler';
 
+/** Where a channel's pools draw from (BYOS-TV-001): the instance catalog, one server's shelves, or one member's. */
+export type TvPool =
+  | { kind: 'instance' }
+  | { kind: 'guild'; guild_id: string }
+  | { kind: 'personal'; user_id: string };
+
 export interface TvChannel {
   id: string;
   /** Channel number (101, 102, ...). */
@@ -24,6 +30,8 @@ export interface TvChannel {
   age_restricted: boolean;
   /** Distinct members who fetched a live playlist in the last 45 s. */
   viewers?: number;
+  /** Absent: the instance catalog. */
+  pool?: TvPool | null;
 }
 
 export interface TvBlock {

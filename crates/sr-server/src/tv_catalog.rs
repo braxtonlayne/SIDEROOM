@@ -20,7 +20,9 @@ use sr_cinema::model::{
     AgeFilter, BrowseQuery, EpisodeRecord, Scope, SortKey, TitleKind, TitleRecord,
 };
 use sr_cinema::repo::{CinemaRepository, EpisodeQuery};
-use sr_tv::model::{MediaKind, PoolFilter, Restricted};
+use sr_storage::mounts::{MountOwner, MountRepo, MountStatus};
+use sr_storage::scopes::{Grant, ScopeFacts};
+use sr_tv::model::{MediaKind, PoolFilter, PoolSource, Restricted};
 use sr_tv::{CatalogItem, TitleRef, TvCatalog, TvError, TvResult};
 
 /// Probed lengths of video assets, in milliseconds.
@@ -58,10 +60,96 @@ impl AssetDurations for PgAssetDurations {
     }
 }
 
+/// The mount every catalog row has always lived in: the instance bucket (migration 1420).
+pub const INSTANCE_MOUNT_ID: i64 = 1;
+
+/// Which mounts a channel source may draw from (BYOS-TV-001): a server's own live mounts plus the platform
+/// mounts attached to it, or a member's own live mounts. A friend's mount is never a source.
+pub struct ShelfMounts {
+    repo: Arc<dyn MountRepo>,
+    facts: Arc<dyn ScopeFacts>,
+}
+
+impl ShelfMounts {
+    pub fn new(repo: Arc<dyn MountRepo>, facts: Arc<dyn ScopeFacts>) -> Self {
+        Self { repo, facts }
+    }
+
+    /// The mount ids, or an error (never a guess) when a store fails.
+    pub async fn of(&self, source: PoolSource) -> TvResult<Vec<i64>> {
+        let store = |e: String| TvError::Catalog(e);
+        let owned = |owner: MountOwner| async move {
+            self.repo
+                .for_owner(owner)
+                .await
+                .map(|v| {
+                    v.into_iter()
+                        .filter(|m| m.status == MountStatus::Active)
+                        .map(|m| m.id)
+                        .collect::<Vec<_>>()
+                })
+                .map_err(|e| store(e.to_string()))
+        };
+        match source {
+            PoolSource::Instance => Ok(Vec::new()),
+            PoolSource::Personal { user_id } => owned(MountOwner::User(user_id)).await,
+            PoolSource::Guild { guild_id } => {
+                let mut ids = owned(MountOwner::Guild(guild_id)).await?;
+                let platform = self
+                    .repo
+                    .list_enabled()
+                    .await
+                    .map_err(|e| store(e.to_string()))?;
+                for m in platform
+                    .into_iter()
+                    .filter(|m| m.owner == MountOwner::Platform)
+                {
+                    let guilds = self
+                        .facts
+                        .attached_guilds(m.id)
+                        .await
+                        .map_err(|e| store(e.to_string()))?;
+                    if guilds.contains(&guild_id) {
+                        ids.push(m.id);
+                    }
+                }
+                Ok(ids)
+            }
+        }
+    }
+}
+
+/// Who may watch a server's channel (BYOS-TV-001): a member of the server whose roles hold the `view_cinema`
+/// storage grant (the owner and `ADMINISTRATOR` hold every grant). One answer per server, so the guide is the
+/// same for everyone who may watch.
+pub struct GuildChannelAccess {
+    facts: Arc<dyn ScopeFacts>,
+}
+
+impl GuildChannelAccess {
+    pub fn new(facts: Arc<dyn ScopeFacts>) -> Self {
+        Self { facts }
+    }
+}
+
+#[async_trait]
+impl sr_tv::ChannelAccess for GuildChannelAccess {
+    async fn may_watch(&self, viewer: sr_tv::Viewer, pool: PoolSource) -> TvResult<bool> {
+        let PoolSource::Guild { guild_id } = pool else {
+            return Ok(false);
+        };
+        let grants = sr_storage::scopes::guild_grants(self.facts.as_ref(), guild_id, viewer.user_id)
+            .await
+            .map_err(|e| TvError::Catalog(e.to_string()))?;
+        Ok(grants.has(Grant::ViewCinema))
+    }
+}
+
 /// [`TvCatalog`] over the catalog repository.
 pub struct RepoTvCatalog {
     repo: Arc<dyn CinemaRepository>,
     durations: Option<Arc<dyn AssetDurations>>,
+    shelves: Option<ShelfMounts>,
 }
 
 /// Titles read per pool at most (ten pages of a hundred).
@@ -73,7 +161,14 @@ impl RepoTvCatalog {
         Self {
             repo,
             durations: None,
+            shelves: None,
         }
+    }
+
+    /// Lets server and personal channels find their mounts. Without it they draw from nothing.
+    pub fn with_shelves(mut self, shelves: ShelfMounts) -> Self {
+        self.shelves = Some(shelves);
+        self
     }
 
     /// Takes block lengths from the probed assets instead of the catalog runtimes.
@@ -144,6 +239,8 @@ fn film_item(t: &TitleRecord) -> Option<CatalogItem> {
         age_restricted: t.age_restricted,
         genres,
         tags,
+        mount_id: INSTANCE_MOUNT_ID,
+        playable: true,
     })
 }
 
@@ -166,6 +263,8 @@ fn episode_item(t: &TitleRecord, e: &EpisodeRecord) -> Option<CatalogItem> {
         age_restricted: t.age_restricted,
         genres,
         tags,
+        mount_id: INSTANCE_MOUNT_ID,
+        playable: true,
     })
 }
 
@@ -251,6 +350,20 @@ impl RepoTvCatalog {
 
 #[async_trait]
 impl TvCatalog for RepoTvCatalog {
+    /// The instance catalog is the only thing `pool` reads (the published rows, all in the instance bucket), so a
+    /// server or personal channel gets it exactly when the instance bucket is among its mounts. Items found in a
+    /// server's own or a member's mount are not offered yet: they need a probed runtime and the byte-range
+    /// renderer (see the handoff), and an item that cannot air is never scheduled.
+    async fn mounts_of(&self, source: PoolSource) -> TvResult<Option<Vec<i64>>> {
+        if source == PoolSource::Instance {
+            return Ok(None);
+        }
+        match &self.shelves {
+            Some(s) => s.of(source).await.map(Some),
+            None => Ok(Some(Vec::new())),
+        }
+    }
+
     async fn pool(
         &self,
         filter: &PoolFilter,

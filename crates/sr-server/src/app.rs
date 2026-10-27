@@ -738,9 +738,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let tv_service = sr_tv::TvService::new(
         Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
         Arc::new(
-            crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(Arc::new(
-                crate::tv_catalog::PgAssetDurations::new(pool.clone()),
-            )),
+            crate::tv_catalog::RepoTvCatalog::new(cinema_repo)
+                .with_asset_durations(Arc::new(crate::tv_catalog::PgAssetDurations::new(
+                    pool.clone(),
+                )))
+                .with_shelves(crate::tv_catalog::ShelfMounts::new(
+                    mount_repo.clone(),
+                    scope_facts.clone(),
+                )),
         ),
         clock.clone(),
         id_src.clone(),
@@ -749,7 +754,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
         signer: Arc::new(cdn_signer.clone()),
     })
-    .with_slate_source(tv_slate.clone());
+    .with_slate_source(tv_slate.clone())
+    .with_access(Arc::new(crate::tv_catalog::GuildChannelAccess::new(
+        scope_facts.clone(),
+    )));
     let tv_deps = Arc::new(
         routes::tv::TvDeps::new(tv_service)
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
