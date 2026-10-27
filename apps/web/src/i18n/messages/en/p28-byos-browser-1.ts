@@ -1,0 +1,68 @@
+export default {
+  // ---- Bucket browser, write side (BYOS-BRW-001, phase 28): uploads, folders, rename, move, delete ----
+  'storage.write.upload.files': 'Upload files',
+  'storage.write.upload.folder': 'Upload a folder',
+  'storage.write.upload.drop': 'Drop files or a folder here to upload them to {path}.',
+  'storage.write.upload.zone': 'Upload area',
+  'storage.write.upload.top': 'the top of the shelf',
+  'storage.write.upload.skipped':
+    '{count, plural, one {# item was} other {# items were}} skipped: empty files and names a shelf cannot store.',
+  'storage.write.upload.noWork': 'Nothing to upload.',
+  'storage.write.dock.title': 'Uploads',
+  'storage.write.dock.total': 'Uploading, {percent}% done',
+  'storage.write.dock.row': '{name}: {percent}%',
+  'storage.write.dock.pause': 'Pause {name}',
+  'storage.write.dock.resume': 'Resume {name}',
+  'storage.write.dock.retry': 'Retry {name}',
+  'storage.write.dock.cancel': 'Cancel {name}',
+  'storage.write.dock.clear': 'Clear finished',
+  'storage.write.dock.stateQueued': 'Waiting',
+  'storage.write.dock.stateRunning': 'Uploading',
+  'storage.write.dock.statePaused': 'Paused',
+  'storage.write.dock.stateFailed': 'Failed',
+  'storage.write.dock.stateDone': 'Done',
+  'storage.write.cancel': 'Cancel',
+  'storage.write.folder.button': 'New folder',
+  'storage.write.folder.title': 'New folder',
+  'storage.write.folder.name': 'Folder name',
+  'storage.write.folder.help': 'It is made inside {path}.',
+  'storage.write.folder.create': 'Create',
+  'storage.write.folder.noSlash': 'A folder name has no slash in it.',
+  'storage.write.move.action': 'Rename or move {name}',
+  'storage.write.move.button': 'Rename or move',
+  'storage.write.move.title': 'Rename or move {name}',
+  'storage.write.move.label': 'New path',
+  'storage.write.move.help':
+    'The path from the top of the shelf. Change the last part to rename it, or the whole path to move it. A file over 5 GiB cannot be moved here.',
+  'storage.write.move.confirm': 'Save',
+  'storage.write.move.done': '{name} was moved.',
+  'storage.write.delete.action': 'Delete {name}',
+  'storage.write.delete.button': 'Delete',
+  'storage.write.delete.title': 'Delete {name}?',
+  'storage.write.delete.fileBody':
+    'This deletes the file from your bucket. The bucket keeps no copy, so there is no undo.',
+  'storage.write.delete.folderBody':
+    'This deletes the folder and everything in it from your bucket. The bucket keeps no copy, so there is no undo.',
+  'storage.write.delete.confirm': 'Delete',
+  'storage.write.delete.done': '{count, plural, one {Deleted # item.} other {Deleted # items.}}',
+  'storage.write.err.corsNotReady':
+    'The bucket has not passed its CORS check, so the browser cannot send files to it. Apply CORS in Settings > Storage.',
+  'storage.write.err.targetExists': 'Something with that name is already there.',
+  'storage.write.err.objectTooLarge':
+    'A file over 5 GiB cannot be moved here. Move it at your provider.',
+  'storage.write.err.folderTooLarge':
+    'That folder has more than 500 entries. Do it in smaller pieces, or at your provider.',
+  'storage.write.err.moveIntoItself': 'A folder cannot move into itself.',
+  'storage.write.err.moveSame': 'That is where it already is.',
+  'storage.write.err.kindMismatch': 'A folder moves to a folder and a file to a file.',
+  'storage.write.err.bucketUnreachable':
+    'The bucket did not answer. Check that it is online and reachable.',
+  'storage.write.err.tooManyUploads': 'Finish or cancel some uploads before starting more.',
+  'storage.write.err.tooMany':
+    'Too many upload parts were sent in the last hour. Try again a little later.',
+  'storage.write.err.incomplete': 'Some parts have not arrived yet. Retry the upload.',
+  'storage.write.err.fileTooLarge': 'That file is larger than 156 GiB.',
+  'storage.write.err.emptyFile': 'An empty file cannot be uploaded.',
+  'storage.write.err.keyInvalid': 'That name cannot be used on a shelf.',
+  'storage.write.err.notAllowed': 'You may not change this shelf.',
+} satisfies Record<string, string>;

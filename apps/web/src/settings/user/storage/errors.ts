@@ -8,7 +8,9 @@ import { errorText } from '../api';
  */
 export function storageErrorText(e: unknown): string {
   if (e instanceof ApiError) {
-    const code = String(e.body?.code ?? '');
+    // The server's 409s carry the stable string at `errors.mount._errors[0].code` (SrConflict 900010); an older
+    // mock put it at `code`.
+    const code = Object.values(e.body?.errors ?? {})[0]?._errors?.[0]?.code ?? String(e.body?.code ?? '');
     if (e.status === 409) {
       if (code === 'MOUNT_CAP_REACHED') return t('settings.storageError.capReached');
       if (code === 'MOUNT_LABEL_TAKEN') return t('settings.storageError.labelTaken');

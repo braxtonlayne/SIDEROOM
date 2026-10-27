@@ -1,16 +1,16 @@
 // Browser ledger for resumable uploads (D-271). One IndexedDB database, `sideroom-uploads`, with a store per
-// area: `uploads` for the Library upload manager (review/uploadManager.ts) and `chat` for multipart chat
-// attachments (lounge/msg/upload.ts). A row keeps the File itself, so a reload continues without choosing it
+// area: `uploads` for the Library upload manager (review/uploadManager.ts), `chat` for multipart chat
+// attachments (lounge/msg/upload.ts) and `mount` for uploads into a bucket mount (storage/browser/mountUploads.ts). A row keeps the File itself, so a reload continues without choosing it
 // again. Every call falls back quietly: a blocked or full database must never break an upload; `put` reports
 // whether the row was stored so the caller can use its fallback.
 
 import { apiFetch, getCsrf } from '../api/client';
 
 export const DB_NAME = 'sideroom-uploads';
-/** Version 2 added the `chat` store; version 1 only had `uploads`, whose rows survive the upgrade. */
-export const DB_VERSION = 2;
-export type StoreName = 'uploads' | 'chat';
-const STORES: StoreName[] = ['uploads', 'chat'];
+/** Version 2 added the `chat` store, version 3 the `mount` store; the rows of the older stores survive the upgrades. */
+export const DB_VERSION = 3;
+export type StoreName = 'uploads' | 'chat' | 'mount';
+const STORES: StoreName[] = ['uploads', 'chat', 'mount'];
 
 export interface Ledger<T extends { id: string }> {
   /** Stores the row; false when it could not be stored (quota, blocked database, no IndexedDB). */
@@ -199,6 +199,49 @@ export class ChatUploads {
   }
 }
 
+// ---- Mount store -------------------------------------------------------------------------------
+
+/** One resumable upload into a bucket mount (BYOS-BRW-001); the file is kept so a refresh continues it. */
+export interface MountUploadRow {
+  /** The upload id the server answered. */
+  id: string;
+  mountId: string;
+  /** Mount-relative key of the object being made. */
+  key: string;
+  size: number;
+  partSize: number;
+  partCount: number;
+  /** Part numbers the bucket holds, as far as the browser knows. */
+  done: number[];
+  state: 'queued' | 'running' | 'paused' | 'failed' | 'done';
+  error?: string;
+  savedAt: number;
+  file: File | Blob;
+}
+
+/** Best-effort `DELETE` of an open mount upload (sign-out, an evicted row); the server sweeps after 24 h anyway. */
+export async function abortMountUpload(
+  row: Pick<MountUploadRow, 'mountId' | 'id'>,
+  keepalive = false,
+): Promise<void> {
+  const path = `/storage/mounts/${encodeURIComponent(row.mountId)}/uploads/${encodeURIComponent(row.id)}`;
+  try {
+    if (!keepalive) {
+      await apiFetch(path, { method: 'DELETE', retries: 0 });
+      return;
+    }
+    const token = await getCsrf();
+    await fetch(`/api/v1${path}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      keepalive: true,
+      ...(token ? { headers: { 'X-SR-CSRF': token } } : {}),
+    });
+  } catch {
+    /* the server sweeps abandoned uploads after 24 h */
+  }
+}
+
 // ---- The browser's chat store ------------------------------------------------------------------
 
 /** Best-effort `DELETE` of an unattached chat slot; `keepalive` lets it outlive a page that is going away. */
@@ -252,6 +295,14 @@ export async function clearUploadsOnSignOut(): Promise<void> {
     await chatUploads().clear();
     const lib = defaultLedger<{ id: string }>('uploads');
     for (const r of await lib.all()) await lib.remove(r.id);
+    // Open uploads into a bucket are aborted at the bucket (best effort), then forgotten.
+    const mounts = defaultLedger<MountUploadRow>('mount');
+    const open = (await mounts.all()).filter((r) => r.state !== 'done');
+    await Promise.race([
+      Promise.all(open.map((r) => abortMountUpload(r, true))),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+    for (const r of await mounts.all()) await mounts.remove(r.id);
   } catch {
     /* best effort */
   }

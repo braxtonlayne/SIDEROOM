@@ -1,0 +1,54 @@
+/* The write side of the bucket browser (BYOS-BRW-001). Semantic tokens only (--ui-*); no raw colours or font sizes. */
+.sto-write {
+  display: grid;
+  gap: 12px;
+  margin-block: 12px;
+}
+.sto-upload {
+  display: grid;
+  gap: 12px;
+}
+.sto-drop {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.sto-drop-over {
+  border-style: solid;
+  border-color: var(--ui-accent, var(--ui-border));
+}
+.sto-dock {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.sto-dock-title {
+  margin: 0;
+}
+.sto-dock-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.sto-dock-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(6rem, 12rem) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+.sto-dock progress {
+  inline-size: 100%;
+}
+@media (max-width: 40rem) {
+  .sto-dock-list li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
