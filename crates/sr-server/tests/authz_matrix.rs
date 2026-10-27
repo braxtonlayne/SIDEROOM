@@ -1644,6 +1644,23 @@ async fn seed(
         let ids_map = if tenant_b { &mut b } else { &mut a };
         ids_map.insert(slot, id.to_string());
     }
+    // BYOS-LEG-001 (own block): a mount per tenant for `/admin/storage/mounts/{mount_id}/delist|relist` (OVERLAYS maps
+    // `{mount_id}` there), so that a staff sweep that delists it cannot take the storage-scope routes' mount away.
+    for (owner, tenant_b) in [(u("member"), false), (u("ownerb"), true)] {
+        let id = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, \
+             secret_key_enc, key_hint) VALUES ($1, 'user', $2, 'Legal', 'minio', 'http://127.0.0.1:9', 'legal', \
+             'AKIALEGAL', '\\xdeadbeef', 'EGAL')",
+        )
+        .bind(id)
+        .bind(owner)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let ids_map = if tenant_b { &mut b } else { &mut a };
+        ids_map.insert("legal_mount_id", id.to_string());
+    }
     // More objects, so that a refusal is not just "no such id": a moderation case, a takedown notice,
     // a hold, an announcement, a submission, a command, a grant and a running stage.
     let staff = Cred::Session(sess["staff_owner"].clone());
@@ -4580,6 +4597,8 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         "package_id",
         "recipe_id",
     ),
+    // BYOS-LEG-001: the staff delist acts on its own mount (see the seeding block).
+    (&["/admin/storage/mounts/"], "mount_id", "legal_mount_id"),
     // A server's mount routes act on the server's own mount, not the plain member's.
     (
         &["/guilds/{guild_id}/storage/mounts"],

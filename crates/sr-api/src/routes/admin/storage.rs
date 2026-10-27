@@ -9,8 +9,8 @@ use axum::{
     http::HeaderMap,
 };
 use serde::{Deserialize, Serialize};
-use sr_db::storage_legal::{AdminMountRow, MountLegal};
 use sr_moderation::model::Who;
+use sr_moderation::{AdminMountRow, MountLegal};
 use utoipa::{IntoParams, ToSchema};
 
 use super::ctx::{ReasonBody, StaffCtx, reason as reason_from};
@@ -178,9 +178,14 @@ pub async fn delist(
         .svc
         .delist_mount(&Who::Staff(&ctx.caller), mid, reason.as_deref())
         .await;
-    staff_result(&ctx, "storage.mount.delist", Some(("storage_mount", mid)), r)
-        .await
-        .map(|m| Json(m.into()))
+    staff_result(
+        &ctx,
+        "storage.mount.delist",
+        Some(("storage_mount", mid)),
+        r,
+    )
+    .await
+    .map(|m| Json(m.into()))
 }
 
 /// Relist a delisted mount (it returns to the status it had). The reason is required.
@@ -206,7 +211,12 @@ pub async fn relist(
         .svc
         .relist_mount(&Who::Staff(&ctx.caller), mid, reason.as_deref())
         .await;
-    staff_result(&ctx, "storage.mount.relist", Some(("storage_mount", mid)), r)
-        .await
-        .map(|m| Json(m.into()))
+    staff_result(
+        &ctx,
+        "storage.mount.relist",
+        Some(("storage_mount", mid)),
+        r,
+    )
+    .await
+    .map(|m| Json(m.into()))
 }

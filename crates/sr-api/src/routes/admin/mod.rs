@@ -283,8 +283,14 @@ pub fn router() -> Router<AppState> {
             get(data_requests::deleted_archive),
         )
         .route("/admin/storage/mounts", get(storage::list))
-        .route("/admin/storage/mounts/{mount_id}/delist", post(storage::delist))
-        .route("/admin/storage/mounts/{mount_id}/relist", post(storage::relist))
+        .route(
+            "/admin/storage/mounts/{mount_id}/delist",
+            post(storage::delist),
+        )
+        .route(
+            "/admin/storage/mounts/{mount_id}/relist",
+            post(storage::relist),
+        )
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
         .route("/admin/card-actions", post(announce::card_action))
