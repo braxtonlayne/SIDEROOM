@@ -57,6 +57,7 @@ ALTER TABLE video_episodes ADD COLUMN mount_object_id BIGINT,
     ADD COLUMN overridden TEXT[] NOT NULL DEFAULT '{}',
     ADD COLUMN shelf_state TEXT NOT NULL DEFAULT 'listed' CHECK (shelf_state IN ('listed', 'vanished'));
 ALTER TABLE reading_series ADD COLUMN mount_object_id BIGINT, ADD COLUMN shelf_key TEXT,
+    ADD COLUMN external_ids JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN overridden TEXT[] NOT NULL DEFAULT '{}', ADD COLUMN attribution TEXT,
     ADD COLUMN shelf_state TEXT NOT NULL DEFAULT 'listed' CHECK (shelf_state IN ('listed', 'vanished'));
 ALTER TABLE reading_chapters ADD COLUMN mount_object_id BIGINT,
@@ -95,6 +96,9 @@ CREATE TABLE music_tracks (
     genres           TEXT[] NOT NULL DEFAULT '{}',
     tags             TEXT[] NOT NULL DEFAULT '{}',
     cover_key        TEXT,
+    external_ids     JSONB NOT NULL DEFAULT '{}'::jsonb,
+    attribution      TEXT,
+    synopsis         TEXT NOT NULL DEFAULT '',
     overridden       TEXT[] NOT NULL DEFAULT '{}',
     shelf_state      TEXT NOT NULL DEFAULT 'listed' CHECK (shelf_state IN ('listed', 'vanished')),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),

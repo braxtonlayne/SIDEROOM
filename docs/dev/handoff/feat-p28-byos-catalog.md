@@ -6,7 +6,7 @@ Scratch DB `sr_p28_byos_catalog` (not created yet). Migration 1450 only. Job id 
 
 ## Resume here
 
-Slice 1-3 done: migration 1450, sr-storage index core, sr-db index_repo (4 Postgres tests), sr-server storage_jobs (walker, job 1450 `storage.index`, 200-name test, 10k Postgres test, ~7 s); app.rs registers and schedules it.
+Slice 1-4a done: migration 1450; sr-storage index core + shelf types (ShelfStore, reachable, drop_delisted); sr-db index_repo + shelf_repo (Postgres tests: index_repo 4, shelf_repo 2); sr-server storage_jobs (job 1450) + 10k test. Next: the routes (4b).
 (`classify.rs`, `sniff.rs`, `mod.rs` with the `IndexStore` trait), 15 unit tests green.
 
 Next: (2) `sr-db` index store (`index_repo.rs`: `storage_objects` upsert, catalog rows for Cinema/Library/Music,
