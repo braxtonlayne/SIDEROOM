@@ -91,6 +91,8 @@ pub struct RateLimitConfig {
 const MESSAGES_ROUTE: &str = "POST /channels/{channel_id}/messages";
 /// The route key of an upload slot request.
 const UPLOADS_ROUTE: &str = "POST /channels/{channel_id}/attachments";
+/// The route key that starts a browser upload into a bucket mount (BYOS-BRW-001); it rides the same live limit.
+const MOUNT_UPLOADS_ROUTE: &str = "POST /storage/mounts/{mount_id}/uploads";
 
 /// The abuse limits that ride the HTTP limiter (RDY-SEC-006). Each one is a platform setting in the
 /// `abuse` group of the Admin > Limits catalog (`sr_admin::settings`), read live like the message
@@ -521,7 +523,7 @@ impl RateLimiter {
         let mut map = lock(&self.buckets);
         let spec = match route_key {
             MESSAGES_ROUTE if self.cfg.live.is_some() => now.messages_spec(),
-            UPLOADS_ROUTE if self.cfg.live.is_some() => now.uploads_spec(),
+            UPLOADS_ROUTE | MOUNT_UPLOADS_ROUTE if self.cfg.live.is_some() => now.uploads_spec(),
             // An explicit static override wins (tests); otherwise the abuse figure, live.
             _ if abuse_for(route_key).is_some() && !self.cfg.routes.contains_key(route_key) => {
                 abuse_for(route_key)

@@ -394,9 +394,17 @@ impl MountIo for S3MountIo {
         c.complete(&mount.bucket_key(key), upload_id, parts).await
     }
     async fn abort(&self, mount: &Mount, key: &str, upload_id: &str) -> Result<()> {
-        self.client(mount)?
+        match self
+            .client(mount)?
             .abort(&mount.bucket_key(key), upload_id)
             .await
+        {
+            // Already gone at the bucket (swept, completed or aborted elsewhere): nothing left to free.
+            Err(StorageError::Backend(m)) if m.contains("404") || m.contains("NoSuchUpload") => {
+                Ok(())
+            }
+            other => other,
+        }
     }
     async fn put_marker(&self, mount: &Mount, key: &str) -> Result<()> {
         self.client(mount)?.put_marker(&mount.bucket_key(key)).await

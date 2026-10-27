@@ -326,6 +326,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         store: scope_facts.clone(),
         sealer: mount_sealer.clone(),
     });
+    // Browser uploads and object changes in a mount (BYOS-BRW-001): the ledger, the signed bucket calls, ids.
+    let upload_io: Arc<dyn sr_storage::uploads::MountIo> =
+        Arc::new(sr_storage::uploads::S3MountIo::new(mount_sealer.clone()));
+    let upload_ledger: Arc<dyn sr_storage::uploads::UploadLedger> =
+        Arc::new(sr_db::mount_uploads_repo::PgUploadLedger::new(pool.clone()));
+    let upload_deps = Arc::new(routes::storage::UploadDeps {
+        ledger: upload_ledger.clone(),
+        io: upload_io.clone(),
+        next_id: {
+            let ids = ids.clone();
+            Arc::new(move || ids.generate().get())
+        },
+    });
     if s.endpoint != "memory:" {
         crate::instance_mount::ensure_instance_mount(mount_repo.as_ref(), mount_sealer.as_ref(), s)
             .await
@@ -1462,6 +1475,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
         .extension(storage_scope_deps)
+        .extension(upload_deps)
         .extension(Arc::new(
             routes::donations::DonationsDeps::new(payments.service.clone())
                 .with_chat_slot(payments.chat.clone()),
@@ -1577,6 +1591,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mount_sealer.clone(),
         cfg.server.public_url.clone(),
     );
+    let runner = crate::upload_jobs::register(
+        runner,
+        &pool,
+        upload_ledger.clone(),
+        mount_repo.clone(),
+        upload_io.clone(),
+    );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
@@ -1628,6 +1649,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::admin_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
+    crate::upload_jobs::schedule(&pool).await?;
     crate::activities_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::library_jobs::schedule_sources(&pool).await?;
