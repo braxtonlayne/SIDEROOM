@@ -651,7 +651,10 @@ impl S3Multipart {
 }
 
 /// `(keys with sizes, is truncated, next continuation token)` of a `ListObjectsV2` answer.
-fn parse_list_keys(xml: &str) -> Result<(Vec<(String, u64)>, bool, Option<String>)> {
+/// Keys with sizes, whether the listing is truncated, and the continuation token.
+type KeyPage = (Vec<(String, u64)>, bool, Option<String>);
+
+fn parse_list_keys(xml: &str) -> Result<KeyPage> {
     let bad = || StorageError::Backend("unreadable ListObjectsV2 answer".into());
     let mut keys = Vec::new();
     let mut rest = xml;

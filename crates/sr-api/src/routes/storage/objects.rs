@@ -671,6 +671,7 @@ pub struct CountView {
     ),
     security(("session" = []))
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_folder(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
@@ -746,6 +747,7 @@ fn move_refusal(e: MoveError) -> MsgError {
     ),
     security(("session" = []))
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn move_objects(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,

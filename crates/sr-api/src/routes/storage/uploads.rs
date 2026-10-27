@@ -196,6 +196,7 @@ fn expected_size(u: &MountUpload, n: u32) -> u64 {
     ),
     security(("session" = []))
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn begin(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
@@ -458,6 +459,7 @@ pub async fn part_url(
     ),
     security(("session" = []))
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn complete(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
