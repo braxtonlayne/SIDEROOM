@@ -43,6 +43,13 @@ OPS-IMM-002
 - `cargo test -p sr-features byos` (3), `-p sr-admin --lib settings` (9), `-p sr-storage --lib mount_policy` (6), `-p sr-api --lib storage` (18, includes the allow-list and who_may_mount HTTP tests), `-p sr-core -p sr-gateway -p sr-voice-proto --lib` (43, 185, 17), `-p sr-voice --lib --test loopback --test e2e --test video --test load_smoke`: green.
 - web: vitest `src/voice` and `p15Advanced` (17 files, 223 tests), `src/settings/__tests__/byosFlag.test.tsx`, `src/admin/__tests__/admin.test.tsx` and `p21abuse.test.tsx`: green; `tsc --noEmit`, eslint and prettier on touched files: clean. A wider run of `src/admin` had 2 failures while the laptop was suspended (the run took 2.8 hours of wall clock); it was not repeated, the touched files pass.
 
+## Gates
+
+- `cargo fmt --all --check`: clean. `cargo clippy -j 2 -p sr-core -p sr-admin -p sr-features -p sr-storage -p sr-db -p sr-api -p sr-gateway -p sr-voice -p sr-voice-proto -p sr-server --all-targets -- -D warnings`: clean. `cargo check --workspace --exclude sr-sdk --all-targets`: clean (sr-sdk needs the VS cmake for opusic-sys; not built here; it does not read `voice.e2ee`).
+- `cargo test -p sr-server -p sr-features -p sr-admin -p sr-core -p sr-storage -p sr-db --lib`, `-p sr-api --lib --test route_matrix --test openapi_names` (700 + 2 + 6): green. OpenAPI is unchanged (no new route).
+- Postgres: `immutable_rules::refusals_and_logs_hold_in_every_flag_state` green (184 s) on scratch DB `sr_p28_imm_flags`. After that run the Postgres password file `%TEMP%sr_pg_pw.txt` was gone (someone cleaned the temp folder), so these were NOT re-run: `sr-server --lib voice_pg_tests` (its join now declares `sr_e2ee`; the edit is small), the whole `authz_matrix` after my four small edits in `run_group` (the harness ran those code paths in refusals-only mode; the full matrix was not re-run, the integrator runs it), and dropping the scratch database. **The scratch DB `sr_p28_imm_flags` still exists: drop it when the password file is back.**
+- Web: `tsc --noEmit`, eslint, prettier, vitest `src/i18n` + `src/settings` (63 files, 466 tests) and `src/voice`, `scripts/i18n-audit.mjs` (0), `vite build` and `scripts/check-bundle-budget.mjs` (all within budget), `scripts/check-css-tokens.mjs`: green.
+
 ## Decisions
 
 - The two guild choices are settings of the one feature `platform.byos`, not separate feature ids; a server's value is ANDed with the platform's.
