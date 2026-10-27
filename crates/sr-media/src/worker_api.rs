@@ -10,6 +10,7 @@
 //! [`OutputStorage`] (presigned multipart). In-memory implementations are provided for tests
 //! and for single-process development.
 
+use crate::mount_job::{MountFormat, MountPreset, MountTransfer};
 use crate::plan::{JobPlan, ProxyPlan};
 use crate::playlist::UrlSigner;
 use crate::remux::RemuxPlan;
@@ -79,15 +80,19 @@ pub enum JobKind {
     Ladder,
     /// Stream-copy remux of a stored rendition into an MP4 (Patron download, CIN-DL-001).
     Remux,
+    /// A member's source in their own bucket, converted by a worker through presigned I/O, the outputs
+    /// written back into that bucket (BYOS-CNV-003).
+    MountTranscode,
 }
 
 impl JobKind {
-    pub const ALL: [Self; 3] = [Self::Proxy, Self::Ladder, Self::Remux];
+    pub const ALL: [Self; 4] = [Self::Proxy, Self::Ladder, Self::Remux, Self::MountTranscode];
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Proxy => "proxy",
             Self::Ladder => "ladder",
             Self::Remux => "remux",
+            Self::MountTranscode => "mount_transcode",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -105,9 +110,24 @@ pub struct ClaimRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum JobSpec {
-    Proxy { plan: Box<ProxyPlan> },
-    Ladder { plan: Box<JobPlan> },
-    Remux { plan: Box<RemuxPlan> },
+    Proxy {
+        plan: Box<ProxyPlan>,
+    },
+    Ladder {
+        plan: Box<JobPlan>,
+    },
+    Remux {
+        plan: Box<RemuxPlan>,
+    },
+    /// Convert one object of a storage mount (BYOS-CNV-003). The worker probes and plans after it has
+    /// downloaded the source (the server never reads a mount's bytes), so no plan travels with the job.
+    MountTranscode {
+        mount_id: i64,
+        /// Mount-relative key of the source.
+        key: String,
+        format: MountFormat,
+        preset: MountPreset,
+    },
 }
 
 impl JobSpec {
@@ -116,6 +136,14 @@ impl JobSpec {
             Self::Proxy { .. } => JobKind::Proxy,
             Self::Ladder { .. } => JobKind::Ladder,
             Self::Remux { .. } => JobKind::Remux,
+            Self::MountTranscode { .. } => JobKind::MountTranscode,
+        }
+    }
+    /// The mount a job reads and writes, for the kinds that work in a member's bucket.
+    pub fn mount_id(&self) -> Option<i64> {
+        match self {
+            Self::MountTranscode { mount_id, .. } => Some(*mount_id),
+            _ => None,
         }
     }
     /// Paths that must exist when the job completes.
@@ -124,6 +152,8 @@ impl JobSpec {
             Self::Proxy { plan } => vec![plan.output.clone()],
             Self::Ladder { plan } => plan.required_outputs(),
             Self::Remux { plan } => vec![plan.output.clone()],
+            // Planned by the worker: `complete` checks the shape of the outputs instead.
+            Self::MountTranscode { .. } => Vec::new(),
         }
     }
     /// Directories (prefixes) outputs may be written under.
@@ -131,6 +161,9 @@ impl JobSpec {
         match self {
             Self::Proxy { .. } => vec!["proxy/".into()],
             Self::Remux { .. } => vec!["remux/".into()],
+            // Any directory: the path sandbox (depth, characters, file types) still applies, and every
+            // output lands under `transcoded/<key>/` of the member's own mount.
+            Self::MountTranscode { .. } => vec![String::new()],
             Self::Ladder { plan } => {
                 let mut p: Vec<String> = plan.rungs.iter().map(|r| format!("{}/", r.dir)).collect();
                 p.extend(plan.audio.iter().map(|a| format!("{}/", a.dir)));
@@ -340,6 +373,45 @@ impl ApiError {
 pub struct TokenInfo {
     pub token_id: u64,
     pub name: String,
+    /// What the token may claim.
+    pub scope: TokenScope,
+}
+
+/// What a worker token may claim (`worker_tokens.scope`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TokenScope {
+    /// The operator's workers: every job kind, including the mount jobs of members (when the server has
+    /// mount signing and the operator lets its worker serve members).
+    Instance,
+    /// A member's own worker (the BYOC variant): `mount_transcode` jobs of this one mount, nothing else.
+    Mount(i64),
+}
+
+impl TokenScope {
+    /// The column value: `instance` or `mount:<id>`.
+    pub fn to_column(self) -> String {
+        match self {
+            Self::Instance => "instance".to_owned(),
+            Self::Mount(id) => format!("mount:{id}"),
+        }
+    }
+    /// Parse the column value; anything unknown is `None` (and a token with it authenticates nobody).
+    pub fn parse(s: &str) -> Option<Self> {
+        if s == "instance" {
+            return Some(Self::Instance);
+        }
+        s.strip_prefix("mount:")
+            .and_then(|id| id.parse::<i64>().ok())
+            .filter(|id| *id > 0)
+            .map(Self::Mount)
+    }
+    /// Whether a job of `spec` may be claimed with this scope.
+    pub fn admits(self, spec: &JobSpec) -> bool {
+        match self {
+            Self::Instance => true,
+            Self::Mount(m) => spec.mount_id() == Some(m),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -449,11 +521,13 @@ pub trait JobStore: Send + Sync {
     async fn cancel_requests_for(&self, worker_id: &str) -> Result<Vec<String>, StoreError>;
 
     async fn enqueue(&self, job: NewJob) -> Result<String, StoreError>;
-    /// Atomically claim the best queued job of an accepted kind, if any.
+    /// Atomically claim the best queued job of an accepted kind, if any. `scope` is the claiming token's:
+    /// a mount-scoped token only ever gets `mount_transcode` jobs of its own mount.
     async fn claim_next(
         &self,
         worker_id: &str,
         kinds: &[JobKind],
+        scope: TokenScope,
         now: u64,
         lease_secs: u64,
     ) -> Result<Option<JobRecord>, StoreError>;
@@ -638,6 +712,14 @@ pub struct WorkerService {
     pub downloads: Arc<dyn UrlSigner>,
     pub clock: Arc<dyn Fn() -> u64 + Send + Sync>,
     pub config: ServiceConfig,
+    /// Presigned I/O for the buckets of storage mounts (BYOS-CNV-003). `None`: `mount_transcode` jobs are
+    /// never handed out.
+    pub mounts: Option<Arc<dyn MountTransfer>>,
+}
+
+/// The id of a single-PUT upload: opaque, unique per output path of a job, safe in a URL segment.
+fn direct_upload_id(path: &str) -> String {
+    format!("d{}", &crate::hex(&Sha256::digest(path.as_bytes()))[..24])
 }
 
 pub fn token_hash(token: &str) -> String {
@@ -661,6 +743,15 @@ fn clip_log(log: Option<&str>) -> Option<String> {
 impl WorkerService {
     fn now(&self) -> u64 {
         (self.clock)()
+    }
+
+    /// The part size of a job's uploads. A job in a member's bucket uploads every file as one part (one
+    /// presigned PUT), so its part size is larger than any file it may send.
+    fn part_size_for(&self, spec: &JobSpec) -> u64 {
+        match spec {
+            JobSpec::MountTranscode { .. } => self.config.max_file_bytes.saturating_add(1),
+            _ => self.config.part_size.max(1),
+        }
     }
 
     /// Authenticate a bearer token.
@@ -754,20 +845,53 @@ impl WorkerService {
             return Ok(ClaimResponse { job: None });
         }
         let now = self.now();
-        let kinds = if req.kinds.is_empty() {
+        let mut kinds = if req.kinds.is_empty() {
             JobKind::ALL.to_vec()
         } else {
             req.kinds
         };
+        // Without mount signing a mount job could only be left to rot in `running`: never hand one out.
+        if self.mounts.is_none() {
+            kinds.retain(|k| *k != JobKind::MountTranscode);
+        }
+        let scope = caller.0.scope;
         let Some(job) = self
             .store
-            .claim_next(worker_id, &kinds, now, u64::from(self.config.lease_secs))
+            .claim_next(
+                worker_id,
+                &kinds,
+                scope,
+                now,
+                u64::from(self.config.lease_secs),
+            )
             .await?
         else {
             return Ok(ClaimResponse { job: None });
         };
-        let expires_at = now + self.config.download_ttl_secs;
+        // The store enforces the scope in its query; this is the second lock on the same door.
+        if !scope.admits(&job.spec) {
+            return Err(ApiError::Forbidden);
+        }
+        let expires_at = now
+            + match &job.spec {
+                JobSpec::MountTranscode { .. } => self
+                    .config
+                    .download_ttl_secs
+                    .min(sr_storage::scopes::PRESIGN_HARD_CEILING_SECS),
+                _ => self.config.download_ttl_secs,
+            };
         let (url, inputs) = match &job.spec {
+            JobSpec::MountTranscode { mount_id, key, .. } => {
+                let mounts = self
+                    .mounts
+                    .as_ref()
+                    .ok_or_else(|| ApiError::Internal("no mount signing".into()))?;
+                let url = mounts
+                    .presign_get(*mount_id, key, expires_at - now)
+                    .await
+                    .map_err(ApiError::Internal)?;
+                (url, Vec::new())
+            }
             JobSpec::Remux { plan } => {
                 let inputs: Vec<ClaimInput> = plan
                     .inputs
@@ -866,12 +990,48 @@ impl WorkerService {
         if used.saturating_add(req.size) > budget {
             return Err(ApiError::BadRequest("output budget exceeded".into()));
         }
-        let part_size = self.config.part_size.max(1);
+        let part_size = self.part_size_for(&job.spec);
         let n_parts = req.size.div_ceil(part_size);
         if n_parts > MAX_PARTS {
             return Err(ApiError::BadRequest(
                 "file too large for the part size".into(),
             ));
+        }
+        // A job in a member's bucket: one presigned PUT straight to `transcoded/<key>/<path>`. No multipart,
+        // no staging area, nothing of the file passes through the server.
+        if let JobSpec::MountTranscode { mount_id, key, .. } = &job.spec {
+            let mounts = self
+                .mounts
+                .as_ref()
+                .ok_or_else(|| ApiError::Internal("no mount signing".into()))?;
+            let object = crate::mount_job::output_object_key(key, &req.path);
+            let url = mounts
+                .presign_put(*mount_id, &object, self.config.upload_ttl_secs)
+                .await
+                .map_err(ApiError::Internal)?;
+            let upload_id = direct_upload_id(&req.path);
+            self.store
+                .add_upload(
+                    job_id,
+                    UploadRecord {
+                        upload_id: upload_id.clone(),
+                        path: req.path,
+                        key: object,
+                        size: req.size,
+                        finished: false,
+                    },
+                )
+                .await?;
+            return Ok(InitUploadResponse {
+                upload_id,
+                part_size,
+                parts: vec![PartUrl {
+                    part_number: 1,
+                    url,
+                }],
+                content_type: content_type.to_string(),
+                expires_at: self.now() + self.config.upload_ttl_secs,
+            });
         }
         let key = output_key(&job, &req.path);
         let upload_id = self
@@ -917,7 +1077,7 @@ impl WorkerService {
         upload_id: &str,
         req: FinishUploadRequest,
     ) -> Result<Ack, ApiError> {
-        self.own_job(caller, job_id).await?;
+        let job = self.own_job(caller, job_id).await?;
         let record = self
             .store
             .uploads(job_id)
@@ -925,7 +1085,7 @@ impl WorkerService {
             .into_iter()
             .find(|u| u.upload_id == upload_id)
             .ok_or(ApiError::NotFound)?;
-        let expected = record.size.div_ceil(self.config.part_size.max(1));
+        let expected = record.size.div_ceil(self.part_size_for(&job.spec));
         let mut numbers: Vec<u32> = req.parts.iter().map(|p| p.part_number).collect();
         numbers.sort_unstable();
         let contiguous = numbers
@@ -938,10 +1098,30 @@ impl WorkerService {
         {
             return Err(ApiError::BadRequest("parts do not match the upload".into()));
         }
-        self.outputs
-            .complete_multipart(&record.key, upload_id, &req.parts)
-            .await
-            .map_err(ApiError::Internal)?;
+        if let JobSpec::MountTranscode { mount_id, .. } = &job.spec {
+            // The object went to the member's bucket by a single PUT: look at it instead of completing.
+            let mounts = self
+                .mounts
+                .as_ref()
+                .ok_or_else(|| ApiError::Internal("no mount signing".into()))?;
+            match mounts
+                .head_size(*mount_id, &record.key)
+                .await
+                .map_err(ApiError::Internal)?
+            {
+                Some(size) if size == record.size => {}
+                _ => {
+                    return Err(ApiError::BadRequest(
+                        "the object is not in the bucket with the announced size".into(),
+                    ));
+                }
+            }
+        } else {
+            self.outputs
+                .complete_multipart(&record.key, upload_id, &req.parts)
+                .await
+                .map_err(ApiError::Internal)?;
+        }
         self.store.finish_upload(job_id, upload_id).await?;
         Ok(Ack { ok: true })
     }
@@ -975,6 +1155,15 @@ impl WorkerService {
                         o.path
                     )));
                 }
+            }
+        }
+        if let JobSpec::MountTranscode { format, .. } = &job.spec {
+            let paths: Vec<&str> = finished.keys().map(String::as_str).collect();
+            if !crate::mount_job::outputs_fit(*format, &paths) {
+                return Err(ApiError::BadRequest(format!(
+                    "no {} output was uploaded",
+                    format.as_str()
+                )));
             }
         }
         if let JobSpec::Ladder { plan } = &job.spec {
@@ -1219,6 +1408,7 @@ impl JobStore for MemoryJobStore {
         &self,
         worker_id: &str,
         kinds: &[JobKind],
+        scope: TokenScope,
         now: u64,
         lease_secs: u64,
     ) -> Result<Option<JobRecord>, StoreError> {
@@ -1226,7 +1416,11 @@ impl JobStore for MemoryJobStore {
         let best = g
             .jobs
             .values()
-            .filter(|j| j.state == JobState::Queued && kinds.contains(&j.spec.kind()))
+            .filter(|j| {
+                j.state == JobState::Queued
+                    && kinds.contains(&j.spec.kind())
+                    && scope.admits(&j.spec)
+            })
             .min_by_key(|j| {
                 (
                     std::cmp::Reverse(j.priority),
@@ -1434,6 +1628,8 @@ pub(crate) mod test_support {
     }
 
     pub const TOKEN: &str = "worker-secret-1";
+    pub const MOUNT7_TOKEN: &str = "member-secret-7";
+    pub const MOUNT8_TOKEN: &str = "member-secret-8";
 
     pub fn harness() -> Harness {
         let store = Arc::new(MemoryJobStore::new());
@@ -1442,6 +1638,24 @@ pub(crate) mod test_support {
             TokenInfo {
                 token_id: 1,
                 name: "gpu-box".into(),
+                scope: TokenScope::Instance,
+            },
+        );
+        // A member's own worker (BYOC): scoped to mount 7, and one scoped to mount 8.
+        store.add_token(
+            MOUNT7_TOKEN,
+            TokenInfo {
+                token_id: 3,
+                name: "member-box".into(),
+                scope: TokenScope::Mount(7),
+            },
+        );
+        store.add_token(
+            MOUNT8_TOKEN,
+            TokenInfo {
+                token_id: 4,
+                name: "other-member-box".into(),
+                scope: TokenScope::Mount(8),
             },
         );
         store.add_token(
@@ -1449,6 +1663,7 @@ pub(crate) mod test_support {
             TokenInfo {
                 token_id: 2,
                 name: "other".into(),
+                scope: TokenScope::Instance,
             },
         );
         let outputs = Arc::new(MemoryOutputStorage::default());
@@ -1460,12 +1675,41 @@ pub(crate) mod test_support {
             downloads: Arc::new(Signer),
             clock: Arc::new(move || t.load(Ordering::SeqCst)),
             config: ServiceConfig::default(),
+            mounts: None,
         };
         Harness {
             svc,
             store,
             outputs,
             time,
+        }
+    }
+
+    /// The harness with presigned mount I/O (an in-memory bucket).
+    pub fn harness_with_mounts() -> (Harness, Arc<crate::mount_job::MemoryMountTransfer>) {
+        let mut h = harness();
+        let mounts = Arc::new(crate::mount_job::MemoryMountTransfer::default());
+        h.svc.mounts = Some(mounts.clone());
+        (h, mounts)
+    }
+
+    pub fn mount_spec(mount_id: i64, format: crate::mount_job::MountFormat) -> JobSpec {
+        JobSpec::MountTranscode {
+            mount_id,
+            key: "Films/Heat (1995).mkv".into(),
+            format,
+            preset: crate::mount_job::MountPreset::Standard,
+        }
+    }
+
+    pub fn mount_job(mount_id: i64, format: crate::mount_job::MountFormat) -> NewJob {
+        NewJob {
+            asset_id: 0,
+            spec: mount_spec(mount_id, format),
+            source_key: "Films/Heat (1995).mkv".into(),
+            source_size: 2_000_000_000,
+            source_extension: "mkv".into(),
+            priority: 5,
         }
     }
 
@@ -2199,5 +2443,317 @@ mod tests {
         assert_eq!(back, spec);
         assert_eq!(ApiError::Gone.status(), 410);
         assert_eq!(ApiError::Unauthorized.code(), "unauthorized");
+    }
+
+    // ---- mount_transcode (BYOS-CNV-003) ----------------------------------------------------
+
+    use crate::mount_job::MountFormat;
+
+    async fn mount_caller(h: &Harness, secret: &str) -> (Caller, String) {
+        let c = h.svc.authenticate(Some(secret)).await.unwrap();
+        let w = h.svc.register(&c, register_req()).await.unwrap().worker_id;
+        (c, w)
+    }
+
+    fn done_part(etag: &str) -> FinishUploadRequest {
+        FinishUploadRequest {
+            parts: vec![PartDone {
+                part_number: 1,
+                etag: etag.into(),
+            }],
+        }
+    }
+
+    fn complete_req(path: &str, size: u64) -> CompleteRequest {
+        CompleteRequest {
+            outputs: vec![OutputRef {
+                path: path.into(),
+                size,
+            }],
+            segment_index: Vec::new(),
+            encoder: "libx264".into(),
+            wall_secs: 1.0,
+            log_tail: None,
+        }
+    }
+
+    fn init_req(path: &str, size: u64) -> InitUploadRequest {
+        InitUploadRequest {
+            path: path.into(),
+            size,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_mount_job_claims_with_a_presigned_get_and_uploads_with_presigned_puts() {
+        let (h, bucket) = harness_with_mounts();
+        let (c, w) = mount_caller(&h, TOKEN).await;
+        let id = h
+            .store
+            .enqueue(mount_job(7, MountFormat::Mp4))
+            .await
+            .unwrap();
+        let job = h
+            .svc
+            .claim(&c, &w, ClaimRequest::default())
+            .await
+            .unwrap()
+            .job
+            .unwrap();
+        assert_eq!(job.job_id, id);
+        // The source is a presigned GET of the member's bucket, not a /cdn path of this server.
+        assert!(
+            job.source
+                .download_url
+                .starts_with("https://bucket.invalid/7/Films/Heat (1995).mkv"),
+            "{}",
+            job.source.download_url
+        );
+        assert!(job.source.download_url.contains("GET"));
+        // Every output gets its own presigned PUT under transcoded/<key>/.
+        let init = h
+            .svc
+            .init_upload(&c, &id, init_req("proxy/out.mp4", 1234))
+            .await
+            .unwrap();
+        assert_eq!(init.parts.len(), 1);
+        assert!(
+            init.parts[0]
+                .url
+                .contains("/7/transcoded/Films/Heat (1995).mkv/proxy/out.mp4?X-Method=PUT"),
+            "{}",
+            init.parts[0].url
+        );
+        assert!(!init.upload_id.contains('/'));
+        // Finish refuses until the object is really in the bucket with that size.
+        let err = h
+            .svc
+            .finish_upload(&c, &id, &init.upload_id, done_part("e"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)), "{err:?}");
+        bucket.put(7, "transcoded/Films/Heat (1995).mkv/proxy/out.mp4", 1234);
+        h.svc
+            .finish_upload(&c, &id, &init.upload_id, done_part("e"))
+            .await
+            .unwrap();
+        h.svc
+            .complete(&c, &id, complete_req("proxy/out.mp4", 1234))
+            .await
+            .unwrap();
+        assert_eq!(
+            h.store.get_job(&id).await.unwrap().unwrap().state,
+            JobState::Succeeded
+        );
+        // Nothing went through the server's own multipart storage.
+        assert!(h.outputs.completed.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_job_that_made_no_file_of_its_format_cannot_complete() {
+        let (h, bucket) = harness_with_mounts();
+        let (c, w) = mount_caller(&h, TOKEN).await;
+        let id = h
+            .store
+            .enqueue(mount_job(7, MountFormat::Hls))
+            .await
+            .unwrap();
+        h.svc.claim(&c, &w, ClaimRequest::default()).await.unwrap();
+        let init = h
+            .svc
+            .init_upload(&c, &id, init_req("proxy/out.mp4", 10))
+            .await
+            .unwrap();
+        bucket.put(7, "transcoded/Films/Heat (1995).mkv/proxy/out.mp4", 10);
+        h.svc
+            .finish_upload(&c, &id, &init.upload_id, done_part("e"))
+            .await
+            .unwrap();
+        let err = h
+            .svc
+            .complete(&c, &id, complete_req("proxy/out.mp4", 10))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn an_output_path_cannot_leave_the_sandbox_on_a_mount_job() {
+        let (h, _bucket) = harness_with_mounts();
+        let (c, w) = mount_caller(&h, TOKEN).await;
+        let id = h
+            .store
+            .enqueue(mount_job(7, MountFormat::Mp4))
+            .await
+            .unwrap();
+        h.svc.claim(&c, &w, ClaimRequest::default()).await.unwrap();
+        for path in [
+            "../x.mp4",
+            "/abs.mp4",
+            "a/../../b.mp4",
+            ".hidden/x.mp4",
+            "x.exe",
+        ] {
+            let err = h
+                .svc
+                .init_upload(&c, &id, init_req(path, 10))
+                .await
+                .unwrap_err();
+            assert!(matches!(err, ApiError::BadRequest(_)), "{path}: {err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_members_token_claims_only_its_own_mounts_jobs() {
+        let (h, _bucket) = harness_with_mounts();
+        let other = h
+            .store
+            .enqueue(mount_job(8, MountFormat::Mp4))
+            .await
+            .unwrap();
+        // Ordinary operator jobs are not for a member's worker either.
+        let ladder = h.store.enqueue(new_job(ladder_spec(), 9)).await.unwrap();
+        let (c7, w7) = mount_caller(&h, MOUNT7_TOKEN).await;
+        let none = h
+            .svc
+            .claim(&c7, &w7, ClaimRequest::default())
+            .await
+            .unwrap();
+        assert!(none.job.is_none(), "mount 7's token claimed {none:?}");
+        // Asking for the ladder kind by name does not help.
+        let none = h
+            .svc
+            .claim(
+                &c7,
+                &w7,
+                ClaimRequest {
+                    kinds: vec![JobKind::Ladder, JobKind::MountTranscode],
+                },
+            )
+            .await
+            .unwrap();
+        assert!(none.job.is_none());
+        // Its own mount's job is claimable.
+        let mine = h
+            .store
+            .enqueue(mount_job(7, MountFormat::Mp4))
+            .await
+            .unwrap();
+        let got = h
+            .svc
+            .claim(&c7, &w7, ClaimRequest::default())
+            .await
+            .unwrap()
+            .job
+            .unwrap();
+        assert_eq!(got.job_id, mine);
+        // Mount 8's own token takes the job of mount 8, and only that.
+        let (c8, w8) = mount_caller(&h, MOUNT8_TOKEN).await;
+        let got = h
+            .svc
+            .claim(&c8, &w8, ClaimRequest::default())
+            .await
+            .unwrap()
+            .job
+            .unwrap();
+        assert_eq!(got.job_id, other);
+        assert!(
+            h.svc
+                .claim(&c8, &w8, ClaimRequest::default())
+                .await
+                .unwrap()
+                .job
+                .is_none()
+        );
+        // The operator's token still takes the rest.
+        let (c, w) = mount_caller(&h, TOKEN).await;
+        let got = h
+            .svc
+            .claim(&c, &w, ClaimRequest::default())
+            .await
+            .unwrap()
+            .job
+            .unwrap();
+        assert_eq!(got.job_id, ladder);
+    }
+
+    #[tokio::test]
+    async fn a_member_token_cannot_work_on_a_job_it_did_not_claim() {
+        let (h, _bucket) = harness_with_mounts();
+        let (c, w) = mount_caller(&h, TOKEN).await;
+        let id = h
+            .store
+            .enqueue(mount_job(7, MountFormat::Mp4))
+            .await
+            .unwrap();
+        h.svc.claim(&c, &w, ClaimRequest::default()).await.unwrap();
+        // Another token (mount 8's) did not claim it: every job route says no.
+        let (c8, _w8) = mount_caller(&h, MOUNT8_TOKEN).await;
+        let err = h
+            .svc
+            .init_upload(&c8, &id, init_req("a.mp4", 1))
+            .await
+            .unwrap_err();
+        assert_eq!(err, ApiError::Forbidden);
+    }
+
+    #[tokio::test]
+    async fn without_mount_signing_no_mount_job_is_handed_out() {
+        let h = harness();
+        let (c, w) = mount_caller(&h, TOKEN).await;
+        let id = h
+            .store
+            .enqueue(mount_job(7, MountFormat::Mp4))
+            .await
+            .unwrap();
+        let r = h.svc.claim(&c, &w, ClaimRequest::default()).await.unwrap();
+        assert!(r.job.is_none());
+        assert_eq!(
+            h.store.get_job(&id).await.unwrap().unwrap().state,
+            JobState::Queued
+        );
+    }
+
+    #[test]
+    fn token_scopes_round_trip_and_reject_junk() {
+        assert_eq!(TokenScope::parse("instance"), Some(TokenScope::Instance));
+        assert_eq!(TokenScope::parse("mount:42"), Some(TokenScope::Mount(42)));
+        for bad in [
+            "",
+            "mount:",
+            "mount:0",
+            "mount:-1",
+            "mount:x",
+            "mount:1:2",
+            "guild:3",
+            "Instance",
+        ] {
+            assert_eq!(TokenScope::parse(bad), None, "{bad}");
+        }
+        assert_eq!(TokenScope::Mount(42).to_column(), "mount:42");
+        assert!(TokenScope::Instance.admits(&proxy_spec()));
+        assert!(!TokenScope::Mount(1).admits(&proxy_spec()));
+        assert!(TokenScope::Mount(7).admits(&mount_spec(7, MountFormat::Hls)));
+        assert!(!TokenScope::Mount(7).admits(&mount_spec(8, MountFormat::Hls)));
+    }
+
+    #[test]
+    fn the_mount_job_wire_format_is_stable() {
+        let spec = mount_spec(7, MountFormat::Hls);
+        let v = serde_json::to_value(&spec).unwrap();
+        assert_eq!(v["kind"], "mount_transcode");
+        assert_eq!(v["mount_id"], 7);
+        assert_eq!(v["format"], "hls");
+        assert_eq!(v["preset"], "standard");
+        assert_eq!(
+            serde_json::to_value(JobKind::MountTranscode).unwrap(),
+            "mount_transcode"
+        );
+        let back: JobSpec = serde_json::from_value(v).unwrap();
+        assert_eq!(back, spec);
+        assert_eq!(
+            JobKind::parse("mount_transcode"),
+            Some(JobKind::MountTranscode)
+        );
     }
 }

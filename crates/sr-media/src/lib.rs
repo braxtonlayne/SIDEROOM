@@ -12,11 +12,13 @@
 //! * [`subtitles`]: ASS/SRT to WebVTT and the sprite map (CIN-ING-008).
 //! * [`retention`]: originals and proxy retention (CIN-ING-009).
 //! * [`retranscode`]: re-transcode planning (CIN-ING-011).
+//! * [`mount_job`]: the transcoder as an optional worker into a member's bucket (BYOS-CNV-003).
 
 pub mod assets;
 pub mod downloads;
 pub mod grant;
 pub mod http;
+pub mod mount_job;
 pub mod naming;
 pub mod output_storage;
 pub mod plan;
