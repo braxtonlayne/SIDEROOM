@@ -25,7 +25,8 @@ use sr_storage::mounts::{
 };
 use utoipa::{OpenApi, ToSchema};
 
-use crate::routes::Ext;
+use crate::routes::admin::AdminDeps;
+use crate::routes::{Ext, MaybeExt};
 use crate::routes::developer::iso;
 use crate::routes::messages::error::{ApiJson, MsgError, MsgResult, invalid, parse_id};
 use crate::routes::settings::deps::SettingsDeps;
@@ -481,8 +482,30 @@ async fn list(deps: &MountsDeps, scope: Scope) -> MsgResult<Json<Vec<MountObject
     Ok(Json(rows.iter().map(MountObject::of).collect()))
 }
 
+/// The cap for a new mount: the setting when the admin service is wired, else the deps' default.
+async fn cap_for(deps: &MountsDeps, admin: Option<&AdminDeps>, scope: Scope) -> u32 {
+    let (key, default) = match scope {
+        Scope::User(_) => (
+            sr_admin::settings::BYOS_MAX_MOUNTS_PER_USER,
+            deps.max_per_user,
+        ),
+        Scope::Guild(_) => (
+            sr_admin::settings::BYOS_MAX_MOUNTS_PER_GUILD,
+            deps.max_per_guild,
+        ),
+    };
+    match admin {
+        Some(a) => match a.service.setting_value_i64(key).await {
+            Ok(v) => u32::try_from(v).unwrap_or(default),
+            Err(_) => default,
+        },
+        None => default,
+    }
+}
+
 async fn create(
     deps: &MountsDeps,
+    admin: Option<&AdminDeps>,
     scope: Scope,
     body: CreateMountBody,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
@@ -510,10 +533,7 @@ async fn create(
     let secret = secret(&body.secret_access_key)?;
     let id = i64::try_from((deps.next_id)()).unwrap_or(0);
     let new = NewMount::seal(deps.sealer.as_ref(), id, input, &secret).map_err(repo_failure)?;
-    let cap = match scope {
-        Scope::User(_) => deps.max_per_user,
-        Scope::Guild(_) => deps.max_per_guild,
-    };
+    let cap = cap_for(deps, admin, scope).await;
     let mount = deps
         .repo
         .create(new, Some(cap))
@@ -686,9 +706,10 @@ pub async fn list_user(p: Principal, Ext(d): Ext<MountsDeps>) -> MsgResult<Json<
 pub async fn create_user(
     p: Principal,
     Ext(d): Ext<MountsDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
     ApiJson(body): ApiJson<CreateMountBody>,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
-    create(&d, user_scope(&p)?, body).await
+    create(&d, admin.as_deref(), user_scope(&p)?, body).await
 }
 
 /// Change one of your buckets (label, address, keys, prefix, or switch it on or off).
@@ -769,10 +790,12 @@ pub async fn create_guild(
     p: Principal,
     Ext(d): Ext<MountsDeps>,
     Ext(s): Ext<SettingsDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
     Path(guild_id): Path<String>,
     ApiJson(body): ApiJson<CreateMountBody>,
 ) -> MsgResult<(StatusCode, Json<MountObject>)> {
-    create(&d, guild_scope(&d, &s, &p, &guild_id).await?, body).await
+    let scope = guild_scope(&d, &s, &p, &guild_id).await?;
+    create(&d, admin.as_deref(), scope, body).await
 }
 
 /// Change one of the server's buckets.

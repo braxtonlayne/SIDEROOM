@@ -122,6 +122,10 @@ pub const ABUSE_DATA_EXPORT_COOLDOWN: &str = "abuse.data_export_cooldown_hours";
 /// Presign lifetime of bucket mounts (BYOS-SCP-002).
 pub const BYOS_PRESIGN_TTL: &str = "byos.presign_ttl_secs";
 pub const BYOS_PRESIGN_TTL_CAP: &str = "byos.presign_ttl_cap_secs";
+/// Mount caps and the upload part quota (wave 28, byos-browser; BYOS-BRW-001).
+pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
+pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
+pub const BYOS_UPLOAD_PARTS_PER_HOUR: &str = "byos.upload_parts_per_hour";
 
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
@@ -297,6 +301,31 @@ pub const CATALOG: &[SettingDef] = &[
         86400,
         3600,
         "Longest lifetime in seconds a presigned read URL of a bucket mount may have. The hard ceiling is 86400.",
+    ),
+    // --- wave 28 byos-browser block (kept apart from the presign settings above) ---
+    int(
+        BYOS_MAX_MOUNTS_PER_USER,
+        "storage",
+        0,
+        50,
+        3,
+        "Most buckets one member may connect. Lowering it keeps the buckets already connected.",
+    ),
+    int(
+        BYOS_MAX_MOUNTS_PER_GUILD,
+        "storage",
+        0,
+        100,
+        5,
+        "Most buckets one server may connect. Lowering it keeps the buckets already connected.",
+    ),
+    int(
+        BYOS_UPLOAD_PARTS_PER_HOUR,
+        "storage",
+        10,
+        100_000,
+        2_000,
+        "Most upload part URLs one member may request per hour across their buckets (a 16 MiB part each).",
     ),
     int(
         "invites.initial_credits",
