@@ -102,7 +102,7 @@ DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
 DELETE	/sr/invites/{code}	authenticated	self	deny	-	-
 DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 DELETE	/storage/mounts/{mount_id}/objects/{key}	authenticated	storage_scope	deny	-	-
-DELETE	/storage/mounts/{mount_id}/uploads/{upload_id}	authenticated	storage_scope	deny	-	-
+DELETE	/storage/mounts/{mount_id}/uploads/{mount_upload_id}	authenticated	storage_scope	deny	-	-
 DELETE	/submissions/{submission_id}/cinema/episodes/{episode_id}	authenticated	author	allow	-	-
 DELETE	/submissions/{submission_id}/cinema/uploads/{asset_id}	authenticated	author	allow	-	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-	-
@@ -465,7 +465,7 @@ GET	/stickers/{sticker_id}/url	authenticated	user	allow	-	-
 GET	/storage/mounts/{mount_id}/objects	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/objects/{key}	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/uploads	authenticated	storage_scope	deny	-	-
-GET	/storage/mounts/{mount_id}/uploads/{upload_id}	authenticated	storage_scope	deny	-	-
+GET	/storage/mounts/{mount_id}/uploads/{mount_upload_id}	authenticated	storage_scope	deny	-	-
 GET	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
 GET	/submissions	authenticated	self	allow	-	-
 GET	/submissions/kinds	authenticated	user	allow	-	-
@@ -859,8 +859,8 @@ POST	/storage/mounts/{mount_id}/folders	authenticated	storage_scope	deny	-	-
 POST	/storage/mounts/{mount_id}/move	authenticated	storage_scope	deny	-	-
 POST	/storage/mounts/{mount_id}/presign	authenticated	storage_scope	deny	-	-
 POST	/storage/mounts/{mount_id}/uploads	authenticated	storage_scope	deny	-	-
-POST	/storage/mounts/{mount_id}/uploads/{upload_id}/complete	authenticated	storage_scope	deny	-	-
-POST	/storage/mounts/{mount_id}/uploads/{upload_id}/parts/{part_number}	authenticated	storage_scope	deny	-	-
+POST	/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete	authenticated	storage_scope	deny	-	-
+POST	/storage/mounts/{mount_id}/uploads/{mount_upload_id}/parts/{part_number}	authenticated	storage_scope	deny	-	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-	-
 POST	/submissions	authenticated	self	allow	-	-
 POST	/submissions/naming/parse	authenticated	user	allow	-	-

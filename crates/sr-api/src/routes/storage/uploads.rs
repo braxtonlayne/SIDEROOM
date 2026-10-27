@@ -5,11 +5,11 @@
 //!
 //! 1. `POST /storage/mounts/{mount_id}/uploads` (key, size, content type) starts a multipart upload at the
 //!    bucket and records it in the ledger; the answer carries the part size and count.
-//! 2. `POST .../uploads/{upload_id}/parts/{n}` answers a presigned `PUT` for part `n` (an hour), counted
+//! 2. `POST .../uploads/{mount_upload_id}/parts/{n}` answers a presigned `PUT` for part `n` (an hour), counted
 //!    against `byos.upload_parts_per_hour`.
-//! 3. `GET .../uploads/{upload_id}` lists the parts the bucket holds, which is how a reload resumes.
-//! 4. `POST .../uploads/{upload_id}/complete` checks the parts against the declared size and assembles the
-//!    object; `DELETE .../uploads/{upload_id}` aborts. `GET .../uploads` lists the caller's open uploads.
+//! 3. `GET .../uploads/{mount_upload_id}` lists the parts the bucket holds, which is how a reload resumes.
+//! 4. `POST .../uploads/{mount_upload_id}/complete` checks the parts against the declared size and assembles the
+//!    object; `DELETE .../uploads/{mount_upload_id}` aborts. `GET .../uploads` lists the caller's open uploads.
 //!
 //! Who may upload is `sr_storage::scopes::may_upload` (the owner of a user mount; on a server shelf the
 //! owner, administrators and roles with the `upload` or `manage` grant). A friend with a share cannot. A
@@ -113,7 +113,7 @@ pub struct CompletePart {
     pub etag: String,
 }
 
-/// Body of `POST .../uploads/{upload_id}/complete`.
+/// Body of `POST .../uploads/{mount_upload_id}/complete`.
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct CompleteUploadBody {
     /// Optional: the parts and etags the client holds. When given they must match what the bucket lists.
@@ -308,10 +308,10 @@ pub async fn list(
 /// One upload with the parts the bucket already holds.
 #[utoipa::path(
     get,
-    path = "/storage/mounts/{mount_id}/uploads/{upload_id}",
+    path = "/storage/mounts/{mount_id}/uploads/{mount_upload_id}",
     params(
         ("mount_id" = String, Path, description = "Mount snowflake"),
-        ("upload_id" = String, Path, description = "Upload id"),
+        ("mount_upload_id" = String, Path, description = "Upload id"),
     ),
     responses(
         (status = 200, body = UploadStatusView),
@@ -358,10 +358,10 @@ pub async fn status(
 /// A presigned `PUT` for one part, valid for an hour. Counted against `byos.upload_parts_per_hour`.
 #[utoipa::path(
     post,
-    path = "/storage/mounts/{mount_id}/uploads/{upload_id}/parts/{part_number}",
+    path = "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/parts/{part_number}",
     params(
         ("mount_id" = String, Path, description = "Mount snowflake"),
-        ("upload_id" = String, Path, description = "Upload id"),
+        ("mount_upload_id" = String, Path, description = "Upload id"),
         ("part_number" = u32, Path, description = "Part number, from 1"),
     ),
     responses(
@@ -444,10 +444,10 @@ pub async fn part_url(
 /// Finish an upload: the parts must all be in the bucket with the declared sizes.
 #[utoipa::path(
     post,
-    path = "/storage/mounts/{mount_id}/uploads/{upload_id}/complete",
+    path = "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete",
     params(
         ("mount_id" = String, Path, description = "Mount snowflake"),
-        ("upload_id" = String, Path, description = "Upload id"),
+        ("mount_upload_id" = String, Path, description = "Upload id"),
     ),
     request_body = CompleteUploadBody,
     responses(
@@ -533,10 +533,10 @@ pub async fn complete(
 /// Abandon an upload and free its parts at the bucket.
 #[utoipa::path(
     delete,
-    path = "/storage/mounts/{mount_id}/uploads/{upload_id}",
+    path = "/storage/mounts/{mount_id}/uploads/{mount_upload_id}",
     params(
         ("mount_id" = String, Path, description = "Mount snowflake"),
-        ("upload_id" = String, Path, description = "Upload id"),
+        ("mount_upload_id" = String, Path, description = "Upload id"),
     ),
     responses(
         (status = 204),

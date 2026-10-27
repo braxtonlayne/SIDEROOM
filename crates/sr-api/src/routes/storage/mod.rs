@@ -123,15 +123,15 @@ pub fn router() -> Router<AppState> {
             get(uploads::list).post(uploads::begin),
         )
         .route(
-            "/storage/mounts/{mount_id}/uploads/{upload_id}",
+            "/storage/mounts/{mount_id}/uploads/{mount_upload_id}",
             get(uploads::status).delete(uploads::abort),
         )
         .route(
-            "/storage/mounts/{mount_id}/uploads/{upload_id}/parts/{part_number}",
+            "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/parts/{part_number}",
             post(uploads::part_url),
         )
         .route(
-            "/storage/mounts/{mount_id}/uploads/{upload_id}/complete",
+            "/storage/mounts/{mount_id}/uploads/{mount_upload_id}/complete",
             post(uploads::complete),
         )
         .route("/storage/mounts/{mount_id}/presign", post(objects::presign))
