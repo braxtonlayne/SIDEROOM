@@ -12,6 +12,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@ffmpeg/util": "0.12.2",
     "@sideroom/embedded-app-sdk": "workspace:*",
     "@sideroom/markdown-react": "workspace:*",
     "@sideroom/ui": "workspace:*",
@@ -22,9 +25,11 @@
     "foliate-js": "1.0.1",
     "hls.js": "1.7.3",
     "jassub": "2.5.16",
+    "mp4-muxer": "5.2.1",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "webm-muxer": "5.0.3",
     "zustand": "^5.0.0"
   },
   "devDependencies": {

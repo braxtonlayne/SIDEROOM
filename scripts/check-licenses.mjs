@@ -29,6 +29,9 @@ const BY_NAME = new Map([
   ],
   // Hard dependency of jassub, shipped as is; GPL is acceptable to the owner (D-309).
   ['GPL-3.0', new Set(['rvfc-polyfill'])],
+  // ffmpeg.wasm's core (libx264 makes the build GPL), owner-approved for wave 29 (roadmap-p27 section 19, D-309):
+  // served as a separate lazy file, never in the entry bundle; the notice is in THIRD_PARTY_NOTICES.md.
+  ['GPL-2.0-or-later', new Set(['@ffmpeg/core'])],
 ]);
 
 function violations(report) {
