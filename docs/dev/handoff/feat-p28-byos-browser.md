@@ -6,7 +6,7 @@ No python on this machine: edit with node/Edit. Nothing pushed.
 
 ## Resume here
 
-Slice 1 done (settings + caps). Next: slice 2, the sr-storage helpers and the ledger (migration 1440).
+Slices 1-3 committed: settings, sr-storage helpers (uploads.rs, S3Multipart marker/copy/delete/list), migration 1440 + PgUploadLedger, routes (uploads.rs, objects.rs write side) with 7 in-memory endpoint tests. NOT yet done: wire UploadDeps in sr-server app.rs, rate-limit entry for POST uploads, sweep job, route_matrix rows + regen, authz_matrix seeds/bodies (own block), OpenAPI/api-client/mocks regen, SSRF rebind, attach/detach, web UI, i18n, docs.
 
 ## Done
 

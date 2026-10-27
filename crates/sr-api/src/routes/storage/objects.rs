@@ -2,7 +2,7 @@
 //! `sr_storage::scopes`; the server never streams a mount's bytes (a presign is local signing, no S3 round
 //! trip). A staff read of a mount that is not theirs is written to the access log before anything returns.
 
-use super::{ScopeDeps, cors_not_ready, facts_failed, parse_row, refusal, uid};
+use super::{ScopeDeps, UploadDeps, cors_not_ready, facts_failed, parse_row, refusal, uid};
 use crate::auth::{SESSION_COOKIE, SessionOnly, parse_cookie};
 use crate::routes::admin::AdminDeps;
 use crate::routes::messages::error::{ApiJson, ApiQuery, MsgError, MsgResult, invalid};
@@ -12,7 +12,7 @@ use crate::{openapi::ErrorBody, state::AppState};
 use axum::{
     Json,
     extract::{Path, State},
-    http::HeaderMap,
+    http::{HeaderMap, StatusCode},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -25,6 +25,7 @@ use sr_storage::path::safe_key;
 use sr_storage::scopes::{
     Access, Refused, ResolveError, Scope, ScopeFacts, Viewer, check_range, presign_ttl_secs,
 };
+use sr_storage::uploads::{FOLDER_OP_CAP, MoveError, plan_move};
 use sr_storage::{ObjectStorage, StorageError};
 use sr_storage::{PresignMethod, mounts::Sealer};
 use std::time::Duration;
@@ -132,15 +133,15 @@ fn content_type(key: &str) -> Option<String> {
 }
 
 /// Everything a handler needs after the scope decision.
-struct Reach {
-    mount: Mount,
-    access: Access,
+pub(super) struct Reach {
+    pub(super) mount: Mount,
+    pub(super) access: Access,
     /// Set when the read is a staff read: the caller to log.
-    staff: Option<Caller>,
+    pub(super) staff: Option<Caller>,
 }
 
 /// Look the mount up and decide how the caller reaches it. Refusals are 404 (403 for a missing grant).
-async fn reach(
+pub(super) async fn reach(
     d: &ScopeDeps,
     admin: Option<&AdminDeps>,
     user: i64,
@@ -245,7 +246,7 @@ async fn key_allowed(d: &ScopeDeps, r: &Reach, key: &str) -> MsgResult<()> {
     }
 }
 
-fn client_ip(headers: &HeaderMap, state: &AppState) -> Option<String> {
+pub(super) fn client_ip(headers: &HeaderMap, state: &AppState) -> Option<String> {
     if state.settings().trust_forwarded_for
         && let Some(ip) = headers
             .get("x-forwarded-for")
@@ -259,7 +260,7 @@ fn client_ip(headers: &HeaderMap, state: &AppState) -> Option<String> {
     None
 }
 
-fn bucket_error(e: &StorageError) -> MsgError {
+pub(super) fn bucket_error(e: &StorageError) -> MsgError {
     match e {
         StorageError::NotFound(_) => ErrorCode::SrNotFound.into(),
         StorageError::InvalidPath(_) => invalid("key", "KEY_INVALID", "That key is not valid."),
@@ -273,7 +274,7 @@ fn bucket_error(e: &StorageError) -> MsgError {
     }
 }
 
-fn key_error(field: &str, e: sr_storage::path::KeyError) -> MsgError {
+pub(super) fn key_error(field: &str, e: sr_storage::path::KeyError) -> MsgError {
     invalid(field, "KEY_INVALID", &e.to_string())
 }
 
@@ -528,7 +529,7 @@ pub async fn presign(
 }
 
 /// Seconds the caller's session has left; `None` when it cannot be told (then the other caps apply).
-async fn session_left(state: &AppState, headers: &HeaderMap) -> Option<i64> {
+pub(super) async fn session_left(state: &AppState, headers: &HeaderMap) -> Option<i64> {
     let raw = parse_cookie(headers, SESSION_COOKIE)?;
     let token = SessionToken::parse(raw)?;
     let rec = state.sessions().find(&token.hash()).await.ok()??;
@@ -540,11 +541,319 @@ async fn session_left(state: &AppState, headers: &HeaderMap) -> Option<i64> {
 const BUCKET_WAIT: Duration = Duration::from_secs(8);
 
 /// Run a bucket call under [`BUCKET_WAIT`]; a timeout is `BUCKET_UNREACHABLE` like any other bucket failure.
-async fn within<T>(
+pub(super) async fn within<T>(
     fut: impl std::future::Future<Output = Result<T, StorageError>>,
 ) -> MsgResult<T> {
     match tokio::time::timeout(BUCKET_WAIT, fut).await {
         Ok(r) => r.map_err(|e| bucket_error(&e)),
         Err(_) => Err(bucket_error(&StorageError::Backend("timed out".into()))),
     }
+}
+
+// ------------------------------------------------------------------ write side (BYOS-BRW-001)
+
+/// Like [`within`] with a longer wait (completing an upload, copying objects).
+pub(super) async fn within_for<T>(
+    wait: Duration,
+    fut: impl std::future::Future<Output = Result<T, StorageError>>,
+) -> MsgResult<T> {
+    match tokio::time::timeout(wait, fut).await {
+        Ok(r) => r.map_err(|e| bucket_error(&e)),
+        Err(_) => Err(bucket_error(&StorageError::Backend("timed out".into()))),
+    }
+}
+
+/// What a write route asks of the caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Need {
+    /// `scopes::may_upload`: uploads and new folders.
+    Upload,
+    /// `scopes::may_manage`: rename, move, delete.
+    Manage,
+}
+
+/// Find the mount and require the right to write to it. A caller who cannot reach the mount at all gets the
+/// read side's 404 (403 for a missing grant); one who reaches it (a friend with a share, a server member) but
+/// may not write gets 403. Platform staff reach a mount to look, never to write.
+pub(super) async fn writer(
+    d: &ScopeDeps,
+    admin: Option<&AdminDeps>,
+    state: &AppState,
+    headers: &HeaderMap,
+    user: i64,
+    mount_id: &str,
+    need: Need,
+) -> MsgResult<Mount> {
+    let r = reach(d, admin, user, client_ip(headers, state), mount_id).await?;
+    if r.staff.is_some() {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    let facts: &dyn ScopeFacts = &*d.store;
+    let viewer = Viewer {
+        id: user,
+        staff: false,
+    };
+    let ok = match need {
+        Need::Upload => sr_storage::scopes::may_upload(facts, viewer, &r.mount).await,
+        Need::Manage => sr_storage::scopes::may_manage(facts, viewer, &r.mount).await,
+    }
+    .map_err(facts_failed)?;
+    if ok {
+        Ok(r.mount)
+    } else {
+        Err(ErrorCode::MissingPermissions.into())
+    }
+}
+
+/// Body of `POST /storage/mounts/{mount_id}/folders`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct FolderBody {
+    /// Mount-relative folder key, ending in `/`.
+    pub key: String,
+}
+
+/// A created folder.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct FolderView {
+    /// Mount-relative folder key, ending in `/`.
+    pub key: String,
+}
+
+/// Body of `POST /storage/mounts/{mount_id}/move` (rename and move are the same call).
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct MoveBody {
+    /// Mount-relative key of an object, or of a folder (ending in `/`).
+    pub from: String,
+    /// The new key: an object stays an object, a folder stays a folder.
+    pub to: String,
+}
+
+/// What a move or delete touched.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CountView {
+    /// Objects moved or deleted (folder markers included).
+    pub count: u32,
+}
+
+/// Create an empty folder: a zero-byte `folder/` marker, which is how S3 clients show an empty folder.
+#[utoipa::path(
+    post,
+    path = "/storage/mounts/{mount_id}/folders",
+    params(("mount_id" = String, Path, description = "Mount snowflake")),
+    request_body = FolderBody,
+    responses(
+        (status = 201, body = FolderView),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 409, body = ErrorBody, description = "BUCKET_UNREACHABLE"),
+    ),
+    security(("session" = []))
+)]
+pub async fn create_folder(
+    State(state): State<AppState>,
+    SessionOnly(p): SessionOnly,
+    Ext(d): Ext<ScopeDeps>,
+    Ext(u): Ext<UploadDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
+    headers: HeaderMap,
+    Path(mount_id): Path<String>,
+    ApiJson(body): ApiJson<FolderBody>,
+) -> MsgResult<(StatusCode, Json<FolderView>)> {
+    if !body.key.ends_with('/') {
+        return Err(invalid(
+            "key",
+            "KEY_INVALID",
+            "A folder key ends in a slash.",
+        ));
+    }
+    safe_key(&body.key, true).map_err(|e| key_error("key", e))?;
+    let mount = writer(
+        &d,
+        admin.as_deref(),
+        &state,
+        &headers,
+        uid(&p),
+        &mount_id,
+        Need::Upload,
+    )
+    .await?;
+    within(u.io.put_marker(&mount, &body.key)).await?;
+    Ok((StatusCode::CREATED, Json(FolderView { key: body.key })))
+}
+
+fn move_refusal(e: MoveError) -> MsgError {
+    match e {
+        MoveError::Same => invalid("to", "MOVE_SAME", "That is where it already is."),
+        MoveError::IntoItself => invalid(
+            "to",
+            "MOVE_INTO_ITSELF",
+            "A folder cannot move into itself.",
+        ),
+        MoveError::KindMismatch => invalid(
+            "to",
+            "KIND_MISMATCH",
+            "A folder moves to a folder and a file to a file.",
+        ),
+        MoveError::TooMany => invalid(
+            "from",
+            "FOLDER_TOO_LARGE",
+            "That folder has more than 500 entries; move it in smaller pieces or at the provider.",
+        ),
+        MoveError::TooLarge => super::mounts::conflict(
+            "OBJECT_TOO_LARGE",
+            "A file over 5 GiB cannot be moved here; move it at the provider.",
+        ),
+        MoveError::Missing => ErrorCode::SrNotFound.into(),
+    }
+}
+
+/// Rename or move a file or a folder inside the bucket: a server-side copy of each object, then the
+/// delete of the originals (nothing is deleted when a copy fails). Refuses a target that already exists,
+/// a file over 5 GiB, and a folder with more than 500 entries.
+#[utoipa::path(
+    post,
+    path = "/storage/mounts/{mount_id}/move",
+    params(("mount_id" = String, Path, description = "Mount snowflake")),
+    request_body = MoveBody,
+    responses(
+        (status = 200, body = CountView),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 409, body = ErrorBody, description = "TARGET_EXISTS, OBJECT_TOO_LARGE or BUCKET_UNREACHABLE"),
+    ),
+    security(("session" = []))
+)]
+pub async fn move_objects(
+    State(state): State<AppState>,
+    SessionOnly(p): SessionOnly,
+    Ext(d): Ext<ScopeDeps>,
+    Ext(u): Ext<UploadDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
+    headers: HeaderMap,
+    Path(mount_id): Path<String>,
+    ApiJson(body): ApiJson<MoveBody>,
+) -> MsgResult<Json<CountView>> {
+    safe_key(&body.from, true).map_err(|e| key_error("from", e))?;
+    safe_key(&body.to, true).map_err(|e| key_error("to", e))?;
+    let mount = writer(
+        &d,
+        admin.as_deref(),
+        &state,
+        &headers,
+        uid(&p),
+        &mount_id,
+        Need::Manage,
+    )
+    .await?;
+    let folder = body.from.ends_with('/');
+    // For a file the first key under the name is the file itself (it sorts before `name.bak`).
+    let cap = if folder { FOLDER_OP_CAP } else { 1 };
+    let found = within(u.io.list_under(&mount, &body.from, cap)).await?;
+    let plan = plan_move(&body.from, &body.to, &found).map_err(move_refusal)?;
+    let taken = within(u.io.list_under(&mount, &body.to, 1)).await?;
+    let clash = if folder {
+        !taken.is_empty()
+    } else {
+        taken.first().is_some_and(|(k, _)| *k == body.to)
+    };
+    if clash {
+        return Err(super::mounts::conflict(
+            "TARGET_EXISTS",
+            "Something with that name is already there.",
+        ));
+    }
+    let copy_all = async {
+        for (from, to, _) in &plan {
+            if from.ends_with('/') {
+                u.io.put_marker(&mount, to).await?;
+            } else {
+                u.io.copy(&mount, from, to).await?;
+            }
+        }
+        Ok::<(), StorageError>(())
+    };
+    within_for(Duration::from_secs(40), copy_all).await?;
+    let delete_all = async {
+        for (from, _, _) in &plan {
+            u.io.delete(&mount, from).await?;
+        }
+        Ok::<(), StorageError>(())
+    };
+    within_for(Duration::from_secs(40), delete_all).await?;
+    Ok(Json(CountView {
+        count: u32::try_from(plan.len()).unwrap_or(u32::MAX),
+    }))
+}
+
+/// Delete a file, or a folder with everything in it (a key ending in `/`; at most 500 entries). The bucket
+/// is the only copy of the bytes: there is no undo.
+#[utoipa::path(
+    delete,
+    path = "/storage/mounts/{mount_id}/objects/{key}",
+    params(
+        ("mount_id" = String, Path, description = "Mount snowflake"),
+        ("key" = String, Path, description = "Mount-relative key; a trailing slash deletes a folder"),
+    ),
+    responses(
+        (status = 200, body = CountView),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 409, body = ErrorBody, description = "FOLDER_TOO_LARGE or BUCKET_UNREACHABLE"),
+    ),
+    security(("session" = []))
+)]
+pub async fn delete_objects(
+    State(state): State<AppState>,
+    SessionOnly(p): SessionOnly,
+    Ext(d): Ext<ScopeDeps>,
+    Ext(u): Ext<UploadDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
+    headers: HeaderMap,
+    Path((mount_id, key)): Path<(String, String)>,
+) -> MsgResult<Json<CountView>> {
+    safe_key(&key, true).map_err(|e| key_error("key", e))?;
+    let mount = writer(
+        &d,
+        admin.as_deref(),
+        &state,
+        &headers,
+        uid(&p),
+        &mount_id,
+        Need::Manage,
+    )
+    .await?;
+    let folder = key.ends_with('/');
+    let cap = if folder { FOLDER_OP_CAP } else { 1 };
+    let found = within(u.io.list_under(&mount, &key, cap)).await?;
+    let doomed: Vec<String> = if folder {
+        if found.len() > FOLDER_OP_CAP {
+            return Err(super::mounts::conflict(
+                "FOLDER_TOO_LARGE",
+                "That folder has more than 500 entries; delete it in smaller pieces or at the provider.",
+            ));
+        }
+        found.into_iter().map(|(k, _)| k).collect()
+    } else {
+        found
+            .into_iter()
+            .map(|(k, _)| k)
+            .filter(|k| *k == key)
+            .collect()
+    };
+    if doomed.is_empty() {
+        return Err(ErrorCode::SrNotFound.into());
+    }
+    let delete_all = async {
+        for k in &doomed {
+            u.io.delete(&mount, k).await?;
+        }
+        Ok::<(), StorageError>(())
+    };
+    within_for(Duration::from_secs(40), delete_all).await?;
+    Ok(Json(CountView {
+        count: u32::try_from(doomed.len()).unwrap_or(u32::MAX),
+    }))
 }

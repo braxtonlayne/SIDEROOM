@@ -5,7 +5,8 @@
 //! * `scopes`: Friend Shelf shares (`/users/@me/storage/mounts/{id}/shares*`, `/users/@me/storage/shares`),
 //!   guild storage grants (`PUT /guilds/{id}/storage/grants`) and `GET /users/@me/shelves/summary`.
 //! * `objects`: the scoped listing, object metadata and presign (`/storage/mounts/{id}/objects*`,
-//!   `/storage/mounts/{id}/presign`).
+//!   `/storage/mounts/{id}/presign`), and the write side: folders, move, delete (BYOS-BRW-001).
+//! * `uploads`: multipart uploads through the ledger (`/storage/mounts/{id}/uploads*`, BYOS-BRW-001).
 //!
 //! Every read goes through `sr_storage::scopes`.
 
@@ -15,6 +16,9 @@ pub mod mounts;
 mod mounts_tests;
 mod objects;
 mod scopes;
+mod uploads;
+#[cfg(test)]
+mod uploads_tests;
 
 use crate::{
     routes::messages::error::{MsgError, MsgResult},
@@ -38,6 +42,16 @@ pub struct ScopeDeps {
     pub store: Arc<dyn ScopeStore>,
     /// Opens sealed mount secrets to build the S3 client.
     pub sealer: Arc<dyn Sealer>,
+}
+
+/// Collaborators of the write routes (BYOS-BRW-001): the upload ledger, the bucket calls and the id source.
+pub struct UploadDeps {
+    /// The ledger of open multipart uploads.
+    pub ledger: Arc<dyn sr_storage::uploads::UploadLedger>,
+    /// The bucket calls made with a mount's credentials.
+    pub io: Arc<dyn sr_storage::uploads::MountIo>,
+    /// Snowflake source for upload ids.
+    pub next_id: Arc<dyn Fn() -> u64 + Send + Sync>,
 }
 
 /// The acting user id; the routes accept browser sessions only (see `SessionOnly`).
@@ -94,7 +108,31 @@ pub fn router() -> Router<AppState> {
         .route("/storage/mounts/{mount_id}/objects", get(objects::list))
         .route(
             "/storage/mounts/{mount_id}/objects/{*key}",
-            get(objects::meta),
+            get(objects::meta).delete(objects::delete_objects),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/folders",
+            post(objects::create_folder),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/move",
+            post(objects::move_objects),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/uploads",
+            get(uploads::list).post(uploads::begin),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/uploads/{upload_id}",
+            get(uploads::status).delete(uploads::abort),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/uploads/{upload_id}/parts/{part_number}",
+            post(uploads::part_url),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/uploads/{upload_id}/complete",
+            post(uploads::complete),
         )
         .route("/storage/mounts/{mount_id}/presign", post(objects::presign))
 }
@@ -111,6 +149,15 @@ pub fn router() -> Router<AppState> {
         objects::list,
         objects::meta,
         objects::presign,
+        objects::create_folder,
+        objects::move_objects,
+        objects::delete_objects,
+        uploads::begin,
+        uploads::list,
+        uploads::status,
+        uploads::part_url,
+        uploads::complete,
+        uploads::abort,
     ),
     components(schemas(
         crate::openapi::ErrorBody,
@@ -125,6 +172,18 @@ pub fn router() -> Router<AppState> {
         objects::ObjectMetaView,
         objects::PresignBody,
         objects::PresignView,
+        objects::FolderBody,
+        objects::FolderView,
+        objects::MoveBody,
+        objects::CountView,
+        uploads::BeginUploadBody,
+        uploads::UploadView,
+        uploads::PartView,
+        uploads::UploadStatusView,
+        uploads::PartUrlView,
+        uploads::CompletePart,
+        uploads::CompleteUploadBody,
+        uploads::CompletedUploadView,
     ))
 )]
 pub struct StorageApiDoc;
