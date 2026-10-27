@@ -309,6 +309,26 @@ impl S3Admin {
         })
     }
 
+    /// The endpoint URL (for [`crate::guard::EndpointGuard`]).
+    pub fn endpoint(&self) -> &str {
+        &self.endpoint
+    }
+
+    /// Connect only to `addrs` (resolved and checked once by an [`crate::guard::EndpointGuard`]) instead of
+    /// looking the host name up again.
+    pub fn pinned(mut self, addrs: &[std::net::SocketAddr]) -> Result<Self> {
+        let mut b = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(30));
+        if let Some(host) = crate::guard::pin_host(&self.endpoint) {
+            b = b.resolve_to_addrs(&host, addrs);
+        }
+        self.client = b
+            .build()
+            .map_err(|e| StorageError::Backend(e.to_string()))?;
+        Ok(self)
+    }
+
     fn host(&self) -> Result<String> {
         let rest = self
             .endpoint

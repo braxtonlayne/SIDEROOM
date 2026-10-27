@@ -326,3 +326,43 @@ async fn virtual_hosted_requests_put_the_bucket_in_the_host() {
     assert!(url.contains("partNumber=2"));
     assert!(!url.contains("secretsecret"));
 }
+
+#[tokio::test]
+async fn a_pinned_client_connects_to_the_checked_address_and_never_looks_the_name_up() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(fake_s3(
+        listener,
+        vec![("HTTP/1.1 204 No Content", String::new())],
+    ));
+    // The name does not resolve anywhere (`.invalid` is reserved); only the pin can make this work.
+    let m = S3Multipart::new(
+        &format!("http://rebind.shelf.invalid:{}", addr.port()),
+        "sideroom",
+        "garage",
+        "GKexample",
+        "topsecretvalue",
+    )
+    .unwrap()
+    .pinned(&[addr]);
+    m.delete_object("k/o.bin").await.unwrap();
+    let seen = server.await.unwrap();
+    assert!(
+        seen[0]
+            .to_ascii_lowercase()
+            .contains(&format!("host: rebind.shelf.invalid:{}", addr.port())),
+        "the Host header still names the endpoint (TLS and signing keep working): {}",
+        seen[0]
+    );
+
+    // Without the pin the same client cannot even resolve the name.
+    let unpinned = S3Multipart::new(
+        &format!("http://rebind.shelf.invalid:{}", addr.port()),
+        "sideroom",
+        "garage",
+        "GKexample",
+        "topsecretvalue",
+    )
+    .unwrap();
+    assert!(unpinned.delete_object("k/o.bin").await.is_err());
+}

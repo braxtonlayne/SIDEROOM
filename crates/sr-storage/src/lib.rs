@@ -9,6 +9,7 @@ pub mod browse;
 pub mod cdn;
 pub mod cors_check;
 pub mod error;
+pub mod guard;
 pub mod img;
 pub mod media;
 pub mod mount_cache;

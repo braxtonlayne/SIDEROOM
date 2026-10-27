@@ -20,6 +20,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use crate::error::{Result, StorageError};
+use crate::guard::EndpointGuard;
 use crate::mounts::{Mount, Sealer};
 pub use crate::s3multipart::{COPY_MAX_BYTES, UploadedPart};
 
@@ -335,10 +336,12 @@ pub trait MountIo: Send + Sync {
     ) -> Result<Vec<(String, u64)>>;
 }
 
-/// [`MountIo`] over real signed requests with the mount's own credentials.
+/// [`MountIo`] over real signed requests with the mount's own credentials. With a guard every network call
+/// resolves the endpoint once, checks it against the SSRF policy and connects to exactly those addresses.
 pub struct S3MountIo {
     sealer: Arc<dyn Sealer>,
     timeout: Duration,
+    guard: Option<Arc<dyn EndpointGuard>>,
 }
 
 impl S3MountIo {
@@ -347,20 +350,44 @@ impl S3MountIo {
         Self {
             sealer,
             timeout: Duration::from_secs(8),
+            guard: None,
         }
     }
 
-    fn client(&self, mount: &Mount) -> Result<crate::s3multipart::S3Multipart> {
-        mount
-            .multipart(self.sealer.as_ref(), self.timeout)
-            .map_err(|e| StorageError::Backend(e.to_string()))
+    /// Resolve and vet the endpoint before every network call, and pin the connection to what was checked.
+    #[must_use]
+    pub fn with_guard(mut self, guard: Arc<dyn EndpointGuard>) -> Self {
+        self.guard = Some(guard);
+        self
+    }
+
+    /// The client for a network call: guarded and pinned when a guard is set.
+    async fn client(
+        &self,
+        mount: &Mount,
+        timeout: Duration,
+    ) -> Result<crate::s3multipart::S3Multipart> {
+        let c = mount
+            .multipart(self.sealer.as_ref(), timeout)
+            .map_err(|e| StorageError::Backend(e.to_string()))?;
+        match &self.guard {
+            None => Ok(c),
+            Some(g) => {
+                let addrs = g
+                    .validated_addrs(&c.base_url())
+                    .await
+                    .map_err(|e| StorageError::Backend(format!("endpoint refused: {e}")))?;
+                Ok(c.pinned(&addrs))
+            }
+        }
     }
 }
 
 #[async_trait]
 impl MountIo for S3MountIo {
     async fn begin(&self, mount: &Mount, key: &str, content_type: &str) -> Result<String> {
-        self.client(mount)?
+        self.client(mount, self.timeout)
+            .await?
             .create(&mount.bucket_key(key), content_type)
             .await
     }
@@ -372,11 +399,15 @@ impl MountIo for S3MountIo {
         part: u32,
         ttl: Duration,
     ) -> Result<String> {
-        self.client(mount)?
+        // Local signing: no connection is made, so there is nothing to pin.
+        mount
+            .multipart(self.sealer.as_ref(), self.timeout)
+            .map_err(|e| StorageError::Backend(e.to_string()))?
             .presign_part(&mount.bucket_key(key), upload_id, part, ttl)
     }
     async fn parts(&self, mount: &Mount, key: &str, upload_id: &str) -> Result<Vec<UploadedPart>> {
-        self.client(mount)?
+        self.client(mount, self.timeout)
+            .await?
             .list_parts(&mount.bucket_key(key), upload_id)
             .await
     }
@@ -388,14 +419,15 @@ impl MountIo for S3MountIo {
         parts: &[(u32, String)],
     ) -> Result<()> {
         // Assembling a large object can take a while at the provider.
-        let c = mount
-            .multipart(self.sealer.as_ref(), Duration::from_secs(60))
-            .map_err(|e| StorageError::Backend(e.to_string()))?;
-        c.complete(&mount.bucket_key(key), upload_id, parts).await
+        self.client(mount, Duration::from_secs(60))
+            .await?
+            .complete(&mount.bucket_key(key), upload_id, parts)
+            .await
     }
     async fn abort(&self, mount: &Mount, key: &str, upload_id: &str) -> Result<()> {
         match self
-            .client(mount)?
+            .client(mount, self.timeout)
+            .await?
             .abort(&mount.bucket_key(key), upload_id)
             .await
         {
@@ -407,18 +439,21 @@ impl MountIo for S3MountIo {
         }
     }
     async fn put_marker(&self, mount: &Mount, key: &str) -> Result<()> {
-        self.client(mount)?.put_marker(&mount.bucket_key(key)).await
+        self.client(mount, self.timeout)
+            .await?
+            .put_marker(&mount.bucket_key(key))
+            .await
     }
     async fn delete(&self, mount: &Mount, key: &str) -> Result<()> {
-        self.client(mount)?
+        self.client(mount, self.timeout)
+            .await?
             .delete_object(&mount.bucket_key(key))
             .await
     }
     async fn copy(&self, mount: &Mount, from: &str, to: &str) -> Result<()> {
-        let c = mount
-            .multipart(self.sealer.as_ref(), Duration::from_secs(30))
-            .map_err(|e| StorageError::Backend(e.to_string()))?;
-        c.copy_object(&mount.bucket_key(from), &mount.bucket_key(to))
+        self.client(mount, Duration::from_secs(30))
+            .await?
+            .copy_object(&mount.bucket_key(from), &mount.bucket_key(to))
             .await
     }
     async fn list_under(
@@ -437,7 +472,11 @@ impl MountIo for S3MountIo {
         } else {
             mount.bucket_key(prefix)
         };
-        let rows = self.client(mount)?.list_keys(&bucket_prefix, cap).await?;
+        let rows = self
+            .client(mount, self.timeout)
+            .await?
+            .list_keys(&bucket_prefix, cap)
+            .await?;
         let strip = format!("{base}/");
         Ok(rows
             .into_iter()

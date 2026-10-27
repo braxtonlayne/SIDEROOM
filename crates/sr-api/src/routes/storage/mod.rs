@@ -42,6 +42,31 @@ pub struct ScopeDeps {
     pub store: Arc<dyn ScopeStore>,
     /// Opens sealed mount secrets to build the S3 client.
     pub sealer: Arc<dyn Sealer>,
+    /// Re-checks a member endpoint right before the bucket is called (the DNS-rebind gap). `None` in tests.
+    pub guard: Option<Arc<dyn sr_storage::guard::EndpointGuard>>,
+}
+
+/// [`EndpointGuard`](sr_storage::guard::EndpointGuard) over the SSRF policy: resolve the endpoint's host once,
+/// refuse private, loopback and link-local answers (every answer must pass), return the checked addresses.
+pub struct NetGuard {
+    policy: sr_net::Policy,
+}
+
+impl NetGuard {
+    /// A guard with the instance's policy.
+    pub fn new(policy: sr_net::Policy) -> Self {
+        Self { policy }
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_storage::guard::EndpointGuard for NetGuard {
+    async fn validated_addrs(&self, url: &str) -> Result<Vec<std::net::SocketAddr>, String> {
+        let url = url::Url::parse(url).map_err(|e| e.to_string())?;
+        sr_net::resolve_validated(&self.policy, &sr_net::SystemResolver, &url)
+            .await
+            .map_err(|e| e.to_string())
+    }
 }
 
 /// Collaborators of the write routes (BYOS-BRW-001): the upload ledger, the bucket calls and the id source.

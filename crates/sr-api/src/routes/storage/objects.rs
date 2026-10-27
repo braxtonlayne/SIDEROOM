@@ -278,6 +278,25 @@ pub(super) fn key_error(field: &str, e: sr_storage::path::KeyError) -> MsgError 
     invalid(field, "KEY_INVALID", &e.to_string())
 }
 
+/// Re-check a member endpoint right before `object_store` calls it. That client resolves the name itself and
+/// cannot be pinned, so this narrows the DNS-rebind window to the gap between the check and the connect (the
+/// signed clients of the write side are pinned outright, see `sr_storage::guard`). The operator's own bucket
+/// (the platform mount) is not vetted.
+async fn vet_endpoint(d: &ScopeDeps, mount: &Mount) -> MsgResult<()> {
+    let Some(g) = &d.guard else { return Ok(()) };
+    if mount.owner == sr_storage::mounts::MountOwner::Platform {
+        return Ok(());
+    }
+    g.validated_addrs(&mount.endpoint).await.map_err(|e| {
+        tracing::warn!(mount = mount.id, error = %e, "mount endpoint refused before a bucket call");
+        super::mounts::conflict(
+            "MOUNT_ENDPOINT_BLOCKED",
+            "This endpoint is not reachable from the public internet.",
+        )
+    })?;
+    Ok(())
+}
+
 fn storage_for(d: &ScopeDeps, mount: &Mount) -> MsgResult<sr_storage::ObjectStoreStorage> {
     let s: &dyn Sealer = &*d.sealer;
     mount.storage(s).map_err(|e| {
@@ -360,6 +379,7 @@ pub async fn list(
             k.strip_prefix(&format!("{base}/")).unwrap_or(k).to_owned()
         }
     };
+    vet_endpoint(&d, &r.mount).await?;
     let storage = storage_for(&d, &r.mount)?;
     let page =
         within(storage.list_dir(&bucket_prefix, delimiter, q.cursor.as_deref(), PAGE)).await?;
@@ -423,6 +443,7 @@ pub async fn meta(
     .await?;
     key_allowed(&d, &r, &key).await?;
     log_staff(admin.as_deref(), &r, "meta", &key).await?;
+    vet_endpoint(&d, &r.mount).await?;
     let storage = storage_for(&d, &r.mount)?;
     let m = within(storage.head_meta(&r.mount.bucket_key(&key))).await?;
     Ok(Json(ObjectMetaView {

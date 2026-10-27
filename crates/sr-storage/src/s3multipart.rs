@@ -103,6 +103,9 @@ pub struct S3Multipart {
     secret_key: String,
     /// Path-style (`endpoint/bucket/key`) or virtual-hosted (`bucket.endpoint-host/key`) addressing.
     path_style: bool,
+    timeout: Duration,
+    /// Addresses the host name is pinned to (see [`crate::guard`]); empty means the system resolver.
+    pin: Vec<std::net::SocketAddr>,
     client: reqwest::Client,
 }
 
@@ -164,8 +167,37 @@ impl S3Multipart {
             access_key: access_key.to_owned(),
             secret_key: secret_key.to_owned(),
             path_style: true,
+            timeout: Duration::from_secs(60),
+            pin: Vec::new(),
             client,
         })
+    }
+
+    /// Rebuild the HTTP client from the timeout and the pin.
+    fn rebuild(&mut self) {
+        let mut b = reqwest::Client::builder().no_proxy().timeout(self.timeout);
+        if !self.pin.is_empty()
+            && let Some(host) = crate::guard::pin_host(&self.base())
+        {
+            b = b.resolve_to_addrs(&host, &self.pin);
+        }
+        if let Ok(c) = b.build() {
+            self.client = c;
+        }
+    }
+
+    /// The `scheme://host` requests go to (for [`crate::guard::EndpointGuard`]).
+    pub fn base_url(&self) -> String {
+        self.base()
+    }
+
+    /// Connect only to `addrs` (resolved and checked once by an [`crate::guard::EndpointGuard`]) instead of
+    /// looking the host name up again.
+    #[must_use]
+    pub fn pinned(mut self, addrs: &[std::net::SocketAddr]) -> Self {
+        self.pin = addrs.to_vec();
+        self.rebuild();
+        self
     }
 
     /// Choose the addressing style (default path-style). Virtual-hosted puts the bucket in the host name,
@@ -179,13 +211,8 @@ impl S3Multipart {
     /// Replace the request timeout (the default is a minute; routes that answer a person use seconds).
     #[must_use]
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        if let Ok(c) = reqwest::Client::builder()
-            .no_proxy()
-            .timeout(timeout)
-            .build()
-        {
-            self.client = c;
-        }
+        self.timeout = timeout;
+        self.rebuild();
         self
     }
 

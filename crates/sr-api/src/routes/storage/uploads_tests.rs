@@ -175,6 +175,10 @@ fn standing(roles: &[i64]) -> GuildStanding {
 }
 
 async fn env() -> Env {
+    env_with(None).await
+}
+
+async fn env_with(guard: Option<Arc<dyn sr_storage::guard::EndpointGuard>>) -> Env {
     let repo: Arc<dyn MountRepo> = MemoryMountRepo::shared();
     let user_mount = mk_mount(&repo, 900, MountOwner::User(OWNER), "lib", true)
         .await
@@ -233,6 +237,7 @@ async fn env() -> Env {
         mounts: repo.clone(),
         store: Arc::new(Store(facts)),
         sealer: Arc::new(XorSealer),
+        guard,
     };
     let uploads = UploadDeps {
         ledger: ledger.clone(),
@@ -741,4 +746,59 @@ async fn a_folder_over_the_cap_is_refused_whole() {
         .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);
     assert_eq!(e.io.keys(m).len(), 501);
+}
+
+/// A guard that has seen the endpoint resolve to an internal address.
+struct Rebound;
+
+#[async_trait]
+impl sr_storage::guard::EndpointGuard for Rebound {
+    async fn validated_addrs(&self, _: &str) -> Result<Vec<std::net::SocketAddr>, String> {
+        Err("blocked address 169.254.169.254".into())
+    }
+}
+
+#[tokio::test]
+async fn a_member_endpoint_that_rebinds_is_refused_before_the_bucket_is_called() {
+    let e = env_with(Some(Arc::new(Rebound))).await;
+    let m = e.user_mount;
+    for path in [
+        format!("/storage/mounts/{m}/objects"),
+        format!("/storage/mounts/{m}/objects/a.mp3"),
+    ] {
+        let (st, v) = e.call(Some(OWNER), Method::GET, &path, None).await;
+        assert_eq!(st, StatusCode::CONFLICT, "{path}: {v}");
+        assert_eq!(code(&v), "MOUNT_ENDPOINT_BLOCKED");
+        assert!(
+            !v.to_string().contains("169.254"),
+            "the reason is not shown"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_net_guard_applies_the_ssrf_policy_to_every_answer() {
+    use sr_storage::guard::EndpointGuard;
+    let strict = super::NetGuard::new(sr_net::Policy::default());
+    assert!(strict.validated_addrs("http://127.0.0.1:9").await.is_err());
+    assert!(
+        strict
+            .validated_addrs("http://169.254.169.254")
+            .await
+            .is_err()
+    );
+    assert!(
+        strict
+            .validated_addrs("http://10.0.0.5:3900")
+            .await
+            .is_err()
+    );
+    assert!(strict.validated_addrs("not a url").await.is_err());
+    let dev = super::NetGuard::new(sr_net::Policy {
+        allow_private_for_tests: true,
+        ..Default::default()
+    });
+    let addrs = dev.validated_addrs("http://127.0.0.1:9").await.unwrap();
+    assert_eq!(addrs.len(), 1);
+    assert_eq!(addrs[0].port(), 9);
 }
