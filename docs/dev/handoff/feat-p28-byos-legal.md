@@ -1,12 +1,11 @@
 # feat/p28-byos-legal handoff (BYOS-LEG-001, OPS-IDX-001)
 
 ## Resume here
-Both items are built; what is left is verification and the follow-ups below. Order:
-1. Run the Rust gates not yet run (see "Not yet run"): `cargo test -p sr-api --test api security_headers_on_every_response`, `--test route_matrix`, `--test openapi_names`, the authz matrix (sr-server, Postgres), clippy `-D warnings` on sr-db, sr-moderation, sr-storage, sr-admin, sr-api, sr-voice, sr-server tests.
-2. Regenerate OpenAPI: `cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json`, then `pnpm --filter @sideroom/api-client generate` (and `mocks:generate` if the script exists). The new schemas are `AdminStorageMount`, `StorageMountLegal`, the `NewItem.key` field, `TakedownItem.object_key`, item kind `storage_object`.
-3. Web gates: `tsc`, eslint, prettier, vitest (`src/admin/__tests__/p28storage.test.tsx`, `src/i18n/catalog.test.ts`, the logical-CSS test), build + `scripts/check-bundle-budget.mjs`.
-Worktree has node_modules (offline install done); wasm is not built (vitest ran without it).
-Scratch DB `sr_p28_byos_legal` exists on the local Postgres: drop it when done (`DROP DATABASE sr_p28_byos_legal`).
+Both items are built and their gates ran (see "Tests run"). Left for the integrator or a follow-up agent:
+1. Web production build and `scripts/check-bundle-budget.mjs` (needs `pnpm --filter @sideroom/wasm build`, a cargo build, so not run here). The new web code is one small admin section plus a hook.
+2. The two Playwright specs (`e2e/tests/noindex.spec.ts` via prod-smoke on CI, `moderation-gate.spec.ts` storage step) have not run: they need the Caddy stack / ports 8080 and 5173.
+3. The follow-ups listed below.
+The scratch database `sr_p28_byos_legal` was dropped; recreate it to rerun the Postgres tests.
 
 ## Done
 ### OPS-IDX-001 (D-384): only the landing page is indexable
@@ -30,12 +29,10 @@ Scratch DB `sr_p28_byos_legal` exists on the local Postgres: drop it when done (
 - docs: 09 matrix rows (mounts, objects, delist records, presigns) and DSR paragraph; 15 rows T29 and T30; `docs/legal/lawyer-brief.md` Part E with Q20, Q21, Q22, Q23 (the roadmap assigned Q21 to wave 35 and Q22/Q23 to wave 40; the task for this wave asked for all four, so later waves must not add them again).
 
 ## Tests run
-- vitest: `useNoindex.test.tsx` (11), `csp.test.ts` (13).
-- Postgres (scratch DB): `cargo test -p sr-moderation --test storage_takedown -- --include-ignored --test-threads=1` 4 passed (delist, counter-notice restore, input checks, whole-mount delist/relist, export without keys, erasure wipes `secret_key_enc`).
-- `cargo test -p sr-voice --lib noindex` passed. `cargo check` for sr-moderation, sr-storage, sr-db, sr-admin, sr-api with tests: clean.
-
-## Not yet run
-- `crates/sr-db/tests/storage_legal.rs` (Postgres, new), the `scopes` unit test for `Delisted`, sr-api `security_headers_on_every_response` (extended), `route_matrix`, `openapi_names`, authz_matrix, clippy, fmt check on all touched crates, web gates, the e2e specs (CI only).
+- vitest (`--maxWorkers=2`): `src/lib/useNoindex.test.tsx`, `src/security/csp.test.ts`, and all of `src/admin`, `src/moderation`, `src/security`, `src/lib` (63 files, 484 tests, incl. the new `p28storage.test.tsx` and the updated nav list in `admin.test.tsx`); `src/i18n` (catalog tests). tsc, eslint and prettier clean on apps/web, e2e tsc clean.
+- Postgres (scratch DB, `--test-threads=1`): `sr-moderation --test storage_takedown` 4 passed; `sr-moderation --test takedowns` 17 passed (existing, after the NewItem change); `sr-db --test storage_legal` 1 passed; `sr-db --test mounts_repo` 3 and `--test scopes_repo` 3 passed; `sr-server --test authz_matrix` 4 passed (first run failed only because another agent held UDP 52000-52019; rerun green).
+- Rust without a database: `sr-storage --lib` 111, `sr-admin` 62, `sr-voice --lib` 38, `sr-api --test route_matrix` 6, `--test api` (security_headers_on_every_response, every_response_says_noindex, hsts) 3, `--test openapi_names` 2.
+- `cargo fmt --check` and `cargo clippy --all-targets -D warnings` clean on sr-db, sr-moderation, sr-storage, sr-admin, sr-api, sr-voice (fmt also sr-server). OpenAPI, `schema.d.ts` and msw handlers regenerated and committed.
 
 ## Follow-ups and open items
 - Owner screen: the member's own Settings > Storage does not yet show a "Delisted" badge with the reason (the owner gets the DM). `settings/user/storage/*` belongs to byos-browser.
