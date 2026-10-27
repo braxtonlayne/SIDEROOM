@@ -2,6 +2,7 @@
 //! `delisted` by the connection test or by the owner's patch, and the scope check refuses it for everyone.
 //! `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-db --test storage_legal -- --ignored --test-threads=1`
 
+use sr_db::accounts::{self, NewAccount};
 use sr_db::mounts_repo::PgMountRepo;
 use sr_db::sealed::SecretBox;
 use sr_db::storage_legal;
@@ -42,15 +43,35 @@ async fn a_delisted_mount_stays_delisted_until_staff_relist_it() {
         .unwrap();
     assert_eq!(m.status, MountStatus::Active);
 
+    let staff = 9_900_001_i64;
+    let ok = accounts::create_account(
+        db.pool(),
+        &NewAccount {
+            id: staff,
+            person_id: 9_900_002,
+            username: "legalstaff",
+            display_name: None,
+            email: "legalstaff@example.test",
+            password_hash: "x",
+            state: "active",
+            email_verified: true,
+            initial_credits: 0,
+            flags: 0,
+        },
+        9_900_003,
+    )
+    .await
+    .unwrap();
+    assert!(ok);
     let mut conn = db.pool().acquire().await.unwrap();
-    let l = storage_legal::delist_mount(&mut conn, 6001, 42, "notice")
+    let l = storage_legal::delist_mount(&mut conn, 6001, staff, "notice")
         .await
         .unwrap()
         .unwrap();
     assert_eq!(l.status, "delisted");
     // The instance bucket and unknown mounts cannot be delisted.
     assert!(
-        storage_legal::delist_mount(&mut conn, 6002, 42, "x")
+        storage_legal::delist_mount(&mut conn, 6002, staff, "x")
             .await
             .unwrap()
             .is_none()
