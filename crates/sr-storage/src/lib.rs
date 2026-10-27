@@ -22,6 +22,7 @@ pub mod s3multipart;
 pub mod scopes;
 pub mod storage;
 pub mod upload;
+pub mod uploads;
 
 pub use error::{Result, StorageError};
 pub use storage::{

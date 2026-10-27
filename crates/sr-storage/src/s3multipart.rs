@@ -101,6 +101,8 @@ pub struct S3Multipart {
     region: String,
     access_key: String,
     secret_key: String,
+    /// Path-style (`endpoint/bucket/key`) or virtual-hosted (`bucket.endpoint-host/key`) addressing.
+    path_style: bool,
     client: reqwest::Client,
 }
 
@@ -161,15 +163,46 @@ impl S3Multipart {
             region: region.to_owned(),
             access_key: access_key.to_owned(),
             secret_key: secret_key.to_owned(),
+            path_style: true,
             client,
         })
     }
 
+    /// Choose the addressing style (default path-style). Virtual-hosted puts the bucket in the host name,
+    /// as the `object_store` client does for a mount with `path_style = false`.
+    #[must_use]
+    pub fn with_path_style(mut self, path_style: bool) -> Self {
+        self.path_style = path_style;
+        self
+    }
+
+    /// Replace the request timeout (the default is a minute; routes that answer a person use seconds).
+    #[must_use]
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        if let Ok(c) = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(timeout)
+            .build()
+        {
+            self.client = c;
+        }
+        self
+    }
+
+    /// `scheme://host` of requests: the endpoint, with the bucket prepended to the host when virtual-hosted.
+    fn base(&self) -> String {
+        if self.path_style {
+            return self.endpoint.clone();
+        }
+        match self.endpoint.split_once("://") {
+            Some((scheme, rest)) => format!("{scheme}://{}.{rest}", self.bucket),
+            None => format!("{}.{}", self.bucket, self.endpoint),
+        }
+    }
+
     fn host(&self) -> Result<String> {
-        let rest = self
-            .endpoint
-            .split_once("://")
-            .map_or(self.endpoint.as_str(), |(_, r)| r);
+        let base = self.base();
+        let rest = base.split_once("://").map_or(base.as_str(), |(_, r)| r);
         let host = rest.split('/').next().unwrap_or(rest);
         if host.is_empty() {
             return Err(StorageError::Backend("empty S3 endpoint".into()));
@@ -178,11 +211,15 @@ impl S3Multipart {
     }
 
     fn uri(&self, key: &str) -> String {
-        format!(
-            "/{}/{}",
-            uri_encode(&self.bucket, false),
-            uri_encode(key, true)
-        )
+        if self.path_style {
+            format!(
+                "/{}/{}",
+                uri_encode(&self.bucket, false),
+                uri_encode(key, true)
+            )
+        } else {
+            format!("/{}", uri_encode(key, true))
+        }
     }
 
     /// A presigned `PUT` URL for one part. The worker sends the bytes with `PUT` and reads the
@@ -225,7 +262,7 @@ impl S3Multipart {
             &amz_date(unix_secs),
             expires,
         );
-        Ok(format!("{}{uri}?{query}", self.endpoint))
+        Ok(format!("{}{uri}?{query}", self.base()))
     }
 
     /// Start a multipart upload and return its id.
@@ -341,6 +378,29 @@ impl S3Multipart {
         content_type: Option<&str>,
         body: Vec<u8>,
     ) -> Result<String> {
+        self.send_with(
+            method,
+            key,
+            canonical_query,
+            url_query,
+            content_type,
+            &[],
+            body,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn send_with(
+        &self,
+        method: &str,
+        key: &str,
+        canonical_query: &str,
+        url_query: &str,
+        content_type: Option<&str>,
+        extra: &[(&str, String)],
+        body: Vec<u8>,
+    ) -> Result<String> {
         let amz = amz_date(now_secs());
         let payload_hash = sha256_hex(&body);
         let mut headers: Vec<(String, String)> = vec![
@@ -348,6 +408,9 @@ impl S3Multipart {
             ("x-amz-content-sha256".into(), payload_hash.clone()),
             ("x-amz-date".into(), amz.clone()),
         ];
+        for (k, v) in extra {
+            headers.push(((*k).to_owned(), v.clone()));
+        }
         headers.sort();
         let uri = self.uri(key);
         let auth = authorization(&SigningInput {
@@ -362,9 +425,14 @@ impl S3Multipart {
             service: "s3",
             amz_date: &amz,
         });
-        let url = format!("{}{uri}?{url_query}", self.endpoint);
+        let url = if url_query.is_empty() {
+            format!("{}{uri}", self.base())
+        } else {
+            format!("{}{uri}?{url_query}", self.base())
+        };
         let mut req = match method {
             "POST" => self.client.post(&url),
+            "PUT" => self.client.put(&url),
             "DELETE" => self.client.delete(&url),
             _ => self.client.get(&url),
         };
@@ -377,7 +445,10 @@ impl S3Multipart {
         if let Some(ct) = content_type {
             req = req.header("content-type", ct);
         }
-        if !body.is_empty() {
+        if body.is_empty() && method == "PUT" {
+            // S3 answers 411 to a PUT without a length.
+            req = req.header("content-length", "0");
+        } else if !body.is_empty() {
             req = req.body(body);
         }
         let resp = req
@@ -397,6 +468,184 @@ impl S3Multipart {
             "{method} multipart call failed with {status}: {snippet}"
         )))
     }
+}
+
+/// A key that may also be a folder marker (one trailing slash).
+fn check_object_or_marker(key: &str) -> Result<()> {
+    check_key(key.strip_suffix('/').unwrap_or(key))
+}
+
+/// Largest object a single `CopyObject` can copy.
+pub const COPY_MAX_BYTES: u64 = 5 * 1024 * 1024 * 1024;
+
+impl S3Multipart {
+    /// Write a zero-byte object, used for folder markers (`folder/`): the one place a key ends in a slash.
+    pub async fn put_marker(&self, key: &str) -> Result<()> {
+        check_object_or_marker(key)?;
+        self.send(
+            "PUT",
+            key,
+            "",
+            "",
+            Some("application/x-directory"),
+            Vec::new(),
+        )
+        .await
+        .map(|_| ())
+    }
+
+    /// Delete one object (a marker included). A key that is not there is not an error (S3 answers 204).
+    pub async fn delete_object(&self, key: &str) -> Result<()> {
+        check_object_or_marker(key)?;
+        self.send("DELETE", key, "", "", None, Vec::new())
+            .await
+            .map(|_| ())
+    }
+
+    /// Server-side copy inside the bucket (`CopyObject`, up to [`COPY_MAX_BYTES`]); the caller deletes the source.
+    pub async fn copy_object(&self, from: &str, to: &str) -> Result<()> {
+        check_key(from)?;
+        check_key(to)?;
+        let source = format!(
+            "/{}/{}",
+            uri_encode(&self.bucket, false),
+            uri_encode(from, true)
+        );
+        let body = self
+            .send_with(
+                "PUT",
+                to,
+                "",
+                "",
+                None,
+                &[("x-amz-copy-source", source)],
+                Vec::new(),
+            )
+            .await?;
+        // A copy can fail after the 200 line, with the error in the body.
+        if body.contains("<Error>") {
+            let snippet: String = body.chars().take(300).collect();
+            return Err(StorageError::Backend(format!(
+                "CopyObject failed: {snippet}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Every key under `prefix` (markers included) with its size, at most `cap` of them; the result has one more
+    /// than `cap` when there are more (the caller refuses). `prefix` is a bucket prefix, empty or ending in `/`.
+    pub async fn list_keys(&self, prefix: &str, cap: usize) -> Result<Vec<(String, u64)>> {
+        if prefix.chars().any(char::is_control) || prefix.len() > 1024 {
+            return Err(StorageError::Backend("invalid prefix".into()));
+        }
+        let mut out: Vec<(String, u64)> = Vec::new();
+        let mut token: Option<String> = None;
+        for _ in 0..=(cap / 1000 + 1) {
+            let mut q: Vec<(String, String)> = vec![
+                ("list-type".into(), "2".into()),
+                ("prefix".into(), prefix.to_owned()),
+            ];
+            if let Some(t) = &token {
+                q.push(("continuation-token".into(), t.clone()));
+            }
+            q.sort();
+            let query = q
+                .iter()
+                .map(|(k, v)| format!("{}={}", uri_encode(k, false), uri_encode(v, false)))
+                .collect::<Vec<_>>()
+                .join("&");
+            let body = self.send_bucket(&query).await?;
+            let (mut page, truncated, next) = parse_list_keys(&body)?;
+            out.append(&mut page);
+            if out.len() > cap {
+                out.truncate(cap + 1);
+                return Ok(out);
+            }
+            match (truncated, next) {
+                (true, Some(n)) => token = Some(n),
+                _ => break,
+            }
+        }
+        Ok(out)
+    }
+
+    /// A signed `GET` on the bucket itself (`ListObjectsV2`).
+    async fn send_bucket(&self, query: &str) -> Result<String> {
+        let amz = amz_date(now_secs());
+        let payload_hash = sha256_hex(b"");
+        let mut headers: Vec<(String, String)> = vec![
+            ("host".into(), self.host()?),
+            ("x-amz-content-sha256".into(), payload_hash.clone()),
+            ("x-amz-date".into(), amz.clone()),
+        ];
+        headers.sort();
+        let uri = if self.path_style {
+            format!("/{}", uri_encode(&self.bucket, false))
+        } else {
+            "/".to_owned()
+        };
+        let auth = authorization(&SigningInput {
+            method: "GET",
+            canonical_uri: &uri,
+            canonical_query: query,
+            headers: &headers,
+            payload_hash: &payload_hash,
+            access_key: &self.access_key,
+            secret_key: &self.secret_key,
+            region: &self.region,
+            service: "s3",
+            amz_date: &amz,
+        });
+        let url = format!("{}{uri}?{query}", self.base());
+        let mut req = self.client.get(&url);
+        for (k, v) in &headers {
+            if k != "host" {
+                req = req.header(k.as_str(), v.as_str());
+            }
+        }
+        let resp = req
+            .header("authorization", auth)
+            .send()
+            .await
+            .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
+        let status = resp.status();
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
+        if status.is_success() {
+            return Ok(text);
+        }
+        let snippet: String = text.chars().take(300).collect();
+        Err(StorageError::Backend(format!(
+            "GET bucket call failed with {status}: {snippet}"
+        )))
+    }
+}
+
+/// `(keys with sizes, is truncated, next continuation token)` of a `ListObjectsV2` answer.
+fn parse_list_keys(xml: &str) -> Result<(Vec<(String, u64)>, bool, Option<String>)> {
+    let bad = || StorageError::Backend("unreadable ListObjectsV2 answer".into());
+    let mut keys = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find("<Contents>") {
+        let after = &rest[start + "<Contents>".len()..];
+        let end = after.find("</Contents>").ok_or_else(bad)?;
+        let block = &after[..end];
+        let key = between(block, "<Key>", "</Key>")
+            .map(xml_unescape)
+            .ok_or_else(bad)?;
+        let size = between(block, "<Size>", "</Size>")
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .ok_or_else(bad)?;
+        keys.push((key, size));
+        rest = &after[end + "</Contents>".len()..];
+    }
+    let truncated = between(xml, "<IsTruncated>", "</IsTruncated>")
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case("true"));
+    let next =
+        between(xml, "<NextContinuationToken>", "</NextContinuationToken>").map(xml_unescape);
+    Ok((keys, truncated, next))
 }
 
 /// One part S3 has stored for a multipart upload.

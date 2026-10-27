@@ -205,3 +205,124 @@ async fn list_parts_rejects_a_garbled_answer() {
     .await;
     assert!(m.list_parts("k/o.bin", "up1").await.is_err());
 }
+
+#[tokio::test]
+async fn a_folder_marker_is_a_signed_empty_put_with_a_trailing_slash() {
+    let (m, server) = setup(vec![("HTTP/1.1 200 OK", String::new())]).await;
+    m.put_marker("lib/Albums/New folder/").await.unwrap();
+    let seen = server.await.unwrap();
+    assert!(
+        seen[0].starts_with("PUT /sideroom/lib/Albums/New%20folder/ HTTP/1.1"),
+        "{}",
+        seen[0]
+    );
+    let lower = seen[0].to_ascii_lowercase();
+    assert!(lower.contains("authorization: aws4-hmac-sha256"));
+    assert!(lower.contains("content-length: 0"), "{lower}");
+    // A marker is the only key that may end in a slash.
+    assert!(m.put_marker("a//b/").await.is_err());
+    assert!(m.copy_object("a/", "b").await.is_err());
+}
+
+#[tokio::test]
+async fn delete_and_copy_are_signed_and_copy_names_its_source() {
+    let (m, server) = setup(vec![
+        ("HTTP/1.1 204 No Content", String::new()),
+        (
+            "HTTP/1.1 200 OK",
+            "<CopyObjectResult><ETag>x</ETag></CopyObjectResult>".into(),
+        ),
+        (
+            "HTTP/1.1 200 OK",
+            "<Error><Code>InternalError</Code></Error>".into(),
+        ),
+    ])
+    .await;
+    m.delete_object("lib/a b.mp3").await.unwrap();
+    m.copy_object("lib/a b.mp3", "lib/new/c.mp3").await.unwrap();
+    let err = m.copy_object("x", "y").await.unwrap_err().to_string();
+    assert!(err.contains("InternalError"), "{err}");
+    let seen = server.await.unwrap();
+    assert!(
+        seen[0].starts_with("DELETE /sideroom/lib/a%20b.mp3 HTTP/1.1"),
+        "{}",
+        seen[0]
+    );
+    assert!(
+        seen[1].starts_with("PUT /sideroom/lib/new/c.mp3 HTTP/1.1"),
+        "{}",
+        seen[1]
+    );
+    assert!(
+        seen[1]
+            .to_ascii_lowercase()
+            .contains("x-amz-copy-source: /sideroom/lib/a%20b.mp3"),
+        "{}",
+        seen[1]
+    );
+}
+
+#[tokio::test]
+async fn list_keys_pages_unescapes_and_stops_one_past_the_cap() {
+    let page1 = "<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>tok/1=</NextContinuationToken>\
+        <Contents><Key>lib/a/</Key><Size>0</Size></Contents>\
+        <Contents><Key>lib/a/x &amp; y.mp3</Key><Size>12</Size></Contents></ListBucketResult>";
+    let page2 = "<ListBucketResult><IsTruncated>false</IsTruncated>\
+        <Contents><Key>lib/a/z.mp3</Key><Size>7</Size></Contents></ListBucketResult>";
+    let (m, server) = setup(vec![
+        ("HTTP/1.1 200 OK", page1.into()),
+        ("HTTP/1.1 200 OK", page2.into()),
+    ])
+    .await;
+    let keys = m.list_keys("lib/a/", 10).await.unwrap();
+    assert_eq!(
+        keys,
+        vec![
+            ("lib/a/".to_owned(), 0),
+            ("lib/a/x & y.mp3".to_owned(), 12),
+            ("lib/a/z.mp3".to_owned(), 7)
+        ]
+    );
+    let seen = server.await.unwrap();
+    assert!(
+        seen[0].starts_with("GET /sideroom?list-type=2&prefix=lib%2Fa%2F HTTP/1.1"),
+        "{}",
+        seen[0]
+    );
+    assert!(
+        seen[1].contains("continuation-token=tok%2F1%3D"),
+        "{}",
+        seen[1]
+    );
+
+    // Over the cap: one extra key tells the caller to refuse, and the walk stops.
+    let big = "<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>t</NextContinuationToken>\
+        <Contents><Key>a</Key><Size>1</Size></Contents><Contents><Key>b</Key><Size>1</Size></Contents>\
+        <Contents><Key>c</Key><Size>1</Size></Contents></ListBucketResult>";
+    let (m, server) = setup(vec![("HTTP/1.1 200 OK", big.into())]).await;
+    let keys = m.list_keys("", 2).await.unwrap();
+    assert_eq!(keys.len(), 3);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn virtual_hosted_requests_put_the_bucket_in_the_host() {
+    let m = S3Multipart::new(
+        "https://s3.example.test",
+        "shelf",
+        "us-east-1",
+        "AK",
+        "secretsecret",
+    )
+    .unwrap()
+    .with_path_style(false);
+    let url = m
+        .presign_part("lib/o.bin", "up1", 2, Duration::from_secs(600))
+        .unwrap();
+    assert!(
+        url.starts_with("https://shelf.s3.example.test/lib/o.bin?"),
+        "{url}"
+    );
+    assert!(url.contains("partNumber=2"));
+    assert!(!url.contains("secretsecret"));
+}
