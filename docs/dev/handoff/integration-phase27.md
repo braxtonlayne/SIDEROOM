@@ -16,8 +16,12 @@ and has hand-made bodies for the two mount create routes. Group rest is now prov
 0 failures; no ceiling raised. Caveat: the create body uses provider `s3` with the default endpoint, because the SSRF
 policy refuses http and loopback; the route therefore resolves `s3.us-east-1.amazonaws.com` (DNS only, nothing
 connects). Without DNS the two creates fall back to 400 and the malformed count is 47 again.
-The full workspace `cargo test --workspace --exclude sr-storage -- --include-ignored --test-threads=1` was started
-at 05:25 (sr-storage's ignored cases are the live Garage ones, CI only; its normal suite passed on 2026-10-26).
+The full workspace `cargo test -j 2 --workspace --exclude sr-storage --no-fail-fast -- --include-ignored
+--test-threads=1` on `sr_p27_integ` ran 05:26 to 06:11 and is green: 192 test binaries, 3489 passed, 0 failed, 0
+ignored, including the whole authorization matrix (every group). sr-storage is excluded as in `rust.yml`: its
+ignored cases are the live Garage ones (CI only); its normal suite passed on 2026-10-26. BYOS-SCP-002 and
+BYOS-INS-001 are now ticked. **Every wave-27 gate has run and is green; nothing is left but the owner's push,
+the first CI run (incl. the Garage cases of `storage.yml`) and dropping `sr_p27_integ` at the end of the wave.**
 
 Notes from 2026-10-26 (stopped at 18:45 at a clean checkpoint):
 
@@ -28,10 +32,8 @@ Notes from 2026-10-26 (stopped at 18:45 at a clean checkpoint):
    (admin_jobs, instance_mount incl. Postgres), authz `storage_scopes_hold_over_http`, cargo deny --offline, web
    typecheck, lint (eslint + prettier --check), i18n-audit (0), vitest on src/settings, src/storage and src/lounge,
    web build + bundle budget, check-css-tokens, mocks:check.
-3. **Gates still to run:** `every_route_enforces_its_authz_row` with `SR_AUTHZ_GROUPS=5` (the "rest" group, where
-   every storage route falls; groups 0 to 4 have no storage route) on the merged tree; then the full workspace
-   `cargo test` (about 30 min; skipped today on the commander's word). After they pass, tick BYOS-SCP-002 and
-   BYOS-INS-001 in `docs/inventory/21-feature-phase.md`.
+3. **Gates still to run (that day):** every_route group 5 and the full workspace test; both ran on 2026-10-27
+   (above).
 4. **Scratch DB `sr_p27_integ` still exists** (created 18:13; drop it at the end of the wave). Env for the Postgres
    suites: SR_TEST_DATABASE_URL and DATABASE_URL both pointing at `sr_p27_integ`, password from
    `%TEMP%\sr_pg_pw.txt`, `-- --include-ignored --test-threads=1`.
@@ -85,7 +87,7 @@ Merge work:
 | sr-admin, sr-cli | green |
 | sr-server --lib admin_jobs, instance_mount (incl. Postgres) | green (8) |
 | authz_matrix storage_scopes_hold_over_http | green after the uncached-presign fix |
-| authz_matrix every_route group 5 | **not run** |
+| authz_matrix every_route (all groups) | green on 2026-10-27 after 3e98ffde (group rest: 16 weak, 45 malformed) |
 | cargo deny --offline check | green |
 | OpenAPI regen, api-client generate, mocks:generate, mocks:check | green (996 operations) |
 | web typecheck, eslint, prettier --check | green |
@@ -93,7 +95,7 @@ Merge work:
 | vitest src/settings src/storage src/lounge (--maxWorkers=2) | green (146 files, 1162 tests) |
 | web build + bundle budget | green |
 | check-css-tokens | green (16 files) |
-| full workspace cargo test | **not run** (skipped today) |
+| full workspace cargo test (--exclude sr-storage, --include-ignored, Postgres) | green on 2026-10-27 (3489 passed, 0 failed) |
 
 ## Wave-28 follow-ups
 
