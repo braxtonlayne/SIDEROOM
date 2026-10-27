@@ -15,6 +15,9 @@ pub mod mounts;
 mod mounts_tests;
 mod objects;
 mod scopes;
+pub mod shelves;
+
+pub use shelves::ShelfDeps;
 
 use crate::{
     routes::messages::error::{MsgError, MsgResult},
@@ -22,7 +25,7 @@ use crate::{
 };
 use axum::{
     Router,
-    routing::{get, post, put},
+    routing::{get, patch, post, put},
 };
 use sr_core::ErrorCode;
 use sr_storage::mounts::{MountResolver, Sealer};
@@ -97,6 +100,19 @@ pub fn router() -> Router<AppState> {
             get(objects::meta),
         )
         .route("/storage/mounts/{mount_id}/presign", post(objects::presign))
+        .route(
+            "/storage/mounts/{mount_id}/index",
+            get(shelves::index_status).post(shelves::start_index),
+        )
+        .route("/shelves/{section}", get(shelves::list))
+        .route(
+            "/shelves/{section}/{item_id}",
+            get(shelves::get_item).patch(shelves::patch_item),
+        )
+        .route(
+            "/shelves/{section}/{item_id}/parts/{part_id}",
+            patch(shelves::patch_part),
+        )
 }
 
 #[derive(OpenApi)]
@@ -111,6 +127,12 @@ pub fn router() -> Router<AppState> {
         objects::list,
         objects::meta,
         objects::presign,
+        shelves::list,
+        shelves::get_item,
+        shelves::patch_item,
+        shelves::patch_part,
+        shelves::start_index,
+        shelves::index_status,
     ),
     components(schemas(
         crate::openapi::ErrorBody,
@@ -125,6 +147,15 @@ pub fn router() -> Router<AppState> {
         objects::ObjectMetaView,
         objects::PresignBody,
         objects::PresignView,
+        shelves::ShelfSourceView,
+        shelves::ShelfItemView,
+        shelves::ShelfPartView,
+        shelves::ShelfListView,
+        shelves::ShelfDetailView,
+        shelves::DetailsBody,
+        shelves::ShelfPatchBody,
+        shelves::PartPatchBody,
+        shelves::IndexStatusView,
     ))
 )]
 pub struct StorageApiDoc;

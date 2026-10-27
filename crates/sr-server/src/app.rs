@@ -326,6 +326,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         store: scope_facts.clone(),
         sealer: mount_sealer.clone(),
     });
+    // The shelves (BYOS-CAT-002) and the indexer (BYOS-CAT-001) share one store type over the same pool.
+    let index_store = Arc::new(sr_db::index_repo::PgIndexStore::new(
+        pool.clone(),
+        id_src.clone(),
+    ));
+    let shelf_deps = Arc::new(routes::storage::ShelfDeps {
+        store: Arc::new(sr_db::shelf_repo::PgShelfStore::new(
+            pool.clone(),
+            id_src.clone(),
+        )),
+        index: index_store.clone(),
+    });
     if s.endpoint != "memory:" {
         crate::instance_mount::ensure_instance_mount(mount_repo.as_ref(), mount_sealer.as_ref(), s)
             .await
@@ -1462,6 +1474,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
         .extension(storage_scope_deps)
+        .extension(shelf_deps)
         .extension(Arc::new(
             routes::donations::DonationsDeps::new(payments.service.clone())
                 .with_chat_slot(payments.chat.clone()),
@@ -1578,10 +1591,6 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         cfg.server.public_url.clone(),
     );
     // Catalog indexing of storage mounts (BYOS-CAT-001): the one-shot and the daily `storage.index` job.
-    let index_store = Arc::new(sr_db::index_repo::PgIndexStore::new(
-        pool.clone(),
-        id_src.clone(),
-    ));
     let runner = crate::storage_jobs::register(
         runner,
         &pool,
