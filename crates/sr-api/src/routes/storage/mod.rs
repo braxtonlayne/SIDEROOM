@@ -11,20 +11,20 @@
 //!
 //! Every read goes through `sr_storage::scopes`.
 
-pub mod flags;
 mod attach;
+pub mod flags;
 pub mod mount_ops;
 pub mod mounts;
 #[cfg(test)]
 mod mounts_tests;
 mod objects;
 mod scopes;
+pub mod shelves;
 mod uploads;
 #[cfg(test)]
 mod uploads_tests;
-pub mod shelves;
 
-pub use shelves::ShelfDeps;
+pub use shelves::{IndexHooks, ShelfDeps};
 
 use crate::{
     routes::messages::error::{MsgError, MsgResult},

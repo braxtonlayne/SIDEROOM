@@ -37,7 +37,7 @@ The scratch database `sr_p28_byos_legal` was dropped; recreate it to rerun the P
 ## Follow-ups and open items
 - Owner screen: the member's own Settings > Storage does not yet show a "Delisted" badge with the reason (the owner gets the DM). `settings/user/storage/*` belongs to byos-browser.
 - Catalog/index rows: byos-catalog owns them. Erasure and delisting should hide rows with `source = 'mount'` and the `mount_id` of an erased or delisted mount; the register and `scopes::resolve` are ready, the catalog must call `delisted_keys` / check the mount status when it lists a shelf. Integrator to confirm.
-- Guild-owned mounts: a notice names the guild owner as the subject (strike target); a guild mount is not erased with a member account (the guild must be transferred first).
+- Guild-owned mounts (reworded at integration by P28-LEG-1): a notice names as the subject (strike target) the member who uploaded the object when the upload ledger knows them (`storage_mount_uploads`, latest `completed` row), else the guild owner; the guild owner is also told when not the subject (same text, no strike). A guild mount is not erased with a member account (the guild must be transferred first).
 - `MountObject.status` doc comment in `routes/storage/mounts.rs` still lists three statuses; `delisted` can now appear there.
 - Connect wizard guidance ("keep the bucket's listing off", roadmap OPS-IDX-001 (d)) not added (byos-browser's wizard).
 

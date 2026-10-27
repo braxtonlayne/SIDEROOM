@@ -192,24 +192,11 @@ impl IndexStore for PgIndexStore {
         if keys.is_empty() {
             return Ok(Vec::new());
         }
-        // The same rows as `storage_legal::delisted_keys` (byos-legal, migration 1460). On a schema without them the
-        // answer is "none"; any other failure stops the run (fail closed).
-        let r = sqlx::query_scalar(
-            "SELECT DISTINCT object_key FROM takedown_items              WHERE kind = 'storage_object' AND state = 'disabled' AND target_id = $1 AND object_key = ANY($2)",
-        )
-        .bind(mount_id)
-        .bind(keys)
-        .fetch_all(&self.pool)
-        .await;
-        match r {
-            Ok(v) => Ok(v),
-            Err(sqlx::Error::Database(d))
-                if matches!(d.code().as_deref(), Some("42703" | "42P01")) =>
-            {
-                Ok(Vec::new())
-            }
-            Err(e) => Err(se(e)),
-        }
+        // P28 integration: the one query of the takedown register (byos-legal, migration 1460). Any failure stops
+        // the run (fail closed).
+        crate::storage_legal::delisted_keys(&self.pool, mount_id, keys)
+            .await
+            .map_err(|e| StoreError(e.to_string()))
     }
 
     async fn finish(
@@ -701,6 +688,17 @@ impl PgIndexStore {
         .await
         .map_err(se)?;
         Ok(())
+    }
+}
+
+#[async_trait]
+impl sr_storage::index::ObjectChanges for PgIndexStore {
+    async fn deleted(&self, mount_id: i64, key: &str) -> Result<u64, StoreError> {
+        self.on_objects_deleted(mount_id, key).await
+    }
+
+    async fn moved(&self, mount_id: i64, from: &str, to: &str) -> Result<u64, StoreError> {
+        self.on_objects_moved(mount_id, from, to).await
     }
 }
 

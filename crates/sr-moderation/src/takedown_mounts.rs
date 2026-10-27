@@ -20,14 +20,34 @@ impl Moderation {
     async fn mount_owner_account(&self, m: &MountLegal) -> ModResult<Option<i64>> {
         Ok(match m.owner_kind.as_str() {
             "user" => Some(m.owner_id),
-            "guild" => sqlx::query("SELECT owner_id FROM guilds WHERE id = $1")
-                .bind(m.owner_id)
-                .fetch_optional(&self.pool)
-                .await?
-                .map(|r| r.try_get::<i64, _>("owner_id"))
-                .transpose()?,
+            "guild" => self.guild_owner_account(m.owner_id).await?,
             _ => None,
         })
+    }
+
+    async fn guild_owner_account(&self, guild_id: i64) -> ModResult<Option<i64>> {
+        Ok(sqlx::query("SELECT owner_id FROM guilds WHERE id = $1")
+            .bind(guild_id)
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|r| r.try_get::<i64, _>("owner_id"))
+            .transpose()?)
+    }
+
+    /// The contact of a server's bucket: the owner of the guild that owns mount `mount_id`; `None` for a member's
+    /// own bucket (its owner is already the subject) or an unknown mount. P28-LEG-1 tells this account about a
+    /// takedown in the bucket when the strike went to the uploader.
+    pub(crate) async fn guild_mount_contact(&self, mount_id: i64) -> ModResult<Option<i64>> {
+        let guild: Option<i64> = sqlx::query_scalar(
+            "SELECT owner_id FROM storage_mounts WHERE id = $1 AND owner_kind = 'guild'",
+        )
+        .bind(mount_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        match guild {
+            Some(g) => self.guild_owner_account(g).await,
+            None => Ok(None),
+        }
     }
 
     /// Delist a whole mount. The reason is required, goes in the access log and is told to the owner.

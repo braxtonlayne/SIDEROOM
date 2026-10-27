@@ -155,6 +155,26 @@ pub async fn guild_mounts_allowed(svc: &FeatureService, guild: i64) -> bool {
     combined.guild_mounts
 }
 
+/// Whether members' own shelves show inside this server's Cinema and Library (`member_shelves_in_guild`, the
+/// platform's value ANDed with the server's; wired into the shelf listing at the wave-28 integration). Without the
+/// feature service (unit tests) the default is on.
+pub async fn member_shelves_allowed(state: &AppState, guild: i64) -> bool {
+    let Some(features) = state.extension::<GuildFeatures>() else {
+        return true;
+    };
+    let svc = &features.ctx.settings;
+    let scope = ScopeRef::Guild {
+        guild: sr_events::GuildId::new(guild as u64),
+    };
+    let read = |s: ScopeRef| async move {
+        svc.effective_settings(BYOS_ID, &s)
+            .await
+            .map(|v| ByosSettings::from_values(&v))
+            .unwrap_or_default()
+    };
+    ByosSettings::combine(read(ScopeRef::Platform).await, read(scope).await).member_shelves_in_guild
+}
+
 /// The operator's mount policy for one request: who may connect a bucket and where (BYOS-FLG-001).
 pub(crate) struct MountPolicy {
     pub(crate) who: WhoMayMount,

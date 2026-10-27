@@ -1497,6 +1497,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(storage_scope_deps)
         .extension(upload_deps)
         .extension(shelf_deps)
+        // The browser's delete and move update the index at once (wave-28 integration).
+        .extension(Arc::new(routes::storage::IndexHooks {
+            changes: index_store.clone(),
+            index: index_store.clone(),
+        }))
         .extension(Arc::new(
             routes::donations::DonationsDeps::new(payments.service.clone())
                 .with_chat_slot(payments.chat.clone()),

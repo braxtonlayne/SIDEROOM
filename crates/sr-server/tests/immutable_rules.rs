@@ -52,7 +52,7 @@ const DENY: [&str; 7] = [
 const LEGACY: &[&str] = &[
     // How long a server's own audit log (the Discord-parity one members and moderators read) is kept; 0 means
     // forever. It is not the tamper-evident staff audit log or the staff access log, which have no retention
-    // setting at all. Owner to confirm the name is acceptable (wave 28 handoff).
+    // setting at all. Kept by P28-OPS-1: the only legacy entry; a rename was rejected (API key, stored row, D-158).
     "moderation.audit_retention_days",
 ];
 
@@ -275,6 +275,11 @@ fn the_deny_pattern_itself_is_pinned() {
     assert_eq!(denied("voice.e2ee"), Some("e2ee"));
     assert_eq!(denied("staff.audit_off"), Some("audit"));
     assert_eq!(denied("limits.rate.ip"), None);
+    assert_eq!(
+        LEGACY,
+        &["moderation.audit_retention_days"],
+        "P28-OPS-1: the list may only shrink"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

@@ -464,3 +464,87 @@ async fn export_lists_mounts_without_keys_and_erasure_wipes_the_secret() {
         0
     );
 }
+
+/// P28-LEG-1: on a server's bucket the strike goes to the uploader the ledger knows (the server owner is told,
+/// without a strike), else to the server owner.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn a_server_bucket_strikes_the_uploader_when_the_ledger_knows_them_else_the_owner() {
+    let w = world().await;
+    let uploader = account(w.pool(), "shelfuploader").await;
+    let guild = uid();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Club', $2)")
+        .bind(guild)
+        .bind(w.owner)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let mnt = mount(w.pool(), "guild", guild, "Server shelf").await;
+    // An older aborted row by the owner and the latest completed one by the uploader: the completed one wins.
+    for (who, state) in [(w.owner, "aborted"), (uploader, "completed")] {
+        sqlx::query(
+            "INSERT INTO storage_mount_uploads (id, mount_id, user_id, object_key, s3_upload_id, size_bytes, \
+             part_size, part_count, state) VALUES ($1, $2, $3, 'films/up.mkv', 'u1', 10, 16777216, 1, $4)",
+        )
+        .bind(uid())
+        .bind(mnt)
+        .bind(who)
+        .bind(state)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    }
+    let person = |a: i64| async move {
+        sqlx::query_scalar::<_, i64>("SELECT person_id FROM accounts WHERE id = $1")
+            .bind(a)
+            .fetch_one(w.pool())
+            .await
+            .unwrap()
+    };
+    let c = w.caller();
+    let who = Who::Staff(&c);
+
+    // With a ledger row: the uploader is the subject and is struck; the server owner is told too.
+    let id = w.notice_with(mnt, "films/up.mkv").await;
+    let out = w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    assert_eq!(out.notified, 1);
+    let (subject, struck, label): (Option<i64>, Option<i64>, String) = sqlx::query_as(
+        "SELECT subject_account_id, subject_person_id, label FROM takedown_items WHERE notice_id = $1",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(subject, Some(uploader));
+    assert_eq!(struck, Some(person(uploader).await));
+    assert!(
+        label.contains(&format!("(uploaded by {uploader})")),
+        "{label}"
+    );
+    {
+        let dms = w.dms.0.lock().unwrap();
+        let to: Vec<i64> = dms.iter().map(|d| d.0).collect();
+        assert_eq!(to.len(), 2, "{to:?}");
+        assert!(to.contains(&uploader) && to.contains(&w.owner));
+        assert!(dms.iter().all(|d| d.1.contains("films/up.mkv")));
+        assert_eq!(dms[0].1, dms[1].1, "the owner gets the same text");
+    }
+    w.dms.0.lock().unwrap().clear();
+
+    // Without a ledger row: the server owner is the subject and is struck, and told once.
+    let id2 = w.notice_with(mnt, "films/elsewhere.mkv").await;
+    w.m.uphold_notice(&who, id2, Some("valid")).await.unwrap();
+    let (subject, struck, label): (Option<i64>, Option<i64>, String) = sqlx::query_as(
+        "SELECT subject_account_id, subject_person_id, label FROM takedown_items WHERE notice_id = $1",
+    )
+    .bind(id2)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(subject, Some(w.owner));
+    assert_eq!(struck, Some(person(w.owner).await));
+    assert!(label.ends_with("(server bucket, owner)"), "{label}");
+    let dms = w.dms.0.lock().unwrap();
+    assert_eq!(dms.len(), 1);
+    assert_eq!(dms[0].0, w.owner);
+}

@@ -14,12 +14,17 @@
 //! `POST /storage/mounts/{mount_id}/presign`; the server never streams a mount's bytes.
 
 use super::{ScopeDeps, facts_failed, parse_row, refusal, uid};
+use crate::AppState;
 use crate::auth::SessionOnly;
 use crate::openapi::ErrorBody;
 use crate::routes::Ext;
 use crate::routes::messages::error::{ApiJson, ApiQuery, MsgError, MsgResult, invalid};
 use crate::routes::messages::model::iso;
-use axum::{Json, extract::Path, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use sr_core::ErrorCode;
 use sr_storage::index::shelf::{
@@ -40,6 +45,15 @@ pub struct ShelfDeps {
     /// Shelf rows.
     pub store: std::sync::Arc<dyn ShelfStore>,
     /// Queue and status of index runs.
+    pub index: std::sync::Arc<dyn IndexControl>,
+}
+
+/// The index hooks of the bucket browser's delete and move (wave-28 integration): optional, so a deployment or
+/// a test without the catalog still deletes and moves; the next `storage.index` run reaches the same rows.
+pub struct IndexHooks {
+    /// Hide or re-key the rows of changed objects.
+    pub changes: std::sync::Arc<dyn sr_storage::index::ObjectChanges>,
+    /// Queue a run after a move (a series keyed by a moved folder is found again by it).
     pub index: std::sync::Arc<dyn IndexControl>,
 }
 
@@ -183,6 +197,9 @@ pub struct ListQuery {
     pub kind: Option<String>,
     /// Only this mount (snowflake).
     pub mount: Option<String>,
+    /// The server whose section is showing (snowflake): its own shelves, plus the viewer's and friends' shelves
+    /// unless `member_shelves_in_guild` is off for it.
+    pub guild: Option<String>,
     /// Page size (at most 50).
     pub limit: Option<u32>,
     /// Offset.
@@ -559,6 +576,7 @@ async fn reaches(
         ("q" = Option<String>, Query, description = "Title substring"),
         ("kind" = Option<String>, Query, description = "movie, series, anime, manga, comic or book"),
         ("mount" = Option<String>, Query, description = "Only this mount"),
+        ("guild" = Option<String>, Query, description = "The server whose section is showing: its shelves, plus members' own shelves unless the server turned them off"),
         ("limit" = Option<u32>, Query, description = "At most 50"),
         ("offset" = Option<u32>, Query, description = "Offset"),
     ),
@@ -570,6 +588,7 @@ async fn reaches(
     security(("session" = []))
 )]
 pub async fn list(
+    State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(sh): Ext<ShelfDeps>,
@@ -577,7 +596,12 @@ pub async fn list(
     ApiQuery(q): ApiQuery<ListQuery>,
 ) -> MsgResult<Json<ShelfListView>> {
     let section = section_of(&section)?;
-    let reach = reaches(&d, &sh, uid(&p), section).await?;
+    let mut reach = reaches(&d, &sh, uid(&p), section).await?;
+    if let Some(g) = q.guild.as_deref() {
+        let guild = parse_row(g)?;
+        let members = super::flags::member_shelves_allowed(&state, guild).await;
+        reach.retain(|r| shown_in_guild(&r.access.scope, guild, members));
+    }
     let sources: Vec<ShelfSourceView> = reach.iter().map(source_of).collect();
     let mount = match q.mount.as_deref() {
         Some(m) => Some(parse_row(m)?),
@@ -618,6 +642,16 @@ pub async fn list(
         total: page.total,
         sources,
     }))
+}
+
+/// Whether a reach shows inside server `guild`'s section: the server's own (and attached) shelves always,
+/// the viewer's and friends' shelves only when `member_shelves_in_guild` (combined) is on, other servers' never.
+fn shown_in_guild(scope: &Scope, guild: i64, member_shelves: bool) -> bool {
+    match scope {
+        Scope::Guild(g) => *g == guild,
+        Scope::Own | Scope::Friend { .. } => member_shelves,
+        Scope::Staff => false,
+    }
 }
 
 async fn detail_view(
@@ -940,6 +974,20 @@ pub async fn index_status(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn member_shelves_in_guild_filters_the_server_section() {
+        use super::shown_in_guild;
+        use sr_storage::scopes::Scope;
+        let g = 7;
+        assert!(shown_in_guild(&Scope::Guild(7), g, false));
+        assert!(!shown_in_guild(&Scope::Guild(8), g, true));
+        assert!(shown_in_guild(&Scope::Own, g, true));
+        assert!(shown_in_guild(&Scope::Friend { owner: 3 }, g, true));
+        assert!(!shown_in_guild(&Scope::Own, g, false));
+        assert!(!shown_in_guild(&Scope::Friend { owner: 3 }, g, false));
+        assert!(!shown_in_guild(&Scope::Staff, g, true));
+    }
+
     use super::*;
 
     #[test]

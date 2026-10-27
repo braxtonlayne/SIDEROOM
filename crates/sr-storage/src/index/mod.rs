@@ -102,6 +102,16 @@ pub struct RunStatus {
     pub error: Option<String>,
 }
 
+/// Changes made through the bucket browser (BYOS-BRW-001), applied to the index at once instead of at the next
+/// run (wired at the wave-28 integration). Both are called after the bucket call succeeded.
+#[async_trait]
+pub trait ObjectChanges: Send + Sync {
+    /// An object, or a folder of them (a key ending in `/`), was deleted. Returns how many objects were hidden.
+    async fn deleted(&self, mount_id: i64, key: &str) -> Result<u64, StoreError>;
+    /// An object or a folder was moved from `from` to `to`. Returns how many objects were re-keyed.
+    async fn moved(&self, mount_id: i64, from: &str, to: &str) -> Result<u64, StoreError>;
+}
+
 /// What the routes use to ask for a run and read the last one.
 #[async_trait]
 pub trait IndexControl: Send + Sync {

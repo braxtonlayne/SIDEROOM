@@ -322,9 +322,36 @@ async fn resolve_item(
             .await?
             .ok_or(ModError::NotFound("storage mount"))?;
             let owner_kind: String = r.try_get("owner_kind")?;
-            let owner = match owner_kind.as_str() {
-                "user" => Some(r.try_get::<i64, _>("owner_id")?),
-                "guild" => r.try_get::<Option<i64>, _>("guild_owner")?,
+            let mount: String = r.try_get("label")?;
+            match owner_kind.as_str() {
+                "user" => (
+                    format!("Object {key} in bucket {mount}"),
+                    Some(r.try_get::<i64, _>("owner_id")?),
+                ),
+                // P28-LEG-1: on a server's bucket the strike goes to the member who uploaded the object when the
+                // upload ledger knows them (the latest completed upload of that key), else to the server owner.
+                "guild" => {
+                    let guild_owner = r.try_get::<Option<i64>, _>("guild_owner")?;
+                    let uploader: Option<i64> = sqlx::query_scalar(
+                        "SELECT user_id FROM storage_mount_uploads \
+                         WHERE mount_id = $1 AND object_key = $2 AND state = 'completed' \
+                         ORDER BY updated_at DESC LIMIT 1",
+                    )
+                    .bind(id)
+                    .bind(key)
+                    .fetch_optional(&mut *conn)
+                    .await?;
+                    match uploader {
+                        Some(u) => (
+                            format!("Object {key} in bucket {mount} (uploaded by {u})"),
+                            Some(u),
+                        ),
+                        None => (
+                            format!("Object {key} in bucket {mount} (server bucket, owner)"),
+                            guild_owner,
+                        ),
+                    }
+                }
                 // The instance bucket is the platform's own: its content has its own kinds above.
                 _ => {
                     return Err(ModError::Invalid(
@@ -332,9 +359,7 @@ async fn resolve_item(
                             .into(),
                     ));
                 }
-            };
-            let mount: String = r.try_get("label")?;
-            (format!("Object {key} in bucket {mount}"), owner)
+            }
         }
         ItemKind::Message => {
             let r = sqlx::query("SELECT author_id FROM messages WHERE id = $1")
@@ -1689,6 +1714,24 @@ impl Moderation {
             if self.dm_subject(account, &text(&labels)).await {
                 delivered += 1;
             }
+        }
+        // P28-LEG-1: the owner of a server's bucket is told too when the subject is someone else (the uploader):
+        // the same text, informational, no strike. Not counted in `delivered`.
+        let mut contacts: Vec<(i64, Vec<String>)> = Vec::new();
+        for i in items.iter().filter(|i| i.kind == ItemKind::StorageObject) {
+            let Ok(Some(contact)) = self.guild_mount_contact(i.target_id).await else {
+                continue;
+            };
+            if i.subject_account_id == Some(contact) {
+                continue;
+            }
+            match contacts.iter_mut().find(|(c, _)| *c == contact) {
+                Some((_, labels)) => labels.push(i.label.clone()),
+                None => contacts.push((contact, vec![i.label.clone()])),
+            }
+        }
+        for (contact, labels) in contacts {
+            let _ = self.dm_subject(contact, &text(&labels)).await;
         }
         delivered
     }

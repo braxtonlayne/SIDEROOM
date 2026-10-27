@@ -456,6 +456,7 @@ pub async fn meta(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     MaybeExt(admin): MaybeExt<AdminDeps>,
+    MaybeExt(hooks): MaybeExt<super::IndexHooks>,
     headers: HeaderMap,
     Path((mount_id, key)): Path<(String, String)>,
 ) -> MsgResult<Json<ObjectMetaView>> {
@@ -781,6 +782,7 @@ pub async fn move_objects(
     Ext(d): Ext<ScopeDeps>,
     Ext(u): Ext<UploadDeps>,
     MaybeExt(admin): MaybeExt<AdminDeps>,
+    MaybeExt(hooks): MaybeExt<super::IndexHooks>,
     headers: HeaderMap,
     Path(mount_id): Path<String>,
     ApiJson(body): ApiJson<MoveBody>,
@@ -832,6 +834,15 @@ pub async fn move_objects(
         Ok::<(), StorageError>(())
     };
     within_for(Duration::from_secs(40), delete_all).await?;
+    if let Some(h) = hooks.as_deref() {
+        // The bucket changed; the index follows now (a failure only waits for the next run).
+        if let Err(e) = h.changes.moved(mount.id, &body.from, &body.to).await {
+            tracing::warn!(mount = mount.id, error = %e.0, "index re-key after a move failed");
+        }
+        if let Err(e) = h.index.request(mount.id).await {
+            tracing::warn!(mount = mount.id, error = %e.0, "index run after a move not queued");
+        }
+    }
     Ok(Json(CountView {
         count: u32::try_from(plan.len()).unwrap_or(u32::MAX),
     }))
@@ -903,6 +914,11 @@ pub async fn delete_objects(
         Ok::<(), StorageError>(())
     };
     within_for(Duration::from_secs(40), delete_all).await?;
+    if let Some(h) = hooks.as_deref()
+        && let Err(e) = h.changes.deleted(mount.id, &key).await
+    {
+        tracing::warn!(mount = mount.id, error = %e.0, "index update after a delete failed");
+    }
     Ok(Json(CountView {
         count: u32::try_from(doomed.len()).unwrap_or(u32::MAX),
     }))
