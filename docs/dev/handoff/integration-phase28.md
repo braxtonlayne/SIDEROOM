@@ -116,7 +116,7 @@ No database (all green):
   - `node --test scripts/*.test.mjs` (58) and `deploy/scripts/media-lib.test.mjs` (7).
   - `check-ops-files`.
   - js-yaml parse of every workflow.
-- Vitest and the web build: VITEST_RESULT. BUILD_RESULT.
+- Vitest and the web build: vitest --maxWorkers=2 on src/admin, cinema, i18n, lib, library, moderation, security, settings, storage, store, voice and help (incl. handbook.test.tsx, Phase 28 heading): 1503 of 1504 passed in one run; the one failure was a 30 s timeout under load in `admin/__tests__/takedowns.test.tsx`, and that file passed alone (9 of 9). `vite build` and `scripts/check-bundle-budget.mjs`: every chunk within budget, no pseudo-locale text.
 
 With a database: none ran (the password file is missing). See "Resume here" for the list.
 
