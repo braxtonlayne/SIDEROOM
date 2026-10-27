@@ -199,6 +199,7 @@ async fn worker_for_members(admin: Option<&AdminDeps>) -> bool {
     ),
     security(("session" = []))
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn queue(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
