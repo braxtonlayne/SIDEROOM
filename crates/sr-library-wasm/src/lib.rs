@@ -331,7 +331,6 @@ pub fn precheck_archive(head: &[u8], tail: &[u8], file_len: f64, max_archive_byt
     precheck(head, tail, file_len as u64, &limits).to_string()
 }
 
-
 /// Every page of a ZIP in reading order, from the last bytes of the file (BYOS-CAT-002: a CBZ in a member's
 /// bucket is read by range requests, one for this listing and one per page). Judged by the same rules as
 /// [`precheck`] (unsafe names, junk, encrypted entries, page order, per-entry limits); the archive size is not
@@ -489,7 +488,6 @@ mod tests {
         assert_eq!(r["pages"], 40, "{r}");
     }
 
-
     #[test]
     fn list_pages_gives_every_page_in_order_with_offsets() {
         let z = build(&[
@@ -517,7 +515,11 @@ mod tests {
             (0..40).map(|i| (format!("page-{i:03}.jpg"), 50)).collect();
         let refs: Vec<(&str, usize)> = files.iter().map(|(n, l)| (n.as_str(), *l)).collect();
         let big = build(&refs);
-        let r = list_pages(&big[big.len() - 100..], big.len() as u64, &Limits::default());
+        let r = list_pages(
+            &big[big.len() - 100..],
+            big.len() as u64,
+            &Limits::default(),
+        );
         let need = r["need_tail"].as_u64().expect("asks for more");
         let r = list_pages(
             &big[big.len() - need as usize..],
@@ -529,7 +531,10 @@ mod tests {
         let bad = list_pages(&build(&[("../evil.jpg", 5)]), 0, &Limits::default());
         assert_eq!(bad["ok"], false);
         let none = build(&[("notes.txt", 5)]);
-        assert_eq!(list_pages(&none, none.len() as u64, &Limits::default())["ok"], false);
+        assert_eq!(
+            list_pages(&none, none.len() as u64, &Limits::default())["ok"],
+            false
+        );
     }
     #[test]
     fn other_containers_and_garbage() {
