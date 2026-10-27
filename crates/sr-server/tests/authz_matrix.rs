@@ -5556,8 +5556,13 @@ async fn shelves_hold_over_http() {
     // The other tenant's item is nobody else's, and a made-up section is nothing.
     expect!(
         "cross tenant read",
-        srv.call(&owner, "GET", &format!("/shelves/cinema/{other_item}"), None)
-            .await,
+        srv.call(
+            &owner,
+            "GET",
+            &format!("/shelves/cinema/{other_item}"),
+            None
+        )
+        .await,
         404
     );
     expect!(

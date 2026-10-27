@@ -175,12 +175,20 @@ impl AssetState {
     }
 }
 
+fn instance_mount() -> i64 {
+    1
+}
+
 /// One uploaded video and what became of it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Asset {
     #[serde(with = "ids::id")]
     #[schema(value_type = String)]
     pub id: i64,
+    /// The storage mount holding the asset's files (1 is the instance bucket).
+    #[serde(with = "ids::id", default = "instance_mount")]
+    #[schema(value_type = String)]
+    pub mount_id: i64,
     #[serde(with = "ids::opt_id", default, skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<String>)]
     pub title_id: Option<i64>,
@@ -354,6 +362,8 @@ pub struct WorkerView {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AssetPlayback {
     pub asset_id: i64,
+    /// The storage mount holding the outputs (1 is the instance bucket).
+    pub mount_id: i64,
     /// Unsigned CDN prefix of the outputs, `/cdn/transcode/<job>/<attempt>` (no trailing slash).
     pub base_path: String,
     pub duration_secs: f64,

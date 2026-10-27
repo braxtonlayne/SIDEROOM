@@ -852,6 +852,7 @@ fn regex_free_template(path: &str) -> String {
 fn listed_asset(id: i64) -> Asset {
     Asset {
         id,
+        mount_id: 1,
         title_id: None,
         episode_id: None,
         uploaded_by: None,
