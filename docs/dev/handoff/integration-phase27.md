@@ -9,7 +9,17 @@ started. node_modules and the wasm build are in place in the worktree.
 
 ## Resume here
 
-Stopped at 18:45 on 2026-10-26 (laptop off at 19:00), at a clean checkpoint: everything is committed.
+**2026-10-27 session.** The commander's run of `every_route_enforces_its_authz_row` (`SR_AUTHZ_GROUPS=5`) on
+76ffcb19 failed (17 weak refusals > 16, 47 malformed > 45, the guild mount writes 404). Fixed in 3e98ffde: the
+matrix seeds a guild mount per tenant (`guild_mount_id`, an OVERLAYS row for `/guilds/{guild_id}/storage/mounts`)
+and has hand-made bodies for the two mount create routes. Group rest is now proven: 16 weak refusals, 45 malformed,
+0 failures; no ceiling raised. Caveat: the create body uses provider `s3` with the default endpoint, because the SSRF
+policy refuses http and loopback; the route therefore resolves `s3.us-east-1.amazonaws.com` (DNS only, nothing
+connects). Without DNS the two creates fall back to 400 and the malformed count is 47 again.
+The full workspace `cargo test --workspace --exclude sr-storage -- --include-ignored --test-threads=1` was started
+at 05:25 (sr-storage's ignored cases are the live Garage ones, CI only; its normal suite passed on 2026-10-26).
+
+Notes from 2026-10-26 (stopped at 18:45 at a clean checkpoint):
 
 1. **Merges: all four done** (table below), with the merge work, the OpenAPI / api-client / MSW regeneration and
    two merged-tree test fixes.
