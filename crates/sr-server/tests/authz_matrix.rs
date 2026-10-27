@@ -1588,14 +1588,37 @@ async fn seed(
     // BYOS-SCP-002: a user mount of `member` and one of `ownerb` (the cross-tenant sweep over `{mount_id}`),
     // both past their CORS check so that the presign route reaches the signer. Nothing listens on the endpoint:
     // presigning is local signing.
-    for (who, ids_map) in [("member", &mut a), ("ownerb", &mut b)] {
+    // A guild mount per tenant too (`guild_mount_id`), so that `{mount_id}` under `/guilds/{guild_id}/storage/mounts`
+    // names the guild's own mount (OVERLAYS).
+    for (owner, tenant_b, slot) in [
+        (
+            sr_storage::mounts::MountOwner::User(u("member")),
+            false,
+            "mount_id",
+        ),
+        (
+            sr_storage::mounts::MountOwner::User(u("ownerb")),
+            true,
+            "mount_id",
+        ),
+        (
+            sr_storage::mounts::MountOwner::Guild(ga),
+            false,
+            "guild_mount_id",
+        ),
+        (
+            sr_storage::mounts::MountOwner::Guild(gb),
+            true,
+            "guild_mount_id",
+        ),
+    ] {
         let id = ids.generate().get() as i64;
         let sb = sr_db::sealed::SecretBox::new(key);
         let new = sr_storage::mounts::NewMount::seal(
             &sb,
             id,
             sr_storage::mounts::MountInput {
-                owner: sr_storage::mounts::MountOwner::User(u(who)),
+                owner,
                 label: "Shelf".into(),
                 provider: sr_storage::mounts::Provider::Minio,
                 endpoint: "http://127.0.0.1:9".into(),
@@ -1618,7 +1641,8 @@ async fn seed(
             .execute(&pool)
             .await
             .unwrap();
-        ids_map.insert("mount_id", id.to_string());
+        let ids_map = if tenant_b { &mut b } else { &mut a };
+        ids_map.insert(slot, id.to_string());
     }
     // More objects, so that a refusal is not just "no such id": a moderation case, a takedown notice,
     // a hold, an announcement, a submission, a command, a grant and a running stage.
@@ -2947,6 +2971,11 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         }
         ("PUT", "/users/@me/storage/mounts/{mount_id}/shares/{user_id}") => {
             r#"{"cinema":false,"library":false,"music":true}"#
+        }
+        // BYOS-MNT-001: a second bucket (a new label: "Shelf" is taken). S3 with the default endpoint: the SSRF policy
+        // refuses http and loopback (the seeded rows skip it), so this resolves the public AWS name; nothing connects.
+        ("POST", "/users/@me/storage/mounts") | ("POST", "/guilds/{guild_id}/storage/mounts") => {
+            r#"{"label":"Matrix","provider":"s3","region":"us-east-1","bucket":"matrix","path_style":true,"access_key_id":"AKIAAUTHZMATRIX","secret_access_key":"authz-matrix-secret"}"#
         }
         ("POST", "/applications/{application_id}/testers") => r#"{"username":"victim"}"#,
         ("POST", "/submissions/{submission_id}/artwork/{kind}") => {
@@ -4550,6 +4579,12 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         &["{package_id}/apply", "/create-guild"],
         "package_id",
         "recipe_id",
+    ),
+    // A server's mount routes act on the server's own mount, not the plain member's.
+    (
+        &["/guilds/{guild_id}/storage/mounts"],
+        "mount_id",
+        "guild_mount_id",
     ),
     // Episodes and seasons belong to the series title, not to the film.
     (
