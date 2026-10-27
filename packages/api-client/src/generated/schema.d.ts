@@ -12450,7 +12450,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Enabled channels by number, each with what is on now and next. */
+        /**
+         * Enabled channels by number, each with what is on now and next. A server's channel is listed only to those
+         *     who may watch it, and a personal channel only to its owner (BYOS-TV-001).
+         */
         get: operations["tv_channels"];
         put?: never;
         post?: never;
@@ -24129,6 +24132,8 @@ export interface components {
             now?: null | components["schemas"]["TvBlock"];
             /** Format: int32 */
             number: number;
+            /** @description Where the pools draw from: the instance catalog, one server's shelves, or one member's shelf. */
+            pool: components["schemas"]["TvPoolSource"];
             rules?: null | components["schemas"]["TvRules"];
             /** @description Staff only: the shuffle seed. */
             seed?: string | null;
@@ -24153,6 +24158,8 @@ export interface components {
             name: string;
             /** Format: int32 */
             number: number;
+            /** @description Where the pools draw from; the instance catalog when absent. */
+            pool?: components["schemas"]["TvPoolSource"];
             rules?: components["schemas"]["TvRules"];
             theme?: string | null;
             timezone?: string;
@@ -24320,6 +24327,27 @@ export interface components {
             year_from?: number | null;
             /** Format: int32 */
             year_to?: number | null;
+        };
+        /**
+         * @description Where a channel's pools draw from.
+         *
+         *     * `instance`: the instance catalog, as before (no owner).
+         *     * `guild`: a server's shelves only, that is the server's own mounts and the instance bucket (mount 1) when
+         *       it is attached to the server. Every viewer who may watch the server's Cinema sees the same guide, so
+         *       nothing is skipped per viewer.
+         *     * `personal`: one member's own shelf, for that member alone. A friend's shelf is never a source.
+         */
+        TvPoolSource: {
+            /** @enum {string} */
+            kind: "instance";
+        } | {
+            guild_id: string;
+            /** @enum {string} */
+            kind: "guild";
+        } | {
+            /** @enum {string} */
+            kind: "personal";
+            user_id: string;
         };
         TvPreview: {
             blocks: components["schemas"]["TvBlock"][];
