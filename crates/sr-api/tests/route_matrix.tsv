@@ -441,7 +441,7 @@ GET	/profile-pages/{username}	authenticated	visibility	deny	-	-
 GET	/push/vapid-key	authenticated	self	deny	-	-
 GET	/requests	authenticated	user	allow	-	-
 GET	/shelves/{section}	authenticated	self	deny	-	-
-GET	/shelves/{section}/{item_id}	authenticated	storage_scope	deny	-	-
+GET	/shelves/{section}/{shelf_item_id}	authenticated	storage_scope	deny	-	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-	-
 GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	user	allow	-	-
 GET	/sr/appearance/defaults	public	none	deny	-	-
@@ -585,8 +585,8 @@ PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-	-
 PATCH	/library/comments/{comment_id}	authenticated	author	allow	-	-
 PATCH	/library/lists/{list_id}	authenticated	author	allow	-	-
-PATCH	/shelves/{section}/{item_id}	authenticated	mount_owner	deny	-	-
-PATCH	/shelves/{section}/{item_id}/parts/{part_id}	authenticated	mount_owner	deny	-	-
+PATCH	/shelves/{section}/{shelf_item_id}	authenticated	mount_owner	deny	-	-
+PATCH	/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}	authenticated	mount_owner	deny	-	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
 PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 PATCH	/submissions/{submission_id}	authenticated	author	allow	-	-

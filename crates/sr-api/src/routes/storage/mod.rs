@@ -106,11 +106,11 @@ pub fn router() -> Router<AppState> {
         )
         .route("/shelves/{section}", get(shelves::list))
         .route(
-            "/shelves/{section}/{item_id}",
+            "/shelves/{section}/{shelf_item_id}",
             get(shelves::get_item).patch(shelves::patch_item),
         )
         .route(
-            "/shelves/{section}/{item_id}/parts/{part_id}",
+            "/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}",
             patch(shelves::patch_part),
         )
 }

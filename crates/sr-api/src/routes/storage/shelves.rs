@@ -3,8 +3,8 @@
 //!
 //! * `GET /shelves/{section}`: a page of titles, series, books or tracks from every reachable mount, with the
 //!   "Shelves" filter (`mount`) and the sources the viewer reaches (the chips).
-//! * `GET /shelves/{section}/{item_id}`: one item with its episodes or chapters.
-//! * `PATCH /shelves/{section}/{item_id}` and `.../parts/{part_id}`: the editor. Whoever may manage the mount
+//! * `GET /shelves/{section}/{shelf_item_id}`: one item with its episodes or chapters.
+//! * `PATCH /shelves/{section}/{shelf_item_id}` and `.../parts/{shelf_part_id}`: the editor. Whoever may manage the mount
 //!   (its owner; on a guild shelf a manager) edits; every edited field becomes an override a re-index keeps.
 //! * `POST` and `GET /storage/mounts/{mount_id}/index`: queue a run and read the last one.
 //!
@@ -682,10 +682,10 @@ async fn may_edit(d: &ScopeDeps, user: i64, mount: &Mount) -> MsgResult<bool> {
 /// One item with its episodes or chapters.
 #[utoipa::path(
     get,
-    path = "/shelves/{section}/{item_id}",
+    path = "/shelves/{section}/{shelf_item_id}",
     params(
         ("section" = String, Path, description = "cinema, library or music"),
-        ("item_id" = String, Path, description = "Row snowflake"),
+        ("shelf_item_id" = String, Path, description = "Row snowflake"),
     ),
     responses(
         (status = 200, body = ShelfDetailView),
@@ -775,10 +775,10 @@ async fn reload(
 /// Edit an item's metadata. The edited fields become overrides a re-index leaves alone.
 #[utoipa::path(
     patch,
-    path = "/shelves/{section}/{item_id}",
+    path = "/shelves/{section}/{shelf_item_id}",
     params(
         ("section" = String, Path, description = "cinema, library or music"),
-        ("item_id" = String, Path, description = "Row snowflake"),
+        ("shelf_item_id" = String, Path, description = "Row snowflake"),
     ),
     request_body = ShelfPatchBody,
     responses(
@@ -810,11 +810,11 @@ pub async fn patch_item(
 /// Edit one episode or chapter (title, number, season).
 #[utoipa::path(
     patch,
-    path = "/shelves/{section}/{item_id}/parts/{part_id}",
+    path = "/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}",
     params(
         ("section" = String, Path, description = "cinema or library"),
-        ("item_id" = String, Path, description = "Series snowflake"),
-        ("part_id" = String, Path, description = "Episode or chapter snowflake"),
+        ("shelf_item_id" = String, Path, description = "Series snowflake"),
+        ("shelf_part_id" = String, Path, description = "Episode or chapter snowflake"),
     ),
     request_body = PartPatchBody,
     responses(

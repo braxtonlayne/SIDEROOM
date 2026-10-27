@@ -1,0 +1,128 @@
+/* Shelves (BYOS-CAT-002). Semantic tokens only (--ui-*); no raw colours, logical properties. */
+.shv-page {
+  display: grid;
+  gap: 16px;
+  padding-block: 24px;
+  padding-inline: clamp(16px, 5vw, 80px);
+  color: var(--ui-text);
+}
+.shv-head {
+  display: grid;
+  gap: 4px;
+}
+.shv-head h1 {
+  margin: 0;
+}
+.shv-muted {
+  color: var(--ui-text-muted);
+}
+.shv-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.shv-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 16px;
+}
+.shv-chip {
+  display: inline-block;
+  padding-block: 1px;
+  padding-inline: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.shv-chip[data-scope='own'] {
+  color: var(--ui-success);
+  border-color: var(--ui-success);
+}
+.shv-detail {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+}
+@media (max-width: 40rem) {
+  .shv-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.shv-poster {
+  inline-size: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+}
+.shv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.shv-parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.shv-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.shv-part[data-current='true'] {
+  border-color: var(--ui-success);
+}
+.shv-player {
+  inline-size: 100%;
+  max-block-size: 70vh;
+  background: var(--ui-bg-raised);
+  border-radius: var(--ui-radius-lg, 8px);
+}
+.shv-attribution {
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.shv-editor {
+  display: grid;
+  gap: 12px;
+  max-inline-size: 40rem;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.shv-field {
+  display: grid;
+  gap: 4px;
+}
+.shv-candidates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.shv-reader {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.shv-page-img {
+  max-inline-size: 100%;
+  max-block-size: 85vh;
+  object-fit: contain;
+}
