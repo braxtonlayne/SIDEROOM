@@ -2,30 +2,100 @@
 
 Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\p28-byos-catalog`, base `integration/phase28`.
 `CARGO_TARGET_DIR=C:/Users/braxt/Desktop/SIDEROOM_wt/p28-byos-catalog-target`, `CARGO_PROFILE_DEV_DEBUG=0`, `-j 2`.
-Scratch DB `sr_p28_byos_catalog` (not created yet). Migration 1450 only. Job id 1450 / kind `storage.index`.
+Scratch DB `sr_p28_byos_catalog` (exists; drop it at the end of the wave). Migration 1450 only. Job id 1450 / kind
+`storage.index`. Nothing pushed, no server started, no download, no new dependency.
 
 ## Resume here
 
-Slice 1-4a done: migration 1450; sr-storage index core + shelf types (ShelfStore, reachable, drop_delisted); sr-db index_repo + shelf_repo (Postgres tests: index_repo 4, shelf_repo 2); sr-server storage_jobs (job 1450) + 10k test. Next: the routes (4b).
-(`classify.rs`, `sniff.rs`, `mod.rs` with the `IndexStore` trait), 15 unit tests green.
+Everything below "Done" is committed. Next, in order:
+1. Index-time metadata fetch from the lookup providers (not built; the editor's "Fetch details" is). Design: a
+   `DetailsFetcher` trait next to `IndexStore`, an adapter over `sr_api::routes::review::LookupDeps`, run after
+   `apply` for at most N new titles per run, exact title and year match only, writes `synopsis`, `genres`,
+   `external_ids` and `attribution` unless the field is in `overridden`. Waits on owner question Q22 (TMDB terms).
+2. Music screen (API is built: `GET /shelves/music`); there is no Music section in the web app until wave 30.
+3. Playwright `byos-mount.spec.ts` step (a film and a CBZ from Garage): needs Garage, which only CI has, and
+   8080/5173; not written.
+4. The header sniff (`index::sniff`, tested) is not yet called by the walker: `web_native` is by extension today.
+5. Integrator: add the CAT-001/002 lines to `docs/inventory/21-feature-phase.md` (the file has no such lines on this
+   base), run `every_route_enforces_its_authz_row` group 5 (the six new routes carry `route_matrix` rows; the seeds
+   are one block of `authz_matrix.rs`, plus the new test `shelves_hold_over_http` at the end of that file), web
+   build and bundle budget. OpenAPI, api-client and MSW mocks are regenerated on this branch (1002 operations);
+   regenerate again after merging.
 
-Next: (2) `sr-db` index store (`index_repo.rs`: `storage_objects` upsert, catalog rows for Cinema/Library/Music,
-re-index keeping `overridden` fields, vanished handling) with Postgres tests; (3) walker + job `storage.index` in
-`crates/sr-server/src/storage_jobs.rs`, the `sr_media::naming` adapter, the 200-name test; (4) routes (re-index,
-shelves read, editor PATCH) + route_matrix + authz seeds; (5) `mount_id` threading and per-mount media URLs;
-(6) web shelves and editor; (7) docs (load-testing row, naming spec section).
+## Done
 
-## Design decisions
+BYOS-CAT-001 (indexing)
+- Migration `1450_storage_objects.sql`: `storage_objects`, `storage_index_runs`, `music_tracks`, and on
+  `video_titles`, `video_episodes`, `reading_series`, `reading_chapters`: `mount_object_id`, `shelf_key`,
+  `overridden`, `attribution`, `shelf_state` (and `external_ids` on series and tracks).
+- `crates/sr-storage/src/index/`: `classify.rs` (folders, names, `.sideroom.json`, covers by folder, loose chapter
+  numbering), `sniff.rs` (container facts from the first 1 MiB), `shelf.rs` (types, `ShelfStore`, `reachable`,
+  `drop_delisted`), `mod.rs` (`IndexStore`, `IndexControl`).
+- `crates/sr-db/src/index_repo.rs`: `PgIndexStore` (one run per mount at a time, upserts, overrides honoured, vanished
+  objects hidden, a partial listing hides nothing) and `IndexControl` (queue one job per mount).
+- `crates/sr-server/src/storage_jobs.rs`: walker, `sr_media::naming` adapter, sidecar reader, the job (kind
+  `storage.index`; singleton id 1450 daily 06:10 UTC; one-shot with `{"mount_id"}`), registered and scheduled in
+  `app.rs`. The instance bucket (mount 1) is never indexed. Cap and budget: `ops.storage_measure_max_objects`, 60 s;
+  `library.ingest.rar_enabled` gates CBR.
+- Tests: sr-storage index (15), sr-db `index_repo` (4, Postgres), sr-server `storage_jobs` (5; a generated tree of 204
+  names through the real naming rules, partial listing, sidecars), `storage_index_pg_tests` (10,000 objects in about
+  7 s, a re-run adds nothing, one queued job per mount). `load-testing.md` has the row.
+- Misfile rate on the fixture tree: 0 of 204. Real libraries will differ; the sidecar and the editor are the escape.
 
-- Catalog rows from a mount are written with `published = FALSE`, so every existing member query (published and
-  not merged) skips them and nothing leaks by omission. The shelf queries read them by `source = 'mount'`,
-  the mounts `scopes::access` admits for the viewer's kind, and `shelf_state = 'listed'`.
-- An edit is an override: the catalog row's `overridden TEXT[]` names the fields a member edited; re-index never
-  rewrites them. Series rows are anchored by `(mount_id, shelf_key)` (folder), episodes and chapters by
-  `mount_object_id`, so a rename in the editor does not create a duplicate.
-- sr-storage cannot depend on sr-media (cycle), so video names reach the classifier through the `NameParser` trait;
-  the adapter over `sr_media::naming::parse_path` lives in sr-server.
-- Header read: `index::sniff` (container signature, MP4 codec tags) is the only place that reads file bytes.
+BYOS-CAT-002 (shelves and editor)
+- Rows from a mount are written with `published = FALSE`, so no existing member query sees them (fail closed); the
+  shelf queries read them by `source = 'mount'`, the mounts `scopes::access` admits for the section's kind, and
+  `shelf_state = 'listed'`, then drop delisted keys.
+- Routes (session-only; bots refused in `auth::policy`): `GET /shelves/{section}`,
+  `GET|PATCH /shelves/{section}/{shelf_item_id}`, `PATCH /shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}`,
+  `GET|POST /storage/mounts/{mount_id}/index`. Code: `routes/storage/shelves.rs`, `sr-db/src/shelf_repo.rs`. The
+  attribution text of fetched details is chosen by the server from the provider id; the client cannot write it.
+- Tests: sr-db `shelf_repo` (2, Postgres: visibility per viewer and section, paging, filters, delisting, disabled mount,
+  store failure, overrides survive a re-index), sr-api shelves unit tests (2), route_matrix (6),
+  `authz_matrix shelves_hold_over_http` (Postgres, passes; `storage_scopes_hold_over_http` still passes).
+- Web (`apps/web/src/storage/shelves/`, `library/reader/cbzRange.ts`): list with source chips and the "Shelves"
+  filter, item page, web-native playback from a presigned URL with refresh, greyed "Convert to play" for the rest,
+  CBZ read by range requests (`sr-library-wasm` `listPages`: one request for the directory, one per page), EPUB and
+  PDF through the library's own readers from a presigned fetch, the metadata editor with "Fetch details" through
+  `GET /submissions/lookup`, episode and chapter editing, Re-index with the last run. Routes `/cinema/shelves[/$id]`
+  and `/library/shelves[/$id]`, nav entries. Vitest: 17 (MSW, axe) and 5 (range reader); lint, prettier, tsc,
+  i18n-audit, check-css-tokens clean. Fragment `i18n/messages/en/p28-byos-catalog-1.ts`.
+- Known small gaps: the EPUB/PDF readers' "back to series" link (error state only) points at `/library/s/{id}`, which
+  does not exist for a shelf series; shelf books save no reading progress.
 
-## Open / not done
-(updated each slice)
+Wave-27 follow-up (per-row `mount_id`, per-mount media URLs)
+- `mount_id` (default 1) on `TitleRecord`, `EpisodeRecord`, `SeriesRecord`, `ChapterRecord`, `Asset`,
+  `AssetPlayback`, `PlaybackAsset`, read by the existing queries. Cinema and Library build media links with
+  `media_url(mount_id, key)`: mount 1 keeps `/cdn/<key>`; any other mount gets `/cdn/mount/<id>/<key segments>`.
+- The CDN answers that kind with a **302 to a presigned URL** of the mount's bucket (`MountStorages::for_mount`), TTL
+  min(left of the signed link, 15 min), at least 60 s, `no-store`; no bytes pass through (the smallest correct form:
+  a mount-scoped redirect, not a proxy). Disabled or unknown mount: 404; mount 1: refused; keys pass `safe_key`; a
+  takedown blocking `mount/<id>/<key>` gives 451. `CdnDeps::with_mounts` wires it. Tests: 5 in `cdn/mount_tests.rs`,
+  2 in `cdn/path.rs`, `cinema_repo a_row_on_another_mount_gets_mount_scoped_media_links`.
+- Not done: the HLS playlist renderer and `PlaylistRenderer::storage_key` still read the instance bucket
+  (`PlaybackAsset.mount_id` is carried; nothing writes renditions to another mount before wave 29's converter).
+
+## Decisions
+
+- Mount CBZ chapters use `format = 'images'` with no stored pages and `source_key` = the archive, so no enum or
+  constraint changed; the shelf tells CBZ, EPUB and PDF apart by `storage_objects.container`.
+- A Series-folder file without an episode number is left out; two files for one episode number keep the first; a
+  chapter number already taken moves to the next free one (`docs/specs/ingest-naming-conventions.md` section 4).
+- Job id 1450 (above 1024, like 1105 and 1150) to stay clear of the other agents' small ids.
+
+## Open owner questions
+
+- Q22 (provider terms): automatic fetching at index time waits for it; the editor's fetch is member-triggered and
+  carries the provider's attribution on the row and on screen.
+- Delisting (`ScopeFacts::delisted`) is byos-legal's stub; the shelves already call it.
+
+## Tests run (all green)
+
+`cargo test -p sr-storage`, `-p sr-library-wasm`, `-p sr-media -p sr-tv`, `-p sr-cinema -p sr-library`, `-p sr-api --lib`
+(cdn, auth, shelves), `--test route_matrix`, `--test openapi_names`; Postgres (`--include-ignored --test-threads=1`):
+sr-db `index_repo`, `shelf_repo`, `cinema_repo`, `library_repo`, `library_wiring`, `cinema_submissions`, `review_repo`,
+`media_repo`; sr-server `storage_index_pg_tests`, `authz_matrix` (`shelves_hold_over_http`,
+`storage_scopes_hold_over_http`), `storage_jobs`; `cargo fmt --check` and `clippy --all-targets -D warnings` on the
+touched crates; web vitest (`src/storage/shelves`, `src/library`, `src/cinema`, `src/i18n`), tsc, eslint, prettier,
+i18n-audit, check-css-tokens, `mocks:check`.
+Not run: full workspace `cargo test`, the full authorization matrix, web build and bundle budget, Playwright.
