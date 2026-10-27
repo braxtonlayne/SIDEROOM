@@ -1158,6 +1158,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // BYOS storage mounts (BYOS-MNT-001): the member's and the server's own buckets, credentials sealed
     // with the server secret.
+    // BYOS-NAV-001: `STORAGE_MOUNT_UPDATE` for the nav's Auto mode.
+    let storage_events = Arc::new(routes::storage::events::StorageEvents::new(bus.clone()));
     let mounts_deps = Arc::new(
         routes::storage::mounts::MountsDeps::new(
             mount_repo.clone(),
@@ -1171,7 +1173,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_public_origin(&cfg.server.public_url)
         .with_resolver(mount_resolver.clone())
         .with_facts(scope_facts.clone())
-        .with_standing(scope_facts.clone()),
+        .with_standing(scope_facts.clone())
+        .with_events(storage_events.clone()),
     );
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
@@ -1471,6 +1474,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }))
         .extension(push_deps)
         .extension(mounts_deps)
+        .extension(storage_events)
         .extension(gif_deps)
         .extension(lookup_deps)
         .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(

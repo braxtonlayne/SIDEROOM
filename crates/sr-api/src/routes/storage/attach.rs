@@ -11,7 +11,7 @@
 
 use super::{ScopeDeps, parse_row};
 use crate::error::{ApiResult, HttpError};
-use crate::routes::Ext;
+use crate::routes::{Ext, MaybeExt};
 use crate::routes::admin::{StaffCtx, map_err};
 use crate::routes::messages::error::ApiJson;
 use crate::{openapi::ErrorBody, state::AppState};
@@ -108,6 +108,7 @@ fn guild(raw: &str) -> ApiResult<i64> {
 pub async fn attach(
     ctx: StaffCtx,
     Ext(d): Ext<ScopeDeps>,
+    MaybeExt(events): MaybeExt<super::events::StorageEvents>,
     Path(mount): Path<String>,
     ApiJson(body): ApiJson<AttachBody>,
 ) -> ApiResult<Json<AttachmentView>> {
@@ -135,6 +136,9 @@ pub async fn attach(
             )
             .await
             .map_err(map_err)?;
+        if let Some(ev) = events {
+            ev.attachment_changed(mount_id, guild_id, "attached").await;
+        }
     }
     Ok(Json(AttachmentView {
         guild_id: guild_id.to_string(),
@@ -159,6 +163,7 @@ pub async fn attach(
 pub async fn detach(
     ctx: StaffCtx,
     Ext(d): Ext<ScopeDeps>,
+    MaybeExt(events): MaybeExt<super::events::StorageEvents>,
     Path(mount): Path<String>,
     ApiJson(body): ApiJson<AttachBody>,
 ) -> ApiResult<StatusCode> {
@@ -185,6 +190,9 @@ pub async fn detach(
         )
         .await
         .map_err(map_err)?;
+    if let Some(ev) = events {
+        ev.attachment_changed(mount_id, guild_id, "detached").await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

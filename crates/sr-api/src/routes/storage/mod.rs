@@ -12,6 +12,7 @@
 //! Every read goes through `sr_storage::scopes`.
 
 mod attach;
+pub mod events;
 pub mod flags;
 pub mod mount_ops;
 pub mod mounts;

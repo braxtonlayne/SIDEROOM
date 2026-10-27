@@ -1342,6 +1342,19 @@ async fn expressions_updates_dispatch_with_the_expressions_intent() {
         c.expect_event("GUILD_STICKERS_UPDATE").await["d"]["guild_id"],
         "1"
     );
+    // BYOS-NAV-001: a server's mount change reaches its sessions as STORAGE_MOUNT_UPDATE (no intent gate).
+    emit(
+        &e.bus,
+        DomainEvent::StorageMountUpdated {
+            guild: G1,
+            payload: json!({ "mount_id": "9", "owner_kind": "guild", "guild_id": "1", "change": "created" }),
+        },
+    )
+    .await;
+    assert_eq!(
+        c.expect_event("STORAGE_MOUNT_UPDATE").await["d"]["mount_id"],
+        "9"
+    );
     other.silent().await;
 }
 

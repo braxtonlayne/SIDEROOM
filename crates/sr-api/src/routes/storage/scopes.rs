@@ -3,7 +3,7 @@
 use super::{ScopeDeps, facts_failed, parse_row, uid};
 use crate::auth::SessionOnly;
 use crate::openapi::ErrorBody;
-use crate::routes::Ext;
+use crate::routes::{Ext, MaybeExt};
 use crate::routes::messages::error::{ApiJson, MsgResult, invalid};
 use axum::{Json, extract::Path, http::StatusCode};
 use serde::{Deserialize, Serialize};
@@ -149,6 +149,7 @@ pub async fn list_shares(
 pub async fn put_share(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
+    MaybeExt(events): MaybeExt<super::events::StorageEvents>,
     Path((mount_id, friend)): Path<(String, String)>,
     ApiJson(body): ApiJson<ShareBody>,
 ) -> MsgResult<Json<ShareView>> {
@@ -193,6 +194,10 @@ pub async fn put_share(
         .set_share(id, friend, share)
         .await
         .map_err(facts_failed)?;
+    if let Some(ev) = events {
+        let change = if share.any() { "shared" } else { "unshared" };
+        ev.share_changed(id, user, friend, change).await;
+    }
     Ok(Json(share_view(friend, share)))
 }
 
@@ -210,6 +215,7 @@ pub async fn put_share(
 pub async fn delete_share(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
+    MaybeExt(events): MaybeExt<super::events::StorageEvents>,
     Path((mount_id, friend)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let id = own_mount(&d, uid(&p), &mount_id).await?;
@@ -218,6 +224,9 @@ pub async fn delete_share(
         .delete_share(id, friend)
         .await
         .map_err(facts_failed)?;
+    if let Some(ev) = events {
+        ev.share_changed(id, uid(&p), friend, "unshared").await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

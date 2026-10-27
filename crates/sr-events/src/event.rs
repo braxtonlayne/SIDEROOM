@@ -402,6 +402,13 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// `STORAGE_MOUNT_UPDATE` for a server's mounts (BYOS-NAV-001); `payload` is
+    /// `{mount_id, owner_kind, guild_id, change}`. Tells the server's members that what the shelves
+    /// reach may have changed, so the nav refetches `GET /users/@me/shelves/summary`.
+    StorageMountUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
     /// `GUILD_STICKERS_UPDATE`; `payload` is `{guild_id, stickers}`.
     StickersUpdated {
         guild: GuildId,
@@ -597,6 +604,7 @@ impl DomainEvent {
             | Self::InviteDeleted { guild, .. }
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
+            | Self::StorageMountUpdated { guild, .. }
             | Self::SoundboardUpdated { guild, .. }
             | Self::ScheduledEvent { guild, .. }
             | Self::VoiceJoined { guild, .. }
@@ -818,6 +826,10 @@ mod tests {
                 payload: p.clone(),
             },
             DomainEvent::StickersUpdated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::StorageMountUpdated {
                 guild: g,
                 payload: p.clone(),
             },
