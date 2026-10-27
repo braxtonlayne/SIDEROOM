@@ -1485,7 +1485,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(
             routes::cdn::CdnDeps::new(storage.clone(), cdn_signer)
                 .with_playlists(playback_deps)
-                .with_blocklist(media_blocklist.clone()),
+                .with_blocklist(media_blocklist.clone())
+                .with_mounts(Arc::new(mount_storages.clone())),
         ))
         .extension(external_images)
         .extension(Arc::new(routes::internal::CspReports::new(Arc::new(

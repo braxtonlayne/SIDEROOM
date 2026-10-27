@@ -21,7 +21,7 @@ const SNIFF_BYTES: u64 = 512;
 
 const ROUTE_KEY: &str = "GET /cdn/{*path}";
 
-fn plain(status: StatusCode, msg: &'static str) -> Response {
+pub(super) fn plain(status: StatusCode, msg: &'static str) -> Response {
     let mut r = (status, msg).into_response();
     let h = r.headers_mut();
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -124,6 +124,15 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
                 plain(StatusCode::FORBIDDEN, "invalid signature")
             }
         };
+    }
+    // A member's or a server's bucket: redirect to a presigned URL (BYOS), no bytes through here.
+    if let Some(mount_id) = parsed.mount {
+        let left = query
+            .split('&')
+            .find_map(|p| p.strip_prefix("ex=").and_then(|v| v.parse::<u64>().ok()))
+            .unwrap_or(now)
+            .saturating_sub(now);
+        return super::mount::redirect(deps.as_ref(), mount_id, &parsed.key, left).await;
     }
     // A takedown blocked this object (spec 5, step 3). The signature was checked first, so only a holder of a
     // valid link learns that it is gone for legal reasons.
