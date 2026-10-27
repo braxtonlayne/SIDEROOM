@@ -439,11 +439,10 @@ async fn pool_sources_round_trip_and_numbers_are_unique_per_source() {
         .unwrap();
     assert_eq!(moved.input.pool, PoolSource::Guild { guild_id: 900 });
     // The CHECK refuses a row whose columns disagree.
-    let bad = sqlx::query(
-        "UPDATE tv_channels SET pool_source = 'guild', guild_id = NULL WHERE id = 3",
-    )
-    .execute(db.pool())
-    .await;
+    let bad =
+        sqlx::query("UPDATE tv_channels SET pool_source = 'guild', guild_id = NULL WHERE id = 3")
+            .execute(db.pool())
+            .await;
     assert!(bad.is_err());
     db.cleanup().await.unwrap();
 }

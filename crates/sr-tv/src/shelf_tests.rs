@@ -217,12 +217,20 @@ async fn only_those_who_may_watch_see_a_server_channel_and_a_personal_one_is_pri
     let all = e.svc.channels().await.unwrap();
     // A member of the server who holds the grant (5, who also owns the personal channel).
     assert_eq!(
-        ids(e.svc.visible_channels(viewer(5), all.clone()).await.unwrap()),
+        ids(e
+            .svc
+            .visible_channels(viewer(5), all.clone())
+            .await
+            .unwrap()),
         [open, club, mine]
     );
     // Another member of the server: the server channel, not someone else's personal one.
     assert_eq!(
-        ids(e.svc.visible_channels(viewer(6), all.clone()).await.unwrap()),
+        ids(e
+            .svc
+            .visible_channels(viewer(6), all.clone())
+            .await
+            .unwrap()),
         [open, club]
     );
     // A stranger sees only the instance channel.
@@ -261,7 +269,11 @@ async fn without_an_access_port_a_server_channel_is_watched_by_nobody() {
         Arc::new(|| 1),
     );
     assert!(!bare.may_watch(viewer(5), GUILD).await.unwrap());
-    assert!(bare.may_watch(viewer(5), PoolSource::Instance).await.unwrap());
+    assert!(
+        bare.may_watch(viewer(5), PoolSource::Instance)
+            .await
+            .unwrap()
+    );
     assert!(bare.may_watch(viewer(5), MINE).await.unwrap());
     assert!(!bare.may_watch(viewer(6), MINE).await.unwrap());
 }
@@ -270,7 +282,13 @@ async fn without_an_access_port_a_server_channel_is_watched_by_nobody() {
 async fn channel_numbers_are_unique_within_a_source() {
     let e = env();
     make(&e, 1, GUILD, ChannelKind::RuleBased).await;
-    make(&e, 1, PoolSource::Guild { guild_id: 901 }, ChannelKind::RuleBased).await;
+    make(
+        &e,
+        1,
+        PoolSource::Guild { guild_id: 901 },
+        ChannelKind::RuleBased,
+    )
+    .await;
     make(&e, 1, PoolSource::Instance, ChannelKind::RuleBased).await;
     let dup = e
         .svc

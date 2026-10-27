@@ -151,8 +151,7 @@ impl TvRepository for MemoryTvRepo {
         now_ms: i64,
     ) -> TvResult<ChannelRecord> {
         let mut s = self.lock();
-        if s
-            .channels
+        if s.channels
             .iter()
             .any(|c| c.input.number == input.number && c.input.pool == input.pool)
         {

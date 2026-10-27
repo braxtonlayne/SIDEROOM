@@ -519,7 +519,9 @@ impl ChannelInput {
             return Err(format!("Unknown timezone {:?}", self.timezone));
         }
         match self.pool {
-            PoolSource::Guild { guild_id: id } | PoolSource::Personal { user_id: id } if id <= 0 => {
+            PoolSource::Guild { guild_id: id } | PoolSource::Personal { user_id: id }
+                if id <= 0 =>
+            {
                 return Err("pool names an unknown server or member".into());
             }
             _ => {}

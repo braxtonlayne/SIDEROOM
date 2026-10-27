@@ -138,9 +138,10 @@ impl sr_tv::ChannelAccess for GuildChannelAccess {
         let PoolSource::Guild { guild_id } = pool else {
             return Ok(false);
         };
-        let grants = sr_storage::scopes::guild_grants(self.facts.as_ref(), guild_id, viewer.user_id)
-            .await
-            .map_err(|e| TvError::Catalog(e.to_string()))?;
+        let grants =
+            sr_storage::scopes::guild_grants(self.facts.as_ref(), guild_id, viewer.user_id)
+                .await
+                .map_err(|e| TvError::Catalog(e.to_string()))?;
         Ok(grants.has(Grant::ViewCinema))
     }
 }
