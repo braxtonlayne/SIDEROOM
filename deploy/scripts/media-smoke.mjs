@@ -1283,7 +1283,9 @@ async function stageResilience() {
  * the byos.worker_for_members switch, tokens scoped to one mount) are proved by the Postgres tests of sr-db.
  */
 async function stageMount() {
-  console.log('== mount: a Garage mount object through the CPU worker with presigned I/O (BYOS-CNV-003)');
+  console.log(
+    '== mount: a Garage mount object through the CPU worker with presigned I/O (BYOS-CNV-003)',
+  );
   if (DRY) {
     log('skipped in a dry walk: it needs a real bucket');
     return;
@@ -1357,7 +1359,11 @@ async function stageMount() {
   check('the HLS job wrote its files into the bucket (several outputs)', d2.output_count > 3, d2);
   const playlist = await fetchObject(`transcoded/${key}/v/480p/index.m3u8`);
   const text = playlist?.toString('utf8') ?? '';
-  check('the rung playlist is in the bucket and lists fMP4 segments', /^#EXTM3U/.test(text) && /\.m4s/.test(text), text.slice(0, 200));
+  check(
+    'the rung playlist is in the bucket and lists fMP4 segments',
+    /^#EXTM3U/.test(text) && /\.m4s/.test(text),
+    text.slice(0, 200),
+  );
   const seg = text.split('\n').find((l) => l.endsWith('.m4s'));
   const init = await fetchObject(`transcoded/${key}/v/480p/init.mp4`);
   const first = seg ? await fetchObject(`transcoded/${key}/v/480p/${seg}`) : null;
@@ -1370,7 +1376,11 @@ async function stageMount() {
     const out = join(DIR, 'mount-result-seg.mp4');
     writeFileSync(out, Buffer.concat([init, first]));
     const v = ffprobe(out).of('video')[0];
-    check('the first HLS segment decodes (h264, 480p or less)', v?.codec_name === 'h264' && v.height <= 480, v);
+    check(
+      'the first HLS segment decodes (h264, 480p or less)',
+      v?.codec_name === 'h264' && v.height <= 480,
+      v,
+    );
   }
 
   // 3. The member routes refuse what they should without any bucket call.
@@ -1383,7 +1393,11 @@ async function stageMount() {
     key: `${key}.missing.mkv`,
     format: 'mp4',
   });
-  check('an object that is not in the bucket is not queued', gone.status >= 400 && gone.status < 500, gone);
+  check(
+    'an object that is not in the bucket is not queued',
+    gone.status >= 400 && gone.status < 500,
+    gone,
+  );
   killWorker('ci-mount');
 }
 
