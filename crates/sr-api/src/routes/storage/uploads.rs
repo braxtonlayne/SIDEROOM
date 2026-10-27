@@ -466,6 +466,7 @@ pub async fn complete(
     Ext(d): Ext<ScopeDeps>,
     Ext(u): Ext<UploadDeps>,
     MaybeExt(admin): MaybeExt<AdminDeps>,
+    MaybeExt(hooks): MaybeExt<super::IndexHooks>,
     headers: HeaderMap,
     Path((mount_id, upload_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<CompleteUploadBody>,
@@ -526,6 +527,12 @@ pub async fn complete(
         .finish(mount.id, up.id, UploadState::Completed, now)
         .await
         .map_err(ledger_failed)?;
+    // The catalog picks the new file up (BYOS-CAT-001 "on upload complete"; wired at the wave-28 integration).
+    if let Some(h) = hooks.as_deref()
+        && let Err(e) = h.index.request(mount.id).await
+    {
+        tracing::warn!(mount = mount.id, error = %e.0, "index run after an upload not queued");
+    }
     Ok(Json(CompletedUploadView {
         key: up.key,
         size: up.size,

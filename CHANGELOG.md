@@ -8,6 +8,31 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Wave 28 - 2026-10-27
+
+- **Fill your buckets from the app.** The bucket browser uploads files or a whole folder (drag and drop works), in
+  16 MiB parts that resume after a reload. You can make folders, rename and move files and folders, and delete them.
+  Files over 5 GiB have to be moved at your provider.
+- **Shelves.** Films, series, anime, manga, comics and books found in your buckets now show on shelves in Cinema and
+  Library: your own, friends' shelves and server shelves, each with a chip that says whose it is. Files the browser
+  can play (MP4, WebM, MP3, FLAC, OGG) play directly; other files are greyed out with "Convert to play" until a
+  later wave. Comic archives open page by page without being downloaded in full. You can correct the title, year,
+  kind, episodes and artwork, and "Fetch details" looks a title up. Your edits are kept when the bucket is
+  re-indexed.
+- **Voice is always end-to-end encrypted.** There is no setting that turns it off. A client that does not take
+  part in the encryption is refused.
+- **Only the front page shows up in search engines.** Every other page, the API and the media links tell crawlers
+  not to index them.
+- **For the operator:** new settings under Admin > Limits > storage: `byos.endpoint_allow`, `byos.who_may_mount`,
+  `byos.require_client_remux`, `byos.max_mounts_per_user`, `byos.max_mounts_per_guild` and
+  `byos.upload_parts_per_hour`. There is a `platform.byos` feature switch, plus two server choices: whether a
+  server may connect buckets, and whether members' shelves show inside it. The `voice.e2ee` config field is gone,
+  and `e2ee = false` is now a configuration error. Admin > Storage lists every bucket and can delist or relist
+  one. Takedown notices can name an object in a member's bucket: an object in a server's bucket counts against
+  the member who uploaded it when that upload is on record, and otherwise against the server owner. New jobs:
+  `storage.uploads_sweep` (hourly) and `storage.index` (daily, and after uploads and moves). Data-subject exports
+  list a member's buckets, and account erasure wipes their keys.
+
 ## Wave 27 - 2026-10-26
 
 - **Bring your own storage.** Under User Settings > Storage you can connect your own S3-compatible bucket (S3, R2,
