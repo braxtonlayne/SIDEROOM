@@ -526,6 +526,11 @@ impl ChannelInput {
             }
             _ => {}
         }
+        // P29-TV-1 (2): an imported guide matches show names against the whole instance catalog, so it may
+        // only air on an instance channel; a server's or a member's channel would reach past its shelves.
+        if self.kind == ChannelKind::ImportedGuide && self.pool != PoolSource::Instance {
+            return Err("an imported_guide channel draws from the instance catalog; a server or personal channel must be rule_based or manual".into());
+        }
         self.rules.validate()?;
         self.rules.normalise();
         Ok(self)
@@ -735,6 +740,28 @@ mod tests {
         }))
         .unwrap();
         assert!(bad.checked().is_err());
+    }
+
+    #[test]
+    fn an_imported_guide_channel_must_be_an_instance_channel() {
+        let guild: ChannelInput = serde_json::from_value(serde_json::json!({
+            "number": 1, "name": "Grid", "kind": "imported_guide",
+            "pool": {"kind": "guild", "guild_id": "77"}
+        }))
+        .unwrap();
+        assert!(guild.checked().unwrap_err().contains("imported_guide"));
+        let personal: ChannelInput = serde_json::from_value(serde_json::json!({
+            "number": 1, "name": "Grid", "kind": "imported_guide",
+            "pool": {"kind": "personal", "user_id": "5"}
+        }))
+        .unwrap();
+        assert!(personal.checked().is_err());
+        // No pool: the instance, as before.
+        let instance: ChannelInput = serde_json::from_value(serde_json::json!({
+            "number": 1, "name": "Grid", "kind": "imported_guide"
+        }))
+        .unwrap();
+        assert_eq!(instance.checked().unwrap().pool, PoolSource::Instance);
     }
 
     #[test]

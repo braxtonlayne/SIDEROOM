@@ -191,7 +191,11 @@ const UPSERT_TAIL: &str = " ON CONFLICT (id) DO UPDATE SET start_ms = EXCLUDED.s
 #[async_trait]
 impl TvRepository for PgTvRepo {
     async fn list_channels(&self) -> TvResult<Vec<ChannelRecord>> {
-        let sql = format!("SELECT {CHANNEL_COLS} FROM tv_channels ORDER BY number, id");
+        // The guide order (P29-TV-1): instance channels, then each server's, then personal ones, by number within each.
+        let sql = format!(
+            "SELECT {CHANNEL_COLS} FROM tv_channels ORDER BY CASE pool_source WHEN 'instance' THEN 0 \
+             WHEN 'guild' THEN 1 ELSE 2 END, guild_id NULLS FIRST, owner_user_id NULLS FIRST, number, id"
+        );
         sqlx::query(sqlx::AssertSqlSafe(sql))
             .fetch_all(&self.pool)
             .await

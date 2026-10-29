@@ -56,6 +56,17 @@ impl PoolSource {
         }
     }
 
+    /// The guide order of sources (P29-TV-1): instance first, then servers by id, then members by id; channel
+    /// numbers repeat across sources, so the number sorts within this key. Mirrors the `ORDER BY` of the
+    /// Postgres repository.
+    pub fn guide_rank(self) -> (u8, i64, i64) {
+        match self {
+            Self::Instance => (0, 0, 0),
+            Self::Guild { guild_id } => (1, guild_id, 0),
+            Self::Personal { user_id } => (2, 0, user_id),
+        }
+    }
+
     /// Rebuild from the stored columns; `None` when they disagree.
     pub fn from_columns(name: &str, guild_id: Option<i64>, owner: Option<i64>) -> Option<Self> {
         match (name, guild_id, owner) {
@@ -83,6 +94,33 @@ impl PoolSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_guide_lists_instance_then_servers_then_personal_by_number_within_each() {
+        let a = PoolSource::Guild { guild_id: 10 };
+        let b = PoolSource::Guild { guild_id: 20 };
+        let me = PoolSource::Personal { user_id: 5 };
+        let mut v = vec![
+            (me, 1),
+            (b, 1),
+            (a, 2),
+            (PoolSource::Instance, 7),
+            (a, 1),
+            (PoolSource::Instance, 1),
+        ];
+        v.sort_by_key(|(p, n)| (p.guide_rank(), *n));
+        assert_eq!(
+            v,
+            vec![
+                (PoolSource::Instance, 1),
+                (PoolSource::Instance, 7),
+                (a, 1),
+                (a, 2),
+                (b, 1),
+                (me, 1)
+            ]
+        );
+    }
 
     #[test]
     fn columns_agree_or_are_refused() {

@@ -16,6 +16,7 @@ import {
   nowAndNext,
   programProgress,
   stepChannel,
+  compareChannels,
 } from '../model';
 import { favouritesFrom } from '../favourites';
 import { episodeLabel, normaliseGuide, toChannel } from '../api';
@@ -135,6 +136,37 @@ describe('live helpers', () => {
     expect(stepChannel(CHANNELS, 'c101', -1)?.id).toBe('c106');
     expect(stepChannel(CHANNELS, 'gone', 1)?.id).toBe('c101');
     expect(stepChannel([], 'x', 1)).toBeNull();
+  });
+  it('orders instance, then each server, then personal channels, by number within each (P29-TV-1)', () => {
+    const base = CHANNELS[0]!;
+    const inst = { ...base, id: 'i1', number: 1, pool: { kind: 'instance' as const } };
+    const a1 = { ...base, id: 'a1', number: 1, pool: { kind: 'guild' as const, guild_id: '900' } };
+    const b1 = { ...base, id: 'b1', number: 1, pool: { kind: 'guild' as const, guild_id: '1000' } };
+    const a2 = { ...base, id: 'a2', number: 2, pool: { kind: 'guild' as const, guild_id: '900' } };
+    const me = { ...base, id: 'm1', number: 1, pool: { kind: 'personal' as const, user_id: '5' } };
+    const legacy = { ...base, id: 'i9', number: 9, pool: null };
+    const mixed = [me, b1, a2, legacy, a1, inst];
+    expect([...mixed].sort(compareChannels).map((c) => c.id)).toEqual([
+      'i1',
+      'i9',
+      'a1',
+      'a2',
+      'b1',
+      'm1',
+    ]);
+    expect(filterChannels(mixed, {}, 'all', new Set()).map((c) => c.id)).toEqual([
+      'i1',
+      'i9',
+      'a1',
+      'a2',
+      'b1',
+      'm1',
+    ]);
+    // Channel up walks that order and wraps.
+    expect(stepChannel(mixed, 'i9', 1)?.id).toBe('a1');
+    expect(stepChannel(mixed, 'a2', 1)?.id).toBe('b1');
+    expect(stepChannel(mixed, 'm1', 1)?.id).toBe('i1');
+    expect(stepChannel(mixed, 'i1', -1)?.id).toBe('m1');
   });
   it('computes programme progress', () => {
     const b = { start_ms: 0, end_ms: 30 * MIN };

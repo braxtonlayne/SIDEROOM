@@ -135,7 +135,7 @@ impl MemoryTvRepo {
 impl TvRepository for MemoryTvRepo {
     async fn list_channels(&self) -> TvResult<Vec<ChannelRecord>> {
         let mut v = self.lock().channels.clone();
-        v.sort_by_key(|c| (c.input.number, c.id));
+        v.sort_by_key(|c| (c.input.pool.guide_rank(), c.input.number, c.id));
         Ok(v)
     }
 
