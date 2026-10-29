@@ -3,6 +3,8 @@
 // one overall bar. The files go straight to the bucket in 16 MiB parts (mountUploads.ts); a refresh continues them.
 import { Button } from '@sideroom/ui';
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
+import { ConvertStep, type ConvertItem } from '../../convert/ConvertStep';
+import { convertedKey, extensionOf, needsConversion, subtitleKey } from '../../convert/plan';
 import { useT } from '../../i18n';
 import { fromFileList, readDropped, type PickedFile } from '../../review/folderDrop';
 import { uploadKey } from './keys';
@@ -39,6 +41,8 @@ export function UploadPanel({
   const folder = useRef<HTMLInputElement>(null);
   const [skipped, setSkipped] = useState(0);
   const [over, setOver] = useState(false);
+  // Videos in a container browsers do not play (MKV, AVI ...) wait here for the Convert step (BYOS-CNV-001).
+  const [pending, setPending] = useState<{ file: File; key: string }[] | null>(null);
 
   // Pick up what a closed page left behind.
   useEffect(() => {
@@ -55,15 +59,35 @@ export function UploadPanel({
 
   const take = (picked: PickedFile[]) => {
     let bad = 0;
+    const convertible: { file: File; key: string }[] = [];
     for (const p of picked) {
       const key = p.file.size > 0 ? uploadKey(prefix, p.path) : null;
       if (key === null) {
         bad += 1;
         continue;
       }
-      void m.enqueue(mountId, key, p.file).catch(() => undefined);
+      if (needsConversion(p.path)) convertible.push({ file: p.file as File, key });
+      else void m.enqueue(mountId, key, p.file).catch(() => undefined);
     }
     setSkipped(bad);
+    if (convertible.length > 0) setPending((cur) => [...(cur ?? []), ...convertible]);
+  };
+  const send = (key: string, file: File | Blob) => {
+    void m.enqueue(mountId, key, file).catch(() => undefined);
+  };
+  /** The originals stay; the playable file goes to `converted/<original>.mp4`, its subtitles beside it. */
+  const sendConverted = (items: ConvertItem[]) => {
+    const keyOf = new Map(pending?.map((x) => [x.file, x.key]));
+    for (const it of items) {
+      const key = keyOf.get(it.original);
+      if (!key) continue;
+      const out = uploadKey('', convertedKey(key, extensionOf(it.output.name)));
+      if (out) send(out, it.output.file);
+      for (const sub of it.subtitles) {
+        const sk = uploadKey('', subtitleKey(key, sub));
+        if (sk) send(sk, sub.file);
+      }
+    }
   };
   const onFiles = (list: FileList | null) => {
     if (list) take(fromFileList(list));
@@ -134,6 +158,21 @@ export function UploadPanel({
           }}
         />
       </div>
+      {pending && (
+        <ConvertStep
+          files={pending.map((x) => x.file)}
+          onDone={(items) => {
+            for (const x of pending) send(x.key, x.file);
+            sendConverted(items);
+            setPending(null);
+          }}
+          onAsIs={() => {
+            for (const x of pending) send(x.key, x.file);
+            setPending(null);
+          }}
+          onCancel={() => setPending(null)}
+        />
+      )}
       {skipped > 0 && <p role="status">{t('storage.write.upload.skipped', { count: skipped })}</p>}
       {tasks.length > 0 && (
         <section className="sto-dock" aria-label={t('storage.write.dock.title')}>

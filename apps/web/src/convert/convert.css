@@ -1,0 +1,33 @@
+/* The Convert step and its progress bar (BYOS-CNV-001). Semantic tokens only (--ui-*); logical properties only. */
+.cnv-step {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.cnv-title {
+  margin: 0;
+}
+.cnv-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cnv-list li {
+  display: grid;
+  gap: 4px;
+}
+.cnv-progress {
+  display: grid;
+  gap: 4px;
+}
+.cnv-progress progress {
+  inline-size: 100%;
+}
+.cnv-progress-text {
+  color: var(--ui-text-muted, inherit);
+}
