@@ -7,6 +7,8 @@ use utoipa::ToSchema;
 
 use crate::tz::Zone;
 
+pub use crate::pool_source::PoolSource;
+
 /// Serde adapter: snowflakes travel as decimal strings.
 pub mod id {
     use serde::{Deserialize, Deserializer, Serializer};
@@ -469,6 +471,9 @@ pub struct ChannelInput {
     pub filler_policy: FillerPolicy,
     #[serde(default)]
     pub rules: ChannelRules,
+    /// Where the pools draw from; the instance catalog when absent.
+    #[serde(default)]
+    pub pool: PoolSource,
 }
 
 fn yes() -> bool {
@@ -512,6 +517,14 @@ impl ChannelInput {
         }
         if Zone::parse(&self.timezone).is_none() {
             return Err(format!("Unknown timezone {:?}", self.timezone));
+        }
+        match self.pool {
+            PoolSource::Guild { guild_id: id } | PoolSource::Personal { user_id: id }
+                if id <= 0 =>
+            {
+                return Err("pool names an unknown server or member".into());
+            }
+            _ => {}
         }
         self.rules.validate()?;
         self.rules.normalise();
@@ -567,6 +580,8 @@ pub struct Channel {
     pub age_restricted: bool,
     pub enabled: bool,
     pub filler_policy: FillerPolicy,
+    /// Where the pools draw from: the instance catalog, one server's shelves, or one member's shelf.
+    pub pool: PoolSource,
     /// Distinct members who fetched a live playlist in the last 45 seconds.
     pub viewers: u32,
     pub now: Option<Block>,
@@ -703,6 +718,23 @@ mod tests {
                 "days": [4, 4, 5], "pool": {"genres": [" Action "], "title_ids": ["12", 13]}}]}
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn a_channel_pool_defaults_to_the_instance_and_must_name_a_real_owner() {
+        assert_eq!(input().checked().unwrap().pool, PoolSource::Instance);
+        let g: ChannelInput = serde_json::from_value(serde_json::json!({
+            "number": 1, "name": "Club", "kind": "rule_based",
+            "pool": {"kind": "guild", "guild_id": "77"}
+        }))
+        .unwrap();
+        assert_eq!(g.pool, PoolSource::Guild { guild_id: 77 });
+        let bad: ChannelInput = serde_json::from_value(serde_json::json!({
+            "number": 1, "name": "Club", "kind": "rule_based",
+            "pool": {"kind": "personal", "user_id": 0}
+        }))
+        .unwrap();
+        assert!(bad.checked().is_err());
     }
 
     #[test]

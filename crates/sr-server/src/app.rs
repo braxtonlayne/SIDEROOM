@@ -738,9 +738,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let tv_service = sr_tv::TvService::new(
         Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
         Arc::new(
-            crate::tv_catalog::RepoTvCatalog::new(cinema_repo).with_asset_durations(Arc::new(
-                crate::tv_catalog::PgAssetDurations::new(pool.clone()),
-            )),
+            crate::tv_catalog::RepoTvCatalog::new(cinema_repo)
+                .with_asset_durations(Arc::new(crate::tv_catalog::PgAssetDurations::new(
+                    pool.clone(),
+                )))
+                .with_shelves(crate::tv_catalog::ShelfMounts::new(
+                    mount_repo.clone(),
+                    scope_facts.clone(),
+                )),
         ),
         clock.clone(),
         id_src.clone(),
@@ -749,7 +754,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
         signer: Arc::new(cdn_signer.clone()),
     })
-    .with_slate_source(tv_slate.clone());
+    .with_slate_source(tv_slate.clone())
+    .with_access(Arc::new(crate::tv_catalog::GuildChannelAccess::new(
+        scope_facts.clone(),
+    )));
     let tv_deps = Arc::new(
         routes::tv::TvDeps::new(tv_service)
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
@@ -1167,6 +1175,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // BYOS storage mounts (BYOS-MNT-001): the member's and the server's own buckets, credentials sealed
     // with the server secret.
+    // BYOS-NAV-001: `STORAGE_MOUNT_UPDATE` for the nav's Auto mode.
+    let storage_events = Arc::new(routes::storage::events::StorageEvents::new(bus.clone()));
     let mounts_deps = Arc::new(
         routes::storage::mounts::MountsDeps::new(
             mount_repo.clone(),
@@ -1180,7 +1190,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_public_origin(&cfg.server.public_url)
         .with_resolver(mount_resolver.clone())
         .with_facts(scope_facts.clone())
-        .with_standing(scope_facts.clone()),
+        .with_standing(scope_facts.clone())
+        .with_events(storage_events.clone()),
     );
 
     // GIF picker (LNG-EXP-005): off unless `[gif]` names a provider and key.
@@ -1480,6 +1491,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }))
         .extension(push_deps)
         .extension(mounts_deps)
+        .extension(storage_events)
         .extension(gif_deps)
         .extension(lookup_deps)
         .extension(Arc::new(routes::inbox::InboxDeps::new(Arc::new(

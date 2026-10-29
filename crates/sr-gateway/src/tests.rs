@@ -1345,6 +1345,26 @@ async fn expressions_updates_dispatch_with_the_expressions_intent() {
     other.silent().await;
 }
 
+/// BYOS-NAV-001: a server's mount change reaches the server's sessions as `STORAGE_MOUNT_UPDATE`. It carries only
+/// ids and the kind of change, so it has no intent gate.
+#[tokio::test]
+async fn storage_mount_updates_are_dispatched_to_members() {
+    let e = env();
+    let mut member = connect(&e);
+    member.identify("bot:1", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::StorageMountUpdated {
+            guild: G1,
+            payload: json!({ "mount_id": "9", "owner_kind": "guild", "guild_id": "1", "change": "created" }),
+        },
+    )
+    .await;
+    let d = member.expect_event("STORAGE_MOUNT_UPDATE").await;
+    assert_eq!(d["d"]["mount_id"], "9");
+    assert_eq!(d["d"]["change"], "created");
+}
+
 #[tokio::test]
 async fn guild_appearance_update_is_dispatched_to_members() {
     let e = env();

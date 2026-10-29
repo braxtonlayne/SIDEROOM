@@ -151,7 +151,10 @@ impl TvRepository for MemoryTvRepo {
         now_ms: i64,
     ) -> TvResult<ChannelRecord> {
         let mut s = self.lock();
-        if s.channels.iter().any(|c| c.input.number == input.number) {
+        if s.channels
+            .iter()
+            .any(|c| c.input.number == input.number && c.input.pool == input.pool)
+        {
             return Err(TvError::Conflict(format!(
                 "Channel number {} is taken",
                 input.number
@@ -178,7 +181,7 @@ impl TvRepository for MemoryTvRepo {
         let mut s = self.lock();
         if s.channels
             .iter()
-            .any(|c| c.id != id && c.input.number == input.number)
+            .any(|c| c.id != id && c.input.number == input.number && c.input.pool == input.pool)
         {
             return Err(TvError::Conflict(format!(
                 "Channel number {} is taken",

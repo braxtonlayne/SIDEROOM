@@ -9,6 +9,7 @@
 //!
 //! Nothing here has played a real stream; see the handoff for what is verified.
 
+pub mod access;
 pub mod catalog;
 pub mod engine;
 pub mod error;
@@ -17,12 +18,14 @@ pub mod guide;
 pub mod live;
 pub mod model;
 pub mod pg;
+pub mod pool_source;
 pub mod presence;
 pub mod repo;
 pub mod schedule;
 pub mod service;
 pub mod tz;
 
+pub use access::ChannelAccess;
 pub use catalog::{CatalogItem, MemoryCatalog, TitleRef, TvCatalog};
 pub use error::{TvError, TvResult};
 pub use presence::{MemoryPresence, Presence};
@@ -35,3 +38,5 @@ pub use service::{
 mod resolve_tests;
 #[cfg(test)]
 mod service_tests;
+#[cfg(test)]
+mod shelf_tests;

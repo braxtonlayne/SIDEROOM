@@ -18,6 +18,7 @@ import { useT, type MessageKey } from '../i18n';
 import { browseSeries, keys, searchLibrary } from './api';
 import { GenrePicker, TagField } from './BrowseFilters';
 import { VirtualGrid } from './VirtualGrid';
+import { ShelfEmptyState } from '../storage/ShelfEmpty';
 import { defaultAgeFilter, useLibrarySettings } from './prefs';
 import type { AgeFilter, BrowseParams, SeriesKind, SeriesStatus, SortKey } from './types';
 import { AgeBadge, KIND_LABEL, label, SeriesCard, STATUS_LABEL } from './ui';
@@ -250,6 +251,21 @@ export function Browse({ search }: { search: BrowseSearch }) {
 
 /* ---------------------------------------------------------------- results */
 
+/** No search, filter or kind chosen: an empty answer then means there is nothing to browse at all. */
+function isBare(p: BrowseParams): boolean {
+  return (
+    !p.kind &&
+    !p.status &&
+    !p.language &&
+    p.year_from === undefined &&
+    p.year_to === undefined &&
+    p.rating_min === undefined &&
+    !p.genres?.length &&
+    !p.exclude_genres?.length &&
+    !p.tags?.length
+  );
+}
+
 function Results({ params, view }: { params: BrowseParams; view: 'grid' | 'list' }) {
   const t = useT();
   const q = useInfiniteQuery({
@@ -287,6 +303,7 @@ function Results({ params, view }: { params: BrowseParams; view: 'grid' | 'list'
     );
   const items = q.data.pages.flatMap((p) => p.items);
   const total = q.data.pages[0]?.total ?? 0;
+  if (items.length === 0 && isBare(params)) return <ShelfEmptyState kind="library" />;
   if (items.length === 0)
     return (
       <EmptyState

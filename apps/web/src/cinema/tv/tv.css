@@ -685,3 +685,15 @@
     scroll-behavior: auto;
   }
 }
+
+/* The shelf chip on a channel (BYOS-TV-001): semantic tokens only, logical properties. */
+.tv-pool-chip {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding-block: 1px;
+  padding-inline: 6px;
+  border: 1px solid var(--sr-line);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--sr-text-3);
+}

@@ -134,3 +134,11 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* The empty-shelf state's two links (BYOS-NAV-001). */
+.shv-empty-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}

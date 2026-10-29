@@ -62926,7 +62926,7 @@
         "tags": [
           "member"
         ],
-        "summary": "Enabled channels by number, each with what is on now and next.",
+        "summary": "Enabled channels by number, each with what is on now and next. A server's channel is listed only to those\nwho may watch it, and a personal channel only to its owner (BYOS-TV-001).",
         "operationId": "tv_channels",
         "responses": {
           "200": {
@@ -101166,6 +101166,7 @@
           "age_restricted",
           "enabled",
           "filler_policy",
+          "pool",
           "viewers"
         ],
         "properties": {
@@ -101229,6 +101230,10 @@
           "number": {
             "type": "integer",
             "format": "int32"
+          },
+          "pool": {
+            "$ref": "#/components/schemas/TvPoolSource",
+            "description": "Where the pools draw from: the instance catalog, one server's shelves, or one member's shelf."
           },
           "rules": {
             "oneOf": [
@@ -101311,6 +101316,10 @@
           "number": {
             "type": "integer",
             "format": "int32"
+          },
+          "pool": {
+            "$ref": "#/components/schemas/TvPoolSource",
+            "description": "Where the pools draw from; the instance catalog when absent."
           },
           "rules": {
             "$ref": "#/components/schemas/TvRules"
@@ -101908,6 +101917,61 @@
             "format": "int32"
           }
         }
+      },
+      "TvPoolSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instance"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "guild_id",
+              "kind"
+            ],
+            "properties": {
+              "guild_id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "guild"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "user_id",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "personal"
+                ]
+              },
+              "user_id": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Where a channel's pools draw from.\n\n* `instance`: the instance catalog, as before (no owner).\n* `guild`: a server's shelves only, that is the server's own mounts and the instance bucket (mount 1) when\n  it is attached to the server. Every viewer who may watch the server's Cinema sees the same guide, so\n  nothing is skipped per viewer.\n* `personal`: one member's own shelf, for that member alone. A friend's shelf is never a source."
       },
       "TvPreview": {
         "type": "object",

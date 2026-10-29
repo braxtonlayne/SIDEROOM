@@ -3,7 +3,6 @@ import { RovingScope } from '../a11y/RovingNav';
 import {
   ArrowLink,
   DisplayHeading,
-  EmptyState,
   Eyebrow,
   FilterChips,
   GoldButton,
@@ -17,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { t, useT } from '../i18n';
 import { getDiscover, keys } from './api';
 import { TrailerModal } from './TrailerModal';
+import { ShelfEmptyState } from '../storage/ShelfEmpty';
 import type { Row, Title, TrendingScope } from './types';
 import {
   AgeBadge,
@@ -278,10 +278,7 @@ export function Discover() {
   if (hero.length === 0 && visible.length === 0)
     return (
       <div className="cin-page">
-        <EmptyState
-          title={tr('cinema.discover.emptyTitle')}
-          description={tr('cinema.discover.emptyBody')}
-        />
+        <ShelfEmptyState kind="cinema" />
       </div>
     );
 

@@ -10,6 +10,7 @@ use sr_media::playback::{PlaybackAsset, PlaybackSource};
 use sr_media::playlist::UrlSigner;
 use utoipa::ToSchema;
 
+use crate::access::ChannelAccess;
 use crate::catalog::{CatalogItem, TvCatalog};
 use crate::engine::{EngineChannel, Generated, OFF_AIR_TITLE, Pools, SLATE_TITLE, generate};
 use crate::error::{TvError, TvResult};
@@ -246,6 +247,8 @@ pub struct TvService {
     slate_cache: std::sync::Mutex<Option<(i64, Option<i64>)>>,
     /// The off-air master was logged once for lacking a standard rung (D-267).
     slate_rung_logged: std::sync::atomic::AtomicBool,
+    /// Who may watch a server's channel (BYOS-TV-001). Unset: server channels are watched by nobody.
+    access: Option<Arc<dyn ChannelAccess>>,
     /// One schedule extension at a time (the writes are idempotent anyway; this saves duplicate work).
     extend: tokio::sync::Mutex<()>,
 }
@@ -306,8 +309,15 @@ impl TvService {
             slate_source: None,
             slate_cache: std::sync::Mutex::new(None),
             slate_rung_logged: std::sync::atomic::AtomicBool::new(false),
+            access: None,
             extend: tokio::sync::Mutex::new(()),
         }
+    }
+
+    /// Who may watch a server's channel: the composition root answers from the server's storage grants.
+    pub fn with_access(mut self, access: Arc<dyn ChannelAccess>) -> Self {
+        self.access = Some(access);
+        self
     }
 
     /// Replace the viewer counter (watch parties and metrics can share one).
@@ -532,6 +542,7 @@ impl TvService {
             age_restricted: i.age_restricted,
             enabled: i.enabled,
             filler_policy: i.filler_policy,
+            pool: i.pool,
             viewers: self.presence.count(rec.id, self.clock_ms()),
             now: now_next.and_then(|(n, _)| n).map(BlockRecord::wire),
             next: now_next.and_then(|(_, n)| n).map(BlockRecord::wire),
@@ -564,15 +575,22 @@ impl TvService {
         for d in &ch.input.rules.dayparts {
             dayparts.push(
                 self.catalog
-                    .pool(&d.pool, ch.input.age_restricted, POOL_LIMIT)
+                    .pool_in(ch.input.pool, &d.pool, ch.input.age_restricted, POOL_LIMIT)
                     .await?
                     .into_iter()
-                    .filter(|i| i.duration_ms >= 1000)
+                    // An item that cannot air as it is (not web-native, not converted) is left out for
+                    // everyone alike, so the guide stays the same for every viewer.
+                    .filter(|i| i.duration_ms >= 1000 && i.playable)
                     .collect(),
             );
         }
         let bumpers = if ch.input.filler_policy == FillerPolicy::Bumpers {
-            self.catalog.bumpers(BUMPER_LIMIT).await?
+            let mut b = self.catalog.bumpers(BUMPER_LIMIT).await?;
+            if let Some(mounts) = self.catalog.mounts_of(ch.input.pool).await? {
+                b.retain(|i| mounts.contains(&i.mount_id));
+            }
+            b.retain(|i| i.playable);
+            b
         } else {
             Vec::new()
         };
@@ -808,6 +826,7 @@ impl TvService {
     /// confirmation (D-184).
     pub async fn tune(&self, viewer: Viewer, id: i64) -> TvResult<Tune> {
         let rec = self.public_channel(id).await?;
+        self.require_watch_rec(viewer, &rec).await?;
         let now = self.clock_ms();
         self.ensure(&rec, now + AHEAD_MS).await?;
         let (cur, next) = self.now_next(id, now).await?;
@@ -873,6 +892,7 @@ impl TvService {
     /// The block on air, with the one before it when they touch, ready to render.
     async fn on_air(&self, viewer: Viewer, id: i64, now: i64) -> TvResult<Vec<LiveBlock>> {
         let rec = self.public_channel(id).await?;
+        self.require_watch_rec(viewer, &rec).await?;
         self.ensure(&rec, now + AHEAD_MS).await?;
         let cur = self
             .repo
@@ -1287,12 +1307,79 @@ impl TvService {
         }
     }
 
-    async fn playable(&self, title_id: i64, episode_id: Option<i64>) -> TvResult<CatalogItem> {
-        self.catalog
+    /// A programme the editor may put on `pool`'s channel: it must exist, have a runtime and be playable, and
+    /// live on a shelf the channel may draw from. A member's personal mount is refused on a server channel,
+    /// with the reason (BYOS-TV-001).
+    async fn playable(
+        &self,
+        pool: PoolSource,
+        title_id: i64,
+        episode_id: Option<i64>,
+    ) -> TvResult<CatalogItem> {
+        let item = self
+            .catalog
             .item(title_id, episode_id)
             .await?
-            .filter(|i| i.duration_ms >= 1000)
-            .ok_or_else(|| TvError::Invalid("That title or episode cannot be played".into()))
+            .filter(|i| i.duration_ms >= 1000 && i.playable)
+            .ok_or_else(|| TvError::Invalid("That title or episode cannot be played".into()))?;
+        if !self.catalog.admits(pool, &item).await? {
+            return Err(TvError::Invalid(pool.refusal().into()));
+        }
+        Ok(item)
+    }
+
+    /// Whether `viewer` may watch a channel with this pool: the instance channels are open to every member, a
+    /// personal channel to its owner, a server channel to those the server's storage grants let see its Cinema.
+    pub async fn may_watch(&self, viewer: Viewer, pool: PoolSource) -> TvResult<bool> {
+        match pool {
+            PoolSource::Instance => Ok(true),
+            PoolSource::Personal { user_id } => Ok(user_id == viewer.user_id),
+            PoolSource::Guild { .. } => match &self.access {
+                Some(a) => a.may_watch(viewer, pool).await,
+                None => Ok(false),
+            },
+        }
+    }
+
+    /// 404 unless `viewer` may watch the channel (a channel one may not see does not exist for them).
+    pub async fn require_watch(&self, viewer: Viewer, channel_id: i64) -> TvResult<()> {
+        let rec = self.public_channel(channel_id).await?;
+        self.require_watch_rec(viewer, &rec).await
+    }
+
+    async fn require_watch_rec(&self, viewer: Viewer, rec: &ChannelRecord) -> TvResult<()> {
+        if self.may_watch(viewer, rec.input.pool).await? {
+            Ok(())
+        } else {
+            Err(TvError::NotFound("channel"))
+        }
+    }
+
+    /// The channels `viewer` may watch, in order.
+    pub async fn visible_channels(
+        &self,
+        viewer: Viewer,
+        channels: Vec<Channel>,
+    ) -> TvResult<Vec<Channel>> {
+        let mut out = Vec::with_capacity(channels.len());
+        for c in channels {
+            if self.may_watch(viewer, c.pool).await? {
+                out.push(c);
+            }
+        }
+        Ok(out)
+    }
+
+    /// A guide without the channels `viewer` may not watch.
+    pub async fn visible_guide(&self, viewer: Viewer, mut guide: Guide) -> TvResult<Guide> {
+        let mut keep = Vec::with_capacity(guide.channels.len());
+        for g in guide.channels {
+            if self.may_watch(viewer, g.channel.pool).await? {
+                keep.push(g);
+            }
+        }
+        guide.channels = keep;
+        Ok(guide)
     }
 
     async fn place_record(&self, rec: BlockRecord) -> TvResult<Block> {
@@ -1311,7 +1398,9 @@ impl TvService {
     pub async fn place_block(&self, a: Actor, id: i64, input: PlaceInput) -> TvResult<Block> {
         a.need()?;
         let rec = self.channel_record(id).await?;
-        let item = self.playable(input.title_id, input.episode_id).await?;
+        let item = self
+            .playable(rec.input.pool, input.title_id, input.episode_id)
+            .await?;
         let end = input.end_ms.unwrap_or(input.start_ms + item.duration_ms);
         if input.start_ms < 0 || end <= input.start_ms {
             return Err(TvError::Invalid("end_ms must be after start_ms".into()));
@@ -1358,7 +1447,9 @@ impl TvService {
     pub async fn set_now(&self, a: Actor, id: i64, input: SetNowInput) -> TvResult<Block> {
         a.need()?;
         let rec = self.channel_record(id).await?;
-        let item = self.playable(input.title_id, input.episode_id).await?;
+        let item = self
+            .playable(rec.input.pool, input.title_id, input.episode_id)
+            .await?;
         let offset = input.offset_ms.unwrap_or(0);
         if offset < 0 || offset >= item.duration_ms {
             return Err(TvError::Invalid(
