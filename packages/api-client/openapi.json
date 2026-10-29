@@ -77972,6 +77972,25 @@
           }
         }
       },
+      "ConvertPolicyView": {
+        "type": "object",
+        "description": "What the browser converter is told on `GET /users/@me/shelves/summary` (P29-CNV-1).",
+        "required": [
+          "max_mib",
+          "require_client_remux"
+        ],
+        "properties": {
+          "max_mib": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`byos.client_convert_max_mib`: larger files are refused with the worker hint."
+          },
+          "require_client_remux": {
+            "type": "boolean",
+            "description": "`byos.require_client_remux`: the Convert step offers no \"upload as they are\"."
+          }
+        }
+      },
       "CorsResultObject": {
         "type": "object",
         "description": "The state of a bucket's CORS rules against the one this site needs.",
@@ -97520,7 +97539,8 @@
         "required": [
           "cinema",
           "library",
-          "music"
+          "music",
+          "convert"
         ],
         "properties": {
           "catalog": {
@@ -97538,6 +97558,10 @@
             "type": "integer",
             "format": "int64",
             "description": "Cinema shelves."
+          },
+          "convert": {
+            "$ref": "#/components/schemas/ConvertPolicyView",
+            "description": "The browser converter's policy (P29-CNV-1): its size cap and whether the server wants converted uploads."
           },
           "library": {
             "type": "integer",

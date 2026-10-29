@@ -986,7 +986,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"edit","method":"patch","path":"/users/@me/scheduled-messages/:id","status":200,"body":{"channel_id":"1","content":"string","created_at":"2026-01-01T00:00:00.000Z","id":"1","send_at":"2026-01-01T00:00:00.000Z","status":"string"}},
   {"id":"get_settings","method":"get","path":"/users/@me/settings","status":200,"body":{"settings":{},"version":0}},
   {"id":"patch_settings","method":"patch","path":"/users/@me/settings","status":200,"body":{"settings":{},"version":0}},
-  {"id":"summary","method":"get","path":"/users/@me/shelves/summary","status":200,"body":{"cinema":0,"library":0,"music":0}},
+  {"id":"summary","method":"get","path":"/users/@me/shelves/summary","status":200,"body":{"cinema":0,"convert":{"max_mib":0,"require_client_remux":false},"library":0,"music":0}},
   {"id":"list_user_features","method":"get","path":"/users/@me/sr/features","status":200,"body":[{"description":"string","id":"1","name":"string","overrides":{},"schema":{},"section":"string","settings":{}}]},
   {"id":"reset_user_feature","method":"delete","path":"/users/@me/sr/features/:feature_id","status":204,"body":null},
   {"id":"patch_user_feature","method":"patch","path":"/users/@me/sr/features/:feature_id","status":200,"body":{"description":"string","id":"1","name":"string","overrides":{},"schema":{},"section":"string","settings":{}}},

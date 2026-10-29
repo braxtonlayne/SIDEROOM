@@ -16686,6 +16686,16 @@ export interface components {
             name: string;
             user_id?: string | null;
         };
+        /** @description What the browser converter is told on `GET /users/@me/shelves/summary` (P29-CNV-1). */
+        ConvertPolicyView: {
+            /**
+             * Format: int64
+             * @description `byos.client_convert_max_mib`: larger files are refused with the worker hint.
+             */
+            max_mib: number;
+            /** @description `byos.require_client_remux`: the Convert step offers no "upload as they are". */
+            require_client_remux: boolean;
+        };
         /** @description The state of a bucket's CORS rules against the one this site needs. */
         CorsResultObject: {
             /** @description When it was checked (ISO 8601). */
@@ -23082,6 +23092,8 @@ export interface components {
              * @description Cinema shelves.
              */
             cinema: number;
+            /** @description The browser converter's policy (P29-CNV-1): its size cap and whether the server wants converted uploads. */
+            convert: components["schemas"]["ConvertPolicyView"];
             /**
              * Format: int64
              * @description Library shelves.
