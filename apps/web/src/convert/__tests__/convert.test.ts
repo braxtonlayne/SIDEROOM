@@ -242,6 +242,17 @@ describe('Converter', () => {
     expect(f.state.loaded).toBe(0);
   });
 
+  it('refuses a file over 2048 MiB when no limit is passed (the 2 GiB heap of the shipped core, P29-CNV-1)', async () => {
+    const f = fakeEngine(MKV_LOG);
+    const big = new File([new Uint8Array(1)], 'big.mkv');
+    Object.defineProperty(big, 'size', { value: 2049 * 1024 * 1024 });
+    await expect(createConverter(() => f.engine).remux(big)).rejects.toMatchObject({
+      code: 'TOO_LARGE',
+      limitMiB: 2048,
+    });
+    expect(f.state.loaded).toBe(0);
+  });
+
   it('turns an ffmpeg failure, an empty output and an unreadable source into typed errors', async () => {
     const bad = fakeEngine(MKV_LOG, { code: 1 });
     await expect(createConverter(() => bad.engine).remux(mkv())).rejects.toMatchObject({

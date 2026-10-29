@@ -4,6 +4,7 @@ import { beforeEach, vi } from 'vitest';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { ConvertStep } from '../ConvertStep';
 import { parseProbeLog } from '../probe';
+import { http, HttpResponse, server } from '../../test/server';
 import { ConvertError, type Converter } from '../types';
 
 const LOG = [
@@ -147,6 +148,44 @@ describe('ConvertStep', () => {
     );
     expect(screen.queryByRole('button', { name: 'Upload as they are' })).toBeNull();
     expect(screen.getByText(/only accepts files that play/)).toBeInTheDocument();
+  });
+
+  it('takes the size cap and "required" from the shelves summary when the dialog passes neither', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/shelves/summary', () =>
+        HttpResponse.json({
+          cinema: 0,
+          library: 0,
+          music: 0,
+          convert: { max_mib: 512, require_client_remux: true },
+        }),
+      ),
+    );
+    const MiB = 1024 * 1024;
+    const big = new File([new Uint8Array(1)], 'Big.mkv');
+    Object.defineProperty(big, 'size', { value: 513 * MiB });
+    const user = userEvent.setup();
+    render(
+      <ConvertStep
+        files={[big]}
+        converter={fake({
+          // The real converter's guard: the file against the limit it is given (2048 when none).
+          probe: async (file, o) => {
+            const limit = o?.maxMiB ?? 2048;
+            if (file.size > limit * MiB) throw new ConvertError('TOO_LARGE', 'big', limit);
+            return probe;
+          },
+        })}
+        onDone={vi.fn()}
+        onAsIs={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    // required: no "upload as they are".
+    expect(await screen.findByText(/only accepts files that play/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Upload as they are' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Convert in this browser' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('over 512 MiB');
   });
 
   it('says what remux cannot fix, and stop cancels the job', async () => {

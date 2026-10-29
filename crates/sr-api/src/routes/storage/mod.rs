@@ -22,6 +22,8 @@ mod objects;
 mod scopes;
 pub mod shelves;
 mod transcode;
+#[cfg(test)]
+mod transcode_tests;
 mod uploads;
 #[cfg(test)]
 mod uploads_tests;
@@ -236,6 +238,7 @@ pub fn router() -> Router<AppState> {
         scopes::IncomingShare,
         scopes::ShelvesSummaryView,
         scopes::CatalogCounts,
+        scopes::ConvertPolicyView,
         scopes::GrantsBody,
         attach::AttachBody,
         attach::AttachmentView,

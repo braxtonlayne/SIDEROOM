@@ -14,7 +14,7 @@ mod staff;
 mod transcode;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use crate::{
     error::HttpError,

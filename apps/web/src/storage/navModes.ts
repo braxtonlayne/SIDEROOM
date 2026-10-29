@@ -13,6 +13,14 @@ export interface ShelvesSummary {
   library: number;
   music: number;
   catalog?: { cinema: number; library: number } | null;
+  /** The browser converter's policy (P29-CNV-1); absent from an older server. */
+  convert?: ConvertPolicy;
+}
+
+/** `byos.client_convert_max_mib` and `byos.require_client_remux`, as the summary reports them. */
+export interface ConvertPolicy {
+  max_mib: number;
+  require_client_remux: boolean;
 }
 export const getShelvesSummary = () =>
   apiFetch<ShelvesSummary>('/users/@me/shelves/summary', { retries: 0 });

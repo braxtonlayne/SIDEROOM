@@ -4,8 +4,9 @@
 // transcoder when the decision table in `decide.ts` picks it), shows progress with a
 // cancel, and hands the results to the dialog, which uploads them by its own path.
 import { Button, Checkbox, Notice } from '@sideroom/ui';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '../i18n';
+import { getShelvesSummary, type ConvertPolicy } from '../storage/navModes';
 import { ConvertProgressBar } from './ConvertProgress';
 import { decideRemux, getConverter } from './index';
 import { planWithWebCodecs, transcodeInTab } from './webcodecsBridge';
@@ -44,9 +45,9 @@ const REASON_KEY: Record<string, string> = {
 
 export function ConvertStep({
   files,
-  required = false,
+  required: requiredProp,
   subtitles = true,
-  maxMiB,
+  maxMiB: maxMiBProp,
   converter,
   onDone,
   onAsIs,
@@ -54,11 +55,12 @@ export function ConvertStep({
 }: {
   /** Files that need conversion (`needsConversion(name)`). */
   files: File[];
-  /** The server refuses files that were not converted (`byos.require_client_remux`): no "upload as they are". */
+  /** The server wants converted files (`byos.require_client_remux`): no "upload as they are". When unset, the
+   *  shelves summary's `convert.require_client_remux` decides (P29-CNV-1); a failed fetch means not required. */
   required?: boolean;
   /** Offer subtitle extraction (a dialog with nowhere to put sidecar files passes false). */
   subtitles?: boolean;
-  /** `byos.client_convert_max_mib`; the converter's default (4096) when unset. */
+  /** `byos.client_convert_max_mib`; when unset, the shelves summary's `convert.max_mib`, else 2048. */
   maxMiB?: number;
   converter?: Converter;
   /** Every file converted (the dialog uploads `items`; `native` files are the ones that needed nothing). */
@@ -73,6 +75,23 @@ export function ConvertStep({
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState<{ items: ConvertItem[]; native: File[] } | null>(null);
   const abort = useRef<AbortController | null>(null);
+  // The operator's converter policy, from the shelves summary, when the dialog did not pass one (P29-CNV-1).
+  const [policy, setPolicy] = useState<ConvertPolicy | null>(null);
+  const needPolicy = requiredProp === undefined || maxMiBProp === undefined;
+  useEffect(() => {
+    if (!needPolicy) return;
+    let live = true;
+    getShelvesSummary()
+      .then((s) => {
+        if (live && s.convert) setPolicy(s.convert);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [needPolicy]);
+  const required = requiredProp ?? policy?.require_client_remux ?? false;
+  const maxMiB = maxMiBProp ?? (policy && policy.max_mib > 0 ? policy.max_mib : undefined);
 
   const setRow = (i: number, r: Row) => setRows((cur) => cur.map((x, j) => (j === i ? r : x)));
 

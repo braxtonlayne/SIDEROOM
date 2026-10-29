@@ -59,7 +59,7 @@ impl Sealer for XorSealer {
 }
 
 /// The in-memory facts plus the share and grant rows the trait wants; only the facts matter here.
-struct Store(Arc<MemoryScopeFacts>);
+pub(super) struct Store(pub(super) Arc<MemoryScopeFacts>);
 
 #[async_trait]
 impl ScopeFacts for Store {

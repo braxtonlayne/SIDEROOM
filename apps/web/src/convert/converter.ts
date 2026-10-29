@@ -12,7 +12,7 @@ import {
   type ProbeResult,
 } from './types';
 
-export const DEFAULT_MAX_MIB = 4096;
+export const DEFAULT_MAX_MIB = 2048;
 const MIB = 1024 * 1024;
 
 /** The last few log lines, for an error message a person can report. */

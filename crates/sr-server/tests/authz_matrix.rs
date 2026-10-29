@@ -5288,6 +5288,27 @@ async fn storage_scopes_hold_over_http() {
         presign(&outsider, &g_mount, "a.mp3").await,
         404
     );
+    // P29-CNV-1 (3): a guild mount is transcoded only on the order of the operator (`MANAGE_TRANSCODE`); the
+    // server's manager (MANAGE_GUILD, so the `manage` grant) gets 403, a non-member 404.
+    let queue = async |who: &Cred| -> Resp {
+        srv.call(
+            who,
+            "POST",
+            &format!("/storage/mounts/{g_mount}/transcode"),
+            Some(&json!({"key": "Films/a.mkv", "format": "mp4"})),
+        )
+        .await
+    };
+    expect!(
+        "a guild manager queues a guild mount transcode",
+        queue(&modr).await,
+        403
+    );
+    expect!(
+        "a non-member queues a guild mount transcode",
+        queue(&outsider).await,
+        404
+    );
     let role = world.a["overwrite_id"].clone();
     let grants_path = format!("/guilds/{gid}/storage/grants");
     let put_grants = |grants: Value| json!({"role_id": role, "grants": grants});

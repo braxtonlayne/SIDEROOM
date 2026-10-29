@@ -51,7 +51,7 @@ export interface ConvertProgress {
 export interface ConvertOptions {
   signal?: AbortSignal;
   onProgress?: (p: ConvertProgress) => void;
-  /** Refuse sources over this many MiB (`byos.client_convert_max_mib`, default 4096). */
+  /** Refuse sources over this many MiB (`byos.client_convert_max_mib`, default 2048: the bundled core has a 2 GiB heap, P29-CNV-1). */
   maxMiB?: number;
 }
 

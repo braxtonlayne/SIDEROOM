@@ -162,6 +162,8 @@ pub const BYOS_PRESIGN_TTL_CAP: &str = "byos.presign_ttl_cap_secs";
 pub const BYOS_ENDPOINT_ALLOW: &str = "byos.endpoint_allow";
 /// Whether the client must remux before upload (read by the wave-29 media pipeline).
 pub const BYOS_REQUIRE_CLIENT_REMUX: &str = "byos.require_client_remux";
+/// Largest video, in MiB, the browser converter accepts (wave 29, P29-CNV-1; BYOS-CNV-001).
+pub const BYOS_CLIENT_CONVERT_MAX_MIB: &str = "byos.client_convert_max_mib";
 /// Who may connect a bucket of their own: `all`, `patrons` or `staff` (empty means `all`).
 pub const BYOS_WHO_MAY_MOUNT: &str = "byos.who_may_mount";
 /// The accepted values of [`BYOS_WHO_MAY_MOUNT`].
@@ -378,6 +380,14 @@ pub const CATALOG: &[SettingDef] = &[
         default_int: 0,
         description: "Ask the browser to remux a video into a web-playable container before it is uploaded to a bucket (read by the media pipeline of wave 29).",
     },
+    int(
+        BYOS_CLIENT_CONVERT_MAX_MIB,
+        "storage",
+        64,
+        4096,
+        2048,
+        "Largest video, in MiB, the browser converter accepts; larger files get the worker hint. The bundled ffmpeg.wasm core has a 2 GiB heap and the remux holds two or three copies of the output in tab memory, so above 2048 conversions fail on most machines.",
+    ),
     SettingDef {
         key: BYOS_WHO_MAY_MOUNT,
         group: "storage",
@@ -717,6 +727,7 @@ mod tests {
             BYOS_PRESIGN_TTL_CAP,
             BYOS_ENDPOINT_ALLOW,
             BYOS_REQUIRE_CLIENT_REMUX,
+            BYOS_CLIENT_CONVERT_MAX_MIB,
             BYOS_WHO_MAY_MOUNT,
             BYOS_WORKER_FOR_MEMBERS,
         ] {
@@ -733,6 +744,11 @@ mod tests {
         assert_eq!(
             find(BYOS_REQUIRE_CLIENT_REMUX).unwrap().default_value(),
             json!(false)
+        );
+        // The browser converter stops at the 2 GiB the shipped ffmpeg.wasm heap allows (P29-CNV-1).
+        assert_eq!(
+            find(BYOS_CLIENT_CONVERT_MAX_MIB).unwrap().default_value(),
+            json!(2048)
         );
         // The operator's workers serve members only when the operator says so (BYOS-CNV-003).
         assert_eq!(
