@@ -560,13 +560,30 @@ impl JobStore for PgMediaRepo {
                 .bind(format.as_str())
                 .bind(preset.as_str())
                 .bind(sr_media::mount_job::output_object_key(key, ""))
-                .bind(entry)
+                .bind(entry.clone())
                 .bind(serde_json::to_value(&req.outputs).map_err(json_err)?)
                 .bind(i64::try_from(total).unwrap_or(i64::MAX))
                 .bind(id)
                 .execute(&mut *tx)
                 .await
                 .map_err(se)?;
+                // A single MP4 is the original's playable copy at once (migration 1480); the indexer keeps it on
+                // later runs. A copy the member made in the browser wins; an HLS ladder is not a direct key.
+                if format.as_str() == "mp4" {
+                    sqlx::query(
+                        "UPDATE storage_objects SET playable_key = $3, converter = 'worker', converted_at = now() \
+                         WHERE mount_id = $1 AND key = $2 AND (playable_key IS NULL OR converter = 'worker')",
+                    )
+                    .bind(mount_id)
+                    .bind(key)
+                    .bind(format!(
+                        "{}{entry}",
+                        sr_media::mount_job::output_object_key(key, "")
+                    ))
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(se)?;
+                }
             }
             JobSpec::Remux { plan } => {
                 let size = req

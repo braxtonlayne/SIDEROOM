@@ -14,8 +14,9 @@ pub mod shelf;
 pub mod sniff;
 
 pub use classify::{
-    ArtRole, Class, Classified, NameParser, Options, Sidecar, SidecarMap, VideoFacts, VideoRole,
-    classify, classify_all, is_sidecar_name,
+    ArtRole, Class, Classified, DERIVED_PREFIXES, NameParser, Options, Sidecar, SidecarMap,
+    VideoFacts, VideoRole, classify, classify_all, converted_candidates, is_derived,
+    is_sidecar_name,
 };
 
 use async_trait::async_trait;

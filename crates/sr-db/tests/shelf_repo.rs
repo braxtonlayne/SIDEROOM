@@ -569,3 +569,94 @@ async fn edits_are_overrides_that_a_reindex_keeps() {
             .is_err()
     );
 }
+
+/// P29 integration (migrations 1480 and 1501): a shelf plays the playable copy. The browser's
+/// `converted/<stem>.mp4` found by the indexer, else a worker's single MP4 recorded in
+/// `storage_object_transcodes`; the copies themselves are never titles.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn shelves_play_coalesce_playable_key_key() {
+    let db = TestDb::new().await.expect("db");
+    // The worker finished an MP4 of the AVI before the index run.
+    sqlx::query(
+        "INSERT INTO storage_object_transcodes (mount_id, key, format, preset, prefix, entry, job_id) \
+         VALUES (30, 'Movies/Worked.avi', 'mp4', 'standard', 'transcoded/Movies/Worked.avi/', 'video.mp4', 1)",
+    )
+    .execute(db.pool())
+    .await
+    .unwrap();
+    index(
+        &db,
+        30,
+        &[
+            "Movies/Converted.mkv",
+            "converted/Movies/Converted.mp4",
+            "Movies/Worked.avi",
+            "transcoded/Movies/Worked.avi/video.mp4",
+            "Movies/Plain.mkv",
+            "Movies/Native.mp4",
+        ],
+    )
+    .await;
+    let store = PgShelfStore::new(db.pool().clone(), ids());
+    let page = store
+        .list(
+            Section::Cinema,
+            &[30],
+            &ShelfFilter {
+                limit: 50,
+                ..ShelfFilter::default()
+            },
+        )
+        .await
+        .unwrap();
+    let by: HashMap<&str, (&str, bool, &str)> = page
+        .items
+        .iter()
+        .map(|i| {
+            (
+                i.title.as_str(),
+                (
+                    i.object_key.as_deref().unwrap_or(""),
+                    i.web_native,
+                    i.container.as_str(),
+                ),
+            )
+        })
+        .collect();
+    // Four titles: the copies are not shelf items.
+    assert_eq!(by.len(), 4, "{by:?}");
+    assert_eq!(
+        by["Converted"],
+        ("converted/Movies/Converted.mp4", true, "mp4")
+    );
+    assert_eq!(
+        by["Worked"],
+        ("transcoded/Movies/Worked.avi/video.mp4", true, "mp4")
+    );
+    assert_eq!(by["Plain"], ("Movies/Plain.mkv", false, "mkv"));
+    assert_eq!(by["Native"], ("Movies/Native.mp4", true, "mp4"));
+    let conv: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT key, converter FROM storage_objects WHERE mount_id = 30 AND playable_key IS NOT NULL ORDER BY key",
+    )
+    .fetch_all(db.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        conv,
+        [
+            ("Movies/Converted.mkv".to_owned(), Some("remux".to_owned())),
+            ("Movies/Worked.avi".to_owned(), Some("worker".to_owned())),
+        ]
+    );
+    // The copy goes away: the next run plays the original again.
+    index(&db, 30, &["Movies/Converted.mkv"]).await;
+    let pk: Option<String> = sqlx::query_scalar(
+        "SELECT playable_key FROM storage_objects WHERE mount_id = 30 AND key = 'Movies/Converted.mkv'",
+    )
+    .fetch_one(db.pool())
+    .await
+    .unwrap();
+    assert_eq!(pk, None);
+    db.cleanup().await.ok();
+}

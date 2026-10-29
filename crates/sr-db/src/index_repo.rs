@@ -153,15 +153,35 @@ impl IndexStore for PgIndexStore {
                 }
                 None => ((self.ids)(), true),
             };
+            // The playable copy (migration 1480): the browser's `converted/<stem>.mp4` found in this listing
+            // (`$12`), else the single MP4 a worker left under `transcoded/<key>/` (migration 1501; an HLS ladder
+            // needs signed segments, so it is not a direct key). Shelves play COALESCE(playable_key, key).
             sqlx::query(
                 "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class, container, \
-                    web_native, parsed, state, seen_run) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'indexed', $10) \
+                    web_native, parsed, state, seen_run, playable_key, converter, converted_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'indexed', $10, \
+                    COALESCE($12::text, (SELECT t.prefix || t.entry FROM storage_object_transcodes t \
+                        WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4')), \
+                    CASE WHEN $12::text IS NOT NULL THEN 'remux' \
+                         WHEN EXISTS (SELECT 1 FROM storage_object_transcodes t \
+                            WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') THEN 'worker' END, \
+                    CASE WHEN $12::text IS NOT NULL THEN now() \
+                         ELSE (SELECT t.finished_at FROM storage_object_transcodes t \
+                            WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') END) \
                  ON CONFLICT (mount_id, key) DO UPDATE SET size_bytes = EXCLUDED.size_bytes, \
                     kind = EXCLUDED.kind, class = EXCLUDED.class, container = EXCLUDED.container, \
                     web_native = EXCLUDED.web_native, parsed = EXCLUDED.parsed, state = 'indexed', \
                     seen_run = EXCLUDED.seen_run, vanished_at = NULL, \
-                    indexed_at = CASE WHEN $11 THEN now() ELSE storage_objects.indexed_at END",
+                    indexed_at = CASE WHEN $11 THEN now() ELSE storage_objects.indexed_at END, \
+                    playable_key = EXCLUDED.playable_key, \
+                    converter = CASE WHEN EXCLUDED.playable_key IS NULL THEN NULL \
+                        WHEN EXCLUDED.converter = 'remux' AND storage_objects.converter = 'webcodecs' \
+                             AND storage_objects.playable_key = EXCLUDED.playable_key THEN 'webcodecs' \
+                        ELSE EXCLUDED.converter END, \
+                    converted_at = CASE WHEN EXCLUDED.playable_key IS NULL THEN NULL \
+                        WHEN storage_objects.playable_key IS NOT DISTINCT FROM EXCLUDED.playable_key \
+                             AND storage_objects.converted_at IS NOT NULL THEN storage_objects.converted_at \
+                        ELSE EXCLUDED.converted_at END",
             )
             .bind(object_id)
             .bind(mount_id)
@@ -174,6 +194,7 @@ impl IndexStore for PgIndexStore {
             .bind(&parsed)
             .bind(run)
             .bind(changed)
+            .bind(c.playable_key.as_deref())
             .execute(&mut *tx)
             .await
             .map_err(se)?;

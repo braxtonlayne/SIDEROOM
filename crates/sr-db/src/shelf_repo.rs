@@ -45,7 +45,9 @@ const CINEMA_ITEM: &str = "SELECT t.id, t.kind, t.title, ''::text AS subtitle, t
      t.poster_key, t.backdrop_key, t.tags, t.genres, t.synopsis, t.attribution, \
      t.external_ids::text AS external_ids, t.overridden, \
      (SELECT count(*) FROM video_episodes e WHERE e.title_id = t.id AND e.shelf_state = 'listed')::bigint AS parts, \
-     o.key AS object_key, COALESCE(o.container, '') AS container, COALESCE(o.web_native, FALSE) AS web_native \
+     COALESCE(o.playable_key, o.key) AS object_key, \
+     COALESCE(substring(o.playable_key from '[.]([^./]+)$'), o.container, '') AS container, \
+     (o.playable_key IS NOT NULL OR COALESCE(o.web_native, FALSE)) AS web_native \
      FROM video_titles t LEFT JOIN storage_objects o ON o.id = t.mount_object_id AND o.state = 'indexed' \
      WHERE t.source = 'mount' AND t.shelf_state = 'listed'";
 
@@ -228,8 +230,10 @@ impl ShelfStore for PgShelfStore {
         let parts = match section {
             Section::Cinema => {
                 let rows = sqlx::query(
-                    "SELECT e.id, s.number AS season, e.number::float8 AS number, e.title, o.key, o.container, \
-                            o.web_native, o.size_bytes \
+                    "SELECT e.id, s.number AS season, e.number::float8 AS number, e.title, \
+                            COALESCE(o.playable_key, o.key) AS key, \
+                            COALESCE(substring(o.playable_key from '[.]([^./]+)$'), o.container) AS container, \
+                            (o.playable_key IS NOT NULL OR o.web_native) AS web_native, o.size_bytes \
                      FROM video_episodes e JOIN video_seasons s ON s.id = e.season_id \
                      JOIN storage_objects o ON o.id = e.mount_object_id AND o.state = 'indexed' \
                      WHERE e.title_id = $1 AND e.shelf_state = 'listed' ORDER BY s.number, e.number, e.id",
