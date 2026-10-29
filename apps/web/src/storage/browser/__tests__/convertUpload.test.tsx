@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setConverter } from '../../../convert';
 import { parseProbeLog } from '../../../convert/probe';
 import type { Converter } from '../../../convert/types';
@@ -65,6 +65,13 @@ function setup() {
   return enqueue;
 }
 
+// jsdom's canPlayType answers '' for everything; a browser plays H.264/AAC/Opus/VP9 but not HEVC or AC-3 here,
+// which is what the WebCodecs decision table (reached through the bridge) asks.
+beforeEach(() => {
+  vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockImplementation((m: string) =>
+    /hvc1|hev1|ac-3|ec-3/.test(m) ? '' : 'probably',
+  );
+});
 afterEach(() => setConverter(null));
 
 describe('UploadPanel + Convert step (BYOS-CNV-001)', () => {

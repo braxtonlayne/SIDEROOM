@@ -1,13 +1,13 @@
 // The shared "Convert" step of the upload dialogs (BYOS-CNV-001): the Cinema submit picker and the bucket browser
 // use it (Library takes books and comics, Music arrives in wave 30). It gets the files that do not play in a
 // browser as they are, converts them one at a time in this tab (remux through ffmpeg.wasm, or the WebCodecs
-// transcoder when conv-webcodecs has registered one and the decision table picks it), shows progress with a
+// transcoder when the decision table in `decide.ts` picks it), shows progress with a
 // cancel, and hands the results to the dialog, which uploads them by its own path.
 import { Button, Checkbox, Notice } from '@sideroom/ui';
 import { useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { ConvertProgressBar } from './ConvertProgress';
-import { decide, getConverter } from './index';
+import { decideRemux, getConverter } from './index';
 import { planWithWebCodecs, transcodeInTab } from './webcodecsBridge';
 import {
   ConvertError,
@@ -123,15 +123,21 @@ export function ConvertStep({
       });
       try {
         const probe = await conv.probe(file, opts);
-        // conv-webcodecs's table first (when its module is in the build), else the built-in remux-or-worker rule.
+        // The WebCodecs decision table first (it knows what this browser plays), the remux rule for the
+        // `-c copy` plan itself and for the reason shown when nothing in the tab can do it.
         const wcPlan = await planWithWebCodecs(probe, file);
-        const decision: Decision = wcPlan
-          ? wcPlan.path === 'webcodecs'
-            ? { route: 'webcodecs', reason: 'webcodecs' }
+        const remuxRule = decideRemux(probe);
+        const decision: Decision = !wcPlan
+          ? remuxRule
+          : wcPlan.path === 'native' || wcPlan.path === 'webcodecs'
+            ? { route: wcPlan.path, reason: wcPlan.path }
             : wcPlan.path === 'remux'
-              ? decide(probe, file)
-              : { route: wcPlan.path, reason: wcPlan.path }
-          : decide(probe, file);
+              ? remuxRule
+              : {
+                  route: 'worker',
+                  reason: remuxRule.route === 'worker' ? remuxRule.reason : 'video-codec',
+                  estimateMin: wcPlan.estimateMinutes,
+                };
         if (decision.route === 'native') {
           native.push(file);
           setRow(i, { state: 'native' });
@@ -143,7 +149,7 @@ export function ConvertStep({
         if (decision.route === 'remux') {
           const r = await conv.remux(file, { ...opts, probe });
           output = r.output;
-        } else if (decision.route === 'webcodecs' && wcPlan) {
+        } else if (decision.route === 'webcodecs' && wcPlan?.path === 'webcodecs') {
           output = await transcodeInTab(conv, file, probe, wcPlan, opts);
         } else {
           // `ffmpeg-transcode` and `worker`: not something a remux can do; say so with the reason.

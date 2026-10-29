@@ -1,22 +1,13 @@
-// Public surface of the client conversion pipeline. OWNER: conv-remux.
+// Public surface of the client conversion pipeline (BYOS-CNV-001, BYOS-CNV-002).
 //
-// conv-webcodecs plugs in here, from its own files (it never edits this one):
-//   import { setDecider, registerTranscoder, setCapabilities } from '../convert';
-// `decide.ts` exports the decision table (type `Decider` of ./types) and `webcodecs/index.ts` a `Transcoder`;
-// the app's startup (or the first import of `convert/webcodecs`) registers them. Until then the built-in decider
-// below sends everything remux can do to remux and the rest to the worker hint.
+// Two decisions exist and they are named apart: `decideRemux(probe, file)` below is the synchronous remux-or-worker
+// rule of the ffmpeg.wasm path; the WebCodecs decision table is `decide(info, caps)` in `./decide.ts`, reached
+// lazily through `./webcodecsBridge` (`planWithWebCodecs`). The Convert step asks the table first and falls back
+// to the remux rule.
 import { createConverter } from './converter';
 import { createWasmEngine } from './ffmpeg/engine';
 import { planRemux } from './plan';
-import type {
-  ConvertCapabilities,
-  Converter,
-  Decider,
-  Decision,
-  FfmpegEngine,
-  ProbeResult,
-  Transcoder,
-} from './types';
+import type { Converter, Decision, ProbeResult } from './types';
 
 export * from './types';
 export {
@@ -44,34 +35,10 @@ export function setConverter(c: Converter | null) {
   converter = c;
 }
 
-/** The engine factory a Transcoder gets, for code that needs the engine itself. */
-export const engineFactory: { make: () => FfmpegEngine } = { make: createWasmEngine };
-
-const builtinDecider: Decider = (_probe, plan) =>
-  plan.container
+/** The remux-or-worker rule: remux when a `-c copy` plan exists, else the worker hint with the reason. */
+export function decideRemux(probe: ProbeResult): Decision {
+  const plan = planRemux(probe);
+  return plan.container
     ? { route: 'remux', reason: 'remux-possible' }
     : { route: 'worker', reason: plan.reason ?? 'unsupported' };
-
-let decider: Decider = builtinDecider;
-let transcoder: Transcoder | null = null;
-let capabilities: ConvertCapabilities = { webCodecs: false };
-
-/** conv-webcodecs: install the decision table. */
-export function setDecider(d: Decider | null) {
-  decider = d ?? builtinDecider;
-}
-/** conv-webcodecs: install the WebCodecs transcoder (route `webcodecs`). */
-export function registerTranscoder(t: Transcoder | null) {
-  transcoder = t;
-}
-/** conv-webcodecs: the detected capabilities (detect once, at first use). */
-export function setCapabilities(c: ConvertCapabilities) {
-  capabilities = c;
-}
-export const getTranscoder = () => transcoder;
-export const getCapabilities = () => capabilities;
-
-/** Decides where a probed source should go. */
-export function decide(probe: ProbeResult, file: File): Decision {
-  return decider(probe, planRemux(probe), capabilities, file);
 }

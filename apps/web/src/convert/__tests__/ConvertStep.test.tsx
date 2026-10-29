@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { ConvertStep } from '../ConvertStep';
 import { parseProbeLog } from '../probe';
@@ -14,6 +14,14 @@ const LOG = [
   '  Stream #0:2(eng): Subtitle: subrip',
 ];
 const probe = parseProbeLog(LOG);
+
+// jsdom's canPlayType answers '' for everything; a browser plays H.264/AAC/Opus/VP9 but not HEVC or AC-3 here,
+// which is what the WebCodecs decision table (reached through the bridge) asks.
+beforeEach(() => {
+  vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockImplementation((m: string) =>
+    /hvc1|hev1|ac-3|ec-3/.test(m) ? '' : 'probably',
+  );
+});
 
 function fake(over: Partial<Converter> = {}): Converter {
   return {

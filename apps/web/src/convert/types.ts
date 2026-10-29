@@ -1,8 +1,7 @@
 // Shared types of the client conversion pipeline (BYOS-CNV-001, BYOS-CNV-002).
 //
-// OWNER: conv-remux (wave 29). conv-webcodecs imports these and never edits this file; if it needs another
-// field it asks for it in its handoff. `decide.ts` and `webcodecs/*` are conv-webcodecs's; they plug in through
-// `setDecider` and `registerTranscoder` in `./index.ts` and the types below.
+// The WebCodecs path (`decide.ts`, `webcodecs/*`) has its own types in `webcodecs/types.ts` and is
+// reached through `webcodecsBridge.ts`.
 
 /** What one stream of the source is. */
 export interface StreamInfo {
@@ -132,7 +131,7 @@ export interface Converter {
     o?: ConvertOptions & { probe?: ProbeResult },
   ): Promise<ExtractResult>;
   /**
-   * Runs `fn` with the loaded engine and the source mounted (what a Transcoder needs). One job at a time, the
+   * Runs `fn` with the loaded engine and the source mounted (what the WebCodecs path needs). One job at a time, the
    * same size guard and cancel as the other methods.
    */
   withInput<T>(
@@ -144,18 +143,7 @@ export interface Converter {
   dispose(): void;
 }
 
-// ---- The seam between conv-remux and conv-webcodecs --------------------------------------------------------
-
-/** What the browser can do, filled in by conv-webcodecs's `detectCapabilities()` (or a fake in tests). */
-export interface ConvertCapabilities {
-  /** `HTMLMediaElement.canPlayType` answers, keyed by the MIME type with codecs that was asked. */
-  canPlay?: Record<string, boolean>;
-  videoDecode?: Record<string, boolean>;
-  videoEncodeH264?: boolean;
-  audioEncodeAac?: boolean;
-  audioEncodeOpus?: boolean;
-  webCodecs: boolean;
-}
+// ---- Where a source goes (the Convert step's answer) ----------------------------------------------------
 
 /** Where a source should go. `native` = upload as is. */
 export type ConvertRoute =
@@ -173,31 +161,6 @@ export interface Decision {
   reason: string;
   /** For `ffmpeg-transcode`: the estimate shown ("about N minutes in this tab"). */
   estimateMin?: number;
-}
-
-export type Decider = (
-  probe: ProbeResult,
-  plan: RemuxPlan,
-  caps: ConvertCapabilities,
-  file: File,
-) => Decision;
-
-/**
- * Registered by conv-webcodecs. Gets the source and the ffmpeg engine (to demux with `-c copy -f mp4`) and
- * returns the playable file. It must honour `o.signal` and report `o.onProgress` with phase `transcoding`.
- */
-export interface TranscodeContext {
-  file: File;
-  probe: ProbeResult;
-  options: ConvertOptions;
-  engine: FfmpegEngine;
-  /** Where the source is readable inside the engine (`/in/input.mkv`). */
-  inputPath: string;
-}
-
-export interface Transcoder {
-  id: string;
-  run(ctx: TranscodeContext): Promise<ConvertedFile>;
 }
 
 // ---- The ffmpeg engine (what the Converter needs from ffmpeg.wasm) ------------------------------------------

@@ -1,7 +1,7 @@
-// The bridge to conv-webcodecs (BYOS-CNV-002), whose files (`./webcodecs/*`, `./decide.ts`) arrive at integration.
-// `import.meta.glob` finds the module when it exists and yields nothing when it does not, so this branch builds and
-// tests alone, and the integrated tree gets the WebCodecs path with no edit. The shapes below are the commander's
-// message of wave 29; a mismatch is a type error at integration (the `Wc` interface is the one place to fix).
+// The bridge to the WebCodecs path (BYOS-CNV-002, `./webcodecs/*` and `./decide.ts`). The module is imported
+// lazily (its own chunk, with the muxers behind it), so a page that never converts never loads it. The types are
+// the module's own: a signature change there is a type error here.
+import type { Capabilities, ConvertPath, SourceContainer, SourceInfo } from './webcodecs/types';
 import {
   ConvertError,
   type ConvertedFile,
@@ -10,45 +10,18 @@ import {
   type ProbeResult,
 } from './types';
 
-interface SourceInfo {
-  container: string;
-  video?: { codec: string; width: number; height: number; frameRate: number };
-  audio?: { codec: string; sampleRate: number; channels: number };
-  durationSec: number;
-  sizeBytes: number;
-}
-export interface WcPlan {
-  path: 'native' | 'remux' | 'webcodecs' | 'worker';
-  container?: string;
-  estimateMinutes?: number;
-}
-interface Wc {
-  decide(info: SourceInfo, caps: unknown): Promise<WcPlan>;
-  detectCapabilities(): unknown;
-  demuxFmp4(chunks: unknown, durationSec: number): Promise<unknown>;
-  chunked(bytes: Uint8Array): unknown;
-  transcodeWithWebCodecs(o: {
-    source: unknown;
-    plan: WcPlan;
-    signal?: AbortSignal;
-    onProgress?: (p: number | { fraction?: number; progress?: number }) => void;
-  }): Promise<{ blob: Blob; mime: string; container: string }>;
-  FRAGMENT_ARGS: string[];
-  WebCodecsError: new (...a: never[]) => Error;
-}
+type Wc = typeof import('./webcodecs');
 
-const found = import.meta.glob('./webcodecs/index.ts');
 let cached: Promise<Wc | null> | null = null;
 export const loadWebCodecs = (): Promise<Wc | null> => {
-  const load = Object.values(found)[0];
-  cached ??= load ? (load() as Promise<Wc>).catch(() => null) : Promise.resolve(null);
+  cached ??= import('./webcodecs').catch(() => null);
   return cached;
 };
 
 /** ffmpeg codec names to the WebCodecs codec strings `decide` expects (a representative string per codec). */
 const CODEC: Record<string, string> = {
   h264: 'avc1.640028',
-  hevc: 'hev1.1.6.L120.B0',
+  hevc: 'hvc1.1.6.L120.90',
   vp8: 'vp8',
   vp9: 'vp09.00.10.08',
   av1: 'av01.0.08M.08',
@@ -61,18 +34,31 @@ const CODEC: Record<string, string> = {
   eac3: 'ec-3',
 };
 
+/** ffmpeg's demuxer name (`matroska,webm`, `mov,mp4,...`) to the decision table's container. */
+export function sourceContainer(demuxer: string, fileName: string): SourceContainer {
+  const d = demuxer.toLowerCase();
+  const ext = /\.([^.]+)$/.exec(fileName)?.[1]?.toLowerCase() ?? '';
+  if (d.startsWith('mov') || d.includes('mp4')) return 'mp4';
+  // ffmpeg names Matroska and WebM with one demuxer; the extension tells them apart.
+  if (d.startsWith('matroska')) return ext === 'webm' ? 'webm' : 'mkv';
+  if (d === 'avi') return 'avi';
+  if (d === 'mpegts') return 'ts';
+  if (d === 'ogg') return 'ogg';
+  return 'unknown';
+}
+
 export function sourceInfo(probe: ProbeResult, file: File): SourceInfo {
   const v = probe.streams.find((s) => s.kind === 'video');
   const a = probe.streams.find((s) => s.kind === 'audio');
   return {
-    container: probe.container,
+    container: sourceContainer(probe.container, file.name),
     ...(v
       ? {
           video: {
             codec: CODEC[v.codec] ?? v.codec,
             width: v.width ?? 0,
             height: v.height ?? 0,
-            frameRate: v.fps ?? 0,
+            ...(v.fps ? { frameRate: v.fps } : {}),
           },
         }
       : {}),
@@ -80,7 +66,7 @@ export function sourceInfo(probe: ProbeResult, file: File): SourceInfo {
       ? {
           audio: {
             codec: CODEC[a.codec] ?? a.codec,
-            sampleRate: a.sampleRate ?? 0,
+            sampleRate: a.sampleRate ?? 48_000,
             channels: a.channels ?? 2,
           },
         }
@@ -90,12 +76,16 @@ export function sourceInfo(probe: ProbeResult, file: File): SourceInfo {
   };
 }
 
-/** Asks conv-webcodecs where the source should go; `null` when its module is not part of this build. */
-export async function planWithWebCodecs(probe: ProbeResult, file: File): Promise<WcPlan | null> {
+/** Asks the decision table where the source should go; `null` when the module cannot load or the table throws. */
+export async function planWithWebCodecs(
+  probe: ProbeResult,
+  file: File,
+  caps?: Capabilities,
+): Promise<ConvertPath | null> {
   const wc = await loadWebCodecs();
   if (!wc) return null;
   try {
-    return await wc.decide(sourceInfo(probe, file), wc.detectCapabilities());
+    return await wc.decide(sourceInfo(probe, file), caps ?? wc.detectCapabilities());
   } catch {
     return null;
   }
@@ -106,7 +96,7 @@ export async function transcodeInTab(
   conv: Converter,
   file: File,
   probe: ProbeResult,
-  plan: WcPlan,
+  plan: Extract<ConvertPath, { path: 'webcodecs' }>,
   o: ConvertOptions,
 ): Promise<ConvertedFile> {
   const wc = await loadWebCodecs();
@@ -132,19 +122,19 @@ export async function transcodeInTab(
       const out = await wc.transcodeWithWebCodecs({
         source,
         plan,
-        signal: o.signal,
-        onProgress: (p) => {
-          const f = typeof p === 'number' ? p : (p.fraction ?? p.progress ?? null);
+        ...(o.signal ? { signal: o.signal } : {}),
+        onProgress: ({ fraction }) => {
           const elapsed = (Date.now() - t0) / 1000;
           o.onProgress?.({
             phase: 'transcoding',
-            fraction: f,
-            mediaSec: f === null ? 0 : f * (probe.durationSec ?? 0),
+            fraction,
+            mediaSec: fraction * (probe.durationSec ?? 0),
             elapsedSec: elapsed,
-            etaSec: f && f > 0.02 ? (elapsed * (1 - f)) / f : null,
+            etaSec: fraction > 0.02 ? (elapsed * (1 - fraction)) / fraction : null,
           });
         },
       });
+      if (!out.blob) throw new ConvertError('NO_OUTPUT', 'The transcoder wrote no file.');
       const ext = out.container === 'webm' ? 'webm' : 'mp4';
       const name = `${file.name.replace(/\.[^.]*$/, '') || 'video'}.${ext}`;
       return { file: new File([out.blob], name, { type: out.mime }), name, mime: out.mime };
@@ -152,6 +142,6 @@ export async function transcodeInTab(
   } catch (e) {
     if (e instanceof ConvertError) throw e;
     // A WebCodecsError (or anything the transcoder throws) falls through to the worker hint, never raw.
-    throw new ConvertError('UNSUPPORTED', 'Remux cannot make this playable (transcode).');
+    throw new ConvertError('UNSUPPORTED', 'Remux cannot make this playable (video-codec).');
   }
 }
