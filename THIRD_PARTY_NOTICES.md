@@ -1735,15 +1735,23 @@ SOFTWARE.
   Sources of the texts below (D-297, D-309; BYOS-CNV-001). The npm packages @ffmpeg/core 0.12.10, @ffmpeg/ffmpeg
   0.12.15 and @ffmpeg/util 0.12.2 ship NO licence file (only `package.json` with the expressions quoted below), so
   the GPL-2.0 text is the FSF's verbatim `COPYING.GPLv2` as shipped with xz in Git for Windows (the same copy-from-
-  a-local-source rule the JASSUB entry used). The component list of the core is taken from the upstream build
-  description and was NOT re-checked against the 32 MB `.wasm` on this machine. The MIT copyright line of the two
-  wrapper packages is not in the packages; check it against https://github.com/ffmpegwasm/ffmpeg.wasm/blob/main/LICENSE
-  when a download is next approved.
+  a-local-source rule the JASSUB entry used); checked at the wave-29 integration to be byte-identical (line endings
+  aside) to `mingw64/share/doc/xz/COPYING.GPLv2`. The component list below was checked at the wave-29 integration
+  against `node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm` (32,232,419 bytes): FFmpeg embeds its configure
+  line, which reads `--enable-gpl --enable-libass --enable-libfreetype --enable-libfribidi --enable-libmp3lame
+  --enable-libopus --enable-libtheora --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx264
+  --enable-libx265 --enable-libzimg --enable-zlib` (`--disable-autodetect`, `--disable-pthreads`); the library
+  versions are libavcodec 59.37.100 and libavformat 59.27.100 (FFmpeg 5.1) and libvpx 1.13.1 by their version
+  strings; HarfBuzz and libogg by their symbols (libass and libvorbis/libtheora need them). NOT verified: the
+  versions of the other libraries, and the MIT copyright line of the two wrapper packages, which the packages do
+  not carry (no LICENSE file, no licence comment in `dist`; `package.json` names the author "Jerome Wu"); check it
+  against https://github.com/ffmpegwasm/ffmpeg.wasm/blob/main/LICENSE when a download is next approved.
 -->
 
 - `@ffmpeg/core` 0.12.10, https://github.com/ffmpegwasm/ffmpeg.wasm. Its `package.json` licence expression is
-  `GPL-2.0-or-later`: the single-threaded WebAssembly build of FFmpeg 5.x (LGPL-2.1-or-later and GPL-2.0-or-later
-  parts) with libx264 and other encoders/decoders compiled in, so the build as a whole is GPL-2.0-or-later. Used
+  `GPL-2.0-or-later`: the single-threaded WebAssembly build of FFmpeg 5.1 (LGPL-2.1-or-later and GPL-2.0-or-later
+  parts, configured with `--enable-gpl`) with libx264, libx265 and other encoders/decoders compiled in, so the
+  build as a whole is GPL-2.0-or-later. Used
   unmodified. SIDE ROOM calls it only to repackage (`-c copy`) and to extract text subtitles in the member's own
   browser; no file leaves the browser for this.
 - `@ffmpeg/ffmpeg` 0.12.15 and `@ffmpeg/util` 0.12.2 (the JavaScript wrapper and its worker), MIT.
@@ -1755,7 +1763,8 @@ SOFTWARE.
   build scripts in https://github.com/ffmpegwasm/ffmpeg.wasm (`packages/core`, `build.sh`), FFmpeg
   (https://ffmpeg.org/releases/) and the library sources named there (x264: https://www.videolan.org/developers/x264.html).
   The operator can provide the same on request.
-- Libraries compiled into the core per the upstream build (not re-verified here): FFmpeg libavcodec, libavformat,
+- Libraries compiled into the core (checked against the configure line inside the `.wasm`, see the comment above):
+  FFmpeg libavcodec, libavformat,
   libavfilter, libavutil, libswresample, libswscale; libx264 (GPL-2.0-or-later); libx265 (GPL-2.0-or-later); libvpx
   (BSD-3-Clause); LAME (LGPL-2.0-or-later); libogg, libvorbis, libtheora (BSD-3-Clause); libopus (BSD-3-Clause);
   libwebp (BSD-3-Clause); zlib (Zlib); FreeType (FTL), FriBidi (LGPL-2.1-or-later), HarfBuzz (MIT-Modern-Variant) and
@@ -2106,4 +2115,32 @@ proprietary programs.  If your program is a subroutine library, you may
 consider it more useful to permit linking proprietary applications with the
 library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.
+```
+
+@ffmpeg/ffmpeg 0.12.15 and @ffmpeg/util 0.12.2 (MIT; the packages carry no LICENSE file: the holder below is the
+`author` of their `package.json`, and the exact upstream copyright line is unverified, see the comment above):
+
+```text
+MIT License
+
+Copyright (c) Jerome Wu (ffmpeg.wasm)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 ```
