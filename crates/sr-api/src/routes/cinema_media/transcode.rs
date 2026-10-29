@@ -167,6 +167,7 @@ pub async fn jobs(
             state: p.state,
             kind: p.kind,
             asset_id: p.asset_id.as_deref().map(|a| id(a, "asset")).transpose()?,
+            mount_id: None,
             limit: p.limit.unwrap_or(50),
             before: p.before.as_deref().map(|b| id(b, "job")).transpose()?,
         })

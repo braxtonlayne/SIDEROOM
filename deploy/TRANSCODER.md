@@ -145,3 +145,35 @@ Two numbers worth knowing when you watch a killed worker in Admin: a job's lease
 | Job fails: "Dolby Vision profile 5 needs an ffmpeg built with libplacebo" | Profile 5 files have no HDR10/SDR fallback layer; use a libplacebo build with Vulkan, or re-source the file |
 | Job requeued repeatedly, `lease expired` | Worker lost its connection for more than 2 minutes; check the network |
 | Jobs fail with "the file could not be decoded" | Corrupt upload; the failure is not retried. Re-upload |
+
+## Converting your own bucket (BYOS-CNV-003)
+
+The same worker can convert a video that sits in a **bucket you connected** (Settings, Storage) and write the result back into
+that bucket. The server never carries the file: it gives the worker a presigned `GET` link for the source and, one file at a
+time, a presigned `PUT` link for each output, so the worker holds no bucket keys and your bucket stays the only copy. The output
+lands in the same bucket under `transcoded/<key of the video>/`, either an HLS ladder (`v/<height>p/index.m3u8` plus segments)
+or one MP4 (`proxy/proxy.mp4`); you pick the format and a preset (`low` up to 480p, `standard` up to 720p, `high` up to 1080p).
+
+Two ways to get a worker, both through `POST /storage/mounts/{mount_id}/transcode` with `{ "key", "format", "preset" }`:
+
+1. **The operator's worker.** If the operator turned on **Admin, Settings, Storage, "byos.worker_for_members"**, the instance's own
+   workers (CPU or the rented GPU above) take your job. It is off by default; the operator decides whether their machine serves
+   members. A server's bucket (a Guild Shelf) and the instance bucket are always the operator's to convert.
+2. **Your own worker (BYOC).** Run `sr-transcoder` on your own machine, with a token that works for one bucket only:
+   - `POST /storage/mounts/{mount_id}/worker-tokens` with `{ "name": "my-laptop" }` returns the token once (at most five live
+     tokens per bucket; `DELETE /storage/mounts/{mount_id}/worker-tokens/{worker_token_id}` revokes one, and its workers drain).
+   - Put it in a file and start the worker exactly as in "Run" above. The server shows it as a worker with scope `mount:<id>`.
+   - A bucket token claims only the conversion jobs of **its own bucket**: it cannot take another bucket's job, an operator job or
+     a Cinema upload, whatever job kinds the worker asks for. The claim query enforces this, and the job routes refuse a worker
+     that did not claim the job.
+   - With the operator's switch off, queueing a conversion needs at least one live token on the bucket (otherwise the answer is
+     409 `WORKER_NOT_ENABLED`), so a job never waits for a worker that does not exist.
+
+What the worker needs from your side: the bucket must allow the server to presign (it already does for reads), the worker machine
+must reach the bucket endpoint, and `ffmpeg` and `ffprobe` must sit side by side (the worker finds `ffprobe` next to `--ffmpeg`).
+The worker probes the file after downloading it, because the server never reads your video to plan the job.
+
+Jobs show in **Admin, Transcoding** with a **Mount** column and in `GET /storage/mounts/{mount_id}/transcode`. `media.yml` runs the
+`mount` stage of `deploy/scripts/media-smoke.mjs`: the CPU worker converts an object of the Garage bucket (mount 1) through
+presigned links, once to an MP4 and once to an HLS ladder, and the stage reads the results back from the bucket and decodes them.
+The GPU path (NVENC, with libx264 as the fallback) is the same code and stays the owner's optional run.

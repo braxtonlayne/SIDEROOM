@@ -8,7 +8,7 @@ use sr_media::plan::{ExtractFormat, JobPlan};
 use sr_media::worker_api::{
     CompleteRequest, FailOutcome, FailRequest, JobKind, JobRecord, JobSpec, JobState, JobStore,
     NewJob, OutputRef, ProgressRequest, RegisterRequest, SegmentIndex, StoreError, TokenInfo,
-    UploadRecord, WorkerCapabilities, WorkerRecord,
+    TokenScope, UploadRecord, WorkerCapabilities, WorkerRecord,
 };
 use std::collections::HashMap;
 
@@ -87,8 +87,8 @@ pub(super) async fn insert_job(
 ) -> Result<(), sqlx::Error> {
     let spec = serde_json::to_value(&job.spec).unwrap_or(Value::Null);
     sqlx::query(
-        "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext, priority) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext, priority, mount_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(id)
     .bind(i64::try_from(job.asset_id).unwrap_or(i64::MAX))
@@ -98,6 +98,7 @@ pub(super) async fn insert_job(
     .bind(i64::try_from(job.source_size).unwrap_or(i64::MAX))
     .bind(&job.source_extension)
     .bind(i16::from(job.priority))
+    .bind(job.spec.mount_id())
     .execute(tx)
     .await?;
     Ok(())
@@ -210,7 +211,7 @@ async fn settle_running(
 impl JobStore for PgMediaRepo {
     async fn authenticate(&self, token_sha256: &str) -> Result<Option<TokenInfo>, StoreError> {
         let row = sqlx::query(
-            "SELECT id, name, (last_used_at IS NULL OR last_used_at < now() - interval '1 minute') AS stale \
+            "SELECT id, name, scope, (last_used_at IS NULL OR last_used_at < now() - interval '1 minute') AS stale \
              FROM worker_tokens WHERE token_sha256 = $1 AND revoked_at IS NULL",
         )
         .bind(token_sha256)
@@ -226,9 +227,15 @@ impl JobStore for PgMediaRepo {
                 .await
                 .map_err(se)?;
         }
+        // A scope this code does not know authenticates nobody (fail closed).
+        let scope: String = row.try_get("scope").map_err(se)?;
+        let Some(scope) = TokenScope::parse(&scope) else {
+            return Ok(None);
+        };
         Ok(Some(TokenInfo {
             token_id: u64::try_from(id).unwrap_or_default(),
             name: row.try_get("name").map_err(se)?,
+            scope,
         }))
     }
 
@@ -331,9 +338,15 @@ impl JobStore for PgMediaRepo {
         &self,
         worker_id: &str,
         kinds: &[JobKind],
+        scope: TokenScope,
         now: u64,
         lease_secs: u64,
     ) -> Result<Option<JobRecord>, StoreError> {
+        // A mount-scoped token sees only the mount_transcode jobs of its mount; the instance scope sees all.
+        let only_mount: Option<i64> = match scope {
+            TokenScope::Instance => None,
+            TokenScope::Mount(id) => Some(id),
+        };
         let kinds: Vec<String> = kinds.iter().map(|k| k.as_str().to_owned()).collect();
         let mut tx = self.pool.begin().await.map_err(se)?;
         let sql = format!(
@@ -341,7 +354,7 @@ impl JobStore for PgMediaRepo {
                lease_expires_at = to_timestamp($2), started_at = COALESCE(started_at, now()), \
                updated_at = now(), progress = NULL, error = NULL, finished_at = NULL \
              WHERE id = ( \
-               SELECT id FROM transcode_jobs WHERE state = 'queued' AND kind = ANY($3) \
+               SELECT id FROM transcode_jobs WHERE state = 'queued' AND kind = ANY($3) AND (($4::bigint IS NULL AND (kind <> 'mount_transcode' OR spec->>'operator_worker' = 'true')) OR ($4::bigint IS NOT NULL AND kind = 'mount_transcode' AND mount_id = $4)) \
                ORDER BY priority DESC, id FOR UPDATE SKIP LOCKED LIMIT 1) \
              RETURNING {JOB_COLS}"
         );
@@ -349,6 +362,7 @@ impl JobStore for PgMediaRepo {
             .bind(worker_id)
             .bind(secs_f64(now.saturating_add(lease_secs)))
             .bind(&kinds)
+            .bind(only_mount)
             .fetch_optional(&mut *tx)
             .await
             .map_err(se)?;
@@ -523,6 +537,36 @@ impl JobStore for PgMediaRepo {
                 apply_ladder(&mut tx, &self.ids, id, asset_id, &prefix, plan, req)
                     .await
                     .map_err(se)?;
+            }
+            JobSpec::MountTranscode {
+                mount_id,
+                key,
+                format,
+                preset,
+                ..
+            } => {
+                // The outputs are already in the member bucket under transcoded/<key>/; record what a
+                // player opens. The catalog (playable_key, wave 29 conv-remux) reads this row.
+                let paths: Vec<&str> = req.outputs.iter().map(|o| o.path.as_str()).collect();
+                let entry = sr_media::mount_job::entry_of(*format, &paths).ok_or(
+                    StoreError::Conflict("mount job finished without an entry file"),
+                )?;
+                let total: u64 = req.outputs.iter().map(|o| o.size).sum();
+                sqlx::query(
+                    "INSERT INTO storage_object_transcodes (mount_id, key, format, preset, prefix, entry, outputs, size_bytes, job_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (mount_id, key) DO UPDATE SET format = EXCLUDED.format, preset = EXCLUDED.preset, prefix = EXCLUDED.prefix, entry = EXCLUDED.entry, outputs = EXCLUDED.outputs, size_bytes = EXCLUDED.size_bytes, job_id = EXCLUDED.job_id, finished_at = now()",
+                )
+                .bind(mount_id)
+                .bind(key)
+                .bind(format.as_str())
+                .bind(preset.as_str())
+                .bind(sr_media::mount_job::output_object_key(key, ""))
+                .bind(entry)
+                .bind(serde_json::to_value(&req.outputs).map_err(json_err)?)
+                .bind(i64::try_from(total).unwrap_or(i64::MAX))
+                .bind(id)
+                .execute(&mut *tx)
+                .await
+                .map_err(se)?;
             }
             JobSpec::Remux { plan } => {
                 let size = req

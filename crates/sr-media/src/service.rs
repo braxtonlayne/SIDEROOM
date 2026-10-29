@@ -19,7 +19,9 @@ use crate::probe::{ProbeError, ProbeResult, probe_file};
 use crate::retention::{self, RetentionPolicy};
 use crate::retranscode::{JobPriority, RetranscodePlan, RetranscodeRequest, RetranscodeScope};
 use crate::runner::CommandRunner;
-use crate::worker_api::{JobSpec, MAX_PARTS, NewJob, OutputStorage, PartDone, PartUrl, token_hash};
+use crate::worker_api::{
+    JobSpec, MAX_PARTS, NewJob, OutputStorage, PartDone, PartUrl, TokenScope, token_hash,
+};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sr_storage::ObjectStorage;
@@ -42,6 +44,8 @@ pub const SLOT_EXPIRY_MS: i64 = 24 * 60 * 60 * 1000;
 /// Priorities of the jobs a probe enqueues (the review proxy goes first).
 pub const PROXY_PRIORITY: u8 = 9;
 pub const LADDER_PRIORITY: u8 = 5;
+/// A member's conversion in their own bucket waits behind the instance's own jobs (BYOS-CNV-003).
+pub const MOUNT_PRIORITY: u8 = 4;
 
 pub const KIND_PROBE_JOB: &str = "cinema.probe";
 
@@ -832,6 +836,28 @@ impl MediaService {
     // ---- workers, tokens, queue ----
 
     pub async fn create_token(&self, by: i64, name: &str) -> MediaResult<CreatedToken> {
+        self.create_scoped_token(by, name, TokenScope::Instance)
+            .await
+    }
+
+    /// A worker token for a member's own machine (BYOS-CNV-003): it claims `mount_transcode` jobs of
+    /// `mount_id` and nothing else.
+    pub async fn create_mount_token(
+        &self,
+        by: i64,
+        name: &str,
+        mount_id: i64,
+    ) -> MediaResult<CreatedToken> {
+        self.create_scoped_token(by, name, TokenScope::Mount(mount_id))
+            .await
+    }
+
+    async fn create_scoped_token(
+        &self,
+        by: i64,
+        name: &str,
+        scope: TokenScope,
+    ) -> MediaResult<CreatedToken> {
         let name = name.trim();
         if name.is_empty() || name.chars().count() > 64 || name.chars().any(char::is_control) {
             return Err(MediaError::Invalid(
@@ -843,13 +869,77 @@ impl MediaService {
         let secret = format!("srw_{}", crate::hex(&bytes));
         let token = self
             .repo
-            .create_token((self.ids)(), name, &token_hash(&secret), by)
+            .create_token((self.ids)(), name, &token_hash(&secret), by, scope)
             .await?;
         Ok(CreatedToken { token, secret })
     }
 
+    /// Queue a conversion of one object of a storage mount (BYOS-CNV-003). The caller has proved the right to
+    /// queue it and that `key` passed `safe_key`; `size` is the object size from the bucket. Returns the job id.
+    pub async fn queue_mount_transcode(
+        &self,
+        mount_id: i64,
+        key: &str,
+        size: u64,
+        format: crate::mount_job::MountFormat,
+        preset: crate::mount_job::MountPreset,
+        operator_worker: bool,
+    ) -> MediaResult<String> {
+        let ext: String = key
+            .rsplit('/')
+            .next()
+            .and_then(|n| n.rsplit_once('.'))
+            .map(|(_, e)| e.to_ascii_lowercase())
+            .filter(|e| {
+                !e.is_empty() && e.len() <= 8 && e.chars().all(|c| c.is_ascii_alphanumeric())
+            })
+            .unwrap_or_else(|| "bin".to_owned());
+        Ok(self
+            .repo
+            .enqueue(NewJob {
+                asset_id: 0,
+                spec: JobSpec::MountTranscode {
+                    mount_id,
+                    key: key.to_owned(),
+                    format,
+                    preset,
+                    operator_worker,
+                },
+                source_key: key.to_owned(),
+                source_size: size,
+                source_extension: ext,
+                priority: MOUNT_PRIORITY,
+            })
+            .await?)
+    }
+
+    /// The latest jobs of one mount, newest first.
+    pub async fn mount_jobs(&self, mount_id: i64, limit: u32) -> MediaResult<Vec<JobSummary>> {
+        self.repo
+            .list_jobs(&JobQuery {
+                mount_id: Some(mount_id),
+                limit,
+                ..JobQuery::default()
+            })
+            .await
+    }
+
     pub async fn tokens(&self) -> MediaResult<Vec<WorkerToken>> {
         self.repo.list_tokens().await
+    }
+
+    /// The worker tokens of one mount.
+    pub async fn mount_tokens(&self, mount_id: i64) -> MediaResult<Vec<WorkerToken>> {
+        self.repo.list_mount_tokens(mount_id).await
+    }
+
+    /// Revoke a worker token of a mount; `NotFound` when the token belongs to no such mount.
+    pub async fn revoke_mount_token(&self, mount_id: i64, id: i64) -> MediaResult<()> {
+        if self.repo.revoke_mount_token(mount_id, id).await? {
+            Ok(())
+        } else {
+            Err(MediaError::NotFound("token"))
+        }
     }
 
     pub async fn revoke_token(&self, id: i64) -> MediaResult<()> {

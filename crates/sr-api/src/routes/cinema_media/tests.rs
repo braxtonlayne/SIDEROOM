@@ -96,6 +96,7 @@ impl JobStore for Stub {
         &self,
         _: &str,
         _: &[JobKind],
+        _: sr_media::worker_api::TokenScope,
         _: u64,
         _: u64,
     ) -> Result<Option<JobRecord>, StoreError> {
@@ -207,10 +208,12 @@ impl MediaRepository for Stub {
         name: &str,
         sha256: &str,
         created_by: i64,
+        scope: sr_media::worker_api::TokenScope,
     ) -> MediaResult<WorkerToken> {
         let t = WorkerToken {
             id,
             name: name.to_owned(),
+            scope: scope.to_column(),
             created_by: Some(created_by),
             created_at_ms: 1,
             last_used_at_ms: None,
@@ -230,6 +233,12 @@ impl MediaRepository for Stub {
             .iter()
             .map(|(t, _)| t.clone())
             .collect())
+    }
+    async fn list_mount_tokens(&self, _: i64) -> MediaResult<Vec<WorkerToken>> {
+        Ok(Vec::new())
+    }
+    async fn revoke_mount_token(&self, _: i64, _: i64) -> MediaResult<bool> {
+        Ok(false)
     }
     async fn revoke_token(&self, _: i64) -> MediaResult<bool> {
         Ok(false)

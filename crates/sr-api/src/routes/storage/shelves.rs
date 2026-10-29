@@ -899,7 +899,7 @@ pub async fn patch_part(
 }
 
 /// The mount, if the caller manages it. 404 for a mount they cannot reach, 403 for one they can but do not manage.
-async fn managed_mount(d: &ScopeDeps, user: i64, mount_id: &str) -> MsgResult<Mount> {
+pub(super) async fn managed_mount(d: &ScopeDeps, user: i64, mount_id: &str) -> MsgResult<Mount> {
     let id = parse_row(mount_id)?;
     let mount = match d.mounts.by_id(id).await {
         Ok(Some(m)) => m,

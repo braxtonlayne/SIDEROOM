@@ -12,7 +12,7 @@ use sr_media::playlist::{AudioVariant, MediaSet, Segment, SubtitleVariant, Video
 use sr_media::retention::{AssetFacts, Tier};
 use sr_media::retranscode::AssetSummary;
 use sr_media::worker_api::{
-    JobKind, JobSpec, JobState, ProgressRequest, SegmentIndex, WorkerCapabilities,
+    JobKind, JobSpec, JobState, ProgressRequest, SegmentIndex, TokenScope, WorkerCapabilities,
 };
 
 fn asset_cols() -> String {
@@ -74,6 +74,7 @@ fn summary_from_row(r: &PgRow) -> MediaResult<JobSummary> {
         job_id: id.to_string(),
         asset_id: r.try_get("asset_id").map_err(be)?,
         kind: job_kind(&kind)?,
+        mount_id: r.try_get("mount_id").map_err(be)?,
         state: super::jobs::job_state(&state).map_err(|e| MediaError::Backend(e.to_string()))?,
         priority: u8::try_from(priority).unwrap_or(0),
         attempt: u32::try_from(attempt).unwrap_or(0),
@@ -89,7 +90,7 @@ fn summary_from_row(r: &PgRow) -> MediaResult<JobSummary> {
 
 fn job_summary_cols() -> String {
     format!(
-        "id, asset_id, kind, state, priority, attempt, worker_id, cancel_requested, progress, error, {}, {}, {}",
+        "id, asset_id, kind, mount_id, state, priority, attempt, worker_id, cancel_requested, progress, error, {}, {}, {}",
         ms("created_at", "created_ms"),
         ms("started_at", "started_ms"),
         ms("finished_at", "finished_ms"),
@@ -297,7 +298,7 @@ impl MediaRepository for PgMediaRepo {
         let sql = format!(
             "SELECT {} FROM transcode_jobs \
              WHERE ($1::text IS NULL OR state = $1) AND ($2::text IS NULL OR kind = $2) \
-               AND ($3::bigint IS NULL OR asset_id = $3) AND ($4::bigint IS NULL OR id < $4) \
+               AND ($3::bigint IS NULL OR asset_id = $3) AND ($4::bigint IS NULL OR id < $4) AND ($6::bigint IS NULL OR mount_id = $6) \
              ORDER BY id DESC LIMIT $5",
             job_summary_cols()
         );
@@ -307,6 +308,7 @@ impl MediaRepository for PgMediaRepo {
             .bind(q.asset_id)
             .bind(q.before)
             .bind(i64::from(q.limit.clamp(1, 200)))
+            .bind(q.mount_id)
             .fetch_all(&self.pool)
             .await
             .map_err(be)?;
@@ -408,10 +410,11 @@ impl MediaRepository for PgMediaRepo {
         name: &str,
         sha256: &str,
         created_by: i64,
+        scope: TokenScope,
     ) -> MediaResult<WorkerToken> {
         let sql = format!(
-            "INSERT INTO worker_tokens (id, name, token_sha256, created_by) VALUES ($1, $2, $3, $4) \
-             RETURNING id, name, created_by, {}, {}, {}",
+            "INSERT INTO worker_tokens (id, name, token_sha256, created_by, scope) VALUES ($1, $2, $3, $4, $5) \
+             RETURNING id, name, scope, created_by, {}, {}, {}",
             ms("created_at", "created_ms"),
             ms("last_used_at", "used_ms"),
             ms("revoked_at", "revoked_ms")
@@ -421,15 +424,53 @@ impl MediaRepository for PgMediaRepo {
             .bind(name)
             .bind(sha256)
             .bind(created_by)
+            .bind(scope.to_column())
             .fetch_one(&self.pool)
             .await
             .map_err(be)?;
         token_from_row(&row)
     }
 
+    async fn list_mount_tokens(&self, mount_id: i64) -> MediaResult<Vec<WorkerToken>> {
+        let sql = format!(
+            "SELECT id, name, scope, created_by, {}, {}, {} FROM worker_tokens WHERE scope = $1 ORDER BY id DESC",
+            ms("created_at", "created_ms"),
+            ms("last_used_at", "used_ms"),
+            ms("revoked_at", "revoked_ms")
+        );
+        let rows = super::dynq(sql)
+            .bind(TokenScope::Mount(mount_id).to_column())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(be)?;
+        rows.iter().map(token_from_row).collect()
+    }
+
+    async fn revoke_mount_token(&self, mount_id: i64, id: i64) -> MediaResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(be)?;
+        let r = sqlx::query(
+            "UPDATE worker_tokens SET revoked_at = now() WHERE id = $1 AND scope = $2 AND revoked_at IS NULL",
+        )
+        .bind(id)
+        .bind(TokenScope::Mount(mount_id).to_column())
+        .execute(&mut *tx)
+        .await
+        .map_err(be)?;
+        if r.rows_affected() == 0 {
+            return Ok(false);
+        }
+        sqlx::query("UPDATE transcode_workers SET drain = true WHERE token_id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(be)?;
+        tx.commit().await.map_err(be)?;
+        Ok(true)
+    }
+
     async fn list_tokens(&self) -> MediaResult<Vec<WorkerToken>> {
         let sql = format!(
-            "SELECT id, name, created_by, {}, {}, {} FROM worker_tokens ORDER BY id DESC",
+            "SELECT id, name, scope, created_by, {}, {}, {} FROM worker_tokens ORDER BY id DESC",
             ms("created_at", "created_ms"),
             ms("last_used_at", "used_ms"),
             ms("revoked_at", "revoked_ms")
@@ -815,6 +856,7 @@ fn token_from_row(r: &PgRow) -> MediaResult<WorkerToken> {
     Ok(WorkerToken {
         id: r.try_get("id").map_err(be)?,
         name: r.try_get("name").map_err(be)?,
+        scope: r.try_get("scope").map_err(be)?,
         created_by: r.try_get("created_by").map_err(be)?,
         created_at_ms: r.try_get("created_ms").map_err(be)?,
         last_used_at_ms: r.try_get("used_ms").map_err(be)?,

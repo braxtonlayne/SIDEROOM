@@ -306,7 +306,7 @@ pub(super) fn key_error(field: &str, e: sr_storage::path::KeyError) -> MsgError 
 /// cannot be pinned, so this narrows the DNS-rebind window to the gap between the check and the connect (the
 /// signed clients of the write side are pinned outright, see `sr_storage::guard`). The operator's own bucket
 /// (the platform mount) is not vetted.
-async fn vet_endpoint(d: &ScopeDeps, mount: &Mount) -> MsgResult<()> {
+pub(super) async fn vet_endpoint(d: &ScopeDeps, mount: &Mount) -> MsgResult<()> {
     let Some(g) = &d.guard else { return Ok(()) };
     if mount.owner == sr_storage::mounts::MountOwner::Platform {
         return Ok(());
@@ -321,7 +321,10 @@ async fn vet_endpoint(d: &ScopeDeps, mount: &Mount) -> MsgResult<()> {
     Ok(())
 }
 
-fn storage_for(d: &ScopeDeps, mount: &Mount) -> MsgResult<sr_storage::ObjectStoreStorage> {
+pub(super) fn storage_for(
+    d: &ScopeDeps,
+    mount: &Mount,
+) -> MsgResult<sr_storage::ObjectStoreStorage> {
     let s: &dyn Sealer = &*d.sealer;
     mount.storage(s).map_err(|e| {
         tracing::error!(error = %e, mount = mount.id, "mount client could not be built");
