@@ -15,7 +15,7 @@ ignore = [
   # proc-macro of lofty 0.25.4 (owner-approved download for sr-music-wasm, MUS-WASM-001, 2026-10-29), reached only
   # through that crate, and never ends up in the shipped wasm. Revisit when lofty moves to pastey or drops it
   # (`cargo tree -i paste`).
-  { id = "RUSTSEC-2024-0436", reason = "build-time proc-macro of lofty (sr-music-wasm); unmaintained, no vulnerability; revisit with lofty" },
+  { id = "RUSTSEC-2024-0436", reason = "build-time proc-macro of lofty (sr-music-wasm); unmaintained, no vulnerability; owner-approved 2026-10-29; revisit with lofty" },
   # crypto-bigint timing side channels (owner-approved exception, 2026-10-24). The 0.7 line is fixed
   # (0.7.7 in Cargo.lock); this ignore exists only for crypto-bigint 0.5.5, which elliptic-curve 0.13 pulls in
   # for str0m's DTLS (voice), openmls_rust_crypto/hpke-rs (call E2EE) and sr-push (VAPID signing). There is no
