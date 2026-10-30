@@ -175,6 +175,8 @@ export class VoiceController {
   private e2ee: E2eeRuntime | null = null;
   /** Bumped per engine start, so a late E2EE start for an abandoned attempt is dropped. */
   private startSeq = 0;
+  /** The jukebox DJ's music track (MUS-JB-001), kept across a rejoin, dropped on leave. */
+  private music: MediaStream | null = null;
 
   constructor(private deps: ControllerDeps = defaultDeps()) {
     const s = getVoiceSettings();
@@ -284,6 +286,7 @@ export class VoiceController {
     this.target = null;
     this.joinedSeen = false;
     this.server = null;
+    this.music = null;
     this.roster.clear();
     this.vad.reset();
     this.vadOpen = false;
@@ -355,6 +358,37 @@ export class VoiceController {
   }
   setUserMuted(userId: string, muted: boolean): void {
     useVoiceSettings.getState().setLocalMuted(userId, muted);
+  }
+
+  // ---- music (MUS-JB-001) ----
+
+  /**
+   * The jukebox DJ (stream mode): send `stream` (a tap of the player's graph) as this member's music track,
+   * under the same frame encryptor as the microphone. Kept across a rejoin; `unpublishMusic` or leaving ends it.
+   */
+  publishMusic(stream: MediaStream): void {
+    this.music = stream;
+    const t = this.target;
+    this.engine?.publishMusic?.(stream, t ? musicKbpsOf(t.channelId).musicKbps : undefined);
+  }
+
+  unpublishMusic(): void {
+    if (!this.music) return;
+    this.music = null;
+    this.engine?.unpublishMusic?.();
+  }
+
+  /** Whether this member is sending a music track. */
+  get musicPublished(): boolean {
+    return this.music !== null;
+  }
+
+  /** The listener's music controls: separate from the voices, kept on this device. */
+  setMusicVolume(percent: number): void {
+    useVoiceSettings.getState().update({ musicVolume: percent });
+  }
+  setMusicMuted(muted: boolean): void {
+    useVoiceSettings.getState().update({ musicMuted: muted });
   }
 
   // ---- camera and screen share (VOX-CLI-006 / 007) ----
@@ -913,6 +947,9 @@ export class VoiceController {
     engine.setDeafened(session.selfDeaf || session.serverDeaf);
     for (const [id, pct] of Object.entries(s.userVolumes)) engine.setUserVolume(id, pct);
     for (const id of Object.keys(s.localMuted)) engine.setUserMuted(id, true);
+    engine.setMusicVolume?.(s.musicVolume);
+    if (s.musicMuted) engine.setMusicMuted?.(true);
+    if (this.music) engine.publishMusic?.(this.music, musicKbpsOf(t.channelId).musicKbps);
     this.vad.configure({ auto: s.autoSensitivity, thresholdDb: s.thresholdDb });
     this.recompute();
     void engine
@@ -922,6 +959,7 @@ export class VoiceController {
         userId: me,
         ...(server.ice_servers ? { iceServers: server.ice_servers } : {}),
         ...bitrateOf(t.channelId),
+        ...musicKbpsOf(t.channelId),
         mic: micOptions(s),
         ...(s.qosHighPriority ? { highPriority: true } : {}),
         ...(e2ee ? { e2ee } : {}),
@@ -1260,6 +1298,8 @@ export class VoiceController {
       for (const id of new Set([...Object.keys(s.localMuted), ...Object.keys(prev.localMuted)])) {
         if (!!s.localMuted[id] !== !!prev.localMuted[id]) e.setUserMuted(id, !!s.localMuted[id]);
       }
+      if (s.musicVolume !== prev.musicVolume) e.setMusicVolume?.(s.musicVolume);
+      if (s.musicMuted !== prev.musicMuted) e.setMusicMuted?.(s.musicMuted);
     }
     this.recompute();
   }
@@ -1319,6 +1359,12 @@ function omit<T>(rec: Record<string, T>, key: string): Record<string, T> {
 function bitrateOf(channelId: string): { maxBitrate: number } | Record<string, never> {
   const bitrate = useStore.getState().channels[channelId]?.bitrate;
   return bitrate && bitrate > 0 ? { maxBitrate: bitrate } : {};
+}
+
+/** The channel's music bitrate (kbit/s, MUS-JB-001), when the API provided one. */
+function musicKbpsOf(channelId: string): { musicKbps: number } | Record<string, never> {
+  const kbps = useStore.getState().channels[channelId]?.sr_music_bitrate_kbps;
+  return kbps && kbps > 0 ? { musicKbps: kbps } : {};
 }
 
 function lookupChannelName(channelId: string): string | undefined {

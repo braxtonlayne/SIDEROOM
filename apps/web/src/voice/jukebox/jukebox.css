@@ -25,6 +25,15 @@
 .jb-head .jb-muted {
   flex: 1;
 }
+.jb-music {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-inline-size: 320px;
+}
+.jb-music > :last-child {
+  flex: 1;
+}
 .jb-muted {
   color: var(--sr-text-2, #a39d8e);
 }

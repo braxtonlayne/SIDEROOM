@@ -32,6 +32,8 @@ export interface JukeboxSnapshot {
 /** The part of an `<audio>` element the controller uses (a fake in tests). */
 export interface AudioLike {
   src: string;
+  /** Set to `anonymous` for a cross-origin file when the element feeds Web Audio (stream mode). */
+  crossOrigin?: string | null;
   currentTime: number;
   playbackRate: number;
   readonly paused: boolean;
@@ -51,6 +53,28 @@ export interface JukeboxDeps {
   clearInterval?: (h: unknown) => void;
   /** Subscribe to gateway dispatches; returns the unsubscribe. */
   subscribe?: (fn: (event: string, data: unknown) => void) => () => void;
+  /** Stream mode for the DJ (MUS-JB-001): puts the element's sound on the call's music track. */
+  music?: MusicSink;
+}
+
+/**
+ * Where the DJ's sound goes in stream mode. `start` taps the element (through Web Audio) and publishes the tap as
+ * the member's music track; `stop` unpublishes it and detaches the tap (stop, hand-over, leaving, unmount).
+ */
+export interface MusicSink {
+  start(): void;
+  stop(): void;
+}
+
+/** Web Audio hands back silence for a cross-origin file loaded without CORS (the player does the same). */
+function corsFor(src: string): string | null {
+  try {
+    return new URL(src, window.location.href).origin !== window.location.origin
+      ? 'anonymous'
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** How often the element is compared with the schedule. */
@@ -82,6 +106,9 @@ export class JukeboxController {
   private overrunAsked: string | null = null;
   private fetching = false;
   private stale = false;
+  private readonly music: MusicSink | null;
+  /** This member is the DJ of a stream-mode session and its music track is published. */
+  private streaming = false;
 
   constructor(deps: JukeboxDeps) {
     this.api = deps.api;
@@ -91,6 +118,19 @@ export class JukeboxController {
     this.clearTimer =
       deps.clearInterval ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     this.subscribeEvents = deps.subscribe ?? onDispatch;
+    this.music = deps.music ?? null;
+  }
+
+  /** Whether the DJ's music track is on the call (stream mode). */
+  get streamingMusic(): boolean {
+    return this.streaming;
+  }
+
+  private setStreaming(on: boolean): void {
+    if (!this.music || on === this.streaming) return;
+    this.streaming = on;
+    if (on) this.music.start();
+    else this.music.stop();
   }
 
   // ---- store surface (useSyncExternalStore) -------------------------------------------------------
@@ -155,6 +195,7 @@ export class JukeboxController {
     this.tickHandle = this.beatHandle = null;
     this.offEvents?.();
     this.offEvents = null;
+    this.setStreaming(false);
     this.silence();
     this.channelId = null;
     this.loadSeq++;
@@ -226,6 +267,8 @@ export class JukeboxController {
   private apply(s: JukeboxState): void {
     this.set({ state: s });
     const cur = s.current;
+    // Stream mode: the DJ's element feeds the call's music track; a hand-over or a mode change ends it.
+    this.setStreaming(s.mode === 'stream' && s.i_am_dj && !!cur && cur.playable);
     if (!cur) {
       this.silence();
       this.set({ status: 'idle', driftMs: null });
@@ -273,6 +316,7 @@ export class JukeboxController {
       return;
     }
     if (seq !== this.loadSeq) return;
+    if (this.music) this.audio.crossOrigin = corsFor(url);
     this.audio.src = url;
     await this.begin();
   }

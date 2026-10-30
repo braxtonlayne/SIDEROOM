@@ -6,6 +6,7 @@ import { useT } from '../../i18n';
 import { clock } from '../../watchparty/sync';
 import { httpJukeboxApi } from './api';
 import type { JukeboxController, JukeboxStatus } from './controller';
+import { MusicControls } from './MusicControls';
 import { useJukebox } from './useJukebox';
 import type { JukeboxApi, JukeboxItem, JukeboxState, LibraryTrack } from './types';
 import './jukebox.css';
@@ -75,6 +76,7 @@ export function JukeboxStrip({
           </Button>
         )}
       </div>
+      <MusicControls />
       {listening && s && controller ? (
         <Body
           s={s}
