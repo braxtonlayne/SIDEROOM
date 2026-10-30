@@ -385,3 +385,12 @@
     inline-size: 6rem;
   }
 }
+.tp-queue li {
+  min-inline-size: 0;
+}
+.tp-queue button {
+  overflow: hidden;
+}
+.tp-queue .sr-ply-q-title {
+  flex: 1 1 auto;
+}

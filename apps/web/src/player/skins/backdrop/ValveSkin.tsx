@@ -174,7 +174,7 @@ export function ValveSkin() {
           <ShuffleButton className="v-key" />
         </div>
         <div className="v-foot">
-          <EqSwitch className="v-toggle">
+          <EqSwitch className="v-toggle" label={t('player.skinx.valve.toneLabel')}>
             <span className="v-toggle-lever" aria-hidden="true" />
             <span className="v-toggle-label">{t('player.skinx.valve.tone')}</span>
           </EqSwitch>

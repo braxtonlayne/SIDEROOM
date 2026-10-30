@@ -523,3 +523,25 @@
     max-block-size: 7rem;
   }
 }
+
+/* Unlit LCD segments are generated content: painted, never read, and out of the contrast rules for text. */
+.ss-readout[data-ghost]::before {
+  content: attr(data-ghost);
+  white-space: pre;
+}
+.ss-small-painted,
+.ss-auto {
+  font-weight: inherit;
+}
+@container (max-width: 24rem) {
+  .ss-transport {
+    gap: 0.1875rem;
+  }
+  .ss-key {
+    min-inline-size: 1.75rem;
+    padding-inline: 0.125rem;
+  }
+  .ss-key-wide {
+    letter-spacing: 0;
+  }
+}

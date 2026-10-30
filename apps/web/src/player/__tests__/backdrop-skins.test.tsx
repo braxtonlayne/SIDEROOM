@@ -147,7 +147,7 @@ describe('valve skin', () => {
     const user = userEvent.setup();
     const { container } = render(<ValveSkin />);
     expect(container.querySelectorAll('.v-vu[aria-hidden="true"]')).toHaveLength(2);
-    const tone = screen.getByRole('button', { name: 'Equalizer on' });
+    const tone = screen.getByRole('button', { name: 'Tone: equalizer on' });
     expect(tone.getAttribute('aria-pressed')).toBe('true');
     await user.click(tone);
     expect(state().eqEnabled).toBe(false);
@@ -285,14 +285,14 @@ describe('stack skin', () => {
   it('shows and hides the equalizer and playlist windows', async () => {
     const user = userEvent.setup();
     render(<StackSkin />);
-    await user.click(screen.getByRole('button', { name: 'Equalizer window' }));
+    await user.click(screen.getByRole('button', { name: 'EQ: equalizer window' }));
     expect(screen.queryByRole('group', { name: 'Equalizer bands' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Hide the playlist window' }));
     expect(screen.queryByRole('listbox')).toBeNull();
     expect(
-      screen.getByRole('button', { name: 'Playlist window' }).getAttribute('aria-pressed'),
+      screen.getByRole('button', { name: 'PL: playlist window' }).getAttribute('aria-pressed'),
     ).toBe('false');
-    await user.click(screen.getByRole('button', { name: 'Playlist window' }));
+    await user.click(screen.getByRole('button', { name: 'PL: playlist window' }));
     expect(screen.getByRole('listbox', { name: 'Play queue' })).toBeTruthy();
   });
 
@@ -312,7 +312,7 @@ describe('stack skin', () => {
     await user.keyboard('{Delete}');
     expect(state().queue.map((t) => t.id)).toEqual(['b', 'c']);
     await user.click(
-      screen.getByRole('button', { name: 'Remove the selected track from the queue' }),
+      screen.getByRole('button', { name: 'Rem: remove the selected track from the queue' }),
     );
     expect(state().queue).toHaveLength(1);
   });
@@ -322,7 +322,8 @@ describe('stack skin', () => {
     expect(container.querySelector('.ss-fmt')?.textContent).toContain('MP3');
     expect(container.querySelector('.ss-fmt')?.getAttribute('data-lit')).toBe('true');
     const dark = container.querySelectorAll('.ss-readout[data-lit="false"]');
-    expect(dark.length).toBe(2);
+    // bitrate, sample rate and mono/stereo: nothing in the player knows them.
+    expect(dark.length).toBe(3);
     act(() => play(1));
     expect(container.querySelector('.ss-fmt')?.getAttribute('data-lit')).toBe('false');
   });

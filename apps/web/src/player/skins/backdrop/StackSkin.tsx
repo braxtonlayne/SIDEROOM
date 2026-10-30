@@ -163,17 +163,14 @@ function StateGlyph() {
 
 function Readout({ value, unit }: { value: string | null; unit: string }) {
   return (
-    <span className="ss-readout" data-lit={value !== null}>
-      {value === null ? (
-        <span aria-hidden="true">
-          <span className="ss-readout-v">---</span> <span className="ss-readout-u">{unit}</span>
-        </span>
-      ) : (
-        <>
-          <span className="ss-readout-v">{value}</span> <span className="ss-readout-u">{unit}</span>
-        </>
-      )}
-    </span>
+    // A dark cell is painted (its unlit segments are generated content), so it reads as nothing at all.
+    value === null ? (
+      <span className="ss-readout" data-lit="false" data-ghost={'--- ' + unit} aria-hidden="true" />
+    ) : (
+      <span className="ss-readout" data-lit="true">
+        <span className="ss-readout-v">{value}</span> <span className="ss-readout-u">{unit}</span>
+      </span>
+    )
   );
 }
 
@@ -212,20 +209,25 @@ function MainWindow() {
           <div className="ss-readouts">
             <Readout value={null} unit={t('player.skinx.stack.kbps')} />
             <Readout value={null} unit={t('player.skinx.stack.khz')} />
-            <span className="ss-readout ss-fmt" data-lit={!!format}>
-              {format ? (
-                <>
-                  <span className="sr-ply-bd-sr">{t('player.skinx.stack.format')} </span>
-                  {format.toUpperCase()}
-                </>
-              ) : (
-                <span aria-hidden="true">---</span>
-              )}
-            </span>
-            <Art className="ss-readout ss-ch">
-              <span>{t('player.skinx.stack.mono')}</span>{' '}
-              <span>{t('player.skinx.stack.stereo')}</span>
-            </Art>
+            {format ? (
+              <span className="ss-readout ss-fmt" data-lit="true">
+                <span className="sr-ply-bd-sr">{t('player.skinx.stack.format')} </span>
+                {format.toUpperCase()}
+              </span>
+            ) : (
+              <span
+                className="ss-readout ss-fmt"
+                data-lit="false"
+                data-ghost="---"
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className="ss-readout ss-ch"
+              data-lit="false"
+              data-ghost={t('player.skinx.stack.mono') + ' ' + t('player.skinx.stack.stereo')}
+              aria-hidden="true"
+            />
           </div>
           <div className="ss-mid">
             <VolumeControl className="ss-tiny ss-tiny-vol" />

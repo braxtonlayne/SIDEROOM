@@ -53,7 +53,16 @@ export function ShuffleButton({
 }
 
 /** The equalizer on or off (the same switch as the library's Equalizer section). */
-export function EqSwitch({ className, children }: { className?: string; children?: ReactNode }) {
+export function EqSwitch({
+  className,
+  children,
+  label,
+}: {
+  className?: string;
+  children?: ReactNode;
+  /** The accessible name, when the skin's visible text differs (it must start with that text). */
+  label?: string;
+}) {
   const t = useT();
   const on = usePlayerStore((s) => s.eqEnabled);
   return (
@@ -61,7 +70,7 @@ export function EqSwitch({ className, children }: { className?: string; children
       type="button"
       className={className}
       aria-pressed={on}
-      aria-label={t('music.lib.eq.enabled')}
+      aria-label={label ?? t('music.lib.eq.enabled')}
       data-on={on}
       onClick={() => setEqEnabled(!on)}
     >

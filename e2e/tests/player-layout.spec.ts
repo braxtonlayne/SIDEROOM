@@ -1,11 +1,19 @@
 import { expect, test } from '../support/fixtures';
 import { blocking, describe, runAxe, settle } from '../support/a11y';
-import { LONG_ARTIST, LONG_TITLE, measureFit, setSkin, startPlaying } from '../support/playerAudio';
+import {
+  ALL_SKINS,
+  LONG_ARTIST,
+  LONG_TITLE,
+  measureFit,
+  setSkin,
+  startPlaying,
+} from '../support/playerAudio';
 import { openMockedApp } from '../support/playerMock';
 
 /**
  * MUS-PLY-001 layout: each skin sits fully inside the viewport and nothing in it is clipped, with a long title
- * playing, at desktop, phone and the narrowest supported width. The page's API calls are mocked; the document is
+ * playing, at desktop, phone and the narrowest supported width. MUS-SKN-001's backdrop skins are in the same loops:
+ * they may scroll inside their own box on a short screen, but never sideways and never past the viewport. The page's API calls are mocked; the document is
  * served to the Owner's real session, because the gate serves no app page without one (D-385). The Owner, not a
  * seeded member: registrations share one rate limit across the whole run.
  */
@@ -25,7 +33,7 @@ for (const size of SIZES) {
     await page.setViewportSize(size);
     await openMockedApp(page, owner);
     await startPlaying(page);
-    for (const skin of ['retro', 'pill', 'library'] as const) {
+    for (const skin of ALL_SKINS) {
       await setSkin(page, skin);
       await expect(page.locator('.sr-ply-ticker').first()).toHaveAttribute(
         'title',
@@ -72,10 +80,41 @@ test('the dock has the Lounge tokens on its own (no shell around it)', async ({ 
 test('each skin passes axe (with contrast) on the Lounge Dark tokens', async ({ page, owner }) => {
   await openMockedApp(page, owner);
   await startPlaying(page);
-  for (const skin of ['retro', 'pill', 'library'] as const) {
+  for (const skin of ALL_SKINS) {
     await setSkin(page, skin);
     await settle(page);
     const found = await runAxe(page, '.sr-ply-dock');
     expect(blocking(found), describe(found).join('\n')).toEqual([]);
+  }
+});
+
+test('backdrop skins: artwork stays hidden and moves with the music, never under reduced motion', async ({
+  page,
+  owner,
+}) => {
+  await openMockedApp(page, owner);
+  await startPlaying(page);
+  const backdrops = ALL_SKINS.filter((s) => !['retro', 'pill', 'library'].includes(s));
+  const art = (skin: string) =>
+    page.locator(`.sr-ply[data-skin="${skin}"]`).evaluate((root) => ({
+      motion: root.getAttribute('data-motion'),
+      hiddenArt: Array.from(root.querySelectorAll('.sr-ply-bd-art')).every(
+        (a) => a.getAttribute('aria-hidden') === 'true',
+      ),
+      running: root.getAnimations({ subtree: true }).filter((a) => a.playState === 'running')
+        .length,
+    }));
+  for (const skin of backdrops) {
+    await setSkin(page, skin);
+    const now = await art(skin);
+    expect(now.motion, skin).toBe('on');
+    expect(now.hiddenArt, skin).toBe(true);
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const skin of backdrops) {
+    await setSkin(page, skin);
+    await expect
+      .poll(async () => (await art(skin)).running, { message: `${skin} still animates` })
+      .toBe(0);
   }
 });
