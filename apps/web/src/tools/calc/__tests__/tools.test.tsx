@@ -87,7 +87,10 @@ describe.skipIf(!built)('the calculator (UTL-CALC-001)', () => {
     render(<CalculatorTool {...props} />);
     const box = screen.getByRole('textbox', { name: 'Expression' }) as HTMLInputElement;
     await user.click(screen.getByRole('button', { name: 'Square root' }));
-    await user.type(box, '16)');
+    // The press itself leaves focus and the caret after "sqrt(", so typing goes on from there with no click.
+    expect(document.activeElement).toBe(box);
+    expect(box.selectionStart).toBe(5);
+    await user.type(box, '16)', { skipClick: true });
     expect(box.value).toBe('sqrt(16)');
     expect(await screen.findByText('4')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear' }));

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import type { ToolProps } from '../registry';
 import { errorKey, errorVars } from './errors';
@@ -70,16 +70,25 @@ export default function CalculatorTool({ host }: ToolProps) {
     return engine.calcEval(expr, degrees, ans);
   }, [engine, expr, degrees, ans]);
 
+  // Where a keypad press leaves the caret. It is placed in a layout effect right after the new expression
+  // commits, before the next input event, never in a later frame: a deferred move could land after the member
+  // had typed on and pull the caret back into the middle of what they typed.
+  const pendingCaret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const at = pendingCaret.current;
+    if (at === null) return;
+    pendingCaret.current = null;
+    const el = input.current;
+    el?.focus();
+    el?.setSelectionRange(at, at);
+  }, [expr]);
+
   const insert = (text: string) => {
     const el = input.current;
     const start = el?.selectionStart ?? expr.length;
     const end = el?.selectionEnd ?? expr.length;
+    pendingCaret.current = start + text.length;
     setExpr(expr.slice(0, start) + text + expr.slice(end));
-    requestAnimationFrame(() => {
-      el?.focus();
-      const at = start + text.length;
-      el?.setSelectionRange(at, at);
-    });
   };
 
   const commit = () => {
