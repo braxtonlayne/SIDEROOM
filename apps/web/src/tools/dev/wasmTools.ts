@@ -1,6 +1,6 @@
 /**
  * UTL-DEV-001: the typed face of the dice, diff and hash functions in `sr-tools-wasm` (the facade's
- * `loadTools()` hands back the raw module; this file says what this agent's three modules export).
+ * `loadTools().dev`, typed as `ToolsDevApi` in `@sideroom/wasm`).
  * Tests replace the loader with `setDevWasmForTests`.
  */
 
@@ -17,7 +17,7 @@ type Loader = () => Promise<DevWasmApi>;
 
 const real: Loader = async () => {
   const m = await import('@sideroom/wasm');
-  return (await m.loadTools()) as unknown as DevWasmApi;
+  return (await m.loadTools()).dev;
 };
 
 let loader: Loader = real;

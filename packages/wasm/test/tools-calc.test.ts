@@ -31,7 +31,7 @@ interface Raw {
 }
 
 describe.skipIf(!built)('sr-tools-wasm calculator exports', () => {
-  const load = async () => (await loadTools(readFileSync(wasmPath))) as unknown as Raw;
+  const load = async () => (await loadTools(readFileSync(wasmPath))).raw as unknown as Raw;
 
   it('evaluates expressions and reports errors with a code and a position', async () => {
     const m = await load();

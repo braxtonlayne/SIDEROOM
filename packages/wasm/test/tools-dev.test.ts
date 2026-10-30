@@ -26,7 +26,7 @@ interface Api {
   hashCrc32(d: Uint8Array): string;
 }
 
-const load = async () => (await loadTools(readFileSync(wasmPath))) as unknown as Api;
+const load = async () => (await loadTools(readFileSync(wasmPath))).dev as Api;
 const text = (s: string) => new TextEncoder().encode(s);
 
 // [expression, lowest total, highest total] for every seed.

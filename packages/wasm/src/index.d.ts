@@ -411,12 +411,25 @@ export interface PaletteColour {
   share: number;
 }
 
+// UTL-DEV-001 (utl-dev)
+export interface ToolsDevApi {
+  /** A dice expression with a 64-bit seed in two halves; JSON text of the roll or of the error. */
+  diceRoll(expression: string, seedHi: number, seedLo: number): string;
+  diceFlip(seedHi: number, seedLo: number): boolean;
+  dicePickWeighted(weights: Uint32Array, seedHi: number, seedLo: number): number;
+  /** JSON text of the diff. */
+  diffText(a: string, b: string, mode: 'lines' | 'words' | 'chars'): string;
+  hashMd5(data: Uint8Array): string;
+  hashCrc32(data: Uint8Array): string;
+}
+
 export interface ToolsApi {
   /** The raw wasm-bindgen module of sr-tools-wasm. */
   raw: Record<string, unknown>;
   search: { create(): ToolSearchIndex };
   gif: { limits: GifLimits; create(width: number, height: number, delayCs: number): GifBuilder };
   palette: { extract(rgba: Uint8Array | Uint8ClampedArray, k?: number): PaletteColour[] };
+  dev: ToolsDevApi;
 }
 
 export function loadTools(wasmUrl?: string | URL | BufferSource): Promise<ToolsApi>;

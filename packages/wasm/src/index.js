@@ -183,8 +183,25 @@ const toolsPalette = (m) => ({
   extract: (rgba, k = 6) => JSON.parse(m.extractPalette(rgba, k)),
 });
 
+// UTL-DEV-001 (utl-dev): dice, diff and hashes. Results are JSON text (dice, diff) or hex (hashes).
+const toolsDev = (m) => ({
+  diceRoll: (expression, seedHi, seedLo) => m.diceRoll(expression, seedHi, seedLo),
+  diceFlip: (seedHi, seedLo) => m.diceFlip(seedHi, seedLo),
+  dicePickWeighted: (weights, seedHi, seedLo) => m.dicePickWeighted(weights, seedHi, seedLo),
+  diffText: (a, b, mode) => m.diffText(a, b, mode),
+  hashMd5: (data) => m.hashMd5(data),
+  hashCrc32: (data) => m.hashCrc32(data),
+});
+
+// UTL-CALC-001 (utl-calc) uses `raw` through its own typed wrapper (apps/web/src/tools/calc/engine.ts).
 export const loadTools = once(async (wasmUrl) => {
   const m = await import('../dist/tools/tools.js');
   await m.default({ module_or_path: wasmUrl });
-  return { raw: m, search: toolsSearch(m), gif: toolsGif(m), palette: toolsPalette(m) };
+  return {
+    raw: m,
+    search: toolsSearch(m),
+    gif: toolsGif(m),
+    palette: toolsPalette(m),
+    dev: toolsDev(m),
+  };
 });

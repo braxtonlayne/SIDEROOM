@@ -131,7 +131,7 @@ export function configureToolsWasm(source: BufferSource | undefined): void {
 export function getToolsEngine(): Promise<ToolsEngine> {
   if (injected)
     return injected instanceof Error ? Promise.reject(injected) : Promise.resolve(injected);
-  loading ??= loadTools(wasmSource).then((m) => wrap(m as unknown as Raw));
+  loading ??= loadTools(wasmSource).then((m) => wrap(m.raw as unknown as Raw));
   // A failed load (offline, blocked) must not be remembered forever.
   loading.catch(() => {
     loading = null;
