@@ -63,12 +63,20 @@ pub struct MountsDeps {
     pub facts: Option<Arc<dyn sr_storage::scopes::ScopeFacts>>,
     /// Patron and staff standing, for `byos.who_may_mount` (BYOS-FLG-001). Unset: a restricted setting refuses all.
     pub standing: Option<Arc<dyn sr_storage::mount_policy::MemberStanding>>,
+    /// Publishes `STORAGE_MOUNT_UPDATE` (BYOS-NAV-001). Unset in unit tests.
+    pub events: Option<Arc<super::events::StorageEvents>>,
 }
 
 impl MountsDeps {
     /// Set the origin the CORS rule allows (`server.public_url`).
     pub fn with_public_origin(mut self, origin: &str) -> Self {
         self.public_origin = origin.trim_end_matches('/').to_owned();
+        self
+    }
+
+    /// Publish `STORAGE_MOUNT_UPDATE` when a mount is created, changed or removed.
+    pub fn with_events(mut self, events: Arc<super::events::StorageEvents>) -> Self {
+        self.events = Some(events);
         self
     }
 
@@ -104,6 +112,7 @@ impl MountsDeps {
             test_budget: sr_storage::probe::PROBE_BUDGET,
             facts: None,
             standing: None,
+            events: None,
         }
     }
 
@@ -558,6 +567,7 @@ async fn create(
         .create(new, Some(cap))
         .await
         .map_err(repo_failure)?;
+    notify(deps, mount.id, mount.owner, "created").await;
     Ok((StatusCode::CREATED, Json(MountObject::of(&mount))))
 }
 
@@ -681,6 +691,7 @@ async fn patch(
             .map_err(repo_failure)?;
     }
     deps.resolver.invalidate(current.id);
+    notify(deps, current.id, current.owner, "updated").await;
     let fresh = deps
         .repo
         .by_id(current.id)
@@ -694,6 +705,7 @@ async fn remove(deps: &MountsDeps, scope: Scope, mount_id: &str) -> MsgResult<St
     let m = owned_mount(deps, &scope, mount_id).await?;
     deps.repo.soft_delete(m.id).await.map_err(repo_failure)?;
     deps.resolver.invalidate(m.id);
+    notify(deps, m.id, m.owner, "deleted").await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -897,3 +909,10 @@ pub async fn delete_guild(
     components(schemas(MountObject, CreateMountBody, PatchMountBody))
 )]
 pub struct MountsApiDoc;
+
+/// Tell the affected sessions that what the shelves reach may have changed (BYOS-NAV-001).
+async fn notify(deps: &MountsDeps, mount_id: i64, owner: MountOwner, change: &str) {
+    if let Some(ev) = &deps.events {
+        ev.mount_changed(mount_id, owner, change).await;
+    }
+}

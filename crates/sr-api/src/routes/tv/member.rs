@@ -31,16 +31,18 @@ pub struct TimezoneList {
     pub items: Vec<String>,
 }
 
-/// Enabled channels by number, each with what is on now and next.
+/// Enabled channels by number, each with what is on now and next. A server's channel is listed only to those
+/// who may watch it, and a personal channel only to its owner (BYOS-TV-001).
 #[utoipa::path(
     get, path = "/tv/channels", operation_id = "tv_channels",
     responses((status = 200, body = ChannelList), (status = 401, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn channels(ctx: MemberCtx) -> ApiResult<Json<ChannelList>> {
+    let all = ctx.deps.service.channels().await.map_err(map_err)?;
     ctx.deps
         .service
-        .channels()
+        .visible_channels(ctx.viewer, all)
         .await
         .map(|items| Json(ChannelList { items }))
         .map_err(map_err)
@@ -154,9 +156,15 @@ pub async fn guide(ctx: MemberCtx, Query(p): Query<GuideParams>) -> ApiResult<Js
         .filter(|s| !s.is_empty())
         .map(|s| id(s, "channel"))
         .collect::<Result<_, _>>()?;
-    ctx.deps
+    let guide = ctx
+        .deps
         .service
         .guide(p.from, p.to, &ids)
+        .await
+        .map_err(map_err)?;
+    ctx.deps
+        .service
+        .visible_guide(ctx.viewer, guide)
         .await
         .map(Json)
         .map_err(map_err)
@@ -170,9 +178,15 @@ pub async fn guide(ctx: MemberCtx, Query(p): Query<GuideParams>) -> ApiResult<Js
     security(("session" = []))
 )]
 pub async fn channel(ctx: MemberCtx, Path(channel_id): Path<String>) -> ApiResult<Json<Channel>> {
+    let channel_id = id(&channel_id, "channel")?;
     ctx.deps
         .service
-        .channel(id(&channel_id, "channel")?)
+        .require_watch(ctx.viewer, channel_id)
+        .await
+        .map_err(map_err)?;
+    ctx.deps
+        .service
+        .channel(channel_id)
         .await
         .map(Json)
         .map_err(map_err)
@@ -186,9 +200,15 @@ pub async fn channel(ctx: MemberCtx, Path(channel_id): Path<String>) -> ApiResul
     security(("session" = []))
 )]
 pub async fn now(ctx: MemberCtx, Path(channel_id): Path<String>) -> ApiResult<Json<NowView>> {
+    let channel_id = id(&channel_id, "channel")?;
     ctx.deps
         .service
-        .now(id(&channel_id, "channel")?)
+        .require_watch(ctx.viewer, channel_id)
+        .await
+        .map_err(map_err)?;
+    ctx.deps
+        .service
+        .now(channel_id)
         .await
         .map(Json)
         .map_err(map_err)

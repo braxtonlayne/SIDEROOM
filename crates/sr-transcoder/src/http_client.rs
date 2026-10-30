@@ -370,6 +370,7 @@ mod tests {
             TokenInfo {
                 token_id: 1,
                 name: "t".into(),
+                scope: sr_media::worker_api::TokenScope::Instance,
             },
         );
         let blobs = Blobs {
@@ -397,6 +398,7 @@ mod tests {
                             .duration_since(std::time::UNIX_EPOCH)
                             .map_or(0, |d| d.as_secs())
                     }),
+                    mounts: None,
                     config: ServiceConfig {
                         part_size: 64,
                         ..ServiceConfig::default()

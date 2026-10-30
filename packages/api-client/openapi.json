@@ -59022,6 +59022,147 @@
         ]
       }
     },
+    "/storage/mounts/{mount_id}/transcode": {
+      "get": {
+        "tags": [],
+        "summary": "The latest conversions of a mount, newest first.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobSummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Queue the conversion of one video of a mount. The worker receives a presigned `GET` of the source and a\npresigned `PUT` for every output file; the result lands under `transcoded/<key>/` in the same bucket.",
+        "operationId": "queue",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueTranscodeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuedTranscodeView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "WORKER_NOT_ENABLED or BUCKET_UNREACHABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/storage/mounts/{mount_id}/uploads": {
       "get": {
         "tags": [
@@ -59487,6 +59628,204 @@
           },
           "429": {
             "description": "byos.upload_parts_per_hour reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/worker-tokens": {
+      "get": {
+        "tags": [],
+        "summary": "The worker tokens of this mount (never their secrets).",
+        "operationId": "list_tokens",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerToken"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Create a worker token scoped to this mount. The response carries the secret; it cannot be shown again.",
+        "operationId": "create_token",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MountTokenBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Too many worker tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/storage/mounts/{mount_id}/worker-tokens/{worker_token_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Revoke a worker token of this mount; its workers drain.",
+        "operationId": "revoke_token",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "worker_token_id",
+            "in": "path",
+            "description": "Worker token snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -62587,7 +62926,7 @@
         "tags": [
           "member"
         ],
-        "summary": "Enabled channels by number, each with what is on now and next.",
+        "summary": "Enabled channels by number, each with what is on now and next. A server's channel is listed only to those\nwho may watch it, and a personal channel only to its owner (BYOS-TV-001).",
         "operationId": "tv_channels",
         "responses": {
           "200": {
@@ -77633,6 +77972,25 @@
           }
         }
       },
+      "ConvertPolicyView": {
+        "type": "object",
+        "description": "What the browser converter is told on `GET /users/@me/shelves/summary` (P29-CNV-1).",
+        "required": [
+          "max_mib",
+          "require_client_remux"
+        ],
+        "properties": {
+          "max_mib": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`byos.client_convert_max_mib`: larger files are refused with the worker hint."
+          },
+          "require_client_remux": {
+            "type": "boolean",
+            "description": "`byos.require_client_remux`: the Convert step offers no \"upload as they are\"."
+          }
+        }
+      },
       "CorsResultObject": {
         "type": "object",
         "description": "The state of a bucket's CORS rules against the one this site needs.",
@@ -85318,7 +85676,8 @@
         "enum": [
           "proxy",
           "ladder",
-          "remux"
+          "remux",
+          "mount_transcode"
         ]
       },
       "JobPage": {
@@ -85444,6 +85803,13 @@
           },
           "kind": {
             "$ref": "#/components/schemas/JobKind"
+          },
+          "mount_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The storage mount a `mount_transcode` job works in (BYOS-CNV-003)."
           },
           "priority": {
             "type": "integer",
@@ -88806,6 +89172,14 @@
           }
         }
       },
+      "MountFormat": {
+        "type": "string",
+        "description": "What the member wants out of the job.",
+        "enum": [
+          "hls",
+          "mp4"
+        ]
+      },
       "MountObject": {
         "type": "object",
         "description": "A storage mount. The secret access key is never returned.",
@@ -88899,6 +89273,28 @@
           "status": {
             "type": "string",
             "description": "`active`, `failing`, `disabled` or `delisted` (set by staff after a takedown; the owner cannot clear it)."
+          }
+        }
+      },
+      "MountPreset": {
+        "type": "string",
+        "description": "The ladder preset: the tallest rung the job produces.",
+        "enum": [
+          "low",
+          "standard",
+          "high"
+        ]
+      },
+      "MountTokenBody": {
+        "type": "object",
+        "description": "A new worker token for a mount.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A label for the machine, 1 to 64 characters."
           }
         }
       },
@@ -93623,6 +94019,58 @@
           }
         }
       },
+      "QueueTranscodeBody": {
+        "type": "object",
+        "description": "Queue a conversion.",
+        "required": [
+          "key",
+          "format"
+        ],
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/MountFormat",
+            "description": "`hls` (a ladder) or `mp4` (one file)."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key of the video."
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MountPreset",
+                "description": "The tallest output: `low` (480p), `standard` (720p, the default) or `high` (1080p)."
+              }
+            ]
+          }
+        }
+      },
+      "QueuedTranscodeView": {
+        "type": "object",
+        "description": "A queued conversion.",
+        "required": [
+          "job_id",
+          "operator_worker",
+          "output_prefix"
+        ],
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "The job id (Admin > Transcoding shows it too)."
+          },
+          "operator_worker": {
+            "type": "boolean",
+            "description": "Whether the operator's own workers may take it (`byos.worker_for_members`); false: only a worker\ntoken of this mount does."
+          },
+          "output_prefix": {
+            "type": "string",
+            "description": "Where the result lands in the bucket, mount-relative."
+          }
+        }
+      },
       "RankCard": {
         "type": "object",
         "required": [
@@ -97091,7 +97539,8 @@
         "required": [
           "cinema",
           "library",
-          "music"
+          "music",
+          "convert"
         ],
         "properties": {
           "catalog": {
@@ -97109,6 +97558,10 @@
             "type": "integer",
             "format": "int64",
             "description": "Cinema shelves."
+          },
+          "convert": {
+            "$ref": "#/components/schemas/ConvertPolicyView",
+            "description": "The browser converter's policy (P29-CNV-1): its size cap and whether the server wants converted uploads."
           },
           "library": {
             "type": "integer",
@@ -100737,6 +101190,7 @@
           "age_restricted",
           "enabled",
           "filler_policy",
+          "pool",
           "viewers"
         ],
         "properties": {
@@ -100800,6 +101254,10 @@
           "number": {
             "type": "integer",
             "format": "int32"
+          },
+          "pool": {
+            "$ref": "#/components/schemas/TvPoolSource",
+            "description": "Where the pools draw from: the instance catalog, one server's shelves, or one member's shelf."
           },
           "rules": {
             "oneOf": [
@@ -100882,6 +101340,10 @@
           "number": {
             "type": "integer",
             "format": "int32"
+          },
+          "pool": {
+            "$ref": "#/components/schemas/TvPoolSource",
+            "description": "Where the pools draw from; the instance catalog when absent."
           },
           "rules": {
             "$ref": "#/components/schemas/TvRules"
@@ -101479,6 +101941,61 @@
             "format": "int32"
           }
         }
+      },
+      "TvPoolSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instance"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "guild_id",
+              "kind"
+            ],
+            "properties": {
+              "guild_id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "guild"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "user_id",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "personal"
+                ]
+              },
+              "user_id": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "Where a channel's pools draw from.\n\n* `instance`: the instance catalog, as before (no owner).\n* `guild`: a server's shelves only, that is the server's own mounts and the instance bucket (mount 1) when\n  it is attached to the server. Every viewer who may watch the server's Cinema sees the same guide, so\n  nothing is skipped per viewer.\n* `personal`: one member's own shelf, for that member alone. A friend's shelf is never a source."
       },
       "TvPreview": {
         "type": "object",
@@ -104442,6 +104959,10 @@
               "null"
             ],
             "format": "int64"
+          },
+          "scope": {
+            "type": "string",
+            "description": "`instance` or `mount:<id>` (BYOS-CNV-003)."
           }
         }
       },

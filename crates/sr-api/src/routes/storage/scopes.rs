@@ -3,8 +3,9 @@
 use super::{ScopeDeps, facts_failed, parse_row, uid};
 use crate::auth::SessionOnly;
 use crate::openapi::ErrorBody;
-use crate::routes::Ext;
+use crate::routes::admin::AdminDeps;
 use crate::routes::messages::error::{ApiJson, MsgResult, invalid};
+use crate::routes::{Ext, MaybeExt};
 use axum::{Json, extract::Path, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use sr_core::ErrorCode;
@@ -77,6 +78,44 @@ pub struct ShelvesSummaryView {
     /// Instance catalog counts (absent until the catalog reports them).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub catalog: Option<CatalogCounts>,
+    /// The browser converter's policy (P29-CNV-1): its size cap and whether the server wants converted uploads.
+    pub convert: ConvertPolicyView,
+}
+
+/// What the browser converter is told on `GET /users/@me/shelves/summary` (P29-CNV-1).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ConvertPolicyView {
+    /// `byos.client_convert_max_mib`: larger files are refused with the worker hint.
+    pub max_mib: i64,
+    /// `byos.require_client_remux`: the Convert step offers no "upload as they are".
+    pub require_client_remux: bool,
+}
+
+/// The converter defaults when no admin service is wired or a read fails.
+pub(crate) const DEFAULT_CONVERT_MAX_MIB: i64 = 2048;
+
+pub(crate) async fn convert_policy(admin: Option<&AdminDeps>) -> ConvertPolicyView {
+    let Some(a) = admin else {
+        return ConvertPolicyView {
+            max_mib: DEFAULT_CONVERT_MAX_MIB,
+            require_client_remux: false,
+        };
+    };
+    let max_mib = a
+        .service
+        .setting_value_i64(sr_admin::settings::BYOS_CLIENT_CONVERT_MAX_MIB)
+        .await
+        .unwrap_or(DEFAULT_CONVERT_MAX_MIB);
+    let require_client_remux = a
+        .service
+        .setting_value_i64(sr_admin::settings::BYOS_REQUIRE_CLIENT_REMUX)
+        .await
+        .unwrap_or(0)
+        == 1;
+    ConvertPolicyView {
+        max_mib,
+        require_client_remux,
+    }
 }
 
 /// Body of `PUT /guilds/{guild_id}/storage/grants`.
@@ -149,6 +188,7 @@ pub async fn list_shares(
 pub async fn put_share(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
+    MaybeExt(events): MaybeExt<super::events::StorageEvents>,
     Path((mount_id, friend)): Path<(String, String)>,
     ApiJson(body): ApiJson<ShareBody>,
 ) -> MsgResult<Json<ShareView>> {
@@ -193,6 +233,10 @@ pub async fn put_share(
         .set_share(id, friend, share)
         .await
         .map_err(facts_failed)?;
+    if let Some(ev) = events {
+        let change = if share.any() { "shared" } else { "unshared" };
+        ev.share_changed(id, user, friend, change).await;
+    }
     Ok(Json(share_view(friend, share)))
 }
 
@@ -210,6 +254,7 @@ pub async fn put_share(
 pub async fn delete_share(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
+    MaybeExt(events): MaybeExt<super::events::StorageEvents>,
     Path((mount_id, friend)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let id = own_mount(&d, uid(&p), &mount_id).await?;
@@ -218,6 +263,9 @@ pub async fn delete_share(
         .delete_share(id, friend)
         .await
         .map_err(facts_failed)?;
+    if let Some(ev) = events {
+        ev.share_changed(id, uid(&p), friend, "unshared").await;
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -257,6 +305,7 @@ pub async fn incoming_shares(
 pub async fn summary(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
+    MaybeExt(admin): MaybeExt<AdminDeps>,
 ) -> MsgResult<Json<ShelvesSummaryView>> {
     let s = d
         .store
@@ -273,6 +322,7 @@ pub async fn summary(
             .await
             .ok()
             .map(|(cinema, library)| CatalogCounts { cinema, library }),
+        convert: convert_policy(admin.as_deref()).await,
     }))
 }
 
@@ -352,4 +402,21 @@ pub async fn put_grants(
         .await
         .map_err(facts_failed)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod convert_policy_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn the_converter_policy_falls_back_to_2048_mib_and_not_required() {
+        let p = convert_policy(None).await;
+        assert_eq!(p.max_mib, 2048);
+        assert!(!p.require_client_remux);
+        let v = serde_json::to_value(&p).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({ "max_mib": 2048, "require_client_remux": false })
+        );
+    }
 }

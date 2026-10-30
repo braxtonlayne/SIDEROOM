@@ -8,6 +8,28 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 29 - 2026-10-29
+
+- **Convert to play, in your browser.** Videos a browser cannot play (MKV, AVI, MOV, TS) can be converted while
+  you upload them, in the bucket browser and when you submit a film to Cinema. Most files are only repackaged,
+  which takes a minute or two; files whose picture or sound the browser cannot play are re-encoded in the tab
+  where the browser can do it. Text subtitles come out as `.srt` or `.ass` files beside the video. Nothing leaves
+  your browser for this, the original stays where it was, and the shelf plays the converted copy.
+- **Big files go to a worker.** The browser converts files up to 2 GiB by default. For bigger ones, or ones the
+  browser cannot convert, the owner of a bucket can run the transcoder on their own machine with a worker token
+  for that bucket, or the operator can offer theirs.
+- **Live TV for a server.** A Live TV channel can belong to a server and air only that server's shelves; everyone
+  who may watch the server's Cinema sees the same guide, with a "Server shelf" chip. The guide lists the
+  instance's channels first, then each server's, then your own.
+- **Tabs that hide themselves.** With Cinema or Library on Auto, the tab appears once you can reach something to
+  watch or read, and updates as buckets are connected or shared. Empty shelves say how to fill them.
+- **For the operator:** new settings `byos.client_convert_max_mib` (default 2048, the most the bundled converter
+  handles reliably) and `byos.worker_for_members` (off: your transcoder workers do not convert members' files).
+  `byos.require_client_remux` now hides "upload as they are" in the Convert step. Server channels are created by
+  staff through the admin API for now, and a channel with an imported guide must be an instance channel. The
+  in-browser converter is GPL software loaded as separate files only when someone converts; its notice is in
+  `THIRD_PARTY_NOTICES.md`.
+
 ## Phase 28 - 2026-10-27
 
 - **Fill your buckets from the app.** The bucket browser uploads files or a whole folder (drag and drop works), in

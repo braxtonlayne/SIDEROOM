@@ -272,9 +272,15 @@ impl AdminService {
         let stored = self.repo.settings().await?;
         let def =
             settings::find(key).ok_or_else(|| AdminError::Storage(format!("no setting {key}")))?;
+        // A boolean setting is stored as JSON `true`/`false` (its validator's answer); it reads as 1/0 here, so
+        // the `setting_value_i64(...) == 1` readers of boolean keys see what staff saved (P29-CNV-1).
         Ok(stored
             .get(key)
-            .and_then(|s| s.value.as_i64())
+            .and_then(|s| {
+                s.value
+                    .as_i64()
+                    .or_else(|| s.value.as_bool().map(i64::from))
+            })
             .unwrap_or(def.default_int))
     }
 

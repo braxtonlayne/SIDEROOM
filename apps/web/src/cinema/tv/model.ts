@@ -148,13 +148,37 @@ export function categoryOf(ch: TvChannel, blocks: TvBlock[] = []): ChannelCatego
   return 'custom';
 }
 
+/* ------------------------------------------------------------ guide order */
+
+/**
+ * Where a channel sorts in the guide (P29-TV-1): instance channels first, then each server's, then personal
+ * ones, by number within each (numbers repeat across sources). The server's `GET /tv/channels` uses the same
+ * order; the client sorts again because it merges and filters lists.
+ */
+export const channelOrder = (c: TvChannel): [number, string, number] => [
+  c.pool?.kind === 'personal' ? 2 : c.pool?.kind === 'guild' ? 1 : 0,
+  c.pool?.kind === 'guild' ? c.pool.guild_id : c.pool?.kind === 'personal' ? c.pool.user_id : '',
+  c.number,
+];
+
+/** Snowflakes as numbers: a shorter decimal string is the smaller id. */
+const compareIds = (a: string, b: string) =>
+  a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0;
+
+/** Comparator for `channelOrder`. */
+export function compareChannels(a: TvChannel, b: TvChannel): number {
+  const [ra, ia, na] = channelOrder(a);
+  const [rb, ib, nb] = channelOrder(b);
+  return ra - rb || compareIds(ia, ib) || na - nb || compareIds(a.id, b.id);
+}
+
 export function filterChannels(
   channels: TvChannel[],
   blocks: Record<string, TvBlock[]>,
   filter: TvFilter,
   favourites: ReadonlySet<string>,
 ): TvChannel[] {
-  const sorted = [...channels].sort((a, b) => a.number - b.number);
+  const sorted = [...channels].sort(compareChannels);
   if (filter === 'all') return sorted;
   if (filter === 'favorites') return sorted.filter((c) => favourites.has(c.id));
   return sorted.filter((c) => categoryOf(c, blocks[c.id]) === filter);
@@ -212,13 +236,13 @@ export const titleHrefOf = (b: Pick<TvBlock, 'title_id'>) =>
 
 /* ---------------------------------------------------------- live player */
 
-/** Channel after `current` in number order, wrapping. `dir` +1 is channel up. */
+/** Channel after `current` in guide order (`compareChannels`), wrapping. `dir` +1 is channel up. */
 export function stepChannel(
   channels: TvChannel[],
   currentId: string,
   dir: 1 | -1,
 ): TvChannel | null {
-  const list = [...channels].sort((a, b) => a.number - b.number);
+  const list = [...channels].sort(compareChannels);
   if (list.length === 0) return null;
   const at = list.findIndex((c) => c.id === currentId);
   if (at < 0) return list[0]!;

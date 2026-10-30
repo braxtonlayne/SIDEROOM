@@ -233,12 +233,38 @@ pub struct Classified {
     pub cover_key: Option<String>,
     /// The backdrop found beside it.
     pub backdrop_key: Option<String>,
+    /// The browser-made playable copy of a video that does not play as it is: `converted/<stem>.mp4` (or
+    /// `.webm`) found in the same listing (BYOS-CNV-001, migration 1480). Shelves play it instead of `key`.
+    pub playable_key: Option<String>,
 }
 
 impl Classified {
     fn is_library(&self) -> bool {
         matches!(self.class, Class::Book | Class::Comic | Class::Manga)
     }
+}
+
+/// Folders that hold copies made from other objects of the mount: the browser converter's `converted/`
+/// (BYOS-CNV-001) and the worker's `transcoded/` (BYOS-CNV-003). Their files are never shelf items of their own.
+pub const DERIVED_PREFIXES: &[&str] = &["converted/", "transcoded/"];
+
+/// Whether `key` is a copy the converter or the worker made (see [`DERIVED_PREFIXES`]).
+pub fn is_derived(key: &str) -> bool {
+    DERIVED_PREFIXES.iter().any(|p| key.starts_with(p))
+}
+
+/// The keys the browser converter writes for `original` (`Movies/Film.mkv` to `converted/Movies/Film.mp4`, then
+/// `.webm`), in preference order. Mirrors `convertedKey` in `apps/web/src/convert/plan.ts`.
+pub fn converted_candidates(original: &str) -> [String; 2] {
+    let slash = original.rfind('/').map_or(0, |i| i + 1);
+    let stem = match original.rfind('.') {
+        Some(dot) if dot > slash => &original[..dot],
+        _ => original,
+    };
+    [
+        format!("converted/{stem}.mp4"),
+        format!("converted/{stem}.webm"),
+    ]
 }
 
 const VIDEO_EXT: &[&str] = &[
@@ -556,6 +582,9 @@ pub fn classify(
     if is_junk(name) {
         return ignored(c, "junk");
     }
+    if is_derived(key) {
+        return ignored(c, "playable copy of another object");
+    }
     let ext = ext_of(name);
     c.container.clone_from(&ext);
     let sc = merged_sidecar(dirs, sidecars);
@@ -808,6 +837,16 @@ pub fn classify_all(
             out[i].number = Some(next);
         }
     }
+    // A video that does not play as it is takes the converted copy found beside it in this listing.
+    let keys: std::collections::HashSet<&str> = listing.iter().map(|(k, _)| k.as_str()).collect();
+    for c in out
+        .iter_mut()
+        .filter(|c| !c.ignored && !c.web_native && c.class.kind() == Some(Kind::Cinema))
+    {
+        c.playable_key = converted_candidates(&c.key)
+            .into_iter()
+            .find(|k| keys.contains(k.as_str()));
+    }
     out
 }
 
@@ -867,6 +906,56 @@ mod tests {
     fn a_series_folder_file_without_an_episode_number_is_left_out() {
         let x = c("Series/Show/extras/behind.mkv");
         assert!(x.ignored);
+    }
+
+    #[test]
+    fn a_converted_copy_is_the_playable_key_of_its_original_and_no_title_of_its_own() {
+        let listing: Vec<(String, u64)> = [
+            "Movies/Film (2019).mkv",
+            "converted/Movies/Film (2019).mp4",
+            "Movies/Other.avi",
+            "converted/Movies/Other.webm",
+            "Movies/Native.mp4",
+            "converted/Movies/Native.mp4",
+            "Movies/Alone.mkv",
+            "transcoded/Movies/Alone.mkv/video.mp4",
+        ]
+        .iter()
+        .map(|k| ((*k).to_owned(), 1))
+        .collect();
+        let all = classify_all(&listing, &Fake, &SidecarMap::new(), Options::default());
+        let by = |k: &str| all.iter().find(|c| c.key == k).unwrap();
+        assert_eq!(
+            by("Movies/Film (2019).mkv").playable_key.as_deref(),
+            Some("converted/Movies/Film (2019).mp4")
+        );
+        assert_eq!(
+            by("Movies/Other.avi").playable_key.as_deref(),
+            Some("converted/Movies/Other.webm")
+        );
+        // A file that plays as it is keeps its own key; one with no copy has none (the worker's output comes
+        // from `storage_object_transcodes`, not from the listing).
+        assert_eq!(by("Movies/Native.mp4").playable_key, None);
+        assert_eq!(by("Movies/Alone.mkv").playable_key, None);
+        // The copies themselves are never shelf items.
+        for k in [
+            "converted/Movies/Film (2019).mp4",
+            "converted/Movies/Other.webm",
+            "transcoded/Movies/Alone.mkv/video.mp4",
+        ] {
+            assert!(by(k).ignored, "{k}");
+        }
+        assert_eq!(
+            converted_candidates("Film"),
+            [
+                "converted/Film.mp4".to_owned(),
+                "converted/Film.webm".to_owned()
+            ]
+        );
+        assert_eq!(
+            converted_candidates(".hidden/a")[0],
+            "converted/.hidden/a.mp4"
+        );
     }
 
     #[test]

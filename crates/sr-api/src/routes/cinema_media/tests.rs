@@ -59,9 +59,12 @@ fn store_unsupported<T>() -> Result<T, StoreError> {
     Err(StoreError::Backend("not stubbed".into()))
 }
 
-/// Remembers tokens; everything else is empty or unsupported.
+/// Remembers tokens and counts queued jobs; everything else is empty or unsupported. Also used by the storage
+/// routes' conversion tests (`routes/storage/transcode_tests.rs`).
 #[derive(Default)]
-struct Stub {
+pub(crate) struct Stub {
+    /// Jobs queued through `enqueue`.
+    pub(crate) queued: Mutex<Vec<NewJob>>,
     tokens: Mutex<Vec<(WorkerToken, String)>>,
     /// What `list_assets` returns.
     assets: Mutex<Vec<Asset>>,
@@ -89,13 +92,16 @@ impl JobStore for Stub {
     async fn cancel_requests_for(&self, _: &str) -> Result<Vec<String>, StoreError> {
         Ok(vec![])
     }
-    async fn enqueue(&self, _: NewJob) -> Result<String, StoreError> {
-        store_unsupported()
+    async fn enqueue(&self, job: NewJob) -> Result<String, StoreError> {
+        let mut q = self.queued.lock().unwrap();
+        q.push(job);
+        Ok(format!("j{}", q.len()))
     }
     async fn claim_next(
         &self,
         _: &str,
         _: &[JobKind],
+        _: sr_media::worker_api::TokenScope,
         _: u64,
         _: u64,
     ) -> Result<Option<JobRecord>, StoreError> {
@@ -207,10 +213,12 @@ impl MediaRepository for Stub {
         name: &str,
         sha256: &str,
         created_by: i64,
+        scope: sr_media::worker_api::TokenScope,
     ) -> MediaResult<WorkerToken> {
         let t = WorkerToken {
             id,
             name: name.to_owned(),
+            scope: scope.to_column(),
             created_by: Some(created_by),
             created_at_ms: 1,
             last_used_at_ms: None,
@@ -230,6 +238,20 @@ impl MediaRepository for Stub {
             .iter()
             .map(|(t, _)| t.clone())
             .collect())
+    }
+    async fn list_mount_tokens(&self, mount_id: i64) -> MediaResult<Vec<WorkerToken>> {
+        let scope = format!("mount:{mount_id}");
+        Ok(self
+            .tokens
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(t, _)| t.scope == scope)
+            .map(|(t, _)| t.clone())
+            .collect())
+    }
+    async fn revoke_mount_token(&self, _: i64, _: i64) -> MediaResult<bool> {
+        Ok(false)
     }
     async fn revoke_token(&self, _: i64) -> MediaResult<bool> {
         Ok(false)
@@ -315,7 +337,28 @@ impl DownloadRepository for Stub {
     }
 }
 
-struct NoQueue;
+pub(crate) struct NoQueue;
+
+/// A media service over [`Stub`] (in-memory storage, a fixed runner, no probe queue).
+pub(crate) fn stub_media_service(stub: Arc<Stub>) -> MediaService {
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    let ids = Arc::new(Mutex::new(5000i64));
+    MediaService::new(
+        stub,
+        storage.clone(),
+        Arc::new(SinglePutStorage::new(storage)),
+        Arc::new(FakeRunner::fixed("")),
+        Arc::new(StaticMediaSettings(MediaSettings::default())),
+        Arc::new(NoQueue),
+        Arc::new(move || {
+            let mut g = ids.lock().unwrap();
+            *g += 1;
+            *g
+        }),
+        Arc::new(|| 1_700_000_000),
+        Arc::new(|| Some([9u8; 32])),
+    )
+}
 
 #[async_trait]
 impl ProbeQueue for NoQueue {

@@ -311,7 +311,7 @@ pub(crate) fn proxy_job(id: &str) -> ClaimedJob {
 pub(crate) fn sheets_of(job: &ClaimedJob) -> u32 {
     match &job.spec {
         JobSpec::Ladder { plan } => plan.sprite.sheets,
-        JobSpec::Proxy { .. } | JobSpec::Remux { .. } => 0,
+        JobSpec::Proxy { .. } | JobSpec::Remux { .. } | JobSpec::MountTranscode { .. } => 0,
     }
 }
 
@@ -927,4 +927,125 @@ fn remux_job_with_a_short_input_is_a_retryable_download_failure() {
         }
     );
     assert!(run.calls().is_empty());
+}
+
+// ---- mount_transcode (BYOS-CNV-003) -------------------------------------------------------
+
+/// A runner that answers `ffprobe` with `probe` and every other command like the fake ffmpeg.
+fn probing_runner(probe: &'static str, sheets: u32) -> FakeRunner {
+    FakeRunner::new(move |spec| {
+        if spec.program.contains("ffprobe") {
+            return FakeResult::ok(probe.to_owned());
+        }
+        produce(&spec.args, sheets);
+        FakeResult {
+            exit_code: Some(0),
+            stdout: "out_time_us=1000000\nprogress=continue\nout_time_us=60000000\nprogress=end\n"
+                .into(),
+            stderr: String::new(),
+        }
+    })
+}
+
+fn mount_job(id: &str, format: sr_media::mount_job::MountFormat) -> ClaimedJob {
+    ClaimedJob {
+        spec: JobSpec::MountTranscode {
+            mount_id: 7,
+            key: "Films/a.mkv".into(),
+            format,
+            preset: sr_media::mount_job::MountPreset::Standard,
+            operator_worker: false,
+        },
+        ..ladder_job(id)
+    }
+}
+
+#[test]
+fn a_mount_job_probes_the_download_and_uploads_one_mp4() {
+    let root = TempRoot::new();
+    let api = FakeApi::default();
+    let run = probing_runner(SDR_1080, 0);
+    let w = Worker::new(
+        &api,
+        &FakeTransfer { short_by: 0 },
+        &run,
+        cfg(&root.0),
+        caps(false),
+    );
+    let job = mount_job("jobm1", sr_media::mount_job::MountFormat::Mp4);
+    assert_eq!(w.process_job(&job), JobOutcome::Completed);
+    let calls = run.calls();
+    assert!(
+        calls[0].program.contains("ffprobe"),
+        "the file is probed first: {:?}",
+        calls[0].program
+    );
+    let st = api.st();
+    assert!(st.fails.is_empty(), "{:?}", st.fails);
+    assert_eq!(st.uploads.len(), 1);
+    assert!(
+        st.uploads[0].path.ends_with(".mp4"),
+        "{}",
+        st.uploads[0].path
+    );
+    assert_eq!(st.completes.len(), 1);
+}
+
+#[test]
+fn a_mount_job_can_produce_an_hls_ladder() {
+    let root = TempRoot::new();
+    let api = FakeApi::default();
+    let sheets = ladder(SDR_1080).sprite.sheets;
+    let run = probing_runner(SDR_1080, sheets);
+    let w = Worker::new(
+        &api,
+        &FakeTransfer { short_by: 0 },
+        &run,
+        cfg(&root.0),
+        caps(false),
+    );
+    let job = mount_job("jobm2", sr_media::mount_job::MountFormat::Hls);
+    assert_eq!(w.process_job(&job), JobOutcome::Completed);
+    let st = api.st();
+    assert!(st.fails.is_empty(), "{:?}", st.fails);
+    assert!(
+        st.uploads.iter().any(|u| u.path.ends_with(".m3u8")),
+        "{:?}",
+        st.uploads
+    );
+    assert!(!st.completes[0].segment_index.is_empty());
+}
+
+#[test]
+fn a_file_ffprobe_cannot_read_fails_the_mount_job_without_a_retry() {
+    let root = TempRoot::new();
+    let api = FakeApi::default();
+    let run = probing_runner("not json", 0);
+    let w = Worker::new(
+        &api,
+        &FakeTransfer { short_by: 0 },
+        &run,
+        cfg(&root.0),
+        caps(false),
+    );
+    let job = mount_job("jobm3", sr_media::mount_job::MountFormat::Mp4);
+    assert!(matches!(
+        w.process_job(&job),
+        JobOutcome::Failed {
+            retryable: false,
+            ..
+        }
+    ));
+    assert_eq!(api.st().fails.len(), 1);
+}
+
+#[test]
+fn ffprobe_is_found_beside_ffmpeg() {
+    assert_eq!(ffprobe_beside("ffmpeg"), "ffprobe");
+    assert_eq!(ffprobe_beside("/opt/ff/ffmpeg"), "/opt/ff/ffprobe");
+    assert_eq!(
+        ffprobe_beside("C:/ff/bin/ffmpeg.exe"),
+        "C:/ff/bin/ffprobe.exe"
+    );
+    assert_eq!(ffprobe_beside("/opt/ff/my-encoder"), "ffprobe");
 }

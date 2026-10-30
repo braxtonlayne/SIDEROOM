@@ -1058,3 +1058,35 @@ async fn the_bans_list_filters_by_severity_reason_and_age() {
         Err(AdminError::Invalid(_))
     ));
 }
+
+#[tokio::test]
+async fn a_saved_boolean_setting_reads_as_one_or_zero() {
+    let repo = Arc::new(MemoryAdminRepo::default());
+    let svc = AdminService::new(repo.clone());
+    let key = crate::settings::BYOS_WORKER_FOR_MEMBERS;
+    // Unset: the default (off).
+    assert_eq!(svc.setting_value_i64(key).await.unwrap(), 0);
+    let audit = AuditEntry {
+        actor_id: OWNER,
+        kind: AccessKind::AdminAction,
+        action: "settings.test".into(),
+        target_kind: None,
+        target_id: None,
+        reason: "test".into(),
+        ip: None,
+        detail: "{}".into(),
+    };
+    // What the settings validator stores for a boolean is JSON `true`.
+    let stored = crate::settings::find(key)
+        .unwrap()
+        .validate(&json!(true))
+        .unwrap();
+    repo.put_settings(&[(key.to_owned(), stored)], OWNER, &audit)
+        .await
+        .unwrap();
+    assert_eq!(svc.setting_value_i64(key).await.unwrap(), 1);
+    repo.put_settings(&[(key.to_owned(), json!(false))], OWNER, &audit)
+        .await
+        .unwrap();
+    assert_eq!(svc.setting_value_i64(key).await.unwrap(), 0);
+}

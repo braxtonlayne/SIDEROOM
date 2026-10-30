@@ -20,7 +20,9 @@ use sr_cinema::model::{
     AgeFilter, BrowseQuery, EpisodeRecord, Scope, SortKey, TitleKind, TitleRecord,
 };
 use sr_cinema::repo::{CinemaRepository, EpisodeQuery};
-use sr_tv::model::{MediaKind, PoolFilter, Restricted};
+use sr_storage::mounts::{MountOwner, MountRepo, MountStatus};
+use sr_storage::scopes::{Grant, ScopeFacts};
+use sr_tv::model::{MediaKind, PoolFilter, PoolSource, Restricted};
 use sr_tv::{CatalogItem, TitleRef, TvCatalog, TvError, TvResult};
 
 /// Probed lengths of video assets, in milliseconds.
@@ -58,10 +60,97 @@ impl AssetDurations for PgAssetDurations {
     }
 }
 
+/// The mount every catalog row has always lived in: the instance bucket (migration 1420).
+pub const INSTANCE_MOUNT_ID: i64 = 1;
+
+/// Which mounts a channel source may draw from (BYOS-TV-001): a server's own live mounts plus the platform
+/// mounts attached to it, or a member's own live mounts. A friend's mount is never a source.
+pub struct ShelfMounts {
+    repo: Arc<dyn MountRepo>,
+    facts: Arc<dyn ScopeFacts>,
+}
+
+impl ShelfMounts {
+    pub fn new(repo: Arc<dyn MountRepo>, facts: Arc<dyn ScopeFacts>) -> Self {
+        Self { repo, facts }
+    }
+
+    /// The mount ids, or an error (never a guess) when a store fails.
+    pub async fn of(&self, source: PoolSource) -> TvResult<Vec<i64>> {
+        let store = |e: String| TvError::Catalog(e);
+        let owned = |owner: MountOwner| async move {
+            self.repo
+                .for_owner(owner)
+                .await
+                .map(|v| {
+                    v.into_iter()
+                        .filter(|m| m.status == MountStatus::Active)
+                        .map(|m| m.id)
+                        .collect::<Vec<_>>()
+                })
+                .map_err(|e| store(e.to_string()))
+        };
+        match source {
+            PoolSource::Instance => Ok(Vec::new()),
+            PoolSource::Personal { user_id } => owned(MountOwner::User(user_id)).await,
+            PoolSource::Guild { guild_id } => {
+                let mut ids = owned(MountOwner::Guild(guild_id)).await?;
+                let platform = self
+                    .repo
+                    .list_enabled()
+                    .await
+                    .map_err(|e| store(e.to_string()))?;
+                for m in platform
+                    .into_iter()
+                    .filter(|m| m.owner == MountOwner::Platform)
+                {
+                    let guilds = self
+                        .facts
+                        .attached_guilds(m.id)
+                        .await
+                        .map_err(|e| store(e.to_string()))?;
+                    if guilds.contains(&guild_id) {
+                        ids.push(m.id);
+                    }
+                }
+                Ok(ids)
+            }
+        }
+    }
+}
+
+/// Who may watch a server's channel (BYOS-TV-001): a member of the server whose roles hold the `view_cinema`
+/// storage grant (the owner and `ADMINISTRATOR` hold every grant). One answer per server, so the guide is the
+/// same for everyone who may watch.
+pub struct GuildChannelAccess {
+    facts: Arc<dyn ScopeFacts>,
+}
+
+impl GuildChannelAccess {
+    pub fn new(facts: Arc<dyn ScopeFacts>) -> Self {
+        Self { facts }
+    }
+}
+
+#[async_trait]
+impl sr_tv::ChannelAccess for GuildChannelAccess {
+    async fn may_watch(&self, viewer: sr_tv::Viewer, pool: PoolSource) -> TvResult<bool> {
+        let PoolSource::Guild { guild_id } = pool else {
+            return Ok(false);
+        };
+        let grants =
+            sr_storage::scopes::guild_grants(self.facts.as_ref(), guild_id, viewer.user_id)
+                .await
+                .map_err(|e| TvError::Catalog(e.to_string()))?;
+        Ok(grants.has(Grant::ViewCinema))
+    }
+}
+
 /// [`TvCatalog`] over the catalog repository.
 pub struct RepoTvCatalog {
     repo: Arc<dyn CinemaRepository>,
     durations: Option<Arc<dyn AssetDurations>>,
+    shelves: Option<ShelfMounts>,
 }
 
 /// Titles read per pool at most (ten pages of a hundred).
@@ -73,7 +162,14 @@ impl RepoTvCatalog {
         Self {
             repo,
             durations: None,
+            shelves: None,
         }
+    }
+
+    /// Lets server and personal channels find their mounts. Without it they draw from nothing.
+    pub fn with_shelves(mut self, shelves: ShelfMounts) -> Self {
+        self.shelves = Some(shelves);
+        self
     }
 
     /// Takes block lengths from the probed assets instead of the catalog runtimes.
@@ -144,6 +240,8 @@ fn film_item(t: &TitleRecord) -> Option<CatalogItem> {
         age_restricted: t.age_restricted,
         genres,
         tags,
+        mount_id: INSTANCE_MOUNT_ID,
+        playable: true,
     })
 }
 
@@ -166,6 +264,8 @@ fn episode_item(t: &TitleRecord, e: &EpisodeRecord) -> Option<CatalogItem> {
         age_restricted: t.age_restricted,
         genres,
         tags,
+        mount_id: INSTANCE_MOUNT_ID,
+        playable: true,
     })
 }
 
@@ -251,6 +351,20 @@ impl RepoTvCatalog {
 
 #[async_trait]
 impl TvCatalog for RepoTvCatalog {
+    /// The instance catalog is the only thing `pool` reads (the published rows, all in the instance bucket), so a
+    /// server or personal channel gets it exactly when the instance bucket is among its mounts. Items found in a
+    /// server's own or a member's mount are not offered yet: they need a probed runtime and the byte-range
+    /// renderer (see the handoff), and an item that cannot air is never scheduled.
+    async fn mounts_of(&self, source: PoolSource) -> TvResult<Option<Vec<i64>>> {
+        if source == PoolSource::Instance {
+            return Ok(None);
+        }
+        match &self.shelves {
+            Some(s) => s.of(source).await.map(Some),
+            None => Ok(Some(Vec::new())),
+        }
+    }
+
     async fn pool(
         &self,
         filter: &PoolFilter,
@@ -366,5 +480,157 @@ impl sr_tv::SlateSource for PgSlateSetting {
                 self.fallback
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod shelf_tests {
+    use super::*;
+    use sr_storage::mounts::{
+        MemoryMountRepo, MountError, MountInput, MountPatch, NewMount, Provider, Sealer, Secret,
+    };
+    use sr_storage::scopes::{GrantSet, GuildStanding, MemoryScopeFacts};
+    use sr_tv::ChannelAccess;
+
+    struct Xor;
+    impl Sealer for Xor {
+        fn seal(&self, _aad: &[u8], plain: &[u8]) -> Result<Vec<u8>, MountError> {
+            Ok(plain.iter().map(|b| b ^ 0x5a).collect())
+        }
+        fn open(&self, _aad: &[u8], blob: &[u8]) -> Result<Vec<u8>, MountError> {
+            Ok(blob.iter().map(|b| b ^ 0x5a).collect())
+        }
+    }
+
+    async fn add(repo: &dyn MountRepo, id: i64, owner: MountOwner, label: &str) {
+        let input = MountInput {
+            owner,
+            label: label.into(),
+            provider: Provider::Garage,
+            endpoint: "http://127.0.0.1:3900".into(),
+            region: "garage".into(),
+            bucket: "shelf".into(),
+            prefix: String::new(),
+            path_style: true,
+            access_key_id: "GK1234567890abcd".into(),
+        };
+        let new = NewMount::seal(&Xor, id, input, &Secret::new("s")).unwrap();
+        repo.create(new, None).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_server_draws_from_its_own_mounts_and_the_attached_instance_bucket_only() {
+        let repo: Arc<dyn MountRepo> = MemoryMountRepo::shared();
+        add(repo.as_ref(), 1, MountOwner::Platform, "Instance").await;
+        add(repo.as_ref(), 2, MountOwner::Guild(900), "Club").await;
+        add(repo.as_ref(), 3, MountOwner::Guild(901), "Other club").await;
+        add(repo.as_ref(), 4, MountOwner::User(5), "Mine").await;
+        add(repo.as_ref(), 5, MountOwner::User(6), "A friend's").await;
+        add(repo.as_ref(), 6, MountOwner::Guild(900), "Switched off").await;
+        repo.update(
+            6,
+            MountPatch {
+                status: Some(MountStatus::Disabled),
+                ..MountPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+        let facts = Arc::new(MemoryScopeFacts::new());
+        let shelves = ShelfMounts::new(repo, facts.clone());
+
+        // Not attached yet: the server's own live mount only.
+        let guild = PoolSource::Guild { guild_id: 900 };
+        assert_eq!(shelves.of(guild).await.unwrap(), [2]);
+        facts.attach(1, 900);
+        assert_eq!(shelves.of(guild).await.unwrap(), [2, 1]);
+        // Another server never gets this server's mount, nor a member's.
+        assert_eq!(
+            shelves
+                .of(PoolSource::Guild { guild_id: 901 })
+                .await
+                .unwrap(),
+            [3]
+        );
+        // A personal channel: the member's own mount, never a friend's.
+        assert_eq!(
+            shelves
+                .of(PoolSource::Personal { user_id: 5 })
+                .await
+                .unwrap(),
+            [4]
+        );
+        // A failing facts store is an error, never an empty or open answer.
+        facts.break_store();
+        assert!(shelves.of(guild).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn the_catalog_limits_server_and_personal_channels_and_leaves_the_instance_open() {
+        let repo: Arc<dyn MountRepo> = MemoryMountRepo::shared();
+        add(repo.as_ref(), 2, MountOwner::Guild(900), "Club").await;
+        let facts = Arc::new(MemoryScopeFacts::new());
+        // A lazy pool never connects: the shelf lookups under test do not read the catalog.
+        let lazy = sqlx::PgPool::connect_lazy("postgres://u:p@127.0.0.1:1/none").unwrap();
+        let cinema = Arc::new(sr_db::cinema_repo::PgCinemaRepo::new(lazy));
+        let bare = RepoTvCatalog::new(cinema.clone());
+        // Without the shelf port a shelf channel draws from nothing (fail closed).
+        let g = PoolSource::Guild { guild_id: 900 };
+        assert_eq!(bare.mounts_of(g).await.unwrap(), Some(vec![]));
+        assert_eq!(bare.mounts_of(PoolSource::Instance).await.unwrap(), None);
+        let wired = RepoTvCatalog::new(cinema).with_shelves(ShelfMounts::new(repo, facts));
+        assert_eq!(wired.mounts_of(g).await.unwrap(), Some(vec![2]));
+        assert_eq!(wired.mounts_of(PoolSource::Instance).await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn only_members_with_the_view_cinema_grant_may_watch_a_server_channel() {
+        let facts = Arc::new(MemoryScopeFacts::new());
+        let guild = PoolSource::Guild { guild_id: 900 };
+        // Member 5 has a role with the grant, member 6 a role without, 8 owns the server, 7 is no member.
+        facts.member(
+            900,
+            5,
+            GuildStanding {
+                role_ids: vec![900, 31],
+                ..GuildStanding::default()
+            },
+        );
+        facts.member(
+            900,
+            6,
+            GuildStanding {
+                role_ids: vec![900],
+                ..GuildStanding::default()
+            },
+        );
+        facts.member(
+            900,
+            8,
+            GuildStanding {
+                is_owner: true,
+                role_ids: vec![900],
+                ..GuildStanding::default()
+            },
+        );
+        facts.grant(900, 31, GrantSet::of([Grant::ViewCinema]));
+        let access = GuildChannelAccess::new(facts.clone());
+        let v = |id| sr_tv::Viewer {
+            user_id: id,
+            adult: true,
+        };
+        assert!(access.may_watch(v(5), guild).await.unwrap());
+        assert!(!access.may_watch(v(6), guild).await.unwrap());
+        assert!(access.may_watch(v(8), guild).await.unwrap());
+        assert!(!access.may_watch(v(7), guild).await.unwrap());
+        // Not a server pool: never watched through this port.
+        assert!(
+            !access
+                .may_watch(v(5), PoolSource::Personal { user_id: 5 })
+                .await
+                .unwrap()
+        );
+        facts.break_store();
+        assert!(access.may_watch(v(5), guild).await.is_err());
     }
 }

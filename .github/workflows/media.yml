@@ -124,7 +124,16 @@ jobs:
         env:
           SR_TRANSCODER_BIN: ${{ github.workspace }}/target/debug/sr-transcoder
           SR_CLI_BIN: ${{ github.workspace }}/target/debug/sr-cli
-        run: node deploy/scripts/media-smoke.mjs
+        run: node deploy/scripts/media-smoke.mjs pipeline retranscode download tv resilience
+
+      # BYOS-CNV-003: the same CPU worker converts an object of a bucket mount (the Garage bucket, mount 1)
+      # through presigned GET and PUT URLs and writes the result back into that bucket; the stage reads it
+      # back with the bucket own key and decodes it. Member rules are proved by the sr-db Postgres tests.
+      - name: Mount conversion smoke (presigned I/O into the bucket)
+        env:
+          SR_TRANSCODER_BIN: ${{ github.workspace }}/target/debug/sr-transcoder
+          SR_CLI_BIN: ${{ github.workspace }}/target/debug/sr-cli
+        run: node deploy/scripts/media-smoke.mjs mount
 
       - name: Server log
         if: always()

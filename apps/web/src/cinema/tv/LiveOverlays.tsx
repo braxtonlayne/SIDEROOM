@@ -2,7 +2,7 @@
 // bar, the channel list overlay (G) and the tuning static (TV-PLY-003).
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
-import { nowAndNext, programProgress, timeLabel } from './model';
+import { compareChannels, nowAndNext, programProgress, timeLabel } from './model';
 import type { TvBlock, TvChannel } from './types';
 
 /** Big channel number, call sign and programme right after tuning; fades after three seconds. */
@@ -101,7 +101,7 @@ export function ChannelList({
   onClose,
 }: ChannelListProps) {
   const t = useT();
-  const list = [...channels].sort((a, b) => a.number - b.number);
+  const list = [...channels].sort(compareChannels);
   const [active, setActive] = useState(() =>
     Math.max(
       0,

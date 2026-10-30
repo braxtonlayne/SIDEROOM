@@ -1690,6 +1690,24 @@ async fn seed(
         insert_mount(&pool, &ids, sr_storage::mounts::MountOwner::Platform, true).await;
     a.insert("platform_mount_id", platform_id.to_string());
     // --- end BYOS-BRW-001 seeds ---
+    // --- BYOS-CNV-003 seeds (conv-worker, own block): a worker token scoped to each tenant's mount, for
+    // `DELETE /storage/mounts/{mount_id}/worker-tokens/{worker_token_id}` and its cross-tenant sweep (tenant B's
+    // token id under tenant A's mount must not revoke anything) ---
+    for ids_map in [&mut a, &mut b] {
+        let mount: i64 = ids_map["mount_id"].parse().unwrap();
+        let token = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO worker_tokens (id, name, token_sha256, scope) VALUES ($1, 'Matrix worker', $2, $3)",
+        )
+        .bind(token)
+        .bind(format!("{token:064x}"))
+        .bind(format!("mount:{mount}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        ids_map.insert("worker_token_id", token.to_string());
+    }
+    // --- end BYOS-CNV-003 seeds ---
     // BYOS-CAT-001/002 (wave 28, byos-catalog): a series on each tenant's mount, indexed the way the indexer
     // writes it (unpublished, `source = 'mount'`), for the `/shelves/{section}/{item_id}[/parts/{part_id}]`
     // routes and their cross-tenant sweep.
@@ -2973,7 +2991,7 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 36] = [
+const TENANT: [&str; 37] = [
     "sticker_id",
     "sound_id",
     "request_id",
@@ -3011,6 +3029,8 @@ const TENANT: [&str; 36] = [
     "mount_upload_id",
     "shelf_item_id",
     "shelf_part_id",
+    // BYOS-CNV-003 (conv-worker): a worker token scoped to the tenant's mount
+    "worker_token_id",
 ];
 
 fn scoped(path: &str) -> bool {
@@ -3082,6 +3102,11 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
             r#"{"guild_id":"{guild_id}"}"#
         }
         ("POST", "/storage/mounts/{mount_id}/folders") => r#"{"key":"Albums/"}"#,
+        // BYOS-CNV-003 (conv-worker, own block): a conversion of a video key, a mount-scoped worker token.
+        ("POST", "/storage/mounts/{mount_id}/transcode") => {
+            r#"{"key":"Films/a.mkv","format":"mp4","preset":"low"}"#
+        }
+        ("POST", "/storage/mounts/{mount_id}/worker-tokens") => r#"{"name":"Matrix"}"#,
         ("POST", "/storage/mounts/{mount_id}/move") => r#"{"from":"a.mp3","to":"b.mp3"}"#,
         ("PUT", "/guilds/{guild_id}/storage/grants") => {
             r#"{"role_id":"{role_id}","grants":["view_music"]}"#
@@ -5261,6 +5286,27 @@ async fn storage_scopes_hold_over_http() {
     expect!(
         "non-member",
         presign(&outsider, &g_mount, "a.mp3").await,
+        404
+    );
+    // P29-CNV-1 (3): a guild mount is transcoded only on the order of the operator (`MANAGE_TRANSCODE`); the
+    // server's manager (MANAGE_GUILD, so the `manage` grant) gets 403, a non-member 404.
+    let queue = async |who: &Cred| -> Resp {
+        srv.call(
+            who,
+            "POST",
+            &format!("/storage/mounts/{g_mount}/transcode"),
+            Some(&json!({"key": "Films/a.mkv", "format": "mp4"})),
+        )
+        .await
+    };
+    expect!(
+        "a guild manager queues a guild mount transcode",
+        queue(&modr).await,
+        403
+    );
+    expect!(
+        "a non-member queues a guild mount transcode",
+        queue(&outsider).await,
         404
     );
     let role = world.a["overwrite_id"].clone();

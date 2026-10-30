@@ -7,7 +7,8 @@ use sqlx::{PgPool, Row, postgres::PgRow};
 use crate::error::{TvError, TvResult};
 use crate::model::{
     BlockKind, BlockRecord, BlockSource, ChainAnchor, ChannelInput, ChannelKind, ChannelRecord,
-    ChannelRules, Cursor, FillerPolicy, ImportRecord, MediaKind, ReminderRecord, SlotRecord,
+    ChannelRules, Cursor, FillerPolicy, ImportRecord, MediaKind, PoolSource, ReminderRecord,
+    SlotRecord,
 };
 use crate::repo::TvRepository;
 use crate::schedule::Change;
@@ -31,7 +32,7 @@ fn bad(what: &str, v: &str) -> TvError {
 }
 
 const CHANNEL_COLS: &str = "id, number, name, call_sign, era_label, theme, logo_key, enabled, kind, timezone, \
-     age_restricted, filler_policy, rules, seed, chain_end_ms, chain_seq, chain_disc, chain_block_id, \
+     age_restricted, filler_policy, rules, pool_source, guild_id, owner_user_id, seed, chain_end_ms, chain_seq, chain_disc, chain_block_id, \
      (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
      (extract(epoch FROM updated_at) * 1000)::bigint AS updated_ms";
 
@@ -123,6 +124,15 @@ fn channel_of(r: &PgRow) -> TvResult<ChannelRecord> {
             filler_policy: FillerPolicy::parse(&filler)
                 .ok_or_else(|| bad("filler policy", &filler))?,
             rules: serde_json::from_value::<ChannelRules>(rules).unwrap_or_default(),
+            pool: {
+                let name: String = r.try_get("pool_source").map_err(db)?;
+                PoolSource::from_columns(
+                    &name,
+                    r.try_get("guild_id").map_err(db)?,
+                    r.try_get("owner_user_id").map_err(db)?,
+                )
+                .ok_or_else(|| bad("pool source", &name))?
+            },
         },
     })
 }
@@ -181,7 +191,11 @@ const UPSERT_TAIL: &str = " ON CONFLICT (id) DO UPDATE SET start_ms = EXCLUDED.s
 #[async_trait]
 impl TvRepository for PgTvRepo {
     async fn list_channels(&self) -> TvResult<Vec<ChannelRecord>> {
-        let sql = format!("SELECT {CHANNEL_COLS} FROM tv_channels ORDER BY number, id");
+        // The guide order (P29-TV-1): instance channels, then each server's, then personal ones, by number within each.
+        let sql = format!(
+            "SELECT {CHANNEL_COLS} FROM tv_channels ORDER BY CASE pool_source WHEN 'instance' THEN 0 \
+             WHEN 'guild' THEN 1 ELSE 2 END, guild_id NULLS FIRST, owner_user_id NULLS FIRST, number, id"
+        );
         sqlx::query(sqlx::AssertSqlSafe(sql))
             .fetch_all(&self.pool)
             .await
@@ -213,8 +227,9 @@ impl TvRepository for PgTvRepo {
         let rules = serde_json::to_value(&i.rules).map_err(|e| TvError::Storage(e.to_string()))?;
         sqlx::query(
             "INSERT INTO tv_channels (id, number, name, call_sign, era_label, theme, logo_key, enabled, kind, \
-             timezone, age_restricted, filler_policy, rules, seed, created_at, updated_at) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, \
+             timezone, age_restricted, filler_policy, rules, seed, pool_source, guild_id, owner_user_id, \
+             created_at, updated_at) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$16,$17,$18, \
                      to_timestamp($15::double precision / 1000), to_timestamp($15::double precision / 1000))",
         )
         .bind(id)
@@ -232,6 +247,9 @@ impl TvRepository for PgTvRepo {
         .bind(rules)
         .bind(seed)
         .bind(now_ms as f64)
+        .bind(i.pool.as_str())
+        .bind(i.pool.guild_id())
+        .bind(i.pool.owner_id())
         .execute(&self.pool)
         .await
         .map_err(|e| number_taken(&e, i.number).unwrap_or_else(|| db(e)))?;
@@ -250,7 +268,8 @@ impl TvRepository for PgTvRepo {
         let n = sqlx::query(
             "UPDATE tv_channels SET number=$2, name=$3, call_sign=$4, era_label=$5, theme=$6, logo_key=$7, \
              enabled=$8, kind=$9, timezone=$10, age_restricted=$11, filler_policy=$12, rules=$13, \
-             updated_at = to_timestamp($14::double precision / 1000) WHERE id = $1",
+             updated_at = to_timestamp($14::double precision / 1000), pool_source=$15, guild_id=$16, \
+             owner_user_id=$17 WHERE id = $1",
         )
         .bind(id)
         .bind(i.number)
@@ -266,6 +285,9 @@ impl TvRepository for PgTvRepo {
         .bind(i.filler_policy.as_str())
         .bind(rules)
         .bind(now_ms as f64)
+        .bind(i.pool.as_str())
+        .bind(i.pool.guild_id())
+        .bind(i.pool.owner_id())
         .execute(&self.pool)
         .await
         .map_err(|e| number_taken(&e, i.number).unwrap_or_else(|| db(e)))?

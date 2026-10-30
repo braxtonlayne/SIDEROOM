@@ -12,6 +12,7 @@
 //! Every read goes through `sr_storage::scopes`.
 
 mod attach;
+pub mod events;
 pub mod flags;
 pub mod mount_ops;
 pub mod mounts;
@@ -20,11 +21,15 @@ mod mounts_tests;
 mod objects;
 mod scopes;
 pub mod shelves;
+mod transcode;
+#[cfg(test)]
+mod transcode_tests;
 mod uploads;
 #[cfg(test)]
 mod uploads_tests;
 
 pub use shelves::{IndexHooks, ShelfDeps};
+pub use transcode::TranscodeDeps;
 
 use crate::{
     routes::messages::error::{MsgError, MsgResult},
@@ -171,6 +176,19 @@ pub fn router() -> Router<AppState> {
             "/storage/mounts/{mount_id}/index",
             get(shelves::index_status).post(shelves::start_index),
         )
+        // BYOS-CNV-003 (own block): the transcoder as an optional worker into the member's bucket.
+        .route(
+            "/storage/mounts/{mount_id}/transcode",
+            get(transcode::list).post(transcode::queue),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/worker-tokens",
+            get(transcode::list_tokens).post(transcode::create_token),
+        )
+        .route(
+            "/storage/mounts/{mount_id}/worker-tokens/{worker_token_id}",
+            axum::routing::delete(transcode::revoke_token),
+        )
         .route("/shelves/{section}", get(shelves::list))
         .route(
             "/shelves/{section}/{shelf_item_id}",
@@ -220,6 +238,7 @@ pub fn router() -> Router<AppState> {
         scopes::IncomingShare,
         scopes::ShelvesSummaryView,
         scopes::CatalogCounts,
+        scopes::ConvertPolicyView,
         scopes::GrantsBody,
         attach::AttachBody,
         attach::AttachmentView,
@@ -258,5 +277,6 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = StorageApiDoc::openapi();
     doc.merge(mounts::MountsApiDoc::openapi());
     doc.merge(mount_ops::MountOpsApiDoc::openapi());
+    doc.merge(transcode::openapi());
     doc
 }

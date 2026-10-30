@@ -80,6 +80,39 @@ for (const f of readdirSync(join(dist, 'assets')).filter((x) => x.endsWith('.js'
   }
 }
 
+// BYOS-CNV-001 (D-297, D-309): the ffmpeg.wasm core is GPL and must stay its own lazily fetched files
+// (`assets/ffmpeg-core-*.js` and `.wasm`), never part of first paint: no entrance file may be the core or name it
+// (a chunk that names it is the converter, which loads only when someone converts).
+{
+  const assets = readdirSync(join(dist, 'assets'));
+  const core = assets.filter((f) => f.startsWith('ffmpeg-core'));
+  const inEntrance = [...entrance].filter(
+    (f) =>
+      f.startsWith('assets/ffmpeg-core') ||
+      readFileSync(join(dist, f), 'utf8').includes('ffmpeg-core'),
+  );
+  if (inEntrance.length) {
+    rows.push(
+      `FAIL ffmpeg     the ffmpeg.wasm core is reachable from first paint: ${inEntrance.join(', ')}`,
+    );
+    failed = true;
+  } else if (
+    core.length &&
+    !(core.some((f) => f.endsWith('.js')) && core.some((f) => f.endsWith('.wasm')))
+  ) {
+    rows.push(
+      `FAIL ffmpeg     the core is not two separate files (.js and .wasm): ${core.join(', ')}`,
+    );
+    failed = true;
+  } else {
+    rows.push(
+      core.length
+        ? `ok   ffmpeg     core is lazy and separate (${core.join(', ')})`
+        : 'skip ffmpeg     no ffmpeg-core asset in this build',
+    );
+  }
+}
+
 // RDY-I18N-002: the pseudo-locales (en-XA, ar-XB) exist on dev hosts and in a build made with SR_PSEUDO_LOCALE=1
 // only. A production bundle must hold neither the pseudo alphabet, the generated catalog nor the picker labels.
 if (process.env.SR_PSEUDO_LOCALE === '1') {

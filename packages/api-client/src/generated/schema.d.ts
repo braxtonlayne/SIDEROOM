@@ -11759,6 +11759,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/storage/mounts/{mount_id}/transcode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The latest conversions of a mount, newest first. */
+        get: operations["list"];
+        put?: never;
+        /**
+         * Queue the conversion of one video of a mount. The worker receives a presigned `GET` of the source and a
+         *     presigned `PUT` for every output file; the result lands under `transcoded/<key>/` in the same bucket.
+         */
+        post: operations["queue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/storage/mounts/{mount_id}/uploads": {
         parameters: {
             query?: never;
@@ -11824,6 +11845,41 @@ export interface paths {
         /** A presigned `PUT` for one part, valid for an hour. Counted against `byos.upload_parts_per_hour`. */
         post: operations["part_url"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/worker-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The worker tokens of this mount (never their secrets). */
+        get: operations["list_tokens"];
+        put?: never;
+        /** Create a worker token scoped to this mount. The response carries the secret; it cannot be shown again. */
+        post: operations["create_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/storage/mounts/{mount_id}/worker-tokens/{worker_token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a worker token of this mount; its workers drain. */
+        delete: operations["revoke_token"];
         options?: never;
         head?: never;
         patch?: never;
@@ -12450,7 +12506,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Enabled channels by number, each with what is on now and next. */
+        /**
+         * Enabled channels by number, each with what is on now and next. A server's channel is listed only to those
+         *     who may watch it, and a personal channel only to its owner (BYOS-TV-001).
+         */
         get: operations["tv_channels"];
         put?: never;
         post?: never;
@@ -16627,6 +16686,16 @@ export interface components {
             name: string;
             user_id?: string | null;
         };
+        /** @description What the browser converter is told on `GET /users/@me/shelves/summary` (P29-CNV-1). */
+        ConvertPolicyView: {
+            /**
+             * Format: int64
+             * @description `byos.client_convert_max_mib`: larger files are refused with the worker hint.
+             */
+            max_mib: number;
+            /** @description `byos.require_client_remux`: the Convert step offers no "upload as they are". */
+            require_client_remux: boolean;
+        };
         /** @description The state of a bucket's CORS rules against the one this site needs. */
         CorsResultObject: {
             /** @description When it was checked (ISO 8601). */
@@ -19218,7 +19287,7 @@ export interface components {
             warnings: string[];
         };
         /** @enum {string} */
-        JobKind: "proxy" | "ladder" | "remux";
+        JobKind: "proxy" | "ladder" | "remux" | "mount_transcode";
         JobPage: {
             items: components["schemas"]["JobRow"][];
             next_after?: string | null;
@@ -19251,6 +19320,8 @@ export interface components {
             finished_at_ms?: number | null;
             job_id: string;
             kind: components["schemas"]["JobKind"];
+            /** @description The storage mount a `mount_transcode` job works in (BYOS-CNV-003). */
+            mount_id?: string | null;
             /** Format: int32 */
             priority: number;
             progress?: null | components["schemas"]["ProgressRequest"];
@@ -20294,6 +20365,11 @@ export interface components {
                 [key: string]: boolean;
             };
         };
+        /**
+         * @description What the member wants out of the job.
+         * @enum {string}
+         */
+        MountFormat: "hls" | "mp4";
         /** @description A storage mount. The secret access key is never returned. */
         MountObject: {
             access_key_id: string;
@@ -20321,6 +20397,16 @@ export interface components {
             region?: string | null;
             /** @description `active`, `failing`, `disabled` or `delisted` (set by staff after a takedown; the owner cannot clear it). */
             status: string;
+        };
+        /**
+         * @description The ladder preset: the tallest rung the job produces.
+         * @enum {string}
+         */
+        MountPreset: "low" | "standard" | "high";
+        /** @description A new worker token for a mount. */
+        MountTokenBody: {
+            /** @description A label for the machine, 1 to 64 characters. */
+            name: string;
         };
         /** @description Body of `POST /storage/mounts/{mount_id}/move` (rename and move are the same call). */
         MoveBody: {
@@ -21847,6 +21933,26 @@ export interface components {
             /** Format: int32 */
             succeeded_last_day: number;
         };
+        /** @description Queue a conversion. */
+        QueueTranscodeBody: {
+            /** @description `hls` (a ladder) or `mp4` (one file). */
+            format: components["schemas"]["MountFormat"];
+            /** @description Mount-relative key of the video. */
+            key: string;
+            preset?: null | components["schemas"]["MountPreset"];
+        };
+        /** @description A queued conversion. */
+        QueuedTranscodeView: {
+            /** @description The job id (Admin > Transcoding shows it too). */
+            job_id: string;
+            /**
+             * @description Whether the operator's own workers may take it (`byos.worker_for_members`); false: only a worker
+             *     token of this mount does.
+             */
+            operator_worker: boolean;
+            /** @description Where the result lands in the bucket, mount-relative. */
+            output_prefix: string;
+        };
         RankCard: {
             display_name?: string | null;
             /** Format: int64 */
@@ -22986,6 +23092,8 @@ export interface components {
              * @description Cinema shelves.
              */
             cinema: number;
+            /** @description The browser converter's policy (P29-CNV-1): its size cap and whether the server wants converted uploads. */
+            convert: components["schemas"]["ConvertPolicyView"];
             /**
              * Format: int64
              * @description Library shelves.
@@ -24129,6 +24237,8 @@ export interface components {
             now?: null | components["schemas"]["TvBlock"];
             /** Format: int32 */
             number: number;
+            /** @description Where the pools draw from: the instance catalog, one server's shelves, or one member's shelf. */
+            pool: components["schemas"]["TvPoolSource"];
             rules?: null | components["schemas"]["TvRules"];
             /** @description Staff only: the shuffle seed. */
             seed?: string | null;
@@ -24153,6 +24263,8 @@ export interface components {
             name: string;
             /** Format: int32 */
             number: number;
+            /** @description Where the pools draw from; the instance catalog when absent. */
+            pool?: components["schemas"]["TvPoolSource"];
             rules?: components["schemas"]["TvRules"];
             theme?: string | null;
             timezone?: string;
@@ -24320,6 +24432,27 @@ export interface components {
             year_from?: number | null;
             /** Format: int32 */
             year_to?: number | null;
+        };
+        /**
+         * @description Where a channel's pools draw from.
+         *
+         *     * `instance`: the instance catalog, as before (no owner).
+         *     * `guild`: a server's shelves only, that is the server's own mounts and the instance bucket (mount 1) when
+         *       it is attached to the server. Every viewer who may watch the server's Cinema sees the same guide, so
+         *       nothing is skipped per viewer.
+         *     * `personal`: one member's own shelf, for that member alone. A friend's shelf is never a source.
+         */
+        TvPoolSource: {
+            /** @enum {string} */
+            kind: "instance";
+        } | {
+            guild_id: string;
+            /** @enum {string} */
+            kind: "guild";
+        } | {
+            /** @enum {string} */
+            kind: "personal";
+            user_id: string;
         };
         TvPreview: {
             blocks: components["schemas"]["TvBlock"][];
@@ -25322,6 +25455,8 @@ export interface components {
             name: string;
             /** Format: int64 */
             revoked_at_ms?: number | null;
+            /** @description `instance` or `mount:<id>` (BYOS-CNV-003). */
+            scope?: string;
         };
         WorkerView: {
             /** Format: int32 */
@@ -63329,6 +63464,103 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    queue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueTranscodeBody"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueuedTranscodeView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description WORKER_NOT_ENABLED or BUCKET_UNREACHABLE */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["UploadView"][];
                 };
             };
@@ -63617,6 +63849,141 @@ export interface operations {
             };
             /** @description byos.upload_parts_per_hour reached */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_tokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerToken"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MountTokenBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Too many worker tokens */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+                /** @description Worker token snowflake */
+                worker_token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

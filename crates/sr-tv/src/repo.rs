@@ -135,7 +135,7 @@ impl MemoryTvRepo {
 impl TvRepository for MemoryTvRepo {
     async fn list_channels(&self) -> TvResult<Vec<ChannelRecord>> {
         let mut v = self.lock().channels.clone();
-        v.sort_by_key(|c| (c.input.number, c.id));
+        v.sort_by_key(|c| (c.input.pool.guide_rank(), c.input.number, c.id));
         Ok(v)
     }
 
@@ -151,7 +151,10 @@ impl TvRepository for MemoryTvRepo {
         now_ms: i64,
     ) -> TvResult<ChannelRecord> {
         let mut s = self.lock();
-        if s.channels.iter().any(|c| c.input.number == input.number) {
+        if s.channels
+            .iter()
+            .any(|c| c.input.number == input.number && c.input.pool == input.pool)
+        {
             return Err(TvError::Conflict(format!(
                 "Channel number {} is taken",
                 input.number
@@ -178,7 +181,7 @@ impl TvRepository for MemoryTvRepo {
         let mut s = self.lock();
         if s.channels
             .iter()
-            .any(|c| c.id != id && c.input.number == input.number)
+            .any(|c| c.id != id && c.input.number == input.number && c.input.pool == input.pool)
         {
             return Err(TvError::Conflict(format!(
                 "Channel number {} is taken",

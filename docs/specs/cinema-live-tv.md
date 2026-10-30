@@ -166,3 +166,22 @@ A channel of kind `imported_guide` airs a **weekly grid**: slots `{weekday (0 Mo
 Access log: `tv.slots.replace`, `tv.guide.import`, `tv.guide.confirm`.
 
 Staff validation errors are 400 `{code: 50035}` with a message; a taken channel number is 409.
+
+## 9. Channels over shelves (wave 29, BYOS-TV-001)
+
+A channel has a **pool source** (`pool` on the channel and on the staff input; migration 1510):
+
+| `pool.kind` | Pools draw from | Who watches | Numbers |
+|---|---|---|---|
+| `instance` (default, every existing channel) | the instance catalog | every member | unique across the instance |
+| `guild` (`guild_id`) | that server's shelves only: its own mounts, plus the instance bucket (mount 1) when attached to it | members of the server whose roles hold the `view_cinema` storage grant (owner and `ADMINISTRATOR` hold all) | unique within the server |
+| `personal` (`user_id`) | that member's own shelf | that member alone | unique within the member |
+
+- **One guide per server, not per viewer.** Pools are built from the channel's mounts and never from the viewer, so everyone who may watch a server channel sees the same schedule. A friend's shelf is never a source.
+- **Refusal.** The programme editor (`POST /admin/tv/channels/{id}/blocks`, `/now`) answers 400 with the reason when the title lives on a mount the channel may not draw from (a member's personal mount on a server channel).
+- **Left out, not skipped per viewer.** An item that cannot air as it is (not web-native and not converted, or no runtime) is left out of the pools for everyone alike.
+- **Imported guides are instance channels (P29-TV-1).** A channel of kind `imported_guide` matches show names against the whole instance catalog (8.6), so it must have `pool.kind = instance`: create and update answer 400 for a server or personal pool. Server and personal channels are `rule_based` or `manual`.
+- **Who creates them (P29-TV-1).** For the beta, staff only, through `POST /admin/tv/channels` with `pool`. A member route (BYOS-TV-002) is planned for holders of the server's `manage` storage grant, capped by `tv.channels_per_guild` (5) and `tv.channels_per_user` (3).
+- **Guide order.** Instance channels first, then each server's, then personal ones, by number within each (numbers repeat across sources).
+- **Visibility.** `GET /tv/channels` and `GET /tv/guide` list only the channels the caller may watch; `GET /tv/channels/{id}`, `/now`, `/tune` and the live playlists answer 404 to anyone else. A server channel on an install without the access port is watched by nobody (fail closed).
+- **Not built yet:** the `EXT-X-BYTERANGE` renderer for mount-backed MP4 items and the runtime probe they need (items found in a server's or member's own mount are not offered to the scheduler until both exist), the admin channel editor's source picker, and watch parties on server channels (the gate has no viewer).

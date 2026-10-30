@@ -162,6 +162,8 @@ pub const BYOS_PRESIGN_TTL_CAP: &str = "byos.presign_ttl_cap_secs";
 pub const BYOS_ENDPOINT_ALLOW: &str = "byos.endpoint_allow";
 /// Whether the client must remux before upload (read by the wave-29 media pipeline).
 pub const BYOS_REQUIRE_CLIENT_REMUX: &str = "byos.require_client_remux";
+/// Largest video, in MiB, the browser converter accepts (wave 29, P29-CNV-1; BYOS-CNV-001).
+pub const BYOS_CLIENT_CONVERT_MAX_MIB: &str = "byos.client_convert_max_mib";
 /// Who may connect a bucket of their own: `all`, `patrons` or `staff` (empty means `all`).
 pub const BYOS_WHO_MAY_MOUNT: &str = "byos.who_may_mount";
 /// The accepted values of [`BYOS_WHO_MAY_MOUNT`].
@@ -172,6 +174,9 @@ pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
 pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
 pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
 pub const BYOS_UPLOAD_PARTS_PER_HOUR: &str = "byos.upload_parts_per_hour";
+/// Whether the operator's own transcoder workers serve members' conversions in their own buckets (wave 29,
+/// conv-worker; BYOS-CNV-003). Off by default: a member then needs a worker token of their own.
+pub const BYOS_WORKER_FOR_MEMBERS: &str = "byos.worker_for_members";
 
 /// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
 pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
@@ -358,6 +363,15 @@ pub const CATALOG: &[SettingDef] = &[
         description: "Hosts a bucket endpoint may use, separated by commas or spaces (s3.example.com or *.example.com). Empty: any https endpoint that is reachable from the public internet; http only for localhost and the development Garage.",
     },
     SettingDef {
+        key: BYOS_WORKER_FOR_MEMBERS,
+        group: "storage",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 0,
+        description: "Let this server's transcoder workers convert a member's videos inside the member's own bucket (the member's files stay in their bucket; the worker gets presigned links). Off: members run their own worker with a token of their bucket.",
+    },
+    SettingDef {
         key: BYOS_REQUIRE_CLIENT_REMUX,
         group: "storage",
         kind: SettingKind::Boolean,
@@ -366,6 +380,14 @@ pub const CATALOG: &[SettingDef] = &[
         default_int: 0,
         description: "Ask the browser to remux a video into a web-playable container before it is uploaded to a bucket (read by the media pipeline of wave 29).",
     },
+    int(
+        BYOS_CLIENT_CONVERT_MAX_MIB,
+        "storage",
+        64,
+        4096,
+        2048,
+        "Largest video, in MiB, the browser converter accepts; larger files get the worker hint. The bundled ffmpeg.wasm core has a 2 GiB heap and the remux holds two or three copies of the output in tab memory, so above 2048 conversions fail on most machines.",
+    ),
     SettingDef {
         key: BYOS_WHO_MAY_MOUNT,
         group: "storage",
@@ -705,7 +727,9 @@ mod tests {
             BYOS_PRESIGN_TTL_CAP,
             BYOS_ENDPOINT_ALLOW,
             BYOS_REQUIRE_CLIENT_REMUX,
+            BYOS_CLIENT_CONVERT_MAX_MIB,
             BYOS_WHO_MAY_MOUNT,
+            BYOS_WORKER_FOR_MEMBERS,
         ] {
             let d = find(key).unwrap_or_else(|| panic!("{key} missing"));
             assert_eq!(d.group, "storage", "{key}");
@@ -719,6 +743,16 @@ mod tests {
         );
         assert_eq!(
             find(BYOS_REQUIRE_CLIENT_REMUX).unwrap().default_value(),
+            json!(false)
+        );
+        // The browser converter stops at the 2 GiB the shipped ffmpeg.wasm heap allows (P29-CNV-1).
+        assert_eq!(
+            find(BYOS_CLIENT_CONVERT_MAX_MIB).unwrap().default_value(),
+            json!(2048)
+        );
+        // The operator's workers serve members only when the operator says so (BYOS-CNV-003).
+        assert_eq!(
+            find(BYOS_WORKER_FOR_MEMBERS).unwrap().default_value(),
             json!(false)
         );
     }

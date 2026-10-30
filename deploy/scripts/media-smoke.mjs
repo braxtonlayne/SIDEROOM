@@ -4,7 +4,7 @@
 // .github/workflows/media.yml; docs/dev/media-pipeline-test.md says how to run it by hand and how to dry-walk
 // it with fakes (MEDIA_SMOKE_DRY=1, no ffmpeg, no server, no Postgres).
 //
-//   node deploy/scripts/media-smoke.mjs [stage ...]      stages: pipeline retranscode download tv resilience
+//   node deploy/scripts/media-smoke.mjs [stage ...]      stages: pipeline retranscode download tv resilience mount
 //                                                        (default: all, in that order)
 //
 // Stages (each prints PASS/FAIL lines; the exit code is 0 only when every check passed):
@@ -18,6 +18,9 @@
 //                numbering rule (D-267, D-285) over the real live segments.                      (RDY-MED-004)
 //   resilience   corrupt source fails with logs, two workers claim without overlap, a killed worker's lease
 //                expires and the job is retried.                                                  (RDY-MED-005)
+//   mount        a video in the Garage bucket (mount 1) is converted by the CPU worker through presigned GET and
+//                PUT URLs (one MP4, then an HLS ladder) into transcoded/<key>/ of the same bucket; the results are
+//                read back from the bucket and decoded with ffprobe.                             (BYOS-CNV-003)
 //
 // Environment (defaults in brackets):
 //   MEDIA_SMOKE_BASE [http://127.0.0.1:8092]   MEDIA_SMOKE_ORIGIN [http://localhost:8092]
@@ -1270,6 +1273,134 @@ async function stageResilience() {
   killWorker('ci-rescue');
 }
 
+// ==== stage: mount ==============================================================================================
+/**
+ * BYOS-CNV-003: the transcoder as an optional worker into a bucket mount. The source object sits in the Garage
+ * bucket (mount 1, the instance bucket, which the Owner may convert as the operator); the server hands the CPU
+ * worker a presigned GET for it and a presigned PUT for every output file, and nothing passes through the
+ * server. The results are read back from the bucket with the bucket own credentials and checked with ffprobe.
+ * A member mount cannot be connected to a loopback Garage (the SSRF policy), so the member rules (owner only,
+ * the byos.worker_for_members switch, tokens scoped to one mount) are proved by the Postgres tests of sr-db.
+ */
+async function stageMount() {
+  console.log(
+    '== mount: a Garage mount object through the CPU worker with presigned I/O (BYOS-CNV-003)',
+  );
+  if (DRY) {
+    log('skipped in a dry walk: it needs a real bucket');
+    return;
+  }
+  const src = join(DIR, 'mount-source.mkv');
+  makeSource(src, 8, { subtitle: false });
+  const key = `mount-smoke-${Date.now() % 100000}/source.mkv`;
+  const put = await fetch(presign('PUT', key, 300), { method: 'PUT', body: readFileSync(src) });
+  check('the source is put in the bucket (mount 1) with a presigned PUT', put.ok, put.status);
+
+  await startWorker('ci-mount');
+  await waitWorkerOnline('ci-mount');
+
+  const waitJob = async (jobId) =>
+    until(
+      `mount job ${jobId}`,
+      async () => {
+        const jobs = await owner.must('GET', '/storage/mounts/1/transcode');
+        const j = jobs.find((x) => x.job_id === jobId);
+        if (j && (j.state === 'failed' || j.state === 'cancelled')) {
+          const d = await jobDetail(jobId);
+          log(`log tail:\n${(d.log_tail ?? '').split('\n').slice(-25).join('\n')}`);
+          throw new Error(`mount job ${jobId} ${j.state}: ${j.error ?? ''}`);
+        }
+        return j?.state === 'succeeded' ? j : null;
+      },
+      { timeoutMs: 10 * 60000 },
+    );
+  const fetchObject = async (objectKey) => {
+    const res = await fetch(presign('GET', objectKey, 300));
+    return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+  };
+
+  // 1. One MP4.
+  const q = await owner.must('POST', '/storage/mounts/1/transcode', {
+    key,
+    format: 'mp4',
+    preset: 'low',
+  });
+  check(
+    'queued by the operator: the operator workers may take it, the output prefix is transcoded/<key>/',
+    q.operator_worker === true && q.output_prefix === `transcoded/${key}/` && !!q.job_id,
+    q,
+  );
+  const done = await waitJob(q.job_id);
+  check('the job names its mount and succeeded on the CPU worker', done.mount_id === '1', done);
+  const mp4 = await fetchObject(`transcoded/${key}/proxy/proxy.mp4`);
+  check('the MP4 is in the bucket under transcoded/<key>/', mp4 !== null && mp4.length > 1000, {
+    bytes: mp4?.length,
+  });
+  if (mp4) {
+    const out = join(DIR, 'mount-result.mp4');
+    writeFileSync(out, mp4);
+    const p = ffprobe(out);
+    const v = p.of('video')[0];
+    check(
+      'it plays: h264 video at 480p or less and an audio track',
+      v?.codec_name === 'h264' && v.height <= 480 && p.of('audio').length >= 1,
+      p.streams,
+    );
+  }
+
+  // 2. An HLS ladder.
+  const q2 = await owner.must('POST', '/storage/mounts/1/transcode', {
+    key,
+    format: 'hls',
+    preset: 'low',
+  });
+  await waitJob(q2.job_id);
+  const d2 = await jobDetail(q2.job_id);
+  check('the HLS job wrote its files into the bucket (several outputs)', d2.output_count > 3, d2);
+  const playlist = await fetchObject(`transcoded/${key}/v/480p/index.m3u8`);
+  const text = playlist?.toString('utf8') ?? '';
+  check(
+    'the rung playlist is in the bucket and lists fMP4 segments',
+    /^#EXTM3U/.test(text) && /\.m4s/.test(text),
+    text.slice(0, 200),
+  );
+  const seg = text.split('\n').find((l) => l.endsWith('.m4s'));
+  const init = await fetchObject(`transcoded/${key}/v/480p/init.mp4`);
+  const first = seg ? await fetchObject(`transcoded/${key}/v/480p/${seg}`) : null;
+  check('the init segment and the first segment are in the bucket', !!init && !!first, {
+    seg,
+    init: init?.length,
+    first: first?.length,
+  });
+  if (init && first) {
+    const out = join(DIR, 'mount-result-seg.mp4');
+    writeFileSync(out, Buffer.concat([init, first]));
+    const v = ffprobe(out).of('video')[0];
+    check(
+      'the first HLS segment decodes (h264, 480p or less)',
+      v?.codec_name === 'h264' && v.height <= 480,
+      v,
+    );
+  }
+
+  // 3. The member routes refuse what they should without any bucket call.
+  const bad = await owner.call('POST', '/storage/mounts/1/transcode', {
+    key: 'notes.txt',
+    format: 'mp4',
+  });
+  check('a key that is not a video is refused (400)', bad.status === 400, bad);
+  const gone = await owner.call('POST', '/storage/mounts/1/transcode', {
+    key: `${key}.missing.mkv`,
+    format: 'mp4',
+  });
+  check(
+    'an object that is not in the bucket is not queued',
+    gone.status >= 400 && gone.status < 500,
+    gone,
+  );
+  killWorker('ci-mount');
+}
+
 // ==== main ======================================================================================================
 const STAGES = {
   pipeline: stagePipeline,
@@ -1277,6 +1408,7 @@ const STAGES = {
   download: stageDownload,
   tv: stageTv,
   resilience: stageResilience,
+  mount: stageMount,
 };
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(STAGES);
 for (const s of wanted)
@@ -1309,6 +1441,7 @@ try {
       'worker-ci-victim.log',
       'worker-ci-rescue.log',
       'worker-ci-corrupt.log',
+      'worker-ci-mount.log',
     ]) {
       const p = join(DIR, f);
       if (existsSync(p))

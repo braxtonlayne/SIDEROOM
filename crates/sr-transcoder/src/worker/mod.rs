@@ -107,12 +107,36 @@ pub trait Transfer: Send + Sync {
 
 // ---- configuration and results ------------------------------------------------------------
 
+/// The ffprobe that belongs to an ffmpeg path: the same folder when `ffmpeg` names a file there (`/opt/ff/ffmpeg`
+/// gives `/opt/ff/ffprobe`, `C:/ff/ffmpeg.exe` gives `C:/ff/ffprobe.exe`), else `ffprobe` on the PATH.
+pub fn ffprobe_beside(ffmpeg: &str) -> String {
+    let backslash = char::from(92u8);
+    let (dir, name) = match ffmpeg.rfind(['/', backslash]) {
+        Some(i) => ffmpeg.split_at(i + 1),
+        None => ("", ffmpeg),
+    };
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((stem, ext)) => (stem, Some(ext)),
+        None => (name, None),
+    };
+    if dir.is_empty() || !stem.eq_ignore_ascii_case("ffmpeg") {
+        return "ffprobe".to_owned();
+    }
+    match ext {
+        Some(ext) => format!("{dir}ffprobe.{ext}"),
+        None => format!("{dir}ffprobe"),
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
     pub name: String,
     pub version: String,
     pub work_root: PathBuf,
     pub ffmpeg: String,
+    /// ffprobe, for the jobs the server cannot plan (`mount_transcode`: the server never reads a member's
+    /// bucket, so the worker probes the file it has downloaded).
+    pub ffprobe: String,
     pub force_cpu: bool,
     pub concurrency: u32,
     /// Attempts per ffmpeg step before the job is failed.
@@ -132,6 +156,7 @@ impl WorkerConfig {
             version: env!("CARGO_PKG_VERSION").to_string(),
             work_root,
             ffmpeg: "ffmpeg".to_string(),
+            ffprobe: "ffprobe".to_string(),
             force_cpu: false,
             concurrency: 1,
             step_attempts: 2,
@@ -449,15 +474,46 @@ impl<'a> Worker<'a> {
         self.report(&mut rep, Stage::Download, 5.0, None, true)?;
 
         // 2. encode
-        let (duration, plan_ladder) = match &job.spec {
+        let input_str = input
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        // A mount job carries no plan: probe the downloaded file and plan here, then run it as the ladder or
+        // the single MP4 it asked for (BYOS-CNV-003).
+        let planned: Option<JobSpec> = match &job.spec {
+            JobSpec::MountTranscode { format, preset, .. } => {
+                let probe = sr_media::probe::probe_file(self.runner, &self.cfg.ffprobe, &input_str)
+                    .map_err(|e| {
+                        JobError::fail(
+                            Stage::Video,
+                            format!("the file could not be read: {e}"),
+                            false,
+                        )
+                    })?;
+                let plan = sr_media::mount_job::plan_for(&probe, *format, *preset)
+                    .map_err(|e| JobError::fail(Stage::Video, e.to_string(), false))?;
+                Some(match plan {
+                    sr_media::mount_job::LocalPlan::Ladder(plan) => JobSpec::Ladder { plan },
+                    sr_media::mount_job::LocalPlan::Proxy(plan) => JobSpec::Proxy { plan },
+                })
+            }
+            _ => None,
+        };
+        let spec = planned.as_ref().unwrap_or(&job.spec);
+        let (duration, plan_ladder) = match spec {
             JobSpec::Ladder { plan } => (plan.source.duration_secs, Some(plan.as_ref())),
             JobSpec::Proxy { plan } => (plan.duration_secs, None),
             JobSpec::Remux { plan } => (plan.duration_secs, None),
+            JobSpec::MountTranscode { .. } => {
+                return Err(JobError::fail(
+                    Stage::Video,
+                    "the job was not planned",
+                    false,
+                ));
+            }
         };
         let mut encoder = self.caps.choose(self.cfg.force_cpu).ok_or_else(|| {
             JobError::fail(Stage::Video, BuildError::NoEncoder.to_string(), false)
         })?;
-        let input_str = input.to_string_lossy().replace('\\', "/");
         let out = dir.out();
         let build = |enc: Encoder| -> Result<Vec<Step>, JobError> {
             let ctx = BuildCtx {
@@ -467,10 +523,11 @@ impl<'a> Worker<'a> {
                 caps: &self.caps,
                 duration_secs: duration,
             };
-            match &job.spec {
+            match spec {
                 JobSpec::Ladder { plan } => ladder_steps(plan, &ctx),
                 JobSpec::Proxy { plan } => proxy_steps(plan, &ctx),
                 JobSpec::Remux { plan } => remux_steps(plan, &dir.input_dir(), ctx.out_dir),
+                JobSpec::MountTranscode { .. } => Err(BuildError::NoEncoder),
             }
             .map_err(|e| JobError::fail(Stage::Video, e.to_string(), false))
         };
