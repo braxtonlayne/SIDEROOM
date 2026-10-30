@@ -271,8 +271,8 @@ async fn an_older_set_never_replaces_a_newer_one_and_dropped_currencies_go() {
 
     // A newer set that no longer lists a currency removes it.
     age_last_success(pool, "2 days").await;
-    let doc = fixture_for_tests("2026-10-30", "1.20")
-        .replace("<Cube currency='AUD' rate='1.6420'/>", "");
+    let doc =
+        fixture_for_tests("2026-10-30", "1.20").replace("<Cube currency='AUD' rate='1.6420'/>", "");
     run_once(pool, &Canned::raw(Ok(doc.into_bytes())), now_ms())
         .await
         .unwrap();

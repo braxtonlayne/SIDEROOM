@@ -80,7 +80,9 @@ fn valid_date(d: &str) -> bool {
     }
     let num = |r: std::ops::Range<usize>| d[r].parse::<u32>().ok();
     match (num(0..4), num(5..7), num(8..10)) {
-        (Some(y), Some(m), Some(day)) => (2000..=2200).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&day),
+        (Some(y), Some(m), Some(day)) => {
+            (2000..=2200).contains(&y) && (1..=12).contains(&m) && (1..=31).contains(&day)
+        }
         _ => false,
     }
 }
@@ -189,7 +191,10 @@ pub async fn enabled(pool: &PgPool) -> DbResult<bool> {
             .await?;
     Ok(match v {
         None => true,
-        Some(v) => v.as_bool().or_else(|| v.as_i64().map(|n| n != 0)).unwrap_or(true),
+        Some(v) => v
+            .as_bool()
+            .or_else(|| v.as_i64().map(|n| n != 0))
+            .unwrap_or(true),
     })
 }
 
@@ -216,12 +221,11 @@ pub async fn last_success_ms(pool: &PgPool) -> DbResult<Option<i64>> {
 /// Store a set. A set dated before the one already stored is ignored (returns `false`).
 pub async fn save(pool: &PgPool, set: &EcbSet) -> DbResult<bool> {
     let mut tx = pool.begin().await?;
-    let newer: bool = sqlx::query_scalar(
-        "SELECT NOT EXISTS (SELECT 1 FROM fx_rates WHERE as_of > $1::date)",
-    )
-    .bind(&set.as_of)
-    .fetch_one(&mut *tx)
-    .await?;
+    let newer: bool =
+        sqlx::query_scalar("SELECT NOT EXISTS (SELECT 1 FROM fx_rates WHERE as_of > $1::date)")
+            .bind(&set.as_of)
+            .fetch_one(&mut *tx)
+            .await?;
     if newer {
         let codes: Vec<String> = set.rates.keys().cloned().collect();
         let values: Vec<f64> = set.rates.values().copied().collect();
@@ -334,7 +338,11 @@ pub enum Outcome {
     /// A fetch succeeded recently.
     NotDue,
     /// The set was stored (or ignored because a newer one is stored).
-    Stored { currencies: usize, as_of: String, replaced: bool },
+    Stored {
+        currencies: usize,
+        as_of: String,
+        replaced: bool,
+    },
     /// The attempt failed; the message is also recorded.
     Failed(String),
 }
@@ -381,10 +389,14 @@ pub fn register(runner: JobRunner, pool: &PgPool, fetcher: Arc<dyn FxFetch>) -> 
         let fetcher = fetcher.clone();
         Box::pin(async move {
             match run_once(&pool, fetcher.as_ref(), now_ms()).await {
-                Ok(Outcome::Stored { currencies, as_of, .. }) => {
+                Ok(Outcome::Stored {
+                    currencies, as_of, ..
+                }) => {
                     tracing::info!(currencies, as_of, "currency rates refreshed");
                 }
-                Ok(Outcome::Failed(e)) => tracing::warn!(error = %e, "currency rates refresh failed"),
+                Ok(Outcome::Failed(e)) => {
+                    tracing::warn!(error = %e, "currency rates refresh failed")
+                }
                 Ok(_) => {}
                 // A database hiccup is retried at the next tick, not dead-lettered.
                 Err(e) => tracing::warn!(error = %e, "currency rates job failed"),
@@ -399,7 +411,14 @@ pub fn register(runner: JobRunner, pool: &PgPool, fetcher: Arc<dyn FxFetch>) -> 
 
 /// Create or re-arm the singleton. Call only when [`register`] is on the runner.
 pub async fn schedule(pool: &PgPool) -> DbResult<()> {
-    jobs::schedule_singleton(pool, FX_JOB_ID, FX_KIND, &json!({}), Duration::from_secs(30)).await?;
+    jobs::schedule_singleton(
+        pool,
+        FX_JOB_ID,
+        FX_KIND,
+        &json!({}),
+        Duration::from_secs(30),
+    )
+    .await?;
     Ok(())
 }
 
@@ -471,12 +490,22 @@ mod tests {
             (ok.replace("rate='1.08'", "rate='abc'"), "bad rate"),
             (ok.replace("rate='1.08'", "rate='-1'"), "rate out of range"),
             (ok.replace("rate='1.08'", "rate='0'"), "rate out of range"),
-            (ok.replace("rate='1.08'", "rate='1e999'"), "rate out of range"),
-            (ok.replace("currency='USD'", "currency='usd'"), "bad currency code"),
-            (ok.replace("currency='JPY'", "currency='USD'"), "duplicate currency"),
+            (
+                ok.replace("rate='1.08'", "rate='1e999'"),
+                "rate out of range",
+            ),
+            (
+                ok.replace("currency='USD'", "currency='usd'"),
+                "bad currency code",
+            ),
+            (
+                ok.replace("currency='JPY'", "currency='USD'"),
+                "duplicate currency",
+            ),
             ("<Cube/>".to_owned(), "no reference date"),
             (
-                "<Cube><Cube time='2026-10-29'><Cube currency='USD' rate='1'/></Cube></Cube>".to_owned(),
+                "<Cube><Cube time='2026-10-29'><Cube currency='USD' rate='1'/></Cube></Cube>"
+                    .to_owned(),
                 "too few rates",
             ),
             ("not xml at all <".to_owned(), ""),
@@ -488,7 +517,10 @@ mod tests {
             assert!(e.contains(want), "{e:?} should mention {want:?}");
         }
         // Two dates in one document are not the daily file.
-        let two = ok.replace("</Cube></Cube>", "</Cube><Cube time='2026-10-28'></Cube></Cube>");
+        let two = ok.replace(
+            "</Cube></Cube>",
+            "</Cube><Cube time='2026-10-28'></Cube></Cube>",
+        );
         assert!(parse_ecb(two.as_bytes()).is_err());
         // Binary rubbish and a BOM.
         assert!(parse_ecb(&[0xff, 0xfe, 0x00]).is_err());
@@ -562,7 +594,11 @@ mod tests {
     }
 
     fn fetcher(policy: Policy, dns: &'static str, t: Arc<Serve>) -> EcbFetcher {
-        EcbFetcher::new(Arc::new(SafeClient::new(policy, Arc::new(FixedDns(dns)), t)))
+        EcbFetcher::new(Arc::new(SafeClient::new(
+            policy,
+            Arc::new(FixedDns(dns)),
+            t,
+        )))
     }
 
     #[tokio::test]
@@ -583,7 +619,10 @@ mod tests {
                 deny_hosts: vec![deny.to_owned()],
                 ..Policy::default()
             };
-            let err = fetcher(policy, "193.0.0.1", t.clone()).fetch().await.unwrap_err();
+            let err = fetcher(policy, "193.0.0.1", t.clone())
+                .fetch()
+                .await
+                .unwrap_err();
             assert!(!err.is_empty());
             assert_eq!(t.calls.load(Ordering::SeqCst), 0, "{deny}: {err}");
         }
@@ -596,7 +635,12 @@ mod tests {
             allow_hosts: vec!["example.org".to_owned()],
             ..Policy::default()
         };
-        assert!(fetcher(policy, "193.0.0.1", t.clone()).fetch().await.is_err());
+        assert!(
+            fetcher(policy, "193.0.0.1", t.clone())
+                .fetch()
+                .await
+                .is_err()
+        );
         assert_eq!(t.calls.load(Ordering::SeqCst), 0);
         // Listing the host (or its parent domain) lets it through.
         for allow in ["www.ecb.europa.eu", "europa.eu"] {
@@ -605,15 +649,30 @@ mod tests {
                 allow_hosts: vec![allow.to_owned()],
                 ..Policy::default()
             };
-            assert!(fetcher(policy, "193.0.0.1", t.clone()).fetch().await.is_ok(), "{allow}");
+            assert!(
+                fetcher(policy, "193.0.0.1", t.clone())
+                    .fetch()
+                    .await
+                    .is_ok(),
+                "{allow}"
+            );
         }
     }
 
     #[tokio::test]
     async fn a_name_that_resolves_to_a_private_address_is_refused() {
-        for ip in ["10.0.0.5", "127.0.0.1", "192.168.1.1", "169.254.169.254", "::1"] {
+        for ip in [
+            "10.0.0.5",
+            "127.0.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "::1",
+        ] {
             let t = Serve::new(200, fixture("2026-10-29", "1.08").into_bytes());
-            let err = fetcher(Policy::default(), ip, t.clone()).fetch().await.unwrap_err();
+            let err = fetcher(Policy::default(), ip, t.clone())
+                .fetch()
+                .await
+                .unwrap_err();
             assert!(!err.is_empty());
             assert_eq!(t.calls.load(Ordering::SeqCst), 0, "{ip}");
         }
@@ -622,7 +681,10 @@ mod tests {
     #[tokio::test]
     async fn an_error_status_is_a_failure_not_a_document() {
         let t = Serve::new(503, b"busy".to_vec());
-        let err = fetcher(Policy::default(), "193.0.0.1", t).fetch().await.unwrap_err();
+        let err = fetcher(Policy::default(), "193.0.0.1", t)
+            .fetch()
+            .await
+            .unwrap_err();
         assert!(err.contains("503"), "{err}");
     }
 }
