@@ -489,6 +489,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
 
   test('sign-out: PURGE_APP deletes the signed-in caches and is answered, and the public ones stay', async ({
     page,
+    context,
   }) => {
     test.setTimeout(120_000);
     const buildA = buildId(dirA);
@@ -499,17 +500,20 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     await expect
       .poll(() => appCaches(page).catch(() => ['(navigating)']))
       .toEqual([`sr-app-${buildA}`]);
-    // Caches belong to the origin, not the page: the exchange runs on the public sign-in page, which (unlike an
-    // app page with no API behind it) does not navigate away on its own in the middle of an evaluate.
-    await page.goto(`${ORIGIN}/login`);
-    await controlled(page);
+    // Caches and the worker belong to the origin, not the page. With no API behind it the app page leaves for /login
+    // on its own, at a moment the drill cannot control (a goto then races it), so it is closed and the exchange runs
+    // on a fresh tab of the same context, on the public sign-in page, which stays put.
+    await page.close();
+    const tab = await context.newPage();
+    await tab.goto(`${ORIGIN}/login`);
+    await controlled(tab);
     // A cache from an older build, left behind, goes with it.
-    await page.evaluate(() =>
+    await tab.evaluate(() =>
       caches.open('sr-app-0ld').then((c) => c.put('/app/x.js', new Response('x'))),
     );
 
     // The same exchange src/pwa/purge.ts makes: a message with a reply port, then the reply.
-    const reply = await page.evaluate(
+    const reply = await tab.evaluate(
       () =>
         new Promise<string>((resolve) => {
           const ch = new MessageChannel();
@@ -518,6 +522,6 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
         }),
     );
     expect(reply).toBe('PURGED');
-    expect(await cacheNames(page)).toEqual([`sr-static-${buildA}`]);
+    expect(await cacheNames(tab)).toEqual([`sr-static-${buildA}`]);
   });
 });
