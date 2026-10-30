@@ -7579,6 +7579,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/music/playlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A server's playlists (for its members). */
+        get: operations["list_guild"];
+        put?: never;
+        /** Make a playlist of a server (needs the storage `upload` grant there). */
+        post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/onboarding": {
         parameters: {
             query?: never;
@@ -10531,6 +10549,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/music/playlists/{playlist_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One playlist with the items the caller can reach. */
+        get: operations["detail"];
+        put?: never;
+        post?: never;
+        /** Delete a playlist. */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        /** Rename or re-describe a playlist. */
+        patch: operations["edit"];
+        trace?: never;
+    };
+    "/music/playlists/{playlist_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append tracks to a playlist. */
+        post: operations["add_items"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/music/playlists/{playlist_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an item from a playlist. */
+        delete: operations["remove_item"];
+        options?: never;
+        head?: never;
+        /** Move an item within a playlist. */
+        patch: operations["move_item"];
+        trace?: never;
+    };
     "/music/tracks/{track_id}": {
         parameters: {
             query?: never;
@@ -13288,6 +13360,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/music/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's favorites, newest first, without tracks they can no longer read. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/music/favorites/{track_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Favorite a track (idempotent). */
+        put: operations["add"];
+        post?: never;
+        /** Remove a favorite (removing one that is not there is fine). */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/music/playlists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own playlists, newest first. */
+        get: operations["list_own"];
+        put?: never;
+        /** Make a playlist of the caller's own. */
+        post: operations["create_own"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/music/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's recently played tracks, newest first, without tracks they can no longer read. */
+        get: operations["list"];
+        put?: never;
+        /** Record that a track started playing: it moves to the top and the list is pruned to 200. */
+        post: operations["record"];
+        /** Forget the history. */
+        delete: operations["clear"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/notes/{user_id}": {
         parameters: {
             query?: never;
@@ -14566,6 +14710,11 @@ export interface components {
         ActivitySubmitBody: {
             /** @description The uploaded bundle to put in front of staff. */
             bundle_id: string;
+        };
+        /** @description Body of the add-items call. */
+        AddItemsBody: {
+            /** @description Track snowflakes, appended in this order (a track may be given twice). At most 500. */
+            track_ids: string[];
         };
         /** @description `POST /users/@me/relationships`: send a friend request by username. */
         AddRelationshipBody: {
@@ -20508,6 +20657,14 @@ export interface components {
             linked_target: boolean;
             to_account_id: string;
         };
+        /** @description Body of the move call. */
+        MoveItemBody: {
+            /**
+             * Format: int32
+             * @description The new zero-based position (clamped to the list).
+             */
+            position: number;
+        };
         /** @description The multipart part of a new upload slot. */
         MultipartSlot: {
             /** Format: int32 */
@@ -21421,6 +21578,117 @@ export interface components {
             title_id: string;
             variant_id?: string | null;
         };
+        /** @description Body of `POST` for a new playlist. */
+        PlaylistBody: {
+            /** @description Up to 500 characters. */
+            description?: string | null;
+            /** @description 1 to 100 characters. */
+            name: string;
+        };
+        /** @description A playlist with the items the viewer can reach. */
+        PlaylistDetailView: {
+            /**
+             * Format: int64
+             * @description Items left out because their bucket is not readable by the viewer.
+             */
+            hidden: number;
+            /** @description The reachable items in order. */
+            items: components["schemas"]["PlaylistItemView"][];
+            /** @description The playlist. */
+            playlist: components["schemas"]["PlaylistView"];
+        };
+        /** @description An item of a playlist. */
+        PlaylistItemView: {
+            /** @description The item's own snowflake (a track may be on a list twice). */
+            item_id: string;
+            /**
+             * Format: int32
+             * @description Zero-based position among all items (hidden ones included).
+             */
+            position: number;
+            /** @description The track. */
+            track: components["schemas"]["PlaylistTrackView"];
+        };
+        /** @description Body of `PATCH` for a playlist. */
+        PlaylistPatchBody: {
+            /** @description Up to 500 characters. */
+            description?: string | null;
+            /** @description 1 to 100 characters. */
+            name?: string | null;
+        };
+        /** @description A track as the lists show it. */
+        PlaylistTrackView: {
+            /** @description Album (may be empty). */
+            album: string;
+            /** @description Album artist (may be empty). */
+            album_artist: string;
+            /** @description Artist (may be empty). */
+            artist: string;
+            /** @description Cover key in the mount. */
+            cover_key?: string | null;
+            /**
+             * Format: int32
+             * @description Disc number.
+             */
+            disc_no?: number | null;
+            /**
+             * Format: int32
+             * @description Duration in milliseconds.
+             */
+            duration_ms?: number | null;
+            /** @description Genres. */
+            genres: string[];
+            /** @description Track snowflake. */
+            id: string;
+            /** @description The mount the audio lives in. */
+            mount_id: string;
+            /** @description Tags. */
+            tags: string[];
+            /** @description Title. */
+            title: string;
+            /**
+             * Format: int32
+             * @description Track number.
+             */
+            track_no?: number | null;
+            /**
+             * Format: int32
+             * @description Year.
+             */
+            year?: number | null;
+        };
+        /** @description A playlist. */
+        PlaylistView: {
+            /** @description Whether the viewer may edit it. */
+            can_edit: boolean;
+            /** @description Who made it, when the account still exists. */
+            created_by?: string | null;
+            /**
+             * Format: int64
+             * @description Creation time, unix milliseconds.
+             */
+            created_ms: number;
+            /** @description Up to 500 characters. */
+            description: string;
+            /** @description Playlist snowflake. */
+            id: string;
+            /**
+             * Format: int64
+             * @description Items on the list (some may be hidden from the viewer).
+             */
+            item_count: number;
+            /** @description 1 to 100 characters. */
+            name: string;
+            /** @description The member or the server. */
+            owner_id: string;
+            /** @description `user` or `guild`. */
+            owner_type: string;
+            /**
+             * Format: int64
+             * @description Last change, unix milliseconds.
+             */
+            updated_ms: number;
+        };
         PollTemplate: {
             allow_multiselect: boolean;
             answers: string[];
@@ -22250,6 +22518,11 @@ export interface components {
             part_number: number;
             /** Format: int64 */
             size: number;
+        };
+        /** @description Body of the record call. */
+        RecordBody: {
+            /** @description The track that started playing. */
+            track_id: string;
         };
         /** @description The account that used a code. */
         RedeemedBy: {
@@ -23380,6 +23653,26 @@ export interface components {
              */
             privacy_level: number;
             topic: string;
+        };
+        /** @description The tracks of a stamped list the viewer can reach, and how many were left out. */
+        StampedListView: {
+            /**
+             * Format: int64
+             * @description Tracks left out because their bucket is not readable by the viewer any more.
+             */
+            hidden: number;
+            /** @description Newest first. */
+            items: components["schemas"]["StampedTrackView"][];
+        };
+        /** @description A track with the time it was favorited or last played. */
+        StampedTrackView: {
+            /**
+             * Format: int64
+             * @description When, unix milliseconds.
+             */
+            at_ms: number;
+            /** @description The track. */
+            track: components["schemas"]["PlaylistTrackView"];
         };
         StartBody: {
             episode_id?: string | null;
@@ -50387,6 +50680,95 @@ export interface operations {
             };
         };
     };
+    list_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistView"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaylistBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description PLAYLIST_LIMIT: music.max_playlists reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_onboarding: {
         parameters: {
             query?: never;
@@ -60617,6 +60999,265 @@ export interface operations {
             };
         };
     };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist snowflake */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistDetailView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist snowflake */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist snowflake */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaylistPatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist snowflake */
+                playlist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddItemsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No such playlist, or a track that does not exist or is not readable by the caller */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description PLAYLIST_FULL: music.max_items reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist snowflake */
+                playlist_id: string;
+                /** @description Item snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Playlist snowflake */
+                playlist_id: string;
+                /** @description Item snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveItemBody"];
+            };
+        };
+        responses: {
+            /** @description Moved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_track: {
         parameters: {
             query?: never;
@@ -68186,6 +68827,215 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampedListView"];
+                };
+            };
+        };
+    };
+    add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track snowflake */
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Favorited */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such track, or one the caller cannot read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description FAVORITES_FULL: music.max_items reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track snowflake */
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_own: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistView"][];
+                };
+            };
+        };
+    };
+    create_own: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaylistBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaylistView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description PLAYLIST_LIMIT: music.max_playlists reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description 1 to 200, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StampedListView"];
+                };
+            };
+        };
+    };
+    record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordBody"];
+            };
+        };
+        responses: {
+            /** @description Recorded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such track, or one the caller cannot read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cleared */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
