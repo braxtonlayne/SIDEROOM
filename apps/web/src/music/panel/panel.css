@@ -76,6 +76,10 @@
   flex: 1 1 10rem;
   min-inline-size: 0;
 }
+/* In a column (the search section) the flex basis would be a height: the input keeps its own. */
+.sr-mlib-sect > .sr-mlib-input {
+  flex: none;
+}
 .sr-mlib button:focus-visible,
 .sr-mlib select:focus-visible,
 .sr-mlib input:focus-visible,
