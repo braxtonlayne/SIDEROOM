@@ -377,3 +377,124 @@ async fn real_epoch_keys_encrypt_the_audio_end_to_end() {
     );
     sfu.handle.shutdown().await;
 }
+
+fn music_from(events: &[VoiceEvent], user: u64) -> Vec<Vec<u8>> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            VoiceEvent::Music { user: u, frame } if *u == user => Some(frame.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// MUS-JB-001: a bot DJ. The music line is a second audio line through the same transform as speech; the other
+/// side gets `Music` events (not `Audio`) and the SFU only ever relays what the transform produced.
+#[tokio::test]
+async fn a_bot_dj_sends_an_encrypted_music_track() {
+    let sfu = start().await;
+    let ip = [127, 0, 0, 1].into();
+    let mut dj = VoiceSession::connect_with(
+        &update(&sfu, 1, true),
+        ip,
+        sr_sdk::voice_transport::ConnectOptions { music: true },
+    )
+    .await
+    .unwrap()
+    .with_transform(Flip);
+    let mut b = VoiceSession::connect(&update(&sfu, 2, true), ip)
+        .await
+        .unwrap()
+        .with_transform(Flip);
+    let (mut heard, mut seen) = (Vec::new(), Vec::new());
+    for _ in 0..200 {
+        let (ea, eb) = tokio::join!(
+            dj.pump(Duration::from_millis(50)),
+            b.pump(Duration::from_millis(50))
+        );
+        seen.extend(ea.unwrap());
+        heard.extend(eb.unwrap());
+        if dj.is_connected() && b.is_connected() {
+            break;
+        }
+    }
+    assert!(dj.is_connected() && b.is_connected(), "did not connect");
+    for _ in 0..20 {
+        let (ea, eb) = tokio::join!(
+            dj.pump(Duration::from_millis(50)),
+            b.pump(Duration::from_millis(50))
+        );
+        seen.extend(ea.unwrap());
+        heard.extend(eb.unwrap());
+    }
+    // A stereo 320 kbit/s frame is about 800 bytes.
+    let music = |n: u32| {
+        let mut f = vec![0x77; 800];
+        f[..4].copy_from_slice(&n.to_be_bytes());
+        f
+    };
+    for n in 0..80 {
+        dj.send_music_opus(&music(n)).unwrap();
+        let (ea, eb) = tokio::join!(
+            dj.pump(Duration::from_millis(20)),
+            b.pump(Duration::from_millis(20))
+        );
+        seen.extend(ea.unwrap());
+        heard.extend(eb.unwrap());
+    }
+    for _ in 0..10 {
+        let (ea, eb) = tokio::join!(
+            dj.pump(Duration::from_millis(30)),
+            b.pump(Duration::from_millis(30))
+        );
+        seen.extend(ea.unwrap());
+        heard.extend(eb.unwrap());
+    }
+    let got = music_from(&heard, 1);
+    assert!(got.len() >= 40, "B received {} music frames", got.len());
+    assert_eq!(got[0].len(), 800, "decrypted back to the original frame");
+    assert!(got.iter().all(|f| f[4..].iter().all(|b| *b == 0x77)));
+    assert!(
+        audio_from(&heard, 1).is_empty(),
+        "music is not mistaken for speech"
+    );
+    assert!(music_from(&seen, 2).is_empty());
+    sfu.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn music_needs_a_music_line_and_a_transform_in_an_encrypted_call() {
+    let sfu = start().await;
+    let ip = [127, 0, 0, 1].into();
+    // Joined without the option: no music line.
+    let mut plain = VoiceSession::connect(&update(&sfu, 1, true), ip)
+        .await
+        .unwrap()
+        .with_transform(Flip);
+    // Joined with it but without a transform in an encrypted call.
+    let mut clear = VoiceSession::connect_with(
+        &update(&sfu, 2, true),
+        ip,
+        sr_sdk::voice_transport::ConnectOptions { music: true },
+    )
+    .await
+    .unwrap();
+    for _ in 0..200 {
+        let _ = tokio::join!(
+            plain.pump(Duration::from_millis(50)),
+            clear.pump(Duration::from_millis(50))
+        );
+        if plain.is_connected() && clear.is_connected() {
+            break;
+        }
+    }
+    assert!(matches!(
+        plain.send_music_opus(&frame(0)),
+        Err(TransportError::NoMusicLine)
+    ));
+    assert!(matches!(
+        clear.send_music_opus(&frame(0)),
+        Err(TransportError::EncryptionRequired)
+    ));
+    sfu.handle.shutdown().await;
+}
