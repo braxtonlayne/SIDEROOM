@@ -819,7 +819,10 @@ async fn export_lists_active_rings_and_erasure_deletes_them_all_except_held_ones
     assert!(
         ids.contains(&text.to_string().as_str()) && !ids.contains(&expired.to_string().as_str())
     );
-    let listed = active.iter().find(|r| r["id"] == text.to_string()).unwrap();
+    let listed = active
+        .iter()
+        .find(|r| r["id"].as_str() == Some(text.to_string().as_str()))
+        .unwrap();
     assert_eq!(
         listed["viewers"].as_array().unwrap().len(),
         1,
@@ -836,7 +839,7 @@ async fn export_lists_active_rings_and_erasure_deletes_them_all_except_held_ones
     );
     drop(conn);
     let mut tx = p.begin().await.unwrap();
-    let erased = sr_db::rings_dsr::erase_for(&mut *tx, author).await.unwrap();
+    let erased = sr_db::rings_dsr::erase_for(&mut tx, author).await.unwrap();
     tx.commit().await.unwrap();
     assert_eq!(
         (erased.rings, erased.held),

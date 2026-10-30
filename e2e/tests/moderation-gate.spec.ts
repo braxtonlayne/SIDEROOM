@@ -18,6 +18,8 @@ import { nextWindowCode, secretFromOtpauth, totp } from '../support/totp';
  *  4. A second account of B is flagged as a likely duplicate; staff review the signal and fold it into the Person.
  *  5. A data-subject export is run for B and downloaded; an erasure runs with the deletion of B's messages and the
  *     content is gone for A.
+ *  3c. (PRF-RNG-001) A status ring of B for the server is reported: held, 404 for a stranger, the viewer list
+ *     is B's alone, and the case keeps its evidence after B deletes the ring.
  *  6. The Owner reads the access log and finds the row of every step above.
  *
  * Staff are a real staff member (Senior Staff, appointed with `sr-cli`) with a second factor: ban, upheld takedown
@@ -165,6 +167,58 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
       await call(s, 'POST', `/moderation/cases/${caseId}/notes`, {
         body: 'Read the thread; B has done this before.',
       });
+    });
+
+    await test.step('PRF-RNG-001: a reported status ring is held, only its audience could see it, and the case outlives the ring', async () => {
+      const ring = await call<{ id: string }>(b, 'POST', '/users/@me/rings', {
+        kind: 'text',
+        text: `ring line ${stamp}`,
+        audience: 'guilds',
+        guild_ids: [guild.id],
+      });
+      // A shares the chosen server; S does not: S gets the same 404 as for a ring that does not exist.
+      await call(a, 'GET', `/rings/${ring.id}`);
+      const hidden = await s.fetch(`${API}/rings/${ring.id}`);
+      const missing = await s.fetch(`${API}/rings/1`);
+      expect(hidden.status()).toBe(404);
+      expect(await hidden.json()).toEqual(await missing.json());
+      // The viewer list is B's alone.
+      await call(a, 'POST', `/rings/${ring.id}/view`);
+      expect((await a.fetch(`${API}/users/@me/rings/${ring.id}/viewers`)).status()).toBe(404);
+      expect(await call<unknown[]>(b, 'GET', `/users/@me/rings/${ring.id}/viewers`)).toHaveLength(
+        1,
+      );
+
+      await call(a, 'POST', '/moderation/reports', {
+        target_kind: 'status_ring',
+        target_id: ring.id,
+        category: 'harassment',
+        note: 'This ring is aimed at me.',
+        moderators_may_see_name: false,
+      });
+      const open = await call<{ items: { id: string; target_id: string | null }[] }>(
+        s,
+        'GET',
+        '/moderation/cases?open_only=true&limit=100',
+      );
+      const ringCase = open.items.find((c) => c.target_id === ring.id);
+      expect(ringCase, 'platform staff see the ring case').toBeTruthy();
+      const detail = await call<{
+        evidence: { kind: string; payload: { kind?: string; text?: string } }[];
+        holds: { scope_kind: string | null }[];
+      }>(s, 'GET', `/moderation/cases/${ringCase!.id}`);
+      expect(detail.holds.map((h) => h.scope_kind)).toContain('status_ring');
+      expect(detail.evidence[0]?.payload.kind).toBe('status_ring');
+
+      // B deletes the ring: it is gone for A, and the case still has the evidence copy.
+      await call(b, 'DELETE', `/users/@me/rings/${ring.id}`);
+      expect((await a.fetch(`${API}/rings/${ring.id}`)).status()).toBe(404);
+      const after = await call<{ evidence: { payload: { text?: string } }[] }>(
+        s,
+        'GET',
+        `/moderation/cases/${ringCase!.id}`,
+      );
+      expect(after.evidence[0]?.payload.text).toBe(`ring line ${stamp}`);
     });
 
     await test.step('staff hold B’s messages and ban B from the case', async () => {

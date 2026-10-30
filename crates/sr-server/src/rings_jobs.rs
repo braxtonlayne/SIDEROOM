@@ -92,7 +92,11 @@ pub async fn pass(uf: &UserFeatures, objects: &dyn RingObjects) -> Result<String
     let purged = uf.drain_ring_purge(objects, BATCH).await.map_err(e)?;
     Ok(format!(
         "{} rings deleted, {} held, {} evidence copies, {} objects deleted, {} retried, {} given up",
-        expired.rows_deleted, expired.held_skipped, copied, purged.deleted, purged.retried,
+        expired.rows_deleted,
+        expired.held_skipped,
+        copied,
+        purged.deleted,
+        purged.retried,
         purged.gave_up
     ))
 }
@@ -138,7 +142,10 @@ mod tests {
 
     #[test]
     fn a_missing_mount_or_object_is_gone_and_a_backend_error_is_retried() {
-        assert_eq!(failure(StorageError::NotFound("m".into())), ObjectFailure::Gone);
+        assert_eq!(
+            failure(StorageError::NotFound("m".into())),
+            ObjectFailure::Gone
+        );
         assert!(matches!(
             failure(StorageError::Backend("down".into())),
             ObjectFailure::Retry(_)

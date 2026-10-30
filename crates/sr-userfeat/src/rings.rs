@@ -320,6 +320,11 @@ pub async fn ring_visible_to(pool: &PgPool, ring: i64, viewer: i64) -> UfResult<
         .await?)
 }
 
+/// `(mount, object key, hold, evidence key)` of a ring about to go.
+type Doomed = (Option<i64>, Option<String>, Option<i64>, Option<String>);
+/// `(id, mount, object key, evidence key)` of a ring past its day.
+type Due = (i64, Option<i64>, Option<String>, Option<String>);
+
 fn not_found() -> UfError {
     UfError::NotFound("ring")
 }
@@ -643,15 +648,14 @@ impl UserFeatures {
     /// Delete the author's own ring now. A ring under a hold is hidden and stays until the hold ends.
     pub async fn delete_ring(&self, author: i64, id: i64) -> UfResult<Removed> {
         let mut tx = self.pool.begin().await?;
-        let row: Option<(Option<i64>, Option<String>, Option<i64>, Option<String>)> =
-            sqlx::query_as(
-                "SELECT mount_id, object_key, hold_id, evidence_key FROM status_rings \
+        let row: Option<Doomed> = sqlx::query_as(
+            "SELECT mount_id, object_key, hold_id, evidence_key FROM status_rings \
              WHERE id = $1 AND author_id = $2 AND deleted_at IS NULL FOR UPDATE",
-            )
-            .bind(id)
-            .bind(author)
-            .fetch_optional(&mut *tx)
-            .await?;
+        )
+        .bind(id)
+        .bind(author)
+        .fetch_optional(&mut *tx)
+        .await?;
         let (mount, key, hold, evidence) = row.ok_or_else(not_found)?;
         if hold.is_some() {
             sqlx::query("UPDATE status_rings SET deleted_at = now() WHERE id = $1")
@@ -707,7 +711,7 @@ impl UserFeatures {
     /// has ended) that no hold freezes, queue its objects, prune the allowance table. At most `limit` rows.
     pub async fn expire_rings(&self, limit: i64) -> UfResult<ExpireReport> {
         let mut tx = self.pool.begin().await?;
-        let due: Vec<(i64, Option<i64>, Option<String>, Option<String>)> = sqlx::query_as(
+        let due: Vec<Due> = sqlx::query_as(
             "SELECT id, mount_id, object_key, evidence_key FROM status_rings \
              WHERE hold_id IS NULL AND (expires_at <= now() OR deleted_at IS NOT NULL) \
              ORDER BY expires_at LIMIT $1 FOR UPDATE SKIP LOCKED",
