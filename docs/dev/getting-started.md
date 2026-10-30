@@ -20,6 +20,20 @@ Goal: running stack in under 15 minutes.
    `just seed` also queues the Live TV slate (the off-air colour-bars loop) when `ffmpeg` is on your PATH and says so when it skips it; without ffmpeg, run `sr-cli tv slate` later on any machine that has it (needs the server and a transcoder worker running).
 5. Run the server (`cargo run -p sr-server`) and the web app (`pnpm --filter web dev`) once those crates and apps land.
 
+## Public surfaces, the app and the gate (D-385)
+
+The web app builds twice into `apps/web/dist`: a minimal bundle per public surface (landing, sign-in, invite) and the gated app. `vite dev` imitates the split: `vite/publicDev.ts` serves a public shell for a public path and asks `sr-server` (`SR_DEV_API`, default `http://127.0.0.1:8080`) whether the request has a session, answering `302 /login?next=` when it has not, as production does.
+
+To run the browser tests against the real thing, build and let `sr-server` serve the dist:
+
+```
+VITE_SR_E2E=1 pnpm --filter @sideroom/web build
+SR_E2E_WEB=server SR_E2E_BASE_URL=http://localhost:8080 SR_WEB__ROOT=$PWD/apps/web/dist SR_WEB__SERVE_PUBLIC=true ./deploy/compose/e2e-run.sh --project=chromium tests/entrance-isolation.spec.ts
+node scripts/check-entrance-isolation.mjs
+```
+
+`SR_E2E_WEB=dev` (the default) uses the Vite dev server on 5173, `server` uses `sr-server` on 8080 (`SR_E2E_SERVER_PORT` to move it), `preview` is the old ungated `vite preview`. `entrance-isolation.spec.ts` skips itself in `dev` mode. The static suite (`pnpm --filter @sideroom/e2e test:static`) previews the build through `e2e/vite.static.config.ts`, which adds `vite/previewGate.ts` (shell per path, ungated). When you add a feature, add its names to `scripts/entrance-denylist.json`; a word that must be tolerated in a public file needs a reason in `scripts/entrance-allow.json`.
+
 ## Services
 
 | Service | Address |

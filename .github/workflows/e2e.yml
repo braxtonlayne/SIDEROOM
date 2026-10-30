@@ -68,6 +68,49 @@ jobs:
             server.log
             server-main.log
 
+  # SEC-ENT-004 (D-385): the built bundle behind the real gate. sr-server serves apps/web/dist itself (SR_E2E_WEB=server:
+  # SR_WEB__ROOT, SR_WEB__SERVE_PUBLIC=true), so the pages and the API share one origin on :8080, a visitor without a
+  # session gets only a public surface's files and a 302 or 401 for everything else, and a sign-in is a document
+  # load into /app. The first step runs the static isolation check on the same dist, so the log lists every surface.
+  built-bundle:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    env:
+      SR_E2E_WEB: server
+      SR_E2E_BASE_URL: http://localhost:8080
+      SR_WEB__SERVE_PUBLIC: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-stack
+      - name: Install the browser
+        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Build the web app (VITE_SR_E2E skips the first-run welcome, as the dev server leg does)
+        run: pnpm --filter @sideroom/web build
+        env:
+          VITE_SR_E2E: "1"
+      - name: Entrance isolation check on this dist
+        run: node scripts/check-entrance-isolation.mjs
+      - name: Entrance isolation, entrance smoke and the sign-in journey against the built bundle
+        run: |
+          export SR_WEB__ROOT="$PWD/apps/web/dist"
+          ./target/debug/sr-cli migrate
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} tests/entrance-isolation.spec.ts tests/entrance-smoke.spec.ts tests/entrance-journey.spec.ts
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-built-bundle-${{ matrix.browser }}
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            server.log
+
   # VOX-E2E-003, DEV-ACT-001, D-243/D-244: features that need the SFU, voice E2EE and Activities switched on.
   # One sr-server run per suite (registration allows 20 accounts per address and day, counted in memory).
   live:
