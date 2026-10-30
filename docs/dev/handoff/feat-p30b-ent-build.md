@@ -52,7 +52,7 @@ Public build base `/`, assets in `/entrance/`; app build base `/app/`. `dist` ro
 
 ## Tests run
 - `tsc --noEmit`, `eslint .`, prettier on touched files: clean.
-- Vitest `--maxWorkers=2` on router, public, lib, i18n, help, library, settings, routes, pwa, components, security: all green (new: `public/surfaces.test.tsx`, `public/allowed.test.ts`, `lib/enterApp.test.ts`; rewritten: `router.test.tsx`, `routes/entrance/static.test.tsx`, `security/csp.test.ts`). A full-suite run was started last; if it showed failures they are listed in the lead's report.
+- Vitest `--maxWorkers=2` on router, public, lib, i18n, help, library, settings, routes, pwa, components, security: all green (new: `public/surfaces.test.tsx`, `public/allowed.test.ts`, `lib/enterApp.test.ts`; rewritten: `router.test.tsx`, `routes/entrance/static.test.tsx`, `security/csp.test.ts`). Full suite: 352 files, the last two failures (cinema and OAuth consent expecting a router redirect to /login) were updated to the document-navigation expectation and pass.
 - `node scripts/build-web.mjs`, `check-bundle-budget.mjs`, `check-css-tokens.mjs`, `check-notices-copy.mjs`, `render-caddyfile.mjs --check`: pass. Harness isolation check on this dist: clean.
 
 ## Decisions

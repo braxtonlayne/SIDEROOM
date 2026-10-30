@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+import { nav } from '../../lib/enterApp';
 import { external } from '../oauth';
 import type { AuthorizePreview } from '../types';
 import { BOT, http, HttpResponse, openAt, readJson, server, signedIn } from './helpers';
@@ -237,9 +238,13 @@ describe('OAuth2 consent screen', () => {
         HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
       ),
     );
-    const { router } = openAt(URL_);
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
-    expect(String(router.state.location.search.next)).toContain('/oauth2/authorize?client_id=500');
+    vi.spyOn(nav, 'assign').mockImplementation(() => {});
+    openAt(URL_);
+    await waitFor(() => expect(nav.assign).toHaveBeenCalled());
+    const url = String(vi.mocked(nav.assign).mock.calls[0]![0]);
+    expect(url.startsWith('/login?next=')).toBe(true);
+    expect(decodeURIComponent(url)).toContain('/oauth2/authorize?client_id=500');
+    vi.restoreAllMocks();
   });
 
   it('shows a server failure and lets them try again', async () => {
