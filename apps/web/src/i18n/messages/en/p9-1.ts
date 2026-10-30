@@ -1,5 +1,4 @@
 export default {
-  'lounge.shortcuts.quickSwitcher': 'Find or start a conversation',
   'lounge.shortcuts.shortcutSheet': 'Show keyboard shortcuts',
   'lounge.shortcuts.userSettings': 'Open user settings',
   'lounge.shortcuts.prevChannel': 'Previous channel',
