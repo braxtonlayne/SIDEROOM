@@ -3,6 +3,7 @@ import { onDispatch } from '../../store/events';
 import { voiceController } from '../../voice/controller';
 import { applyStatusEvent } from '../../voice/channelStatus';
 import { applyStageEvent } from '../../voice/stage';
+import { startVoiceTimerListener } from '../../tools/timers/voiceTimer';
 import { useVoiceSession } from '../../voice/session';
 import { useVoicePerms } from './perms';
 import { useVoiceAnnouncements } from '../../a11y/voiceAnnounce';
@@ -23,6 +24,8 @@ export function VoiceBridge() {
   useEffect(() => onDispatch((event, data) => applyStageEvent(event, data)), []);
   // Voice channel statuses (VOX-UI-015) arrive with GUILD_CREATE and VOICE_CHANNEL_STATUS_UPDATE.
   useEffect(() => onDispatch((event, data) => applyStatusEvent(event, data)), []);
+  // Timers shared with a voice channel (UTL-DEV-001) arrive as VOICE_TIMER_UPDATE.
+  useEffect(() => startVoiceTimerListener(), []);
 
   useEffect(() => {
     if (channelId) voiceController().setPttForced(!perms.useVad);

@@ -1297,12 +1297,40 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         tracing::warn!("the feature poster was already set");
     }
     let system_poster_for_tv = system_poster.clone();
+    let system_poster_for_cards = system_poster.clone();
     let feed_policy = unfurl_policy_for_feeds.clone();
+    // The currency converter's rates (UTL-CALC-001): fetched by the server under the same outbound policy as the
+    // RSS feeds (deny and allow lists, address checks), read by GET /tools/fx.
+    let fx_fetcher: Arc<dyn crate::fx_jobs::FxFetch> = Arc::new(crate::fx_jobs::EcbFetcher::new(
+        crate::userfeat::feed_client(unfurl_policy_for_feeds.clone()),
+    ));
+    let fx_deps = crate::fx_jobs::deps(&pool);
     let ticker = Arc::new(sr_userfeat::tick::Ticker::new(
         user_features.clone(),
         system_poster.clone(),
         Some(crate::userfeat::feed_client(feed_policy.clone())),
     ));
+    // Tool rooms (UTL-COL-001): the shared documents of the tier list and poll builder.
+    let tool_room_store: Arc<dyn sr_chat::tool_rooms::ToolRoomStore> =
+        Arc::new(sr_db::tool_rooms_repo::PgToolRooms::new(pool.clone()));
+    let tool_room_deps = Arc::new(routes::tools::rooms::ToolRoomDeps {
+        store: tool_room_store.clone(),
+    });
+    // Invite cards (UTL-CRD-001): Cinema tickets and game-night invites with claimable seats; the reminders ask
+    // the member's DM settings (privacy, blocks, the system user's conversation) before they DM.
+    let card_deps = Arc::new(routes::tools::cards::CardDeps {
+        store: Arc::new(sr_db::cards_repo::PgCards::new(pool.clone())),
+        gate: Arc::new(sr_chat::cards::reminders::SocialGate::new(Arc::new(
+            sr_db::social_repo::PgSocialRepo::new(pool.clone()),
+        ))),
+        public_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
+        locks: routes::tools::cards::CardLocks::default(),
+    });
+    let card_jobs = Arc::new(crate::cards_jobs::CardJobs {
+        deps: card_deps.clone(),
+        messages: messages.clone(),
+        poster: system_poster_for_cards,
+    });
     let user_feature_deps = Arc::new(routes::userfeat::UserFeatDeps {
         uf: user_features.clone(),
         poster: system_poster,
@@ -1538,6 +1566,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
+        .extension(tool_room_deps)
+        .extension(fx_deps)
+        .extension(card_deps)
         .extension(storage_scope_deps)
         .extension(mount_transcode_deps)
         .extension(upload_deps)
@@ -1658,6 +1689,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register_insights(runner, &pool);
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
+    let runner = crate::fx_jobs::register(runner, &pool, fx_fetcher);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner =
         crate::admin_jobs::register_storage_measure(runner, &pool, id_src.clone(), storage.clone());
@@ -1685,6 +1717,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mount_repo.clone(),
     );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
+    let runner = crate::tool_rooms_jobs::register(runner, &pool, tool_room_store.clone());
+    let runner = crate::cards_jobs::register(runner, &pool, card_jobs);
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
@@ -1736,6 +1770,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::admin_jobs::schedule(&pool).await?;
     crate::storage_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
+    crate::tool_rooms_jobs::schedule(&pool).await?;
+    crate::cards_jobs::schedule(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::upload_jobs::schedule(&pool).await?;
     crate::activities_jobs::schedule(&pool).await?;
@@ -1753,6 +1789,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::media_jobs::schedule(&pool).await?;
     crate::userset_jobs::schedule(&pool).await?;
     crate::payments_jobs::schedule(&pool).await?;
+    crate::fx_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

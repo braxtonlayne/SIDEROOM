@@ -344,3 +344,92 @@ export interface MusicApi {
 }
 
 export function loadMusic(wasmUrl?: string | URL | BufferSource): Promise<MusicApi>;
+
+// UTL-SRC-001: the utility drawer's logic (sr-tools-wasm). Each module's owner adds its key to ToolsApi.
+export interface ToolSearchEntity {
+  kind: 'channel' | 'person';
+  id: string;
+  name: string;
+  aliases?: string[];
+}
+
+export interface ToolSearchHit {
+  kind: 'tool' | 'channel' | 'person';
+  id: string;
+  label: string;
+  /** 1 prefix, 2 fuzzy, 3 BM25 over the tool's task phrases. */
+  stage: 1 | 2 | 3;
+  score: number;
+}
+
+export interface ToolSearchResults {
+  /** Set when nothing matched by prefix and the best fuzzy hit is close: "Did you mean ...?". */
+  didYouMean: string | null;
+  hits: ToolSearchHit[];
+}
+
+export interface ToolSearchIndex {
+  /** Replace the channels and people (names and aliases only); returns how many were indexed. */
+  setEntities(entities: ToolSearchEntity[]): number;
+  /** Search tools, channels and people. A leading ">", "#" or "@" limits it to tools, channels or people. */
+  search(query: string, limit?: number): ToolSearchResults;
+  free(): void;
+}
+
+// UTL-IMG-001 (utl-image)
+export interface GifLimits {
+  maxDurationMs: number;
+  maxBytes: number;
+  maxEdge: number;
+  /** Hundredths of a second. */
+  minDelayCs: number;
+}
+export type GifErrorCode =
+  | 'GIF_BAD_SIZE'
+  | 'GIF_BAD_FRAME'
+  | 'GIF_EMPTY'
+  | 'GIF_TOO_LONG'
+  | 'GIF_TOO_BIG'
+  | 'GIF_TOO_MUCH'
+  | 'GIF_ENCODE';
+export interface GifBuilder {
+  /** One RGBA frame (width x height x 4 bytes). Throws an Error whose message is a {@link GifErrorCode}. */
+  addFrame(rgba: Uint8Array | Uint8ClampedArray): number;
+  /** The GIF file. Throws like addFrame (GIF_TOO_BIG past 20 MiB, GIF_EMPTY with no frames). */
+  finish(): Uint8Array;
+  readonly frameCount: number;
+  /** How many frames fit in 15 s at this delay. */
+  readonly maxFrames: number;
+  free(): void;
+}
+export interface PaletteColour {
+  hex: string;
+  r: number;
+  g: number;
+  b: number;
+  /** 0 to 1 */
+  share: number;
+}
+
+// UTL-DEV-001 (utl-dev)
+export interface ToolsDevApi {
+  /** A dice expression with a 64-bit seed in two halves; JSON text of the roll or of the error. */
+  diceRoll(expression: string, seedHi: number, seedLo: number): string;
+  diceFlip(seedHi: number, seedLo: number): boolean;
+  dicePickWeighted(weights: Uint32Array, seedHi: number, seedLo: number): number;
+  /** JSON text of the diff. */
+  diffText(a: string, b: string, mode: 'lines' | 'words' | 'chars'): string;
+  hashMd5(data: Uint8Array): string;
+  hashCrc32(data: Uint8Array): string;
+}
+
+export interface ToolsApi {
+  /** The raw wasm-bindgen module of sr-tools-wasm. */
+  raw: Record<string, unknown>;
+  search: { create(): ToolSearchIndex };
+  gif: { limits: GifLimits; create(width: number, height: number, delayCs: number): GifBuilder };
+  palette: { extract(rgba: Uint8Array | Uint8ClampedArray, k?: number): PaletteColour[] };
+  dev: ToolsDevApi;
+}
+
+export function loadTools(wasmUrl?: string | URL | BufferSource): Promise<ToolsApi>;

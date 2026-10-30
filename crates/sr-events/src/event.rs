@@ -508,6 +508,14 @@ pub enum DomainEvent {
         answer_id: u32,
     },
     // --- end rich messages ---
+    /// `TOOL_ROOM_UPDATE` (UTL-COL-001): a tool room was created, edited or deleted. `payload` carries the
+    /// room id, kind, new version and the patch (or `deleted`); delivered to members who can view the
+    /// channel.
+    ToolRoomUpdated {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        payload: Value,
+    },
     /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
     TypingStarted {
         guild: Option<GuildId>,
@@ -579,6 +587,11 @@ impl DomainEvent {
                 channel,
                 ..
             }
+            | Self::ToolRoomUpdated {
+                guild: None,
+                channel,
+                ..
+            }
             | Self::ChannelPinsUpdated {
                 guild: None,
                 channel,
@@ -642,6 +655,7 @@ impl DomainEvent {
             | Self::ReactionEmojiCleared { guild, channel, .. }
             | Self::PollVoteAdded { guild, channel, .. }
             | Self::PollVoteRemoved { guild, channel, .. }
+            | Self::ToolRoomUpdated { guild, channel, .. }
             | Self::ChannelPinsUpdated { guild, channel, .. }
             | Self::TypingStarted { guild, channel, .. } => {
                 let mut t = vec![Topic::Channel(*channel)];
@@ -697,6 +711,29 @@ mod tests {
             data: serde_json::Value::Null,
         };
         assert_eq!(dm.topics(), vec![Topic::Channel(ChannelId::new(2))]);
+    }
+
+    #[test]
+    fn tool_room_updates_route_like_messages() {
+        let guild = DomainEvent::ToolRoomUpdated {
+            guild: Some(GuildId::new(1)),
+            channel: ChannelId::new(2),
+            payload: serde_json::Value::Null,
+        };
+        assert_eq!(
+            guild.topics(),
+            vec![
+                Topic::Channel(ChannelId::new(2)),
+                Topic::Guild(GuildId::new(1))
+            ]
+        );
+        assert_eq!(guild.dm_channel(), None);
+        let dm = DomainEvent::ToolRoomUpdated {
+            guild: None,
+            channel: ChannelId::new(2),
+            payload: serde_json::Value::Null,
+        };
+        assert_eq!(dm.dm_channel(), Some(ChannelId::new(2)));
     }
 
     #[test]

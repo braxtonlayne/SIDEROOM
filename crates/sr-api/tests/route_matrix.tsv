@@ -34,6 +34,8 @@ DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	au
 DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-	-
 DELETE	/channels/{channel_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/attachments/{upload_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/cards/{card_id}	authenticated	membership	deny	-	-
+DELETE	/channels/{channel_id}/cards/{card_id}/claim	authenticated	membership	deny	-	-
 DELETE	/channels/{channel_id}/jukebox/listening	authenticated	membership	deny	-	-
 DELETE	/channels/{channel_id}/jukebox/queue/{item_id}	authenticated	membership	deny	-	-
 DELETE	/channels/{channel_id}/jukebox/skip	authenticated	membership	deny	-	-
@@ -49,6 +51,7 @@ DELETE	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	
 DELETE	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/tool-rooms/{room_id}	authenticated	membership	deny	-	-
 DELETE	/cinema/comments/{comment_id}	authenticated	author	allow	-	-
 DELETE	/cinema/comments/{comment_id}/like	authenticated	user	allow	-	-
 DELETE	/cinema/lists/{list_id}	authenticated	author	allow	-	-
@@ -83,6 +86,7 @@ DELETE	/guilds/{guild_id}/storage/mounts/{mount_id}	authenticated	membership	den
 DELETE	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/tools/loot-tables/{table_id}	authenticated	membership	allow	-	-
 DELETE	/invites/{code}	authenticated	membership	allow	-	-
 DELETE	/library/bookmarks/{bookmark_id}	authenticated	self	allow	-	-
 DELETE	/library/chapters/{chapter_id}/progress	authenticated	self	allow	-	-
@@ -134,6 +138,8 @@ DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/storage/mounts/{mount_id}	authenticated	mount_owner	deny	-	-
 DELETE	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount_owner	deny	-	-
+DELETE	/users/@me/tools/loot-tables/{table_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/tools/notes/{note_id}	authenticated	self	deny	-	-
 DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-	-
 DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-	-
@@ -264,6 +270,8 @@ GET	/channels/{channel_id}/activity	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/attachments/{upload_id}/parts	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/call	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/cards/{card_id}	authenticated	membership	deny	-	-
+GET	/channels/{channel_id}/cards/{card_id}/ics	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/invites	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/jukebox	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/listening-room	authenticated	membership	deny	-	-
@@ -279,6 +287,8 @@ GET	/channels/{channel_id}/thread-members	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/threads/archived/private	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/threads/archived/public	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/tool-rooms	authenticated	membership	deny	-	-
+GET	/channels/{channel_id}/tool-rooms/{room_id}	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/users/@me/threads/archived/private	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/watch-party	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/webhooks	authenticated	membership	allow	-	-
@@ -395,6 +405,7 @@ GET	/guilds/{guild_id}/tag	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/templates	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/threads/active	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/tickets	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/tools/loot-tables	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/webhooks	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
@@ -507,6 +518,7 @@ GET	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	autho
 GET	/submissions/{submission_id}/library/uploads/{upload_id}/inspect	authenticated	author	allow	-	-
 GET	/submissions/{submission_id}/library/uploads/{upload_id}/parts	authenticated	author	allow	-	-
 GET	/submissions/{submission_id}/preview	authenticated	author	allow	-	-
+GET	/tools/fx	authenticated	user	allow	-	-
 GET	/tv/channels	authenticated	user	allow	-	-
 GET	/tv/channels/{channel_id}	authenticated	user	allow	-	-
 GET	/tv/channels/{channel_id}/live/audio.m3u8	authenticated	user	allow	-	-
@@ -557,6 +569,8 @@ GET	/users/@me/sr/features	authenticated	self	deny	-	-
 GET	/users/@me/storage/mounts	authenticated	self	deny	-	-
 GET	/users/@me/storage/mounts/{mount_id}/shares	authenticated	mount_owner	deny	-	-
 GET	/users/@me/storage/shares	authenticated	self	deny	-	-
+GET	/users/@me/tools/loot-tables	authenticated	self	deny	-	-
+GET	/users/@me/tools/notes	authenticated	self	deny	-	-
 GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
 GET	/users/{user_id}/profile	authenticated	user	allow	-	-
 GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-	-
@@ -581,6 +595,7 @@ PATCH	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	aut
 PATCH	/channels/{channel_id}	authenticated	membership	allow	-	-
 PATCH	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
 PATCH	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
+PATCH	/channels/{channel_id}/tool-rooms/{room_id}	authenticated	membership	deny	-	-
 PATCH	/cinema/comments/{comment_id}	authenticated	author	allow	-	-
 PATCH	/cinema/lists/{list_id}	authenticated	author	allow	-	-
 PATCH	/donations/me/preferences	authenticated	self	allow	-	-
@@ -605,6 +620,7 @@ PATCH	/guilds/{guild_id}/storage/mounts/{mount_id}	authenticated	membership	deny
 PATCH	/guilds/{guild_id}/suggestions/{suggestion_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/tools/loot-tables/{table_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/voice-states/{user_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
@@ -632,6 +648,7 @@ PATCH	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
 PATCH	/users/@me/settings	authenticated	self	deny	-	-
 PATCH	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
 PATCH	/users/@me/storage/mounts/{mount_id}	authenticated	mount_owner	deny	-	-
+PATCH	/users/@me/tools/loot-tables/{table_id}	authenticated	self	deny	-	-
 PATCH	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
 PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-	-
 PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-	-
@@ -762,6 +779,8 @@ POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/call/ring	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/call/stop-ringing	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/cards	authenticated	membership	deny	-	-
+POST	/channels/{channel_id}/cards/{card_id}/claim	authenticated	membership	deny	-	-
 POST	/channels/{channel_id}/followers	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/invites	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/jukebox/ended	authenticated	membership	deny	-	-
@@ -779,6 +798,7 @@ POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	a
 POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	deny	-	-
 POST	/channels/{channel_id}/send-soundboard-sound	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/threads	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/tool-rooms	authenticated	membership	deny	-	-
 POST	/channels/{channel_id}/typing	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/webhooks	authenticated	membership	allow	-	-
 POST	/cinema/assets/{asset_id}/refresh	authenticated	user	allow	-	-
@@ -827,6 +847,7 @@ POST	/guilds/{guild_id}/suggestions	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/tickets	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/tickets/{ticket_id}/close	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/tools/loot-tables	authenticated	membership	allow	-	-
 POST	/interactions	authenticated	membership	deny	-	-
 POST	/interactions/{interaction_id}/{token}/callback	public	none	allow	-	-
 POST	/invites/{code}	authenticated	membership	deny	-	-
@@ -935,6 +956,7 @@ POST	/users/@me/storage/mounts	authenticated	self	deny	-	-
 POST	/users/@me/storage/mounts/{mount_id}/cors/apply	authenticated	mount_owner	deny	-	-
 POST	/users/@me/storage/mounts/{mount_id}/cors/check	authenticated	mount_owner	deny	-	-
 POST	/users/@me/storage/mounts/{mount_id}/test	authenticated	mount_owner	deny	-	-
+POST	/users/@me/tools/loot-tables	authenticated	self	deny	-	-
 POST	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
 POST	/watch-parties	authenticated	party_access	allow	-	-
 POST	/watch-parties/{party_id}/heartbeat	authenticated	party_member	allow	-	-
@@ -997,6 +1019,7 @@ PUT	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	aut
 PUT	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/voice-status	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/voice-timer	authenticated	membership	allow	-	-
 PUT	/cinema/comments/{comment_id}/like	authenticated	user	allow	-	-
 PUT	/cinema/lists/{list_id}/items/{title_id}	authenticated	author	allow	-	-
 PUT	/cinema/lists/{list_id}/order	authenticated	author	allow	-	-
@@ -1057,6 +1080,7 @@ PUT	/users/@me/primary-guild	authenticated	self	deny	-	-
 PUT	/users/@me/profile-doc	authenticated	self	deny	-	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 PUT	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount_owner	deny	-	-
+PUT	/users/@me/tools/notes/{note_id}	authenticated	self	deny	-	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	party_manager	allow	-	-
 PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-	-
 #undocumented	/

@@ -275,6 +275,7 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         "attachments.json",
         "reactions.json",
         "poll_votes.json",
+        "tools.json",
         "messages/20.json",
         "package.json",
     ] {
@@ -317,6 +318,11 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     );
     let readme = read("README.txt");
     assert!(readme.contains("reactions.json") && readme.contains("poll_votes.json"));
+    assert!(readme.contains("tools.json"));
+    let tools: serde_json::Value = serde_json::from_str(&read("tools.json")).unwrap();
+    for key in ["scratch_notes", "loot_tables", "invite_card_seats"] {
+        assert!(tools[key].is_array(), "tools.json {key}: {tools}");
+    }
     let activity: serde_json::Value = serde_json::from_str(&read("activity.json")).unwrap();
     assert_eq!(activity["profile_media"][0]["id"], "6001");
     assert_eq!(activity["profile_media"][0]["kind"], "background");

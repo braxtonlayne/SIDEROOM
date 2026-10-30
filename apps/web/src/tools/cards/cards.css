@@ -1,0 +1,88 @@
+/*
+ * UTL-CRD-001: the invite card tool and its toast link. Semantic tokens only, logical properties only.
+ */
+.sr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ui-text);
+}
+.sr-card-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.sr-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.sr-card-row > .sr-card-field {
+  flex: 1 1 8rem;
+}
+.sr-card input,
+.sr-card select,
+.sr-card textarea {
+  min-inline-size: 0;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font: inherit;
+}
+.sr-card textarea {
+  resize: vertical;
+  min-block-size: 3rem;
+}
+.sr-card input:focus-visible,
+.sr-card select:focus-visible,
+.sr-card textarea:focus-visible,
+.sr-card button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.sr-card-btn {
+  padding-block: 0.25rem;
+  padding-inline: 0.625rem;
+  border: 1px solid var(--ui-accent);
+  border-radius: var(--ui-radius);
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+  font: inherit;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.sr-card-btn:hover:not(:disabled) {
+  background: var(--ui-accent-hover);
+}
+.sr-card-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sr-card-error {
+  margin: 0;
+  color: var(--ui-danger);
+}
+.sr-card-done {
+  margin: 0;
+  color: var(--ui-text);
+}
+.sr-card-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.sr-card-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

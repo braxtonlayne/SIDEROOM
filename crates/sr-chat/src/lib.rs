@@ -8,6 +8,7 @@
 pub mod admin_repo;
 pub mod admin_rules;
 pub mod admin_service;
+pub mod cards;
 pub mod channel_rules;
 pub mod domain;
 pub mod embed_rules;
@@ -30,6 +31,7 @@ pub mod service;
 pub mod settings;
 pub mod social;
 pub mod threads;
+pub mod tool_rooms;
 pub mod voice_meta;
 
 #[cfg(test)]

@@ -132,14 +132,15 @@ pub mod intents {
             "THREAD_MEMBERS_UPDATE" => Some(GUILD_MEMBERS),
             "PRESENCE_UPDATE" => Some(GUILD_PRESENCES),
             "MESSAGE_POLL_VOTE_ADD" | "MESSAGE_POLL_VOTE_REMOVE" => Some(GUILD_MESSAGE_POLLS),
-            "MESSAGE_CREATE" => Some(GUILD_MESSAGES),
+            "MESSAGE_CREATE" | "TOOL_ROOM_UPDATE" => Some(GUILD_MESSAGES),
             "TYPING_START" => Some(GUILD_MESSAGE_TYPING),
             "STAGE_INSTANCE_CREATE" | "STAGE_INSTANCE_UPDATE" | "STAGE_INSTANCE_DELETE" => {
                 Some(GUILDS)
             }
-            "VOICE_STATE_UPDATE" | "VOICE_CHANNEL_STATUS_UPDATE" | "LISTENING_ROOM_UPDATE" => {
-                Some(GUILD_VOICE_STATES)
-            }
+            "VOICE_STATE_UPDATE"
+            | "VOICE_CHANNEL_STATUS_UPDATE"
+            | "VOICE_TIMER_UPDATE"
+            | "LISTENING_ROOM_UPDATE" => Some(GUILD_VOICE_STATES),
             _ => None,
         }
     }

@@ -1185,6 +1185,9 @@ async fn voice_state_dispatches_need_the_guild_voice_states_intent() {
 #[path = "voice_ext_tests.rs"]
 mod ext;
 
+#[path = "voice_timer_tests.rs"]
+mod timer;
+
 #[path = "voice_e2ee_tests.rs"]
 mod e2ee;
 

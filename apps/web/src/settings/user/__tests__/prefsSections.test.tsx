@@ -363,7 +363,7 @@ describe('Keybinds', () => {
     await recorder(/Press the new keys/);
     await user.keyboard('{Control>}k{/Control}');
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Already used for "Find or start a conversation"',
+      'Already used for "Open the drawer (go to a channel or person, or find a tool)"',
     );
     await user.keyboard('x');
     expect(await screen.findByRole('alert')).toHaveTextContent('Hold Ctrl');
@@ -377,14 +377,14 @@ describe('Keybinds', () => {
     const user = userEvent.setup();
     usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, keybinds: { quickSwitcher: 'Mod+J' } } });
     openSettings('keybinds');
-    const unbind = await screen.findByRole('button', { name: /Unbind\s+Find or start/ });
+    const unbind = await screen.findByRole('button', { name: /Unbind\s+Open the drawer/ });
     // The voice keybinds on this page also say "Not bound" when empty: count against that baseline.
     const before = screen.queryAllByText('Not bound').length;
     await user.click(unbind);
     await waitFor(() => expect(screen.queryAllByText('Not bound')).toHaveLength(before + 1));
-    await user.click(screen.getByRole('button', { name: /Reset\s+Find or start/ }));
+    await user.click(screen.getByRole('button', { name: /Reset\s+Open the drawer/ }));
     await waitFor(() => expect(screen.queryAllByText('Not bound')).toHaveLength(before));
-    await user.click(screen.getByRole('button', { name: /Unbind\s+Find or start/ }));
+    await user.click(screen.getByRole('button', { name: /Unbind\s+Open the drawer/ }));
     await user.click(screen.getByRole('button', { name: 'Reset all keybinds to the defaults' }));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(saved().keybinds).toEqual({});
@@ -497,7 +497,7 @@ describe('Preferences follow the account', () => {
     );
     const user = userEvent.setup();
     openSettings('keybinds');
-    await user.click(await screen.findByRole('button', { name: /Reset\s+Find or start/ }));
+    await user.click(await screen.findByRole('button', { name: /Reset\s+Open the drawer/ }));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(patches).toHaveLength(1));
     const sent = patches[0]!.user_prefs as Record<string, Record<string, unknown>>;

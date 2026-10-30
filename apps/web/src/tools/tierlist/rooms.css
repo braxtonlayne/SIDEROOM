@@ -1,0 +1,247 @@
+/*
+ * UTL-COL-001: tool rooms (the tier list and the poll builder). Semantic tokens only, logical properties only.
+ */
+.sr-room {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ui-text);
+}
+.sr-room-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.sr-room input,
+.sr-room select {
+  min-inline-size: 0;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font: inherit;
+}
+.sr-room input:focus-visible,
+.sr-room select:focus-visible,
+.sr-room button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.sr-room-btn {
+  padding-block: 0.25rem;
+  padding-inline: 0.625rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  font: inherit;
+  cursor: pointer;
+}
+.sr-room-btn:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+}
+.sr-room-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sr-room-primary {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-accent-ink);
+}
+.sr-room-primary:hover:not(:disabled) {
+  background: var(--ui-accent-hover);
+}
+.sr-room-error {
+  margin: 0;
+  color: var(--ui-danger);
+}
+.sr-room-list ul,
+.sr-room-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.sr-room-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+.sr-room-title {
+  flex: 1 1 8rem;
+  display: flex;
+}
+.sr-room-title input {
+  flex: 1;
+  font-weight: 600;
+}
+.sr-room-status {
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.sr-room-status[data-status='offline'] {
+  color: var(--ui-danger);
+}
+.sr-room-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.375rem;
+}
+.sr-room-inline > input:not(.sr-room-emoji) {
+  flex: 1 1 8rem;
+}
+.sr-room-emoji {
+  inline-size: 3.5rem;
+}
+.sr-room-check {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.sr-room-h {
+  margin-block: 0.25rem 0;
+  margin-inline: 0;
+  font-size: 0.8125rem;
+  color: var(--ui-text-muted);
+}
+.sr-room-x {
+  padding-block: 0;
+  padding-inline: 0.375rem;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-text-muted);
+  font-size: 1rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.sr-room-x:hover:not(:disabled) {
+  color: var(--ui-danger);
+}
+
+/* ---------- the tier list ---------- */
+.sr-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.sr-tier-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  overflow: hidden;
+}
+.sr-tier-head {
+  flex: 0 0 5.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.25rem;
+  background: var(--ui-text-faint);
+}
+.sr-tier-row[data-hue='danger'] .sr-tier-head {
+  background: var(--ui-danger);
+}
+.sr-tier-row[data-hue='warning'] .sr-tier-head {
+  background: var(--ui-warning);
+}
+.sr-tier-row[data-hue='success'] .sr-tier-head {
+  background: var(--ui-success);
+}
+.sr-tier-row[data-hue='info'] .sr-tier-head {
+  background: var(--ui-info);
+}
+.sr-tier-row[data-hue='accent'] .sr-tier-head {
+  background: var(--ui-accent);
+}
+.sr-tier-name {
+  inline-size: 100%;
+  background: var(--ui-bg) !important;
+  font-weight: 700;
+  text-align: center;
+}
+.sr-room-zone {
+  flex: 1;
+  min-block-size: 3rem;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.25rem;
+  background: var(--ui-bg-raised);
+}
+.sr-room-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-block: 0.125rem;
+  padding-inline: 0.375rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  cursor: grab;
+}
+.sr-room-chip-text {
+  max-inline-size: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sr-room-move {
+  max-inline-size: 5rem;
+  padding-block: 0 !important;
+  font-size: 0.75rem;
+}
+.sr-room-img {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  object-fit: cover;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-hover);
+}
+.sr-room-img-denied {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-text-muted);
+}
+.sr-room-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+}
+.sr-room-files {
+  max-block-size: 10rem;
+  overflow-y: auto;
+}
+
+/* ---------- the poll builder ---------- */
+.sr-poll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.sr-poll-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}

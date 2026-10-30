@@ -1,0 +1,47 @@
+export default {
+  'tools.invite.name': 'Invite card',
+  'tools.invite.description':
+    'Post a Cinema ticket, a Live TV slot or a game night as a card with seats people can claim.',
+
+  'tools.invite.channel': 'Post in',
+  'tools.invite.pickChannel': 'Choose a channel',
+  'tools.invite.kind': 'What is it?',
+  'tools.invite.kindGameNight': 'Game night',
+  'tools.invite.kindCinema': 'Cinema ticket',
+  'tools.invite.kindLiveTv': 'Live TV slot',
+  'tools.invite.title': 'Title',
+  'tools.invite.note': 'A note (optional)',
+  'tools.invite.when': 'Starts',
+  'tools.invite.zone': 'Time zone',
+  'tools.invite.seats': 'Seats',
+  'tools.invite.length': 'Length in minutes',
+  'tools.invite.link': 'Link inside the app (optional)',
+  'tools.invite.linkHint':
+    'Paste an address from this app, for example a Live TV page. It becomes the title link of the card.',
+  'tools.invite.linkHintCinema':
+    'Paste the address of a title page and the card offers a watch party when it starts.',
+  'tools.invite.post': 'Post the card',
+  'tools.invite.posted': 'Posted "{title}". Seats are open.',
+  'tools.invite.another': 'Make another',
+  'tools.invite.needChannel': 'Choose where to post the card.',
+  'tools.invite.needTitle': 'Give the card a title.',
+  'tools.invite.needTime': 'Pick a start date and time.',
+  'tools.invite.timePast': 'The start time is in the past.',
+  'tools.invite.needSeats': 'Seats must be a whole number from 1 to 250.',
+  'tools.invite.needLength': 'The length must be 15 to 720 minutes.',
+  'tools.invite.badLink': 'The link must be an address inside this app.',
+  'tools.invite.errorDenied': 'You need permission to send messages in that channel.',
+  'tools.invite.errorCreate': 'The card could not be posted.',
+
+  'tools.cards.claimed': 'You have a seat.',
+  'tools.cards.remindersOn': 'We will message you an hour and ten minutes before.',
+  'tools.cards.turnOffReminders': 'Turn off reminders',
+  'tools.cards.remindersOff': 'Reminders are off for this card.',
+  'tools.cards.remindersBlocked':
+    'Your message settings stop reminders from reaching you, so none will be sent. The time is on the card.',
+  'tools.cards.released': 'Your seat is free again.',
+  'tools.cards.full': 'All the seats are taken.',
+  'tools.cards.partyDenied': 'You do not have permission to start a watch party here.',
+  'tools.cards.errorClaim': 'That did not work. Try again.',
+  'tools.cards.errorParty': 'The watch party could not be started.',
+} satisfies Record<string, string>;
