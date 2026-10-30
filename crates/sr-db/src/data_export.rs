@@ -7,7 +7,8 @@
 //! The package contains: `README.txt`, `account.json`, `settings.json`, `relationships.json`,
 //! `servers.json`, `connections.json`, `invites.json`, `invoices.json`, `activity.json`
 //! (ratings, reviews, watch and read history, lists), `security.json` (sessions and sign-in
-//! history, never password hashes or tokens), `reactions.json` and `poll_votes.json` (the member's own reactions and votes, with the message and channel ids but not the message text, N-15), `attachments.json` (an index of uploads, not the
+//! history, never password hashes or tokens), `tools.json` (the utility drawer's scratchpad ciphertext, own loot
+//! tables and claimed invite card seats, wave 32),`reactions.json` and `poll_votes.json` (the member's own reactions and votes, with the message and channel ids but not the message text, N-15), `attachments.json` (an index of uploads, not the
 //! files) and `messages/<channel id>.json` (the account's own undeleted messages).
 
 use std::io::{Seek, Write};
@@ -335,7 +336,9 @@ This archive holds the data tied to your account, as JSON files.\n\
   poll_votes.json     the poll votes you cast (message, channel, answer, time)\n\
   attachments.json    an index of files you uploaded (the files themselves are not included)\n\
   storage.json        your connected storage buckets (label, bucket, status, who you shared them with; never keys or secrets)\n\
-  messages/           the messages you wrote that you have not deleted, one file per channel\n\
+  tools.json          your utility drawer data: scratchpad notes (still encrypted: only your browser's key or\n\
+                      your recovery file opens them), your own loot tables and the invite card seats you claimed\n\
+  messages/          the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
 \n\
 Passwords, tokens and keys are never part of this package.\n\
@@ -472,6 +475,20 @@ pub async fn build_package<W: Write + Seek>(
         &mut zip,
         "storage.json",
         &crate::storage_legal::export_for(pool, user).await?,
+    )?;
+
+    // UTL-DEV-001, UTL-CRD-001 (wave 32): the utility drawer's personal data. Scratchpad notes are the ciphertext
+    // the server holds (base64): the server cannot decrypt them, the member's key or recovery file can. Loot tables
+    // are the account's own (a server's tables belong to the server). Seats name the card, its title and time and
+    // the member's reminder choice.
+    put(
+        &mut zip,
+        "tools.json",
+        &json!({
+            "scratch_notes": rows(pool, "SELECT note_id, encode(ciphertext, 'base64') AS ciphertext_base64, revision, created_at, updated_at FROM scratch_notes WHERE user_id = $1 ORDER BY created_at, note_id", user).await?,
+            "loot_tables": rows(pool, "SELECT id::text AS id, name, rows, created_at, updated_at FROM loot_tables WHERE owner_user_id = $1 ORDER BY id", user).await?,
+            "invite_card_seats": rows(pool, "SELECT c.id::text AS card_id, c.channel_id::text AS channel_id, c.kind, c.title, c.starts_at, c.canceled_at, cl.remind, cl.claimed_at FROM invite_card_claims cl JOIN invite_cards c ON c.id = cl.card_id WHERE cl.user_id = $1 ORDER BY cl.claimed_at, c.id", user).await?,
+        }),
     )?;
 
     // N-15 (Art. 15): the member's own reactions and poll votes. They name the message and channel but
