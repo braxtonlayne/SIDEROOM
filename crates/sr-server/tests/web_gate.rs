@@ -612,7 +612,11 @@ async fn with_serve_public_the_surfaces_files_and_error_pages_are_served() {
     assert!(prof.body.contains("PROFILE") && !prof.body.contains("APP-SHELL"));
     assert_eq!(prof.h("content-security-policy"), PUBLIC_CSP);
     assert_eq!(prof.h("x-robots-tag"), "noindex, nofollow");
-    let member = send(&f, empty(nav("/~someone").header(header::COOKIE, &f.cookie))).await;
+    let member = send(
+        &f,
+        empty(nav("/~someone").header(header::COOKIE, &f.cookie)),
+    )
+    .await;
     assert_eq!(member.status, StatusCode::OK);
     assert!(member.body.contains("APP-SHELL") && !member.body.contains("PROFILE"));
     assert_eq!(member.h("cache-control"), "private, no-store");
