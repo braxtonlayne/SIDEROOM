@@ -12,6 +12,7 @@ import {
   RecentSection,
   SearchSection,
 } from './sections';
+import { getPlayerPort, usePortState } from '../queue/port';
 import './panel.css';
 
 const SECTIONS = ['search', 'playlists', 'favorites', 'recent', 'eq'] as const;
@@ -28,7 +29,8 @@ const LABELS: Record<Section, MessageKey> = {
 export function LibraryManagerPanel() {
   const t = useT();
   const [section, setSection] = useState<Section>('search');
-  const [shuffle, setShuffle] = useState(false);
+  // The player's own shuffle mode (one switch for the panel and every skin).
+  const { shuffle } = usePortState();
   const [guildId, setGuildId] = useState<string | null>(null);
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -69,7 +71,7 @@ export function LibraryManagerPanel() {
           className="sr-mlib-btn"
           aria-pressed={shuffle}
           title={t('music.lib.panel.shuffleHelp')}
-          onClick={() => setShuffle(!shuffle)}
+          onClick={() => getPlayerPort().setShuffle(!shuffle)}
         >
           {t('music.lib.panel.shuffle')}
         </button>
@@ -80,12 +82,10 @@ export function LibraryManagerPanel() {
         aria-labelledby={`sr-mlib-tab-${section}`}
         className="sr-mlib-pane"
       >
-        {section === 'search' && <SearchSection shuffle={shuffle} guildId={guildId} />}
-        {section === 'playlists' && (
-          <PlaylistsSection shuffle={shuffle} guildId={guildId} onGuild={setGuildId} />
-        )}
-        {section === 'favorites' && <FavoritesSection shuffle={shuffle} guildId={guildId} />}
-        {section === 'recent' && <RecentSection shuffle={shuffle} guildId={guildId} />}
+        {section === 'search' && <SearchSection guildId={guildId} />}
+        {section === 'playlists' && <PlaylistsSection guildId={guildId} onGuild={setGuildId} />}
+        {section === 'favorites' && <FavoritesSection guildId={guildId} />}
+        {section === 'recent' && <RecentSection guildId={guildId} />}
         {section === 'eq' && <EqSection />}
       </div>
     </div>

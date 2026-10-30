@@ -48,7 +48,9 @@ export interface PlayerState {
   error: string | null;
   /**
    * MUS-SKN-001: shuffle is on. It reorders what is still to come in the current queue; `unshuffled` keeps the
-   * order it replaced so turning shuffle off restores it. A new queue (`play(tracks)`) starts unshuffled.
+   * order it replaced so turning shuffle off restores it. Shuffle is a mode, the one the library panel's Shuffle
+   * button and every skin show: a new queue (`play(tracks)`) while it is on opens with the chosen track and
+   * plays the rest in a random order, each once.
    */
   shuffle: boolean;
   unshuffled: PlayerTrack[] | null;
@@ -179,8 +181,19 @@ export function play(what?: PlayerTrack | readonly PlayerTrack[] | number, start
   if (what) {
     const list = Array.isArray(what) ? [...what] : [what as PlayerTrack];
     if (list.length === 0) return;
-    set({ queue: list, shuffle: false, unshuffled: null });
-    start(clamp(Math.trunc(startAt), 0, list.length - 1));
+    const at = clamp(Math.trunc(startAt), 0, list.length - 1);
+    if (get().shuffle) {
+      const rest = list.filter((_, i) => i !== at);
+      for (let i = rest.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [rest[i], rest[j]] = [rest[j]!, rest[i]!];
+      }
+      set({ queue: [list[at]!, ...rest], unshuffled: list });
+      start(0);
+      return;
+    }
+    set({ queue: list, unshuffled: null });
+    start(at);
     return;
   }
   const s = get();

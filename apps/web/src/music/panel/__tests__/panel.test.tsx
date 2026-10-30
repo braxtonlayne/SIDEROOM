@@ -53,6 +53,7 @@ function fakePort(over: Partial<PortState> = {}) {
     eq: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     eqEnabled: true,
     crossfadeSec: 0,
+    shuffle: false,
     ...over,
   };
   const listeners = new Set<() => void>();
@@ -66,6 +67,10 @@ function fakePort(over: Partial<PortState> = {}) {
     setEqEnabled: vi.fn(),
     setCrossfade: vi.fn((s: number) => {
       state = { ...state, crossfadeSec: s };
+      listeners.forEach((l) => l());
+    }),
+    setShuffle: vi.fn((on: boolean) => {
+      state = { ...state, shuffle: on };
       listeners.forEach((l) => l());
     }),
     getState: () => state,
@@ -158,20 +163,21 @@ describe('LibraryManagerPanel (MUS-LIB-001)', () => {
     );
   });
 
-  it('shuffle opens the queue with the chosen track and keeps every track once', async () => {
+  it('shuffle is the player’s mode: the button switches it and the album starts at the chosen track', async () => {
     const user = userEvent.setup();
     const tracks = [1, 2, 3, 4, 5].map((n) => trk(String(n), { trackNo: n }));
     vi.mocked(searchApi.fetchLibrary).mockResolvedValue({ items: tracks, total: 5 });
     wrap(<LibraryManagerPanel />);
     await user.click(await screen.findByRole('button', { name: 'Shuffle' }));
+    expect(port.setShuffle).toHaveBeenCalledWith(true);
     expect(screen.getByRole('button', { name: 'Shuffle' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(await screen.findByRole('button', { name: 'More for Song 3' }));
     await user.click(screen.getByRole('button', { name: 'Play album' }));
     await waitFor(() => expect(port.play).toHaveBeenCalled());
+    // The player shuffles (see the store's shuffle tests); the panel hands it the album in order.
     const [queue, startAt] = port.play.mock.calls[0]!;
-    expect(startAt).toBe(0);
-    expect(queue[0].id).toBe('3');
-    expect(queue.map((t: { id: string }) => t.id).sort()).toEqual(['1', '2', '3', '4', '5']);
+    expect(queue.map((t: { id: string }) => t.id)).toEqual(['1', '2', '3', '4', '5']);
+    expect(queue[startAt].id).toBe('3');
   });
 
   it('favorites a track with the star', async () => {

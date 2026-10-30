@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { EQ_PRESETS } from '../../music/eq/presets';
 import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
+import { createStorePort } from '../musicWiring';
 import { PlayerSkinCard } from '../PlayerSkinCard';
 import { isPlayerLibraryOpen, closePlayerLibrary } from '../presence';
 import { CircuitSkin } from '../skins/backdrop/CircuitSkin';
@@ -411,11 +412,28 @@ describe('shuffle', () => {
     expect(state().queue[state().index]!.id).toBe('c');
   });
 
-  it('turns off for a new queue', () => {
+  it('stays on for a new queue: the chosen track first, every track once, the order restorable', () => {
     setShuffle(true);
-    play(tracks);
-    expect(state().shuffle).toBe(false);
-    expect(state().unshuffled).toBeNull();
+    play(tracks, 1);
+    expect(state().shuffle).toBe(true);
+    expect(state().index).toBe(0);
+    expect(state().queue[0]!.id).toBe('b');
+    expect(
+      state()
+        .queue.map((t) => t.id)
+        .sort(),
+    ).toEqual(['a', 'b', 'c']);
+    setShuffle(false);
+    expect(state().queue.map((t) => t.id)).toEqual(['a', 'b', 'c']);
+    expect(state().queue[state().index]!.id).toBe('b');
+  });
+
+  it('is the mode the library panel reads and sets through the port', () => {
+    const port = createStorePort();
+    expect(port.getState().shuffle).toBe(false);
+    port.setShuffle(true);
+    expect(state().shuffle).toBe(true);
+    expect(port.getState().shuffle).toBe(true);
   });
 });
 
