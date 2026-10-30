@@ -389,25 +389,25 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
 
     // ---- 3. Deploy B: the new worker installs and waits; the page offers it.
     await serve(dirB);
-    const waiting = page.evaluate(
-      () =>
-        new Promise<string>((resolve) => {
-          void navigator.serviceWorker.getRegistration().then((reg) => {
-            if (!reg) return resolve('no registration');
-            const done = () => resolve(reg.waiting ? reg.waiting.state : 'none');
-            if (reg.waiting) return done();
-            reg.addEventListener('updatefound', () => {
-              const next = reg.installing;
-              next?.addEventListener('statechange', () => {
-                if (next.state === 'installed') done();
-              });
-            });
-            // The same check the app runs when the tab becomes visible again.
-            void reg.update();
-          });
-        }),
-    );
-    expect(await waiting).toBe('installed');
+    // Polled, not awaited on one event: the browser's own update check (it schedules one after a navigation) may
+    // already be installing B before a listener could be attached, and an update() racing B's server start rejects.
+    // Each poll reads the registration and, when nothing is installing yet, runs the same check the app runs when
+    // the tab becomes visible again.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (!reg) return 'no registration';
+            if (reg.waiting) return reg.waiting.state;
+            if (!reg.installing) await reg.update().catch(() => undefined);
+            // Read again: update() may have finished installing B while it was awaited.
+            const after = reg.waiting as ServiceWorker | null;
+            return after?.state ?? (reg.installing ? 'installing' : 'none');
+          }),
+        { timeout: 60_000, message: 'build B is installed and waiting' },
+      )
+      .toBe('installed');
     const banner = page.getByTestId('pwa-host');
     await expect(banner.getByText('A new version is ready')).toBeVisible();
     // The old release keeps running until the member accepts: A's caches are still there, signed-in one included.
