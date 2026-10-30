@@ -9,6 +9,8 @@ description = "Audio tags, cover art and LRC lyrics for the music library (MUS-W
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+# Default features on: 0.25.4 does not compile without id3v2_compression_support (flate2 is already in the lock).
+lofty = "=0.25.4"
 serde_json.workspace = true
 thiserror.workspace = true
 wasm-bindgen.workspace = true
