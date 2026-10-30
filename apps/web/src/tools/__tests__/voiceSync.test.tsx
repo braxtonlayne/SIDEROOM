@@ -6,9 +6,9 @@ import { resetSharedTimers } from '../timers/timerStore';
 import { applyVoiceTimerEvent, resetVoiceTimers } from '../timers/voiceTimer';
 
 const publish = vi.hoisted(() =>
-  vi.fn(
-    async (_channel: string, _wire: Record<string, unknown> | null, _label: string) => undefined,
-  ),
+  vi.fn<
+    (channel: string, wire: Record<string, unknown> | null, label: string) => Promise<undefined>
+  >(async () => undefined),
 );
 vi.mock('../timers/voiceTimer', async (orig) => ({
   ...(await orig<typeof import('../timers/voiceTimer')>()),

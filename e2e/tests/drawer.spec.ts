@@ -1,11 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
 import { blocking, describe, runAxe, settle } from '../support/a11y';
 import { goInApp } from '../support/playerAudio';
 import { openMockedApp } from '../support/playerMock';
 
 /**
  * UTL-SHL-001: the utility drawer, gadgets and pins in a real browser (all three engines). The session is mocked
- * (every API call answers with an empty success, `/users/@me` with an id), the page is a signed-in app route
+ * (every API call answers with an empty success, `/users/@me` with an id), the context signs in as the Owner (D-385: the app document needs a session) and the page is an app route
  * (`/preview-host`), so the case needs no API or database. Moves between routes are in-app history changes, which
  * the router follows exactly like a clicked link, so the page is not reloaded until the case asks for it.
  */
@@ -33,8 +33,9 @@ async function openGuide(page: import('@playwright/test').Page) {
 
 test('Mod+K opens the drawer, a tool pops out, survives navigation and a reload; Escape leaves it alone', async ({
   page,
+  owner,
 }) => {
-  await openMockedApp(page);
+  await openMockedApp(page, owner);
   await openGuide(page);
   await drawer(page).getByRole('button', { name: 'Pop out' }).click();
   await expect(gadget(page)).toBeVisible();
@@ -70,8 +71,8 @@ test('Mod+K opens the drawer, a tool pops out, survives navigation and a reload;
   await expect(gadget(page)).toBeHidden();
 });
 
-test('a tool pinned to the rail opens in a panel and unpins', async ({ page }) => {
-  await openMockedApp(page);
+test('a tool pinned to the rail opens in a panel and unpins', async ({ page, owner }) => {
+  await openMockedApp(page, owner);
   await openGuide(page);
   await drawer(page).getByRole('button', { name: 'Pin to the rail' }).click();
   await page.keyboard.press('Escape');
@@ -89,8 +90,9 @@ test('a tool pinned to the rail opens in a panel and unpins', async ({ page }) =
 
 test('the drawer, a gadget and the rail have no serious accessibility findings', async ({
   page,
+  owner,
 }) => {
-  await openMockedApp(page);
+  await openMockedApp(page, owner);
   await openGuide(page);
   await settle(page);
   expect(describe(blocking(await runAxe(page, '[role="dialog"]')))).toEqual([]);
@@ -102,10 +104,10 @@ test('the drawer, a gadget and the rail have no serious accessibility findings',
   expect(describe(blocking(await runAxe(page, '.sr-tl-rail-wrap')))).toEqual([]);
 });
 
-test('the drawer fits a phone and respects reduced motion', async ({ page }) => {
+test('the drawer fits a phone and respects reduced motion', async ({ page, owner }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 360, height: 740 });
-  await openMockedApp(page);
+  await openMockedApp(page, owner);
   await openGuide(page);
   await drawer(page).getByRole('button', { name: 'Pop out' }).click();
   const box = await gadget(page).boundingBox();

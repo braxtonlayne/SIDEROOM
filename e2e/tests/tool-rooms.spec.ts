@@ -16,7 +16,10 @@ async function openTierList(page: Page, guildId: string, channelId: string) {
   await page.keyboard.press('Control+k');
   const drawer = page.getByRole('dialog', { name: 'Drawer' });
   await drawer.getByRole('combobox').fill('>tier list');
-  await drawer.getByRole('option', { name: /Tier list/ }).first().click();
+  await drawer
+    .getByRole('option', { name: /Tier list/ })
+    .first()
+    .click();
   return drawer;
 }
 
@@ -85,7 +88,10 @@ test.describe('Tool rooms (tier list)', () => {
     await b.page.keyboard.press('Control+k');
     const drawer = b.page.getByRole('dialog', { name: 'Drawer' });
     await drawer.getByRole('combobox').fill('>poll builder');
-    await drawer.getByRole('option', { name: /Poll builder/ }).first().click();
+    await drawer
+      .getByRole('option', { name: /Poll builder/ })
+      .first()
+      .click();
     await drawer.getByRole('button', { name: 'Lunch' }).click();
     await expect(drawer.getByLabel('Question')).toHaveValue('Lunch?');
     await drawer.getByRole('button', { name: 'Post the poll' }).click();
