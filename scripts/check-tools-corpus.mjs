@@ -79,6 +79,28 @@ export function corpusProblems(doc) {
   return problems;
 }
 
+/**
+ * The tool ids of apps/web/src/tools/registry.ts, read from its source (`id: '<id>'` in an entry or the first
+ * argument of `devTool('<id>', ...)`), so the corpus and the registry cannot drift apart (wave-32 integration).
+ */
+export function registryIds(source) {
+  const out = [];
+  for (const m of source.matchAll(/(?:\bid: '|devTool\(\s*')([a-z0-9-]+)'/g)) out.push(m[1]);
+  return out;
+}
+
+/** Problems between the corpus ids and the registry ids: each registry tool needs a corpus entry and back. */
+export function registryMismatch(doc, ids) {
+  const corpus = new Set((doc?.tools ?? []).map((t) => t?.id));
+  const reg = new Set(ids);
+  const problems = [];
+  for (const id of reg)
+    if (!corpus.has(id)) problems.push(`registry tool ${id} has no corpus entry`);
+  for (const id of corpus)
+    if (!reg.has(id)) problems.push(`corpus entry ${id} is not a registry tool`);
+  return problems;
+}
+
 const here = dirname(fileURLToPath(import.meta.url));
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const file = resolve(
@@ -92,6 +114,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     process.exit(1);
   }
   const problems = corpusProblems(doc);
+  if (!process.argv[2]) {
+    const registry = join(here, '..', 'apps', 'web', 'src', 'tools', 'registry.ts');
+    problems.push(...registryMismatch(doc, registryIds(readFileSync(registry, 'utf8'))));
+  }
   if (problems.length) {
     console.error(`check-tools-corpus: ${problems.length} problem(s) in ${file}`);
     for (const p of problems) console.error(`  - ${p}`);

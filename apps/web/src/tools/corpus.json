@@ -2,6 +2,23 @@
   "version": 1,
   "tools": [
     {
+      "id": "guide",
+      "name": "Drawer Guide",
+      "aliases": ["drawer help"],
+      "phrases": [
+        "how does the drawer work",
+        "help with the drawer",
+        "what can the drawer do",
+        "keyboard shortcuts for tools",
+        "how to pop out a tool",
+        "pin a tool to the side",
+        "open a floating window",
+        "list of tools",
+        "getting started with tools",
+        "how to find a tool"
+      ]
+    },
+    {
       "id": "calculator",
       "name": "Calculator",
       "aliases": ["calc", "scientific calculator"],
@@ -516,7 +533,7 @@
       ]
     },
     {
-      "id": "audio-trimmer",
+      "id": "audio",
       "name": "Audio Trimmer",
       "aliases": ["trim audio", "normalize audio", "audio editor"],
       "phrases": [
@@ -536,7 +553,7 @@
       ]
     },
     {
-      "id": "tier-list",
+      "id": "tierlist",
       "name": "Tier List Maker",
       "aliases": ["tier list", "ranking board"],
       "phrases": [

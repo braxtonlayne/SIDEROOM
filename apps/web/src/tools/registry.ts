@@ -385,6 +385,17 @@ const invite: ToolEntry = {
   load: () => import('./cards/InviteTool'),
 };
 
+/** UTL-AUD-001: the audio trimmer and normalizer (utl-audio; entry added at integration). */
+const audio: ToolEntry = {
+  id: 'audio',
+  nameKey: 'tools.audio.name',
+  descriptionKey: 'tools.audio.description',
+  icon: 'volume',
+  group: 'media',
+  aliases: ['audio trimmer', 'trim audio', 'normalize', 'sound editor', 'wav'],
+  size: { width: 480, height: 520, minWidth: 320, minHeight: 320 },
+  load: () => import('./audio/AudioDrawerTool'),
+};
 
 /** Append new entries after the last one. */
 export const TOOLS: ToolEntry[] = [
@@ -419,6 +430,7 @@ export const TOOLS: ToolEntry[] = [
   percent,
   timezone,
   invite,
+  audio,
 ];
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

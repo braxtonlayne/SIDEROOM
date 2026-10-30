@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { corpusProblems } from './check-tools-corpus.mjs';
+import { corpusProblems, registryIds, registryMismatch } from './check-tools-corpus.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const phrases = (prefix, n = 10) =>
@@ -64,4 +64,24 @@ test('an alias that shadows another tool, empty phrases and bad ids are reported
     ),
   );
   assert.ok(corpusProblems({ tools: [tool('Bad_Id')] }).some((p) => /kebab-case/.test(p)));
+});
+
+test('the corpus ids equal the tool registry ids (both ways)', () => {
+  const src = "const a = { id: 'calc' };\nconst b = devTool(\n    'md-table',\n    'grid',\n  );";
+  assert.deepEqual(registryIds(src), ['calc', 'md-table']);
+  assert.deepEqual(
+    registryMismatch({ tools: [{ id: 'calc' }, { id: 'md-table' }] }, ['calc', 'md-table']),
+    [],
+  );
+  const out = registryMismatch({ tools: [{ id: 'calc' }, { id: 'tier-list' }] }, [
+    'calc',
+    'tierlist',
+  ]);
+  assert.ok(out.some((p) => /registry tool tierlist has no corpus entry/.test(p)));
+  assert.ok(out.some((p) => /corpus entry tier-list is not a registry tool/.test(p)));
+  const real = readFileSync(new URL('../apps/web/src/tools/registry.ts', import.meta.url), 'utf8');
+  const doc = JSON.parse(
+    readFileSync(new URL('../apps/web/src/tools/corpus.json', import.meta.url), 'utf8'),
+  );
+  assert.deepEqual(registryMismatch(doc, registryIds(real)), []);
 });
