@@ -206,6 +206,34 @@ describe('circuit skin', () => {
     await user.click(screen.getByRole('button', { name: 'Cue 1: jump to 0% of the track' }));
     expect(state().seekRequest).toBe(0);
   });
+
+  it('seeks on the waveform, and its fader, knobs and flags drive volume, EQ, crossfade, repeat and shuffle', async () => {
+    const user = userEvent.setup();
+    render(<CircuitSkin />);
+    fireEvent.change(screen.getByRole('slider', { name: 'Seek' }), { target: { value: '50' } });
+    expect(state().seekRequest).toBe(50);
+    fireEvent.change(screen.getByRole('slider', { name: 'Volume' }), { target: { value: '40' } });
+    expect(state().volume).toBeCloseTo(0.4);
+    usePlayerStore.setState({ eqEnabled: false });
+    fireEvent.change(screen.getByRole('slider', { name: /^Sub bass/ }), { target: { value: '6' } });
+    expect(state().eq.slice(0, 3)).toEqual([6, 6, 6]);
+    expect(state().eq[3]).toBe(0);
+    expect(state().eqEnabled).toBe(true);
+    fireEvent.change(screen.getByRole('slider', { name: /^Air treble/ }), {
+      target: { value: '-4' },
+    });
+    expect(state().eq.slice(8)).toEqual([-4, -4]);
+    fireEvent.change(screen.getByRole('slider', { name: 'Crossfade' }), { target: { value: '5' } });
+    expect(state().crossfadeSec).toBe(5);
+    await user.click(screen.getByRole('button', { name: 'EQ: equalizer on' }));
+    expect(state().eqEnabled).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Repeat: off' }));
+    expect(state().repeat).toBe('all');
+    await user.click(screen.getByRole('button', { name: 'Shuffle' }));
+    expect(state().shuffle).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Mute' }));
+    expect(state().muted).toBe(true);
+  });
 });
 
 describe('study skin', () => {
