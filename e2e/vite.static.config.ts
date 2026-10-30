@@ -4,11 +4,16 @@
 import base from '../apps/web/vite.config';
 import { previewGate } from '../apps/web/vite/previewGate';
 
-type Resolved = { plugins?: unknown[] } & Record<string, unknown>;
+type Resolved = { plugins?: unknown[]; build?: Record<string, unknown> } & Record<string, unknown>;
 type Factory = (env: { command: string; mode: string }) => Resolved | Promise<Resolved>;
 
 export default async (env: { command: string; mode: string }) => {
   const cfg = base as unknown as Resolved | Factory;
   const resolved = typeof cfg === 'function' ? await cfg(env) : cfg;
-  return { ...resolved, plugins: [...(resolved.plugins ?? []), previewGate()] };
+  // The app build writes to dist/app; preview serves the whole dist (the public shells and the app shell).
+  return {
+    ...resolved,
+    build: { ...resolved.build, outDir: 'dist' },
+    plugins: [...(resolved.plugins ?? []), previewGate()],
+  };
 };
