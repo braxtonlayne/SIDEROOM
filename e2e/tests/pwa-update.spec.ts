@@ -149,6 +149,10 @@ async function serve(outDir: string): Promise<void> {
     [
       vite,
       'preview',
+      // The preview gate picks each public surface's shell (auth.html for /login, ...) the way the server does;
+      // plain `vite preview` would answer every path with index.html, the landing page.
+      '--config',
+      join(repo, 'e2e/vite.static.config.ts'),
       '--outDir',
       outDir,
       '--host',

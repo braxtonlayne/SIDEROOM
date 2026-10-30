@@ -42,12 +42,21 @@ interface Row {
   path: (w: World) => string;
   /** Needs the signed-in Owner; the entrance rows run without a session. */
   auth: boolean;
+  /** Session storage the page needs before it loads (the register page wants an invitation in hand). */
+  session?: Record<string, string>;
 }
 
 const ROWS: Row[] = [
   { name: 'entrance landing', path: () => '/', auth: false },
   { name: 'entrance login', path: () => '/login', auth: false },
-  { name: 'entrance register', path: () => '/register', auth: false },
+  // Without an invitation in hand /register leaves for the landing page with a document load (D-385: the two are
+  // separate surfaces), and `?lang=` lasts one page load, so the row holds a code the way the landing page does.
+  {
+    name: 'entrance register',
+    path: () => '/register',
+    auth: false,
+    session: { 'sr.invite': 'ZZZZZ-ZZZZZ' },
+  },
   {
     name: 'lounge channel',
     path: (w) => `/channels/${w.guildId}/${w.channelId}`,
@@ -156,6 +165,11 @@ for (const vp of WIDTHS) {
         });
         test(`${row.name}`, async ({ page }) => {
           const world = row.auth ? loadWorld() : ({} as World);
+          if (row.session) {
+            await page.addInitScript((items) => {
+              for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v);
+            }, row.session);
+          }
           await page.goto(`${row.path(world)}?lang=en-XA`);
           await expect(page.getByRole('main').or(page.getByRole('log')).first()).toBeVisible({
             timeout: 20_000,
