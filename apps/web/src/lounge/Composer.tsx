@@ -602,6 +602,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           .catch(() => fail(t('lounge.composer.dmFailed')));
         done();
         return;
+      case 'roll':
+        // Dice are in WebAssembly (loaded on first use); the result is posted as an ordinary message.
+        void import('../tools/dice/engine').then(async ({ rollMessage }) => {
+          const out = await rollMessage(r.expression);
+          if (!out.ok) {
+            fail(t(`tools.dice.error.${out.code}`));
+            return;
+          }
+          actions.sendMessage(channelId, out.content, replyTo?.id ?? null);
+          onCancelReply();
+        });
+        done();
+        return;
       case 'remind': {
         const at = new Date(Date.now() + r.ms);
         useSaved

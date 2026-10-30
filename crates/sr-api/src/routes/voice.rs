@@ -190,6 +190,18 @@ pub trait VoiceBackend: Send + Sync {
         Err(VoiceError::Unavailable)
     }
 
+    /// Publish (`Some`) or stop (`None`) the caller's timer on a voice channel, with the status line `label`
+    /// that goes with it (UTL-DEV-001). The rules are those of [`Self::voice_status_set`].
+    async fn voice_timer_set(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+        _timer: Option<serde_json::Value>,
+        _label: String,
+    ) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
     /// Raise or lower a hand, or step down from the stage (`PATCH .../voice-states/@me`).
     async fn stage_self(
         &self,

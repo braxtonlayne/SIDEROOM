@@ -75,8 +75,49 @@ const guide: ToolEntry = {
   load: () => import('./drawer/GuideTool'),
 };
 
+// ---- UTL-DEV-001 (utl-dev): developer tools, dice, notes, timers. Sizes are the popped-out window. ----
+const devSize: ToolSize = { width: 420, height: 480, minWidth: 280, minHeight: 240 };
+const small: ToolSize = { width: 340, height: 380, minWidth: 240, minHeight: 200 };
+const devTool = (
+  id: string,
+  icon: IconName,
+  group: ToolGroup,
+  aliases: readonly string[],
+  size: ToolSize,
+  load: ToolEntry['load'],
+): ToolEntry => ({
+  id,
+  nameKey: `tools.${id}.name`,
+  descriptionKey: `tools.${id}.description`,
+  icon,
+  group,
+  aliases,
+  size,
+  load,
+});
+
+const utlDev: ToolEntry[] = [
+  devTool('json', 'list', 'dev', ['json', 'format', 'validate', 'minify', 'prettify'], devSize, () => import('./dev/JsonTool')),
+  devTool('regex', 'search', 'dev', ['regex', 'regexp', 'pattern', 'match'], devSize, () => import('./dev/RegexTool')),
+  devTool('base64', 'lock', 'dev', ['base64', 'b64', 'encode', 'decode'], devSize, () => import('./dev/Base64Tool')),
+  devTool('url', 'link', 'dev', ['url', 'uri', 'percent', 'query', 'encode'], devSize, () => import('./dev/UrlTool')),
+  devTool('jwt', 'shield', 'dev', ['jwt', 'token', 'bearer', 'jws'], devSize, () => import('./dev/JwtTool')),
+  devTool('md-table', 'grid', 'text', ['markdown', 'table', 'csv', 'tsv'], devSize, () => import('./dev/MdTableTool')),
+  devTool('counter', 'edit', 'text', ['count', 'words', 'characters', 'length'], small, () => import('./dev/CounterTool')),
+  devTool('hash', 'hash', 'dev', ['hash', 'md5', 'sha', 'sha256', 'crc32', 'checksum'], devSize, () => import('./dev/HashTool')),
+  devTool('diff', 'filter', 'dev', ['diff', 'compare', 'difference', 'changes'], { ...devSize, width: 520 }, () => import('./dev/DiffTool')),
+  devTool('dice', 'sparkle', 'fun', ['dice', 'roll', 'd20', 'rpg', 'random'], small, () => import('./dice/DiceTool')),
+  devTool('coin', 'star', 'fun', ['coin', 'flip', 'heads', 'tails'], small, () => import('./dice/CoinTool')),
+  devTool('wheel', 'compass', 'fun', ['wheel', 'spin', 'picker', 'raffle', 'choose'], small, () => import('./dice/WheelTool')),
+  devTool('loot', 'heart', 'fun', ['loot', 'table', 'drop', 'weighted'], devSize, () => import('./dice/LootTool')),
+  devTool('notes', 'bookmark', 'collab', ['notes', 'scratchpad', 'sticky', 'memo', 'jot'], devSize, () => import('./notes/NotesTool')),
+  devTool('pomodoro', 'clock', 'time', ['pomodoro', 'focus', 'timer', 'study'], small, () => import('./timers/PomodoroTool')),
+  devTool('stopwatch', 'clock', 'time', ['stopwatch', 'lap', 'timer'], small, () => import('./timers/StopwatchTool')),
+  devTool('countdown', 'clock', 'time', ['countdown', 'timer', 'alarm'], small, () => import('./timers/CountdownTool')),
+];
+
 /** Append new entries after the last one. */
-export const TOOLS: ToolEntry[] = [guide];
+export const TOOLS: ToolEntry[] = [guide, ...utlDev];
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
