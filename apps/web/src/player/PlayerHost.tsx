@@ -1,7 +1,7 @@
 /**
  * MUS-PLY-001: the persistent floating player. One host mounted at the root of the router, so its two `<audio>`
  * decks (the gapless pair, MUS-LIB-001) keep playing across the Lounge, Cinema, Library, Settings and Admin. It
- * renders nothing visible until something is queued. Loaded on demand (see `PlayerGate` in router.tsx), and the
+ * renders nothing visible until something is queued or the rail's music button opens the library. Loaded on demand (see `PlayerGate` in router.tsx), and the
  * music library is connected to the player when it first mounts (`musicWiring.ts`).
  */
 import { ThemeProvider } from '@sideroom/ui';
@@ -11,6 +11,7 @@ import { usePrefsStore } from '../settings/user/prefs';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { createPlayerEngine, restoreResume } from './engine';
 import { wireMusicLibrary } from './musicWiring';
+import { isPlayerLibraryOpen, usePlayerLibraryNonce, usePlayerLibraryOpen } from './presence';
 import './player.css';
 import './skins.css';
 import { LibrarySkin } from './skins/LibrarySkin';
@@ -66,6 +67,12 @@ export default function PlayerHost() {
   const skin = usePlayerStore((s) => s.skin);
   const dock = usePlayerStore((s) => s.dock);
   const queued = usePlayerStore((s) => s.queue.length > 0);
+  const libraryOpen = usePlayerLibraryOpen();
+  const nonce = usePlayerLibraryNonce();
+  // MUS-PLY-002: the rail's music button shows the Library tab, which only the library skin has.
+  useEffect(() => {
+    if (nonce > 0 && isPlayerLibraryOpen()) actions.setSkin('library');
+  }, [nonce]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -95,7 +102,7 @@ export default function PlayerHost() {
     <>
       <audio ref={audioRef} data-testid="player-audio" preload="auto" />
       <audio ref={nextRef} data-testid="player-audio-next" preload="auto" />
-      {queued && (
+      {(queued || libraryOpen) && (
         <ThemedDock>
           <div className="sr-ply-dock" data-dock={dock} data-skin={skin}>
             <Skin />

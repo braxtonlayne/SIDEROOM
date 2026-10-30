@@ -1,6 +1,6 @@
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useRef } from 'react';
-import { forgetPlayer, usePlayerQueued } from './presence';
+import { forgetPlayer, usePlayerLibraryOpen, usePlayerQueued } from './presence';
 import { isPublicPath } from './scope';
 
 const PlayerHost = lazy(() => import('./PlayerHost'));
@@ -17,7 +17,7 @@ if (import.meta.env.DEV || import.meta.env.MODE === 'test')
   });
 
 /**
- * Mounts the host the first time something is queued on a signed-in app route and keeps it mounted while the
+ * Mounts the host the first time something is queued, or the rail's music button asks for the library (MUS-PLY-002), on a signed-in app route and keeps it mounted while the
  * member moves between app routes, so the audio elements outlive every route change. On a public page (landing,
  * login, invite, profile, handbook) it renders nothing, never loads the player chunk, and drops whatever was
  * playing: arriving there means the session ended or the member left the app.
@@ -29,8 +29,9 @@ export function PlayerGate() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isPublic = isPublicPath(pathname);
   const queued = usePlayerQueued();
+  const libraryOpen = usePlayerLibraryOpen();
   const everQueued = useRef(false);
-  if (queued && !isPublic) everQueued.current = true;
+  if ((queued || libraryOpen) && !isPublic) everQueued.current = true;
   if (isPublic) everQueued.current = false;
   useEffect(() => {
     if (isPublic) forgetPlayer();
