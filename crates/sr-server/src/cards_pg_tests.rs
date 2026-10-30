@@ -14,8 +14,8 @@ use sr_api::routes::Ext;
 use sr_api::routes::messages::error::{ApiJson, MsgError};
 use sr_api::routes::messages::{FixedEntitlements, MessagesDeps};
 use sr_api::routes::tools::cards::{
-    CardDeps, CardLocks, CardObject, ClaimBody, CreateCardBody, cancel_card, card_ics, claim_seat,
-    create, get_card, unclaim_seat,
+    CardClaimBody, CardDeps, CardLocks, CardObject, CreateCardBody, cancel_card, card_ics,
+    claim_seat, create, get_card, unclaim_seat,
 };
 use sr_api::{AuthKind, Principal};
 use sr_chat::cards::reminders::SocialGate;
@@ -249,7 +249,7 @@ impl Fx {
             Ext(self.d.clone()),
             Ext(self.m.clone()),
             Path((channel.to_string(), card.to_owned())),
-            ApiJson(ClaimBody { remind }),
+            ApiJson(CardClaimBody { remind }),
         )
         .await
         .map(|Json(c)| c)

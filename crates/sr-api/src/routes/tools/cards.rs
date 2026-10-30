@@ -141,7 +141,7 @@ pub struct CreateCardBody {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct ClaimBody {
+pub struct CardClaimBody {
     /// DM me an hour and ten minutes before the start (default true).
     #[serde(default = "yes")]
     pub remind: bool,
@@ -474,7 +474,7 @@ pub async fn cancel_card(
         ("channel_id" = String, Path, description = "Channel snowflake"),
         ("card_id" = String, Path, description = "Card (message) snowflake"),
     ),
-    request_body = ClaimBody,
+    request_body = CardClaimBody,
     responses(
         (status = 200, body = CardObject),
         (status = 403, body = ErrorBody),
@@ -488,7 +488,7 @@ pub async fn claim_seat(
     Ext(d): Ext<CardDeps>,
     Ext(m): Ext<MessagesDeps>,
     Path((channel, id)): Path<(String, String)>,
-    ApiJson(body): ApiJson<ClaimBody>,
+    ApiJson(body): ApiJson<CardClaimBody>,
 ) -> Res<Json<CardObject>> {
     let user = user_of(&p)?;
     let channel: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
@@ -628,7 +628,7 @@ pub fn router() -> Router<AppState> {
         ClaimantObject,
         MySeatObject,
         CreateCardBody,
-        ClaimBody
+        CardClaimBody
     ))
 )]
 pub struct CardsApiDoc;

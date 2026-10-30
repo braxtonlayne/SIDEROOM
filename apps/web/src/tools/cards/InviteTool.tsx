@@ -58,7 +58,7 @@ function channelLabel(c: Channel): string {
 }
 
 /** The invite card maker: a Cinema ticket, a Live TV slot or a game night, posted as a card with claimable seats. */
-export default function InviteTool(_props: ToolProps) {
+export default function InviteTool({ host }: ToolProps) {
   const t = useT();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const here = channelFromPath(pathname);
@@ -139,7 +139,7 @@ export default function InviteTool(_props: ToolProps) {
   }
 
   return (
-    <form className="sr-card" onSubmit={(e) => void submit(e)} noValidate>
+    <form className="sr-card" data-host={host} onSubmit={(e) => void submit(e)} noValidate>
       <label className="sr-card-field">
         <span>{t('tools.invite.channel')}</span>
         <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>

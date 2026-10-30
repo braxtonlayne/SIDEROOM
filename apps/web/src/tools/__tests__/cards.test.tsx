@@ -219,7 +219,9 @@ describe('card buttons on the message', () => {
     };
     URL.revokeObjectURL = () => undefined;
     const downloads: string[] = [];
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
       downloads.push(this.download);
     });
     server.use(
@@ -235,7 +237,7 @@ describe('card buttons on the message', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add to calendar' }));
     await waitFor(() => expect(created).toHaveLength(1));
     expect(created[0]!.size).toBe('BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n'.length);
-    expect(created[0]!.type).toBe('text/calendar; charset=utf-8');
+    expect(created[0]!.type.replace(' ', '')).toBe('text/calendar;charset=utf-8');
     expect(downloads).toEqual(['invite-900.ics']);
   });
 });

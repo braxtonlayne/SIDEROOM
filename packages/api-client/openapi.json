@@ -24242,6 +24242,438 @@
         ]
       }
     },
+    "/channels/{channel_id}/cards": {
+      "post": {
+        "tags": [],
+        "summary": "Make an invite card and post its message in the channel.",
+        "operationId": "create",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCardBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The channel has too many open cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/cards/{card_id}": {
+      "get": {
+        "tags": [],
+        "summary": "One card: its seats, its claimants, and what the caller may do with it.",
+        "operationId": "get_card",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Cancel a card: its host, or a member with `MANAGE_MESSAGES`. The message stays, marked canceled, without\nbuttons.",
+        "operationId": "cancel_card",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/cards/{card_id}/claim": {
+      "post": {
+        "tags": [],
+        "summary": "Take a seat. A member who already has one keeps it (only the reminder choice changes). `409` when every seat\nis taken or the card is closed.",
+        "operationId": "claim_seat",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardClaimBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No seat is left, or the card is closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Give the seat back (nothing happens when the caller had none).",
+        "operationId": "unclaim_seat",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/cards/{card_id}/ics": {
+      "get": {
+        "tags": [],
+        "summary": "The card as an iCalendar file (RFC 5545) for \"Add to calendar\".",
+        "operationId": "card_ics",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/followers": {
       "post": {
         "tags": [
@@ -75624,6 +76056,128 @@
           }
         }
       },
+      "CardClaimBody": {
+        "type": "object",
+        "properties": {
+          "remind": {
+            "type": "boolean",
+            "description": "DM me an hour and ten minutes before the start (default true)."
+          }
+        }
+      },
+      "CardObject": {
+        "type": "object",
+        "description": "An invite card as the API shows it.",
+        "required": [
+          "id",
+          "channel_id",
+          "kind",
+          "title",
+          "note",
+          "starts_at",
+          "duration_min",
+          "timezone",
+          "seats",
+          "taken",
+          "status",
+          "claimants",
+          "can_start_party",
+          "can_manage"
+        ],
+        "properties": {
+          "can_manage": {
+            "type": "boolean",
+            "description": "The caller made the card or has `MANAGE_MESSAGES`."
+          },
+          "can_start_party": {
+            "type": "boolean",
+            "description": "The card has a Cinema title and the caller has `START_WATCH_PARTY` here."
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "claimants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimantObject"
+            }
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_min": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "Also the id of the card's message."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`cinema`, `live_tv` or `game_night`."
+          },
+          "link_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mine": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MySeatObject",
+                "description": "Present when the caller holds a seat."
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "starts_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Start, unix milliseconds (UTC)."
+          },
+          "status": {
+            "type": "string",
+            "description": "`open`, `started`, `closed` or `canceled`."
+          },
+          "taken": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "The zone the host picked the time in (display only)."
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CaseBanBody": {
         "type": "object",
         "description": "Body of a ban from a case.",
@@ -78307,6 +78861,24 @@
           }
         }
       },
+      "ClaimantObject": {
+        "type": "object",
+        "description": "A member who holds a seat.",
+        "required": [
+          "user_id",
+          "claimed_at"
+        ],
+        "properties": {
+          "claimed_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds."
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
       "ClientFlagsObject": {
         "type": "object",
         "description": "Platform flags a client may read (D-216).",
@@ -79392,6 +79964,69 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "CreateCardBody": {
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "starts_at",
+          "seats"
+        ],
+        "properties": {
+          "duration_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minutes, 15 to 720 (default 120)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`cinema`, `live_tv` or `game_night`."
+          },
+          "link_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A path inside the app the card links to."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to 250."
+          },
+          "starts_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Start, unix milliseconds (UTC); the client converts the picked time and zone."
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The IANA zone the time was picked in (default `UTC`)."
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A Cinema title for the watch-party hand-off (cinema cards only)."
           }
         }
       },
@@ -90742,6 +91377,24 @@
           },
           "target_kind": {
             "$ref": "#/components/schemas/TargetKind"
+          }
+        }
+      },
+      "MySeatObject": {
+        "type": "object",
+        "description": "The caller's own seat.",
+        "required": [
+          "remind",
+          "reminder_deliverable"
+        ],
+        "properties": {
+          "remind": {
+            "type": "boolean",
+            "description": "The caller asked for reminders."
+          },
+          "reminder_deliverable": {
+            "type": "boolean",
+            "description": "Reminders can actually be delivered: false when the caller's DM settings (server-member DMs off, the\nsystem user blocked or muted) would stop them. The card still shows the time."
           }
         }
       },
