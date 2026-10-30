@@ -165,6 +165,14 @@ export function createPlayerEngine(
       }
       if (token !== loadToken || destroyed) return;
     }
+    // Web Audio hands back silence for a cross-origin file loaded without CORS, so a bucket URL is requested
+    // with CORS (the bucket must allow GET with Range from the app origin).
+    try {
+      const cross = new URL(src, window.location.href).origin !== window.location.origin;
+      audio.crossOrigin = cross ? 'anonymous' : null;
+    } catch {
+      audio.crossOrigin = null;
+    }
     audio.src = src;
     updateMetadata(track);
     if (store.getState().status === 'paused') {

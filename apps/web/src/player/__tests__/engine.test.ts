@@ -12,6 +12,7 @@ class FakeAudio extends EventTarget {
   paused = true;
   volume = 1;
   preload = '';
+  crossOrigin: string | null = null;
   error: { message: string } | null = null;
   playCalls = 0;
   play = vi.fn(() => {
@@ -128,6 +129,15 @@ describe('engine', () => {
     await flush();
     expect(resolveSrc).toHaveBeenCalledOnce();
     expect(audio.src).toBe('/fresh.mp3');
+  });
+
+  it('asks a bucket URL for CORS so Web Audio is not silenced, and leaves same-origin files alone', async () => {
+    play(track(1, { src: 'https://bucket.example/a.mp3' }));
+    await flush();
+    expect(audio.crossOrigin).toBe('anonymous');
+    play(track(2));
+    await flush();
+    expect(audio.crossOrigin).toBeNull();
   });
 
   it('reports an error when the element fails', async () => {

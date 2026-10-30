@@ -1,5 +1,10 @@
 import { lazy, Suspense, useRef } from 'react';
+import * as actions from './store';
 import { usePlayerStore } from './store';
+
+// Browser tests start playback through this handle (the dev server only, never a production build).
+if (import.meta.env.DEV || import.meta.env.MODE === 'test')
+  (window as unknown as { __srPlayerActions?: unknown }).__srPlayerActions = actions;
 
 const PlayerHost = lazy(() => import('./PlayerHost'));
 
