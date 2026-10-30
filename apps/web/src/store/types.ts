@@ -79,6 +79,10 @@ export interface Channel {
   sr_watch_party_room?: boolean;
   /** Voice channels: audio bitrate in bits per second. */
   bitrate?: number;
+  /** Voice channels: members with Speak may play music into the call (MUS-JB-001; absent means allowed). */
+  sr_music_allowed?: boolean;
+  /** Voice channels: the music track's bitrate in kbit/s (32 to 320, default 256). */
+  sr_music_bitrate_kbps?: number;
   /** Age-restricted channel (the Lounge asks the viewer to confirm they are 18 or older). */
   nsfw?: boolean;
   /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */

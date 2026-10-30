@@ -19,6 +19,7 @@ import { useVoiceSession } from '../voice/session';
 import { streamKey } from '../voice/streams';
 import { useJoinVoice } from './voice/actions';
 import { ChannelStatusLine } from './voice/VoiceStatusBar';
+import { ListeningRoomCard } from './rooms/ListeningRoomCard';
 import './voice/voice-p10.css';
 import { useVoicePerms } from './voice/perms';
 import { useStreamPreview } from './voice/useStreamPreview';
@@ -257,6 +258,7 @@ function ChannelRow({
               ) : null}
             </button>
             <ChannelStatusLine channelId={channel.id} />
+            <ListeningRoomCard channelId={channel.id} />
             <VoiceMembers channel={channel} onError={onError} />
           </>
         ) : (

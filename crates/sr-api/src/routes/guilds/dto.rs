@@ -363,6 +363,12 @@ pub struct ChannelObject {
     /// Voice channels: true for a Watch party room (D-208), a channel with a standing watch party.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sr_watch_party_room: Option<bool>,
+    /// Voice and stage channels: members with Speak may play music into the call (MUS-JB-001).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_music_allowed: Option<bool>,
+    /// Voice and stage channels: the music track's Opus bitrate in kbit/s (32 to 320, default 256).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_music_bitrate_kbps: Option<u16>,
 }
 
 impl ChannelObject {
@@ -421,6 +427,8 @@ impl ChannelObject {
             video_quality_mode: c.kind.is_voice_like().then_some(c.video_quality_mode),
             rtc_region: c.kind.is_voice_like().then_some(None),
             sr_watch_party_room: (c.kind == ChannelType::Voice).then_some(c.watch_party_room),
+            sr_music_allowed: c.kind.is_voice_like().then_some(c.music_allowed),
+            sr_music_bitrate_kbps: c.kind.is_voice_like().then_some(c.music_bitrate_kbps),
         }
     }
 
@@ -924,6 +932,10 @@ pub struct ModifyChannelBody {
     pub user_limit: Option<u32>,
     /// Voice and stage channels (`MANAGE_CHANNELS`): 1 auto, 2 full.
     pub video_quality_mode: Option<u8>,
+    /// Voice and stage channels: allow members with Speak to play music into the call (MUS-JB-001).
+    pub sr_music_allowed: Option<bool>,
+    /// Voice and stage channels: the music track's bitrate in kbit/s, 32 to 320.
+    pub sr_music_bitrate_kbps: Option<u16>,
     /// Only `null` is accepted: this installation has one voice region.
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]

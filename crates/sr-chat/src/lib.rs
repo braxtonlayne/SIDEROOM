@@ -14,6 +14,7 @@ pub mod embed_rules;
 pub mod error;
 pub mod guild_rules;
 pub mod guild_traits;
+pub mod jukebox;
 pub mod limits;
 pub mod message;
 pub mod message_hooks;

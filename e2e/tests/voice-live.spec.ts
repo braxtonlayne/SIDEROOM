@@ -74,6 +74,33 @@ async function trackPeerConnections(page: Page) {
   });
 }
 
+/** The inbound audio streams of all of the page's peer connections: bytes, and the codec they negotiated. */
+async function inboundAudioStreams(
+  page: Page,
+): Promise<{ bytes: number; mimeType: string; channels: number }[]> {
+  return page.evaluate(async () => {
+    const w = window as unknown as { __pcs?: RTCPeerConnection[] };
+    const out: { bytes: number; mimeType: string; channels: number }[] = [];
+    for (const pc of w.__pcs ?? []) {
+      const report = await pc.getStats();
+      const codecs = new Map<string, Record<string, unknown>>();
+      report.forEach((s: Record<string, unknown>) => {
+        if (s.type === 'codec') codecs.set(String(s.id), s);
+      });
+      report.forEach((s: Record<string, unknown>) => {
+        if (s.type !== 'inbound-rtp' || s.kind !== 'audio') return;
+        const codec = codecs.get(String(s.codecId));
+        out.push({
+          bytes: Number(s.bytesReceived ?? 0),
+          mimeType: String(codec?.mimeType ?? ''),
+          channels: Number(codec?.channels ?? 0),
+        });
+      });
+    }
+    return out;
+  });
+}
+
 /** Bytes of inbound audio RTP received over all of the page's peer connections. */
 async function inboundAudioBytes(page: Page): Promise<number> {
   return page.evaluate(async () => {
@@ -183,6 +210,51 @@ test.describe('Voice live', () => {
     for (const page of [a, b]) {
       await expect.poll(() => inboundAudioBytes(page), { timeout: 30_000 }).toBeGreaterThan(0);
     }
+
+    // MUS-JB-001: A plays a generated stereo tone (440 Hz left, 660 Hz right) as the music track, a second audio
+    // sender under the same frame encryptor; B receives a second audio stream whose codec is Opus with 2 channels.
+    // `channels` is what `getStats` reports for the negotiated rtpmap, which engines report inconsistently, so this
+    // asserts on Chromium (the only engine this spec runs on) and records the others.
+    await test.step('member A plays a stereo tone as music and B receives a stereo Opus track', async () => {
+      const before = (await inboundAudioStreams(b)).length;
+      await a.evaluate(() => {
+        const engine = (
+          globalThis as unknown as {
+            __srVoiceEngine?: { publishMusic(stream: MediaStream, kbps?: number): void };
+          }
+        ).__srVoiceEngine;
+        if (!engine)
+          throw new Error('no voice engine handle: run the web build with VITE_SR_E2E=1');
+        const ctx = new AudioContext();
+        const left = ctx.createOscillator();
+        const right = ctx.createOscillator();
+        left.frequency.value = 440;
+        right.frequency.value = 660;
+        const merger = ctx.createChannelMerger(2);
+        left.connect(merger, 0, 0);
+        right.connect(merger, 0, 1);
+        const dest = ctx.createMediaStreamDestination();
+        dest.channelCount = 2;
+        dest.channelCountMode = 'explicit';
+        merger.connect(dest);
+        left.start();
+        right.start();
+        void ctx.resume();
+        engine.publishMusic(dest.stream, 256);
+      });
+      // B gets one more audio stream (A's microphone was already there), carrying bytes, as stereo Opus.
+      await expect
+        .poll(
+          async () => {
+            const streams = await inboundAudioStreams(b);
+            return streams.length > before && streams.every((s) => s.bytes > 0);
+          },
+          { timeout: 30_000 },
+        )
+        .toBe(true);
+      const streams = await inboundAudioStreams(b);
+      expect(streams.some((s) => /opus/i.test(s.mimeType) && s.channels === 2)).toBe(true);
+    });
 
     // Disconnecting leaves the room.
     await a
