@@ -246,7 +246,14 @@ mod tests {
             },
         );
         if std::env::var_os("SR_UPDATE_FIXTURES").is_some() {
-            std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/src/cards/testdata/game_night.ics"), &ics).unwrap();
+            std::fs::write(
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/src/cards/testdata/game_night.ics"
+                ),
+                &ics,
+            )
+            .unwrap();
         }
         let expected = include_str!("testdata/game_night.ics");
         assert_eq!(

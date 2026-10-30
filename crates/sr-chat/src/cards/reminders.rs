@@ -15,7 +15,11 @@
 
 use super::Card;
 use crate::social::dm::RequestState;
-use crate::social::repo::Privacy;
+use crate::social::relationships::RelationshipKind;
+use crate::social::repo::{DmRepository, Privacy, RelationshipRepository};
+use async_trait::async_trait;
+use sr_core::UserId;
+use std::sync::Arc;
 
 pub const HOUR_MS: i64 = 60 * 60 * 1000;
 pub const TEN_MINUTES_MS: i64 = 10 * 60 * 1000;
@@ -102,6 +106,63 @@ pub fn dm_decision(
         }
     }
     Ok(())
+}
+
+/// What the gate says about one member.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verdict {
+    Send,
+    Skip(Skip),
+    /// The settings could not be read; try again on the next pass rather than guess.
+    Unknown(String),
+}
+
+/// Reads a member's DM settings for the reminder job and for the claim response.
+#[async_trait]
+pub trait ReminderGate: Send + Sync {
+    /// Whether a reminder DM from the system user may go to `user` for a card in `guild` (`None` for a DM card).
+    async fn check(&self, user: u64, guild: Option<u64>) -> Verdict;
+}
+
+/// [`ReminderGate`] over the social repository (privacy settings, blocks and the system user's DM).
+pub struct SocialGate<R: ?Sized> {
+    repo: Arc<R>,
+}
+
+impl<R: ?Sized> SocialGate<R> {
+    pub fn new(repo: Arc<R>) -> Self {
+        Self { repo }
+    }
+}
+
+#[async_trait]
+impl<R> ReminderGate for SocialGate<R>
+where
+    R: RelationshipRepository + DmRepository + ?Sized,
+{
+    async fn check(&self, user: u64, guild: Option<u64>) -> Verdict {
+        let me = UserId::new(user);
+        let system = UserId::new(crate::domain::SYSTEM_USER_ID);
+        let read = async {
+            let privacy = self.repo.get_privacy(me).await?;
+            let blocked = matches!(
+                self.repo.get_relationship(me, system).await?,
+                Some(r) if r.kind == RelationshipKind::Blocked
+            );
+            let state = match self.repo.find_dm(system, me).await? {
+                Some(dm) => self.repo.get_request_state(me, dm.id).await?,
+                None => None,
+            };
+            Ok::<_, crate::error::RepoError>((privacy, blocked, state))
+        };
+        match read.await {
+            Ok((privacy, blocked, state)) => match dm_decision(&privacy, guild, blocked, state) {
+                Ok(()) => Verdict::Send,
+                Err(skip) => Verdict::Skip(skip),
+            },
+            Err(e) => Verdict::Unknown(e.to_string()),
+        }
+    }
 }
 
 /// The title and text of the reminder DM. The time is a Discord-style timestamp the client renders in the
@@ -218,5 +279,77 @@ mod tests {
             Err(Skip::ServerDmsOff)
         );
         assert_eq!(dm_decision(&p, Some(9), false, None), Ok(()));
+    }
+
+    // ---- the gate over the social repository ----
+
+    use crate::social::memory::MemoryRepo;
+    use crate::social::relationships::RelOp;
+    use crate::social::repo::{DmRepository, RelationshipRepository};
+    use sr_core::ChannelId;
+
+    fn system() -> UserId {
+        UserId::new(crate::domain::SYSTEM_USER_ID)
+    }
+
+    fn gate() -> (Arc<MemoryRepo>, SocialGate<MemoryRepo>) {
+        let repo = Arc::new(MemoryRepo::default());
+        repo.add_user(system());
+        repo.add_user(UserId::new(5));
+        (repo.clone(), SocialGate::new(repo))
+    }
+
+    #[tokio::test]
+    async fn the_gate_sends_by_default() {
+        let (_repo, g) = gate();
+        assert_eq!(g.check(5, Some(7)).await, Verdict::Send);
+        assert_eq!(g.check(5, None).await, Verdict::Send);
+    }
+
+    #[tokio::test]
+    async fn the_gate_honours_the_members_dm_privacy() {
+        let (repo, g) = gate();
+        let mut p = Privacy::default();
+        p.dms.allow_server_member_dms = false;
+        repo.put_privacy(UserId::new(5), &p).await.unwrap();
+        assert_eq!(g.check(5, Some(7)).await, Verdict::Skip(Skip::ServerDmsOff));
+        // A per-server override wins over the account default.
+        p.safety.server_dm_overrides.insert(7, true);
+        repo.put_privacy(UserId::new(5), &p).await.unwrap();
+        assert_eq!(g.check(5, Some(7)).await, Verdict::Send);
+        assert_eq!(g.check(5, Some(8)).await, Verdict::Skip(Skip::ServerDmsOff));
+    }
+
+    #[tokio::test]
+    async fn the_gate_honours_a_block_and_a_muted_conversation() {
+        let (repo, g) = gate();
+        repo.apply(&[RelOp::Upsert {
+            user: UserId::new(5),
+            target: system(),
+            kind: RelationshipKind::Blocked,
+            since_ms: 1,
+        }])
+        .await
+        .unwrap();
+        assert_eq!(g.check(5, Some(7)).await, Verdict::Skip(Skip::Blocked));
+        repo.apply(&[RelOp::Delete {
+            user: UserId::new(5),
+            target: system(),
+        }])
+        .await
+        .unwrap();
+        assert_eq!(g.check(5, Some(7)).await, Verdict::Send);
+        // The member moved the system user's conversation to spam.
+        repo.insert_dm(ChannelId::new(900), system(), UserId::new(5))
+            .await
+            .unwrap();
+        repo.set_request_state(UserId::new(5), ChannelId::new(900), RequestState::Spam)
+            .await
+            .unwrap();
+        assert_eq!(g.check(5, Some(7)).await, Verdict::Skip(Skip::Muted));
+        repo.set_request_state(UserId::new(5), ChannelId::new(900), RequestState::Accepted)
+            .await
+            .unwrap();
+        assert_eq!(g.check(5, Some(7)).await, Verdict::Send);
     }
 }
