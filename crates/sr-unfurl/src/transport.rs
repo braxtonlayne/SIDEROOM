@@ -65,7 +65,7 @@ impl HttpTransport for ReqwestTransport {
                 Some(n) => (n as u64, n),
                 None => (MAX_IMAGE_BYTES, IMAGE_HEAD_BYTES),
             },
-            BodyClass::Video => return Ok(out),
+            BodyClass::Video | BodyClass::Audio => return Ok(out),
         };
         if class == BodyClass::Json && content_length.is_some_and(|n| n > declared_cap) {
             return Err(FetchError::TooLarge);

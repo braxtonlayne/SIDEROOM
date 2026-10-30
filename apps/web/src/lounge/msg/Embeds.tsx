@@ -4,6 +4,7 @@ import type { Embed } from '../data';
 import { useT } from '../../i18n';
 import { formatFullTime } from '../time';
 import { isHttpUrl } from './format';
+import { PlayHere, usablePlay } from './EmbedsPlay';
 import { Md } from './Md';
 import { useLoadRemoteImages } from './remoteImages';
 
@@ -113,7 +114,15 @@ function Link({ href, children }: { href: string | undefined; children: string }
  * control per embed and then loads without a referrer. Video embeds from other sites load only after a
  * click, with a privacy notice (LNG-MSGUI-017).
  */
-export function EmbedView({ embed: e, resolvers }: { embed: Embed; resolvers?: Resolvers }) {
+export function EmbedView({
+  embed: e,
+  resolvers,
+  channelId,
+}: {
+  embed: Embed;
+  resolvers?: Resolvers;
+  channelId?: string;
+}) {
   const t = useT();
   const [loaded, setLoaded] = useState(false);
   const [spoilerShown, setSpoilerShown] = useState(false);
@@ -122,7 +131,10 @@ export function EmbedView({ embed: e, resolvers }: { embed: Embed; resolvers?: R
   const auto = useLoadRemoteImages();
   const imagesLoaded = clicked || auto;
   const color = colorHex(e.color);
-  const isVideo = isHttpUrl(e.video?.url);
+  // "Play here" (PRF-UNF-001) replaces the page's own video address: the provider's privacy-enhanced embed or the
+  // origin's file, both created only after a click.
+  const play = usablePlay(e.sr_play);
+  const isVideo = !play && isHttpUrl(e.video?.url);
   const thirdParty = t('lounge.embeds.thirdPartySite');
   const provider = e.provider?.name ?? (e.url ? hostOf(e.url, thirdParty) : thirdParty);
 
@@ -195,6 +207,13 @@ export function EmbedView({ embed: e, resolvers }: { embed: Embed; resolvers?: R
             ))}
           </div>
         )}
+        {play && (
+          <PlayHere
+            play={play}
+            title={e.title ?? t('lounge.embeds.videoFrom', { provider })}
+            channelId={channelId}
+          />
+        )}
         {isVideo &&
           (loaded ? (
             <iframe
@@ -235,11 +254,24 @@ export function EmbedView({ embed: e, resolvers }: { embed: Embed; resolvers?: R
   );
 }
 
-export function EmbedList({ embeds, resolvers }: { embeds: Embed[]; resolvers?: Resolvers }) {
+export function EmbedList({
+  embeds,
+  resolvers,
+  channelId,
+}: {
+  embeds: Embed[];
+  resolvers?: Resolvers;
+  channelId?: string;
+}) {
   return (
     <div className="lng-embeds">
       {embeds.slice(0, 10).map((e, i) => (
-        <EmbedView key={i} embed={e} {...(resolvers ? { resolvers } : {})} />
+        <EmbedView
+          key={i}
+          embed={e}
+          {...(resolvers ? { resolvers } : {})}
+          {...(channelId ? { channelId } : {})}
+        />
       ))}
     </div>
   );

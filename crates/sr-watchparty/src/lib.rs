@@ -10,6 +10,7 @@
 //!   channel announcement hook.
 
 pub mod error;
+pub mod external;
 pub mod ids;
 pub mod model;
 pub mod playback;

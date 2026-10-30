@@ -64,6 +64,8 @@ pub enum BodyClass {
     Html,
     Image,
     Video,
+    /// Audio files and HLS playlists: like video, only the headers are read.
+    Audio,
     Json,
 }
 
@@ -76,6 +78,8 @@ pub fn classify(content_type: Option<&str>) -> Option<BodyClass> {
         "image/png" | "image/jpeg" | "image/jpg" | "image/gif" | "image/webp" | "image/avif"
         | "image/bmp" => Some(BodyClass::Image),
         "video/mp4" | "video/webm" | "video/ogg" | "video/quicktime" => Some(BodyClass::Video),
+        // Direct audio and HLS playlists (PRF-UNF-001): the card offers the native player.
+        _ if crate::embed::direct_media_for(Some(&ct)).is_some() => Some(BodyClass::Audio),
         "application/json" | "text/json" | "application/json+oembed" | "text/xml+oembed" => {
             Some(BodyClass::Json)
         }
@@ -232,7 +236,7 @@ impl SafeFetcher {
                 BodyClass::Html => MAX_HTML_BYTES,
                 BodyClass::Json => MAX_JSON_BYTES,
                 BodyClass::Image => full_image_cap.unwrap_or(IMAGE_HEAD_BYTES),
-                BodyClass::Video => 0,
+                BodyClass::Video | BodyClass::Audio => 0,
             };
             let mut body = resp.body;
             // A transport must already cap the body; this is the second line of defence.

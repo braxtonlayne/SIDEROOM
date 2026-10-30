@@ -797,3 +797,57 @@ async fn spoilered_links_get_a_spoiler_preview() {
     assert_eq!(embeds[1]["title"], "Beta");
     assert!(embeds[1].get("sr_spoiler").is_none());
 }
+
+#[tokio::test]
+async fn provider_links_and_media_files_carry_a_play_offer_and_clients_cannot_forge_one() {
+    let e = env().await;
+    e.web.page(
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        &article("A song"),
+    );
+    e.web.pages.lock().unwrap().insert(
+        "https://cdn.test/mix.mp3".to_owned(),
+        HopResponse {
+            status: 200,
+            content_type: Some("audio/mpeg".into()),
+            ..HopResponse::default()
+        },
+    );
+    let m = e
+        .say(
+            "bob",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ https://cdn.test/mix.mp3",
+        )
+        .await;
+    let id = id_of(&m);
+    rich_jobs::run_unfurl(&e.deps, e.ch, id.parse().unwrap())
+        .await
+        .unwrap();
+    let (_, got) = e.get(&format!("/messages/{id}"), "owner").await;
+    let embeds = got["embeds"].as_array().unwrap();
+    assert_eq!(embeds.len(), 2, "{got}");
+    assert_eq!(embeds[0]["title"], "A song");
+    assert_eq!(embeds[0]["sr_play"]["mode"], "embed");
+    assert_eq!(embeds[0]["sr_play"]["provider"], "youtube");
+    assert_eq!(
+        embeds[0]["sr_play"]["src"],
+        "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"
+    );
+    assert_eq!(embeds[0]["sr_play"]["sync"], true);
+    assert_eq!(embeds[1]["type"], "audio");
+    assert_eq!(embeds[1]["sr_play"]["mode"], "direct");
+    assert_eq!(embeds[1]["sr_play"]["media"], "audio");
+    assert_eq!(embeds[1]["sr_play"]["src"], "https://cdn.test/mix.mp3");
+
+    // A client-written embed never keeps a play offer (only the server's unfurl sets it).
+    let (s, forged) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"embeds": [{"title": "x", "sr_play": {
+                "mode": "embed", "provider": "youtube", "src": "https://evil.example/x", "sync": true}}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{forged}");
+    assert!(forged["embeds"][0].get("sr_play").is_none(), "{forged}");
+}

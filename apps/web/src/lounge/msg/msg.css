@@ -1401,3 +1401,31 @@
   color: var(--sr-text-muted, #8a8f98);
   font-size: 0.875rem;
 }
+
+/* "Play here" on a link card (PRF-UNF-001). */
+.lng-embed-play {
+  display: grid;
+  gap: 8px;
+  margin-block-start: 8px;
+}
+.lng-embed-play .lng-embed-frame {
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 6px;
+}
+.lng-embed-media {
+  inline-size: 100%;
+  max-block-size: 360px;
+  border-radius: 6px;
+  background: #000;
+}
+.lng-embed-play-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lng-embed-remember {
+  font-size: 0.8125rem;
+  color: var(--lng-muted, inherit);
+}

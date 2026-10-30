@@ -8,6 +8,7 @@ import { useT } from '../i18n';
 import { httpPartyApi } from './api';
 import { ChatPanel } from './ChatPanel';
 import { ControlBar } from './ControlBar';
+import { ExternalStage } from './ExternalStage';
 import { GestureButton, ReactionsOverlay, ReadyCheck, WaitingBanner } from './Overlays';
 import { PeoplePanel } from './PeoplePanel';
 import { PickMedia } from './PickMedia';
@@ -39,7 +40,9 @@ export function Theatre({ onExit }: { onExit: () => void }) {
     s.setMode('full');
     return () => {
       s.detach(stage);
-      if (c.state.status === 'active') s.setMode('mini');
+      // A link outside the catalog has no mini player: leaving the theatre stops its frame or element.
+      const kind = c.state.party?.media?.kind ?? 'cinema';
+      if (c.state.status === 'active' && kind === 'cinema') s.setMode('mini');
     };
   }, [s, c]);
 
@@ -59,6 +62,7 @@ export function Theatre({ onExit }: { onExit: () => void }) {
   if (!party) return null;
   const you = party.you;
   const media = party.media;
+  const external = !!media && (media.kind === 'embed' || media.kind === 'direct');
   const leave = async () => {
     await c.close({ leave: true });
     s.close();
@@ -106,7 +110,12 @@ export function Theatre({ onExit }: { onExit: () => void }) {
 
       <div className="wp-body">
         <section className="wp-stage-wrap" aria-label={tr('watchparty.theatre.sharedPlayer')}>
-          <div ref={stageRef} className="wp-stage" />
+          <div ref={stageRef} className={external ? 'wp-stage wp-stage-off' : 'wp-stage'} />
+          {external && (
+            <div className="wp-ext">
+              <ExternalStage />
+            </div>
+          )}
           {!media && <PickMedia />}
           <WebcamBubbles />
           <ReactionsOverlay />

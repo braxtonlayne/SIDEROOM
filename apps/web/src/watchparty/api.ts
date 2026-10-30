@@ -5,6 +5,7 @@ import type {
   CommandInput,
   ControlMode,
   CreateInput,
+  ExternalInput,
   HeartbeatInput,
   HeartbeatResult,
   Party,
@@ -29,7 +30,12 @@ export interface PartyApi {
   command(id: string, c: CommandInput): Promise<Playback>;
   changeMedia(
     id: string,
-    m: { title_id: string; episode_id?: string | null; variant_id?: string | null },
+    m: {
+      title_id?: string;
+      episode_id?: string | null;
+      variant_id?: string | null;
+      external?: ExternalInput;
+    },
   ): Promise<Party>;
   queueAdd(
     id: string,

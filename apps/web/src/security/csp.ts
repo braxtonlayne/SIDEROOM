@@ -13,7 +13,18 @@
  *   same host). Voice signalling rides the gateway origin; media is WebRTC and is not governed by CSP.
  *   A separate voice or CDN origin goes through `extraConnect`.
  * - Activities are iframes on `*.activities.<host>` and are listed through `extraFrame`.
+ * - PRF-UNF-001 (app policy only; the public and no-script policies never frame anything): the privacy-enhanced
+ *   embeds of YouTube (`youtube-nocookie.com`) and Vimeo (`player.vimeo.com`, `dnt=1`) are listed in
+ *   `frame-src`; a PeerTube instance only when the operator names it (`SR_PEERTUBE_HOSTS`). The iframe is created
+ *   only after the reader clicks, so the origin is allowed but nothing loads on render. `media-src` allows
+ *   `https:` for the native player of a direct media link, also only after a click.
  */
+
+/** The embed origins of the providers Play here supports. `crates/sr-api/src/security_headers.rs` pins them. */
+export const EMBED_FRAME_ORIGINS = [
+  'https://www.youtube-nocookie.com',
+  'https://player.vimeo.com',
+] as const;
 
 /** Where browsers post violation reports (unauthenticated, rate limited, counters only; RDY-SEC-009). */
 export const CSP_REPORT_PATH = '/internal/csp-report';
@@ -44,12 +55,12 @@ export function buildCsp(opts: CspOptions = {}): string {
     ['style-src', "'self'"],
     ['style-src-attr', "'unsafe-inline'"],
     ['img-src', join(["'self'", 'data:', 'blob:'], opts.extraMedia)],
-    ['media-src', join(["'self'", 'blob:'], opts.extraMedia)],
+    ['media-src', join(["'self'", 'blob:', 'https:'], opts.extraMedia)],
     ['font-src', "'self'"],
     ['connect-src', join(dev ? ["'self'", 'ws:', 'http:'] : ["'self'"], opts.extraConnect)],
     ['worker-src', "'self' blob:"],
     ['manifest-src', "'self'"],
-    ['frame-src', join(["'self'"], opts.extraFrame)],
+    ['frame-src', join(["'self'", ...EMBED_FRAME_ORIGINS], opts.extraFrame)],
     ['object-src', "'none'"],
     ['base-uri', "'self'"],
     ['form-action', "'self'"],
@@ -93,6 +104,22 @@ export interface CspConfig {
   activitiesEnabled?: boolean;
   /** `voice.public_url`: listed in `connect-src` only when it names another origin than `publicUrl`. */
   voicePublicUrl?: string;
+  /** `SR_PEERTUBE_HOSTS`: comma separated PeerTube instances whose embeds may be framed (PRF-UNF-001). */
+  peertubeHosts?: string;
+}
+
+/** `a.example, https://B.example:443/` -> `['a.example', 'b.example']`; the same rules as `sr_unfurl::embed::parse_hosts`. */
+export function parsePeertubeHosts(raw: string | undefined): string[] {
+  const hosts: string[] = [];
+  for (const part of (raw ?? '').split(',')) {
+    const bare = part
+      .trim()
+      .replace(/^https:\/\//, '')
+      .replace(/\/+$/, '');
+    const host = (bare.split(':')[0] ?? '').toLowerCase();
+    if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) && !hosts.includes(host)) hosts.push(host);
+  }
+  return hosts;
 }
 
 const originOf = (url: string | undefined): URL | null => {
@@ -110,6 +137,7 @@ export function cspOptionsFromConfig(cfg: CspConfig): CspOptions {
   const extraFrame: string[] = [];
   if (cfg.activitiesEnabled && site && site.protocol === 'https:')
     extraFrame.push(`https://*.activities.${site.host}`);
+  for (const host of parsePeertubeHosts(cfg.peertubeHosts)) extraFrame.push(`https://${host}`);
   const extraConnect: string[] = [];
   const voice = originOf(cfg.voicePublicUrl);
   if (voice && /^(https?|wss?):$/.test(voice.protocol)) {

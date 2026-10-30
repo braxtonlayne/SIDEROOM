@@ -5,8 +5,8 @@ use sqlx::{PgConnection, Row, postgres::PgRow};
 
 use crate::error::PartyResult;
 use crate::model::{
-    Binding, ControlMode, MediaView, ParticipantView, PartyView, PlaybackView, QueueItemView,
-    SettingsView, YouView,
+    Binding, ControlMode, MediaKind, MediaView, ParticipantView, PartyView, PlaybackView,
+    QueueItemView, SettingsView, YouView,
 };
 use crate::state::Playback;
 
@@ -44,6 +44,9 @@ pub struct PartyRow {
     pub created_at_ms: i64,
     pub empty_since_ms: Option<i64>,
     pub ended_at_ms: Option<i64>,
+    pub media_kind: MediaKind,
+    pub media_url: Option<String>,
+    pub media_provider: Option<String>,
 }
 
 fn bad(what: &str) -> sqlx::Error {
@@ -55,6 +58,7 @@ impl PartyRow {
         let binding: String = r.try_get("binding")?;
         let shared: String = r.try_get("shared_control")?;
         let queue: String = r.try_get("queue_policy")?;
+        let kind: String = r.try_get("media_kind")?;
         Ok(Self {
             id: r.try_get("id")?,
             host_id: r.try_get("host_id")?,
@@ -88,6 +92,9 @@ impl PartyRow {
             created_at_ms: r.try_get("created_at_ms")?,
             empty_since_ms: r.try_get("empty_since_ms")?,
             ended_at_ms: r.try_get("ended_at_ms")?,
+            media_kind: MediaKind::parse(&kind).ok_or_else(|| bad("media_kind"))?,
+            media_url: r.try_get("media_url")?,
+            media_provider: r.try_get("media_provider")?,
         })
     }
 
@@ -106,7 +113,7 @@ impl PartyRow {
 
     /// A party without media: an empty watch party room waiting for its host to pick something.
     pub fn is_idle(&self) -> bool {
-        self.title_id == 0
+        self.title_id == 0 && self.media_kind == MediaKind::Cinema
     }
 
     /// What is playing; `None` for an idle room.
@@ -124,6 +131,9 @@ impl PartyRow {
             duration_ms: self.duration_ms,
             age_restricted: self.age_restricted,
             live: self.live,
+            kind: self.media_kind,
+            url: self.media_url.clone(),
+            provider: self.media_provider.clone(),
         })
     }
 
@@ -212,6 +222,9 @@ pub async fn queue(c: &mut PgConnection, party: i64) -> PartyResult<Vec<QueueIte
                     duration_ms: r.try_get("duration_ms")?,
                     age_restricted: r.try_get("age_restricted")?,
                     live: false,
+                    kind: MediaKind::Cinema,
+                    url: None,
+                    provider: None,
                 },
                 added_by: r.try_get("added_by")?,
                 added_at_ms: r.try_get("added_at_ms")?,

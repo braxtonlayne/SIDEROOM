@@ -26644,6 +26644,7 @@ export interface components {
         /** @description Body of `PUT /watch-parties/{id}/media`. */
         WatchPartyChangeMedia: {
             episode_id?: string | null;
+            external?: null | components["schemas"]["WatchPartyExternalMedia"];
             /** Format: int64 */
             start_ms?: number | null;
             /** @description The Cinema title, or "0" with `tv_channel_id`. */
@@ -26692,6 +26693,7 @@ export interface components {
              */
             empty?: boolean;
             episode_id?: string | null;
+            external?: null | components["schemas"]["WatchPartyExternalMedia"];
             settings?: null | components["schemas"]["WatchPartySettingsInput"];
             /**
              * Format: int64
@@ -26703,6 +26705,16 @@ export interface components {
             /** @description A Live TV channel to watch together (no seeking; everyone follows the live edge). */
             tv_channel_id?: string | null;
             variant_id?: string | null;
+        };
+        /**
+         * @description Media outside the Cinema catalog: a link to YouTube or Vimeo (played in the provider's privacy-enhanced
+         *     iframe) or to a media file (played natively). Give it instead of `title_id` / `tv_channel_id`.
+         */
+        WatchPartyExternalMedia: {
+            /** @description What to call it in the party card (default: the provider or the host). */
+            title?: string | null;
+            /** @description An https link. The server does not fetch it; members' browsers load it after a click. */
+            url: string;
         };
         /** @description Body of `POST /watch-parties/{id}/heartbeat`: the member's liveness, clock estimate and player state. */
         WatchPartyHeartbeat: {
@@ -26741,11 +26753,25 @@ export interface components {
             /** @description `"0"` for a movie. */
             episode_id: string;
             episode_label?: string | null;
+            /**
+             * @description `cinema` (the ids above), `embed` (a provider's privacy-enhanced iframe) or `direct` (a media file in
+             *     the browser's own player). The last two carry `url` and no catalog ids (they read "0").
+             */
+            kind?: components["schemas"]["WatchPartyMediaKind"];
             live: boolean;
+            /** @description `youtube`, `vimeo` or `direct`. */
+            provider?: string | null;
             title: string;
             title_id: string;
+            /** @description The embed address or the file, for `embed` and `direct`. */
+            url?: string | null;
             variant_id?: string | null;
         };
+        /**
+         * @description Where a party's media comes from (migration 1700).
+         * @enum {string}
+         */
+        WatchPartyMediaKind: "cinema" | "embed" | "direct";
         /** @description Body of `POST /watch-parties/{id}/messages` (private parties' own chat; ephemeral). */
         WatchPartyMessageInput: {
             content: string;

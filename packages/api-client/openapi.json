@@ -109950,6 +109950,17 @@
               "null"
             ]
           },
+          "external": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyExternalMedia",
+                "description": "A YouTube or Vimeo link, or a media file, instead of a Cinema title (PRF-UNF-001)."
+              }
+            ]
+          },
           "start_ms": {
             "type": [
               "integer",
@@ -110054,6 +110065,17 @@
               "null"
             ]
           },
+          "external": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyExternalMedia",
+                "description": "A YouTube or Vimeo link, or a media file, instead of a Cinema title (PRF-UNF-001)."
+              }
+            ]
+          },
           "settings": {
             "oneOf": [
               {
@@ -110088,6 +110110,26 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "WatchPartyExternalMedia": {
+        "type": "object",
+        "description": "Media outside the Cinema catalog: a link to YouTube or Vimeo (played in the provider's privacy-enhanced\niframe) or to a media file (played natively). Give it instead of `title_id` / `tv_channel_id`.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to call it in the party card (default: the provider or the host)."
+          },
+          "url": {
+            "type": "string",
+            "description": "An https link. The server does not fetch it; members' browsers load it after a click."
           }
         }
       },
@@ -110189,14 +110231,32 @@
               "null"
             ]
           },
+          "kind": {
+            "$ref": "#/components/schemas/WatchPartyMediaKind",
+            "description": "`cinema` (the ids above), `embed` (a provider's privacy-enhanced iframe) or `direct` (a media file in\nthe browser's own player). The last two carry `url` and no catalog ids (they read \"0\")."
+          },
           "live": {
             "type": "boolean"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`youtube`, `vimeo` or `direct`."
           },
           "title": {
             "type": "string"
           },
           "title_id": {
             "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The embed address or the file, for `embed` and `direct`."
           },
           "variant_id": {
             "type": [
@@ -110205,6 +110265,15 @@
             ]
           }
         }
+      },
+      "WatchPartyMediaKind": {
+        "type": "string",
+        "description": "Where a party's media comes from (migration 1700).",
+        "enum": [
+          "cinema",
+          "embed",
+          "direct"
+        ]
       },
       "WatchPartyMessageInput": {
         "type": "object",

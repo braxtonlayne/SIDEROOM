@@ -277,6 +277,7 @@ impl Env {
 
 fn create(title: i64) -> CreateInput {
     CreateInput {
+        external: None,
         empty: false,
         title_id: title,
         tv_channel_id: None,
@@ -528,6 +529,7 @@ async fn shared_control_is_enforced_by_the_server() {
                 gv,
                 party.id,
                 ChangeMediaInput {
+                    external: None,
                     title_id: 2,
                     tv_channel_id: None,
                     episode_id: None,
@@ -972,6 +974,7 @@ async fn an_empty_room_has_no_media_until_its_first_host_picks_one() {
         .channel(creator, &[next, other], creator, ChannelKind::Voice)
         .await;
     let empty_in = |channel: Option<i64>, persistent: bool| CreateInput {
+        external: None,
         empty: true,
         title_id: 0,
         channel_id: channel,
@@ -1017,6 +1020,7 @@ async fn an_empty_room_has_no_media_until_its_first_host_picks_one() {
             e.v(next).await,
             party.id,
             ChangeMediaInput {
+                external: None,
                 title_id: 1,
                 tv_channel_id: None,
                 episode_id: None,
@@ -1039,6 +1043,7 @@ async fn an_empty_room_has_no_media_until_its_first_host_picks_one() {
                 e.v(next).await,
                 party.id,
                 ChangeMediaInput {
+                    external: None,
                     title_id: 999,
                     tv_channel_id: None,
                     episode_id: None,
@@ -1155,6 +1160,7 @@ async fn restricted_titles_need_age_confirmation_from_everyone() {
             e.v(adult2).await,
             open.id,
             ChangeMediaInput {
+                external: None,
                 title_id: 3,
                 tv_channel_id: None,
                 episode_id: None,
@@ -1573,6 +1579,7 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
     let (host, minor) = (e.adult().await, e.user().await);
     let v = e.v(host).await;
     let live = |channel: i64| CreateInput {
+        external: None,
         empty: false,
         tv_channel_id: Some(channel),
         ..create(0)
@@ -1587,6 +1594,7 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
             .create(
                 v,
                 CreateInput {
+                    external: None,
                     empty: false,
                     tv_channel_id: Some(77),
                     ..create(1)
@@ -1628,6 +1636,7 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
             v,
             party.id,
             ChangeMediaInput {
+                external: None,
                 title_id: 1,
                 tv_channel_id: None,
                 episode_id: None,
@@ -1644,6 +1653,7 @@ async fn a_live_tv_party_follows_the_live_edge_and_has_no_seeking() {
             v,
             party.id,
             ChangeMediaInput {
+                external: None,
                 title_id: 0,
                 tv_channel_id: Some(77),
                 episode_id: None,
@@ -1763,5 +1773,266 @@ async fn the_chat_card_hears_the_start_the_headcount_and_the_end() {
     let loose = svc.create(e.v(host).await, create(2)).await.unwrap();
     svc.end(e.v(host).await, loose.id).await.unwrap();
     assert!(rec.0.lock().unwrap().is_empty());
+    e.db.cleanup().await.unwrap();
+}
+
+// ---- PRF-UNF-001: external media kinds -----------------------------------------------------------------
+
+fn create_external(url: &str, channel: Option<i64>) -> CreateInput {
+    CreateInput {
+        external: Some(ExternalInput {
+            url: url.to_owned(),
+            title: None,
+        }),
+        empty: false,
+        title_id: 0,
+        tv_channel_id: None,
+        episode_id: None,
+        variant_id: None,
+        channel_id: channel,
+        start_ms: None,
+        settings: None,
+    }
+}
+
+fn change_external(url: &str) -> ChangeMediaInput {
+    ChangeMediaInput {
+        external: Some(ExternalInput {
+            url: url.to_owned(),
+            title: Some("Night mix".to_owned()),
+        }),
+        title_id: 0,
+        tv_channel_id: None,
+        episode_id: None,
+        variant_id: None,
+        start_ms: None,
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_embed_party_is_synced_like_any_other_and_stores_no_catalog_ids() {
+    let e = env().await;
+    let (host, guest) = (e.user().await, e.user().await);
+    let party = e
+        .svc
+        .create(
+            e.v(host).await,
+            create_external("https://youtu.be/dQw4w9WgXcQ?t=5", None),
+        )
+        .await
+        .unwrap();
+    let m = party.media.as_ref().unwrap();
+    assert_eq!(m.kind, MediaKind::Embed);
+    assert_eq!(m.provider.as_deref(), Some("youtube"));
+    assert_eq!(
+        m.url.as_deref(),
+        Some("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?start=5")
+    );
+    assert_eq!(m.title, "YouTube video");
+    assert_eq!((m.title_id, m.asset_id), (0, 0));
+    let (title, asset, kind): (Option<i64>, Option<i64>, String) =
+        sqlx::query_as("SELECT title_id, asset_id, media_kind FROM watch_parties WHERE id = $1")
+            .bind(party.id)
+            .fetch_one(e.pool())
+            .await
+            .unwrap();
+    assert_eq!((title, asset, kind.as_str()), (None, None, "embed"));
+
+    // The party is not idle: play, seek and a late joiner all follow the one playback state.
+    let hv = e.v(host).await;
+    let played = e
+        .svc
+        .command(hv, party.id, cmd(Action::Play))
+        .await
+        .unwrap();
+    assert!(played.playing);
+    e.advance(4_000);
+    let sought = e.svc.command(hv, party.id, seek(60_000)).await.unwrap();
+    assert!(sought.version > played.version);
+    let joined = e
+        .svc
+        .join(
+            e.v(guest).await,
+            party.id,
+            JoinInput {
+                invite_code: party.invite_code.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    let jm = joined.media.unwrap();
+    assert_eq!(jm.kind, MediaKind::Embed);
+    assert_eq!(jm.url, m.url);
+    assert!(joined.playback.position_ms >= 60_000);
+    e.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn media_moves_between_cinema_embed_and_direct() {
+    let e = env().await;
+    let host = e.user().await;
+    let hv = e.v(host).await;
+    let party = e.svc.create(hv, create(1)).await.unwrap();
+    assert_eq!(party.media.as_ref().unwrap().kind, MediaKind::Cinema);
+
+    let direct = e
+        .svc
+        .change_media(
+            hv,
+            party.id,
+            change_external("https://cdn.example.org/mix.mp3"),
+        )
+        .await
+        .unwrap();
+    let m = direct.media.unwrap();
+    assert_eq!(m.kind, MediaKind::Direct);
+    assert_eq!(m.url.as_deref(), Some("https://cdn.example.org/mix.mp3"));
+    assert_eq!(m.title.as_str(), "Night mix");
+    assert_eq!(m.provider.as_deref(), Some("direct"));
+    assert_eq!((m.title_id, m.asset_id), (0, 0));
+    assert!(m.duration_ms.is_none() && !m.live);
+
+    let vimeo = e
+        .svc
+        .change_media(hv, party.id, change_external("https://vimeo.com/76979871"))
+        .await
+        .unwrap();
+    let vm = vimeo.media.unwrap();
+    assert_eq!(vm.kind, MediaKind::Embed);
+    assert!(vm.url.unwrap().ends_with("?dnt=1"));
+
+    // Back to a catalog title: the external columns are cleared and the ids are real again.
+    let back = e
+        .svc
+        .change_media(
+            hv,
+            party.id,
+            ChangeMediaInput {
+                external: None,
+                title_id: 2,
+                tv_channel_id: None,
+                episode_id: None,
+                variant_id: None,
+                start_ms: None,
+            },
+        )
+        .await
+        .unwrap();
+    let b = back.media.unwrap();
+    assert_eq!(b.kind, MediaKind::Cinema);
+    assert_eq!((b.title.as_str(), b.asset_id), ("Perfect Blue", 502));
+    assert!(b.url.is_none() && b.provider.is_none());
+    let (url, title): (Option<String>, Option<i64>) =
+        sqlx::query_as("SELECT media_url, title_id FROM watch_parties WHERE id = $1")
+            .bind(party.id)
+            .fetch_one(e.pool())
+            .await
+            .unwrap();
+    assert_eq!((url, title), (None, Some(2)));
+    e.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn external_media_is_refused_for_unsafe_or_ambiguous_input_and_needs_control() {
+    let e = env().await;
+    let (host, guest) = (e.user().await, e.user().await);
+    let hv = e.v(host).await;
+    for url in [
+        "http://cdn.example.org/a.mp4",
+        "https://127.0.0.1/a.mp4",
+        "https://localhost/a.mp4",
+        "https://user:pw@cdn.example.org/a.mp4",
+        "javascript:alert(1)",
+        "",
+    ] {
+        // The create limiter counts attempts; let its window pass.
+        e.advance(61_000);
+        let err = e
+            .svc
+            .create(hv, create_external(url, None))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, PartyError::Invalid(_)), "{url}: {err:?}");
+    }
+    e.advance(61_000);
+    // A title and a link together is ambiguous.
+    let mut both = create_external("https://cdn.example.org/a.mp4", None);
+    both.title_id = 1;
+    assert!(matches!(
+        e.svc.create(hv, both).await,
+        Err(PartyError::Invalid(_))
+    ));
+    // Nothing was created by the failures.
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM watch_parties")
+        .fetch_one(e.pool())
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+
+    // Changing the media is a controller action, like for a title.
+    let party = e
+        .svc
+        .create(hv, create_external("https://cdn.example.org/a.mp4", None))
+        .await
+        .unwrap();
+    e.svc
+        .join(
+            e.v(guest).await,
+            party.id,
+            JoinInput {
+                invite_code: party.invite_code.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        e.svc
+            .change_media(
+                e.v(guest).await,
+                party.id,
+                change_external("https://cdn.example.org/b.mp4")
+            )
+            .await
+            .unwrap_err(),
+        PartyError::Forbidden
+    );
+    e.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_channel_party_with_external_media_follows_the_channel_rules() {
+    let e = env().await;
+    let (owner, member, outsider) = (e.user().await, e.user().await, e.user().await);
+    let channel = e
+        .channel(owner, &[owner, member], member, ChannelKind::Voice)
+        .await;
+    // Outsiders cannot start a party in the channel, external media or not.
+    assert!(matches!(
+        e.svc
+            .create(
+                e.v(outsider).await,
+                create_external("https://youtu.be/dQw4w9WgXcQ", Some(channel))
+            )
+            .await,
+        Err(PartyError::NotFound(_))
+    ));
+    let party = e
+        .svc
+        .create(
+            e.v(member).await,
+            create_external("https://youtu.be/dQw4w9WgXcQ", Some(channel)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(party.binding, Binding::Channel);
+    assert_eq!(party.media.unwrap().kind, MediaKind::Embed);
+    // The channel's viewers find it by channel and see no invite code.
+    let seen = e.svc.in_channel(e.v(owner).await, channel).await.unwrap();
+    assert_eq!(seen.id, party.id);
+    assert!(seen.invite_code.is_none());
     e.db.cleanup().await.unwrap();
 }

@@ -20,6 +20,8 @@ export interface StartPartyDialogProps {
   title?: { titleId: string; episodeId?: string | null; variantId?: string | null; label: string };
   /** A Live TV channel to watch together (G-16): no title is asked for; everyone follows the live edge. */
   liveChannel?: { channelId: string; label: string };
+  /** A YouTube or Vimeo embed address or a media file from a link card (PRF-UNF-001): no title is asked for. */
+  external?: { url: string; label: string };
   /** Preselect a channel or DM (the voice call bar passes its voice channel). */
   channelId?: string | null;
 }
@@ -31,6 +33,7 @@ export function StartPartyDialog({
   onClose,
   title,
   liveChannel,
+  external,
   channelId,
 }: StartPartyDialogProps) {
   const t = useT();
@@ -41,6 +44,8 @@ export function StartPartyDialog({
   const dms = useDms();
   const users = useUsers();
   const [picked, setPicked] = useState<PickedTitle | null>(null);
+  // A pasted YouTube or Vimeo link or media file (PRF-UNF-001); the server validates and canonicalises it.
+  const [link, setLink] = useState('');
   const lastGuildId = useLoungeUi((s) => s.lastLocation?.guildId);
   // null until the viewer picks: then the caller's channel, the remembered one, or a private party.
   const [picks, setDest] = useState<string | null>(null);
@@ -56,6 +61,7 @@ export function StartPartyDialog({
     if (open) {
       setDest(null);
       setPicked(null);
+      setLink('');
       setError(null);
     }
   }, [open, channelId]);
@@ -86,8 +92,9 @@ export function StartPartyDialog({
   }, [groups, lastGuildId, open]);
   const dest = picks ?? channelId ?? remembered ?? PRIVATE;
 
+  const typedLink = !title && !liveChannel && !external && !picked ? link.trim() : '';
   const chosen: { titleId: string; episodeId: string | null; variantId: string | null } | null =
-    liveChannel
+    liveChannel || external || typedLink
       ? { titleId: '', episodeId: null, variantId: null }
       : title
         ? {
@@ -98,7 +105,7 @@ export function StartPartyDialog({
         : picked
           ? { titleId: picked.titleId, episodeId: picked.episodeId, variantId: null }
           : null;
-  const label = liveChannel?.label ?? title?.label ?? picked?.label;
+  const label = liveChannel?.label ?? external?.label ?? title?.label ?? picked?.label;
 
   const start = async () => {
     if (!chosen) return;
@@ -107,12 +114,16 @@ export function StartPartyDialog({
     const where = { channel_id: dest === PRIVATE ? null : dest };
     const input = liveChannel
       ? { tv_channel_id: liveChannel.channelId, ...where }
-      : {
-          title_id: chosen.titleId,
-          episode_id: chosen.episodeId,
-          variant_id: chosen.variantId,
-          ...where,
-        };
+      : external
+        ? { external: { url: external.url, title: external.label }, ...where }
+        : typedLink
+          ? { external: { url: typedLink }, ...where }
+          : {
+              title_id: chosen.titleId,
+              episode_id: chosen.episodeId,
+              variant_id: chosen.variantId,
+              ...where,
+            };
     try {
       let party;
       try {
@@ -132,7 +143,7 @@ export function StartPartyDialog({
       if (isAgeGateError(e)) setError(t('watchparty.startDialog.confirmAge'));
       else if (e instanceof ApiError && e.status === 403)
         setError(t('watchparty.startDialog.forbidden'));
-      else if (e instanceof ApiError && e.status === 409) setError(e.message);
+      else if (e instanceof ApiError && (e.status === 409 || e.status === 400)) setError(e.message);
       else if (e instanceof ApiError && e.status === 404)
         setError(t('watchparty.startDialog.notAvailable'));
       else setError(t('watchparty.startDialog.failed'));
@@ -163,8 +174,24 @@ export function StartPartyDialog({
       }
     >
       <div className="wp-start">
-        {!title && !liveChannel && !picked && <TitlePicker onPick={setPicked} />}
-        {!title && !liveChannel && picked && (
+        {!title && !liveChannel && !external && !picked && <TitlePicker onPick={setPicked} />}
+        {!title && !liveChannel && !external && !picked && (
+          <label className="wp-field">
+            <span>{t('watchparty.startDialog.linkLabel')}</span>
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              aria-describedby="wp-link-hint"
+            />
+            <span id="wp-link-hint" className="wp-muted">
+              {t('watchparty.startDialog.linkHint')}
+            </span>
+          </label>
+        )}
+        {!title && !liveChannel && !external && picked && (
           <p className="wp-now">
             {picked.label}{' '}
             <Button size="sm" variant="ghost" onClick={() => setPicked(null)}>

@@ -45,6 +45,8 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
   const running = pb.playing || pb.auto_paused;
   const live = pb.live;
   const durMs = pb.duration_ms ?? 0;
+  // A link outside the catalog has no known length: the time shows alone and the ±10 s buttons seek.
+  const noLength = !live && durMs === 0;
   const posMs = scrub ?? t * 1000;
   const why = can ? undefined : tr('watchparty.controls.hostOnly');
 
@@ -86,9 +88,11 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
       <span className="wp-time" aria-hidden="true">
         {live
           ? tr('watchparty.controls.live')
-          : `${formatClock(posMs / 1000)} / ${formatClock(durMs / 1000)}`}
+          : noLength
+            ? formatClock(posMs / 1000)
+            : `${formatClock(posMs / 1000)} / ${formatClock(durMs / 1000)}`}
       </span>
-      {!live && (
+      {!live && !noLength && (
         <input
           className="wp-scrub"
           type="range"
