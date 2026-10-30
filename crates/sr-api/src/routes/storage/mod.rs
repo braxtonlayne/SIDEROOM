@@ -18,7 +18,7 @@ pub mod mount_ops;
 pub mod mounts;
 #[cfg(test)]
 mod mounts_tests;
-mod objects;
+pub(crate) mod objects;
 mod scopes;
 pub mod shelves;
 mod transcode;

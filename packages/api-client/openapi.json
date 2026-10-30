@@ -54406,6 +54406,396 @@
         ]
       }
     },
+    "/music/library": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "The tracks of every mount the caller reaches (own, friends' shared music, servers' music), filtered.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "mount",
+            "in": "query",
+            "description": "Only this mount",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "album",
+            "in": "query",
+            "description": "Exact album",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artist",
+            "in": "query",
+            "description": "Exact artist or album artist",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Substring of title, artist or album",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pending",
+            "in": "query",
+            "description": "Only tracks whose tags are still to be read",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most 200",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackListView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/library/rescan": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Queue every track of a mount for a tag read again (\"Rescan tags\"). The browser does the reading; this only\nmarks the rows. Needs the mount's owner or the `upload` grant.",
+        "operationId": "rescan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RescanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RescanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/tracks/{track_id}": {
+      "get": {
+        "tags": [
+          "tracks"
+        ],
+        "summary": "One track.",
+        "operationId": "get_track",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "tracks"
+        ],
+        "summary": "Write a track's tags. Needs the mount's owner or, on a server's shelf, the `upload` grant; a friend who can\nonly listen gets 403, a viewer who does not reach the mount (and platform staff) 404.",
+        "operationId": "patch_track",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/tracks/{track_id}/presign": {
+      "post": {
+        "tags": [
+          "tracks"
+        ],
+        "summary": "A presigned `GET` for the track's file: the wave-27 presign (`POST /storage/mounts/{id}/presign`) with the\nmount and key taken from the track, so the player streams by range straight from the bucket.",
+        "operationId": "presign",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackPresignBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/oauth2/@me": {
       "get": {
         "tags": [
@@ -95144,6 +95534,34 @@
           "Declined"
         ]
       },
+      "RescanBody": {
+        "type": "object",
+        "description": "Body of the rescan.",
+        "required": [
+          "mount_id"
+        ],
+        "properties": {
+          "mount_id": {
+            "type": "string",
+            "description": "The mount whose tracks are read again."
+          }
+        }
+      },
+      "RescanView": {
+        "type": "object",
+        "description": "How many tracks were queued.",
+        "required": [
+          "queued"
+        ],
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tracks whose tags will be read again.",
+            "minimum": 0
+          }
+        }
+      },
       "Reset2faReport": {
         "type": "object",
         "description": "What `reset 2FA` removed.",
@@ -100849,6 +101267,269 @@
           },
           "token_type": {
             "type": "string"
+          }
+        }
+      },
+      "TrackListView": {
+        "type": "object",
+        "description": "A page of tracks and the sources behind them.",
+        "required": [
+          "items",
+          "total",
+          "sources"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrackView"
+            },
+            "description": "Tracks, by album, disc and track number."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfSourceView"
+            },
+            "description": "The mounts the caller reaches for music."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "All that match."
+          }
+        }
+      },
+      "TrackPatchBody": {
+        "type": "object",
+        "description": "Body of the tag write. Every field present is written.",
+        "properties": {
+          "album": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Album."
+          },
+          "album_artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Album artist."
+          },
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist."
+          },
+          "cover_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover: exactly `covers/<hash>.jpg` on the same mount; `null` clears."
+          },
+          "disc_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Disc number (0 to 999); `null` clears."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Length in milliseconds; `null` clears."
+          },
+          "genres": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres (at most 10)."
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`file` (the lazy tagger: values read from the file, never replacing a field a member edited) or `edit`\n(default: a member's edit, which a rescan then keeps)."
+          },
+          "tags_state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`read`, `none` or `failed`: where the tag read ended (the tagger sends it). Defaults to `read` for a\n`file` write."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title (1 to 300 characters)."
+          },
+          "track_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Track number (0 to 9999); `null` clears."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year (1000 to 2200); `null` clears."
+          }
+        }
+      },
+      "TrackPresignBody": {
+        "type": "object",
+        "description": "Body of the track presign.",
+        "properties": {
+          "range": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A request range the client will send, `bytes=a-b`."
+          }
+        }
+      },
+      "TrackView": {
+        "type": "object",
+        "description": "One track.",
+        "required": [
+          "id",
+          "mount_id",
+          "key",
+          "size",
+          "container",
+          "web_native",
+          "title",
+          "artist",
+          "album",
+          "album_artist",
+          "genres",
+          "tags_state",
+          "can_edit"
+        ],
+        "properties": {
+          "album": {
+            "type": "string",
+            "description": "Album."
+          },
+          "album_artist": {
+            "type": "string",
+            "description": "Album artist."
+          },
+          "artist": {
+            "type": "string",
+            "description": "Artist."
+          },
+          "can_edit": {
+            "type": "boolean",
+            "description": "The caller may write tags (owner, or `upload` on a server's shelf)."
+          },
+          "container": {
+            "type": "string",
+            "description": "Container (`mp3`, `flac`, `ogg`, `m4a`, `wav`, ...)."
+          },
+          "cover_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover key on the same mount."
+          },
+          "cover_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived URL of the cover."
+          },
+          "disc_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Disc number."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Length in milliseconds, once a tag read saw it."
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row snowflake."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key of the audio file."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The mount it lives on (snowflake)."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          },
+          "tags_state": {
+            "type": "string",
+            "description": "`pending`, `read`, `none` or `failed`."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title."
+          },
+          "track_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Track number."
+          },
+          "web_native": {
+            "type": "boolean",
+            "description": "Plays in a browser as is."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year."
           }
         }
       },

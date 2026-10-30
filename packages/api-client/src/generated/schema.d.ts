@@ -10494,6 +10494,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/music/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The tracks of every mount the caller reaches (own, friends' shared music, servers' music), filtered. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/music/library/rescan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue every track of a mount for a tag read again ("Rescan tags"). The browser does the reading; this only
+         *     marks the rows. Needs the mount's owner or the `upload` grant.
+         */
+        post: operations["rescan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/music/tracks/{track_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One track. */
+        get: operations["get_track"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Write a track's tags. Needs the mount's owner or, on a server's shelf, the `upload` grant; a friend who can
+         *     only listen gets 403, a viewer who does not reach the mount (and platform staff) 404.
+         */
+        patch: operations["patch_track"];
+        trace?: never;
+    };
+    "/music/tracks/{track_id}/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A presigned `GET` for the track's file: the wave-27 presign (`POST /storage/mounts/{id}/presign`) with the
+         *     mount and key taken from the track, so the player streams by range straight from the bucket.
+         */
+        post: operations["presign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/oauth2/@me": {
         parameters: {
             query?: never;
@@ -22327,6 +22405,19 @@ export interface components {
         };
         /** @enum {string} */
         RequestStatus: "Open" | "Fulfilled" | "Declined";
+        /** @description Body of the rescan. */
+        RescanBody: {
+            /** @description The mount whose tracks are read again. */
+            mount_id: string;
+        };
+        /** @description How many tracks were queued. */
+        RescanView: {
+            /**
+             * Format: int64
+             * @description Tracks whose tags will be read again.
+             */
+            queued: number;
+        };
         /** @description What `reset 2FA` removed. */
         Reset2faReport: {
             /** Format: int64 */
@@ -24131,6 +24222,124 @@ export interface components {
             /** @description Space-separated scopes. */
             scope: string;
             token_type: string;
+        };
+        /** @description A page of tracks and the sources behind them. */
+        TrackListView: {
+            /** @description Tracks, by album, disc and track number. */
+            items: components["schemas"]["TrackView"][];
+            /** @description The mounts the caller reaches for music. */
+            sources: components["schemas"]["ShelfSourceView"][];
+            /**
+             * Format: int64
+             * @description All that match.
+             */
+            total: number;
+        };
+        /** @description Body of the tag write. Every field present is written. */
+        TrackPatchBody: {
+            /** @description Album. */
+            album?: string | null;
+            /** @description Album artist. */
+            album_artist?: string | null;
+            /** @description Artist. */
+            artist?: string | null;
+            /** @description Cover: exactly `covers/<hash>.jpg` on the same mount; `null` clears. */
+            cover_key?: string | null;
+            /**
+             * Format: int32
+             * @description Disc number (0 to 999); `null` clears.
+             */
+            disc_no?: number | null;
+            /**
+             * Format: int32
+             * @description Length in milliseconds; `null` clears.
+             */
+            duration_ms?: number | null;
+            /** @description Genres (at most 10). */
+            genres?: string[] | null;
+            /**
+             * @description `file` (the lazy tagger: values read from the file, never replacing a field a member edited) or `edit`
+             *     (default: a member's edit, which a rescan then keeps).
+             */
+            source?: string | null;
+            /**
+             * @description `read`, `none` or `failed`: where the tag read ended (the tagger sends it). Defaults to `read` for a
+             *     `file` write.
+             */
+            tags_state?: string | null;
+            /** @description Title (1 to 300 characters). */
+            title?: string | null;
+            /**
+             * Format: int32
+             * @description Track number (0 to 9999); `null` clears.
+             */
+            track_no?: number | null;
+            /**
+             * Format: int32
+             * @description Year (1000 to 2200); `null` clears.
+             */
+            year?: number | null;
+        };
+        /** @description Body of the track presign. */
+        TrackPresignBody: {
+            /** @description A request range the client will send, `bytes=a-b`. */
+            range?: string | null;
+        };
+        /** @description One track. */
+        TrackView: {
+            /** @description Album. */
+            album: string;
+            /** @description Album artist. */
+            album_artist: string;
+            /** @description Artist. */
+            artist: string;
+            /** @description The caller may write tags (owner, or `upload` on a server's shelf). */
+            can_edit: boolean;
+            /** @description Container (`mp3`, `flac`, `ogg`, `m4a`, `wav`, ...). */
+            container: string;
+            /** @description Cover key on the same mount. */
+            cover_key?: string | null;
+            /** @description Short-lived URL of the cover. */
+            cover_url?: string | null;
+            /**
+             * Format: int32
+             * @description Disc number.
+             */
+            disc_no?: number | null;
+            /**
+             * Format: int32
+             * @description Length in milliseconds, once a tag read saw it.
+             */
+            duration_ms?: number | null;
+            /** @description Genres. */
+            genres: string[];
+            /** @description Row snowflake. */
+            id: string;
+            /** @description Mount-relative key of the audio file. */
+            key: string;
+            /** @description The mount it lives on (snowflake). */
+            mount_id: string;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
+            /** @description `pending`, `read`, `none` or `failed`. */
+            tags_state: string;
+            /** @description Title. */
+            title: string;
+            /**
+             * Format: int32
+             * @description Track number.
+             */
+            track_no?: number | null;
+            /** @description Plays in a browser as is. */
+            web_native: boolean;
+            /**
+             * Format: int32
+             * @description Year.
+             */
+            year?: number | null;
         };
         Trailer: {
             /**
@@ -60301,6 +60510,242 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only this mount */
+                mount?: string;
+                /** @description Exact album */
+                album?: string;
+                /** @description Exact artist or album artist */
+                artist?: string;
+                /** @description Substring of title, artist or album */
+                q?: string;
+                /** @description Only tracks whose tags are still to be read */
+                pending?: boolean;
+                /** @description At most 200 */
+                limit?: number;
+                /** @description Offset */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackListView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rescan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RescanBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RescanView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_track: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track snowflake */
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_track: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track snowflake */
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackPatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    presign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Track snowflake */
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackPresignBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY */
             409: {
                 headers: {
                     [name: string]: unknown;
