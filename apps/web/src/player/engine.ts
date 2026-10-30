@@ -1,18 +1,24 @@
 /**
- * MUS-PLY-001: the engine binds the one persistent `<audio>` element and its Web Audio graph to the player
- * store. The store says what should happen; the engine makes the element do it and reports back.
+ * MUS-PLY-001: the engine binds the persistent `<audio>` elements and their Web Audio graph to the player
+ * store. The store says what should happen; the engine makes the elements do it and reports back.
+ *
+ * Wave-30 integration (MUS-LIB-001): with Web Audio and a second element the engine runs music-lib's
+ * `GaplessDecks` (`music/queue/gapless.ts`). The next track is resolved and prefetched into the idle deck while
+ * the current one plays, and the hand-over is scheduled on the audio clock: a sample-accurate cut, or the
+ * 0 to 12 s equal-power crossfade of the store's `crossfadeSec`. Without Web Audio (or without a second
+ * element) one element plays and a track change is a plain cut on `ended`.
  *
  * The PWA update flow (RDY-PWA-001) must not reload the page under a playing track: the engine installs an
  * update guard, and when the member accepted an update meanwhile, the reload runs at the next track boundary
  * (or when playback stops), after the queue is parked in sessionStorage so the reload resumes it paused.
  */
+import { GaplessDecks, type GaplessTrack } from '../music/queue/gapless';
 import { flushDeferredUpdate, isUpdateDeferred, setUpdateGuard } from '../pwa/state';
 import {
   applyEq,
   applyVolume,
   buildGraph,
   defaultContextFactory,
-  rampFade,
   type AudioGraph,
   type ContextFactory,
 } from './graph';
@@ -82,6 +88,13 @@ export function restoreResume(): boolean {
 
 export interface EngineOptions {
   contextFactory?: ContextFactory;
+  /** The second deck: with Web Audio it makes gapless playback and the crossfade possible. */
+  nextAudio?: HTMLAudioElement;
+  /** Timers of the gapless engine (tests pass fakes). */
+  timers?: {
+    setInterval(fn: () => void, ms: number): unknown;
+    clearInterval(handle: unknown): void;
+  };
 }
 
 let active: PlayerEngine | null = null;
@@ -92,7 +105,23 @@ export interface PlayerEngine {
   destroy(): void;
   /** The graph, once a track has started (null before, or without Web Audio). */
   graph(): AudioGraph | null;
+  /** The element that plays the current track (it alternates between the decks in gapless mode). */
+  activeAudio(): HTMLAudioElement;
+  /** Whether the two-deck gapless engine is running (Web Audio and a second element). */
+  gapless(): boolean;
 }
+
+/** Web Audio hands back silence for a cross-origin file loaded without CORS, so a bucket URL asks for CORS. */
+function setCors(el: HTMLAudioElement, src: string): void {
+  try {
+    const cross = new URL(src, window.location.href).origin !== window.location.origin;
+    el.crossOrigin = cross ? 'anonymous' : null;
+  } catch {
+    el.crossOrigin = null;
+  }
+}
+
+const keyOf = (index: number, track: PlayerTrack) => `${index}:${track.id}`;
 
 export function createPlayerEngine(
   audio: HTMLAudioElement,
@@ -100,13 +129,23 @@ export function createPlayerEngine(
 ): PlayerEngine {
   const store = usePlayerStore;
   const makeContext = opts.contextFactory ?? defaultContextFactory;
+  const elements: HTMLAudioElement[] = opts.nextAudio ? [audio, opts.nextAudio] : [audio];
   let graph: AudioGraph | null = null;
   let graphTried = false;
+  let decks: GaplessDecks | null = null;
   let loadedKey: string | null = null;
   let loadToken = 0;
+  /** The key the decks handed over to; the store's matching `loading` must not reload it. */
+  let handedOver: string | null = null;
+  /** The queue entry the decks hold as their current track (set once `start` ran, or at a hand-over). */
+  let deckKey: string | null = null;
+  /** What was prefetched into the idle deck, and the request in flight for it. */
+  let nextKey: string | null = null;
+  let nextToken = 0;
   let atBoundary = false;
-  let fadingOut = false;
   let destroyed = false;
+
+  const playing = (): HTMLAudioElement => (decks ? (elements[decks.activeDeck] ?? audio) : audio);
 
   const ensureGraph = () => {
     if (graph || graphTried) return graph;
@@ -114,14 +153,30 @@ export function createPlayerEngine(
     try {
       const ctx = makeContext();
       if (ctx) {
-        graph = buildGraph(ctx, audio);
+        graph = buildGraph(ctx, elements);
         const s = store.getState();
         applyEq(graph, s.eq, s.eqEnabled);
         applyVolume(graph, s.volume, s.muted);
-        audio.volume = 1;
+        for (const el of elements) el.volume = 1;
+        const [a, b] = elements;
+        const [ga, gb] = graph.deckGains;
+        if (a && b && ga && gb) {
+          decks = new GaplessDecks({
+            clock: ctx,
+            decks: [
+              { audio: a, gain: ga },
+              { audio: b, gain: gb },
+            ],
+            crossfadeSec: () => store.getState().crossfadeSec,
+            onAdvance,
+            onEnded: onDecksEnded,
+            ...(opts.timers ? { timers: opts.timers } : {}),
+          });
+        }
       }
     } catch {
       graph = null; // the element alone still plays, only the EQ and the VU bar are gone
+      decks = null;
     }
     if (!graph) {
       const s = store.getState();
@@ -141,21 +196,58 @@ export function createPlayerEngine(
     return flushDeferredUpdate();
   };
 
+  const resolve = async (track: PlayerTrack): Promise<string> =>
+    track.resolveSrc ? track.resolveSrc(track) : track.src;
+
+  const asGapless = (track: PlayerTrack, src: string): GaplessTrack => ({
+    id: track.id,
+    src,
+    ...(track.durationSec ? { durationSec: track.durationSec } : {}),
+  });
+
+  /** Name what follows the current track to the decks, resolving its URL first. */
+  const refreshNext = () => {
+    if (!decks || destroyed || decks.transitioning) return;
+    const s = store.getState();
+    const cur = currentTrack(s);
+    if (!cur || deckKey !== keyOf(s.index, cur)) return;
+    const to = nextIndex(s.index, s.queue.length, s.repeat, true);
+    const track = to === null ? undefined : s.queue[to];
+    // A deferred app update reloads at this boundary, so nothing is lined up behind it.
+    const key = track && to !== null && !isUpdateDeferred() ? keyOf(to, track) : null;
+    if (key === nextKey) return;
+    nextKey = key;
+    const token = ++nextToken;
+    if (!track || key === null) {
+      decks.setNext(null);
+      return;
+    }
+    void resolve(track).then(
+      (src) => {
+        if (token !== nextToken || destroyed || !decks || decks.transitioning) return;
+        const idle = elements[decks.activeDeck === 0 ? 1 : 0];
+        if (idle) setCors(idle, src);
+        decks.setNext(asGapless(track, src));
+      },
+      () => {
+        // The next URL could not be had now: the track change falls back to `ended`, which loads it.
+        if (token === nextToken) nextKey = null;
+      },
+    );
+  };
+
   const load = async () => {
     const s = store.getState();
     const track = currentTrack(s);
     if (!track) return;
     const token = ++loadToken;
-    loadedKey = `${s.index}:${track.id}`;
-    fadingOut = false;
+    loadedKey = keyOf(s.index, track);
+    handedOver = null;
+    deckKey = null;
+    nextKey = null;
+    ++nextToken;
     const g = ensureGraph();
-    if (g) {
-      void g.ctx.resume().catch(() => undefined);
-      if (s.crossfadeSec > 0) {
-        rampFade(g, 0, 0);
-        rampFade(g, 1, Math.min(s.crossfadeSec, 12));
-      } else rampFade(g, 1, 0);
-    }
+    if (g) void g.ctx.resume().catch(() => undefined);
     let src = track.src;
     if (track.resolveSrc) {
       try {
@@ -166,21 +258,24 @@ export function createPlayerEngine(
       }
       if (token !== loadToken || destroyed) return;
     }
-    // Web Audio hands back silence for a cross-origin file loaded without CORS, so a bucket URL is requested
-    // with CORS (the bucket must allow GET with Range from the app origin).
-    try {
-      const cross = new URL(src, window.location.href).origin !== window.location.origin;
-      audio.crossOrigin = cross ? 'anonymous' : null;
-    } catch {
-      audio.crossOrigin = null;
-    }
-    audio.src = src;
     updateMetadata(track);
-    if (store.getState().status === 'paused') {
-      audio.load();
-      return;
-    }
+    const paused = store.getState().status === 'paused';
     try {
+      if (decks) {
+        // `start` plays on the active deck; the bucket must allow GET with Range from the app origin.
+        setCors(playing(), src);
+        const started = decks.start(asGapless(track, src), 0, { paused });
+        deckKey = loadedKey;
+        refreshNext();
+        await started;
+        return;
+      }
+      setCors(audio, src);
+      audio.src = src;
+      if (paused) {
+        audio.load();
+        return;
+      }
       await audio.play();
     } catch (e) {
       if (token !== loadToken) return;
@@ -191,6 +286,49 @@ export function createPlayerEngine(
     }
   };
 
+  /** The decks switched to the prefetched track: move the store along without reloading anything. */
+  function onAdvance(track: GaplessTrack) {
+    const s = store.getState();
+    const to = nextIndex(s.index, s.queue.length, s.repeat, true);
+    const t = to === null ? undefined : s.queue[to];
+    nextKey = null;
+    if (to === null || !t || t.id !== track.id) {
+      // The queue changed under the hand-over: play what the store says instead.
+      next(true);
+      return;
+    }
+    // A deferred app update reloads here, between tracks, with the rest of the queue parked.
+    if (isUpdateDeferred()) {
+      atBoundary = true;
+      decks?.pause();
+      if (flushUpdate(s, to)) {
+        engineReport.status('paused');
+        return;
+      }
+      atBoundary = false;
+      void decks?.resume();
+    }
+    handedOver = keyOf(to, t);
+    next(true);
+  }
+
+  function onDecksEnded() {
+    endedAtBoundary();
+  }
+
+  const endedAtBoundary = () => {
+    const s = store.getState();
+    const to = nextIndex(s.index, s.queue.length, s.repeat, true);
+    atBoundary = true;
+    // A deferred app update reloads here, between tracks, with the rest of the queue parked.
+    if (flushUpdate(s, to ?? 0)) {
+      engineReport.status('paused');
+      return;
+    }
+    atBoundary = false;
+    next(true);
+  };
+
   const onStore = (s: PlayerState, prev: PlayerState) => {
     if (destroyed) return;
     // Audio graph settings follow the store.
@@ -199,7 +337,8 @@ export function createPlayerEngine(
       applyEq(graph, s.eq, s.eqEnabled);
     if (s.seekRequest !== null && s.seekRequest !== prev.seekRequest) {
       try {
-        audio.currentTime = s.seekRequest;
+        if (decks) decks.seek(s.seekRequest);
+        else audio.currentTime = s.seekRequest;
       } catch {
         /* not seekable yet */
       }
@@ -212,24 +351,43 @@ export function createPlayerEngine(
     if (!track) {
       if (loadedKey !== null) {
         loadedKey = null;
+        deckKey = null;
+        nextKey = null;
+        handedOver = null;
         ++loadToken;
-        audio.pause();
-        audio.removeAttribute('src');
-        audio.load();
+        ++nextToken;
+        decks?.stop();
+        for (const el of elements) {
+          el.pause();
+          el.removeAttribute('src');
+          el.load();
+        }
       }
       return;
     }
-    const key = `${s.index}:${track.id}`;
+    const key = keyOf(s.index, track);
     const entering = s.status === 'loading' && prev.status !== 'loading';
+    if (entering && handedOver === key) {
+      // The decks already play this track (gapless hand-over).
+      handedOver = null;
+      loadedKey = key;
+      deckKey = key;
+      engineReport.status('playing');
+      refreshNext();
+      return;
+    }
     if (entering || (s.status === 'playing' && key !== loadedKey)) {
       void load();
       return;
     }
-    if (s.status === 'playing' && audio.paused && loadedKey === key) {
+    const el = playing();
+    if (s.status === 'playing' && el.paused && loadedKey === key) {
       if (graph) void graph.ctx.resume().catch(() => undefined);
-      void audio.play().catch(() => engineReport.status('paused'));
-    } else if (s.status === 'paused' && !audio.paused) {
-      audio.pause();
+      const p = decks ? decks.resume() : el.play();
+      void Promise.resolve(p).catch(() => engineReport.status('paused'));
+    } else if (s.status === 'paused' && !el.paused) {
+      if (decks) decks.pause();
+      else el.pause();
     }
     if (
       s.status !== prev.status &&
@@ -237,65 +395,55 @@ export function createPlayerEngine(
     ) {
       flushUpdate(s, s.index);
     }
+    // What follows depends on the queue, the position in it and the repeat mode.
+    if (s.queue !== prev.queue || s.index !== prev.index || s.repeat !== prev.repeat) refreshNext();
   };
 
-  const onTime = () => {
-    const s = store.getState();
-    const d = Number.isFinite(audio.duration) ? audio.duration : 0;
-    engineReport.time(audio.currentTime, d);
-    updatePosition(audio.currentTime, d);
-    // The fade-out before a boundary (the crossfade setting): only when something follows.
-    if (
-      graph &&
-      s.crossfadeSec > 0 &&
-      !fadingOut &&
-      d > 0 &&
-      nextIndex(s.index, s.queue.length, s.repeat, true) !== null &&
-      d - audio.currentTime <= s.crossfadeSec
-    ) {
-      fadingOut = true;
-      rampFade(graph, 0, Math.max(0.05, d - audio.currentTime));
-    }
+  // Element events: only the deck that plays the current track reports.
+  const fromPlaying = (fn: () => void) => (e: Event) => {
+    if (e.target === playing() || e.currentTarget === playing()) fn();
   };
-  const onMeta = () => {
-    if (Number.isFinite(audio.duration)) engineReport.time(audio.currentTime, audio.duration);
-  };
-  const onPlaying = () => {
+  const onTime = fromPlaying(() => {
+    const el = playing();
+    const d = Number.isFinite(el.duration) ? el.duration : 0;
+    engineReport.time(el.currentTime, d);
+    updatePosition(el.currentTime, d);
+  });
+  const onMeta = fromPlaying(() => {
+    const el = playing();
+    if (Number.isFinite(el.duration)) engineReport.time(el.currentTime, el.duration);
+  });
+  const onPlaying = fromPlaying(() => {
     if (store.getState().status !== 'playing') engineReport.status('playing');
-  };
-  const onWaiting = () => {
+  });
+  const onWaiting = fromPlaying(() => {
     if (store.getState().status === 'playing') engineReport.status('loading');
-  };
-  const onEnded = () => {
-    const s = store.getState();
-    const to = nextIndex(s.index, s.queue.length, s.repeat, true);
-    atBoundary = true;
-    // A deferred app update reloads here, between tracks, with the rest of the queue parked.
-    if (flushUpdate(s, to ?? 0)) {
-      engineReport.status('paused');
-      return;
-    }
-    atBoundary = false;
-    next(true);
-  };
-  const onError = () => {
-    engineReport.status('error', audio.error?.message || 'media');
-  };
+  });
+  // With the decks, `ended` is theirs (they hand over or call onDecksEnded).
+  const onEnded = fromPlaying(() => {
+    if (!decks) endedAtBoundary();
+  });
+  const onError = fromPlaying(() => {
+    engineReport.status('error', playing().error?.message || 'media');
+  });
 
-  audio.addEventListener('timeupdate', onTime);
-  audio.addEventListener('loadedmetadata', onMeta);
-  audio.addEventListener('durationchange', onMeta);
-  audio.addEventListener('playing', onPlaying);
-  audio.addEventListener('waiting', onWaiting);
-  audio.addEventListener('ended', onEnded);
-  audio.addEventListener('error', onError);
+  const events: [string, (e: Event) => void][] = [
+    ['timeupdate', onTime],
+    ['loadedmetadata', onMeta],
+    ['durationchange', onMeta],
+    ['playing', onPlaying],
+    ['waiting', onWaiting],
+    ['ended', onEnded],
+    ['error', onError],
+  ];
+  for (const el of elements) for (const [type, fn] of events) el.addEventListener(type, fn);
   const unsubscribe = store.subscribe(onStore);
   const removeActions = installActions();
   const removeGuard = setUpdateGuard(() => {
     const st = store.getState().status;
     return !atBoundary && (st === 'playing' || st === 'loading');
   });
-  audio.preload = 'auto';
+  for (const el of elements) el.preload = 'auto';
   // A queue parked by an update reload comes back paused; its first Play loads it.
   if (store.getState().queue.length > 0) updateMetadata(currentTrack());
 
@@ -307,20 +455,19 @@ export function createPlayerEngine(
 
   const self: PlayerEngine = {
     graph: () => graph,
+    activeAudio: playing,
+    gapless: () => decks !== null,
     destroy() {
       destroyed = true;
       if (active === self) active = null;
       unsubscribe();
       removeActions();
       removeGuard();
-      audio.removeEventListener('timeupdate', onTime);
-      audio.removeEventListener('loadedmetadata', onMeta);
-      audio.removeEventListener('durationchange', onMeta);
-      audio.removeEventListener('playing', onPlaying);
-      audio.removeEventListener('waiting', onWaiting);
-      audio.removeEventListener('ended', onEnded);
-      audio.removeEventListener('error', onError);
-      audio.pause();
+      decks?.destroy();
+      for (const el of elements) {
+        for (const [type, fn] of events) el.removeEventListener(type, fn);
+        el.pause();
+      }
     },
   };
   active = self;

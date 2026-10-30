@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { EQ_FREQS, EQ_MAX_DB } from '../music/eq/presets';
 
 /** One playable item. `src` is a URL the `<audio>` element can stream (a presigned bucket URL, wave 27). */
 export interface PlayerTrack {
@@ -32,9 +33,12 @@ export const PLAYER_DOCKS: readonly PlayerDock[] = [
 ];
 export const REPEAT_MODES: readonly RepeatMode[] = ['off', 'all', 'one'];
 
-/** Ten EQ bands in Hz (ISO octave centres); the first is a low shelf and the last a high shelf. */
-export const EQ_BANDS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000] as const;
-export const EQ_RANGE_DB = 12;
+/**
+ * Ten EQ bands in Hz (ISO octave centres); the first is a low shelf and the last a high shelf. One definition
+ * for the player and the library's equalizer (`music/eq/presets.ts`), whose chain the player's graph uses.
+ */
+export const EQ_BANDS = EQ_FREQS;
+export const EQ_RANGE_DB = EQ_MAX_DB;
 export const CROSSFADE_MAX_SEC = 12;
 
 /** What the "Full Library Manager" skin renders in its content slot (music-lib registers it). */

@@ -1,15 +1,24 @@
 /**
- * MUS-PLY-001: the Web Audio graph. `<audio>` -> MediaElementSource -> ten EQ bands -> crossfade gain ->
- * master volume -> analyser -> destination. The analyser feeds the VU bar; the crossfade gain is the node
- * the fade-out and fade-in around a track change moves; the master gain carries the volume so the element
- * itself always plays at 1.
+ * MUS-PLY-001 + MUS-LIB-001 (wave-30 integration): the Web Audio graph.
+ *
+ *   deck A `<audio>` -> MediaElementSource -> deck gain A --+
+ *   deck B `<audio>` -> MediaElementSource -> deck gain B --+-> EQ chain (preamp, ten bands) -> master volume
+ *                                                               -> analyser -> destination
+ *
+ * The two decks are the gapless/crossfade pair of `music/queue/gapless.ts`: the deck gains are the only nodes
+ * a track change moves (a cut on the audio clock, or the equal-power crossfade). The EQ is music-lib's chain
+ * (`music/eq/eqGraph.ts`, with the headroom preamp and the 30 ms glide); its gains come from the player store
+ * (`eq`, `eqEnabled`), the one source of truth the skins, the Equalizer section and the saved settings share.
+ * The master gain carries the volume so the elements always play at 1; the analyser feeds the VU bar.
+ * A graph with one deck (no second element) still works: the player then changes tracks with a plain cut.
  */
-import { EQ_BANDS } from './types';
+import { createEqChain, type EqChain, type EqContext } from '../music/eq/eqGraph';
 
 export interface AudioGraph {
   ctx: AudioContext;
-  bands: BiquadFilterNode[];
-  fade: GainNode;
+  /** One gain per deck, after that deck's media source. */
+  deckGains: GainNode[];
+  eq: EqChain;
   master: GainNode;
   analyser: AnalyserNode;
 }
@@ -25,50 +34,34 @@ export const defaultContextFactory: ContextFactory = () => {
   return Ctor ? new Ctor() : null;
 };
 
-export function buildGraph(ctx: AudioContext, audio: HTMLAudioElement): AudioGraph {
-  const source = ctx.createMediaElementSource(audio);
-  const last = EQ_BANDS.length - 1;
-  const bands = EQ_BANDS.map((hz, i) => {
-    const f = ctx.createBiquadFilter();
-    f.type = i === 0 ? 'lowshelf' : i === last ? 'highshelf' : 'peaking';
-    f.frequency.value = hz;
-    f.Q.value = 1.1;
-    f.gain.value = 0;
-    return f;
+export function buildGraph(ctx: AudioContext, decks: readonly HTMLAudioElement[]): AudioGraph {
+  const eq = createEqChain(ctx as unknown as EqContext);
+  const deckGains = decks.map((audio, i) => {
+    const source = ctx.createMediaElementSource(audio);
+    const g = ctx.createGain();
+    // Deck A starts audible; the gapless engine silences the idle deck before it prefetches into it.
+    g.gain.value = i === 0 ? 1 : 0;
+    source.connect(g);
+    g.connect(eq.input as unknown as AudioNode);
+    return g;
   });
-  const fade = ctx.createGain();
   const master = ctx.createGain();
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 64;
   analyser.smoothingTimeConstant = 0.8;
-  let node: AudioNode = source;
-  for (const n of [...bands, fade, master, analyser]) {
-    node.connect(n);
-    node = n;
-  }
-  node.connect(ctx.destination);
-  return { ctx, bands, fade, master, analyser };
+  (eq.output as unknown as AudioNode).connect(master);
+  master.connect(analyser);
+  analyser.connect(ctx.destination);
+  return { ctx, deckGains, eq, master, analyser };
 }
 
-/** Apply EQ gains; a disabled EQ is flat. */
+/** Apply EQ gains from the store; a disabled EQ is flat (and its preamp back at 0 dB). */
 export function applyEq(graph: AudioGraph, gains: readonly number[], enabled: boolean): void {
-  graph.bands.forEach((b, i) => {
-    b.gain.value = enabled ? (gains[i] ?? 0) : 0;
-  });
+  graph.eq.setGains(gains, enabled);
 }
 
 export function applyVolume(graph: AudioGraph, volume: number, muted: boolean): void {
   graph.master.gain.value = muted ? 0 : volume;
-}
-
-/** Ramp the crossfade gain to `target` over `seconds` (0 = at once). */
-export function rampFade(graph: AudioGraph, target: number, seconds: number): void {
-  const g = graph.fade.gain;
-  const now = graph.ctx.currentTime;
-  g.cancelScheduledValues(now);
-  g.setValueAtTime(g.value, now);
-  if (seconds <= 0) g.setValueAtTime(target, now);
-  else g.linearRampToValueAtTime(target, now + seconds);
 }
 
 /** Loudness 0..1 from the analyser, for the VU bar. */

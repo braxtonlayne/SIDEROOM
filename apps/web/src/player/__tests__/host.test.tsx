@@ -117,11 +117,13 @@ describe('PlayerGate', () => {
     expect(document.querySelectorAll('audio')).toHaveLength(0);
   });
 
-  it('mounts on a signed-in route with one audio element, the default skin and its own theme root', async () => {
+  it('mounts on a signed-in route with the two gapless decks, the default skin and its own theme root', async () => {
     await mountAt('/channels');
     act(() => play([TRACK]));
     expect(await screen.findByRole('region', { name: 'Music player' })).toBeTruthy();
-    expect(document.querySelectorAll('audio')).toHaveLength(1);
+    expect(document.querySelectorAll('audio')).toHaveLength(2);
+    expect(screen.getByTestId('player-audio')).toBeTruthy();
+    expect(screen.getByTestId('player-audio-next')).toBeTruthy();
     expect(document.querySelector('[data-skin="retro"]')).toBeTruthy();
     expect(document.querySelector('.sr-ply-dock')?.getAttribute('data-dock')).toBe('bottom-end');
     // The dock carries the Lounge tokens itself: it sits outside every section shell.

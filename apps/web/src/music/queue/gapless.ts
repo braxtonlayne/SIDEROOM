@@ -164,8 +164,12 @@ export class GaplessDecks {
     return this.transition !== null;
   }
 
-  /** Play `track` now on the active deck, replacing whatever played. */
-  start(track: GaplessTrack, at = 0): void {
+  /**
+   * Play `track` now on the active deck, replacing whatever played. With `paused`, the deck only loads it
+   * (a parked queue after a reload; the next `resume` starts it). Returns the element's `play()` promise so
+   * the caller sees a refused autoplay.
+   */
+  start(track: GaplessTrack, at = 0, opts: { paused?: boolean } = {}): Promise<void> {
     this.abort();
     const d = this.deck(this.active);
     const now = this.now();
@@ -175,13 +179,18 @@ export class GaplessDecks {
     d.audio.src = track.src;
     d.audio.currentTime = at;
     this.tracks[this.active] = track;
-    this.running = true;
-    void d.audio.play();
     // The owner names what follows with setNext once it knows (the old queued track is not this one's next).
     this.queued = null;
     this.after = undefined;
     this.playStart = null;
     this.prefetchedId = null;
+    if (opts.paused) {
+      this.running = false;
+      d.audio.load();
+      return Promise.resolve();
+    }
+    this.running = true;
+    return Promise.resolve(d.audio.play());
   }
 
   /** Say what follows the current track (null for nothing). It is loaded into the idle deck at once. */
@@ -202,10 +211,10 @@ export class GaplessDecks {
     this.running = false;
   }
 
-  resume(): void {
-    if (this.tracks[this.active] === null) return;
+  resume(): Promise<void> {
+    if (this.tracks[this.active] === null) return Promise.resolve();
     this.running = true;
-    void this.deck(this.active).audio.play();
+    return Promise.resolve(this.deck(this.active).audio.play());
   }
 
   seek(seconds: number): void {
