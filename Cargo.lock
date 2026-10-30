@@ -6693,10 +6693,12 @@ dependencies = [
 name = "sr-tools-wasm"
 version = "0.0.0"
 dependencies = [
+ "gif",
  "serde_json",
  "strsim",
  "unicode-normalization",
  "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]
