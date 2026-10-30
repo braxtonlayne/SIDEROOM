@@ -1,207 +1,730 @@
 /*
- * MUS-SKN-001 "Pastel Study Deck". Drawn on the Lounge Light tokens: pastels are each status token mixed far
- * into the light surface; text stays --ui-text. Tokens and logical properties only.
+ * MUS-SKN-002 "Pastel Study Deck". Drawn on the Lounge Light tokens: every pastel is a status token mixed far
+ * into the light surface, every deep tone is the same hue mixed into --ui-text, so the clay keeps one hue family
+ * per part. One light source, from above and to the start side: highlights on the upper edges, a darker lip
+ * and a soft cast shadow below every raised part. Tokens and logical properties only.
  */
 .sr-ply-study {
-  --st-cream: color-mix(in oklab, var(--ui-warning) 8%, var(--ui-bg));
-  --st-cream-lo: color-mix(in oklab, var(--ui-warning) 16%, var(--ui-bg));
-  --st-pink: color-mix(in oklab, var(--ui-danger) 24%, var(--ui-bg));
-  --st-pink-lo: color-mix(in oklab, var(--ui-danger) 40%, var(--ui-bg));
-  --st-sage: color-mix(in oklab, var(--ui-success) 24%, var(--ui-bg));
-  --st-sage-lo: color-mix(in oklab, var(--ui-success) 42%, var(--ui-bg));
-  --st-lilac: color-mix(in oklab, var(--ui-accent) 26%, var(--ui-bg));
-  --st-lilac-lo: color-mix(in oklab, var(--ui-accent) 45%, var(--ui-bg));
-  --st-peach: color-mix(
-    in oklab,
-    color-mix(in oklab, var(--ui-warning) 60%, var(--ui-danger)) 28%,
-    var(--ui-bg)
-  );
-  --st-sky: color-mix(in oklab, var(--ui-info) 22%, var(--ui-bg));
+  --st-violet: color-mix(in oklab, var(--ui-accent) 62%, var(--ui-danger));
+  --st-orange: color-mix(in oklab, var(--ui-warning) 55%, var(--ui-danger));
+
+  --st-white: color-mix(in oklab, var(--ui-bg) 92%, var(--ui-warning));
+  --st-shine: color-mix(in oklab, var(--ui-bg) 75%, transparent);
+  --st-cream-hi: color-mix(in oklab, var(--ui-warning) 5%, var(--ui-bg));
+  --st-cream: color-mix(in oklab, var(--ui-warning) 11%, var(--ui-bg));
+  --st-cream-lo: color-mix(in oklab, var(--ui-warning) 20%, var(--ui-bg));
+  --st-cream-dk: color-mix(in oklab, var(--ui-warning) 34%, var(--ui-bg));
+  --st-pink-hi: color-mix(in oklch, var(--ui-danger) 13%, var(--ui-bg));
+  --st-pink: color-mix(in oklch, var(--ui-danger) 25%, var(--ui-bg));
+  --st-pink-lo: color-mix(in oklch, var(--ui-danger) 40%, var(--ui-bg));
+  --st-pink-dk: color-mix(in oklch, var(--ui-danger) 58%, var(--ui-bg));
+  --st-mint-hi: color-mix(in oklch, var(--ui-success) 13%, var(--ui-bg));
+  --st-mint: color-mix(in oklch, var(--ui-success) 26%, var(--ui-bg));
+  --st-mint-lo: color-mix(in oklch, var(--ui-success) 42%, var(--ui-bg));
+  --st-mint-dk: color-mix(in oklab, var(--ui-success) 62%, var(--ui-text));
+  --st-lilac-hi: color-mix(in oklch, var(--st-violet) 15%, var(--ui-bg));
+  --st-lilac: color-mix(in oklch, var(--st-violet) 30%, var(--ui-bg));
+  --st-lilac-lo: color-mix(in oklch, var(--st-violet) 46%, var(--ui-bg));
+  --st-peach-hi: color-mix(in oklch, var(--st-orange) 14%, var(--ui-bg));
+  --st-peach: color-mix(in oklch, var(--st-orange) 28%, var(--ui-bg));
+  --st-peach-lo: color-mix(in oklch, var(--st-orange) 44%, var(--ui-bg));
+  --st-sky-hi: color-mix(in oklch, var(--ui-info) 13%, var(--ui-bg));
+  --st-sky: color-mix(in oklch, var(--ui-info) 25%, var(--ui-bg));
+  --st-sky-lo: color-mix(in oklch, var(--ui-info) 40%, var(--ui-bg));
+  --st-butter: color-mix(in oklch, var(--ui-warning) 30%, var(--ui-bg));
+  --st-butter-lo: color-mix(in oklch, var(--ui-warning) 48%, var(--ui-bg));
+
   --st-ink: var(--ui-text);
-  --st-line: color-mix(in oklab, var(--ui-text) 22%, var(--ui-bg));
-  --bd-led-cool: var(--st-sage-lo);
-  --bd-led-warm: var(--st-lilac-lo);
+  --st-ink-soft: color-mix(in oklab, var(--ui-text) 86%, var(--ui-warning));
+  --st-rose-ink: color-mix(in oklab, var(--ui-danger) 34%, var(--ui-text));
+  --st-plum: color-mix(in oklab, var(--st-violet) 42%, var(--ui-text));
+  --st-olive: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--ui-success) 60%, var(--ui-warning)) 62%,
+    var(--ui-text)
+  );
+  --st-cocoa: color-mix(in oklab, var(--ui-warning) 40%, var(--ui-text));
+  --st-shadow: color-mix(in oklab, var(--ui-text) 16%, transparent);
+  --st-shadow-soft: color-mix(in oklab, var(--ui-text) 9%, transparent);
+
+  --bd-led-cool: var(--st-mint-lo);
+  --bd-led-warm: var(--st-butter-lo);
   --bd-led-hot: var(--st-pink-lo);
 
   container-type: inline-size;
-  inline-size: min(46rem, calc(100vw - 1rem));
-  padding: 0.625rem;
+  inline-size: min(56rem, calc(100vw - 1rem));
+  padding: 0.5rem;
+  padding-block-end: 0.625rem;
   color: var(--st-ink);
-  background: var(--st-cream);
-  border: 3px solid var(--st-pink);
-  border-radius: 22px;
+  border: 0.5rem solid transparent;
+  border-radius: 30px;
+  background:
+    linear-gradient(var(--st-cream-hi), var(--st-cream)) padding-box,
+    linear-gradient(var(--st-pink-hi), var(--st-pink) 30%, var(--st-pink-lo)) border-box;
   box-shadow:
-    0 4px 0 var(--st-pink-lo),
-    var(--ui-shadow-overlay);
+    inset 0 0 0 1px var(--st-pink-lo),
+    inset 0 3px 6px var(--st-shadow-soft),
+    0 0 0 1px var(--st-pink-lo),
+    0 1px 0 2px var(--st-shine),
+    0 6px 0 1px var(--st-pink-dk),
+    0 18px 38px -6px var(--st-shadow);
   font-family: 'Hanken Grotesk', var(--ui-font-body);
+  font-size: 0.875rem;
 }
+/* Faint polka dots and paper flecks on the cream. */
 .st-dots {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle, var(--st-pink) 1px, transparent 1.5px) 0 0 / 14px 14px;
+  background: radial-gradient(circle, var(--st-pink) 1.2px, transparent 1.8px) 0 0 / 18px 18px;
+  opacity: 0.55;
+}
+.st-grain {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle, var(--st-cream-dk) 0.5px, transparent 0.9px) 3px 5px / 7px 9px,
+    radial-gradient(circle, var(--st-shine) 0.6px, transparent 1px) 0 0 / 11px 7px;
   opacity: 0.6;
 }
-.st-cloud {
-  position: absolute;
-  inset-block-start: 0.5rem;
-  inset-inline-end: 30%;
-  inline-size: 3rem;
-  block-size: 1.25rem;
-  border-radius: 999px;
-  background: var(--ui-bg);
-  box-shadow:
-    0.75rem -0.5rem 0 -0.125rem var(--ui-bg),
-    1.5rem 0 0 -0.25rem var(--ui-bg);
-}
-.sr-ply-study[data-motion='on'] .st-cloud {
-  animation: st-float 7s ease-in-out infinite alternate;
-}
-@keyframes st-float {
-  to {
-    transform: translateX(-1.5rem);
-  }
-}
 
-/* ---- Title strip ---- */
+/* ---- Title bar: pink clay with a stitched seam ---- */
 .st-title {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding-block: 0.25rem;
-  padding-inline: 0.75rem;
-  margin-block-end: 0.5rem;
-  background: var(--st-pink);
-  border: 2px dashed var(--st-pink-lo);
-  border-radius: 14px;
+  min-block-size: 3rem;
+  padding-block: 0.375rem;
+  padding-inline: 0.75rem 0.5rem;
+  margin-block-end: 0.625rem;
+  border-radius: 20px;
+  background: linear-gradient(var(--st-pink-hi), var(--st-pink) 55%, var(--st-pink-lo));
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -3px 2px var(--st-pink-lo),
+    0 0 0 1px var(--st-pink-lo),
+    0 3px 0 var(--st-pink-dk),
+    0 6px 10px -4px var(--st-shadow);
 }
-.st-leaf {
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
-  border-radius: 0 70% 0 70%;
-  background: var(--st-sage-lo);
+.st-title::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 2px dashed var(--st-white);
+  border-radius: 16px;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.st-title-art {
+  flex: 0 0 auto;
+  inline-size: 3.25rem;
+  filter: drop-shadow(0 1.5px 0 var(--st-pink-dk));
+}
+.st-title-art svg {
+  inline-size: 100%;
+  block-size: auto;
 }
 .st-title-text {
+  position: relative;
   flex: 1 1 auto;
-  font-weight: 800;
-  font-size: 0.9375rem;
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 900;
+  font-size: 1.3125rem;
+  letter-spacing: 0.01em;
+  color: var(--st-rose-ink);
+  text-shadow:
+    0 1px 0 var(--st-shine),
+    0 -1px 0 var(--st-pink-lo);
+}
+.st-badge {
+  position: relative;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-inline-size: 0;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--st-butter), var(--st-butter-lo));
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -2px 1px var(--st-butter-lo),
+    0 0 0 1px var(--st-butter-lo),
+    0 2px 0 var(--st-cream-dk);
+  color: var(--st-cocoa);
+  font-weight: 800;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.st-badge > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.st-badge-mug {
+  flex: 0 0 auto;
+  inline-size: 1.375rem;
+}
+.st-badge-steam {
+  fill: none;
+  stroke: var(--st-cocoa);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  opacity: 0.7;
 }
 .st-win {
+  position: relative;
+  flex: 0 0 auto;
   display: inline-flex;
-  gap: 0.25rem;
+  gap: 0.375rem;
 }
-.st-dot {
+.sr-ply-study .st-dot {
   display: inline-grid;
   place-items: center;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
   border-radius: 50%;
-  border: 2px solid var(--ui-bg);
+  border: 0;
   color: var(--st-ink) !important;
   font-size: 0.875rem;
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -3px 3px var(--st-dot-lo),
+    0 0 0 1.5px var(--st-dot-lo),
+    0 2px 0 1px var(--st-dot-dk),
+    0 4px 6px -2px var(--st-shadow);
+  background: radial-gradient(
+    circle at 35% 28%,
+    var(--st-white) 0 14%,
+    var(--st-dot) 52%,
+    var(--st-dot-lo)
+  );
+}
+.st-dot:active {
+  transform: translateY(1px);
 }
 .st-dot-a {
-  background: var(--st-lilac);
+  --st-dot: var(--st-lilac);
+  --st-dot-lo: var(--st-lilac-lo);
+  --st-dot-dk: color-mix(in oklab, var(--st-lilac-lo) 70%, var(--ui-text));
 }
 .st-dot-b {
-  background: var(--st-cream-lo);
+  --st-dot: var(--st-butter);
+  --st-dot-lo: var(--st-butter-lo);
+  --st-dot-dk: color-mix(in oklab, var(--st-butter-lo) 70%, var(--ui-text));
 }
 .st-dot-c {
-  background: var(--st-pink-lo);
+  --st-dot: var(--st-pink);
+  --st-dot-lo: var(--st-pink-lo);
+  --st-dot-dk: color-mix(in oklab, var(--st-pink-lo) 70%, var(--ui-text));
 }
 
-/* ---- Grid ---- */
-.st-grid {
+/* ---- Shared little faces, clouds and leaves ---- */
+.st-cloud-fill {
+  fill: var(--st-white);
+  stroke: var(--st-cream-dk);
+  stroke-width: 1;
+}
+.st-face-eye {
+  fill: var(--st-ink);
+}
+.st-face-mouth {
+  fill: none;
+  stroke: var(--st-ink);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+.st-face-blush {
+  fill: var(--st-pink-lo);
+  opacity: 0.8;
+}
+.st-leaf {
+  fill: var(--st-mint-lo);
+  stroke: var(--st-mint-dk);
+  stroke-width: 1;
+}
+.st-leaf-vein {
+  fill: none;
+  stroke: var(--st-mint-dk);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+
+/* ---- Body grid ---- */
+.st-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.95fr);
-  grid-template-areas:
-    'deck play timer'
-    'deck notes queue';
-  gap: 0.5rem;
+  grid-template-columns: minmax(0, 0.98fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-inline: 0.25rem;
   min-inline-size: 0;
 }
+/* Three columns that stack on their own, like the desk in the picture; the last card of each fills the rest. */
+.st-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+.st-col > :last-child {
+  flex: 1 1 auto;
+}
+
+/* ---- Turntable on its mint pad ---- */
 .st-deck {
   grid-area: deck;
+  position: relative;
   display: grid;
-  gap: 0.5rem;
-  align-content: start;
+  place-items: center;
   min-inline-size: 0;
+  padding: 1rem;
+  padding-block-end: 1.5rem;
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse at 30% 15%, var(--st-mint-hi), transparent 70%),
+    linear-gradient(
+      var(--st-mint-hi),
+      var(--st-mint) 55%,
+      color-mix(in oklab, var(--st-mint) 70%, var(--st-mint-lo))
+    );
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -4px 4px var(--st-mint-lo),
+    0 0 0 1px var(--st-mint-lo),
+    0 4px 0 1px var(--st-mint-lo),
+    0 10px 16px -6px var(--st-shadow);
+}
+.st-deck::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 2px dashed var(--st-white);
+  border-radius: 19px;
+  opacity: 0.8;
+  pointer-events: none;
+}
+.st-deck-art {
+  position: absolute;
+  inset: 0;
+}
+.st-knob {
+  position: absolute;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--st-white) 0 25%,
+    var(--st-cream) 60%,
+    var(--st-cream-dk)
+  );
+  box-shadow:
+    0 0 0 1px var(--st-cream-dk),
+    0 2px 0 1px var(--st-mint-lo),
+    0 4px 5px -1px var(--st-shadow);
+}
+.st-knob-tl {
+  inset-block-start: 0.75rem;
+  inset-inline-start: 0.75rem;
+}
+.st-knob-br {
+  inset-block-end: 0.75rem;
+  inset-inline-end: 0.75rem;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+.st-knob-br::after {
+  content: '';
+  position: absolute;
+  inset: 30%;
+  border-radius: 50%;
+  background: var(--st-cream-lo);
+  box-shadow: inset 0 1px 1px var(--st-shadow);
+}
+.st-knob-lilac {
+  position: absolute;
+  inset-block-end: 0.5rem;
+  inset-inline-start: 0.5rem;
+  inline-size: 2.125rem;
+  block-size: 2.125rem;
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--st-white), var(--st-white)) 50% 22% / 3px 32% no-repeat,
+    radial-gradient(circle at 50% 50%, var(--st-lilac) 0 58%, transparent 61%),
+    radial-gradient(circle at 35% 28%, var(--st-lilac-hi), var(--st-lilac-lo));
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    0 0 0 1.5px var(--st-lilac-lo),
+    0 3px 0 1px color-mix(in oklab, var(--st-lilac-lo) 70%, var(--ui-text)),
+    0 5px 6px -2px var(--st-shadow);
+  transform: rotate(35deg);
+}
+.st-rpm {
+  position: absolute;
+  inset-block-end: 0.5rem;
+  inset-inline-start: 3.125rem;
+  font-size: 0.6875rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: var(--st-mint-dk);
+}
+.st-turntable {
+  position: relative;
+  inline-size: 100%;
 }
 .st-turntable svg {
   inline-size: 100%;
   block-size: auto;
-  max-block-size: 9rem;
 }
-.st-plinth {
-  fill: var(--st-sage);
-  stroke: var(--st-sage-lo);
-  stroke-width: 2;
+.st-stop-pink-hi {
+  stop-color: var(--st-pink-hi);
 }
-.st-vinyl {
-  fill: var(--st-pink-lo);
+.st-stop-pink {
+  stop-color: var(--st-pink);
+}
+.st-stop-pink-lo {
+  stop-color: var(--st-pink-lo);
+}
+.st-stop-butter {
+  stop-color: var(--st-butter-lo);
+}
+.st-platter-shadow {
+  fill: var(--st-mint-lo);
+  opacity: 0.8;
+}
+.st-platter {
+  fill: var(--st-cream-hi);
+  stroke: var(--st-cream-dk);
+  stroke-width: 1;
 }
 .st-groove {
   fill: none;
-  stroke: var(--st-pink);
-  stroke-width: 1;
+  stroke: var(--st-pink-lo);
+  stroke-width: 0.5;
+  opacity: 0.45;
+}
+.st-groove:nth-child(odd) {
+  stroke: var(--st-pink-hi);
+  opacity: 0.8;
+}
+.st-vinyl-rim {
+  fill: none;
+  stroke: var(--st-pink-lo);
+  stroke-width: 1.6;
 }
 .st-label {
-  fill: var(--st-cream);
+  fill: var(--st-cream-hi);
+  stroke: var(--st-pink-lo);
+  stroke-width: 1;
+}
+.st-label-stitch {
+  fill: none;
+  stroke: var(--st-pink-lo);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 1.6;
 }
 .st-berry {
-  fill: var(--ui-danger);
+  fill: color-mix(in oklch, var(--ui-danger) 72%, var(--ui-bg));
+  stroke: color-mix(in oklab, var(--ui-danger) 70%, var(--ui-text));
+  stroke-width: 0.8;
+}
+.st-berry-leaf {
+  fill: var(--st-mint-lo);
+  stroke: var(--st-mint-dk);
+  stroke-width: 0.6;
+  stroke-linejoin: round;
+}
+.st-berry-seed {
+  fill: var(--st-butter);
+}
+.st-sheen {
+  fill: var(--st-white);
+  opacity: 0.38;
 }
 .st-spindle {
-  fill: var(--st-ink);
+  fill: var(--st-cream-dk);
+  stroke: var(--st-cocoa);
+  stroke-width: 0.6;
+}
+.st-spindle-hi {
+  fill: var(--st-white);
 }
 .st-arm {
+  transform-box: view-box;
+  transform-origin: 136px 20px;
+  transform: rotate(-17deg);
+  transition: transform 900ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.sr-ply-study[data-status='playing'] .st-arm {
+  transform: rotate(0deg);
+}
+.st-arm-tube-shadow {
   fill: none;
-  stroke: var(--st-cream-lo);
-  stroke-width: 4;
+  stroke: var(--st-mint-lo);
+  stroke-width: 6;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+.st-arm-tube {
+  fill: none;
+  stroke: var(--st-cream-dk);
+  stroke-width: 6;
   stroke-linecap: round;
 }
+.st-arm-tube-hi {
+  fill: none;
+  stroke: var(--st-white);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.st-headshell {
+  fill: var(--st-cream-hi);
+  stroke: var(--st-cream-dk);
+  stroke-width: 1.4;
+}
 .st-arm-base {
-  fill: var(--st-cream);
-  stroke: var(--st-line);
+  fill: var(--st-cream-hi);
+  stroke: var(--st-cream-dk);
+  stroke-width: 1.4;
+}
+.st-arm-ring {
+  fill: var(--st-cream-lo);
+  stroke: var(--st-cream-dk);
+  stroke-width: 1;
 }
 .st-record {
   transform-box: view-box;
-  transform-origin: 54px 50px;
+  transform-origin: 70px 73px;
 }
 .sr-ply-study[data-motion='on'] .st-record {
-  animation: st-spin 4s linear infinite;
+  animation: st-spin 3.2s linear infinite;
 }
 @keyframes st-spin {
   to {
     transform: rotate(360deg);
   }
 }
-.st-screen {
-  display: grid;
-  gap: 0.25rem;
-  padding: 0.5rem;
+
+/* ---- Cards: soft clay slabs with a coloured rim ---- */
+.st-card {
+  --st-rim: var(--st-lilac);
+  --st-rim-lo: var(--st-lilac-lo);
+  position: relative;
   min-inline-size: 0;
-  background: var(--st-cream-lo);
-  border: 2px solid var(--st-sage-lo);
-  border-radius: 12px;
+  padding-block: 0.625rem;
+  padding-inline: 0.75rem;
+  border-radius: 22px;
+  border: 3px solid var(--st-rim);
+  background: linear-gradient(var(--st-cream-hi), var(--st-cream));
+  box-shadow:
+    inset 0 0 0 2px var(--st-white),
+    inset 0 -3px 4px var(--st-shadow-soft),
+    0 0 0 1px var(--st-rim-lo),
+    0 3px 0 1px var(--st-rim-lo),
+    0 9px 14px -6px var(--st-shadow);
 }
-.st-screen .sr-ply-ticker {
-  font-weight: 700;
-}
-.st-screen .sr-ply-time {
+.st-card-h {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--st-ink);
-  font-size: 1.25rem;
-  font-weight: 800;
-}
-.st-leds {
-  block-size: 0.875rem;
-}
-.st-leds > span {
-  border-radius: 3px;
 }
 
+/* ---- The pixel screen ---- */
+.st-screen {
+  grid-area: screen;
+  display: grid;
+  min-inline-size: 0;
+  padding: 0.5rem;
+  border-radius: 22px;
+  background: linear-gradient(var(--st-mint-hi), var(--st-mint) 60%, var(--st-mint-lo));
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -3px 3px var(--st-mint-lo),
+    0 0 0 1px var(--st-mint-lo),
+    0 3px 0 1px var(--st-mint-lo),
+    0 9px 14px -6px var(--st-shadow);
+}
+.st-lcd {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(7rem, 1.1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding-block: 0.625rem;
+  padding-inline: 0.625rem 0.75rem;
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(0deg, var(--st-shadow-soft) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, var(--st-shadow-soft) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 30% 20%, var(--st-cream-hi), var(--st-butter) 140%);
+  background-blend-mode: normal;
+  box-shadow:
+    inset 0 3px 5px var(--st-shadow),
+    inset 0 0 0 2px var(--st-mint-lo),
+    0 1px 0 var(--st-shine);
+  overflow: hidden;
+}
+.st-lcd::after {
+  /* Glass glare across the top. */
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 42%;
+  background: linear-gradient(var(--st-shine), transparent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.st-cat svg {
+  inline-size: 100%;
+  block-size: auto;
+}
+.st-px-o {
+  fill: color-mix(in oklab, var(--ui-warning) 30%, var(--ui-text));
+}
+.st-px-c {
+  fill: color-mix(in oklch, var(--st-orange) 62%, var(--ui-bg));
+}
+.st-px-s {
+  fill: color-mix(in oklch, var(--st-orange) 88%, var(--ui-bg));
+}
+.st-px-l {
+  fill: var(--st-white);
+}
+.st-px-p {
+  fill: var(--st-pink-lo);
+}
+.st-px-g {
+  fill: var(--st-mint-lo);
+}
+.st-px-r {
+  fill: var(--st-pink-lo);
+}
+.st-px-u {
+  fill: var(--st-sky-lo);
+}
+.st-px-band {
+  fill: var(--st-butter);
+}
+.st-px-page {
+  fill: var(--st-white);
+}
+.st-px-m {
+  fill: var(--st-white);
+}
+.st-px-steam,
+.st-px-z {
+  fill: var(--st-lilac-lo);
+}
+.st-px-z {
+  fill: color-mix(in oklch, var(--st-violet) 62%, var(--ui-bg));
+}
+.sr-ply-study[data-motion='on'] .st-z {
+  animation: st-z 3.2s ease-in-out infinite;
+}
+.sr-ply-study[data-motion='on'] .st-z2 {
+  animation-delay: 1.6s;
+}
+.sr-ply-study[data-motion='on'] .st-steam {
+  animation: st-steam 2.4s ease-in-out infinite alternate;
+}
+@keyframes st-z {
+  0% {
+    transform: translateY(2px);
+    opacity: 0;
+  }
+  30%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-2px);
+    opacity: 0;
+  }
+}
+@keyframes st-steam {
+  to {
+    transform: translateY(-1px);
+    opacity: 0.4;
+  }
+}
+.st-lcd-text {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+.st-now {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  font-weight: 800;
+  font-size: 0.9375rem;
+}
+.st-note-glyph {
+  flex: 0 0 auto;
+}
+.st-now .sr-ply-ticker {
+  flex: 1 1 auto;
+}
+.st-sub {
+  min-block-size: 1em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--st-ink-soft);
+}
+.st-lcd .sr-ply-time {
+  margin-block-start: 0.125rem;
+  color: var(--st-olive);
+  font-size: 1.75rem;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 var(--st-shine);
+}
+.st-leds {
+  block-size: 1.125rem;
+  gap: 3px !important;
+  margin-block-start: 0.25rem;
+}
+.st-leds > span {
+  border-radius: 5px !important;
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -2px 1px var(--st-shadow-soft);
+  opacity: clamp(0.6, calc((var(--src, 0) * var(--n, 14) - var(--i, 0)) * 3), 1) !important;
+}
+.st-leds > span:nth-child(1),
+.st-leds > span:nth-child(2) {
+  background: var(--st-pink-lo) !important;
+}
+.st-leds > span:nth-child(3),
+.st-leds > span:nth-child(4) {
+  background: var(--st-peach-lo) !important;
+}
+.st-leds > span:nth-child(5) {
+  background: var(--st-butter-lo) !important;
+}
+.st-leds > span:nth-child(6),
+.st-leds > span:nth-child(7) {
+  background: var(--st-mint-lo) !important;
+}
+.st-leds > span:nth-child(8) {
+  background: var(--st-sky-lo) !important;
+}
+.st-leds > span:nth-child(9),
+.st-leds > span:nth-child(10) {
+  background: var(--st-lilac-lo) !important;
+}
+
+/* ---- Seek ribbon with frosting and a bunny ---- */
 .st-play {
   grid-area: play;
   display: grid;
@@ -209,84 +732,251 @@
   align-content: start;
   min-inline-size: 0;
 }
-.st-seek {
-  accent-color: var(--st-pink-lo);
+.st-ribbon {
+  --st-bun: 2.5rem;
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
 }
+.st-ribbon-rail {
+  position: relative;
+  block-size: 2.25rem;
+}
+.st-ribbon-art {
+  position: absolute;
+  inset: 0;
+}
+.st-tube {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0.6rem;
+  block-size: 1.125rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(var(--st-pink-hi), var(--st-pink) 45%, var(--st-pink-lo));
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -2px 2px var(--st-pink-lo),
+    0 0 0 1.5px var(--st-pink-lo),
+    0 2px 0 1.5px var(--st-pink-dk),
+    0 4px 6px -2px var(--st-shadow);
+}
+.st-frosting {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: calc(var(--st-pct, 0) * (100% - var(--st-bun)) + var(--st-bun) / 2);
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(var(--st-pink), var(--st-pink-lo));
+  box-shadow: inset 0 2px 1px var(--st-shine);
+}
+.st-frosting svg {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 60rem;
+  block-size: 100%;
+}
+.st-wave {
+  fill: none;
+  stroke: var(--st-white);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.st-bunny {
+  position: absolute;
+  inset-block-start: -1.125rem;
+  inset-inline-start: calc(var(--st-pct, 0) * (100% - var(--st-bun)));
+  inline-size: var(--st-bun);
+  filter: drop-shadow(0 2px 0 var(--st-pink-lo)) drop-shadow(0 3px 3px var(--st-shadow));
+}
+.st-bunny svg {
+  inline-size: 100%;
+  block-size: auto;
+}
+.st-bunny-ear,
+.st-bunny-head {
+  fill: var(--st-white);
+  stroke: color-mix(in oklab, var(--st-cream-dk) 70%, var(--st-cocoa));
+  stroke-width: 1.1;
+}
+.st-bunny-ear-in {
+  fill: var(--st-pink-lo);
+}
+.st-seek {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 999px;
+}
+.st-seek::-webkit-slider-runnable-track {
+  block-size: 100%;
+  background: transparent;
+  border: 0;
+}
+.st-seek::-moz-range-track {
+  block-size: 100%;
+  background: transparent;
+  border: 0;
+}
+.st-seek::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: var(--st-bun);
+  block-size: 2.25rem;
+  background: transparent;
+  border: 0;
+  cursor: grab;
+}
+.st-seek::-moz-range-thumb {
+  inline-size: var(--st-bun);
+  block-size: 2.25rem;
+  background: transparent;
+  border: 0;
+  cursor: grab;
+}
+.st-ribbon-times {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 0.25rem;
+  font-family: 'IBM Plex Mono', var(--ui-font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--st-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.st-ribbon-rule {
+  flex: 1 1 auto;
+  block-size: 0;
+  border-block-start: 2px dotted var(--st-cream-dk);
+}
+
+/* ---- Transport keys: chunky clay buttons ---- */
 .st-keys {
   display: flex;
   justify-content: center;
-  gap: 0.375rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 .st-key {
+  --st-k: var(--st-lilac);
+  --st-k-hi: var(--st-lilac-hi);
+  --st-k-lo: var(--st-lilac-lo);
+  position: relative;
   display: inline-grid;
-  place-items: center;
-  inline-size: 2.5rem;
-  block-size: 2.5rem;
-  border-radius: 50%;
-  color: var(--st-ink) !important;
-  font-size: 1rem;
-  border: 2px solid var(--ui-bg);
-  box-shadow: 0 3px 0 var(--st-line);
 }
-.st-key-main {
-  inline-size: 3rem;
-  block-size: 3rem;
-  font-size: 1.25rem;
-}
-.st-key-lilac {
-  background: var(--st-lilac);
-}
-.st-key-sage {
-  background: var(--st-sage);
+.st-key-mint {
+  --st-k: var(--st-mint);
+  --st-k-hi: var(--st-mint-hi);
+  --st-k-lo: var(--st-mint-lo);
 }
 .st-key-peach {
-  background: var(--st-peach);
+  --st-k: var(--st-peach);
+  --st-k-hi: var(--st-peach-hi);
+  --st-k-lo: var(--st-peach-lo);
 }
-.st-mods {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  flex-wrap: wrap;
+.st-key-sky {
+  --st-k: var(--st-sky);
+  --st-k-hi: var(--st-sky-hi);
+  --st-k-lo: var(--st-sky-lo);
 }
-.st-mod {
+.sr-ply-study .st-key-btn {
   display: inline-grid;
   place-items: center;
-  inline-size: 2rem;
-  block-size: 2rem;
-  border-radius: 10px;
-  color: var(--st-ink) !important;
-  background: var(--ui-bg);
-  border: 2px solid var(--st-sage);
+  inline-size: 3.75rem;
+  block-size: 3.75rem;
+  padding: 0;
+  padding-block-start: 0.875rem;
+  border: 0;
+  border-radius: 50%;
+  color: color-mix(in oklab, var(--st-k-lo) 30%, var(--ui-text)) !important;
+  font-size: 1.375rem;
+  background: radial-gradient(
+    circle at 34% 26%,
+    var(--st-k-hi) 0 18%,
+    var(--st-k) 55%,
+    var(--st-k-lo) 100%
+  );
+  box-shadow:
+    inset 0 3px 2px var(--st-shine),
+    inset 0 -4px 5px var(--st-k-lo),
+    0 0 0 2px var(--st-k-lo),
+    0 4px 0 2px color-mix(in oklab, var(--st-k-lo) 78%, var(--ui-text)),
+    0 9px 12px -4px var(--st-shadow);
+  transition:
+    transform 80ms ease,
+    box-shadow 80ms ease;
 }
-.st-mod[aria-pressed='true'] {
-  background: var(--st-sage);
-  border-color: var(--st-sage-lo);
+.st-key-btn:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 3px 2px var(--st-shine),
+    inset 0 -3px 4px var(--st-k-lo),
+    0 0 0 2px var(--st-k-lo),
+    0 1px 0 2px color-mix(in oklab, var(--st-k-lo) 78%, var(--ui-text)),
+    0 3px 5px -2px var(--st-shadow);
 }
-.sr-ply-study .sr-ply-volume input {
-  accent-color: var(--st-lilac-lo);
-  inline-size: 5rem;
+.st-key-cap {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline: 0;
+  text-align: center;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--st-k-lo) 30%, var(--ui-text));
 }
 
-/* ---- Cards ---- */
-.st-card {
-  position: relative;
-  min-inline-size: 0;
-  padding: 0.5rem;
-  background: var(--ui-bg);
-  border: 2px solid var(--st-lilac);
-  border-radius: 14px;
-}
-.st-card-h {
-  margin: 0;
-  margin-block-end: 0.25rem;
-  font-size: 0.8125rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
+/* ---- Focus timer ---- */
 .st-timer {
   grid-area: timer;
+  display: grid;
+  gap: 0.25rem;
+  align-content: start;
+}
+.st-timer-head {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding-block-end: 0.25rem;
+  border-block-end: 2px dotted var(--st-lilac);
+}
+.st-tomato {
+  flex: 0 0 auto;
+  inline-size: 1.75rem;
+  filter: drop-shadow(0 1.5px 0 var(--st-pink-lo));
+}
+.st-tomato svg {
+  inline-size: 100%;
+  block-size: auto;
+}
+.st-tomato-body {
+  fill: color-mix(in oklch, var(--ui-danger) 72%, var(--ui-bg));
+  stroke: color-mix(in oklab, var(--ui-danger) 70%, var(--ui-text));
+  stroke-width: 1;
+}
+.st-tomato-shine {
+  fill: var(--st-white);
+  opacity: 0.6;
+}
+.st-tomato-leaf {
+  fill: var(--st-mint-lo);
+  stroke: var(--st-mint-dk);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+.st-tomato-stem {
+  fill: none;
+  stroke: var(--st-mint-dk);
+  stroke-width: 1.4;
+  stroke-linecap: round;
 }
 .st-timer-face {
   display: flex;
@@ -294,15 +984,45 @@
   justify-content: space-between;
   gap: 0.5rem;
 }
+.st-timer-read {
+  min-inline-size: 0;
+}
 .st-timer-clock {
-  font-size: 1.75rem;
-  font-weight: 800;
+  display: block;
+  font-size: 2.75rem;
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--st-plum);
+  text-shadow: 0 2px 0 var(--st-lilac);
+}
+.st-timer-seg {
+  margin: 0;
+  margin-block-start: 0.125rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--st-ink-soft);
+}
+.st-ring {
+  flex: 0 0 auto;
+  inline-size: 3.75rem;
+  filter: drop-shadow(0 2px 0 var(--st-lilac-lo));
 }
 .st-ring svg {
-  inline-size: 2.5rem;
-  block-size: 2.5rem;
+  inline-size: 100%;
+  block-size: auto;
+}
+.st-ring-plate {
+  fill: var(--st-cream-hi);
+  stroke: var(--st-lilac);
+  stroke-width: 1;
+}
+.st-ring-ticks {
+  fill: none;
+  stroke: var(--st-lilac-lo);
+  stroke-width: 1.2;
+  stroke-dasharray: 0.35 4.65;
 }
 .st-ring-bg {
   fill: none;
@@ -311,141 +1031,695 @@
 }
 .st-ring-fg {
   fill: none;
-  stroke: var(--st-pink-lo);
-  stroke-width: 5;
+  stroke-width: 6;
   stroke-linecap: round;
 }
-.st-timer[data-segment='short'] .st-ring-fg,
-.st-timer[data-segment='long'] .st-ring-fg {
-  stroke: var(--st-sage-lo);
-}
-.st-timer-seg {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--ui-text-muted);
+.st-ring-hub {
+  fill: var(--st-white);
+  stroke: var(--st-cream-lo);
+  stroke-width: 1;
 }
 .st-timer-btns {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 0.375rem;
   margin-block-start: 0.25rem;
 }
-.st-chip {
-  padding-block: 0.125rem;
-  padding-inline: 0.5rem;
-  min-block-size: 1.75rem;
+.sr-ply-study .st-chip {
+  --st-c: var(--st-cream-hi);
+  --st-c-lo: var(--st-cream-dk);
+  min-block-size: 2rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.625rem;
+  border: 0;
   border-radius: 999px;
   color: var(--st-ink) !important;
-  background: var(--st-pink);
-  border: 1px solid var(--st-pink-lo);
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
+  white-space: nowrap;
+  background: linear-gradient(var(--st-white), var(--st-c));
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -2px 2px var(--st-c-lo),
+    0 0 0 1.5px var(--st-c-lo),
+    0 3px 0 1px var(--st-c-lo),
+    0 5px 8px -3px var(--st-shadow);
 }
+.st-chip:active {
+  transform: translateY(2px);
+}
+.sr-ply-study .st-chip-main {
+  --st-c: var(--st-pink);
+  --st-c-lo: var(--st-pink-lo);
+  background: linear-gradient(var(--st-pink-hi), var(--st-pink));
+}
+.sr-ply-study .st-chip-round {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  padding: 0;
+  font-size: 1rem;
+  margin-inline-start: auto;
+}
+.st-reset-glyph {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---- Ambience mixer (painted; says it makes no sound yet) ---- */
+.st-mixer {
+  --st-rim: var(--st-peach);
+  --st-rim-lo: var(--st-peach-lo);
+  grid-area: mixer;
+  display: grid;
+  gap: 0.375rem;
+  align-content: start;
+  background: linear-gradient(var(--st-peach-hi), var(--st-cream));
+  cursor: help;
+}
+.st-mixer-h {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.st-rain-icon {
+  inline-size: 1.5rem;
+}
+.st-rain-icon svg {
+  inline-size: 100%;
+  block-size: auto;
+}
+.st-rain-drop {
+  stroke: var(--st-sky-lo);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.st-mixer-slots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.st-slot {
+  display: grid;
+  justify-items: center;
+  gap: 0.125rem;
+  padding-block: 0.5rem 0.375rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--st-cream-hi), var(--st-peach-hi));
+  box-shadow:
+    inset 0 2px 4px var(--st-shadow-soft),
+    inset 0 0 0 1.5px var(--st-peach),
+    0 1px 0 var(--st-shine);
+}
+.st-slot-track {
+  position: relative;
+  inline-size: 100%;
+  block-size: 5.75rem;
+}
+.st-slot-groove {
+  position: absolute;
+  inset-block: 0.375rem;
+  inset-inline-start: calc(50% - 3px);
+  inline-size: 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--st-cocoa) 70%, var(--st-peach-lo));
+  box-shadow: inset 0 1px 2px var(--st-shadow);
+}
+.st-slot-thumb {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: calc(var(--v, 0.5) * (100% - 2rem));
+  display: grid;
+  place-items: center;
+  block-size: 2rem;
+  filter: drop-shadow(0 2px 0 var(--st-peach-lo)) drop-shadow(0 3px 3px var(--st-shadow));
+}
+.st-slot-thumb svg {
+  inline-size: 2.125rem;
+  block-size: auto;
+}
+.st-thumb-vinyl {
+  fill: var(--st-peach-lo);
+  stroke: color-mix(in oklab, var(--st-peach-lo) 70%, var(--ui-text));
+  stroke-width: 1;
+}
+.st-thumb-groove {
+  fill: none;
+  stroke: var(--st-peach);
+  stroke-width: 1;
+}
+.st-thumb-label {
+  fill: var(--st-cream-hi);
+}
+.st-thumb-saucer {
+  fill: var(--st-pink);
+  stroke: var(--st-pink-lo);
+  stroke-width: 1;
+}
+.st-thumb-cup {
+  fill: var(--st-white);
+  stroke: var(--st-cream-dk);
+  stroke-width: 1.2;
+}
+.st-thumb-handle {
+  fill: none;
+  stroke: var(--st-cream-dk);
+  stroke-width: 2;
+}
+.st-thumb-tea {
+  fill: color-mix(in oklab, var(--st-cocoa) 55%, var(--st-peach));
+}
+.st-slot-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--st-ink);
+}
+.st-slot-val {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--st-ink-soft);
+}
+.st-mixer-note {
+  margin: 0;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--st-ink-soft);
+  text-align: center;
+}
+
+/* ---- Notebook ---- */
 .st-notes {
+  --st-rim: var(--st-cream-lo);
+  --st-rim-lo: var(--st-cream-dk);
+  --st-line-gap: 1.625rem;
   grid-area: notes;
-  padding-block-start: 1rem;
-  border-color: var(--st-cream-lo);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-block-start: 0.75rem;
+  padding-block-start: 1.125rem;
+  padding-inline-start: 2.25rem;
+  border-radius: 14px 14px 22px 22px;
   background:
     linear-gradient(
-        transparent 1.3rem,
-        var(--st-sky) 1.3rem,
-        var(--st-sky) calc(1.3rem + 1px),
-        transparent calc(1.3rem + 1px)
-      )
-      0 0 / 100% 1.35rem,
-    var(--ui-bg);
+      90deg,
+      transparent 1.6rem,
+      var(--st-pink) 1.6rem,
+      var(--st-pink) calc(1.6rem + 2px),
+      transparent calc(1.6rem + 2px)
+    ),
+    linear-gradient(var(--st-white), var(--st-cream-hi));
 }
+/* Spiral binding: each coil loops over the top edge into a punched hole. */
 .st-rings {
   position: absolute;
-  inset-block-start: -0.375rem;
-  inset-inline: 0.75rem;
-  block-size: 0.75rem;
-  background: radial-gradient(
-      circle,
-      transparent 3px,
-      var(--st-line) 3.5px,
-      var(--st-line) 4.5px,
-      transparent 5px
-    )
-    0 0 / 1.25rem 0.75rem repeat-x;
+  inset-block-start: -1rem;
+  inset-inline: 1rem;
+  display: flex;
+  justify-content: space-between;
+  overflow: hidden;
+  block-size: 2rem;
+}
+.st-rings > i {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 1.125rem;
+  block-size: 2rem;
+}
+.st-rings > i::before {
+  /* The punched hole in the paper. */
+  content: '';
+  position: absolute;
+  inset-block-end: 0.3125rem;
+  inset-inline-start: 0.25rem;
+  inline-size: 0.625rem;
+  block-size: 0.4375rem;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--st-cocoa) 40%, var(--st-cream-dk));
+  box-shadow:
+    inset 0 2px 2px var(--st-shadow),
+    0 1px 0 var(--st-shine);
+}
+.st-rings > i::after {
+  /* The wire coil: a silver loop over the edge, lit from the top left. */
+  content: '';
+  position: absolute;
+  inset-block: 0 0.5rem;
+  inset-inline-start: 0.1875rem;
+  inline-size: 0.75rem;
+  border-radius: 999px 999px 40% 40%;
+  border: 3px solid color-mix(in oklab, var(--ui-text) 30%, var(--ui-bg));
+  border-block-end-color: transparent;
+  border-inline-start-color: color-mix(in oklab, var(--ui-text) 14%, var(--ui-bg));
+  box-shadow:
+    inset 1px 1px 0 var(--st-white),
+    1px 2px 1px var(--st-shadow);
+}
+.st-notes-h {
+  font-family: 'Newsreader', var(--ui-font-body);
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--st-rose-ink);
 }
 .st-notes-text {
+  flex: 1 1 auto;
   inline-size: 100%;
-  resize: vertical;
-  font: inherit;
-  font-size: 0.8125rem;
+  min-block-size: calc(var(--st-line-gap) * 3 + 0.25rem);
+  resize: none;
+  padding: 0;
+  padding-block-start: 0.125rem;
+  border: 0;
+  border-radius: 4px;
+  font-family: 'Newsreader', var(--ui-font-body);
+  font-style: italic;
+  font-size: 1.0625rem;
+  line-height: var(--st-line-gap);
   color: var(--st-ink);
-  background: transparent;
-  border: 1px dashed var(--st-line);
-  border-radius: 8px;
-  padding: 0.25rem;
+  background: repeating-linear-gradient(
+      transparent 0 calc(var(--st-line-gap) - 1px),
+      var(--st-sky) calc(var(--st-line-gap) - 1px) var(--st-line-gap)
+    )
+    0 0.125rem;
+  background-attachment: local;
 }
 .st-notes-text::placeholder {
-  color: var(--ui-text-muted);
+  color: var(--st-ink-soft);
+  opacity: 1;
 }
 .st-notes-where {
   margin: 0;
-  font-size: 0.6875rem;
-  color: var(--ui-text-muted);
+  padding-inline-end: 4rem;
+  font-size: 0.75rem;
+  color: var(--st-ink-soft);
 }
+.st-stickers {
+  position: absolute;
+  inset-block-end: 0.375rem;
+  inset-inline-end: 0.5rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.125rem;
+}
+.st-pencil {
+  inline-size: 2.75rem;
+  filter: drop-shadow(0 1px 0 var(--st-cream-dk));
+}
+.st-pencil-body {
+  fill: var(--st-butter-lo);
+  stroke: var(--st-cocoa);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+.st-pencil-eraser {
+  fill: var(--st-pink-lo);
+  stroke: var(--st-cocoa);
+  stroke-width: 0.8;
+}
+.st-pencil-tip {
+  fill: var(--st-cream-lo);
+  stroke: var(--st-cocoa);
+  stroke-width: 0.8;
+}
+.st-pencil-line {
+  stroke: var(--st-butter);
+  stroke-width: 1;
+}
+.st-heart {
+  inline-size: 1.5rem;
+  transform: rotate(-12deg);
+  filter: drop-shadow(0 1.5px 0 var(--st-pink-dk));
+}
+.st-heart-body {
+  fill: var(--st-pink-lo);
+  stroke: var(--st-pink-dk);
+  stroke-width: 1;
+}
+.st-heart-shine {
+  fill: var(--st-white);
+  opacity: 0.7;
+}
+
+/* ---- Queue ---- */
 .st-queue-card {
+  --st-rim: var(--st-mint);
+  --st-rim-lo: var(--st-mint-lo);
   grid-area: queue;
-  border-color: var(--st-sage);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-block-start: 0.375rem;
+  padding-inline: 0.375rem;
+  background: linear-gradient(var(--st-mint-hi), var(--st-cream));
+}
+.st-queue-h {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding-block: 0.375rem;
+  padding-inline: 0.5rem 0.625rem;
+  border-radius: 16px;
+  color: var(--st-cream-hi);
+  background: linear-gradient(
+    color-mix(in oklab, var(--st-mint-dk) 80%, var(--st-mint-lo)),
+    var(--st-mint-dk)
+  );
+  box-shadow:
+    inset 0 1.5px 0 color-mix(in oklab, var(--st-mint-lo) 70%, transparent),
+    0 2px 0 color-mix(in oklab, var(--st-mint-dk) 70%, var(--ui-text));
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.9375rem;
+  min-inline-size: 0;
+}
+.st-queue-leaf {
+  flex: 0 0 auto;
+  inline-size: 1.25rem;
+}
+.st-queue-leaf svg {
+  inline-size: 100%;
+  block-size: auto;
+}
+.st-queue-title {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-queue-count {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 .st-queue {
+  flex: 1 1 auto;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0.125rem;
   display: grid;
-  gap: 0.25rem;
-  max-block-size: 7.5rem;
+  align-content: start;
+  gap: 0.375rem;
+  max-block-size: 11rem;
   overflow-y: auto;
+  scrollbar-width: thin;
+  /* Empty slots painted under the list, so a short queue still reads as a card of rows. */
+  background: repeating-linear-gradient(
+      transparent 0 0.125rem,
+      color-mix(in oklab, var(--st-mint-hi) 70%, var(--st-cream)) 0.125rem 2.375rem,
+      transparent 2.375rem 2.75rem
+    )
+    0 0 / 100% 100% local;
+  border-radius: 12px;
 }
-.st-queue button {
+@container (min-width: 50.01rem) {
+  .st-queue {
+    contain: size;
+    min-block-size: 8rem;
+    max-block-size: none;
+  }
+}
+.sr-ply-study .st-queue button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   gap: 0.375rem;
   inline-size: 100%;
+  min-block-size: 2.25rem;
   padding-block: 0.25rem;
-  padding-inline: 0.375rem;
+  padding-inline: 0.625rem;
   text-align: start;
-  background: var(--st-cream);
-  border: 1px solid var(--st-sage);
-  border-radius: 8px;
-  font-size: 0.75rem;
+  border: 0;
+  border-radius: 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--st-ink) !important;
+  background: linear-gradient(var(--st-white), var(--st-cream));
+  box-shadow:
+    inset 0 1px 0 var(--st-shine),
+    0 0 0 1px var(--st-cream-lo),
+    0 2px 0 1px var(--st-cream-lo);
 }
-.st-queue li[data-current='true'] button {
-  background: var(--st-sage);
-  font-weight: 700;
+.sr-ply-study .st-queue li[data-current='true'] button {
+  font-weight: 800;
+  background: linear-gradient(var(--st-mint-hi), var(--st-mint));
+  box-shadow:
+    inset 0 1px 0 var(--st-shine),
+    0 0 0 1px var(--st-mint-lo),
+    0 2px 0 1px var(--st-mint-lo);
+}
+.st-queue .sr-ply-q-n {
+  color: var(--st-ink-soft);
+  font-variant-numeric: tabular-nums;
 }
 .st-queue .sr-ply-q-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.st-queue .sr-ply-q-len {
+  font-variant-numeric: tabular-nums;
+}
+.st-queue-card .sr-ply-empty {
+  color: var(--st-ink-soft);
+}
+.st-queue-foot {
+  display: flex;
+  align-items: stretch;
+  gap: 0.375rem;
+  padding-block-start: 0.375rem;
+  border-block-start: 2px dotted var(--st-mint);
+}
+.st-tile {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+}
+.sr-ply-study .st-tile-btn {
+  display: inline-grid;
+  place-items: start center;
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  padding: 0;
+  padding-block-start: 0.4rem;
+  border: 0;
+  border-radius: 14px;
+  color: var(--st-ink) !important;
+  font-size: 1.25rem;
+  background: linear-gradient(var(--st-white), var(--st-cream));
+  box-shadow:
+    inset 0 2px 1px var(--st-shine),
+    inset 0 -2px 2px var(--st-cream-lo),
+    0 0 0 1.5px var(--st-cream-dk),
+    0 3px 0 1px var(--st-cream-dk),
+    0 5px 8px -3px var(--st-shadow);
+}
+.st-tile-btn[aria-pressed='true'] {
+  background: linear-gradient(var(--st-mint-hi), var(--st-mint));
+  box-shadow:
+    inset 0 2px 3px var(--st-shadow-soft),
+    0 0 0 1.5px var(--st-mint-lo),
+    0 1px 0 1px var(--st-mint-lo);
+  transform: translateY(2px);
+}
+.st-tile-cap {
+  position: absolute;
+  inset-block-end: 0.375rem;
+  inset-inline: 0;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: var(--st-ink);
+}
+.st-tile-vol {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.st-tile-vol .sr-ply-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-inline-size: 0;
+  padding-inline-end: 0.25rem;
+}
+.st-tile-vol .st-tile-btn {
+  flex: 0 0 auto;
+  inline-size: 2.5rem;
+  place-items: center;
+  padding: 0;
+}
+.sr-ply-study .st-tile-vol input[type='range'] {
+  flex: 1 1 auto;
+  inline-size: auto;
+  min-inline-size: 2.5rem;
+  block-size: 1.25rem;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.sr-ply-study .st-tile-vol input[type='range']::-webkit-slider-runnable-track {
+  block-size: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--st-lilac), var(--st-lilac-lo));
+  box-shadow: inset 0 1px 2px var(--st-shadow);
+}
+.sr-ply-study .st-tile-vol input[type='range']::-moz-range-track {
+  block-size: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--st-lilac), var(--st-lilac-lo));
+  box-shadow: inset 0 1px 2px var(--st-shadow);
+}
+.sr-ply-study .st-tile-vol input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  margin-block-start: -0.3125rem;
+  border-radius: 50%;
+  border: 0;
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--st-white) 0 20%,
+    var(--st-pink) 60%,
+    var(--st-pink-lo)
+  );
+  box-shadow:
+    0 0 0 1.5px var(--st-pink-dk),
+    0 2px 2px var(--st-shadow);
+}
+.sr-ply-study .st-tile-vol input[type='range']::-moz-range-thumb {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  border-radius: 50%;
+  border: 0;
+  background: radial-gradient(
+    circle at 35% 30%,
+    var(--st-white) 0 20%,
+    var(--st-pink) 60%,
+    var(--st-pink-lo)
+  );
+  box-shadow:
+    0 0 0 1.5px var(--st-pink-dk),
+    0 2px 2px var(--st-shadow);
+}
 
-@container (max-width: 40rem) {
-  .st-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+/* ---- Narrower shells ---- */
+@container (max-width: 50rem) {
+  .st-col {
+    display: contents;
+  }
+  .st-body {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
     grid-template-areas:
+      'deck screen'
       'deck play'
       'timer notes'
-      'queue queue';
+      'mixer queue';
+  }
+  .st-badge {
+    display: none;
   }
 }
-@container (max-width: 30rem) {
-  .st-grid {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'deck' 'play' 'timer' 'notes' 'queue';
+@container (max-width: 34rem) {
+  .sr-ply-study {
+    padding: 0.375rem;
+    border-width: 0.375rem;
+    border-radius: 24px;
+  }
+  .st-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'screen screen'
+      'play play'
+      'deck timer'
+      'notes notes'
+      'queue queue'
+      'mixer mixer';
+    gap: 0.625rem;
+    padding-inline: 0;
+  }
+  .st-title {
+    min-block-size: 2.75rem;
+    padding-inline: 0.5rem 0.375rem;
+  }
+  .st-title-art {
+    inline-size: 2.5rem;
+  }
+  .st-title-text {
+    font-size: 1rem;
+  }
+  .sr-ply-study .st-dot {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+  }
+  .st-lcd {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+  .st-lcd .sr-ply-time {
+    font-size: 1.5rem;
+  }
+  .sr-ply-study .st-key-btn {
+    inline-size: 3.25rem;
+    block-size: 3.25rem;
+    font-size: 1.125rem;
+  }
+  .st-keys {
+    gap: 0.625rem;
+  }
+  .st-timer {
+    padding-inline: 0.5rem;
+  }
+  .st-timer-clock {
+    font-size: 2rem;
+  }
+  .st-ring {
+    inline-size: 2.5rem;
+  }
+  .st-timer-btns .st-chip {
+    flex: 1 1 auto;
+    padding-inline: 0.5rem;
+    font-size: 0.75rem;
+  }
+  .st-slot-track {
+    block-size: 4.5rem;
   }
   .st-deck {
-    grid-template-columns: 5.5rem minmax(0, 1fr);
-    align-items: center;
+    padding: 0.625rem;
+    padding-block-end: 1.75rem;
   }
-  .st-turntable svg {
-    max-block-size: 4.75rem;
+  .st-knob-tl {
+    inset-block-start: 0.5rem;
+    inset-inline-start: 0.5rem;
+    inline-size: 1.125rem;
+    block-size: 1.125rem;
   }
-  .st-queue {
-    max-block-size: 6rem;
+  .st-knob-br {
+    inset-block-end: 0.5rem;
+    inset-inline-end: 0.5rem;
+    inline-size: 1rem;
+    block-size: 1rem;
   }
+  .st-knob-lilac {
+    inline-size: 1.625rem;
+    block-size: 1.625rem;
+    inset-block-end: 0.375rem;
+    inset-inline-start: 0.375rem;
+  }
+  .st-rpm {
+    inset-inline-start: 2.375rem;
+    inset-block-end: 0.375rem;
+    font-size: 0.625rem;
+  }
+}
+.st-queue-leaf .st-leaf {
+  fill: var(--st-mint);
+  stroke: var(--st-mint-hi);
+}
+.st-queue-leaf .st-leaf-vein {
+  stroke: var(--st-mint-hi);
 }
