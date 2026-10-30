@@ -157,8 +157,19 @@ export function measureFit(page: Page): Promise<Fit> {
       if (d.classList.contains('sr-ply-ticker-text') || d.closest('.sr-ply-pane')) continue;
       const b = d.getBoundingClientRect();
       if (b.width === 0 && b.height === 0) continue;
-      if (b.right > r.right + 0.5 || b.left < r.left - 0.5)
-        escaping.push(`${d.tagName.toLowerCase()}.${d.className || ''}`);
+      // What is visible of the box: an ancestor inside the panel that clips its overflow (a backdrop skin's gel
+      // wing around a scrolling wave, say) cuts the box down before it can reach the panel's edge.
+      let left = b.left;
+      let right = b.right;
+      for (let a = d.parentElement; a && a !== el; a = a.parentElement) {
+        if (getComputedStyle(a).overflowX === 'visible') continue;
+        const ar = a.getBoundingClientRect();
+        left = Math.max(left, ar.left);
+        right = Math.min(right, ar.right);
+      }
+      if (right <= left) continue;
+      if (right > r.right + 0.5 || left < r.left - 0.5)
+        escaping.push(`${d.tagName.toLowerCase()}.${d.getAttribute('class') ?? ''}`);
     }
     return {
       viewport: { width: vw, height: vh },
