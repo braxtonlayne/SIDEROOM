@@ -157,8 +157,34 @@ const toolsSearch = (m) => ({
   },
 });
 
+// UTL-IMG-001 (utl-image): the GIF encoder and the palette extraction.
+const toolsGif = (m) => {
+  const [maxDurationMs, maxBytes, maxEdge, minDelayCs] = m.gifLimits();
+  return {
+    limits: { maxDurationMs, maxBytes, maxEdge, minDelayCs },
+    /** A builder: addFrame(rgba) per frame, then finish() gives the GIF bytes. Errors carry a GIF_* code. */
+    create: (width, height, delayCs) => {
+      const b = new m.GifBuilder(width, height, delayCs);
+      return {
+        addFrame: (rgba) => b.addFrame(rgba),
+        finish: () => b.finish(),
+        get frameCount() {
+          return b.frameCount;
+        },
+        get maxFrames() {
+          return b.maxFrames;
+        },
+        free: () => b.free(),
+      };
+    },
+  };
+};
+const toolsPalette = (m) => ({
+  extract: (rgba, k = 6) => JSON.parse(m.extractPalette(rgba, k)),
+});
+
 export const loadTools = once(async (wasmUrl) => {
   const m = await import('../dist/tools/tools.js');
   await m.default({ module_or_path: wasmUrl });
-  return { raw: m, search: toolsSearch(m) };
+  return { raw: m, search: toolsSearch(m), gif: toolsGif(m), palette: toolsPalette(m) };
 });
