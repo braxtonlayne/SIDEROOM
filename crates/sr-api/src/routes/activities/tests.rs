@@ -586,3 +586,47 @@ async fn hosts_and_origins_come_from_the_public_url() {
     assert_eq!(d.app_origin, "http://localhost:8080");
     assert_eq!(d.activity_origin(5), "http://5.activities.localhost:8080");
 }
+
+/// SEC-ENT-003 (docs/dev/entrance-isolation.md section 6): the activity host serves a third party's reviewed
+/// document and nothing of ours, so no response from it (document, script, refusal, headers) ever names `/app/`,
+/// `/entrance/` or the app shell, whatever path was asked for.
+#[tokio::test]
+async fn a_response_never_references_the_app_or_the_entrance() {
+    let (d, _f) = rig(true).await;
+    let bundle = bundle_spec();
+    let dev = dev_spec();
+    let mut seen = 0;
+    for spec in [&bundle, &dev] {
+        for path in [
+            "/",
+            "/app.js",
+            "/sub/",
+            "/img/logo.png",
+            "/app/x.js",
+            "/entrance/index.js",
+            "/app.html",
+            "/api/x",
+            "/nope.js",
+            "/../x.js",
+        ] {
+            let (s, h, body) = text(proxy::serve(&d, APP, spec, path).await).await;
+            seen += 1;
+            let mut all = body;
+            for (k, v) in &h {
+                all.push_str(&format!("\n{k}: {}", v.to_str().unwrap_or("")));
+            }
+            for forbidden in ["/app/", "/entrance/", "app.html", "csp.txt"] {
+                // The request path itself may echo into a refusal; a body that merely repeats a path the
+                // caller asked for is not a reference to our files, so only the answers to ordinary paths count.
+                if path.contains(forbidden.trim_matches('/')) {
+                    continue;
+                }
+                assert!(
+                    !all.contains(forbidden),
+                    "{path} ({s}) mentions {forbidden}: {all}"
+                );
+            }
+        }
+    }
+    assert!(seen > 0);
+}

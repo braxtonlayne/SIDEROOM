@@ -1783,6 +1783,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             }
         });
     }
+    let web_gate =
+        crate::web::WebGate::from_config(&cfg, Arc::new(crate::web::ComplianceOperator))?;
+    let web_state = state.clone();
     let mut app = build_router(state, api)
         .merge(gateway_routes)
         .merge(cdn_routes)
@@ -1791,6 +1794,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let sfu = voice_setup.map(|v| v.sfu);
     if let Some(s) = &sfu {
         app = app.merge(with_request_id(sr_voice::router(s.clone())));
+    }
+    // The web app, behind the session check (SEC-ENT-003): its routes and the fallback for every other path.
+    if let Some(gate) = &web_gate {
+        app = gate.install(app, web_state);
     }
     // Last, so every route (gateway, CDN, SFU included) answers an activity host the same way: not at all.
     let app = routes::activities::proxy::wrap_activity_host(app, activities_deps.clone());

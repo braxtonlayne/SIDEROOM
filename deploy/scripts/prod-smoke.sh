@@ -267,7 +267,7 @@ stage_preflight() {
   cli sideroom preflight --insecure-tls --json >"$json" || true
   node -e '
     const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const allowed = { "public-url": ["warn"], smtp: ["pass", "warn", "fail"], turn: ["pass", "warn"], disk: ["pass", "warn"] };
+    const allowed = { "public-url": ["warn"], smtp: ["pass", "warn", "fail"], turn: ["pass", "warn"], disk: ["pass", "warn"], web: ["pass", "warn"] };
     const bad = r.checks.filter((c) => !(allowed[c.id] ?? ["pass"]).includes(c.status));
     for (const c of r.checks) console.log(`${c.status.padEnd(4)}  ${c.id.padEnd(12)}  ${c.detail}`);
     for (const id of ["database", "migrations", "storage", "public-url", "vapid", "secrets"]) {

@@ -10,6 +10,9 @@ Group=sideroom
 # Config path and secrets: SR_CONFIG=/etc/sideroom/config.toml, SR_SERVER__SECRET_KEY, SR_DATABASE__URL,
 # SR_STORAGE__ACCESS_KEY, SR_STORAGE__SECRET_KEY, SR_SMTP__PASSWORD. Mode 0600, owned by root.
 EnvironmentFile=/etc/sideroom/server.env
+# The built apps/web/dist, read-only: the server serves /app and /app/* from it to a signed-in session only (D-385).
+# The server refuses to start when the folder has no app/csp.txt. A different path goes in server.env.
+Environment=SR_WEB__ROOT=/opt/sideroom/web
 ExecStart=/opt/sideroom/bin/sr-server serve
 Restart=on-failure
 RestartSec=3

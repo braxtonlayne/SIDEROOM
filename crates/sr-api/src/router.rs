@@ -98,8 +98,22 @@ async fn origin_check(
 
 /// The API reference viewer (doc 05 section 4), a single static page that
 /// embeds the OpenAPI document.
-async fn api_docs(State(state): State<AppState>) -> Html<String> {
-    Html(utoipa_scalar::Scalar::new(state.openapi().clone()).to_html())
+async fn api_docs(
+    State(state): State<AppState>,
+    who: Result<crate::Principal, crate::HttpError>,
+) -> Response {
+    if who.is_err() {
+        // Not signed in: the viewer lists every path of the API, so it is for a principal only (SEC-ENT-003).
+        return (
+            StatusCode::FOUND,
+            [
+                (header::LOCATION, "/login?next=/developers/docs/api"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
+        )
+            .into_response();
+    }
+    Html(utoipa_scalar::Scalar::new(state.openapi().clone()).to_html()).into_response()
 }
 
 /// Router for the loopback-only operations listener: `/internal/metrics`.
@@ -117,11 +131,26 @@ async fn share_fallback() -> axum::response::Redirect {
     axum::response::Redirect::to("/share")
 }
 
-async fn not_found() -> (StatusCode, axum::Json<serde_json::Value>) {
+/// The fallback: an unknown path answers `404` with the Discord-shaped body, except under `/api/`, where an
+/// anonymous caller gets `401` whether the path exists or not (SEC-ENT-003, no existence oracle: a real route is
+/// `401` for them, so the unknown one must not be `404`). A caller with a principal sees the `404`.
+pub async fn not_found(State(state): State<AppState>, req: Request<axum::body::Body>) -> Response {
+    if req.uri().path().starts_with("/api/") {
+        let (mut parts, _) = req.into_parts();
+        if let Err(e) =
+            <crate::Principal as axum::extract::FromRequestParts<AppState>>::from_request_parts(
+                &mut parts, &state,
+            )
+            .await
+        {
+            return e.into_response();
+        }
+    }
     (
         StatusCode::NOT_FOUND,
         axum::Json(serde_json::json!({ "code": 0, "message": "404: Not Found" })),
     )
+        .into_response()
 }
 
 fn cors(state: &AppState) -> CorsLayer {

@@ -1416,6 +1416,8 @@ async fn sessions_list_revoke_logout() {
         .await;
     assert_eq!(out.status, StatusCode::NO_CONTENT);
     assert_eq!(out.cookie("sr_session").as_deref(), Some(""));
+    // SEC-ENT-003: the browser empties its cache and storage on sign-out.
+    assert_eq!(out.headers["clear-site-data"], "\"cache\", \"storage\"");
     assert_eq!(
         h.get("/api/v1/users/@me").session(&s2).send().await.status,
         StatusCode::UNAUTHORIZED
@@ -1447,6 +1449,7 @@ async fn logout_all_revokes_everything_and_sessions_are_user_scoped() {
         .send()
         .await;
     assert_eq!(r.status, StatusCode::NO_CONTENT);
+    assert_eq!(r.headers["clear-site-data"], "\"cache\", \"storage\"");
     for s in [&a1, &a2] {
         assert_eq!(
             h.get("/api/v1/users/@me").session(s).send().await.status,

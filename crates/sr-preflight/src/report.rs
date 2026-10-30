@@ -37,6 +37,7 @@ pub const CHECK_IDS: &[&str] = &[
     "secrets",
     "esplora",
     "voice",
+    "web",
 ];
 
 /// The extra rows of `sr-cli preflight`: `--send-to` adds `mail-send`, `--alert-test` adds `alert-card` and
