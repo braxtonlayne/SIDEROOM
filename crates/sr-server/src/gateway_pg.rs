@@ -867,6 +867,8 @@ impl GuildDirectory for PgGuildDirectory {
                 bitrate: c.bitrate,
                 age_restricted: c.nsfw,
                 video_quality: c.video_quality_mode,
+                music_allowed: c.music_allowed,
+                music_bitrate_kbps: c.music_bitrate_kbps,
             }),
             Ok(_) => None,
             Err(e) => {

@@ -191,7 +191,7 @@ pub(crate) const CHANNEL_SELECT: &str = "SELECT c.id, c.guild_id, c.type, c.name
     c.position, c.parent_id, c.nsfw, c.rate_limit_per_user, c.bitrate, c.user_limit, \
     c.last_message_id, c.owner_id, c.flags, c.available_tags, c.default_reaction_emoji, \
     c.default_sort_order, c.default_forum_layout, c.default_thread_rate_limit, \
-    c.default_auto_archive_duration, c.video_quality_mode, \
+    c.default_auto_archive_duration, c.video_quality_mode, c.music_allowed, c.music_bitrate_kbps, \
     EXISTS (SELECT 1 FROM watch_parties wp WHERE wp.channel_id = c.id \
             AND wp.persistent AND wp.ended_at_ms IS NULL) AS wp_room, \
     tm.archived AS t_archived, tm.auto_archive_duration AS t_auto_archive, \
@@ -282,6 +282,9 @@ pub(crate) fn channel_from(r: &PgRow) -> RepoResult<Channel> {
         video_quality_mode: u8::try_from(r.try_get::<i16, _>("video_quality_mode").map_err(db)?)
             .unwrap_or(1),
         watch_party_room: r.try_get::<bool, _>("wp_room").unwrap_or(false),
+        music_allowed: r.try_get::<bool, _>("music_allowed").map_err(db)?,
+        music_bitrate_kbps: u16::try_from(r.try_get::<i16, _>("music_bitrate_kbps").map_err(db)?)
+            .unwrap_or(sr_chat::domain::MUSIC_BITRATE_DEFAULT_KBPS),
     })
 }
 
@@ -375,8 +378,9 @@ fn ids_i64<T: Copy>(v: &[T], f: impl Fn(T) -> u64) -> Vec<i64> {
 pub(crate) const INSERT_CHANNEL: &str = "INSERT INTO channels (id, guild_id, type, name, topic, position, \
     parent_id, nsfw, rate_limit_per_user, bitrate, user_limit, owner_id, flags, available_tags, \
     default_reaction_emoji, default_sort_order, default_forum_layout, default_thread_rate_limit, \
-    default_auto_archive_duration, video_quality_mode) \
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)";
+    default_auto_archive_duration, video_quality_mode, music_allowed, music_bitrate_kbps) \
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, \
+    $21, $22)";
 
 fn tags_json(c: &Channel) -> Option<serde_json::Value> {
     (!c.forum.available_tags.is_empty())
@@ -418,6 +422,8 @@ pub(crate) fn bind_channel<'q>(
         .bind(opt_i32(c.forum.default_thread_rate_limit))
         .bind(opt_i32(c.forum.default_auto_archive_duration))
         .bind(i16::from(c.video_quality_mode))
+        .bind(c.music_allowed)
+        .bind(i16::try_from(c.music_bitrate_kbps).unwrap_or(256))
 }
 
 #[async_trait]
@@ -921,6 +927,7 @@ impl ChannelRepository for PgChatRepo {
              available_tags = $11, default_reaction_emoji = $12, default_sort_order = $13, \
              default_forum_layout = $14, default_thread_rate_limit = $15, \
              default_auto_archive_duration = $16, video_quality_mode = $17, \
+             music_allowed = $18, music_bitrate_kbps = $19, \
              updated_at = now() WHERE id = $1",
         )
         .bind(i(c.id.get()))
@@ -940,6 +947,8 @@ impl ChannelRepository for PgChatRepo {
         .bind(opt_i32(c.forum.default_thread_rate_limit))
         .bind(opt_i32(c.forum.default_auto_archive_duration))
         .bind(i16::from(c.video_quality_mode))
+        .bind(c.music_allowed)
+        .bind(i16::try_from(c.music_bitrate_kbps).unwrap_or(256))
         .execute(&mut *tx)
         .await
         .map_err(db)?;

@@ -1,6 +1,9 @@
 //! Pure channel CRUD and permission-overwrite rules (LNG-CHN-002, LNG-CHN-003).
 
-use crate::domain::{Channel, ChannelType, Role, VIDEO_QUALITY_AUTO, VIDEO_QUALITY_FULL};
+use crate::domain::{
+    Channel, ChannelType, MUSIC_BITRATE_MAX_KBPS, MUSIC_BITRATE_MIN_KBPS, Role, VIDEO_QUALITY_AUTO,
+    VIDEO_QUALITY_FULL,
+};
 use crate::error::{ChatError, ChatResult};
 use crate::limits::ChatLimits;
 use crate::perms::GuildActor;
@@ -227,7 +230,24 @@ pub struct ChannelPatch {
     pub user_limit: Option<u32>,
     /// Voice and stage only: 1 auto, 2 full (`video_quality_mode`, J-11).
     pub video_quality_mode: Option<u8>,
+    /// Voice and stage only: members with `SPEAK` may play music into the call (MUS-JB-001).
+    pub music_allowed: Option<bool>,
+    /// Voice and stage only: the music track's bitrate in kbit/s, 32 to 320.
+    pub music_bitrate_kbps: Option<u16>,
     pub forum: ForumPatch,
+}
+
+/// `music_bitrate_kbps` is 32 to 320 kbit/s, whatever the server's plan (MUS-JB-001).
+fn check_music_bitrate(v: Option<u16>) -> ChatResult<Option<u16>> {
+    match v {
+        None => Ok(None),
+        Some(k) if (MUSIC_BITRATE_MIN_KBPS..=MUSIC_BITRATE_MAX_KBPS).contains(&k) => Ok(Some(k)),
+        Some(_) => Err(ChatError::invalid(
+            "sr_music_bitrate_kbps",
+            "NUMBER_TYPE_COERCE",
+            format!("Must be between {MUSIC_BITRATE_MIN_KBPS} and {MUSIC_BITRATE_MAX_KBPS}."),
+        )),
+    }
 }
 
 pub fn plan_edit_channel(
@@ -294,6 +314,23 @@ pub fn plan_edit_channel(
         if let Some(v) = check_video_quality(patch.video_quality_mode)? {
             out.video_quality_mode = v;
         }
+        if let Some(m) = patch.music_allowed {
+            out.music_allowed = m;
+        }
+        if let Some(k) = check_music_bitrate(patch.music_bitrate_kbps)? {
+            out.music_bitrate_kbps = k;
+        }
+    } else if patch.music_allowed.is_some() || patch.music_bitrate_kbps.is_some() {
+        let field = if patch.music_allowed.is_some() {
+            "sr_music_allowed"
+        } else {
+            "sr_music_bitrate_kbps"
+        };
+        return Err(ChatError::invalid(
+            field,
+            "CHANNEL_TYPE_INVALID",
+            "Only voice and stage channels play music.",
+        ));
     } else if patch.video_quality_mode.is_some() {
         return Err(ChatError::invalid(
             "video_quality_mode",
@@ -595,6 +632,49 @@ mod tests {
         text.name = Some("general".into());
         let p = ChannelPatch {
             video_quality_mode: Some(2),
+            ..Default::default()
+        };
+        assert!(plan_edit_channel(&a, &text, p).is_err());
+    }
+
+    #[test]
+    fn music_is_a_voice_setting_with_a_bitrate_from_32_to_320() {
+        let a = manager();
+        let mut voice = Channel::new(
+            ChannelId::new(5),
+            Some(GuildId::new(GUILD)),
+            ChannelType::Voice,
+        );
+        voice.name = Some("Lounge".into());
+        assert!(voice.music_allowed);
+        assert_eq!(voice.music_bitrate_kbps, 256);
+        let out = plan_edit_channel(
+            &a,
+            &voice,
+            ChannelPatch {
+                music_allowed: Some(false),
+                music_bitrate_kbps: Some(320),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(!out.music_allowed);
+        assert_eq!(out.music_bitrate_kbps, 320);
+        for bad in [0, 31, 321] {
+            let p = ChannelPatch {
+                music_bitrate_kbps: Some(bad),
+                ..Default::default()
+            };
+            assert!(plan_edit_channel(&a, &voice, p).is_err(), "{bad}");
+        }
+        let mut text = Channel::new(
+            ChannelId::new(6),
+            Some(GuildId::new(GUILD)),
+            ChannelType::Text,
+        );
+        text.name = Some("general".into());
+        let p = ChannelPatch {
+            music_allowed: Some(false),
             ..Default::default()
         };
         assert!(plan_edit_channel(&a, &text, p).is_err());

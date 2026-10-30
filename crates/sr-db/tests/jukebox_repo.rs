@@ -108,8 +108,14 @@ async fn votes_listeners_and_the_dj_persist_and_the_threshold_skips_once() {
     svc.listen(CHANNEL, GUILD, 3, 50).await.unwrap();
     // Three live listeners at 50%: two votes.
     let v = svc.vote_skip(CHANNEL, GUILD, 2, 50).await.unwrap();
-    assert_eq!((v.value.votes, v.value.needed, v.value.skipped), (1, 2, false));
-    let mine = Actor { user: 1, manage: false };
+    assert_eq!(
+        (v.value.votes, v.value.needed, v.value.skipped),
+        (1, 2, false)
+    );
+    let mine = Actor {
+        user: 1,
+        manage: false,
+    };
     svc.set_dj(CHANNEL, GUILD, mine, Some(1), 50).await.unwrap();
     let v = svc.vote_skip(CHANNEL, GUILD, 3, 50).await.unwrap();
     assert!(v.value.skipped);
@@ -131,7 +137,13 @@ async fn votes_listeners_and_the_dj_persist_and_the_threshold_skips_once() {
 async fn two_racing_ends_advance_the_queue_once() {
     let (_db, svc, clock) = world().await;
     let d = svc
-        .enqueue(CHANNEL, GUILD, 1, &[t(1, 7, 1_000), t(2, 7, 100_000), t(3, 7, 100_000)], 50)
+        .enqueue(
+            CHANNEL,
+            GUILD,
+            1,
+            &[t(1, 7, 1_000), t(2, 7, 100_000), t(3, 7, 100_000)],
+            50,
+        )
         .await
         .unwrap();
     let first = d.snapshot.doc.session.current.unwrap();
@@ -142,7 +154,11 @@ async fn two_racing_ends_advance_the_queue_once() {
     ra.unwrap();
     rb.unwrap();
     let (snap, _) = svc.state(CHANNEL, 50).await.unwrap().unwrap();
-    assert_eq!(snap.doc.current().unwrap().track_id, Some(2), "not 3: the lock serialised them");
+    assert_eq!(
+        snap.doc.current().unwrap().track_id,
+        Some(2),
+        "not 3: the lock serialised them"
+    );
 }
 
 #[tokio::test]
