@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { APIRequestContext, Page } from '@playwright/test';
-import { apiPost, expect, loginApi, test } from '../support/fixtures';
+import { apiPost, expect, loginApi, test, type SeededUser } from '../support/fixtures';
 import { PUBLIC_URL } from '../support/cli';
 
 /**
@@ -249,17 +249,33 @@ test.describe('the gate, anonymous', () => {
   });
 });
 
+/**
+ * The account the signed-in cases use: a seeded member, or, in the prod-smoke stack (no database reachable from the
+ * runner), the stack's Owner, whose password the install stage left in a file (SR_E2E_OWNER_PASSWORD_FILE).
+ */
+async function account(seed: (label?: string) => Promise<SeededUser>): Promise<SeededUser> {
+  const file = process.env.SR_E2E_OWNER_PASSWORD_FILE;
+  if (!file) return seed('iso');
+  return {
+    id: '',
+    username: 'owner',
+    email: 'owner@example.test',
+    password: readFileSync(file, 'utf8').trim(),
+  };
+}
+
+const contextOptions = { baseURL: PUBLIC_URL, ignoreHTTPSErrors: true };
+
 /** App file names the signed-in run saw, for the anonymous 401 check that follows it. */
 const appFiles = new Set<string>();
 
 test.describe.serial('signed in', () => {
   test('sign-in is a document load into /app, /app/* is private, logout purges', async ({
-    browser,
+    page,
+    context,
     seedUser,
   }) => {
-    const user = await seedUser('iso');
-    const context = await browser.newContext({ baseURL: PUBLIC_URL });
-    const page = await context.newPage();
+    const user = await account(seedUser);
     const appResponses: { path: string; cc: string; vary: string }[] = [];
     page.on('response', (r) => {
       const u = new URL(r.url());
@@ -316,7 +332,6 @@ test.describe.serial('signed in', () => {
     const again = await context.request.get('/channels', { headers: NAV, ...noRedirect });
     expect(again.status()).toBe(302);
     expect(again.headers()['location'] ?? '').toMatch(/^\/login/);
-    await context.close();
   });
 
   test('a real app file name, read from the signed-in run, is a 401 without a session', async ({
@@ -334,8 +349,8 @@ test.describe.serial('signed in', () => {
     browser,
     seedUser,
   }) => {
-    const user = await seedUser('iso-revoke');
-    const a = await browser.newContext({ baseURL: PUBLIC_URL });
+    const user = await account(seedUser);
+    const a = await browser.newContext(contextOptions);
     await loginApi(a.request, user);
     const page: Page = await a.newPage();
     await page.goto('/app');
@@ -344,7 +359,7 @@ test.describe.serial('signed in', () => {
     expect([200, 404], 'a signed-in fetch under /app/ is answered').toContain(ok);
 
     // The same user signs in elsewhere and signs every session out.
-    const b = await browser.newContext({ baseURL: PUBLIC_URL });
+    const b = await browser.newContext(contextOptions);
     await loginApi(b.request, user);
     await apiPost(b.request, '/sr/auth/logout-all');
     await b.close();

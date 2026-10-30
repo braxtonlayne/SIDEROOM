@@ -128,7 +128,7 @@ jobs:
       # where smoke.localhost reaches Caddy, and it fails on any row the smoke stack should pass.
       - name: sr-cli preflight --insecure-tls against the running stack
         run: deploy/scripts/prod-smoke.sh preflight
-      - name: Playwright entrance-smoke and noindex (OPS-IDX-001) through Caddy
+      - name: Playwright entrance-smoke, noindex (OPS-IDX-001) and entrance-isolation (SEC-ENT-004) through Caddy
         run: |
           pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
           # Same specs and settings as playwright.config.ts, but against the running stack: no dev server, no
@@ -147,7 +147,12 @@ jobs:
             use: { ...base.use, baseURL: 'https://smoke.localhost', ignoreHTTPSErrors: true },
           });
           EOF
-          SR_E2E_NOINDEX=1 pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke noindex
+          # SR_E2E_ISOLATION=1 turns on entrance-isolation.spec.ts: the same anonymous, gate and signed-in checks as the
+          # e2e job, here through the installed Caddy and the server container (D-385). The runner cannot reach the stack's
+          # database, so the signed-in cases use the Owner whose password install left in $SMOKE_WORK.
+          export SR_E2E_BASE_URL=https://smoke.localhost
+          export SR_E2E_OWNER_PASSWORD_FILE="${RUNNER_TEMP}/sr-prod-smoke/owner-password"
+          SR_E2E_NOINDEX=1 SR_E2E_ISOLATION=1 pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke noindex entrance-isolation
       - name: Backup, restore and WAL drills against the running stack
         run: deploy/scripts/prod-smoke.sh backups
       - name: sr-cli backup, restore --force and upgrade --dry-run

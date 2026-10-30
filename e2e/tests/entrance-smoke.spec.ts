@@ -39,7 +39,10 @@ test('there is no Board anywhere in the entrance', async ({ page }) => {
     await expect(page.getByRole('link', { name: /board/i })).toHaveCount(0);
     await expect(page.locator('a[href*="board" i]')).toHaveCount(0);
   }
-  const res = await page.goto('/board');
-  expect(res?.ok()).toBeTruthy(); // the SPA answers every path...
-  await expect(page.getByText('Page not found.')).toBeVisible(); // ...but no Board route exists
+  // D-385: a path that is not a public surface is not served to a visitor at all. The server answers 302 /login?next=
+  // (the built bundle, SR_E2E_WEB=server) and the dev server does the same through vite/publicDev.ts; either way the
+  // visitor lands on the sign-in page and never on a Board, and nothing says whether a route exists.
+  await page.goto('/board');
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.locator('a[href*="board" i]')).toHaveCount(0);
 });

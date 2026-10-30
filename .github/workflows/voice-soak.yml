@@ -69,11 +69,19 @@ jobs:
       - uses: ./.github/actions/e2e-stack
       - name: Install the browser
         run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      # D-385: the soak runs the production topology without Caddy: sr-server serves the built apps/web/dist behind the
+      # session gate (SR_E2E_WEB=server), so the build comes first and the pages and the API share one origin, :8080.
+      - name: Build the web app (production bundle)
+        run: pnpm --filter @sideroom/web build
+        env:
+          VITE_SR_E2E: "1"
       - name: Start sr-server
         run: |
           ./target/debug/sr-cli migrate
           set -a; . deploy/compose/.env.example; set +a
-          export SR_SERVER__PUBLIC_URL=http://localhost:5173
+          export SR_SERVER__PUBLIC_URL=http://localhost:8080
+          export SR_WEB__ROOT="$PWD/apps/web/dist"
+          export SR_WEB__SERVE_PUBLIC=true
           export SR_STORAGE__ENDPOINT=http://127.0.0.1:3900
           export SR_STORAGE__REGION=garage
           export SR_STORAGE__BUCKET="$GARAGE_BUCKET"
@@ -88,17 +96,14 @@ jobs:
           echo "sr-server pid $(cat sr-server.pid)"
       # Environment parity (RDY-VOX-002, run 40250340133): the pages' socket logs showed gateway heartbeats sent up
       # to 45 s late while the server never blocked a write, i.e. ten pages of the Vite dev server (React's
-      # development build, unbundled modules) starved the runner's CPU. The soak runs the production build behind
-      # `vite preview`, which proxies /api, /gateway and /voice like Caddy and enforces the production CSP.
-      - name: Build the web app (production bundle)
-        run: pnpm --filter @sideroom/web build
-        env:
-          VITE_SR_E2E: "1"
+      # development build, unbundled modules) starved the runner's CPU. The soak runs the production build, served by
+      # sr-server itself (it replaced `vite preview`, which has no session gate), with the production CSP.
       - name: Soak (${{ inputs.count }} members, ${{ inputs.minutes }} minutes)
         run: pnpm --filter @sideroom/e2e exec playwright test --project=chromium tests/voice-soak.spec.ts --retries=0 --reporter=list,html
         env:
           CI: "true"
-          SR_E2E_WEB: preview
+          SR_E2E_WEB: server
+          SR_E2E_BASE_URL: http://localhost:8080
       # No SFU restart: the process the soak started is still the one answering, and it did not panic.
       - name: The SFU was not restarted
         if: always()

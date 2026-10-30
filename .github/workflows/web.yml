@@ -38,6 +38,11 @@ jobs:
       # XC-PERF-002: first-load JavaScript per section stays inside the gzip budgets in scripts/bundle-budget.json.
       - name: Bundle budget
         run: node scripts/check-bundle-budget.mjs
+      # SEC-ENT-004 (D-385): a visitor without a login gets only the code their page needs. Per public surface: the
+      # budget, the allowed modules, no app identifier, no preload or import() outside /entrance/, no source map; the
+      # plain-HTML pages carry no script. The output lists every surface with "ok".
+      - name: Entrance isolation
+        run: node scripts/check-entrance-isolation.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: web-dist
