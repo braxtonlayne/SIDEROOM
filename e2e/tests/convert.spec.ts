@@ -64,7 +64,9 @@ test.describe('convert (ffmpeg.wasm remux)', () => {
     const result = await page.evaluate(async (data) => {
       const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
       const file = new File([bytes], 'Film.mkv', { type: 'video/x-matroska' });
-      const mod = await import(/* @vite-ignore */ '/src/convert/index.ts');
+      // A Vite dev-server path, not one tsc can resolve from e2e/: keep it a string so the module is untyped here.
+      const convertModule: string = '/src/convert/index.ts';
+      const mod = await import(/* @vite-ignore */ convertModule);
       const conv = mod.getConverter();
       const probe = await conv.probe(file);
       const r = await conv.remux(file, { probe });
@@ -81,7 +83,10 @@ test.describe('convert (ffmpeg.wasm remux)', () => {
         name: r.output.name,
         duration: video.duration,
         subtitles: await Promise.all(
-          s.subtitles.map(async (x) => ({ name: x.name, text: await x.file.text() })),
+          s.subtitles.map(async (x: { name: string; file: File }) => ({
+            name: x.name,
+            text: await x.file.text(),
+          })),
         ),
       };
     }, b64);

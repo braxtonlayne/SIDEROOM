@@ -20,7 +20,7 @@ ALTER TABLE tv_channels
         OR (pool_source = 'personal' AND owner_user_id IS NOT NULL AND guild_id IS NULL)
     );
 
-DO $
+DO $$
 DECLARE c TEXT;
 BEGIN
   FOR c IN
@@ -31,7 +31,7 @@ BEGIN
   LOOP
     EXECUTE format('ALTER TABLE tv_channels DROP CONSTRAINT %I', c);
   END LOOP;
-END $;
+END $$;
 
 CREATE UNIQUE INDEX tv_channels_number_instance ON tv_channels (number) WHERE pool_source = 'instance';
 CREATE UNIQUE INDEX tv_channels_number_guild ON tv_channels (guild_id, number) WHERE pool_source = 'guild';
