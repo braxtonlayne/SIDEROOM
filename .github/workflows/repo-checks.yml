@@ -37,6 +37,11 @@ jobs:
         run: node scripts/check-dependabot.mjs
       - name: Automation scripts
         run: node --test "scripts/*.test.mjs"
+      # SEC-ENT-004 (D-385): the same two files run in the step above; named here so the log shows them. Each public
+      # surface's sources import only from its ALLOWED.ts, and public-surfaces.json, the Caddyfile matchers and the
+      # finished service worker agree on what is public.
+      - name: Entrance isolation (allowed imports, the lists agree, the check's own cases)
+        run: node --test scripts/entrance-allowed.test.mjs scripts/entrance-agreement.test.mjs scripts/check-entrance-isolation.test.mjs
       - name: Shell scripts (shellcheck)
         run: shellcheck -x -S warning deploy/scripts/*.sh
       - name: Inventory progress
