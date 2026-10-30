@@ -63,7 +63,7 @@ async fn item(fx: &Fx, n: i64, mount_id: i64, duration: Option<i32>, position: i
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO music_playlist_items (id, playlist_id, track_id, position) VALUES ($1, $2, $1, $3)",
+        "INSERT INTO music_playlist_items (id, playlist_id, track_id, position) VALUES ($1, $2, $3, $4)",
     )
     .bind(n + 1000)
     .bind(fx.playlist)
@@ -320,7 +320,7 @@ async fn closing_a_room_announces_it_so_the_card_disappears() {
     let a = item(&f, 1, 5001, Some(600_000), 0).await;
     room(&f, Some(a), 0, 1_000, None).await;
     let bus = Arc::new(InProcessBus::new());
-    let mut feed = bus.subscribe(Topic::Channel(sr_core::ChannelId::new(f.channel as u64)));
+    let mut feed = bus.subscribe(Topic::Guild(sr_core::GuildId::new(f.guild as u64)));
     let rooms = crate::jukebox::PgListeningRooms::new(f.pool.clone()).with_bus(bus.clone());
     assert!(rooms.disable(f.channel).await.unwrap());
     let ev = tokio::time::timeout(std::time::Duration::from_secs(2), feed.next())
