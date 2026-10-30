@@ -107,6 +107,20 @@ async fn deletion_scrubs_the_account_and_removes_ties() {
     .await
     .unwrap();
 
+    // PRF-PRO-001: my privacy policy and a held note a visitor left on my page go with me.
+    sqlx::query("INSERT INTO profile_privacy (user_id, preset) VALUES ($1, 'members')")
+        .bind(me)
+        .execute(pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO profile_guestbook (id, profile_id, author_id, body, status, anonymous)          VALUES (6101, $1, NULL, 'held note', 'pending', true)",
+    )
+    .bind(me)
+    .execute(pool)
+    .await
+    .unwrap();
+
     // Personal module preferences (user-scope feature settings): mine go, a friend's stay.
     sqlx::query(
         "INSERT INTO feature_enablements (id, feature, scope, scope_id, enabled, config) \n         VALUES (7001, 'community.leveling', 'user', $1, NULL, '{\"values\":{\"announce_mine\":false}}'), \n                (7002, 'community.leveling', 'user', $2, NULL, '{}')",
@@ -145,6 +159,25 @@ async fn deletion_scrubs_the_account_and_removes_ties() {
         )
         .await,
         0
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM profile_privacy WHERE user_id = $1",
+            me
+        )
+        .await,
+        0
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM profile_guestbook WHERE profile_id = $1",
+            me
+        )
+        .await,
+        0,
+        "pending notes on the page are erased too"
     );
     assert_eq!(report.guilds_left, vec![2001]);
     assert_eq!(report.friends, vec![friend]);

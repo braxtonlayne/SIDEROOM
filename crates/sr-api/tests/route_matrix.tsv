@@ -468,6 +468,7 @@ GET	/packages/mine	authenticated	self	deny	-	-
 GET	/packages/versions/{version_id}/files/{path}	authenticated	user	deny	-	-
 GET	/packages/{package_id}	authenticated	user	deny	-	-
 GET	/profile-pages/{username}	authenticated	visibility	deny	-	-
+GET	/public/profiles/{handle}	public	none	allow	-	-
 GET	/push/vapid-key	authenticated	self	deny	-	-
 GET	/requests	authenticated	user	allow	-	-
 GET	/shelves/{section}	authenticated	self	deny	-	-
@@ -558,6 +559,8 @@ GET	/users/@me/privacy	authenticated	self	deny	-	-
 GET	/users/@me/profile	authenticated	self	allow	-	-
 GET	/users/@me/profile-doc	authenticated	self	deny	-	-
 GET	/users/@me/profile-media	authenticated	self	deny	-	-
+GET	/users/@me/profile-page/preview	authenticated	self	allow	-	-
+GET	/users/@me/profile-privacy	authenticated	self	allow	-	-
 GET	/users/@me/read-states	authenticated	self	allow	-	-
 GET	/users/@me/relationships	authenticated	self	deny	-	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
@@ -900,6 +903,7 @@ POST	/oauth2/token/revoke	public	none	allow	-	-
 POST	/packages	authenticated	user	deny	-	-
 POST	/packages/versions/{version_id}/withdraw	authenticated	author	deny	-	-
 POST	/packages/{package_id}/create-guild	authenticated	user	deny	-	-
+POST	/public/profiles/{handle}/guestbook	public	none	allow	-	-
 POST	/read-states/ack-bulk	authenticated	membership	allow	-	-
 POST	/requests	authenticated	user	allow	-	-
 POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-	REVIEW_READING
@@ -945,6 +949,7 @@ POST	/users/@me/channels	authenticated	self	allow	-	-
 POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-	-
 POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-	-
 POST	/users/@me/data-export	authenticated	self	deny	-	-
+POST	/users/@me/guestbook/{entry_id}/approve	authenticated	self	deny	-	-
 POST	/users/@me/music/playlists	authenticated	self	deny	-	-
 POST	/users/@me/music/recent	authenticated	self	deny	-	-
 POST	/users/@me/profile-doc/layout	authenticated	self	deny	-	-
@@ -1078,6 +1083,7 @@ PUT	/users/@me/notification-keywords	authenticated	self	deny	-	-
 PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-	-
 PUT	/users/@me/primary-guild	authenticated	self	deny	-	-
 PUT	/users/@me/profile-doc	authenticated	self	deny	-	-
+PUT	/users/@me/profile-privacy	authenticated	self	allow	-	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 PUT	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount_owner	deny	-	-
 PUT	/users/@me/tools/notes/{note_id}	authenticated	self	deny	-	-

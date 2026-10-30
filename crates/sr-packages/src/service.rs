@@ -11,6 +11,7 @@ use sr_storage::{ObjectStorage, StorageError};
 use utoipa::ToSchema;
 
 pub mod media;
+pub mod privacy;
 
 use crate::error::{PackageError, PackageResult};
 use crate::profile_doc::{self, ProfileDoc};
@@ -188,12 +189,28 @@ pub struct ProfilePage {
     pub guestbook_limit: i64,
     /// The pictures the document names (a background image, gallery pictures), with their addresses.
     pub media: Vec<media::MediaView>,
+    /// The servers a `featured_guilds` block shows to this viewer (members' servers and directory servers
+    /// only, D-232). Empty when the block is absent or hidden.
+    #[serde(default)]
+    pub featured_guilds: Vec<FeaturedGuild>,
+}
+
+/// A server on a profile's Featured servers block.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = ProfileFeaturedGuild)]
+pub struct FeaturedGuild {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct GuestbookEntry {
     pub id: String,
-    pub author: PageUser,
+    /// `None` for a post left by a visitor without an account (always pending until the owner approves it).
+    pub author: Option<PageUser>,
+    /// Waiting for the owner's approval; only the owner is ever shown a pending post.
+    pub pending: bool,
     pub body: String,
     pub created_at_ms: i64,
     /// The viewer may remove it: they own the page or wrote the entry.
@@ -1121,17 +1138,6 @@ impl PackageService {
         .await?)
     }
 
-    async fn blocked_between(&self, a: i64, b: i64) -> PackageResult<bool> {
-        Ok(sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM relationships WHERE type = 2 AND \
-             ((user_id = $1 AND target_id = $2) OR (user_id = $2 AND target_id = $1)))",
-        )
-        .bind(a)
-        .bind(b)
-        .fetch_one(self.pool())
-        .await?)
-    }
-
     /// My document (the empty default when none was saved).
     pub async fn own_doc(&self, user: i64) -> PackageResult<ProfileDoc> {
         let v: Option<Value> = sqlx::query_scalar("SELECT profile_doc FROM accounts WHERE id = $1")
@@ -1217,184 +1223,6 @@ impl PackageService {
         let row = q.fetch_optional(self.pool()).await?;
         row.map(|r| Ok((user_of(&r, "u_")?, r.try_get("profile_doc")?)))
             .transpose()
-    }
-
-    /// The profile page of a person, by username or id. `None` when there is no such active account or
-    /// either side blocked the other.
-    pub async fn page(
-        &self,
-        viewer: i64,
-        username: Option<&str>,
-        id: Option<i64>,
-    ) -> PackageResult<ProfilePage> {
-        let found = match (username, id) {
-            (Some(n), _) => {
-                self.user_by("a.username = $1::citext", None, Some(n))
-                    .await?
-            }
-            (_, Some(i)) => self.user_by("a.id = $1", Some(i), None).await?,
-            _ => None,
-        };
-        let (user, raw) = found.ok_or(PackageError::NotFound("profile"))?;
-        let owner: i64 = user.id.parse().unwrap_or(0);
-        let is_owner = viewer == owner;
-        if !is_owner && self.blocked_between(viewer, owner).await? {
-            return Err(PackageError::NotFound("profile"));
-        }
-        let doc = profile_doc::parse_doc(&raw, false).unwrap_or_default();
-        let named = profile_doc::top_friend_ids(&doc);
-        let still = self.friends_among(owner, &named).await?;
-        let mut friends = Vec::new();
-        for id in named.iter().filter(|i| still.contains(i)) {
-            if let Some((u, _)) = self.user_by("a.id = $1", Some(*id), None).await? {
-                friends.push(u);
-            }
-        }
-        let can_sign = is_owner
-            || sqlx::query_scalar::<_, bool>(
-                "SELECT EXISTS(SELECT 1 FROM relationships WHERE user_id = $1 AND target_id = $2 AND type = 1)",
-            )
-            .bind(viewer)
-            .bind(owner)
-            .fetch_one(self.pool())
-            .await?;
-        let guestbook_count = if is_owner {
-            Some(
-                sqlx::query_scalar("SELECT count(*) FROM profile_guestbook WHERE profile_id = $1")
-                    .bind(owner)
-                    .fetch_one(self.pool())
-                    .await?,
-            )
-        } else {
-            None
-        };
-        let media = self.media_named_by(owner, &doc).await?;
-        Ok(ProfilePage {
-            media,
-            guestbook_count,
-            guestbook_limit: MAX_GUESTBOOK_ENTRIES,
-            customised: !doc.blocks.is_empty(),
-            user,
-            doc,
-            friends,
-            is_owner,
-            can_sign,
-        })
-    }
-
-    // ------------------------------------------------------------ guestbook
-
-    pub async fn guestbook(
-        &self,
-        viewer: i64,
-        profile: i64,
-        before: Option<i64>,
-    ) -> PackageResult<Vec<GuestbookEntry>> {
-        if viewer != profile && self.blocked_between(viewer, profile).await? {
-            return Err(PackageError::NotFound("profile"));
-        }
-        let sql = format!(
-            "SELECT g.id AS gid, g.body, {} AS created_ms, {USER_COLS} FROM profile_guestbook g \
-             JOIN accounts a ON a.id = g.author_id WHERE g.profile_id = $1 AND ($2::bigint IS NULL OR g.id < $2) \
-             ORDER BY g.id DESC LIMIT {PAGE}",
-            ms("g.created_at")
-        );
-        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
-            .bind(profile)
-            .bind(before)
-            .fetch_all(self.pool())
-            .await?;
-        rows.iter()
-            .map(|r| {
-                Ok(GuestbookEntry {
-                    id: r.try_get::<i64, _>("gid")?.to_string(),
-                    author: user_of(r, "u_")?,
-                    body: r.try_get("body")?,
-                    created_at_ms: r.try_get("created_ms")?,
-                    can_remove: viewer == profile || r.try_get::<i64, _>("u_id")? == viewer,
-                })
-            })
-            .collect::<Result<_, sqlx::Error>>()
-            .map_err(Into::into)
-    }
-
-    /// Sign a guestbook: friends of the owner (or the owner), only while the owner's page has a Guestbook
-    /// block, never when either side blocked the other.
-    pub async fn sign(
-        &self,
-        author: i64,
-        profile: i64,
-        body: &str,
-    ) -> PackageResult<GuestbookEntry> {
-        let body = body.trim();
-        let n = body.chars().count();
-        if n == 0 || n > 500 || body.chars().any(|c| c.is_control() && c != '\n') {
-            return Err(PackageError::Invalid(
-                "body",
-                "Write 1 to 500 characters.".to_owned(),
-            ));
-        }
-        let page = self.page(author, None, Some(profile)).await?;
-        if !page.can_sign {
-            return Err(PackageError::Forbidden);
-        }
-        if !page
-            .doc
-            .blocks
-            .iter()
-            .any(|b| b.kind == profile_doc::BlockKind::Guestbook)
-        {
-            return Err(PackageError::Conflict(
-                "This page has no guestbook.".to_owned(),
-            ));
-        }
-        let recent: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM profile_guestbook WHERE author_id = $1 AND created_at > now() - interval '1 minute'",
-        )
-        .bind(author)
-        .fetch_one(self.pool())
-        .await?;
-        if recent >= GUESTBOOK_PER_MINUTE {
-            return Err(PackageError::Conflict(
-                "You are signing guestbooks too fast. Try again in a minute.".to_owned(),
-            ));
-        }
-        let total: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM profile_guestbook WHERE profile_id = $1")
-                .bind(profile)
-                .fetch_one(self.pool())
-                .await?;
-        if total >= MAX_GUESTBOOK_ENTRIES {
-            return Err(PackageError::Conflict("This guestbook is full".to_owned()));
-        }
-        let id = (self.inner.ids)();
-        sqlx::query("INSERT INTO profile_guestbook (id, profile_id, author_id, body) VALUES ($1, $2, $3, $4)")
-            .bind(id)
-            .bind(profile)
-            .bind(author)
-            .bind(body)
-            .execute(self.pool())
-            .await?;
-        let mut list = self.guestbook(author, profile, Some(id + 1)).await?;
-        list.retain(|e| e.id == id.to_string());
-        list.pop().ok_or(PackageError::NotFound("entry"))
-    }
-
-    /// The owner removes any entry; an author removes their own.
-    pub async fn remove_entry(&self, actor: i64, profile: i64, entry: i64) -> PackageResult<()> {
-        let n = sqlx::query(
-            "DELETE FROM profile_guestbook WHERE id = $1 AND profile_id = $2 AND (author_id = $3 OR profile_id = $3)",
-        )
-        .bind(entry)
-        .bind(profile)
-        .bind(actor)
-        .execute(self.pool())
-        .await?
-        .rows_affected();
-        if n == 0 {
-            return Err(PackageError::NotFound("entry"));
-        }
-        Ok(())
     }
 }
 

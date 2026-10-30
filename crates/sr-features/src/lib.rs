@@ -13,6 +13,7 @@ pub mod feature;
 pub mod moderation;
 pub mod modules;
 pub mod platform_defaults;
+pub mod public_profiles;
 pub mod runtime;
 pub mod schema;
 pub mod service;
@@ -32,6 +33,7 @@ pub use platform_defaults::{
     APPEARANCE_ID, AppearanceDefaultsFeature, INTEGRATIONS_ID, IntegrationsPolicy,
     IntegrationsPolicyFeature, default_themes_from,
 };
+pub use public_profiles::{PUBLIC_PROFILES_ID, PublicProfilesFeature};
 pub use runtime::{FeatureRuntime, current_module, scope_module};
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;

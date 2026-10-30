@@ -391,6 +391,8 @@ fn op_infos() -> HashMap<(String, String), OpInfo> {
 struct Resp {
     status: u16,
     body: String,
+    /// The response header block, lowercased (PRF-PRO-001 checks `x-robots-tag`).
+    head: String,
 }
 
 fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
@@ -484,6 +486,7 @@ async fn raw_body(
         Some(Resp {
             status,
             body: String::from_utf8_lossy(&body).to_string(),
+            head: head.to_lowercase(),
         })
     };
     match tokio::time::timeout(Duration::from_secs(20), fut).await {
@@ -491,6 +494,7 @@ async fn raw_body(
         _ => Resp {
             status: 0,
             body: "timeout or connection failure".into(),
+            head: String::new(),
         },
     }
 }
@@ -3097,6 +3101,63 @@ async fn seed(
         {
             a.insert("platform_invite_id", id.to_string());
         }
+        // PRF-PRO-001 (D-382): a profile is private until its owner chooses. The victim opens a public page with a
+        // public guestbook that takes held notes, the operator allows public pages, and one note waits for
+        // approval (the placeholder `pending_entry_id`); `handle` names the victim's public page.
+        let victim_cred = Cred::Session(sess["victim"].clone());
+        srv.call(
+            &staff,
+            "PATCH",
+            "/admin/features/platform.public_profiles",
+            Some(&json!({"enabled": true})),
+        )
+        .await;
+        srv.call(
+            &victim_cred,
+            "PUT",
+            "/users/@me/profile-doc",
+            Some(&json!({"version": 1, "blocks": [
+                {"id": "gb", "type": "guestbook", "x": 0, "y": 0, "w": 12, "h": 4, "config": {}}
+            ]})),
+        )
+        .await;
+        srv.call(
+            &victim_cred,
+            "PUT",
+            "/users/@me/profile-privacy",
+            Some(
+                &json!({"page_tier": "public", "links_tier": "public", "bio_tier": "public",
+                          "guestbook_tier": "public", "guestbook_accepts_public": true}),
+            ),
+        )
+        .await;
+        srv.call(
+            &Cred::Anon,
+            "POST",
+            "/public/profiles/victim/guestbook",
+            Some(&json!({"body": "authz held note"})),
+        )
+        .await;
+        let held = srv
+            .call(
+                &victim_cred,
+                "GET",
+                &format!("/users/{victim}/guestbook"),
+                None,
+            )
+            .await;
+        if let Some(id) = serde_json::from_str::<Value>(&held.body)
+            .ok()
+            .and_then(|v| {
+                v.as_array()?
+                    .iter()
+                    .find(|e| e["pending"] == true)
+                    .and_then(|e| e["id"].as_str().map(str::to_owned))
+            })
+        {
+            a.insert("pending_entry_id", id);
+        }
+        a.insert("handle", "victim".to_owned());
         // A guestbook entry the member wrote on the victim's board.
         if let Some(id) = mk(
             &srv,
@@ -4039,11 +4100,6 @@ const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
     ),
     (
         "DELETE",
-        "/users/{user_id}/guestbook/{entry_id}",
-        "the victim's profile page has no guestbook (a setting of the page owner)",
-    ),
-    (
-        "DELETE",
         "/activity-instances/{instance_id}",
         "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
     ),
@@ -4055,7 +4111,7 @@ const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
 ];
 
 /// The length of [`WRITE_OBSERVED`]. Lower it when an entry goes; never raise it.
-const WRITE_OBSERVED_LEN: usize = 41;
+const WRITE_OBSERVED_LEN: usize = 40;
 
 /// Admitted writes that answered 400 or 422 per group, in the order of [`GROUPS`]: the request shape was
 /// refused before the permission check ran. Like [`WEAK_CEILING`], the numbers only go down.
@@ -4073,6 +4129,8 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
         // A participant leaves; the host leaving would end the party the deletes address.
         ("POST", "/watch-parties/{party_id}/leave") => Some("insider"),
         ("POST", "/developers/tester-invites/{invite_id}/respond") => Some("victim"),
+        // PRF-PRO-001: the owner of the page releases a held note; the victim owns the seeded public page.
+        ("POST", "/users/@me/guestbook/{entry_id}/approve") => Some("victim"),
         // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
         ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
         // `author_or_staff`: the submitter of the published submission or a REVIEW_READING holder; the seeded
@@ -4254,6 +4312,7 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
             r#"{"files":[{"filename":"a.txt","file_size":3}]}"#
         }
         ("POST", "/users/{user_id}/guestbook") => r#"{"body":"authz"}"#,
+        ("POST", "/public/profiles/{handle}/guestbook") => r#"{"body":"authz public note"}"#,
         ("POST", "/packages/{package_id}/create-guild") => r#"{"name":"authz guild"}"#,
         ("POST", "/admin/staff") => {
             r#"{"account_id":"{staff_target_id}","role_ids":["{support_role_id}"],"reason":"authz matrix"}"#
@@ -4881,6 +4940,7 @@ fn ctx_for(
 /// their own `{asset_id}`, `{comment_id}`, `{list_id}` ..., and the submission chapter is not the
 /// published one. The write phase (and every other pass) fills them from the family's own seeded key.
 const OVERLAYS: &[(&[&str], &str, &str)] = &[
+    (&["/users/@me/guestbook/"], "entry_id", "pending_entry_id"),
     (
         &["/cinema/", "/admin/cinema/"],
         "asset_id",
@@ -6622,6 +6682,574 @@ async fn shelves_hold_over_http() {
     assert!(
         failures.is_empty(),
         "{} shelf failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// PRF-PRO-001 (D-382): profile privacy over HTTP, by actor.
+
+const PP_BIO: &str = "PPBIO-visible-sentence";
+const PP_LINK: &str = "pp-links-secret.example";
+const PP_GUEST: &str = "PPGUEST-body";
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn profile_privacy_holds_over_http() {
+    if harness::embedded() {
+        return;
+    }
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 25).expect("ids");
+    let id_src: sr_db::auth_repo::IdSource = {
+        let g = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 26).expect("ids"));
+        Arc::new(move || g.generate().get() as i64)
+    };
+    let auth = PgAuthRepo::new(
+        world.pool.clone(),
+        id_src,
+        sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap(),
+    );
+    let pool = &world.pool;
+    let srv = &world.srv;
+
+    // The cast: the owner, a member with no tie, one who shares a server, a friend, one the owner blocked and
+    // one who blocked the owner.
+    let owner_id = account(pool, &ids, "ppowner").await;
+    let stranger_id = account(pool, &ids, "ppstranger").await;
+    let mutual_id = account(pool, &ids, "ppmutual").await;
+    let friend_id = account(pool, &ids, "ppfriend").await;
+    let blocked_id = account(pool, &ids, "ppblocked").await;
+    let blocker_id = account(pool, &ids, "ppblocker").await;
+    let cred = |id: i64| {
+        let auth = &auth;
+        let ids = &ids;
+        async move { Cred::Session(session_for(auth, ids, id).await) }
+    };
+    let owner = cred(owner_id).await;
+    let stranger = cred(stranger_id).await;
+    let mutual = cred(mutual_id).await;
+    let friend = cred(friend_id).await;
+    let blocked = cred(blocked_id).await;
+    let blocker = cred(blocker_id).await;
+    add_member(pool, world.guild_a, owner_id).await;
+    add_member(pool, world.guild_a, mutual_id).await;
+    for (a, b, t) in [
+        (owner_id, friend_id, 1),
+        (friend_id, owner_id, 1),
+        (owner_id, blocked_id, 2),
+        (blocker_id, owner_id, 2),
+    ] {
+        sqlx::query("INSERT INTO relationships (user_id, target_id, type) VALUES ($1, $2, $3)")
+            .bind(a)
+            .bind(b)
+            .bind(t as i16)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+    let staff = world.actor("staff_owner").cred.clone();
+    let flag = async |on: bool| {
+        srv.call(
+            &staff,
+            "PATCH",
+            "/admin/features/platform.public_profiles",
+            Some(&json!({"enabled": on})),
+        )
+        .await
+    };
+
+    let mut failures: Vec<String> = Vec::new();
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(160).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+
+    // The page: bio, links, a typed now playing line and the guestbook.
+    expect!(
+        "owner saves the page",
+        srv.call(
+            &owner,
+            "PUT",
+            "/users/@me/profile-doc",
+            Some(&json!({"version": 1, "blocks": [
+                {"id": "head", "type": "header", "x": 0, "y": 0, "w": 12, "h": 2, "config": {}},
+                {"id": "bio", "type": "about", "x": 0, "y": 2, "w": 6, "h": 2, "config": {"text": PP_BIO}},
+                {"id": "links", "type": "linktree", "x": 6, "y": 2, "w": 6, "h": 2,
+                 "config": {"links": [{"label": "x", "url": format!("https://{PP_LINK}/a")}]}},
+                {"id": "gb", "type": "guestbook", "x": 0, "y": 4, "w": 12, "h": 3, "config": {}}
+            ]})),
+        )
+        .await,
+        200
+    );
+
+    // Without the operator's switch (the default) the public route answers 404 for every handle, whatever the
+    // member chose, and a members-only page is not public.
+    let put = |preset: &str| {
+        let body = json!({ "preset": preset });
+        let owner = owner.clone();
+        async move {
+            srv.call(&owner, "PUT", "/users/@me/profile-privacy", Some(&body))
+                .await
+        }
+    };
+    let crawler = async |path: &str| -> Resp {
+        raw(
+            srv.port,
+            "GET",
+            &format!("/api/v1{path}"),
+            &[
+                ("Origin".to_owned(), srv.public.clone()),
+                (
+                    "User-Agent".to_owned(),
+                    "Googlebot/2.1 (+http://www.google.com/bot.html)".to_owned(),
+                ),
+            ],
+            None,
+        )
+        .await
+    };
+    expect!("owner picks public", put("public").await, 200);
+    // The shared seed turned public pages on for its own sweep; this test starts from the default (off).
+    expect!("operator switch off", flag(false).await, 200);
+    for (who, cred) in [("anonymous", Cred::Anon)] {
+        expect!(
+            &format!("{who} with the switch off"),
+            srv.call(&cred, "GET", "/public/profiles/ppowner", None)
+                .await,
+            404
+        );
+    }
+    let r = expect!(
+        "crawler with the switch off",
+        crawler("/public/profiles/ppowner").await,
+        404
+    );
+    if !r.head.contains("x-robots-tag: noindex, nofollow") {
+        failures.push("a 404 for a crawler still says noindex".into());
+    }
+    expect!(
+        "unknown handle with the switch off",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/nobodyhere", None)
+            .await,
+        404
+    );
+    expect!("operator allows public pages", flag(true).await, 200);
+    expect!(
+        "unknown handle with the switch on is the same 404",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/nobodyhere", None)
+            .await,
+        404
+    );
+
+    // The four presets against every actor on the signed-in route.
+    let signed: [(&str, &Cred, u8); 4] = [
+        ("member_stranger", &stranger, 1),
+        ("member_mutual_guild", &mutual, 2),
+        ("friend", &friend, 3),
+        ("owner", &owner, 4),
+    ];
+    for (preset, page_rank) in [
+        ("public", 0u8),
+        ("members", 1),
+        ("friends", 3),
+        ("private", 4),
+    ] {
+        expect!(&format!("owner picks {preset}"), put(preset).await, 200);
+        expect!(
+            &format!("{preset}: anonymous on the signed-in route"),
+            srv.call(&Cred::Anon, "GET", "/profile-pages/ppowner", None)
+                .await,
+            401
+        );
+        for (name, c, rank) in signed {
+            let want = if rank >= page_rank { 200 } else { 404 };
+            let r = expect!(
+                &format!("{preset}: {name} reads the page"),
+                srv.call(c, "GET", "/profile-pages/ppowner", None).await,
+                want
+            );
+            if want == 200 && name != "owner" {
+                // The public preset: bio and links for everyone, the guestbook block for members and up.
+                let has_gb = r.body.contains("\"type\":\"guestbook\"");
+                let want_gb = match preset {
+                    "public" => rank >= 1,
+                    _ => true,
+                };
+                if has_gb != want_gb {
+                    failures.push(format!("{preset}: {name} guestbook block shown = {has_gb}"));
+                }
+            }
+        }
+        for (name, c) in [
+            ("blocked_by_owner", &blocked),
+            ("blocker_of_owner", &blocker),
+        ] {
+            expect!(
+                &format!("{preset}: {name} reads the page"),
+                srv.call(c, "GET", "/profile-pages/ppowner", None).await,
+                404
+            );
+            expect!(
+                &format!("{preset}: {name} reads the guestbook"),
+                srv.call(c, "GET", &format!("/users/{owner_id}/guestbook"), None)
+                    .await,
+                404
+            );
+        }
+        // The public route: anonymous and a crawler, identical, 200 only for the public preset.
+        let want_pub = if preset == "public" { 200 } else { 404 };
+        let r = expect!(
+            &format!("{preset}: anonymous on the public route"),
+            srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+                .await,
+            want_pub
+        );
+        let rc = expect!(
+            &format!("{preset}: crawler on the public route"),
+            crawler("/public/profiles/ppowner").await,
+            want_pub
+        );
+        if r.body != rc.body {
+            failures.push(format!(
+                "{preset}: a crawler's user agent changed the answer"
+            ));
+        }
+        for (what, resp) in [("anonymous", &r), ("crawler", &rc)] {
+            if !resp.head.contains("x-robots-tag: noindex, nofollow") {
+                failures.push(format!("{preset}: {what} answer lacks noindex"));
+            }
+        }
+        if want_pub == 200 {
+            if !r.body.contains(PP_BIO) || !r.body.contains(PP_LINK) {
+                failures.push("the public preset shows the bio and the links".into());
+            }
+            if r.body.contains("\"type\":\"guestbook\"") {
+                failures.push("the public preset hides the guestbook from the web".into());
+            }
+            if !r.head.contains("cache-control: no-store") {
+                failures.push("a public page is never cached".into());
+            }
+        }
+    }
+
+    // Custom row 1: a public page with an only_me guestbook. The web sees the page, not the guestbook, and nobody
+    // but the owner reads or signs it.
+    expect!(
+        "custom: public page, only_me guestbook",
+        srv.call(
+            &owner,
+            "PUT",
+            "/users/@me/profile-privacy",
+            Some(
+                &json!({"page_tier": "public", "links_tier": "public", "bio_tier": "public",
+                          "guestbook_tier": "only_me"})
+            )
+        )
+        .await,
+        200
+    );
+    let r = expect!(
+        "custom 1: the web reads the page",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        200
+    );
+    if r.body.contains("\"type\":\"guestbook\"") || r.body.contains(PP_GUEST) {
+        failures.push("custom 1: an only_me guestbook shows to the web".into());
+    }
+    expect!(
+        "custom 1: a friend cannot read the guestbook",
+        srv.call(
+            &friend,
+            "GET",
+            &format!("/users/{owner_id}/guestbook"),
+            None
+        )
+        .await,
+        404
+    );
+    expect!(
+        "custom 1: a friend cannot sign the guestbook",
+        srv.call(
+            &friend,
+            "POST",
+            &format!("/users/{owner_id}/guestbook"),
+            Some(&json!({"body": PP_GUEST}))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "custom 1: anonymous cannot post a held note",
+        srv.call(
+            &Cred::Anon,
+            "POST",
+            "/public/profiles/ppowner/guestbook",
+            Some(&json!({"body": "hello"}))
+        )
+        .await,
+        404
+    );
+
+    // Custom row 2: a friends page with a public links block. The block clamps to the page.
+    let r = expect!(
+        "custom: friends page, public links",
+        srv.call(
+            &owner,
+            "PUT",
+            "/users/@me/profile-privacy",
+            Some(&json!({"page_tier": "friends", "links_tier": "public", "guestbook_tier": "friends"}))
+        )
+        .await,
+        200
+    );
+    if !r.body.contains("\"links_tier\":\"friends\"") {
+        failures.push("custom 2: the public links block was not clamped to the page".into());
+    }
+    expect!(
+        "custom 2: a mutual-server member sees nothing",
+        srv.call(&mutual, "GET", "/profile-pages/ppowner", None)
+            .await,
+        404
+    );
+    expect!(
+        "custom 2: the web sees nothing",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        404
+    );
+    let r = expect!(
+        "custom 2: a friend sees the links",
+        srv.call(&friend, "GET", "/profile-pages/ppowner", None)
+            .await,
+        200
+    );
+    if !r.body.contains(PP_LINK) {
+        failures.push("custom 2: a friend sees the links block".into());
+    }
+    // A friend may sign a friends guestbook; the note is then read by friends only.
+    expect!(
+        "custom 2: a friend signs",
+        srv.call(
+            &friend,
+            "POST",
+            &format!("/users/{owner_id}/guestbook"),
+            Some(&json!({"body": PP_GUEST}))
+        )
+        .await,
+        201
+    );
+    expect!(
+        "custom 2: a mutual-server member cannot read it",
+        srv.call(
+            &mutual,
+            "GET",
+            &format!("/users/{owner_id}/guestbook"),
+            None
+        )
+        .await,
+        404
+    );
+
+    // The public guestbook: only with the opt-in, held until the owner approves, five per address per hour.
+    expect!(
+        "owner opens a public guestbook",
+        srv.call(
+            &owner,
+            "PUT",
+            "/users/@me/profile-privacy",
+            Some(
+                &json!({"page_tier": "public", "links_tier": "public", "bio_tier": "public",
+                          "guestbook_tier": "public", "guestbook_accepts_public": true})
+            )
+        )
+        .await,
+        200
+    );
+    expect!(
+        "anonymous leaves a held note",
+        srv.call(
+            &Cred::Anon,
+            "POST",
+            "/public/profiles/ppowner/guestbook",
+            Some(&json!({"body": "greetings from outside"}))
+        )
+        .await,
+        204
+    );
+    expect!(
+        "a link in a public note is refused",
+        srv.call(
+            &Cred::Anon,
+            "POST",
+            "/public/profiles/ppowner/guestbook",
+            Some(&json!({"body": "see https://spam.example"}))
+        )
+        .await,
+        400
+    );
+    let r = expect!(
+        "a second anonymous fetch",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        200
+    );
+    if r.body.contains("greetings from outside") {
+        failures.push("a held note is visible to the web".into());
+    }
+    let r = expect!(
+        "the owner reads the held note",
+        srv.call(&owner, "GET", &format!("/users/{owner_id}/guestbook"), None)
+            .await,
+        200
+    );
+    let list: Value = serde_json::from_str(&r.body).unwrap_or(Value::Null);
+    let held = list
+        .as_array()
+        .and_then(|l| l.iter().find(|e| e["body"] == "greetings from outside"))
+        .cloned();
+    match held {
+        Some(e) if e["pending"] == true => {
+            let id = e["id"].as_str().unwrap_or("0").to_owned();
+            expect!(
+                "a friend cannot approve",
+                srv.call(
+                    &friend,
+                    "POST",
+                    &format!("/users/@me/guestbook/{id}/approve"),
+                    None
+                )
+                .await,
+                404
+            );
+            expect!(
+                "the owner approves",
+                srv.call(
+                    &owner,
+                    "POST",
+                    &format!("/users/@me/guestbook/{id}/approve"),
+                    None
+                )
+                .await,
+                204
+            );
+            let r = expect!(
+                "the web reads the approved note",
+                srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+                    .await,
+                200
+            );
+            if !r.body.contains("greetings from outside") {
+                failures.push("an approved note is visible to the web".into());
+            }
+        }
+        _ => failures.push("the owner sees the held note flagged pending".into()),
+    }
+    // The seed's own held note shares this address; start the hourly count afresh.
+    sqlx::query("UPDATE profile_guestbook SET ip_hash = NULL")
+        .execute(pool)
+        .await
+        .unwrap();
+    for i in 0..6 {
+        let want = if i < 5 { 204 } else { 429 };
+        let r = srv
+            .call(
+                &Cred::Anon,
+                "POST",
+                "/public/profiles/ppowner/guestbook",
+                Some(&json!({"body": format!("note {i}")})),
+            )
+            .await;
+        if r.status != want {
+            failures.push(format!(
+                "public note {i}: expected {want}, got {} {}",
+                r.status, r.body
+            ));
+        }
+    }
+
+    // Custom row 3: a members page, with the operator's switch off again. It stays 404 publicly.
+    expect!("operator turns public pages off", flag(false).await, 200);
+    expect!(
+        "custom: members page",
+        srv.call(
+            &owner,
+            "PUT",
+            "/users/@me/profile-privacy",
+            Some(&json!({"page_tier": "members"}))
+        )
+        .await,
+        200
+    );
+    expect!(
+        "custom 3: the web gets 404 on a members page",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        404
+    );
+    // A stored `public` page is never effective while the switch is off: members still read it.
+    expect!(
+        "custom 3: public page while the switch is off",
+        srv.call(
+            &owner,
+            "PUT",
+            "/users/@me/profile-privacy",
+            Some(&json!({"page_tier": "public"}))
+        )
+        .await,
+        200
+    );
+    expect!(
+        "custom 3: the web still gets 404",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        404
+    );
+    expect!(
+        "custom 3: a member reads it",
+        srv.call(&stranger, "GET", "/profile-pages/ppowner", None)
+            .await,
+        200
+    );
+    let r = expect!(
+        "the privacy view says public is not possible",
+        srv.call(&owner, "GET", "/users/@me/profile-privacy", None)
+            .await,
+        200
+    );
+    if !r.body.contains("\"public_possible\":false") {
+        failures.push("GET profile-privacy tells whether public is possible".into());
+    }
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} profile privacy failures:\n{}",
         failures.len(),
         failures.join("\n")
     );

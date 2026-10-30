@@ -35,7 +35,15 @@ pub const SONG_HOSTS: &[&str] = &[
     "open.spotify.com",
 ];
 /// Where the block types may appear at most.
-const SINGLETONS: &[&str] = &["header", "guestbook", "top_friends", "now_watching"];
+const SINGLETONS: &[&str] = &[
+    "header",
+    "guestbook",
+    "top_friends",
+    "now_watching",
+    "linktree",
+    "featured_guilds",
+    "now_playing",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -50,6 +58,12 @@ pub enum BlockKind {
     Guestbook,
     Song,
     Custom,
+    /// PRF-PRO-001: a stack of links.
+    Linktree,
+    /// PRF-PRO-001: servers the member chooses to show.
+    FeaturedGuilds,
+    /// PRF-PRO-001: what the member is playing now (through presence, or typed by hand).
+    NowPlaying,
 }
 
 impl BlockKind {
@@ -64,6 +78,9 @@ impl BlockKind {
             Self::Guestbook => "guestbook",
             Self::Song => "song",
             Self::Custom => "custom",
+            Self::Linktree => "linktree",
+            Self::FeaturedGuilds => "featured_guilds",
+            Self::NowPlaying => "now_playing",
         }
     }
 }
@@ -390,6 +407,33 @@ struct CustomCfg {
     links: Vec<CustomLink>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LinktreeCfg {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    links: Vec<CustomLink>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FeaturedGuildsCfg {
+    #[serde(default)]
+    guild_ids: Vec<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NowPlayingCfg {
+    /// `auto` shows what my presence says (to signed-in viewers); `manual` shows the lines below to everyone
+    /// the block's audience admits.
+    #[serde(default = "auto")]
+    mode: String,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    subtitle: Option<String>,
+}
+
 fn parse<T: for<'de> Deserialize<'de>>(
     out: &mut Vec<DocProblem>,
     path: &str,
@@ -530,6 +574,52 @@ fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block, media: Option<&M
                             p("url"),
                             "must be an https link to YouTube, SoundCloud, Bandcamp or Spotify",
                         ),
+                    }
+                }
+            }
+        }
+        BlockKind::Linktree => {
+            if let Some(c) = parse::<LinktreeCfg>(out, &path, &b.config) {
+                if let Some(t) = &c.title {
+                    check_text(out, &p("title"), t, 40);
+                }
+                if c.links.len() > 12 {
+                    problem(out, p("links"), "at most 12 links");
+                }
+                for l in &c.links {
+                    check_text(out, &p("links"), &l.label, 40);
+                    if l.label.trim().is_empty() {
+                        problem(out, p("links"), "each link needs a label");
+                    }
+                    if https_url(&l.url).is_none() {
+                        problem(out, p("links"), "each link needs an https address");
+                    }
+                }
+            }
+        }
+        BlockKind::FeaturedGuilds => {
+            if let Some(c) = parse::<FeaturedGuildsCfg>(out, &path, &b.config) {
+                if c.guild_ids.len() > 6 {
+                    problem(out, p("guild_ids"), "at most 6 servers");
+                }
+                let mut seen = BTreeSet::new();
+                for id in &c.guild_ids {
+                    if !media_id_ok(id) {
+                        problem(out, p("guild_ids"), "must be server ids");
+                    } else if !seen.insert(id.clone()) {
+                        problem(out, p("guild_ids"), "lists a server twice");
+                    }
+                }
+            }
+        }
+        BlockKind::NowPlaying => {
+            if let Some(c) = parse::<NowPlayingCfg>(out, &path, &b.config) {
+                if !matches!(c.mode.as_str(), "auto" | "manual") {
+                    problem(out, p("mode"), "must be auto or manual");
+                }
+                for (f, v) in [("title", &c.title), ("subtitle", &c.subtitle)] {
+                    if let Some(v) = v {
+                        check_text(out, &p(f), v, 80);
                     }
                 }
             }
@@ -766,6 +856,17 @@ pub fn media_refs(doc: &ProfileDoc) -> (BTreeSet<String>, BTreeSet<String>) {
         .filter_map(|i| i.get("image_id").and_then(Value::as_str).map(str::to_owned))
         .collect();
     (background, gallery)
+}
+
+/// The server ids a `featured_guilds` block names.
+pub fn featured_guild_ids(doc: &ProfileDoc) -> Vec<i64> {
+    doc.blocks
+        .iter()
+        .filter(|b| b.kind == BlockKind::FeaturedGuilds)
+        .filter_map(|b| b.config.get("guild_ids")?.as_array())
+        .flatten()
+        .filter_map(|v| v.as_str()?.parse().ok())
+        .collect()
 }
 
 /// The user ids a document names in its Top friends block (to check they are friends).

@@ -421,6 +421,15 @@ async fn fallback_inner(gs: GateState, req: Request) -> Response {
     }
     let gate = &gs.gate;
     if gate.is_public_path(&path) {
+        // `/~handle` is an alias of `/u/handle` in the app: a signed-in member who opens one gets the app (the full
+        // page, as a member sees it); only a visitor without a session gets the public profile shell (PRF-PRO-001).
+        if gate.serve_public
+            && path.starts_with("/~")
+            && is_navigation(req.headers())
+            && gate.has_session(&gs.api, req.headers()).await
+        {
+            return gate.app_shell(&method).await;
+        }
         return if gate.serve_public {
             serve_public_path(gate, &path, &method).await
         } else {

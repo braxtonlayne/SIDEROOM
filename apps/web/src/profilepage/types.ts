@@ -16,6 +16,9 @@ export const BLOCK_KINDS = [
   'guestbook',
   'song',
   'custom',
+  'linktree',
+  'featured_guilds',
+  'now_playing',
 ] as const;
 export type BlockKind = (typeof BLOCK_KINDS)[number];
 
@@ -25,6 +28,9 @@ export const SINGLETONS: readonly BlockKind[] = [
   'guestbook',
   'top_friends',
   'now_watching',
+  'linktree',
+  'featured_guilds',
+  'now_playing',
 ];
 
 export const FONTS = ['inter', 'newsreader', 'hanken-grotesk', 'plex-mono'] as const;
@@ -107,6 +113,8 @@ export interface ProfilePage {
   customised: boolean;
   /** The pictures the document names. */
   media?: ProfileMedia[];
+  /** The servers a Featured servers block shows this viewer (PRF-PRO-001). */
+  featured_guilds?: { id: string; name: string; icon: string | null }[];
   /** Entries on the guestbook; only the owner is told (K-18). */
   guestbook_count?: number | null;
   guestbook_limit?: number;
@@ -132,7 +140,10 @@ export function effectiveBackground(style: Style): Background {
 export interface GuestbookEntry {
   can_remove: boolean;
   id: string;
-  author: PageUser;
+  /** Null for a note left by a visitor without an account (PRF-PRO-001). */
+  author: PageUser | null;
+  /** Waiting for the owner's approval; only the owner is ever shown one. */
+  pending?: boolean;
   body: string;
   created_at_ms: number;
 }
@@ -171,4 +182,7 @@ export const DEFAULT_SIZE: Record<BlockKind, [number, number]> = {
   guestbook: [6, 6],
   song: [6, 3],
   custom: [6, 4],
+  linktree: [6, 4],
+  featured_guilds: [6, 3],
+  now_playing: [6, 3],
 };

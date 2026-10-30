@@ -44,5 +44,7 @@ export const listGuestbook = (userId: string, before?: string) =>
   );
 export const signGuestbook = (userId: string, body: string) =>
   apiPost<GuestbookEntry>(`/users/${id(userId)}/guestbook`, { body });
+export const approveGuestbookEntry = (entryId: string) =>
+  apiFetch<void>(`/users/@me/guestbook/${id(entryId)}/approve`, { method: 'POST', ...ro });
 export const removeGuestbookEntry = (userId: string, entryId: string) =>
   apiFetch<void>(`/users/${id(userId)}/guestbook/${id(entryId)}`, { method: 'DELETE', ...ro });

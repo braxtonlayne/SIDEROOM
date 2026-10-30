@@ -13,6 +13,16 @@ export interface FriendChoice {
   name: string;
 }
 
+/** A server the member belongs to, for the Featured servers block. */
+export interface GuildChoice {
+  id: string;
+  name: string;
+}
+
+/** Most servers one Featured servers block names, and most links one Links block holds. */
+export const MAX_FEATURED = 6;
+export const MAX_LINKTREE = 12;
+
 type Cfg = Record<string, unknown>;
 const str = (c: Cfg, k: string) => (typeof c[k] === 'string' ? (c[k] as string) : '');
 const arr = <T,>(c: Cfg, k: string): T[] => (Array.isArray(c[k]) ? (c[k] as T[]) : []);
@@ -37,12 +47,12 @@ export const galleryText = (items: { url: string; caption?: string }[]) =>
   items.map((i) => (i.caption ? `${i.url} ${i.caption}` : i.url)).join('\n');
 
 /** `label | url` per line to links. */
-export function parseLinks(text: string): { label: string; url: string }[] {
+export function parseLinks(text: string, max = 6): { label: string; url: string }[] {
   return text
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
-    .slice(0, 6)
+    .slice(0, max)
     .map((l) => {
       const i = l.lastIndexOf('|');
       return i < 0
@@ -53,9 +63,13 @@ export function parseLinks(text: string): { label: string; url: string }[] {
 export const linksText = (items: { label: string; url: string }[]) =>
   items.map((l) => `${l.label} | ${l.url}`).join('\n');
 
+/** `label | url` per line to links, for the Links block (up to twelve). */
+export const parseLinktree = (text: string) => parseLinks(text, MAX_LINKTREE);
+
 export function Inspector({
   block,
   friends,
+  guilds = [],
   onConfig,
   media = [],
   onUploadGallery,
@@ -64,6 +78,7 @@ export function Inspector({
 }: {
   block: Block;
   friends: FriendChoice[];
+  guilds?: GuildChoice[];
   onConfig: (config: Cfg) => void;
   /** The person's uploaded pictures (K-17). */
   media?: ProfileMedia[];
@@ -145,6 +160,82 @@ export function Inspector({
             value={manual ? 'manual' : 'auto'}
             onValueChange={(v) => set({ mode: v })}
           />
+          {manual && (
+            <>
+              <TextInput
+                label={t('lounge.profileEditor.nowTitle')}
+                value={str(c, 'title')}
+                maxLength={80}
+                onChange={(e) => textOrDrop('title', e.target.value)}
+              />
+              <TextInput
+                label={t('lounge.profileEditor.nowSubtitle')}
+                value={str(c, 'subtitle')}
+                maxLength={80}
+                onChange={(e) => textOrDrop('subtitle', e.target.value)}
+              />
+            </>
+          )}
+        </div>
+      );
+    }
+    case 'linktree':
+      return (
+        <div className="pp-fields">
+          <TextInput
+            label={t('profile.editor.linksTitle')}
+            value={str(c, 'title')}
+            maxLength={40}
+            onChange={(e) => textOrDrop('title', e.target.value)}
+          />
+          <TextArea
+            label={t('profile.editor.linksList')}
+            hint={t('profile.editor.linksHint')}
+            value={linksText(arr<{ label: string; url: string }>(c, 'links'))}
+            rows={5}
+            onChange={(e) => set({ links: parseLinktree(e.target.value) })}
+          />
+        </div>
+      );
+    case 'featured_guilds': {
+      const chosen = arr<string>(c, 'guild_ids');
+      return (
+        <fieldset className="pp-fields">
+          <legend>{t('profile.editor.serversLegend')}</legend>
+          <p>{t('profile.editor.serversHint')}</p>
+          {guilds.length === 0 && <p>{t('profile.editor.noServers')}</p>}
+          {guilds.map((g) => (
+            <Checkbox
+              key={g.id}
+              label={g.name}
+              checked={chosen.includes(g.id)}
+              disabled={!chosen.includes(g.id) && chosen.length >= MAX_FEATURED}
+              onChange={(e) =>
+                set({
+                  guild_ids: e.target.checked
+                    ? [...chosen, g.id]
+                    : chosen.filter((x) => x !== g.id),
+                })
+              }
+            />
+          ))}
+        </fieldset>
+      );
+    }
+    case 'now_playing': {
+      const manual = str(c, 'mode') === 'manual';
+      return (
+        <div className="pp-fields">
+          <Select
+            aria-label={t('lounge.profileEditor.nowMode')}
+            options={[
+              { value: 'auto', label: t('profile.editor.playingAuto') },
+              { value: 'manual', label: t('lounge.profileEditor.nowManual') },
+            ]}
+            value={manual ? 'manual' : 'auto'}
+            onValueChange={(v) => set({ mode: v })}
+          />
+          {!manual && <p>{t('profile.editor.playingAutoHint')}</p>}
           {manual && (
             <>
               <TextInput

@@ -235,6 +235,11 @@ pub async fn delete_account(
         .bind(id)
         .execute(&mut *tx)
         .await?;
+    // PRF-PRO-001: the privacy policy (the pending and anonymous notes on this page went with the line above).
+    sqlx::query("DELETE FROM profile_privacy WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     report.profile_media_keys =
         sqlx::query_scalar("DELETE FROM profile_media WHERE account_id = $1 RETURNING object_key")
             .bind(id)

@@ -1,295 +1,57 @@
-// The blocks of a profile page (EXT-PRF-003): Header, About me, Top friends, Now watching/reading, Favorites,
-// Gallery, Guestbook, Song and Custom box. Each one renders plain text and https links from the document;
-// nothing in a document is ever interpreted as markup.
+// The stateful blocks of a profile page in the app (EXT-PRF-003, EXT-PRF-004): the guestbook with its form and
+// the presence-driven "now" blocks. The pure blocks (and the new ones of PRF-PRO-001) live in
+// @sideroom/profile-blocks, which the public profile surface uses too (D-385); the app fills the slots here.
 import { Avatar, Button, TextArea } from '@sideroom/ui';
+import type { BlockSlots } from '@sideroom/profile-blocks';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import { formatDate, useT } from '../i18n';
 import { usePresence } from '../lounge/data';
 import { ActivityList } from '../lounge/profile/parts';
 import { cdnUrl } from '../store/cdn';
-import { listGuestbook, removeGuestbookEntry, signGuestbook } from './api';
-import type { Block, GalleryItem, GuestbookEntry, PageUser, ProfilePage } from './types';
+import { approveGuestbookEntry, listGuestbook, removeGuestbookEntry, signGuestbook } from './api';
+import type { Block, GuestbookEntry, PageUser, ProfilePage } from './types';
 
 const text = (c: Record<string, unknown>, k: string): string => {
   const v = c[k];
   return typeof v === 'string' ? v : '';
 };
-const list = <T,>(c: Record<string, unknown>, k: string): T[] => {
-  const v = c[k];
-  return Array.isArray(v) ? (v as T[]) : [];
-};
 
 const nameOf = (u: PageUser) => u.display_name?.trim() || u.username;
 const avatarOf = (u: PageUser, size = 64) => cdnUrl('avatars', u.id, u.avatar, { size });
 
-/** Only https links are followed from a profile page. */
-export const httpsUrl = (u: string | null | undefined): string | null => {
-  if (!u) return null;
-  try {
-    const url = new URL(u);
-    return url.protocol === 'https:' && !url.username && !url.password ? url.toString() : null;
-  } catch {
-    return null;
-  }
-};
-
-/** A link out of the app: new tab, no referrer. */
-function Out({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="pp-link">
-      {children}
-    </a>
-  );
-}
-
-function Header({ page, block }: { page: ProfilePage; block: Block }) {
-  const t = useT();
-  const u = page.user;
-  const tagline = text(block.config, 'tagline');
-  const showBanner = block.config.show_banner !== false;
-  const banner = showBanner ? cdnUrl('avatars', u.id, u.banner, { size: 1024 }) : null;
-  return (
-    <div className="pp-header">
-      {banner && <img className="pp-banner" src={banner} alt="" />}
-      <div className="pp-header-row">
-        <Avatar name={nameOf(u)} src={avatarOf(u, 128)} size={80} />
-        <div>
-          <h2 className="pp-name">{nameOf(u)}</h2>
-          <p className="pp-muted">{t('lounge.profilePage.handle', { username: u.username })}</p>
-          {tagline && <p className="pp-tagline">{tagline}</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function About({ block }: { block: Block }) {
-  const t = useT();
-  const body = text(block.config, 'text');
-  return (
-    <>
-      <h3 className="pp-title">{t('lounge.profilePage.aboutTitle')}</h3>
-      {body ? (
-        <p className="pp-text">{body}</p>
-      ) : (
-        <p className="pp-muted">{t('lounge.profilePage.aboutEmpty')}</p>
-      )}
-    </>
-  );
-}
-
-function TopFriends({ page }: { page: ProfilePage }) {
-  const t = useT();
-  return (
-    <>
-      <h3 className="pp-title">{t('lounge.profilePage.friendsTitle')}</h3>
-      {page.friends.length === 0 ? (
-        <p className="pp-muted">{t('lounge.profilePage.friendsEmpty')}</p>
-      ) : (
-        <ol className="pp-friends">
-          {page.friends.map((f, i) => (
-            <li key={f.id}>
-              <span className="pp-rank" aria-hidden="true">
-                {i + 1}
-              </span>
-              <a className="pp-link" href={`/u/${encodeURIComponent(f.username)}`}>
-                <Avatar name={nameOf(f)} src={avatarOf(f)} size={40} />
-                <span>{nameOf(f)}</span>
-              </a>
-            </li>
-          ))}
-        </ol>
-      )}
-    </>
-  );
-}
-
-function NowWatching({ page, block }: { page: ProfilePage; block: Block }) {
-  const t = useT();
+/** Presence for a "now" block. It reads presence like any other surface, so the member's own presence privacy
+ *  applies on top of the block's audience. */
+function usePresenceLines(page: ProfilePage, kinds: readonly string[]) {
   const presence = usePresence(page.user.id);
-  const manual = text(block.config, 'mode') === 'manual';
-  const title = text(block.config, 'title');
-  const subtitle = text(block.config, 'subtitle');
-  const now = (presence.activities ?? []).filter(
-    (a) => a.kind === 'watching' || a.kind === 'reading',
-  );
+  return (presence.activities ?? []).filter((a) => kinds.includes(a.kind));
+}
+
+function NowWatching({ page }: { page: ProfilePage }) {
+  const t = useT();
+  const now = usePresenceLines(page, ['watching', 'reading']);
   return (
     <>
-      <h3 className="pp-title">{t('lounge.profilePage.nowTitle')}</h3>
-      {manual ? (
-        title ? (
-          <p className="pp-text">
-            <strong>{title}</strong>
-            {subtitle && <span className="pp-muted"> {subtitle}</span>}
-          </p>
-        ) : (
-          <p className="pp-muted">{t('lounge.profilePage.nowEmpty')}</p>
-        )
-      ) : now.length > 0 ? (
+      <h3 className="pp-title">{t('profile.blocks.nowTitle')}</h3>
+      {now.length > 0 ? (
         <ActivityList activities={now} />
       ) : (
-        <p className="pp-muted">{t('lounge.profilePage.nowEmpty')}</p>
+        <p className="pp-muted">{t('profile.blocks.playingEmpty')}</p>
       )}
     </>
   );
 }
 
-function Favorites({ block }: { block: Block }) {
+function NowPlaying({ page }: { page: ProfilePage }) {
   const t = useT();
-  const items = list<string>(block.config, 'items').filter((s) => typeof s === 'string');
+  const now = usePresenceLines(page, ['listening', 'playing']);
   return (
     <>
-      <h3 className="pp-title">
-        {text(block.config, 'title') || t('lounge.profilePage.favoritesTitle')}
-      </h3>
-      {items.length === 0 ? (
-        <p className="pp-muted">{t('lounge.profilePage.favoritesEmpty')}</p>
+      <h3 className="pp-title">{t('profile.blocks.playingTitle')}</h3>
+      {now.length > 0 ? (
+        <ActivityList activities={now} />
       ) : (
-        <ol className="pp-list">
-          {items.map((it, i) => (
-            <li key={i}>{it}</li>
-          ))}
-        </ol>
-      )}
-    </>
-  );
-}
-
-/**
- * One gallery picture. A web address is loaded only through the signed image-proxy path the server filled
- * in (`proxy_url`, D-259, D-176), never from its own host; when the proxy has none or refuses the host the
- * tile shows the caption instead. The address stays as a link under it. An uploaded picture comes from our
- * own CDN (K-17).
- */
-function GalleryTile({
-  src,
-  href,
-  caption,
-  n,
-}: {
-  src: string | null;
-  href: string | null;
-  caption: string;
-  n: number;
-}) {
-  const t = useT();
-  const [failed, setFailed] = useState(false);
-  const label = caption || t('lounge.profilePage.galleryPicture', { n });
-  return (
-    <figure>
-      {src && !failed ? (
-        <img
-          className="pp-pic"
-          src={src}
-          alt={caption}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <div className="pp-pic pp-pic-missing" role="img" aria-label={label}>
-          <span>{label}</span>
-        </div>
-      )}
-      <figcaption>{href ? <Out href={href}>{label}</Out> : label}</figcaption>
-    </figure>
-  );
-}
-
-interface Tile {
-  src: string | null;
-  href: string | null;
-  caption: string;
-}
-
-function Gallery({ block, page }: { block: Block; page: ProfilePage }) {
-  const t = useT();
-  const media = new Map((page.media ?? []).map((m) => [m.id, m]));
-  const items = list<GalleryItem>(block.config, 'items').flatMap((it): Tile[] => {
-    const caption = it?.caption ?? '';
-    if (it?.image_id) {
-      const m = media.get(it.image_id);
-      return m ? [{ src: m.url, href: null, caption }] : [];
-    }
-    const href = httpsUrl(it?.url);
-    if (!href) return [];
-    // Only the proxy path is ever loaded, and only from our own origin.
-    const proxy = typeof it.proxy_url === 'string' && it.proxy_url.startsWith('/cdn/external/');
-    return [{ src: proxy ? (it.proxy_url ?? null) : null, href, caption }];
-  });
-  return (
-    <>
-      <h3 className="pp-title">{t('lounge.profilePage.galleryTitle')}</h3>
-      {items.length === 0 ? (
-        <p className="pp-muted">{t('lounge.profilePage.galleryEmpty')}</p>
-      ) : (
-        <ul className="pp-gallery">
-          {items.map((it, i) => (
-            <li key={i}>
-              <GalleryTile src={it.src} href={it.href} caption={it.caption} n={i + 1} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
-  );
-}
-
-function Song({ block }: { block: Block }) {
-  const t = useT();
-  const [asking, setAsking] = useState(false);
-  const title = text(block.config, 'title');
-  const artist = text(block.config, 'artist');
-  const url = httpsUrl(text(block.config, 'url'));
-  const host = url ? new URL(url).hostname : '';
-  return (
-    <>
-      <h3 className="pp-title">{t('lounge.profilePage.songTitle')}</h3>
-      {title ? (
-        <p className="pp-text">
-          <strong>{title}</strong>
-          {artist && <span className="pp-muted"> {artist}</span>}
-        </p>
-      ) : (
-        <p className="pp-muted">{t('lounge.profilePage.songEmpty')}</p>
-      )}
-      {url && !asking && (
-        <Button size="sm" variant="secondary" onClick={() => setAsking(true)}>
-          {t('lounge.profilePage.songPlay')}
-        </Button>
-      )}
-      {url && asking && (
-        <p className="pp-text" role="status">
-          {t('lounge.profilePage.songConfirm', { host })}{' '}
-          <Out href={url}>{t('lounge.profilePage.songOpen')}</Out>{' '}
-          <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>
-            {t('lounge.profilePage.cancel')}
-          </Button>
-        </p>
-      )}
-    </>
-  );
-}
-
-function Custom({ block }: { block: Block }) {
-  const body = text(block.config, 'text');
-  const title = text(block.config, 'title');
-  const links = list<{ label: string; url: string }>(block.config, 'links')
-    .map((l) => ({ label: l?.label ?? '', href: httpsUrl(l?.url) }))
-    .filter((l): l is { label: string; href: string } => l.href !== null);
-  return (
-    <>
-      {title && <h3 className="pp-title">{title}</h3>}
-      {body && <p className="pp-text">{body}</p>}
-      {links.length > 0 && (
-        <ul className="pp-list">
-          {links.map((l, i) => (
-            <li key={i}>
-              <Out href={l.href}>{l.label || l.href}</Out>
-            </li>
-          ))}
-        </ul>
+        <p className="pp-muted">{t('profile.blocks.playingEmpty')}</p>
       )}
     </>
   );
@@ -325,6 +87,14 @@ export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) 
       );
     } finally {
       setBusy(false);
+    }
+  };
+  const approve = async (id: string) => {
+    try {
+      await approveGuestbookEntry(id);
+      setEntries((cur) => (cur ?? []).map((x) => (x.id === id ? { ...x, pending: false } : x)));
+    } catch {
+      setError(t('lounge.profilePage.guestbookSignFailed'));
     }
   };
   const remove = async (id: string) => {
@@ -380,21 +150,37 @@ export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) 
       <ul className="pp-entries" aria-label={t('lounge.profilePage.guestbookTitle')}>
         {(entries ?? []).map((e) => (
           <li key={e.id}>
-            <Avatar name={nameOf(e.author)} src={avatarOf(e.author)} size={32} />
+            <Avatar
+              name={e.author ? nameOf(e.author) : t('profile.public.visitor')}
+              src={e.author ? avatarOf(e.author) : null}
+              size={32}
+            />
             <div>
               <p className="pp-muted">
-                <a className="pp-link" href={`/u/${encodeURIComponent(e.author.username)}`}>
-                  {nameOf(e.author)}
-                </a>{' '}
+                {e.author ? (
+                  <a className="pp-link" href={`/u/${encodeURIComponent(e.author.username)}`}>
+                    {nameOf(e.author)}
+                  </a>
+                ) : (
+                  t('profile.public.visitor')
+                )}
+                {e.pending && <strong> {t('profile.public.pending')}</strong>}{' '}
                 {formatDate(new Date(e.created_at_ms), { dateStyle: 'medium' })}
               </p>
               <p className="pp-text">{e.body}</p>
             </div>
+            {e.pending && page.is_owner && (
+              <Button size="sm" variant="secondary" onClick={() => void approve(e.id)}>
+                {t('profile.public.approve')}
+              </Button>
+            )}
             {e.can_remove && (
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={t('lounge.profilePage.guestbookRemove', { name: nameOf(e.author) })}
+                aria-label={t('lounge.profilePage.guestbookRemove', {
+                  name: e.author ? nameOf(e.author) : t('profile.public.visitor'),
+                })}
                 onClick={() => void remove(e.id)}
               >
                 {t('lounge.profilePage.remove')}
@@ -407,35 +193,8 @@ export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) 
   );
 }
 
-export function BlockView({
-  block,
-  page,
-  compact,
-}: {
-  block: Block;
-  page: ProfilePage;
-  compact: boolean;
-}) {
-  switch (block.type) {
-    case 'header':
-      return <Header page={page} block={block} />;
-    case 'about':
-      return <About block={block} />;
-    case 'top_friends':
-      return <TopFriends page={page} />;
-    case 'now_watching':
-      return <NowWatching page={page} block={block} />;
-    case 'favorites':
-      return <Favorites block={block} />;
-    case 'gallery':
-      return <Gallery block={block} page={page} />;
-    case 'guestbook':
-      return compact ? null : <Guestbook page={page} block={block} />;
-    case 'song':
-      return <Song block={block} />;
-    case 'custom':
-      return <Custom block={block} />;
-    default:
-      return null;
-  }
-}
+export const appSlots: BlockSlots = {
+  now_watching: ({ page }) => <NowWatching page={page as ProfilePage} />,
+  now_playing: ({ page }) => <NowPlaying page={page as ProfilePage} />,
+  guestbook: ({ page, block }) => <Guestbook page={page as ProfilePage} block={block as Block} />,
+};

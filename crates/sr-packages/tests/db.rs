@@ -13,6 +13,8 @@ use sr_db::{
     accounts::{self, NewAccount},
     testing::TestDb,
 };
+use sr_packages::profile_privacy::{Preset, Tier};
+use sr_packages::service::privacy::PrivacyUpdate;
 use sr_packages::service::{Decision, PackageService};
 use sr_packages::zipfiles::build_zip;
 use sr_packages::{Checks, PackageError, PackageKind};
@@ -420,6 +422,21 @@ async fn profile_documents_pages_and_guestbook() {
         .await
         .unwrap();
     assert_eq!(r.svc.own_doc(me).await.unwrap().blocks.len(), 3);
+    // D-382: a member who never chose is private. Members see the page, only friends the guestbook.
+    assert!(r.svc.page(stranger, None, Some(me), false).await.is_err());
+    r.svc
+        .set_privacy(
+            me,
+            PrivacyUpdate {
+                page_tier: Some(Tier::Members),
+                top8_tier: Some(Tier::Members),
+                guestbook_tier: Some(Tier::Friends),
+                ..PrivacyUpdate::default()
+            },
+            false,
+        )
+        .await
+        .unwrap();
 
     let me_name: String = sqlx::query_scalar("SELECT username::text FROM accounts WHERE id = $1")
         .bind(me)
@@ -428,7 +445,7 @@ async fn profile_documents_pages_and_guestbook() {
         .unwrap();
     let page = r
         .svc
-        .page(stranger, Some(&me_name.to_uppercase()), None)
+        .page(stranger, Some(&me_name.to_uppercase()), None, false)
         .await
         .unwrap();
     assert!(page.customised && !page.is_owner && !page.can_sign);
@@ -437,30 +454,56 @@ async fn profile_documents_pages_and_guestbook() {
     // A friend who is removed no longer shows in Top friends.
     // Guestbook: friends and the owner only.
     assert!(matches!(
-        r.svc.sign(stranger, me, "hi").await.unwrap_err(),
+        r.svc.sign(stranger, me, "hi", false).await.unwrap_err(),
         PackageError::Forbidden
     ));
-    let e = r.svc.sign(friend, me, "  nice page  ").await.unwrap();
+    let e = r
+        .svc
+        .sign(friend, me, "  nice page  ", false)
+        .await
+        .unwrap();
     assert_eq!(e.body, "nice page");
-    assert!(r.svc.sign(friend, me, "").await.is_err());
-    assert!(r.svc.sign(friend, me, &"x".repeat(501)).await.is_err());
-    assert_eq!(r.svc.guestbook(stranger, me, None).await.unwrap().len(), 1);
+    assert!(r.svc.sign(friend, me, "", false).await.is_err());
+    assert!(
+        r.svc
+            .sign(friend, me, &"x".repeat(501), false)
+            .await
+            .is_err()
+    );
+    assert!(r.svc.guestbook(stranger, me, None, false).await.is_err());
+    assert_eq!(
+        r.svc
+            .guestbook(friend, me, None, false)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
     // A stranger cannot remove it; the author and the owner can.
     let eid: i64 = e.id.parse().unwrap();
     assert!(r.svc.remove_entry(stranger, me, eid).await.is_err());
     r.svc.remove_entry(friend, me, eid).await.unwrap();
-    let e2 = r.svc.sign(friend, me, "again").await.unwrap();
+    let e2 = r.svc.sign(friend, me, "again", false).await.unwrap();
     r.svc
         .remove_entry(me, me, e2.id.parse().unwrap())
         .await
         .unwrap();
-    assert!(r.svc.guestbook(me, me, None).await.unwrap().is_empty());
+    assert!(
+        r.svc
+            .guestbook(me, me, None, false)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     // The rate limit.
     for i in 0..5 {
-        r.svc.sign(friend, me, &format!("n{i}")).await.unwrap();
+        r.svc
+            .sign(friend, me, &format!("n{i}"), false)
+            .await
+            .unwrap();
     }
     assert!(matches!(
-        r.svc.sign(friend, me, "six").await.unwrap_err(),
+        r.svc.sign(friend, me, "six", false).await.unwrap_err(),
         PackageError::Conflict(_)
     ));
     // Blocking hides the page both ways.
@@ -470,17 +513,22 @@ async fn profile_documents_pages_and_guestbook() {
         .execute(&r.pool)
         .await
         .unwrap();
-    assert!(r.svc.page(stranger, None, Some(me)).await.is_err());
-    assert!(r.svc.page(me, None, Some(stranger)).await.is_err());
-    assert!(r.svc.guestbook(stranger, me, None).await.is_err());
+    assert!(r.svc.page(stranger, None, Some(me), false).await.is_err());
+    assert!(r.svc.page(me, None, Some(stranger), false).await.is_err());
+    assert!(r.svc.guestbook(stranger, me, None, false).await.is_err());
     // No guestbook block, no signing.
     r.svc.set_doc(me, &json!({"blocks": []})).await.unwrap();
     assert!(matches!(
-        r.svc.sign(friend, me, "late").await.unwrap_err(),
-        PackageError::Conflict(_)
+        r.svc.sign(friend, me, "late", false).await.unwrap_err(),
+        PackageError::Forbidden
     ));
     // Unknown people.
-    assert!(r.svc.page(me, Some("nobody.here"), None).await.is_err());
+    assert!(
+        r.svc
+            .page(me, Some("nobody.here"), None, false)
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -824,7 +872,17 @@ async fn profile_pictures_are_capped_owned_and_dropped_when_a_saved_document_sto
         "orphan file deleted on save"
     );
     // The page lists exactly the pictures the document names, for anyone who may see it.
-    let page = svc.page(other, None, Some(me)).await.unwrap();
+    svc.set_privacy(
+        me,
+        PrivacyUpdate {
+            preset: Some(Preset::Members),
+            ..PrivacyUpdate::default()
+        },
+        false,
+    )
+    .await
+    .unwrap();
+    let page = svc.page(other, None, Some(me), false).await.unwrap();
     assert_eq!(page.media.len(), 3);
     assert!(page.guestbook_count.is_none());
 
