@@ -62,6 +62,8 @@ pub fn openapi_json() -> serde_json::Result<String> {
 }
 
 #[cfg(test)]
+mod cards_pg_tests;
+#[cfg(test)]
 mod tests {
     #[test]
     fn openapi_is_deterministic_and_has_core_paths() {
