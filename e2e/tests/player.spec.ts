@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { blocking, describe, runAxe, settle } from '../support/a11y';
 import {
   currentTime,
@@ -23,18 +23,22 @@ import { test } from '../support/world';
  */
 test.use({ bypassCSP: true });
 
+/** The floating player itself; Settings > Appearance has its own "Music player" card with the same name. */
+const playerRegion = (page: Page) =>
+  page.getByRole('region', { name: 'Music player' }).and(page.locator('.sr-ply'));
+
 test('a track started in Cinema keeps playing in Settings', async ({ solo }) => {
   const page = solo.a.page;
   await serveTone(page);
   await page.goto('/cinema');
   await expect(page.getByRole('main')).toBeVisible();
   await startPlaying(page);
-  await expect(page.getByRole('region', { name: 'Music player' })).toBeVisible();
+  await expect(playerRegion(page)).toBeVisible();
 
   await goInApp(page, '/settings/user/appearance');
   await expect(page.getByRole('heading', { name: 'Appearance' })).toBeVisible();
   // Same page load, same audio element, still advancing, and the player is still on screen.
-  await expect(page.getByRole('region', { name: 'Music player' })).toBeVisible();
+  await expect(playerRegion(page)).toBeVisible();
   await expectAdvancing(page);
 
   // The skin picker in Settings changes the live player.
@@ -56,7 +60,7 @@ test('playback survives the Lounge, Library and Settings routes, and its keys wo
 
   for (const path of ['/channels/@me', '/library', '/settings/user/appearance']) {
     await goInApp(page, path);
-    await expect(page.getByRole('region', { name: 'Music player' })).toBeVisible();
+    await expect(playerRegion(page)).toBeVisible();
     await expectAdvancing(page);
   }
   expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin);
@@ -79,7 +83,7 @@ test('the player is not served on public pages, and a sign-out ends it', async (
   await startPlaying(page);
   // Landing on a public page (what a sign-out does) removes the player and stops the sound.
   await goInApp(page, '/help/whats-new');
-  await expect(page.getByRole('region', { name: 'Music player' })).toHaveCount(0);
+  await expect(playerRegion(page)).toHaveCount(0);
   await expect(page.locator('audio')).toHaveCount(0);
 });
 
