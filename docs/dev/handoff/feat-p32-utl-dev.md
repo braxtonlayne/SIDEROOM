@@ -57,3 +57,6 @@ Agent utl-dev. Base `integration/phase32`, merged `feat/p32-utl-search` at 4527f
 - Dice (RPG notation), coin, wheel and loot tables (per account or per server), and `/roll` in chat (UTL-DEV-001).
 - Private notes encrypted in the browser with a passphrase-wrapped recovery file; the server stores only ciphertext (UTL-DEV-001, migration 1630).
 - Pomodoro, stopwatch and countdown timers that can be shared with a voice channel, with `VOICE_TIMER_UPDATE` and `PUT /channels/{id}/voice-timer` (UTL-DEV-001).
+
+## Build gates (run last)
+`node scripts/build-web.mjs` ok; `node scripts/check-entrance-isolation.mjs` green (every public surface clean; none of my code is imported by a public entry, the dice engine is a dynamic import from `Composer.tsx`); `node scripts/check-bundle-budget.mjs` green (all budgets). Full web Vitest: 358 of 360 files passed on the first full run; the two failures were the catalog tests catching a key I added while the run was in progress, and both pass on rerun (`src/i18n`, `src/tools`). Eslint reports one error outside my files: `tools/drawer/GuideTool.tsx` (utl-shell's `_props`). The scratch database is dropped. `packages/wasm/dist/tools` was built locally with `wasm-pack build crates/sr-tools-wasm --target web --release --no-opt` (the integrator's `pnpm --filter @sideroom/wasm build` does the same).
