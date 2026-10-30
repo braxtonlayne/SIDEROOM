@@ -335,7 +335,8 @@ This archive holds the data tied to your account, as JSON files.\n\
   poll_votes.json     the poll votes you cast (message, channel, answer, time)\n\
   attachments.json    an index of files you uploaded (the files themselves are not included)\n\
   storage.json        your connected storage buckets (label, bucket, status, who you shared them with; never keys or secrets)\n\
-  messages/           the messages you wrote that you have not deleted, one file per channel\n\
+  scrapbook.json      scrapbook entries made from your messages, and ones you sent (text, tags, file names and sizes; never keys or links)\n\
+  messages/          the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
 \n\
 Passwords, tokens and keys are never part of this package.\n\
@@ -472,6 +473,12 @@ pub async fn build_package<W: Write + Seek>(
         &mut zip,
         "storage.json",
         &crate::storage_legal::export_for(pool, user).await?,
+    )?;
+    // PRF-SCR-001 (Art. 15): scrapbook entries about the member's messages and the ones they sent.
+    put(
+        &mut zip,
+        "scrapbook.json",
+        &crate::scrapbook_legal::export_for(pool, user).await?,
     )?;
 
     // N-15 (Art. 15): the member's own reactions and poll votes. They name the message and channel but

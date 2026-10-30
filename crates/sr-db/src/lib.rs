@@ -46,6 +46,8 @@ pub mod review_repo;
 pub mod rich_repo;
 pub mod runner;
 pub mod scopes_repo;
+pub mod scrapbook_legal;
+pub mod scrapbook_repo;
 pub mod sealed;
 pub mod self_delete;
 pub mod settings_repo;
