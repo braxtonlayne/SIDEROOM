@@ -1708,6 +1708,27 @@ async fn seed(
         slot_map.insert("scrapbook_object_id", object.to_string());
         slot_map.insert("scrapbook_removal_id", removal.to_string());
     }
+    // PRF-RNG-001 (integration, own block): per tenant a live text ring shared with the tenant's server
+    // (`ring_id`), so that the `{ring_id}` routes name a ring the tenant's actors may see: tenant A's is the plain
+    // member's (author of the self routes), seen by owner_a through the shared server; tenant B's is owner_b's.
+    for (slot_map, guild, author) in [(&mut a, ga, u("member")), (&mut b, gb, u("ownerb"))] {
+        let ring = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO status_rings (id, author_id, kind, body, audience, created_at, expires_at)              VALUES ($1, $2, 'text', 'authz ring', 'guilds', now(), now() + interval '23 hours')",
+        )
+        .bind(ring)
+        .bind(author)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO status_ring_guilds (ring_id, guild_id) VALUES ($1, $2)")
+            .bind(ring)
+            .bind(guild)
+            .execute(&pool)
+            .await
+            .unwrap();
+        slot_map.insert("ring_id", ring.to_string());
+    }
     // BYOS-LEG-001 (own block): a mount per tenant for `/admin/storage/mounts/{mount_id}/delist|relist` (OVERLAYS maps
     // `{mount_id}` there), so that a staff sweep that delists it cannot take the storage-scope routes' mount away.
     for (owner, tenant_b) in [(u("member"), false), (u("ownerb"), true)] {
@@ -3440,6 +3461,8 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         // PRF-SCR-001: choose the server's own shelf; retag the seeded entry.
         ("PUT", "/guilds/{guild_id}/scrapbook/target") => r#"{"mount_id":"{guild_mount_id}"}"#,
         ("PATCH", "/guilds/{guild_id}/scrapbook/{entry_id}") => r#"{"tags":["authz"]}"#,
+        // PRF-RNG-001: a text ring for the caller's friends.
+        ("POST", "/users/@me/rings") => r#"{"kind":"text","text":"authz","audience":"friends"}"#,
         ("PUT", "/guilds/{guild_id}/storage/grants") => {
             r#"{"role_id":"{role_id}","grants":["view_music"]}"#
         }
@@ -4187,7 +4210,11 @@ const WRITE_OBSERVED_LEN: usize = 40;
 
 /// Admitted writes that answered 400 or 422 per group, in the order of [`GROUPS`]: the request shape was
 /// refused before the permission check ran. Like [`WEAK_CEILING`], the numbers only go down.
-const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 45];
+///
+/// Wave 34 integration raised `rest` from 45 to 46 for one new route, `POST /users/@me/rings/media` (PRF-RNG-001):
+/// its body is a raw photo or clip that the matrix's JSON bodies cannot carry, so it is refused as malformed (400)
+/// once the session and self checks passed. Its refusals for every other actor are asserted as usual.
+const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 46];
 
 /// Rightful actors that differ from [`control_of`]'s rule, by route.
 fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
