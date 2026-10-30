@@ -152,6 +152,35 @@ describe('valve skin', () => {
     await user.click(tone);
     expect(state().eqEnabled).toBe(false);
   });
+
+  it('turns equalizer bands and the master gain with its brass knobs', () => {
+    render(<ValveSkin />);
+    const knobs = screen.getByRole('group', { name: 'Tone controls' });
+    const band = within(knobs).getByRole('slider', { name: '1KHz band' });
+    fireEvent.change(band, { target: { value: '5' } });
+    expect(state().eq[5]).toBe(5);
+    expect(state().eq.filter((g) => g !== 0)).toHaveLength(1);
+    expect(band.getAttribute('aria-valuetext')).toBe('+5 dB');
+    fireEvent.change(within(knobs).getByRole('slider', { name: 'Volume' }), {
+      target: { value: '40' },
+    });
+    expect(state().volume).toBe(0.4);
+  });
+
+  it('marks A, then B, loops back to A, and stops looping', async () => {
+    const user = userEvent.setup();
+    render(<ValveSkin />);
+    act(() => engineReport.time(20, 200));
+    await user.click(screen.getByRole('button', { name: 'A-B loop: mark A here' }));
+    act(() => engineReport.time(30, 200));
+    const loop = screen.getByRole('button', { name: 'A-B loop: mark B here and loop' });
+    await user.click(loop);
+    expect(loop.getAttribute('aria-pressed')).toBe('true');
+    act(() => engineReport.time(31, 200));
+    expect(state().seekRequest).toBe(20);
+    await user.click(screen.getByRole('button', { name: 'A-B loop: stop looping' }));
+    expect(screen.getByRole('button', { name: 'A-B loop: mark A here' })).toBeTruthy();
+  });
 });
 
 describe('tidepool skin', () => {
