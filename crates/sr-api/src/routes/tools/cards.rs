@@ -682,6 +682,24 @@ mod tests {
     }
 
     #[test]
+    fn bots_are_kept_out_of_every_card_route() {
+        use axum::http::Method;
+        for (m, p) in [
+            (Method::POST, "/channels/{channel_id}/cards"),
+            (Method::GET, "/channels/{channel_id}/cards/{card_id}"),
+            (Method::DELETE, "/channels/{channel_id}/cards/{card_id}"),
+            (Method::POST, "/channels/{channel_id}/cards/{card_id}/claim"),
+            (
+                Method::DELETE,
+                "/channels/{channel_id}/cards/{card_id}/claim",
+            ),
+            (Method::GET, "/channels/{channel_id}/cards/{card_id}/ics"),
+        ] {
+            assert!(crate::auth::policy::bot_denied(&m, p), "{m} {p}");
+        }
+    }
+
+    #[test]
     fn locks_follow_the_busy_cards() {
         let locks = CardLocks::default();
         let a = locks.lock_of(1);

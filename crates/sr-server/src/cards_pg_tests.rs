@@ -985,3 +985,58 @@ async fn at_the_start_a_cinema_card_offers_the_watch_party_and_later_closes() {
     let member_view = f.get(f.member, f.channel, &card.id).await.ok().unwrap();
     assert!(!member_view.can_start_party);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_card_in_a_dm_works_for_its_recipients_and_nobody_else() {
+    let f = fx().await;
+    // A group DM of the owner, the member and one more person; the outsider is not in it.
+    let third = f.add_member("third").await;
+    let dm = (f.next)();
+    sqlx::query("INSERT INTO channels (id, type) VALUES ($1, 3)")
+        .bind(dm)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    for u in [f.owner, f.member, third] {
+        sqlx::query("INSERT INTO channel_recipients (channel_id, user_id) VALUES ($1, $2)")
+            .bind(dm)
+            .bind(u)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+    }
+    let start = now_ms() + 3 * HOUR;
+    let card = f
+        .make(f.owner, dm, body("game_night", 2, start))
+        .await
+        .unwrap_or_else(|_| panic!("a DM card"));
+    assert_eq!(card.guild_id, None);
+    assert_eq!(
+        code(f.make(f.outsider, dm, body("game_night", 2, start)).await),
+        ErrorCode::MissingAccess
+    );
+    assert_eq!(
+        code(f.get(f.outsider, dm, &card.id).await),
+        ErrorCode::MissingAccess
+    );
+    f.claim(f.member, dm, &card.id, true).await.ok().unwrap();
+    assert_eq!(
+        code(f.claim(f.outsider, dm, &card.id, true).await),
+        ErrorCode::MissingAccess
+    );
+    // A DM card has no server, so "DMs from server members" does not apply: the reminder goes out even
+    // for a member who switched that off.
+    sqlx::query("INSERT INTO user_privacy (user_id, dm_server_members) VALUES ($1, false)")
+        .bind(f.member)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let r = f.jobs.run_once(start - HOUR + 1000).await;
+    assert_eq!((r.sent, r.skipped), (1, 0));
+    assert_eq!(f.rec.dms.lock().unwrap()[0].0, f.member);
+    assert_eq!(
+        f.rec.dms.lock().unwrap()[0].1.url.as_deref(),
+        Some(format!("/channels/@me/{dm}/{}", card.id).as_str())
+    );
+}
