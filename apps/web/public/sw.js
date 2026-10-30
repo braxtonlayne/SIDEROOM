@@ -153,14 +153,33 @@ function storableShell(res) {
   return res.ok && !res.redirected && ct.includes('text/html');
 }
 
+/**
+ * A page the server answered with a redirect (the gate's 302 to the sign-in page), handed to the browser as an
+ * ordinary redirect to where the server sent it. The unfollowed redirect itself (`opaqueredirect`) is a valid answer
+ * to a navigation, but Firefox fails the page with NS_ERROR_NET_EMPTY_RESPONSE when a worker gives it one (seen in
+ * the built-bundle e2e, wave 30b). So the worker asks once more, follows, and redirects; the server alone still
+ * decides the target and its `next`.
+ */
+function followRedirect(request) {
+  const u = new URL(request.url);
+  return fetch(
+    new Request(u.pathname + u.search, {
+      credentials: 'include',
+      redirect: 'follow',
+      headers: { Accept: 'text/html' },
+    }),
+  ).then((res) => (res.redirected && res.url ? Response.redirect(res.url, 302) : res));
+}
+
 /** Network first for a page; remember it in `cacheName` under `key` when it is a shell; fall back to the cache. */
 function navigateWith(event, cacheName, key) {
   return fetch(event.request)
     .then((res) => {
       if (cacheName === APP_CACHE && sessionLost(res)) {
         event.waitUntil(purgeApp());
-        return res;
+        return res.type === 'opaqueredirect' ? followRedirect(event.request) : res;
       }
+      if (res.type === 'opaqueredirect') return followRedirect(event.request);
       if (key && storableShell(res)) {
         // Store it only if it is a shell: a captive portal or a proxy's page is html too, and would otherwise
         // be what every offline navigation shows from then on (RDY-PWA-001).

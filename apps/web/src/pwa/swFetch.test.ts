@@ -321,6 +321,29 @@ describe('signed-in files', () => {
     }
   });
 
+  it('an unfollowed redirect is handed to the page as a plain redirect to where the server sent it', async () => {
+    const store = storeOf(...appRows());
+    let n = 0;
+    const w = boot(
+      'b1',
+      () =>
+        n++ === 0
+          ? Object.defineProperty(new Response(null), 'type', { value: 'opaqueredirect' })
+          : Object.defineProperties(html('<div id="root"></div>'), {
+              redirected: { value: true },
+              url: { value: ORIGIN + '/login?next=/board' },
+            }),
+      store,
+    );
+    const res = await w.fetchEvent(navigate('/board'));
+    expect(res!.status).toBe(302);
+    expect(res!.type).not.toBe('opaqueredirect');
+    expect(res!.headers.get('location')).toBe(ORIGIN + '/login?next=/board');
+    // Asked once as the page, once more to follow; nothing else, and the app caches went.
+    expect(w.network.calls).toEqual(['/board', '/board']);
+    expect(appKeys(store)).toEqual([]);
+  });
+
   it('a 401 on a public page does not touch them', async () => {
     const store = storeOf(...appRows());
     const w = boot('b1', () => new Response('', { status: 401 }), store);
