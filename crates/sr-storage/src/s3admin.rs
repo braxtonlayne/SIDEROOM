@@ -23,11 +23,18 @@ type HmacSha256 = Hmac<Sha256>;
 
 /// Methods the app origin may use against the bucket (D-175).
 pub const CORS_METHODS: [&str; 3] = ["PUT", "GET", "HEAD"];
-/// Request headers the browser may send on a presigned upload. Lowercase: browsers send preflight header names
-/// lowercased (Fetch spec), and with Garage `Content-Type` refused a ZIP's `application/zip`
-/// PUT (the p24 library gate); the composer never noticed because its part PUTs carry no content type.
-pub const CORS_ALLOWED_HEADERS: [&str; 1] = ["content-type"];
-/// Response headers the page may read.
+/// Request headers the browser may send. Lowercase: browsers send preflight header names lowercased (Fetch spec).
+/// `content-type`: with Garage `Content-Type` refused a ZIP's `application/zip` PUT (the p24 library gate); the
+/// composer never noticed because its part PUTs carry no content type. `range` (wave 30, MUS-PLY-001/MUS-IDX-001):
+/// the player streams and the tagger reads tags by byte range; a plain `bytes=a-b` is CORS-safelisted in current
+/// browsers, but a suffix range or an older browser sends a preflight that must allow it.
+pub const CORS_ALLOWED_HEADERS: [&str; 2] = ["content-type", "range"];
+/// The allowed headers a bucket's existing rule must carry to pass the check and the daily recheck. `range` is
+/// written by every apply but not required of a rule applied before wave 30, so those mounts keep working (the
+/// media element's own range requests and the tagger's `bytes=a-b` reads need no preflight).
+pub const CORS_REQUIRED_HEADERS: [&str; 1] = ["content-type"];
+/// Response headers the page may read: the player and the tagger need the range answers (`Content-Range`,
+/// `Accept-Ranges`, `Content-Length`), uploads need `ETag`.
 pub const CORS_EXPOSE_HEADERS: [&str; 4] =
     ["ETag", "Content-Range", "Accept-Ranges", "Content-Length"];
 const CORS_MAX_AGE_SECONDS: u32 = 3600;
@@ -342,7 +349,7 @@ impl S3Admin {
     }
 
     /// Replace the bucket's CORS configuration with one rule allowing `origins`
-    /// to `PUT`, `GET` and `HEAD` (`Content-Type` allowed, `ETag` and the range headers exposed).
+    /// to `PUT`, `GET` and `HEAD` (`Content-Type` and `Range` allowed, `ETag` and the range headers exposed).
     /// Repeating the call is harmless: S3 replaces the configuration.
     pub async fn put_bucket_cors(&self, origins: &[String]) -> Result<()> {
         let reply = self.put_bucket_cors_raw(origins).await?;

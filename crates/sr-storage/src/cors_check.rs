@@ -1,15 +1,18 @@
 //! The CORS checker and applier of a storage mount (BYOS-MNT-003).
 //!
 //! The required rule is the one of [`crate::s3admin::cors_xml`] for one origin (`server.public_url`, never a
-//! wildcard): methods `GET`, `HEAD`, `PUT`; allowed header `content-type`; exposed headers `ETag`,
-//! `Content-Range`, `Accept-Ranges`, `Content-Length`. A bucket passes when one of its rules names exactly
-//! that origin and covers all of those. Everything else is `different` (with the rules it has) or `missing`.
+//! wildcard): methods `GET`, `HEAD`, `PUT`; allowed headers `content-type` and `range` (the player's and the
+//! tagger's byte-range reads, wave 30); exposed headers `ETag`, `Content-Range`, `Accept-Ranges`, `Content-Length`.
+//! A bucket passes when one of its rules names exactly that origin and covers all of those, except that `range`
+//! is not required of a rule written before wave 30 ([`CORS_REQUIRED_HEADERS`]). Everything else is `different`
+//! (with the rules it has) or `missing`.
 //! Providers whose S3 CORS API is not implemented (B2 in some regions answers 501) get `manual` with the
 //! provider's own steps.
 
 use crate::mounts::Provider;
 use crate::s3admin::{
-    CORS_ALLOWED_HEADERS, CORS_EXPOSE_HEADERS, CORS_METHODS, S3Admin, S3Reply, normalize_origin,
+    CORS_ALLOWED_HEADERS, CORS_EXPOSE_HEADERS, CORS_METHODS, CORS_REQUIRED_HEADERS, S3Admin,
+    S3Reply, normalize_origin,
 };
 
 /// Result of a check or an apply.
@@ -140,12 +143,16 @@ fn has_all(have: &[String], want: &[String]) -> bool {
 }
 
 fn covers(rule: &Rule, required: &Rule) -> bool {
+    let must_allow: Vec<String> = CORS_REQUIRED_HEADERS
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect();
     // The origin must be named; a wildcard origin does not count (D-175).
     rule.origins.iter().any(|o| {
         o.trim_end_matches('/')
             .eq_ignore_ascii_case(&required.origins[0])
     }) && has_all(&rule.methods, &required.methods)
-        && (rule.headers.iter().any(|h| h == "*") || has_all(&rule.headers, &required.headers))
+        && (rule.headers.iter().any(|h| h == "*") || has_all(&rule.headers, &must_allow))
         && has_all(&rule.expose, &required.expose)
 }
 
@@ -171,7 +178,7 @@ pub fn compare(origin: &str, found_xml: Option<&str>) -> CorsReport {
 /// The provider's own steps for setting the rule by hand.
 pub fn manual_steps(provider: Provider, origin: &str) -> String {
     let rule = format!(
-        "Allow origin {origin}; methods GET, HEAD, PUT; allowed header content-type; exposed headers ETag, Content-Range, Accept-Ranges, Content-Length."
+        "Allow origin {origin}; methods GET, HEAD, PUT; allowed headers content-type and range; exposed headers ETag, Content-Range, Accept-Ranges, Content-Length."
     );
     let how = match provider {
         Provider::B2 => {
@@ -319,6 +326,41 @@ mod tests {
              </CORSRule></CORSConfiguration>"
         );
         assert_eq!(compare(ORIGIN, Some(&xml)).state, CorsState::Ok);
+    }
+
+    #[test]
+    fn the_rule_we_write_allows_range_requests_and_exposes_the_range_answers() {
+        // MUS-PLY-001 / MUS-IDX-001: the player streams and the tagger reads tags by byte range.
+        let xml = cors_xml(&[ORIGIN.to_owned()]).unwrap();
+        let rule = &parse_rules(&xml)[0];
+        assert!(rule.methods.iter().any(|m| m == "GET"));
+        assert!(rule.headers.iter().any(|h| h == "range"));
+        for h in ["Content-Range", "Accept-Ranges", "Content-Length"] {
+            assert!(rule.expose.iter().any(|e| e == h), "{h} exposed");
+        }
+        assert!(required_rule(ORIGIN).headers.iter().any(|h| h == "range"));
+        assert!(manual_steps(Provider::B2, ORIGIN).contains("range"));
+    }
+
+    #[test]
+    fn a_rule_from_before_wave_30_without_range_still_passes() {
+        // Applied by an older build: content-type only. Simple ranges are CORS-safelisted, so it keeps working and
+        // the daily recheck must not mark the mount failing.
+        let old = format!(
+            "<CORSConfiguration><CORSRule><AllowedOrigin>{ORIGIN}</AllowedOrigin>\
+             <AllowedMethod>PUT</AllowedMethod><AllowedMethod>GET</AllowedMethod><AllowedMethod>HEAD</AllowedMethod>\
+             <AllowedHeader>content-type</AllowedHeader>\
+             <ExposeHeader>ETag</ExposeHeader><ExposeHeader>Content-Range</ExposeHeader>\
+             <ExposeHeader>Accept-Ranges</ExposeHeader><ExposeHeader>Content-Length</ExposeHeader>\
+             </CORSRule></CORSConfiguration>"
+        );
+        assert_eq!(compare(ORIGIN, Some(&old)).state, CorsState::Ok);
+        // Without the exposed range headers the player could not seek: that is still a different rule.
+        let no_expose = old.replace("<ExposeHeader>Content-Range</ExposeHeader>", "");
+        assert_eq!(
+            compare(ORIGIN, Some(&no_expose)).state,
+            CorsState::Different
+        );
     }
 
     #[test]

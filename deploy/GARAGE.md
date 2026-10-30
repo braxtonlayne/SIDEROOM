@@ -7,7 +7,7 @@ SIDE ROOM talks to any S3-compatible store; Garage is the reference because it i
 1. `cp deploy/compose/garage/garage.prod.toml.example deploy/compose/garage/garage.prod.toml` and replace every `CHANGE_ME` (`openssl rand -hex 32` for `rpc_secret`, `openssl rand -base64 32` for the two tokens).
 2. `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d garage`
 3. Create the layout, key and bucket once. `deploy/compose/garage/bootstrap.sh` does this for the dev stack; for production run the same `garage` commands with your own key (`garage key create sideroom-prod`, `garage bucket create sideroom`, `garage bucket allow --read --write --owner sideroom --key sideroom-prod`) and put the printed key id and secret into `.env.prod` as `GARAGE_ACCESS_KEY` and `GARAGE_SECRET_KEY`.
-4. Give the bucket its browser CORS rule: `sr-cli storage ensure-cors --origin https://<your-domain>` (uploads are presigned `PUT`s from the browser).
+4. Give the bucket its browser CORS rule: `sr-cli storage ensure-cors --origin https://<your-domain>` (uploads are presigned `PUT`s from the browser, and the music player and the tag reader fetch audio by byte range). The rule allows `PUT`, `GET` and `HEAD` from that origin with the request headers `content-type` and `range`, and exposes `ETag`, `Content-Range`, `Accept-Ranges` and `Content-Length`. A bucket set up before wave 30 lacks `range`; it keeps passing the daily check, and running the command again (or Apply CORS on a member's mount) adds it.
 
 `replication_factor = 1` means one copy of every block: a dead disk loses data. The nightly rustic snapshot (BACKUP.md) is the safety net on a single node.
 
