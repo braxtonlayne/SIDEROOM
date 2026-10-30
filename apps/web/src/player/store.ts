@@ -217,6 +217,22 @@ export function clear(): void {
   });
 }
 
+/** Where a queue parked for an app-update reload waits (see engine.ts). */
+export const RESUME_KEY = 'sr.player.resume';
+
+/**
+ * Sign-out, or a move onto a public page: stop playback and forget the queue, including the one parked in
+ * sessionStorage for an update reload. The host unmounts right after, which pauses the element.
+ */
+export function stopAndForget(): void {
+  clear();
+  try {
+    sessionStorage.removeItem(RESUME_KEY);
+  } catch {
+    /* storage can be blocked */
+  }
+}
+
 export function removeAt(i: number): void {
   const s = get();
   if (i < 0 || i >= s.queue.length) return;

@@ -1,5 +1,5 @@
 /** MUS-PLY-001: the controls every skin shares. Skins differ in layout and styling, never in behaviour. */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import { useReducedMotionPref } from '../settings/user/gifAutoplay';
 import { activeGraph } from './engine';
@@ -81,6 +81,11 @@ export const IconClose = () => (
     <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" />
   </Svg>
 );
+export const IconSkin = () => (
+  <Svg>
+    <path d="M12 3a9 9 0 100 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1.1.9-2 2-2h2.4a3.6 3.6 0 003.6-3.6C21 6.6 17 3 12 3zM7.5 12a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm3-4a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
+  </Svg>
+);
 export const IconDock = () => (
   <Svg>
     <path d="M4 4h16v16H4zm2 2v12h12V6z" />
@@ -96,7 +101,7 @@ export function useNowPlayingText(): string {
   const status = usePlayerStore((s) => s.status);
   if (status === 'error') return t('player.error');
   if (!track) return t('player.nothing');
-  return track.artist ? `${track.artist} - ${track.title}` : track.title;
+  return track.artist ? `${track.title} — ${track.artist}` : track.title;
 }
 
 export function PlayPauseButton({ className }: { className?: string }) {
@@ -205,22 +210,21 @@ export function DockButton({ className }: { className?: string }) {
   );
 }
 
-export function SkinSelect({ className }: { className?: string }) {
+/** One small button that moves to the next skin; the full picker is in Settings > Appearance. */
+export function SkinButton({ className }: { className?: string }) {
   const t = useT();
   const skin = usePlayerStore((s) => s.skin);
+  const nextSkin = PLAYER_SKINS[(PLAYER_SKINS.indexOf(skin) + 1) % PLAYER_SKINS.length] ?? skin;
   return (
-    <select
+    <button
+      type="button"
       className={className}
-      value={skin}
-      aria-label={t('player.skin')}
-      onChange={(e) => setSkin(e.target.value as (typeof PLAYER_SKINS)[number])}
+      aria-label={t('player.cycleSkin', { skin: t(`player.skins.${nextSkin}`) })}
+      title={t(`player.skins.${nextSkin}`)}
+      onClick={() => setSkin(nextSkin)}
     >
-      {PLAYER_SKINS.map((k) => (
-        <option key={k} value={k}>
-          {t(`player.skins.${k}`)}
-        </option>
-      ))}
-    </select>
+      <IconSkin />
+    </button>
   );
 }
 
@@ -291,8 +295,33 @@ export function Ticker({ text }: { text: string }) {
   const reduced = useReducedMotionPref();
   const status = usePlayerStore((s) => s.status);
   const moving = !reduced && status === 'playing';
+  const box = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(false);
+  // Scroll only a title that does not fit; one that fits stays put.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => {
+      const inner = el.firstElementChild as HTMLElement | null;
+      if (!inner) return;
+      // While it scrolls the text carries a one-box lead-in padding; take it out of the measure.
+      const lead = moving && el.dataset.overflow === 'true' ? el.clientWidth : 0;
+      setOverflow(inner.scrollWidth - lead > el.clientWidth + 1);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text, moving]);
   return (
-    <span className="sr-ply-ticker" data-motion={moving ? 'on' : 'off'}>
+    <span
+      ref={box}
+      className="sr-ply-ticker"
+      data-motion={moving ? 'on' : 'off'}
+      data-overflow={overflow}
+      title={text}
+    >
       <span className="sr-ply-ticker-text">{text}</span>
     </span>
   );

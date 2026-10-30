@@ -9,7 +9,7 @@ import {
   PrevButton,
   RepeatButton,
   SeekBar,
-  SkinSelect,
+  SkinButton,
   Ticker,
   TimeReadout,
   VolumeControl,
@@ -73,15 +73,8 @@ export function LibrarySkin() {
   return (
     <section className="sr-ply sr-ply-library" aria-label={t('player.region')} data-skin="library">
       <header className="sr-ply-lib-head">
-        <div className="sr-ply-lib-now">
-          <Ticker text={text} />
-          <TimeReadout />
-        </div>
-        <div className="sr-ply-lib-actions">
-          <SkinSelect className="sr-ply-select" />
-          <DockButton className="sr-ply-btn" />
-          <CloseButton className="sr-ply-btn" />
-        </div>
+        <Ticker text={text} />
+        <TimeReadout />
       </header>
       <div className="sr-ply-lib-transport">
         <PrevButton className="sr-ply-btn" />
@@ -90,6 +83,11 @@ export function LibrarySkin() {
         <RepeatButton className="sr-ply-btn" />
         <SeekBar className="sr-ply-range" />
         <VolumeControl className="sr-ply-btn" />
+        <span className="sr-ply-lib-actions">
+          <SkinButton className="sr-ply-btn" />
+          <DockButton className="sr-ply-btn" />
+          <CloseButton className="sr-ply-btn" />
+        </span>
       </div>
       <div role="tablist" aria-label={t('player.panel')} className="sr-ply-tabs" onKeyDown={onKey}>
         {tabs.map((k) => (

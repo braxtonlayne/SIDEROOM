@@ -16,6 +16,7 @@ export default {
   'player.close': 'Close player',
   'player.moveTo': 'Move player to {place}',
   'player.skin': 'Player skin',
+  'player.cycleSkin': 'Switch to the {skin} skin',
   'player.panel': 'Player panel',
   'player.repeat.off': 'Repeat: off',
   'player.repeat.all': 'Repeat: all tracks',

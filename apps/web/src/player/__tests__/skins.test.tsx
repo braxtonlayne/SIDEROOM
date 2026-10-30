@@ -45,7 +45,7 @@ describe.each(skins)('%s skin controls', (_name, Skin) => {
   it('shows the track and has no axe violations', async () => {
     const { container } = render(<Skin />);
     expect(screen.getByRole('region', { name: 'Music player' })).toBeTruthy();
-    expect(screen.getByText('The Band - Alpha')).toBeTruthy();
+    expect(screen.getByText('Alpha — The Band')).toBeTruthy();
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -95,11 +95,20 @@ describe.each(skins)('%s skin controls', (_name, Skin) => {
     expect(state().queue).toHaveLength(0);
   });
 
-  it('switches skin from its own picker', async () => {
+  it('has a skin button instead of a dropdown, and cycles the skin', async () => {
     const user = userEvent.setup();
     render(<Skin />);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Player skin' }), 'pill');
-    expect(state().skin).toBe('pill');
+    expect(screen.queryByRole('combobox')).toBeNull();
+    const here = state().skin;
+    const order = ['retro', 'pill', 'library'] as const;
+    const want = order[(order.indexOf(here) + 1) % 3]!;
+    const names = {
+      retro: 'Retro MP3 Hardware',
+      pill: 'Compact Pill / Dock',
+      library: 'Full Library Manager',
+    };
+    await user.click(screen.getByRole('button', { name: `Switch to the ${names[want]} skin` }));
+    expect(state().skin).toBe(want);
   });
 });
 

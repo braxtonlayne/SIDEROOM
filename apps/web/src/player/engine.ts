@@ -27,12 +27,13 @@ import {
   engineReport,
   next,
   nextIndex,
+  RESUME_KEY,
   usePlayerStore,
   type PlayerState,
 } from './store';
 import type { PlayerTrack } from './types';
 
-export const RESUME_KEY = 'sr.player.resume';
+export { RESUME_KEY };
 
 interface Resume {
   queue: Pick<

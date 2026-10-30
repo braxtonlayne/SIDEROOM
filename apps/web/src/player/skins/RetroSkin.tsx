@@ -7,7 +7,7 @@ import {
   PrevButton,
   RepeatButton,
   SeekBar,
-  SkinSelect,
+  SkinButton,
   StopButton,
   Ticker,
   TimeReadout,
@@ -17,7 +17,7 @@ import {
 } from '../controls';
 import { usePlayerStore } from '../store';
 
-/** "Retro MP3 Hardware" (the default): an LCD with a ticker and a VU bar over a row of hardware-style buttons. */
+/** "Retro MP3 Hardware" (the default): a tinted LCD with a ticker and a VU bar over chunky raised keys. */
 export function RetroSkin() {
   const t = useT();
   const text = useNowPlayingText();
@@ -51,9 +51,11 @@ export function RetroSkin() {
       </div>
       <div className="sr-ply-foot">
         <VolumeControl className="sr-ply-key sr-ply-key-small" />
-        <SkinSelect className="sr-ply-select" />
-        <DockButton className="sr-ply-key sr-ply-key-small" />
-        <CloseButton className="sr-ply-key sr-ply-key-small" />
+        <span className="sr-ply-foot-end">
+          <SkinButton className="sr-ply-key sr-ply-key-small" />
+          <DockButton className="sr-ply-key sr-ply-key-small" />
+          <CloseButton className="sr-ply-key sr-ply-key-small" />
+        </span>
       </div>
     </section>
   );
