@@ -68,6 +68,7 @@ pub mod social;
 pub mod storage;
 pub mod submissions;
 pub mod threads;
+pub mod tools;
 pub mod tv;
 pub mod userfeat;
 pub mod userset;
@@ -146,6 +147,7 @@ pub fn all() -> Router<AppState> {
         .merge(gifs::router())
         .merge(inbox::router())
         .merge(userfeat::router())
+        .merge(tools::router())
         .merge(storage::router())
         .merge(music::router())
         .merge(moderation::router())
@@ -192,6 +194,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(gifs::openapi());
     doc.merge(inbox::openapi());
     doc.merge(userfeat::openapi());
+    doc.merge(tools::openapi());
     doc.merge(storage::openapi());
     doc.merge(music::openapi());
     doc.merge(moderation::openapi());

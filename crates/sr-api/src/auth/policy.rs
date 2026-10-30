@@ -91,6 +91,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
         return true;
     }
+    // Invite cards (Cinema tickets and game nights, UTL-CRD-001) are for people: a seat belongs to a member.
+    if p.starts_with("/channels/") && p.contains("/cards") {
+        return true;
+    }
     // Packages, profile pages and guestbooks (EXT-PKG, EXT-PRF) are for people: themes, layouts, recipes
     // and a page of one's own. A bot has no profile to customise and no server to manage by session.
     if p.starts_with("/packages")
