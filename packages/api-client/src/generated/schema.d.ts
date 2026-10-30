@@ -16287,6 +16287,13 @@ export interface components {
             rate_limit_per_user: number;
             /** @description Voice and stage channels: always `null` (this installation has one voice region). */
             rtc_region?: string | null;
+            /** @description Voice and stage channels: members with Speak may play music into the call (MUS-JB-001). */
+            sr_music_allowed?: boolean | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels: the music track's Opus bitrate in kbit/s (32 to 320, default 256).
+             */
+            sr_music_bitrate_kbps?: number | null;
             /** @description Voice channels: true for a Watch party room (D-208), a channel with a standing watch party. */
             sr_watch_party_room?: boolean | null;
             thread_metadata?: null | components["schemas"]["ThreadMetadataObject"];
@@ -20692,6 +20699,13 @@ export interface components {
             rate_limit_per_user?: number | null;
             /** @description Only `null` is accepted: this installation has one voice region. */
             rtc_region?: string | null;
+            /** @description Voice and stage channels: allow members with Speak to play music into the call (MUS-JB-001). */
+            sr_music_allowed?: boolean | null;
+            /**
+             * Format: int32
+             * @description Voice and stage channels: the music track's bitrate in kbit/s, 32 to 320.
+             */
+            sr_music_bitrate_kbps?: number | null;
             topic?: string | null;
             /**
              * Format: int32
