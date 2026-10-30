@@ -45,6 +45,7 @@ DELETE	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	
 DELETE	/channels/{channel_id}/recipients/{user_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/tool-rooms/{room_id}	authenticated	membership	deny	-	-
 DELETE	/cinema/comments/{comment_id}	authenticated	author	allow	-	-
 DELETE	/cinema/comments/{comment_id}/like	authenticated	user	allow	-	-
 DELETE	/cinema/lists/{list_id}	authenticated	author	allow	-	-
@@ -273,6 +274,8 @@ GET	/channels/{channel_id}/thread-members	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/thread-members/{user_id}	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/threads/archived/private	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/threads/archived/public	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/tool-rooms	authenticated	membership	deny	-	-
+GET	/channels/{channel_id}/tool-rooms/{room_id}	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/users/@me/threads/archived/private	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/watch-party	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/webhooks	authenticated	membership	allow	-	-
@@ -575,6 +578,7 @@ PATCH	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	aut
 PATCH	/channels/{channel_id}	authenticated	membership	allow	-	-
 PATCH	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
 PATCH	/channels/{channel_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
+PATCH	/channels/{channel_id}/tool-rooms/{room_id}	authenticated	membership	deny	-	-
 PATCH	/cinema/comments/{comment_id}	authenticated	author	allow	-	-
 PATCH	/cinema/lists/{list_id}	authenticated	author	allow	-	-
 PATCH	/donations/me/preferences	authenticated	self	allow	-	-
@@ -768,6 +772,7 @@ POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	a
 POST	/channels/{channel_id}/scheduled-messages	authenticated	membership	deny	-	-
 POST	/channels/{channel_id}/send-soundboard-sound	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/threads	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/tool-rooms	authenticated	membership	deny	-	-
 POST	/channels/{channel_id}/typing	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/webhooks	authenticated	membership	allow	-	-
 POST	/cinema/assets/{asset_id}/refresh	authenticated	user	allow	-	-
