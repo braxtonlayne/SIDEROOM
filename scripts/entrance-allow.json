@@ -1,0 +1,4 @@
+{
+  "$comment": "SEC-ENT-004 / D-385. Matches the isolation check tolerates, each with the surface it applies to ('*' for every surface), the exact token, an optional file substring, and a reason. An entry without a reason fails the check. There is no entry for Lounge, Cinema or Library and there never may be (O-7, owner decision of 2026-10-29): if one of those words shows up in third-party code, report it to the owner instead of allowing it here.",
+  "allow": []
+}
