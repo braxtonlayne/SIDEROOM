@@ -91,6 +91,12 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p.starts_with("/channels/") && (p.contains("/jukebox") || p.ends_with("/listening-room")) {
         return true;
     }
+    // The scrapbook is a member feature (PRF-SCR-001): sending a message to it, its gallery and its shelf.
+    if (p.starts_with("/guilds/") && p.contains("/scrapbook"))
+        || (p.starts_with("/channels/") && p.ends_with("/scrapbook"))
+    {
+        return true;
+    }
     // Scheduling a message is a user feature (D-189); a bot posts directly.
     if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
         return true;
