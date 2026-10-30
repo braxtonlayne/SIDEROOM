@@ -81,8 +81,20 @@ const guide: ToolEntry = {
   load: () => import('./drawer/GuideTool'),
 };
 
+/** UTL-CRD-001: Cinema ticket and game-night invite cards (utl-cards). */
+const invite: ToolEntry = {
+  id: 'invite',
+  nameKey: 'tools.invite.name',
+  descriptionKey: 'tools.invite.description',
+  icon: 'calendar',
+  group: 'collab',
+  aliases: ['ticket', 'game night', 'cinema night', 'rsvp', 'seats', 'ics', 'event'],
+  size: { width: 380, height: 560, minWidth: 280, minHeight: 320 },
+  load: () => import('./cards/InviteTool'),
+};
+
 /** Append new entries after the last one. */
-export const TOOLS: ToolEntry[] = [guide];
+export const TOOLS: ToolEntry[] = [guide, invite];
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
