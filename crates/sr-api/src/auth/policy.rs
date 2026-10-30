@@ -83,6 +83,8 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         // library (MUS-IDX-001, MUS-LIB-001).
         || p.starts_with("/music/")
         || p.starts_with("/users/@me/music")
+        // The utility drawer's private notes and loot tables belong to a person (UTL-DEV-001).
+        || p.starts_with("/users/@me/tools")
         || (p.starts_with("/guilds/") && p.contains("/music/"))
     {
         return true;
@@ -200,6 +202,9 @@ mod tests {
             (Method::PATCH, "/users/@me/scheduled-messages/{id}"),
             (Method::POST, "/channels/{channel_id}/scheduled-messages"),
             (Method::GET, "/users/@me/bookmarks"),
+            (Method::GET, "/users/@me/tools/notes"),
+            (Method::PUT, "/users/@me/tools/notes/{note_id}"),
+            (Method::POST, "/users/@me/tools/loot-tables"),
             (Method::PATCH, "/users/@me/bookmarks/{message_id}"),
             (Method::PUT, "/users/@me/birthday"),
             (Method::DELETE, "/users/@me/birthday"),

@@ -64,7 +64,7 @@ pub fn router() -> Router<AppState> {
         timer::set,
     ),
     components(schemas(
-        notes::NoteObject,
+        notes::ScratchNoteObject,
         notes::PutNoteBody,
         sr_userfeat::tools::LootTable,
         sr_userfeat::tools::LootTableInput,

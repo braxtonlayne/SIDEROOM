@@ -16,7 +16,7 @@ use utoipa::ToSchema;
 
 /// One stored note.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct NoteObject {
+pub struct ScratchNoteObject {
     /// A lowercase UUID the browser chose.
     pub note_id: String,
     /// The encrypted note, standard Base64. Opaque to the server.
@@ -26,7 +26,7 @@ pub struct NoteObject {
     pub updated_at: String,
 }
 
-impl From<NoteRow> for NoteObject {
+impl From<NoteRow> for ScratchNoteObject {
     fn from(r: NoteRow) -> Self {
         Self {
             note_id: r.note_id,
@@ -50,10 +50,13 @@ pub struct PutNoteBody {
 #[utoipa::path(
     get,
     path = "/users/@me/tools/notes",
-    responses((status = 200, body = Vec<NoteObject>), (status = 403, body = ErrorBody)),
+    responses((status = 200, body = Vec<ScratchNoteObject>), (status = 403, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
 )]
-pub async fn list(p: Principal, Ext(d): Ext<UserFeatDeps>) -> MsgResult<Json<Vec<NoteObject>>> {
+pub async fn list(
+    p: Principal,
+    Ext(d): Ext<UserFeatDeps>,
+) -> MsgResult<Json<Vec<ScratchNoteObject>>> {
     let user = raw(me(&p)?);
     let rows = d.uf.list_notes(user).await.map_err(uerr)?;
     Ok(Json(rows.into_iter().map(Into::into).collect()))
@@ -67,7 +70,7 @@ pub async fn list(p: Principal, Ext(d): Ext<UserFeatDeps>) -> MsgResult<Json<Vec
     params(("note_id" = String, Path, description = "Lowercase UUID")),
     request_body = PutNoteBody,
     responses(
-        (status = 200, body = NoteObject),
+        (status = 200, body = ScratchNoteObject),
         (status = 400, body = ErrorBody),
         (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),
@@ -80,7 +83,7 @@ pub async fn put(
     Ext(d): Ext<UserFeatDeps>,
     Path(note_id): Path<String>,
     ApiJson(body): ApiJson<PutNoteBody>,
-) -> MsgResult<Json<NoteObject>> {
+) -> MsgResult<Json<ScratchNoteObject>> {
     let user = raw(me(&p)?);
     // Base64 expands by a third: refuse an obviously oversized body before decoding it.
     if body.ciphertext.len() > MAX_NOTE_BYTES * 4 / 3 + 8 {
