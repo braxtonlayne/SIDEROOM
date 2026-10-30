@@ -555,6 +555,8 @@ Specified in `docs/specs/lounge-voice-video.md` (sections 4.9 to 4.12, 7, 8a, 8b
 
 **Voice channel status.** `PUT /channels/{channel_id}/voice-status {status: string | null}` (empty or null clears, at most 500 characters; 204) sets the status line of a voice or stage channel. It needs `SET_VOICE_CHANNEL_STATUS` (bit 48) and a seat in the channel, or `MANAGE_CHANNELS`; a status can only be set while somebody is in the channel and ends when the last member leaves. Dispatch `VOICE_CHANNEL_STATUS_UPDATE {id, guild_id, status}` (intent `GUILD_VOICE_STATES`); `GUILD_CREATE` carries it as `status` on the channel objects.
 
+**Voice channel timer (SIDE ROOM, UTL-DEV-001).** `PUT /channels/{channel_id}/voice-timer {timer: object | null, label: string}` (204) shares a pomodoro, stopwatch or countdown with a voice channel. The rules are the status line's (same permission and seat), because it also sets the status line to `label` ("Focus 24:12") so members who never open the tool still see it; `timer: null` stops it and clears the status line only if the caller set it. `timer` is `{kind: pomodoro|stopwatch|countdown, phase: running|paused, segment: focus|short|long, startedMs, accumulatedMs, durationMs, completed}`; the server rebuilds it from those fields only and keeps no copy. Dispatch `VOICE_TIMER_UPDATE {id, guild_id, user_id, server_ms, timer}` (`timer` null when stopped; intent `GUILD_VOICE_STATES`); receivers correct for clock skew with `server_ms`. The timer ends with the status line (the last member leaves). A member who joins later sees the status line, not the live timer.
+
 ## 7. Bot compatibility checklist (porting guide)
 
 Published at `docs/developers/porting-from-discord.md` (Phase 6):

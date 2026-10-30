@@ -28425,6 +28425,79 @@
         ]
       }
     },
+    "/channels/{channel_id}/voice-timer": {
+      "put": {
+        "tags": [
+          "timer"
+        ],
+        "summary": "Share (or stop sharing) a timer with a voice channel. Needs `SET_VOICE_CHANNEL_STATUS` and a seat in the\nchannel, or `MANAGE_CHANNELS`, exactly like the status line it also sets. Announced as `VOICE_TIMER_UPDATE`.",
+        "operationId": "set",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice or stage channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceTimerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Applied"
+          },
+          "400": {
+            "description": "Not a voice channel, a malformed timer, or a label over 500 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/watch-party": {
       "get": {
         "tags": [
@@ -45581,6 +45654,296 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/tools/loot-tables": {
+      "get": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "A server's loot tables. Members only.",
+        "operationId": "list_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LootTable"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Save a loot table for the server (`MANAGE_GUILD`; up to 50).",
+        "operationId": "create_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/tools/loot-tables/{table_id}": {
+      "delete": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Delete a server's loot table (`MANAGE_GUILD`).",
+        "operationId": "delete_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Replace a server's loot table (`MANAGE_GUILD`).",
+        "operationId": "update_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -69753,6 +70116,439 @@
         ]
       }
     },
+    "/users/@me/tools/loot-tables": {
+      "get": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "The caller's own loot tables.",
+        "operationId": "list_mine",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LootTable"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Save a loot table to the caller's account (up to 50, names unique ignoring case).",
+        "operationId": "create_mine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/tools/loot-tables/{table_id}": {
+      "delete": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Delete one of the caller's loot tables.",
+        "operationId": "delete_mine",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Replace one of the caller's loot tables.",
+        "operationId": "update_mine",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/tools/notes": {
+      "get": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "All of the caller's encrypted notes, most recently changed first.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScratchNoteObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/tools/notes/{note_id}": {
+      "put": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Create a note (no `base_revision`) or replace one (the revision you read). 409 when the note changed\nsomewhere else or already exists; 400 when the ciphertext is empty or over 64 KiB.",
+        "operationId": "put",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "description": "Lowercase UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutNoteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScratchNoteObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Delete a note. 404 when it does not exist (for the caller).",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "description": "Lowercase UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/{user_id}/guestbook": {
       "get": {
         "tags": [
@@ -88817,6 +89613,75 @@
           }
         }
       },
+      "LootRow": {
+        "type": "object",
+        "description": "One weighted row of a loot table.",
+        "required": [
+          "label",
+          "weight"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Relative chance, 0 to 10000 (a row of weight 0 never drops).",
+            "minimum": 0
+          }
+        }
+      },
+      "LootTable": {
+        "type": "object",
+        "required": [
+          "id",
+          "scope",
+          "name",
+          "rows",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LootRow"
+            }
+          },
+          "scope": {
+            "type": "string",
+            "description": "`user` or `guild`."
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "LootTableInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "rows"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique among the owner's tables, ignoring case."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LootRow"
+            }
+          }
+        }
+      },
       "MailTestResult": {
         "type": "object",
         "description": "Result of the mail test.",
@@ -95817,6 +96682,26 @@
           }
         }
       },
+      "PutNoteBody": {
+        "type": "object",
+        "required": [
+          "ciphertext"
+        ],
+        "properties": {
+          "base_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The revision this edit started from; absent when creating the note. A different current revision is a 409."
+          },
+          "ciphertext": {
+            "type": "string",
+            "description": "The encrypted note, standard Base64, 1 to 65536 bytes once decoded."
+          }
+        }
+      },
       "PutPrimaryGuildBody": {
         "type": "object",
         "properties": {
@@ -98209,6 +99094,34 @@
             "type": "integer",
             "format": "int32",
             "description": "1 to 10."
+          }
+        }
+      },
+      "ScratchNoteObject": {
+        "type": "object",
+        "description": "One stored note.",
+        "required": [
+          "note_id",
+          "ciphertext",
+          "revision",
+          "updated_at"
+        ],
+        "properties": {
+          "ciphertext": {
+            "type": "string",
+            "description": "The encrypted note, standard Base64. Opaque to the server."
+          },
+          "note_id": {
+            "type": "string",
+            "description": "A lowercase UUID the browser chose."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Starts at 1, goes up by one on every write."
+          },
+          "updated_at": {
+            "type": "string"
           }
         }
       },
@@ -106086,6 +106999,22 @@
               "null"
             ],
             "description": "The new status, at most 500 characters. `null` or an empty string clears it."
+          }
+        }
+      },
+      "VoiceTimerBody": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "The status line that goes with the timer (\"Focus 24:12\"); required when `timer` is set."
+          },
+          "timer": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The timer to share: `{ kind: pomodoro|stopwatch|countdown, phase: running|paused, segment, startedMs,\naccumulatedMs, durationMs, completed }`. `null` stops sharing."
           }
         }
       },

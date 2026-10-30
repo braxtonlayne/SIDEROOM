@@ -146,8 +146,8 @@ pub fn all() -> Router<AppState> {
         .merge(push::router())
         .merge(gifs::router())
         .merge(inbox::router())
-        .merge(userfeat::router())
         .merge(tools::router())
+        .merge(userfeat::router())
         .merge(storage::router())
         .merge(music::router())
         .merge(moderation::router())
@@ -193,8 +193,8 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(push::openapi());
     doc.merge(gifs::openapi());
     doc.merge(inbox::openapi());
-    doc.merge(userfeat::openapi());
     doc.merge(tools::openapi());
+    doc.merge(userfeat::openapi());
     doc.merge(storage::openapi());
     doc.merge(music::openapi());
     doc.merge(moderation::openapi());
