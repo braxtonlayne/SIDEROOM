@@ -28,7 +28,7 @@ test.describe('Voice jukebox', () => {
 
   async function listener(
     browser: import('@playwright/test').Browser,
-    user: SeededUser,
+    user: Pick<SeededUser, 'username' | 'password'>,
     base: { guildId: string; textChannelId: string; voiceName: string },
   ): Promise<Page> {
     const context = await browser.newContext({ baseURL: PUBLIC_URL });
