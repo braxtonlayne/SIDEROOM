@@ -301,10 +301,12 @@ describe('the drawer owns Mod+K (UTL-SHL-001)', () => {
   });
   it('still maps Ctrl+K and Cmd+K, and honours a rebind', () => {
     expect(matchCustomShortcut({ ...base, key: 'k', ctrlKey: true }, {})).toBe('quickSwitcher');
-    expect(matchCustomShortcut({ ...base, key: 'j', ctrlKey: true }, { quickSwitcher: 'Mod+J' })).toBe(
-      'quickSwitcher',
-    );
-    expect(matchCustomShortcut({ ...base, key: 'k', ctrlKey: true }, { quickSwitcher: 'Mod+J' })).toBe(null);
+    expect(
+      matchCustomShortcut({ ...base, key: 'j', ctrlKey: true }, { quickSwitcher: 'Mod+J' }),
+    ).toBe('quickSwitcher');
+    expect(
+      matchCustomShortcut({ ...base, key: 'k', ctrlKey: true }, { quickSwitcher: 'Mod+J' }),
+    ).toBe(null);
   });
   it('describes the shortcut as the drawer', () => {
     expect(SHORTCUTS.find((d) => d.id === 'quickSwitcher')?.description).toMatch(/drawer/i);

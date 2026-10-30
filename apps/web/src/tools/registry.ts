@@ -62,7 +62,12 @@ export interface ToolEntry {
   load: () => Promise<{ default: ComponentType<ToolProps> }>;
 }
 
-export const DEFAULT_TOOL_SIZE: ToolSize = { width: 360, height: 420, minWidth: 240, minHeight: 160 };
+export const DEFAULT_TOOL_SIZE: ToolSize = {
+  width: 360,
+  height: 420,
+  minWidth: 240,
+  minHeight: 160,
+};
 
 /** The drawer's own guide: how the drawer works. Keeps the shell usable and testable before any other tool lands. */
 const guide: ToolEntry = {

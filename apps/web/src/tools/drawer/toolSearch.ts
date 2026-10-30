@@ -15,7 +15,7 @@ export interface ToolText {
 const norm = (s: string): string =>
   s
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
 

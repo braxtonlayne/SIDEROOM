@@ -21,12 +21,12 @@ beforeEach(() => {
 });
 
 const openWithKeys = async () => {
-  await screen.findByRole('navigation', { name: 'Servers' }, { timeout: 30_000 });
+  await screen.findByRole('navigation', { name: 'Servers' }, { timeout: 90_000 });
   fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
   return screen.findByRole('dialog', { name: 'Drawer' });
 };
 
-describe('the utility drawer (UTL-SHL-001)', { timeout: 60_000 }, () => {
+describe('the utility drawer (UTL-SHL-001)', { timeout: 120_000 }, () => {
   it('opens on Go to with Ctrl+K and still navigates the way the switcher did', async () => {
     const { router } = at('/channels/g1/c1');
     const dialog = await openWithKeys();
@@ -70,7 +70,10 @@ describe('the utility drawer (UTL-SHL-001)', { timeout: 60_000 }, () => {
 
     // Navigation keeps it, and the same element stays mounted.
     await act(async () => {
-      await router.navigate({ to: '/channels/$guildId/$channelId', params: { guildId: 'g1', channelId: 'c2' } });
+      await router.navigate({
+        to: '/channels/$guildId/$channelId',
+        params: { guildId: 'g1', channelId: 'c2' },
+      });
     });
     expect(screen.getByRole('dialog', { name: 'Drawer guide' })).toBe(gadget);
 

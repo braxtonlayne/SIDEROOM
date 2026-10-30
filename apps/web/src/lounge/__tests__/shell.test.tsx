@@ -224,24 +224,23 @@ describe('Lounge shell', () => {
     expect(screen.queryByRole('list', { name: 'Members' })).not.toBeInTheDocument();
   });
 
-  it('opens the quick switcher with Ctrl+K and navigates with prefixes', async () => {
-    const router = at('/channels/1001/2001');
+  it('opens the drawer on its Go to tab with Ctrl+K (UTL-SHL-001); the search itself is tested in tools/__tests__/drawer.test.tsx', async () => {
+    at('/channels/1001/2001');
     await screen.findByRole('log');
     fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
-    const input = await screen.findByRole('combobox');
-    await userEvent.type(input, '#recomm');
-    expect(await screen.findByRole('option', { name: /recommendations/ })).toBeInTheDocument();
-    await userEvent.keyboard('{Enter}');
-    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/channels/1002/2102'));
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-  });
+    const dialog = await screen.findByRole('dialog', { name: 'Drawer' }, { timeout: 20_000 });
+    expect(within(dialog).getByRole('tab', { name: 'Go to', selected: true })).toBeInTheDocument();
+    expect(within(dialog).getByRole('combobox')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await vi.waitFor(() => expect(screen.queryByRole('combobox')).not.toBeInTheDocument());
+  }, 60_000);
 
   it('opens the shortcut sheet with Ctrl+/', async () => {
     at('/channels/1001/2001');
     await screen.findByRole('log');
     fireEvent.keyDown(document, { key: '/', ctrlKey: true });
     const dialog = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' });
-    expect(within(dialog).getByText('Find or start a conversation')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Open the drawer/)).toBeInTheDocument();
   });
 
   it('moves between channels with Alt+ArrowDown', async () => {

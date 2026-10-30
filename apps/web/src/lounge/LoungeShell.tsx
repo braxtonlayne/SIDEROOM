@@ -67,10 +67,7 @@ function isEditable(t: EventTarget | null) {
 }
 
 /** Keyboard shortcut dispatcher; definitions live in shortcuts.ts. */
-function useLoungeShortcuts(h: {
-  toggleSheet: () => void;
-  openSettings: () => void;
-}) {
+function useLoungeShortcuts(h: { toggleSheet: () => void; openSettings: () => void }) {
   const { guildId, channelId } = useLoungeRoute();
   const channelsByGuild = useAllChannels();
   const rail = useRail();

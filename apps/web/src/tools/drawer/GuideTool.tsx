@@ -1,9 +1,8 @@
 import { useT } from '../../i18n';
 import { MAX_GADGETS } from '../gadgets/layout';
-import type { ToolProps } from '../registry';
 
 /** The drawer's own guide: the one tool the shell ships, so the drawer is never empty. */
-export default function GuideTool(_props: ToolProps) {
+export default function GuideTool() {
   const t = useT();
   return (
     <ul className="sr-tl-guide">

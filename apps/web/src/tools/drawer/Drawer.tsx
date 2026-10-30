@@ -112,12 +112,7 @@ export function Drawer() {
       size="md"
       className="sr-tl-drawer"
     >
-      <div
-        ref={tabsRef}
-        role="tablist"
-        aria-label={t('tools.drawer.tabs')}
-        className="sr-tl-tabs"
-      >
+      <div ref={tabsRef} role="tablist" aria-label={t('tools.drawer.tabs')} className="sr-tl-tabs">
         {(['goto', 'tools'] as const).map((id) => (
           <button
             key={id}
@@ -140,8 +135,12 @@ export function Drawer() {
         aria-expanded={!view}
         aria-controls={listId}
         aria-activedescendant={!view && count > 0 ? `${listId}-${clamped}` : undefined}
-        aria-label={tab === 'goto' ? t('lounge.quickSwitcher.searchLabel') : t('tools.drawer.searchTools')}
-        placeholder={tab === 'goto' ? t('tools.drawer.placeholderGoto') : t('tools.drawer.placeholderTools')}
+        aria-label={
+          tab === 'goto' ? t('lounge.quickSwitcher.searchLabel') : t('tools.drawer.searchTools')
+        }
+        placeholder={
+          tab === 'goto' ? t('tools.drawer.placeholderGoto') : t('tools.drawer.placeholderTools')
+        }
         value={query}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}

@@ -14,7 +14,10 @@ function componentFor(entry: ToolEntry): ComponentType<ToolProps> {
 }
 
 /** A tool that fails to load or to render must not take the drawer or the page with it. */
-class ToolBoundary extends Component<{ children: ReactNode; message: string }, { failed: boolean }> {
+class ToolBoundary extends Component<
+  { children: ReactNode; message: string },
+  { failed: boolean }
+> {
   override state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };

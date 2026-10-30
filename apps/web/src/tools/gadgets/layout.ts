@@ -34,7 +34,8 @@ export interface Mins {
 export const EMPTY_LAYOUT: Layout = { gadgets: [], pins: [] };
 export const isEmptyLayout = (l: Layout): boolean => l.gadgets.length === 0 && l.pins.length === 0;
 
-const num = (v: unknown, d: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+const num = (v: unknown, d: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : d;
 const TOOL_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Reads whatever storage or the account blob holds; never throws, never returns more than the limits allow. */
@@ -72,9 +73,7 @@ export function sanitizeLayout(raw: unknown): Layout {
 }
 
 function renumber(list: Gadget[]): Gadget[] {
-  return [...list]
-    .sort((a, b) => a.z - b.z)
-    .map((g, i) => ({ ...g, z: i + 1 }));
+  return [...list].sort((a, b) => a.z - b.z).map((g, i) => ({ ...g, z: i + 1 }));
 }
 
 /** Keeps a rectangle usable: at least the minimum size, no bigger than the viewport, title bar reachable. */
@@ -87,8 +86,7 @@ export function clampRect(rect: GadgetRect, vp: Viewport, mins: Mins): GadgetRec
 }
 
 export type OpenResult =
-  | { ok: true; layout: Layout }
-  | { ok: false; reason: 'limit'; layout: Layout };
+  { ok: true; layout: Layout } | { ok: false; reason: 'limit'; layout: Layout };
 
 /** Pops a tool out. Already open: it is raised, not duplicated. At the limit nothing changes. */
 export function openGadget(

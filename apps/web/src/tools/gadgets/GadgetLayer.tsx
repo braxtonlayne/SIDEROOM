@@ -8,7 +8,8 @@ import { clampRect, type Gadget, type GadgetRect } from './layout';
 import { useToolsStore, viewport } from './store';
 
 const STEP = 16;
-const isRtl = () => typeof document !== 'undefined' && getComputedStyle(document.documentElement).direction === 'rtl';
+const isRtl = () =>
+  typeof document !== 'undefined' && getComputedStyle(document.documentElement).direction === 'rtl';
 
 /**
  * UTL-SHL-001: the floating tools. Rendered by the drawer host, which the router keeps mounted across routes, so a
@@ -105,14 +106,15 @@ function GadgetWindow({ gadget, entry }: { gadget: Gadget; entry: ToolEntry }) {
       .getState()
       .setRect(
         entry.id,
-        e.shiftKey ? { ...base, w: base.w + dx, h: base.h + dy } : { ...base, x: base.x + dx, y: base.y + dy },
+        e.shiftKey
+          ? { ...base, w: base.w + dx, h: base.h + dy }
+          : { ...base, x: base.x + dx, y: base.y + dy },
       );
   };
 
   const name = t(entry.nameKey);
   return (
     // The dialog is non-modal: a pointer press anywhere in it brings it to the front.
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <section
       role="dialog"
       aria-modal="false"
@@ -148,7 +150,9 @@ function GadgetWindow({ gadget, entry }: { gadget: Gadget; entry: ToolEntry }) {
             aria-pressed={pinned}
             aria-label={pinned ? t('tools.drawer.unpin') : t('tools.drawer.pin')}
             onClick={() =>
-              pinned ? useToolsStore.getState().unpin(entry.id) : useToolsStore.getState().pin(entry.id)
+              pinned
+                ? useToolsStore.getState().unpin(entry.id)
+                : useToolsStore.getState().pin(entry.id)
             }
           >
             <Icon name="pin" size={16} />
