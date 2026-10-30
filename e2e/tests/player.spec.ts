@@ -60,7 +60,8 @@ test('playback survives the Lounge, Library and Settings routes, and its keys wo
     await expectAdvancing(page);
   }
   expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin);
-  expect(await page.locator('audio').count()).toBe(1);
+  // The two gapless decks (MUS-LIB-001), the same elements since the first track.
+  expect(await page.locator('audio').count()).toBe(2);
 
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect.poll(() => isPaused(page)).toBe(true);

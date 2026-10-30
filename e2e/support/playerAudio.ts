@@ -140,7 +140,7 @@ export function measureFit(page: Page): Promise<Fit> {
       return { viewport: { width: vw, height: vh }, panel: null, scrollOverflow: 0, escaping: [] };
     const r = el.getBoundingClientRect();
     const escaping: string[] = [];
-    for (const d of el.querySelectorAll<HTMLElement>('*')) {
+    for (const d of Array.from(el.querySelectorAll<HTMLElement>('*'))) {
       if (d.classList.contains('sr-ply-ticker-text') || d.closest('.sr-ply-pane')) continue;
       const b = d.getBoundingClientRect();
       if (b.width === 0 && b.height === 0) continue;
