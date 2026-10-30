@@ -85,3 +85,26 @@ pub fn lrc_sidecar_names_js(track_key: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod wasm_tests {
+    use super::*;
+    use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    /// The `JsError` path is only constructible on the wasm target.
+    #[wasm_bindgen_test]
+    fn garbage_throws_js_error() {
+        assert!(read_tags_json(b"not audio").is_err());
+        assert!(read_tags_tail_json(b"short").is_err());
+        assert!(read_cover(b"not audio").is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    fn lrc_round_trips_through_json() {
+        let out = parse_lrc_json("[00:01.50]hi");
+        assert!(out.contains("\"ms\":1500") && out.contains("\"line\":\"hi\""));
+        assert_eq!(lrc_sidecar_names_js("a/b.mp3")[0], "a/b.lrc");
+    }
+}
