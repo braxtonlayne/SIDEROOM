@@ -41,7 +41,8 @@ Branch `feat/p30-music-index`, base `integration/phase30`. Migration 1540 only.
 ## Tests run
 
 - `cargo test -p sr-storage --lib index::audio`: 4 passed.
-- `cargo test -p sr-api --test route_matrix --test openapi_names`: see the commit log / below.
+- `cargo test -p sr-api --test route_matrix`: 6 passed (bots denied on /music/ in auth/policy.rs). `cargo clippy -D warnings` on sr-storage, sr-db, sr-api with tests: clean.
+- OpenAPI, api-client types and MSW mocks regenerated (1027 operations).
 - `cargo check -p sr-api -p sr-server`, `cargo fmt`: clean.
 - Vitest `src/music/index` (4 files, 24 tests): tagger concurrency (peak 4), backoff pauses and Retry-After, 404
   vs 503 handling, cover dedup, rescan, NEED_MOOV walk with a fake presigned fetch (16-byte reads, ftyp+moov
@@ -79,6 +80,4 @@ The authz decision in test 2 mirrors the route's rule with `MemoryScopeFacts`; t
 
 ## Resume here
 
-Backend and tagger are complete. Next: run the three Postgres tests once a scratch DB is available, regenerate
-`packages/api-client/openapi.json` and the client (`cargo run -q -p sr-server -- openapi > ...`, then
-`pnpm --filter @sideroom/api-client generate` / `mocks:generate`) if not already done, and run the bundle budget.
+Everything is committed. Next: run the three Postgres tests once a scratch DB is available, and the bundle budget check.
