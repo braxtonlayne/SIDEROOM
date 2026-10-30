@@ -101,6 +101,9 @@ services:
       # Needed when the endpoint is the private electrs container (the SSRF client refuses private addresses); the
       # preflight Esplora row fails on a private electrs address until this is 1 (D-358).
       SR_PAYMENTS_ALLOW_PRIVATE_HOSTS: ${SR_PAYMENTS_ALLOW_PRIVATE_HOSTS:-}
+      # The built web app, mounted read-only below: sr-server serves /app and /app/* from it to a signed-in session only
+      # (D-385). It refuses to start when this is set and app/csp.txt is missing. Caddy serves the public files only.
+      SR_WEB__ROOT: /srv/web
     # Group 999 is the postgres group of the postgres:17 image: it lets the server read the backup folder below.
     group_add: ["999"]
     volumes:
@@ -109,6 +112,8 @@ services:
       # Read-only view of the backups the postgres container writes (backup.sh, basebackup.sh). Set the platform
       # setting ops.backup_dir to /var/backups/sideroom and Admin > System shows the last backup (deploy/BACKUP.md).
       - pg-backups:/var/backups/sideroom:ro
+      # The same dist Caddy serves its public files from (SEC-ENT-003).
+      - ${SR_WEB_DIR:?set SR_WEB_DIR to the built apps/web/dist}:/srv/web:ro
     stop_grace_period: 60s # server drains for 2 x shutdown_grace_secs (docs/dev/server.md)
     healthcheck:
       # The distroless image has no shell or curl; the binary probes its own /readyz (database and storage).
