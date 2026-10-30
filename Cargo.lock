@@ -6690,6 +6690,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-tools-wasm"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "strsim",
+ "unicode-normalization",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "sr-transcoder"
 version = "0.0.0"
 dependencies = [

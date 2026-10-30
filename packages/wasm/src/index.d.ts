@@ -344,3 +344,8 @@ export interface MusicApi {
 }
 
 export function loadMusic(wasmUrl?: string | URL | BufferSource): Promise<MusicApi>;
+
+// UTL-SRC-001: the utility drawer's logic (sr-tools-wasm). Typed per module by the module's owner.
+export interface ToolsApi {}
+
+export function loadTools(wasmUrl?: string | URL | BufferSource): Promise<ToolsApi>;

@@ -142,3 +142,11 @@ export const loadMusic = once(async (wasmUrl) => {
     lrcSidecarNames: (trackKey) => m.lrcSidecarNames(trackKey),
   };
 });
+
+// UTL-SRC-001: the utility drawer's logic (sr-tools-wasm). Each module's bindings are added by its
+// owner (search, calc, units, percent, dice, diff, hash, gif, palette); the loader hands back the raw module.
+export const loadTools = once(async (wasmUrl) => {
+  const m = await import('../dist/tools/tools.js');
+  await m.default({ module_or_path: wasmUrl });
+  return m;
+});
