@@ -777,7 +777,12 @@ pub async fn page_by_name(
 ) -> MsgResult<Json<ProfilePage>> {
     let mut page = deps
         .service
-        .page(p.user_id, Some(name.trim_start_matches('~')), None, super::profiles::public_possible(&state).await)
+        .page(
+            p.user_id,
+            Some(name.trim_start_matches('~')),
+            None,
+            super::profiles::public_possible(&state).await,
+        )
         .await
         .map_err(pkg)?;
     proxy_gallery(&mut page, proxy.as_deref());
@@ -801,7 +806,12 @@ pub async fn page_by_id(
     let target = if user == "@me" { p.user_id } else { id(&user)? };
     let mut page = deps
         .service
-        .page(p.user_id, None, Some(target), super::profiles::public_possible(&state).await)
+        .page(
+            p.user_id,
+            None,
+            Some(target),
+            super::profiles::public_possible(&state).await,
+        )
         .await
         .map_err(pkg)?;
     proxy_gallery(&mut page, proxy.as_deref());
@@ -867,7 +877,12 @@ pub async fn guestbook(
     let before = q.before.as_deref().map(id).transpose()?;
     Ok(Json(
         deps.service
-            .guestbook(p.user_id, id(&user)?, before, super::profiles::public_possible(&state).await)
+            .guestbook(
+                p.user_id,
+                id(&user)?,
+                before,
+                super::profiles::public_possible(&state).await,
+            )
             .await
             .map_err(pkg)?,
     ))
@@ -899,7 +914,12 @@ pub async fn sign(
         StatusCode::CREATED,
         Json(
             deps.service
-                .sign(p.user_id, id(&user)?, &body.body, super::profiles::public_possible(&state).await)
+                .sign(
+                    p.user_id,
+                    id(&user)?,
+                    &body.body,
+                    super::profiles::public_possible(&state).await,
+                )
                 .await
                 .map_err(pkg)?,
         ),

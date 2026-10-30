@@ -11117,6 +11117,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/profiles/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The public page of a handle: rank 0, built only from the blocks the member made public. 404 for every
+         *     handle unless the operator and the member both allow a public page. No session is read.
+         */
+        get: operations["public_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/profiles/{handle}/guestbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave a guestbook post without an account. Accepted only when the page and its guestbook are public and the
+         *     member opted in; held as pending until the owner approves it; five per address per hour.
+         */
+        post: operations["public_sign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/push/vapid-key": {
         parameters: {
             query?: never;
@@ -13411,6 +13451,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/guestbook/{entry_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release a held public guestbook post on my page. */
+        post: operations["approve_entry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/guild-settings": {
         parameters: {
             query?: never;
@@ -13908,6 +13965,44 @@ export interface paths {
          *     profile document.
          */
         delete: operations["remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/profile-page/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My page as another kind of viewer would see it (the "view as" strip). 404 when that viewer would get a 404. */
+        get: operations["preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/profile-privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My profile privacy: the stored choices, what is in force, and whether `public` can be in force here. */
+        get: operations["get_privacy"];
+        /**
+         * Change my profile privacy: `{ preset }` fills every field by the preset's table; explicit fields start from
+         *     what is stored, are clamped (no block looser than the page) and are stored as `custom`.
+         */
+        put: operations["put_privacy"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -18894,13 +18989,15 @@ export interface components {
             role_id: string;
         };
         GuestbookEntry: {
-            author: components["schemas"]["ProfilePageUser"];
+            author?: null | components["schemas"]["ProfilePageUser"];
             body: string;
             /** @description The viewer may remove it: they own the page or wrote the entry. */
             can_remove: boolean;
             /** Format: int64 */
             created_at_ms: number;
             id: string;
+            /** @description Waiting for the owner's approval; only the owner is ever shown a pending post. */
+            pending: boolean;
         };
         GuideObject: {
             /** @description Whether members see the guide (the community setting). */
@@ -22318,7 +22415,7 @@ export interface components {
             y: number;
         };
         /** @enum {string} */
-        ProfileBlockKind: "header" | "about" | "top_friends" | "now_watching" | "favorites" | "gallery" | "guestbook" | "song" | "custom";
+        ProfileBlockKind: "header" | "about" | "top_friends" | "now_watching" | "favorites" | "gallery" | "guestbook" | "song" | "custom" | "linktree" | "featured_guilds" | "now_playing";
         /** @description What a profile may use (G-48). */
         ProfileCatalogObject: {
             /** @description Avatar decorations; empty until artwork is approved. */
@@ -22336,6 +22433,12 @@ export interface components {
              * @description Always 1.
              */
             version?: number;
+        };
+        /** @description A server on a profile's Featured servers block. */
+        ProfileFeaturedGuild: {
+            icon?: string | null;
+            id: string;
+            name: string;
         };
         /** @description One uploaded picture. */
         ProfileMedia: {
@@ -22387,6 +22490,11 @@ export interface components {
             /** @description The document has any block (otherwise the page shows the standard profile). */
             customised: boolean;
             doc: components["schemas"]["ProfileDoc"];
+            /**
+             * @description The servers a `featured_guilds` block shows to this viewer (members' servers and directory servers
+             *     only, D-232). Empty when the block is absent or hidden.
+             */
+            featured_guilds?: components["schemas"]["ProfileFeaturedGuild"][];
             /** @description The people named in the Top friends block who are still friends. */
             friends: components["schemas"]["ProfilePageUser"][];
             /**
@@ -22425,6 +22533,50 @@ export interface components {
             /** @description Text colour. */
             text: string;
         };
+        /**
+         * @description The named bundles of the settings panel.
+         * @enum {string}
+         */
+        ProfilePreset: "public" | "members" | "friends" | "private" | "custom";
+        /** @description The audience of the page and of each kind of block. */
+        ProfilePrivacyFields: {
+            bio_tier: components["schemas"]["ProfileTier"];
+            /** @description Anonymous visitors may leave a (held) guestbook post when the page and the guestbook are public. */
+            guestbook_accepts_public: boolean;
+            guestbook_tier: components["schemas"]["ProfileTier"];
+            links_tier: components["schemas"]["ProfileTier"];
+            media_tier: components["schemas"]["ProfileTier"];
+            now_playing_tier: components["schemas"]["ProfileTier"];
+            page_tier: components["schemas"]["ProfileTier"];
+            ring_tier: components["schemas"]["ProfileTier"];
+            top8_tier: components["schemas"]["ProfileTier"];
+        };
+        /** @description `PUT /users/@me/profile-privacy`: a preset name, or explicit fields (stored as `custom`). */
+        ProfilePrivacyUpdate: {
+            bio_tier?: null | components["schemas"]["ProfileTier"];
+            guestbook_accepts_public?: boolean | null;
+            guestbook_tier?: null | components["schemas"]["ProfileTier"];
+            links_tier?: null | components["schemas"]["ProfileTier"];
+            media_tier?: null | components["schemas"]["ProfileTier"];
+            now_playing_tier?: null | components["schemas"]["ProfileTier"];
+            page_tier?: null | components["schemas"]["ProfileTier"];
+            preset?: null | components["schemas"]["ProfilePreset"];
+            ring_tier?: null | components["schemas"]["ProfileTier"];
+            top8_tier?: null | components["schemas"]["ProfileTier"];
+        };
+        /**
+         * @description `GET /users/@me/profile-privacy`: what is stored, what is in force on this instance, and whether `public`
+         *     can be in force at all.
+         */
+        ProfilePrivacyView: {
+            /** @description What is in force now: `public` raised to `members` while the operator's switch is off. */
+            effective: components["schemas"]["ProfilePrivacyFields"];
+            preset: components["schemas"]["ProfilePreset"];
+            /** @description The operator allows public profile pages (`platform.public_profiles`). */
+            public_possible: boolean;
+            /** @description The member's choices after the clamp (no block looser than the page). */
+            stored: components["schemas"]["ProfilePrivacyFields"];
+        };
         ProfileStyle: {
             background?: null | components["schemas"]["ProfileBackground"];
             /** @description Use my profile banner as the page background (the older form). */
@@ -22441,6 +22593,16 @@ export interface components {
             /** @description One of [`PATTERNS`] (the older form; see [`Style::background`]). */
             pattern?: string;
         };
+        /**
+         * @description One audience level. The derived order is the rank order.
+         * @enum {string}
+         */
+        ProfileTier: "public" | "members" | "mutual_servers" | "friends" | "only_me";
+        /**
+         * @description A viewer for the "view as" strip.
+         * @enum {string}
+         */
+        ProfileViewAs: "public" | "member" | "shares_server" | "friend";
         /** @description A member's progress in one chapter. */
         Progress: {
             cfi?: string | null;
@@ -22560,6 +22722,19 @@ export interface components {
             operator_contact?: string | null;
             /** @description The operator's country (ISO 3166-1 alpha-2), when set. */
             operator_country?: string | null;
+        };
+        /** @description Body of `POST /public/profiles/{handle}/guestbook`. */
+        PublicGuestbookBody: {
+            /** @description Plain text, 1 to 500 characters, no links. */
+            body: string;
+        };
+        /** @description `GET /public/profiles/{handle}`: the page at rank 0, with the approved guestbook when the guestbook is public. */
+        PublicProfile: {
+            /** @description Anonymous visitors may leave a held post. */
+            accepts_guestbook: boolean;
+            /** @description Present only when the guestbook block is visible to everyone. */
+            guestbook?: components["schemas"]["GuestbookEntry"][] | null;
+            page: components["schemas"]["ProfilePage"];
         };
         /** @description The `keys` of a browser `PushSubscription`. */
         PushKeys: {
@@ -63017,6 +63192,85 @@ export interface operations {
             };
         };
     };
+    public_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Username, with or without the leading ~ */
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProfile"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    public_sign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Username */
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicGuestbookBody"];
+            };
+        };
+        responses: {
+            /** @description Held for the owner's approval */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     vapid_key: {
         parameters: {
             query?: never;
@@ -69527,6 +69781,34 @@ export interface operations {
             };
         };
     };
+    approve_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_settings: {
         parameters: {
             query?: never;
@@ -70723,6 +71005,86 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preview: {
+        parameters: {
+            query: {
+                /** @description The viewer to render for */
+                as: components["schemas"]["ProfileViewAs"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePage"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePrivacyView"];
+                };
+            };
+        };
+    };
+    put_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfilePrivacyUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePrivacyView"];
+                };
+            };
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

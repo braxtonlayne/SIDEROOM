@@ -57291,7 +57291,7 @@
           "required": true
         },
         "responses": {
-          "202": {
+          "204": {
             "description": "Held for the owner's approval"
           },
           "400": {

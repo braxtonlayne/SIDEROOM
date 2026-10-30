@@ -96,6 +96,7 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
       'help.handbook.privacy.export',
       'help.handbook.privacy.delete',
       'help.handbook.privacy.report',
+      'help.handbook.privacy.profiles',
     ],
     links: [
       { href: '/settings/user/privacy', label: 'help.handbook.privacy.exportLink' },

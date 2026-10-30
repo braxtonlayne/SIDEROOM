@@ -14,6 +14,8 @@ export default {
   'profile.editor.playingAuto': 'What I am playing now',
   'profile.editor.playingAutoHint':
     'Shows your current track or watch party to people who may see your presence. It is not shown to visitors without an account.',
+  'help.handbook.privacy.profiles':
+    'Your profile starts private. Under Settings > Profile > Who can see my profile you pick who sees your page and each part of it: anyone on the web (only if the people running this server allow public profiles), members of this server, people who share a server with you, friends, or only you. A part can be stricter than your page, never looser, and the "view as" strip shows your page as each kind of viewer sees it. Someone you blocked, or who blocked you, never sees your page. Search engines never index SIDE ROOM profiles.',
   'profile.privacy.title': 'Who can see my profile',
   'profile.privacy.desc':
     'Choose who sees your profile page and each part of it. A new profile starts private.',
@@ -45,7 +47,7 @@ export default {
   'profile.privacy.clampNote':
     'A part can be stricter than your page, never looser. Choices that would be looser are not offered.',
   'profile.privacy.fieldLinks': 'Links',
-  'profile.privacy.fieldBio': 'About me',
+  'profile.privacy.fieldBio': 'Bio (the About me block)',
   'profile.privacy.fieldMedia': 'Pictures and gallery',
   'profile.privacy.fieldTop8': 'Top friends and featured servers',
   'profile.privacy.fieldNowPlaying': 'Now playing and now watching',

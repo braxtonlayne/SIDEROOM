@@ -236,10 +236,12 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     .unwrap();
 
     // PRF-PRO-001: the privacy policy and a held visitor note are part of the export.
-    sqlx::query("INSERT INTO profile_privacy (user_id, preset, page_tier) VALUES (1, 'custom', 'members')")
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO profile_privacy (user_id, preset, page_tier) VALUES (1, 'custom', 'members')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
     sqlx::query(
         "INSERT INTO profile_guestbook (id, profile_id, author_id, body, status, anonymous)          VALUES (6102, 1, NULL, 'held visitor note', 'pending', true)",
     )
@@ -335,7 +337,10 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     assert_eq!(activity["profile_media"][0]["width"], 640);
     assert_eq!(activity["profile_privacy"][0]["preset"], "custom");
     assert_eq!(activity["profile_privacy"][0]["page_tier"], "members");
-    assert_eq!(activity["guestbook_received"][0]["body"], "held visitor note");
+    assert_eq!(
+        activity["guestbook_received"][0]["body"],
+        "held visitor note"
+    );
     assert_eq!(activity["guestbook_received"][0]["status"], "pending");
     assert_eq!(activity["guestbook_received"][0]["anonymous"], true);
     let account: serde_json::Value = serde_json::from_str(&read("account.json")).unwrap();

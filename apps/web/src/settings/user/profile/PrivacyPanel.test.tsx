@@ -32,7 +32,14 @@ const view = (over: Partial<PrivacyView> = {}): PrivacyView => ({
 });
 
 const pageFor = (blocks: unknown[]) => ({
-  user: { id: '2', username: 'me', display_name: 'Me', avatar: null, banner: null, accent_color: null },
+  user: {
+    id: '2',
+    username: 'me',
+    display_name: 'Me',
+    avatar: null,
+    banner: null,
+    accent_color: null,
+  },
   doc: {
     version: 1,
     style: {
@@ -64,7 +71,10 @@ describe('Who can see my profile (PRF-PRO-001)', () => {
   it('shows the walled-garden notice and the search-engine sentence while public pages are off', async () => {
     server.use(
       http.get('*/api/v1/users/@me/profile-privacy', () => HttpResponse.json(view())),
-      http.get('*/api/v1/users/@me/profile-page/preview', () => new HttpResponse(null, { status: 404 })),
+      http.get(
+        '*/api/v1/users/@me/profile-page/preview',
+        () => new HttpResponse(null, { status: 404 }),
+      ),
     );
     render(<PrivacyPanel />);
     expect(await screen.findByText('Public pages are off on this server')).toBeInTheDocument();
@@ -75,7 +85,10 @@ describe('Who can see my profile (PRF-PRO-001)', () => {
     const puts: unknown[] = [];
     server.use(
       http.get('*/api/v1/users/@me/profile-privacy', () => HttpResponse.json(view())),
-      http.get('*/api/v1/users/@me/profile-page/preview', () => new HttpResponse(null, { status: 404 })),
+      http.get(
+        '*/api/v1/users/@me/profile-page/preview',
+        () => new HttpResponse(null, { status: 404 }),
+      ),
       http.put('*/api/v1/users/@me/profile-privacy', async ({ request }) => {
         puts.push(await request.json());
         return HttpResponse.json(

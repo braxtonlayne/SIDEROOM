@@ -30,8 +30,8 @@ use axum::{
 };
 use serde::Deserialize;
 use sr_features::{PUBLIC_PROFILES_ID, ScopeRef};
-use sr_packages::service::privacy::{PrivacyUpdate, PrivacyView, PublicProfile, ViewAs};
 use sr_packages::service::ProfilePage;
+use sr_packages::service::privacy::{PrivacyUpdate, PrivacyView, PublicProfile, ViewAs};
 use utoipa::ToSchema;
 
 /// Whether the operator allows public profile pages (`platform.public_profiles`, default off). Anything that
@@ -142,10 +142,8 @@ pub async fn approve_entry(
 }
 
 fn no_store(mut resp: Response) -> Response {
-    resp.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("no-store"),
-    );
+    resp.headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     resp
 }
 
@@ -201,12 +199,7 @@ pub async fn public_sign(
     let body: PublicGuestbookBody =
         serde_json::from_slice(&bytes).map_err(|_| sr_core::ApiError::invalid_form())?;
     deps.service
-        .sign_public(
-            &handle,
-            &body.body,
-            &ip,
-            public_possible(&state).await,
-        )
+        .sign_public(&handle, &body.body, &ip, public_possible(&state).await)
         .await
         .map_err(pkg)?;
     Ok(no_store(StatusCode::NO_CONTENT.into_response()))

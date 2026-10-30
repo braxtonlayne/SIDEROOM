@@ -29,7 +29,6 @@ interface PublicProfileData {
   accepts_guestbook: boolean;
 }
 
-
 function PublicGuestbook({ handle, data }: { handle: string; data: PublicProfileData }) {
   const t = useT();
   const [draft, setDraft] = useState('');
