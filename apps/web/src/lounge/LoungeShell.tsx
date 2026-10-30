@@ -40,7 +40,7 @@ import { LoungeDialogs } from './LoungeDialogs';
 import { MemberList } from './MemberList';
 import { useLoungeGoto, useLoungeRoute } from './nav';
 import { DmProfilePanel, HomeFriends, PickChannel } from './Panels';
-import { QuickSwitcher } from './QuickSwitcher';
+import { openDrawer } from '../tools/drawer/openState';
 import { ViewAsBanner } from '../settings/server/viewAsMode';
 import { ConnectionBanner, NoticesBar } from './shell/Banners';
 import { useAgeCleared, useAgeGate } from './AgeGate';
@@ -51,7 +51,7 @@ import { ThreadPane } from './threads/ThreadPane';
 import { useThreadRoute } from './threads/useThreadRoute';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
-import { isPlayerShortcut, matchCustomShortcut } from './shortcuts';
+import { isDrawerShortcut, isPlayerShortcut, matchCustomShortcut } from './shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
 import { UserPanel } from './UserPanel';
@@ -68,7 +68,6 @@ function isEditable(t: EventTarget | null) {
 
 /** Keyboard shortcut dispatcher; definitions live in shortcuts.ts. */
 function useLoungeShortcuts(h: {
-  openSwitcher: () => void;
   toggleSheet: () => void;
   openSettings: () => void;
 }) {
@@ -83,7 +82,7 @@ function useLoungeShortcuts(h: {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const id = matchCustomShortcut(e, usePrefsStore.getState().prefs.keybinds);
-      if (!id || isPlayerShortcut(id)) return; // the player host owns its keys (MUS-PLY-001)
+      if (!id || isPlayerShortcut(id) || isDrawerShortcut(id)) return; // the player host and the drawer gate own their keys
       const c = latest.current;
       if (id === 'markRead' || id === 'focusComposer') {
         // Esc and typing belong to open dialogs, menus and text fields first.
@@ -99,9 +98,6 @@ function useLoungeShortcuts(h: {
       }
       e.preventDefault();
       switch (id) {
-        case 'quickSwitcher':
-          c.h.openSwitcher();
-          return;
         case 'shortcutSheet':
           c.h.toggleSheet();
           return;
@@ -237,7 +233,6 @@ function Shell() {
   const membersOpen = useLoungeUi((s) => s.memberListOpen);
   const width = useLoungeUi((s) => s.rightPanelWidth);
   const setWidth = useLoungeUi((s) => s.setRightPanelWidth);
-  const [switcher, setSwitcher] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [pane, setPane] = useState<Pane>(channelId ? 'chat' : 'list');
   const [tab, setTab] = useState<'home' | 'notifications' | 'you'>('home');
@@ -254,7 +249,6 @@ function Shell() {
   // A Theme Store preview beats the server's look too (D-280): the server theme and accent step aside while it is open.
   const previewing = useStoreThemes((s) => s.preview !== null);
   useLoungeShortcuts({
-    openSwitcher: () => setSwitcher(true),
     toggleSheet: () => setSheet((s) => !s),
     openSettings,
   });
@@ -324,7 +318,7 @@ function Shell() {
             <GuildRail />
             <div className="lng-left-col">
               {isHome ? (
-                <HomeSidebar onOpenSwitcher={() => setSwitcher(true)} />
+                <HomeSidebar onOpenSwitcher={() => openDrawer('goto')} />
               ) : (
                 <ChannelSidebar guildId={guildId!} />
               )}
@@ -411,7 +405,6 @@ function Shell() {
         <InteractionModalHost />
         <PopoutHost />
         <ReminderTicker />
-        <QuickSwitcher open={switcher} onClose={() => setSwitcher(false)} />
         <ShortcutSheet open={sheet} onClose={() => setSheet(false)} />
       </ToastProvider>
     </ThemeProvider>

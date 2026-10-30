@@ -31,7 +31,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
     id: 'quickSwitcher',
     group: 'Navigation',
     get description() {
-      return t('lounge.shortcuts.quickSwitcher');
+      return t('tools.shortcuts.drawer');
     },
     keys: ['Mod', 'K'],
   },
@@ -256,3 +256,11 @@ export function matchCustomShortcut(
     if (isRebindable(def.id) && effectiveCombo(def, overrides) === combo) return def.id;
   return null;
 }
+
+/**
+ * UTL-SHL-001: Mod+K opens the utility drawer (its first tab is the old quick switcher), on every signed-in route,
+ * not only in the Lounge. The drawer gate owns the key (`tools/drawer/DrawerGate.tsx`); the Lounge shell ignores it.
+ * The id stays `quickSwitcher` so a keybind a member already set for it keeps working.
+ */
+export const DRAWER_SHORTCUTS: ReadonlySet<ShortcutId> = new Set<ShortcutId>(['quickSwitcher']);
+export const isDrawerShortcut = (id: ShortcutId): boolean => DRAWER_SHORTCUTS.has(id);

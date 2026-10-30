@@ -1,6 +1,5 @@
-import { Icon, Modal, type IconName } from '@sideroom/ui';
-import { useEffect, useId, useMemo, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import { Icon, type IconName } from '@sideroom/ui';
+import { useMemo } from 'react';
 import { useT } from '../i18n';
 import { useAllChannels, useCurrentUser, useDms, useGuilds, useUsers } from './data';
 import { useLoungeGoto } from './nav';
@@ -21,8 +20,13 @@ const ICON: Record<SwitcherKind, IconName> = {
   guild: 'home',
 };
 
-export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useT();
+/**
+ * UTL-SHL-001: the quick switcher is the "Go to" tab of the utility drawer (`tools/drawer`). The drawer owns the
+ * search box, the dialog and the keys; this file keeps what is specific to going somewhere: the ranked results
+ * for a query, choosing one, and the list. The behaviour is the one the modal had: the same ranking
+ * (`switcherSearch.ts`), the same `#`, `@`, `!` and `*` prefixes, recents, the same navigation.
+ */
+export function useGotoResults(query: string, onDone: () => void) {
   const guilds = useGuilds();
   const channelsByGuild = useAllChannels();
   const dms = useDms();
@@ -31,102 +35,65 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
   const goto = useLoungeGoto();
   const recent = useLoungeUi((s) => s.recentSwitcher);
   const pushRecent = useLoungeUi((s) => s.pushRecent);
-  const [query, setQuery] = useState('');
-  const [active, setActive] = useState(0);
-  const listId = useId();
-
-  useEffect(() => {
-    if (open) {
-      setQuery('');
-      setActive(0);
-    }
-  }, [open]);
 
   const items = useMemo(
     () => buildSwitcherItems({ guilds, channelsByGuild, dms, users, meId: me.id }),
     [guilds, channelsByGuild, dms, users, me.id],
   );
   const results = useMemo(() => searchSwitcher(items, query, recent), [items, query, recent]);
-  const clamped = Math.min(active, Math.max(0, results.length - 1));
   const hasPrefix = parseQuery(query).kinds !== null;
 
   const choose = (item: SwitcherItem | undefined) => {
     if (!item) return;
     pushRecent(item.key);
     goto(item.guildId, item.channelId);
-    onClose();
+    onDone();
   };
+  return { results, hasPrefix, choose };
+}
 
-  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActive((clamped + 1) % Math.max(1, results.length));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActive((clamped - 1 + results.length) % Math.max(1, results.length));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      choose(results[clamped]);
-    }
-  };
-
+export function GotoList({
+  id,
+  results,
+  active,
+  onActive,
+  onChoose,
+}: {
+  id: string;
+  results: SwitcherItem[];
+  active: number;
+  onActive: (i: number) => void;
+  onChoose: (item: SwitcherItem) => void;
+}) {
+  const t = useT();
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={t('lounge.quickSwitcher.title')}
-      size="md"
-      className="lng-switcher"
+    <ul
+      id={id}
+      role="listbox"
+      aria-label={t('lounge.quickSwitcher.results')}
+      className="lng-switcher-list"
     >
-      <input
-        data-autofocus
-        className="lng-switcher-input"
-        role="combobox"
-        aria-expanded="true"
-        aria-controls={listId}
-        aria-activedescendant={results[clamped] ? `${listId}-${clamped}` : undefined}
-        aria-label={t('lounge.quickSwitcher.searchLabel')}
-        placeholder={t('lounge.quickSwitcher.title')}
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setActive(0);
-        }}
-        onKeyDown={onKeyDown}
-      />
-      <ul
-        id={listId}
-        role="listbox"
-        aria-label={t('lounge.quickSwitcher.results')}
-        className="lng-switcher-list"
-      >
-        {results.length === 0 && (
-          <li className="lng-muted lng-pad" role="presentation">
-            {t('lounge.quickSwitcher.noResults')}
-          </li>
-        )}
-        {results.map((r, i) => (
-          <li
-            key={r.key}
-            id={`${listId}-${i}`}
-            role="option"
-            aria-selected={i === clamped}
-            className="lng-switcher-item"
-            data-active={i === clamped || undefined}
-            onMouseMove={() => setActive(i)}
-            onClick={() => choose(r)}
-          >
-            <Icon name={ICON[r.kind]} size={20} />
-            <span className="lng-switcher-label">{r.label}</span>
-            <span className="lng-muted">{r.hint}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="lng-switcher-tip">
-        {hasPrefix || query
-          ? t('lounge.quickSwitcher.tipActive')
-          : t('lounge.quickSwitcher.tipIdle')}
-      </p>
-    </Modal>
+      {results.length === 0 && (
+        <li className="lng-muted lng-pad" role="presentation">
+          {t('lounge.quickSwitcher.noResults')}
+        </li>
+      )}
+      {results.map((r, i) => (
+        <li
+          key={r.key}
+          id={`${id}-${i}`}
+          role="option"
+          aria-selected={i === active}
+          className="lng-switcher-item"
+          data-active={i === active || undefined}
+          onMouseMove={() => onActive(i)}
+          onClick={() => onChoose(r)}
+        >
+          <Icon name={ICON[r.kind]} size={20} />
+          <span className="lng-switcher-label">{r.label}</span>
+          <span className="lng-muted">{r.hint}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
