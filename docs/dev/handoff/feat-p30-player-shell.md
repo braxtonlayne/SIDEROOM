@@ -88,3 +88,22 @@ Firefox and WebKit projects (neither could run here).
 ## Owner questions
 
 None blocking. For music-lib: confirm the bucket CORS rule allows `GET` with `Range` from the app origin.
+
+## Owner review round (v2)
+
+- Signed-in app only: `player/scope.ts` `isPublicPath` (the router's core entrance paths plus `/help`, `/u/`, `/~`,
+  `/oauth2/`); `PlayerGate` renders nothing there, never loads the player chunk, and on arrival drops the queue and
+  the parked sessionStorage queue (`stopAndForget`). Sign-out (`logout`, `logoutAll`) also calls it. No session probe:
+  the app has no central signed-in flag, and a signed-out visit to an app route redirects to `/login`, a public path.
+- Theme: every shell defines `--ui-*` on its own wrapper, not on the page, so the fixed dock had no tokens. The host
+  now wraps the dock in its own `ThemeProvider` (section lounge, the member's saved appearance).
+- Layout: grid skins use `minmax(0, 1fr)`, rows wrap, panels cap at `100vw - 1rem`; the ticker pans a title that
+  does not fit (pausing at both ends) and shows "Title - Artist"; Library has title and time on one row with the
+  controls under it; the skin dropdown is now a cycle-skin icon button (full picker stays in Settings > Appearance).
+  Retro: tinted LCD (`color-mix`), mono text, VU bar beside the time, raised keys, short volume bar.
+- Tests: Vitest `host.test.tsx` (no host on `/`, `/login`, invite, handbook, profile; host and audio element survive
+  moves between app routes; public landing clears), skins tests. `e2e/tests/player-layout.spec.ts` (mocked session,
+  no stack; 1280x800, 360x740, 320x640 per skin: panel inside the viewport, no horizontal scroll, no escaping
+  descendant; real-browser axe with contrast). `player.spec.ts` now runs only signed in (full stack).
+- Preview: `node e2e/tools/player-preview.mjs` (dev server on 5173 running) saves PNGs to
+  `C:\Users\braxt\Desktop\SIDEROOM\screenshots\p30-player\v2\`.

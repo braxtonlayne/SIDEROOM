@@ -96,20 +96,29 @@
   display: inline-block;
   overflow: visible;
   text-overflow: clip;
-  padding-inline-start: 100%;
-  animation: sr-ply-marquee 14s linear infinite;
+  animation: sr-ply-pan var(--ply-dur, 10s) ease-in-out infinite alternate;
 }
 .sr-ply-ticker[data-motion='on'][data-overflow='true'] .sr-ply-ticker-text:dir(rtl) {
-  animation-name: sr-ply-marquee-rtl;
+  animation-name: sr-ply-pan-rtl;
 }
-@keyframes sr-ply-marquee {
-  to {
-    transform: translateX(-100%);
+@keyframes sr-ply-pan {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(calc(-1 * var(--ply-shift, 0px)));
   }
 }
-@keyframes sr-ply-marquee-rtl {
-  to {
-    transform: translateX(100%);
+@keyframes sr-ply-pan-rtl {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(var(--ply-shift, 0px));
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -118,6 +127,5 @@
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-inline-start: 0;
   }
 }

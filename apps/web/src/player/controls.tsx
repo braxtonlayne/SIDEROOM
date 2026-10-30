@@ -296,30 +296,33 @@ export function Ticker({ text }: { text: string }) {
   const status = usePlayerStore((s) => s.status);
   const moving = !reduced && status === 'playing';
   const box = useRef<HTMLSpanElement>(null);
-  const [overflow, setOverflow] = useState(false);
-  // Scroll only a title that does not fit; one that fits stays put.
+  const [shift, setShift] = useState(0);
+  // A title that does not fit pans to its end and back (pausing at both ends); one that fits stays put.
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
     const measure = () => {
       const inner = el.firstElementChild as HTMLElement | null;
-      if (!inner) return;
-      // While it scrolls the text carries a one-box lead-in padding; take it out of the measure.
-      const lead = moving && el.dataset.overflow === 'true' ? el.clientWidth : 0;
-      setOverflow(inner.scrollWidth - lead > el.clientWidth + 1);
+      if (inner) setShift(Math.max(0, Math.ceil(inner.scrollWidth - el.clientWidth)));
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [text, moving]);
+  }, [text]);
   return (
     <span
       ref={box}
       className="sr-ply-ticker"
       data-motion={moving ? 'on' : 'off'}
-      data-overflow={overflow}
+      data-overflow={shift > 1}
+      style={
+        {
+          '--ply-shift': `${shift}px`,
+          '--ply-dur': `${Math.max(6, shift / 24 + 4)}s`,
+        } as React.CSSProperties
+      }
       title={text}
     >
       <span className="sr-ply-ticker-text">{text}</span>

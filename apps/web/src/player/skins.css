@@ -29,7 +29,7 @@
 }
 .sr-ply-lcd .sr-ply-ticker {
   font-size: 1rem;
-  color: var(--ui-accent);
+  color: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-text));
   font-weight: 600;
 }
 .sr-ply-lcd .sr-ply-time {
