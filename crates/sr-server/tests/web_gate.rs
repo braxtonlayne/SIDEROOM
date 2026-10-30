@@ -42,7 +42,7 @@ const SURFACES: &str = r#"{
     { "surface": "auth", "kind": "bundle", "shell": "auth.html",
       "paths": ["/login", "/login/*", "/register", "/forgot", "/reset/*", "/verify-email/*", "/email-change/cancel", "/oauth/discord/callback"] },
     { "surface": "invite", "kind": "bundle", "shell": "invite.html", "paths": ["/invite/*", "/template/*", "/no-invitation"] },
-    { "surface": "profile", "kind": "bundle", "shell": "profile.html", "paths": ["/~*"], "reserved": true },
+    { "surface": "profile", "kind": "bundle", "shell": "profile.html", "paths": ["/~*"] },
     { "surface": "legal", "kind": "html", "paths": ["/house-notes", "/fonts/README.md", "/THIRD_PARTY_NOTICES.md"] },
     { "surface": "error", "kind": "html", "files": ["404.html", "50x.html", "offline.html"], "paths": [] }
   ],
@@ -67,6 +67,7 @@ fn web_root() -> tempfile::TempDir {
     write(r, "index.html", "<html>LANDING</html>");
     write(r, "auth.html", "<html>AUTH</html>");
     write(r, "invite.html", "<html>INVITE</html>");
+    write(r, "profile.html", "<html>PROFILE</html>");
     write(r, "entrance/index-9f8e7d6c.js", "console.log('landing')");
     write(r, "entrance/.vite/manifest.json", "{}");
     write(r, "fonts/README.md", "fonts");
@@ -569,6 +570,7 @@ async fn with_serve_public_the_surfaces_files_and_error_pages_are_served() {
         ("/oauth/discord/callback", "AUTH"),
         ("/invite/abcd1234", "INVITE"),
         ("/no-invitation", "INVITE"),
+        ("/~someone", "PROFILE"),
     ] {
         let r = send(&f, empty(nav(p))).await;
         assert_eq!(r.status, StatusCode::OK, "{p}");
@@ -602,9 +604,18 @@ async fn with_serve_public_the_surfaces_files_and_error_pages_are_served() {
     assert_eq!(app.status, StatusCode::FOUND);
     let appfile = send(&f, empty(req(Method::GET, HASHED_JS))).await;
     assert_eq!(appfile.status, StatusCode::UNAUTHORIZED);
-    // The reserved profile surface has no shell yet: it is a public path with nothing behind it.
+    // PRF-PRO-001: `/~handle` is the public profile shell for a visitor without a session (noindex, the plain
+    // public policy) and the app for a signed-in member (the alias of `/u/handle`); the shell never carries a
+    // session-dependent body and the app shell is never served without a session.
     let prof = send(&f, empty(nav("/~someone"))).await;
-    assert_eq!(prof.status, StatusCode::NOT_FOUND);
+    assert_eq!(prof.status, StatusCode::OK);
+    assert!(prof.body.contains("PROFILE") && !prof.body.contains("APP-SHELL"));
+    assert_eq!(prof.h("content-security-policy"), PUBLIC_CSP);
+    assert_eq!(prof.h("x-robots-tag"), "noindex, nofollow");
+    let member = send(&f, empty(nav("/~someone").header(header::COOKIE, &f.cookie))).await;
+    assert_eq!(member.status, StatusCode::OK);
+    assert!(member.body.contains("APP-SHELL") && !member.body.contains("PROFILE"));
+    assert_eq!(member.h("cache-control"), "private, no-store");
 }
 
 // ---- the legal page --------------------------------------------------------------------------------------

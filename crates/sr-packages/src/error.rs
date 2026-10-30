@@ -18,6 +18,9 @@ pub enum PackageError {
     /// The state does not allow the action.
     #[error("{0}")]
     Conflict(String),
+    /// Too many requests from one address (the public guestbook).
+    #[error("too many requests")]
+    RateLimited,
     /// A package that failed validation: every problem found.
     #[error("the package was refused")]
     Refused(Vec<String>),

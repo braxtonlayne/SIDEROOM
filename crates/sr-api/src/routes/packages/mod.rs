@@ -9,10 +9,14 @@
 //!   (recipes), `POST /packages/{id}/create-guild` (server templates);
 //! * profiles: `GET|PUT /users/@me/profile-doc`, `POST /users/@me/profile-doc/layout`,
 //!   `GET /profile-pages/{username}`, `GET /users/{id}/profile-page`, the guestbook under `/users/{id}/guestbook`;
+//! * profile privacy (PRF-PRO-001, D-382): `GET|PUT /users/@me/profile-privacy`, `GET /users/@me/profile-page/preview`,
+//!   `POST /users/@me/guestbook/{id}/approve`, and the public `GET /public/profiles/{handle}` and
+//!   `POST /public/profiles/{handle}/guestbook` (404 unless `platform.public_profiles` and the member allow them);
 //! * staff (`REVIEW_PACKAGES`): `/admin/developers/packages*`.
 
 mod appearance;
 mod handlers;
+mod profiles;
 
 use crate::{routes::messages::error::MsgError, state::AppState};
 use axum::{
@@ -73,6 +77,7 @@ pub(crate) fn pkg(e: PackageError) -> MsgError {
             e
         }
         PackageError::Conflict(m) => ApiError::with_message(ErrorCode::SrConflict, m),
+        PackageError::RateLimited => ApiError::new(ErrorCode::TooManyRequests),
         PackageError::Storage(m) => {
             tracing::error!(error = %m, "packages failure");
             ApiError::new(ErrorCode::SrInternal)
@@ -142,6 +147,20 @@ pub fn router() -> Router<AppState> {
             "/users/{user_id}/guestbook/{entry_id}",
             axum::routing::delete(h::remove_entry),
         )
+        .route(
+            "/users/@me/profile-privacy",
+            get(profiles::get_privacy).put(profiles::put_privacy),
+        )
+        .route("/users/@me/profile-page/preview", get(profiles::preview))
+        .route(
+            "/users/@me/guestbook/{entry_id}/approve",
+            post(profiles::approve_entry),
+        )
+        .route("/public/profiles/{handle}", get(profiles::public_profile))
+        .route(
+            "/public/profiles/{handle}/guestbook",
+            post(profiles::public_sign),
+        )
         .route("/admin/developers/packages", get(h::admin_pending))
         .route(
             "/admin/developers/packages/versions/{version_id}/download",
@@ -183,6 +202,12 @@ pub fn router() -> Router<AppState> {
         handlers::guestbook,
         handlers::sign,
         handlers::remove_entry,
+        profiles::get_privacy,
+        profiles::put_privacy,
+        profiles::preview,
+        profiles::approve_entry,
+        profiles::public_profile,
+        profiles::public_sign,
         handlers::admin_pending,
         handlers::admin_download,
         handlers::admin_decide,
@@ -205,6 +230,15 @@ pub fn router() -> Router<AppState> {
         sr_packages::service::PageUser,
         sr_packages::service::ProfilePage,
         sr_packages::service::GuestbookEntry,
+        sr_packages::service::FeaturedGuild,
+        sr_packages::service::privacy::PrivacyView,
+        sr_packages::service::privacy::PrivacyUpdate,
+        sr_packages::service::privacy::PublicProfile,
+        sr_packages::service::privacy::ViewAs,
+        sr_packages::profile_privacy::Tier,
+        sr_packages::profile_privacy::Preset,
+        sr_packages::profile_privacy::PrivacyPolicy,
+        profiles::PublicGuestbookBody,
         sr_packages::profile_doc::ProfileDoc,
         sr_packages::profile_doc::Style,
         sr_packages::profile_doc::Palette,

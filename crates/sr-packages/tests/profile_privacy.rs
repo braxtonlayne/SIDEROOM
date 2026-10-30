@@ -451,7 +451,7 @@ async fn the_public_guestbook_holds_posts_until_the_owner_approves() {
         r.svc
             .sign_public("pubowner", "note 5", "203.0.113.5", true)
             .await,
-        Err(PackageError::Conflict(_))
+        Err(PackageError::RateLimited)
     ));
     // A guestbook narrowed to members refuses anonymous posts.
     r.svc

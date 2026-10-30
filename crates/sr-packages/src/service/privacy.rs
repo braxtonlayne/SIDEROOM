@@ -638,9 +638,7 @@ impl PackageService {
         .fetch_one(self.pool())
         .await?;
         if recent >= PUBLIC_GUESTBOOK_PER_HOUR {
-            return Err(PackageError::Conflict(
-                "Too many posts from this address. Try again later.".to_owned(),
-            ));
+            return Err(PackageError::RateLimited);
         }
         let pending: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM profile_guestbook WHERE profile_id = $1 AND status = 'pending'",

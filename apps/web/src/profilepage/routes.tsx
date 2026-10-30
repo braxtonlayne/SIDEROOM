@@ -6,7 +6,7 @@ const ProfileEditorRoute = lazyNamed(() => import('./ProfileEditor'), 'ProfileEd
 
 /**
  * Customised profile pages (EXT-PRF):
- *   /u/:username          the page of a person
+ *   /u/:username          the page of a person (also /~username)
  *   /profile-page/edit    my own editor
  */
 export function createProfilePageRoutes(root: AnyRoute) {
@@ -17,10 +17,19 @@ export function createProfilePageRoutes(root: AnyRoute) {
       return <ProfilePageRoute username={page.useParams().username} />;
     },
   });
+  // `/~handle` is the same page under its short address (PRF-PRO-001). Signed out, `/~handle` is the public
+  // surface (src/public/profile), a separate bundle; this alias serves signed-in members who open such a link.
+  const alias = createRoute({
+    getParentRoute: () => root,
+    path: '/~{$username}',
+    component: function ProfileAliasRouteComponent() {
+      return <ProfilePageRoute username={alias.useParams().username} />;
+    },
+  });
   const edit = createRoute({
     getParentRoute: () => root,
     path: '/profile-page/edit',
     component: ProfileEditorRoute,
   });
-  return [page, edit];
+  return [page, alias, edit];
 }

@@ -129,6 +129,16 @@
 		file_server
 	}
 
+	@profile path /~*
+	handle @profile {
+		root * {$SR_WEB_ROOT:/srv/web}
+		rewrite * /profile.html
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+		header Reporting-Endpoints "csp-endpoint=\"/internal/csp-report\""
+		header Cache-Control "no-cache"
+		file_server
+	}
+
 	# The legal page is plain HTML rendered by sr-server (the operator's country and contact are filled in there).
 	@legal path /house-notes
 	handle @legal {

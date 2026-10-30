@@ -1,5 +1,5 @@
 {
-  "$comment": "SEC-ENT-001 / D-385. The one list of what a visitor without a login may receive (docs/dev/entrance-isolation.md section 2). Read by vite.public.config.ts, scripts/build-web.mjs (copied to dist/surfaces.json), vite/pwa.ts, deploy/scripts/render-caddyfile.mjs, crates/sr-server/src/web.rs, scripts/check-entrance-isolation.mjs, check-bundle-budget.mjs and e2e/tests/entrance-isolation.spec.ts. Paths use Caddy matcher syntax (a trailing /* matches any depth, no other wildcards). 'samples' are concrete URLs for the e2e run (a dummy code or token where the path has a parameter). kind 'bundle' = one HTML shell plus a minimal JS closure under /entrance/; kind 'html' = plain HTML, no script at all. 'reserved' = named now so its budget and path exist, but no shell is built yet (wave 34): consumers skip it until it has a shell.",
+  "$comment": "SEC-ENT-001 / D-385. The one list of what a visitor without a login may receive (docs/dev/entrance-isolation.md section 2). Read by vite.public.config.ts, scripts/build-web.mjs (copied to dist/surfaces.json), vite/pwa.ts, deploy/scripts/render-caddyfile.mjs, crates/sr-server/src/web.rs, scripts/check-entrance-isolation.mjs, check-bundle-budget.mjs and e2e/tests/entrance-isolation.spec.ts. Paths use Caddy matcher syntax (a trailing /* matches any depth, no other wildcards). 'samples' are concrete URLs for the e2e run (a dummy code or token where the path has a parameter). kind 'bundle' = one HTML shell plus a minimal JS closure under /entrance/; kind 'html' = plain HTML, no script at all. 'reserved' = named now so its budget and path exist, but no shell is built yet: consumers skip it until it has a shell (the profile surface was reserved until wave 34).",
   "version": 1,
   "appShell": "app.html",
   "appPrefix": "/app",
@@ -57,10 +57,8 @@
       "shell": "profile.html",
       "entry": "src/public/profile/main.tsx",
       "paths": ["/~*"],
-      "samples": [],
-      "budgetGzipKB": 150,
-      "reserved": true,
-      "wave": 34
+      "samples": ["/~sample"],
+      "budgetGzipKB": 150
     },
     {
       "surface": "legal",

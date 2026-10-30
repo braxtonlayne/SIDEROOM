@@ -21,7 +21,7 @@ import { en, registerFragments } from './store';
  * - See docs/dev/i18n-extraction.md for what to extract and how.
  */
 // Only the fragments the first paint needs are bundled with the app; `./en.rest.ts` loads the others.
-const core = import.meta.glob<Record<string, string>>('./en/{entrance,a11y,pwa}.ts', {
+const core = import.meta.glob<Record<string, string>>('./en/{entrance,a11y,pwa,p34-prf-profiles-core}.ts', {
   eager: true,
   import: 'default',
 });

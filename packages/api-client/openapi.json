@@ -57220,6 +57220,113 @@
         ]
       }
     },
+    "/public/profiles/{handle}": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "The public page of a handle: rank 0, built only from the blocks the member made public. 404 for every\nhandle unless the operator and the member both allow a public page. No session is read.",
+        "operationId": "public_profile",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "description": "Username, with or without the leading ~",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/profiles/{handle}/guestbook": {
+      "post": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Leave a guestbook post without an account. Accepted only when the page and its guestbook are public and the\nmember opted in; held as pending until the owner approves it; five per address per hour.",
+        "operationId": "public_sign",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "description": "Username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicGuestbookBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Held for the owner's approval"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/push/vapid-key": {
       "get": {
         "tags": [],
@@ -66901,6 +67008,46 @@
         ]
       }
     },
+    "/users/@me/guestbook/{entry_id}/approve": {
+      "post": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Release a held public guestbook post on my page.",
+        "operationId": "approve_entry",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/guild-settings": {
       "get": {
         "tags": [
@@ -68717,6 +68864,123 @@
             "description": ""
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/profile-page/preview": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "My page as another kind of viewer would see it (the \"view as\" strip). 404 when that viewer would get a 404.",
+        "operationId": "preview",
+        "parameters": [
+          {
+            "name": "as",
+            "in": "query",
+            "description": "The viewer to render for",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProfileViewAs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/profile-privacy": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "My profile privacy: the stored choices, what is in force, and whether `public` can be in force here.",
+        "operationId": "get_privacy",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePrivacyView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Change my profile privacy: `{ preset }` fills every field by the preset's table; explicit fields start from\nwhat is stored, are clamped (no block looser than the page) and are stored as `custom`.",
+        "operationId": "put_privacy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfilePrivacyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePrivacyView"
+                }
+              }
+            }
+          },
+          "400": {
             "description": "",
             "content": {
               "application/json": {
@@ -85367,14 +85631,22 @@
         "type": "object",
         "required": [
           "id",
-          "author",
+          "pending",
           "body",
           "created_at_ms",
           "can_remove"
         ],
         "properties": {
           "author": {
-            "$ref": "#/components/schemas/ProfilePageUser"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfilePageUser",
+                "description": "`None` for a post left by a visitor without an account (always pending until the owner approves it)."
+              }
+            ]
           },
           "body": {
             "type": "string"
@@ -85389,6 +85661,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "Waiting for the owner's approval; only the owner is ever shown a pending post."
           }
         }
       },
@@ -95969,7 +96245,10 @@
           "gallery",
           "guestbook",
           "song",
-          "custom"
+          "custom",
+          "linktree",
+          "featured_guilds",
+          "now_playing"
         ]
       },
       "ProfileCatalogObject": {
@@ -96023,6 +96302,28 @@
           }
         },
         "additionalProperties": false
+      },
+      "ProfileFeaturedGuild": {
+        "type": "object",
+        "description": "A server on a profile's Featured servers block.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
       },
       "ProfileMedia": {
         "type": "object",
@@ -96174,6 +96475,13 @@
           "doc": {
             "$ref": "#/components/schemas/ProfileDoc"
           },
+          "featured_guilds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileFeaturedGuild"
+            },
+            "description": "The servers a `featured_guilds` block shows to this viewer (members' servers and directory servers\nonly, D-232). Empty when the block is absent or hidden."
+          },
           "friends": {
             "type": "array",
             "items": {
@@ -96279,6 +96587,193 @@
         },
         "additionalProperties": false
       },
+      "ProfilePreset": {
+        "type": "string",
+        "description": "The named bundles of the settings panel.",
+        "enum": [
+          "public",
+          "members",
+          "friends",
+          "private",
+          "custom"
+        ]
+      },
+      "ProfilePrivacyFields": {
+        "type": "object",
+        "description": "The audience of the page and of each kind of block.",
+        "required": [
+          "page_tier",
+          "links_tier",
+          "top8_tier",
+          "now_playing_tier",
+          "bio_tier",
+          "guestbook_tier",
+          "media_tier",
+          "ring_tier",
+          "guestbook_accepts_public"
+        ],
+        "properties": {
+          "bio_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "guestbook_accepts_public": {
+            "type": "boolean",
+            "description": "Anonymous visitors may leave a (held) guestbook post when the page and the guestbook are public."
+          },
+          "guestbook_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "links_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "media_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "now_playing_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "page_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "ring_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "top8_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfilePrivacyUpdate": {
+        "type": "object",
+        "description": "`PUT /users/@me/profile-privacy`: a preset name, or explicit fields (stored as `custom`).",
+        "properties": {
+          "bio_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "guestbook_accepts_public": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "guestbook_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "links_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "media_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "now_playing_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "page_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfilePreset"
+              }
+            ]
+          },
+          "ring_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "top8_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfilePrivacyView": {
+        "type": "object",
+        "description": "`GET /users/@me/profile-privacy`: what is stored, what is in force on this instance, and whether `public`\ncan be in force at all.",
+        "required": [
+          "preset",
+          "stored",
+          "effective",
+          "public_possible"
+        ],
+        "properties": {
+          "effective": {
+            "$ref": "#/components/schemas/ProfilePrivacyFields",
+            "description": "What is in force now: `public` raised to `members` while the operator's switch is off."
+          },
+          "preset": {
+            "$ref": "#/components/schemas/ProfilePreset"
+          },
+          "public_possible": {
+            "type": "boolean",
+            "description": "The operator allows public profile pages (`platform.public_profiles`)."
+          },
+          "stored": {
+            "$ref": "#/components/schemas/ProfilePrivacyFields",
+            "description": "The member's choices after the clamp (no block looser than the page)."
+          }
+        }
+      },
       "ProfileStyle": {
         "type": "object",
         "properties": {
@@ -96322,6 +96817,27 @@
           }
         },
         "additionalProperties": false
+      },
+      "ProfileTier": {
+        "type": "string",
+        "description": "One audience level. The derived order is the rank order.",
+        "enum": [
+          "public",
+          "members",
+          "mutual_servers",
+          "friends",
+          "only_me"
+        ]
+      },
+      "ProfileViewAs": {
+        "type": "string",
+        "description": "A viewer for the \"view as\" strip.",
+        "enum": [
+          "public",
+          "member",
+          "shares_server",
+          "friend"
+        ]
       },
       "Progress": {
         "type": "object",
@@ -96612,6 +97128,46 @@
               "null"
             ],
             "description": "The operator's country (ISO 3166-1 alpha-2), when set."
+          }
+        }
+      },
+      "PublicGuestbookBody": {
+        "type": "object",
+        "description": "Body of `POST /public/profiles/{handle}/guestbook`.",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Plain text, 1 to 500 characters, no links."
+          }
+        }
+      },
+      "PublicProfile": {
+        "type": "object",
+        "description": "`GET /public/profiles/{handle}`: the page at rank 0, with the approved guestbook when the guestbook is public.",
+        "required": [
+          "page",
+          "accepts_guestbook"
+        ],
+        "properties": {
+          "accepts_guestbook": {
+            "type": "boolean",
+            "description": "Anonymous visitors may leave a held post."
+          },
+          "guestbook": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GuestbookEntry"
+            },
+            "description": "Present only when the guestbook block is visible to everyone."
+          },
+          "page": {
+            "$ref": "#/components/schemas/ProfilePage"
           }
         }
       },

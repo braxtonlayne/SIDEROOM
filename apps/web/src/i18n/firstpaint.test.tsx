@@ -103,7 +103,7 @@ describe('core paths', () => {
 
 // ---- Static check: every key the entrance routes use is in the core fragments ----
 const SRC = resolve(__dirname, '..');
-const CORE_FRAGMENTS = ['entrance', 'a11y', 'pwa'];
+const CORE_FRAGMENTS = ['entrance', 'a11y', 'pwa', 'p34-prf-profiles-core'];
 
 function coreKeys(): Set<string> {
   const keys = new Set<string>();

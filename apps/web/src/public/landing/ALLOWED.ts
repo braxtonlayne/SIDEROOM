@@ -35,6 +35,8 @@ export const ALLOWED: AllowList = [
   'i18n/messages/en/entrance',
   'i18n/messages/en/a11y',
   'i18n/messages/en/pwa',
+  // Core too since PRF-PRO-001: the profile block renderer's strings (small; the first paint loads them).
+  'i18n/messages/en/p34-prf-profiles-core',
   'a11y/announcer',
   'pwa/register',
   'pwa/PublicUpdateToast',
