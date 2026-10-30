@@ -15,6 +15,9 @@ export default {
   'settings.loadEmbeds.alwaysDesc':
     'Off by default. When on, a Play here card starts loading the other site as soon as it appears.',
   'settings.loadEmbeds.saveError': 'Could not save this setting',
+  'watchparty.startDialog.linkLabel': 'Or paste a YouTube or Vimeo link, or a link to a media file',
+  'watchparty.startDialog.linkHint':
+    'It loads for each person only after they press Load. Nothing is fetched by the server.',
   'watchparty.external.frameTitle': 'Shared player: {title}',
   'watchparty.external.failed': 'This file could not be played in your browser.',
   'watchparty.external.unsupported': 'This party plays a link this app does not support.',

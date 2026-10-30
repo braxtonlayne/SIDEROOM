@@ -14,6 +14,8 @@
 
 **I changed the web app's CSP origins (a separate voice host, activities).** For `vite preview` set `SR_CSP_CONNECT`, `SR_CSP_FRAME` or `SR_CSP_MEDIA` (comma separated). In production run `node deploy/scripts/render-caddyfile.mjs --public-url <url> [--activities] [--voice-url <url>]`: it rewrites the generated public-policy block of `deploy/compose/caddy/Caddyfile.prod`, and the app build writes the app policy to `app/csp.txt`, which `sr-server` sends. `apps/web/src/security/csp.test.ts` fails if the file and `csp.ts` disagree.
 
+**Can a link to my PeerTube instance get a "Play here" button?** Yes, once you name it: set `SR_PEERTUBE_HOSTS=tube.example.org` (comma separated hosts, no paths) for `sr-server` (it offers the button for `/w/<id>` and `/videos/watch/<id>` links on that host) and for the web build (it adds `https://tube.example.org` to the app policy's `frame-src`, so the browser may show the embed after the click). YouTube (`youtube-nocookie.com`) and Vimeo (`player.vimeo.com`, `dnt=1`) are always listed and nothing else is. A PeerTube card plays for the reader only; Watch Together cannot drive it yet.
+
 **How do I restore from a backup?** BACKUP.md. Run the restore drill before you need it.
 
 **Can I run two servers behind a load balancer?** It is not a tested configuration yet (the rate limiter and caches are per process, and nothing has exercised two gateways side by side). Scale the one host up first.
