@@ -438,13 +438,6 @@ fn mp4_ilst() {
 }
 
 #[test]
-fn mp4_with_moov_past_the_head_asks_for_more() {
-    let f = m4a_file();
-    let ftyp_and_cut = &f[..40];
-    assert_eq!(read_tags(ftyp_and_cut), Err(TagError::Truncated));
-}
-
-#[test]
 fn json_shape() {
     let t = read_tags(&flac_file()).unwrap();
     let v: serde_json::Value = serde_json::from_str(&t.to_json()).unwrap();
@@ -566,4 +559,175 @@ fn sidecar_names() {
     assert_eq!(lrc_sidecar_names("x.d/track"), ["x.d/track.lrc"]);
     assert_eq!(lrc_sidecar_names(".hidden"), [".hidden.lrc"]);
     assert_eq!(lrc_sidecar_names("a.b.flac")[0], "a.b.lrc");
+}
+
+#[test]
+fn mp4_with_moov_past_the_head_reports_where_to_look() {
+    // ftyp is 24 bytes, mdat 72 (24..96), moov starts at 96.
+    let f = m4a_file();
+    assert_eq!(
+        read_tags(&f[..40]),
+        Err(TagError::NeedMoov { offset: 96 }),
+        "head ends inside mdat: the next top-level box"
+    );
+    assert_eq!(
+        read_tags(&f[..24]),
+        Err(TagError::NeedMoov { offset: 24 }),
+        "head holds only ftyp"
+    );
+    assert_eq!(
+        read_tags(&f[..110]),
+        Err(TagError::NeedMoov { offset: 96 }),
+        "moov starts in the head but is cut off"
+    );
+    assert_eq!(
+        TagError::NeedMoov { offset: 96 }.to_string(),
+        "NEED_MOOV:96"
+    );
+}
+
+fn wav_file() -> Vec<u8> {
+    fn chunk(id: &[u8], body: &[u8]) -> Vec<u8> {
+        let mut c = id.to_vec();
+        c.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        c.extend_from_slice(body);
+        if body.len() % 2 == 1 {
+            c.push(0);
+        }
+        c
+    }
+    let mut fmt = Vec::new();
+    fmt.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    fmt.extend_from_slice(&1u16.to_le_bytes()); // mono
+    fmt.extend_from_slice(&8000u32.to_le_bytes());
+    fmt.extend_from_slice(&16000u32.to_le_bytes()); // byte rate
+    fmt.extend_from_slice(&2u16.to_le_bytes());
+    fmt.extend_from_slice(&16u16.to_le_bytes());
+    let info = [
+        chunk(b"INAM", b"Wav Song\0"),
+        chunk(b"IART", b"Wav Artist\0"),
+        chunk(b"IPRD", b"Wav Album\0"),
+        chunk(b"ICRD", b"2005\0"),
+        chunk(b"ITRK", b"6\0"),
+        chunk(b"IGNR", b"Blues\0"),
+    ]
+    .concat();
+    let mut list = b"INFO".to_vec();
+    list.extend_from_slice(&info);
+    let body = [
+        b"WAVE".to_vec(),
+        chunk(b"fmt ", &fmt),
+        chunk(b"data", &vec![0u8; 32000]), // 2 s at 16000 bytes/s
+        chunk(b"LIST", &list),
+    ]
+    .concat();
+    let mut f = b"RIFF".to_vec();
+    f.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    f.extend_from_slice(&body);
+    f
+}
+
+#[test]
+fn wav_riff_info_through_lofty() {
+    let t = read_tags(&wav_file()).unwrap();
+    assert_eq!(t.title.as_deref(), Some("Wav Song"));
+    assert_eq!(t.artist.as_deref(), Some("Wav Artist"));
+    assert_eq!(t.album.as_deref(), Some("Wav Album"));
+    assert_eq!(t.year, Some(2005));
+    assert_eq!(t.track, Some(6));
+    assert_eq!(t.genre.as_deref(), Some("Blues"));
+    assert_eq!(t.duration_hint, Some(2000));
+}
+
+#[test]
+fn lofty_reads_each_format_whole() {
+    // The lofty path alone (no hand-written fallback) must understand every container.
+    for (name, bytes) in [
+        (
+            "id3v2",
+            with_mpeg(id3(4, 0, &[frame(4, "TIT2", &text_body(3, "T"), 0)])),
+        ),
+        ("flac", flac_file()),
+        ("m4a", m4a_file()),
+        ("wav", wav_file()),
+    ] {
+        let got = lofty_path::read(&bytes);
+        assert!(got.is_some(), "lofty could not read whole {name}");
+    }
+    let mut tags = b"OpusTags".to_vec();
+    tags.extend(vorbis_comments(&[("TITLE", "t")]));
+    let mut f = ogg_page(0, 2, &[b"OpusHead\x01\x02"], false);
+    f.extend(ogg_page(1, 0, &[&tags], false));
+    // Hand-built Opus/Vorbis lack real audio pages; record, do not require, lofty's verdict here.
+    eprintln!(
+        "lofty on minimal Opus: {:?}",
+        lofty_path::read(&f).map(|t| t.title)
+    );
+}
+
+#[test]
+fn lofty_on_prefixes_report() {
+    // What lofty does on a head that stops inside the cover, per format (findings go in the handoff).
+    let cover = vec![0xaa; 4000];
+    let mp3 = id3(
+        4,
+        0,
+        &[
+            frame(4, "TIT2", &text_body(3, "Head"), 0),
+            frame(4, "APIC", &apic(3, "image/jpeg", &cover), 0),
+        ],
+    );
+    let mut flac = b"fLaC".to_vec();
+    flac.extend(flac_block(0, false, &streaminfo(44_100, 441_000)));
+    flac.extend(flac_block(4, false, &vorbis_comments(&[("TITLE", "Head")])));
+    flac.extend(flac_block(6, true, &flac_picture("image/jpeg", &cover)));
+    for (name, full) in [("mp3", mp3), ("flac", flac), ("m4a", m4a_file())] {
+        let cut = &full[..full.len() - 50];
+        eprintln!(
+            "lofty prefix {name}: {:?}; combined: {:?}",
+            lofty_path::read(cut).map(|t| t.title),
+            read_tags(cut).map(|t| t.title)
+        );
+    }
+}
+
+#[test]
+fn lofty_path_survives_prefixes_and_bit_flips() {
+    let samples = [
+        id3(
+            4,
+            0,
+            &[
+                frame(4, "TIT2", &text_body(1, "x"), 0),
+                frame(4, "APIC", &apic(3, "image/png", JPEG), 0),
+            ],
+        ),
+        flac_file(),
+        m4a_file(),
+        wav_file(),
+    ];
+    for s in &samples {
+        for n in 0..=s.len() {
+            let _ = read_tags(&s[..n]);
+        }
+        let mut seed = 0x9e37_79b9u32;
+        for _ in 0..1500 {
+            let mut c = s.clone();
+            for _ in 0..3 {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let i = (seed >> 8) as usize % c.len();
+                c[i] = (seed >> 24) as u8;
+            }
+            let _ = read_tags(&c);
+        }
+    }
+}
+
+/// Append a few MPEG-1 Layer III frames (128 kbps, 44.1 kHz, 417 bytes each) so the file has audio.
+fn with_mpeg(mut f: Vec<u8>) -> Vec<u8> {
+    for _ in 0..6 {
+        f.extend_from_slice(&[0xff, 0xfb, 0x90, 0x00]);
+        f.extend_from_slice(&[0u8; 413]);
+    }
+    f
 }

@@ -9,6 +9,10 @@ pub enum TagError {
     Unsupported,
     #[error("the data ends before the tag does")]
     Truncated,
+    /// An MP4 whose `moov` box is not in the head. `offset` is where to fetch next: the `moov` box
+    /// when the head shows it, else the next top-level box after the last one the head shows.
+    #[error("NEED_MOOV:{offset}")]
+    NeedMoov { offset: u64 },
     #[error("malformed tag: {0}")]
     Malformed(&'static str),
 }
@@ -191,4 +195,20 @@ pub(crate) fn parse_vorbis_comments(b: &[u8], t: &mut Tags) -> Result<(), TagErr
         }
     }
     Ok(())
+}
+
+impl Tags {
+    /// Fill every field that is still absent from `other`.
+    pub fn fill_from(&mut self, other: Tags) {
+        self.title = self.title.take().or(other.title);
+        self.artist = self.artist.take().or(other.artist);
+        self.album = self.album.take().or(other.album);
+        self.album_artist = self.album_artist.take().or(other.album_artist);
+        self.track = self.track.or(other.track);
+        self.disc = self.disc.or(other.disc);
+        self.year = self.year.or(other.year);
+        self.genre = self.genre.take().or(other.genre);
+        self.duration_hint = self.duration_hint.or(other.duration_hint);
+        self.cover = self.cover.take().or(other.cover);
+    }
 }

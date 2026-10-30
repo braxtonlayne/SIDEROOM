@@ -1,27 +1,37 @@
 # feat/p30-music-wasm - MUS-WASM-001
 
 ## Done
-- `crates/sr-music-wasm` (new, no new dependencies: wasm-bindgen, serde_json, thiserror already in Cargo.lock; Cargo.lock only gains the crate itself).
-- Hand-written readers: ID3v2.2/2.3/2.4 (text frames, TRCK/TPOS, TDRC/TYER, TCON incl. "(17)", TLEN, APIC/PIC front-cover preference, whole-tag and per-frame unsynchronisation, extended header, data-length indicator, Latin-1/UTF-16 BOM/UTF-16BE/UTF-8), ID3v1/1.1 tail, FLAC (STREAMINFO duration, Vorbis comments, PICTURE), Ogg Vorbis and Opus comments (incl. METADATA_BLOCK_PICTURE), MP4 `ilst` + `mvhd` duration.
-- `parse_lrc` (multi-stamp, offset, enhanced word stamps, BOM/CRLF, sorted) and `lrc_sidecar_names`.
-- Facade published first (commit "publish ... facade signature"): `loadMusic()` in `packages/wasm/src/index.{js,d.ts}` -> `readTags(head)`, `readTagsTail(tail)`, `parseLrc(text)`, `lrcSidecarNames(key)`. `build.mjs` auto-discovers `crates/*-wasm`; no edit needed (output `dist/music`).
-- Size: 148 KB raw, 47 KB brotli (build with `--no-opt`; wasm-opt only shrinks it). Far under 600 KB.
+- `crates/sr-music-wasm`: `lofty =0.25.4` (default features) is the primary tag reader, the hand-written readers stay as the fallback and as the source of the stream duration.
+  - Why default features: 0.25.4 does not compile with `default-features = false` (upstream bug in `id3::v2::frame::read`); `flate2` was already in the lock. New crates in the lock: `lofty`, `lofty_attr`, `ogg_pager`, `paste`. Roadmap 0.22.4 was stale (corrected in roadmap-p27 section 19).
+  - `read_tags(head)`: lofty (`lofty_path.rs`, in-memory `Cursor`, no `std::fs`) first, then `fill_from` the hand-written result (duration, any missing field, cover); when lofty errors or finds nothing, the hand-written reader's result (or error) is returned. `read_tags_tail` (ID3v1) stays hand-written: 128 bytes is not a file lofty can probe.
+  - Containers: MP3 (ID3v2/v1), FLAC, Ogg Vorbis/Opus, M4A, WAV (RIFF INFO; WAV duration comes from lofty properties, 2 s test file reads 2000 ms).
+- Hand-written readers (fallback): ID3v2.2-2.4 (all encodings, unsync, ext header, APIC), ID3v1/1.1, FLAC, Ogg Vorbis/Opus, MP4 `ilst`+`mvhd`.
+- LRC parser (`parse_lrc`, `lrc_sidecar_names`) unchanged and hand-written.
+- Facade: `loadMusic()` in `packages/wasm/src/index.{js,d.ts}`: `readTags`, `readTagsTail`, `parseLrc`, `lrcSidecarNames`. Shape unchanged by the lofty switch.
+- **NEED_MOOV**: an M4A whose `moov` is not in the head throws `MusicNeedMoovError` (`code: "NEED_MOOV"`, `offset: number`; Rust `TagError::NeedMoov { offset }`, message `NEED_MOOV:<offset>`). `offset` = the `moov` box itself when the head shows it (even cut), else the next top-level box after the last box the head shows (a head with only `ftyp` -> 24; ending inside `mdat` -> the end of `mdat`). The caller walks top-level boxes by range (16 bytes at `offset` give size and type) until `moov`, then passes `ftyp bytes + moov bytes` to `readTags` (tested). This is music-index's job.
+- THIRD_PARTY_NOTICES.md entry (both copies identical), roadmap-p27 section 19 row corrected. `deny.toml`: no line needed (`cargo deny --offline check licenses` ok).
+- wasm32: `cargo clippy --target wasm32-unknown-unknown --all-targets -D warnings` and `wasm-pack build` succeed with lofty, so no `std::fs` problem.
 
-## Not done / open
-- WAV (RIFF LIST INFO) not implemented. `lofty` would cover it.
-- `lofty` NOT used. A coordinator message said the owner approved it, but approval has to come from the owner in chat, so nothing was fetched. If approved directly: pin 0.25.4 (the roadmap's 0.22.4 is stale), swap the internals of `read_tags`/`read_tags_tail` in `src/lib.rs`; the API, the JSON shape and the LRC parser stay. The hand-written readers can stay as fallback.
-- MP4 with `moov` after `mdat` beyond the head: `read_tags` returns `Truncated`; the caller (music-index) should retry with the tail bytes (`readTags` on the last N KB does not work since it needs `ftyp`; so music-index should fetch `moov` by box offset or accept no tags). Open design point for music-index.
-- ID3v1 is a separate call (`readTagsTail(last 128 bytes)`).
-- Cover bytes are returned via a second parse (`readCover`), not JSON.
+## Findings: lofty on a head buffer (prefix)
+- Whole files (with audio): lofty reads ID3v2+MPEG, FLAC, M4A (moov present), WAV, Ogg Opus.
+- Prefix that stops inside a tag (cut cover, MP3 tag without audio frames after it, FLAC cut in PICTURE, M4A cut in `moov`): lofty returns an error -> the hand-written reader takes over. Result: text tags are kept, the cut cover is dropped. So for MP3 a head that ends before the first audio frame uses the fallback; with a 1 MiB head that holds the whole tag plus audio frames lofty is used.
+- Stream duration from lofty is not used except for WAV (estimated from file length for MP3/Ogg, wrong for a prefix). `durationHint` therefore comes from TLEN / FLAC STREAMINFO / MP4 mvhd / WAV only.
+
+## Size
+Release build, `--no-opt` (no wasm-opt download): 901 KB raw, 198 KB brotli, under the 600 KB limit (the web budget script does not cover `packages/wasm`; measured by hand with node zlib). wasm-opt would shrink it.
 
 ## Tests run
-- `cargo test -p sr-music-wasm` (17 pass: byte-built ID3/FLAC/Ogg/MP4 files, every-prefix and bit-flip no-panic fuzz, LRC cases, sidecar names).
-- `cargo fmt --check`, `cargo clippy --all-targets -D warnings` clean.
-- `wasm-pack build` (release, --no-opt) ok; vitest `packages/wasm/test/music.test.ts` (3 pass) against the built wasm.
-- Not run: `wasm-pack test --headless --chrome` (browser tests added in `lib.rs`, CI runs them).
+- `cargo test -p sr-music-wasm`: 21 pass (byte-built ID3/FLAC/Ogg/MP4/WAV, lofty-alone checks, prefix and bit-flip robustness through the lofty path, NEED_MOOV offsets, LRC cases).
+- `cargo fmt --check`, clippy `-D warnings` native and wasm32.
+- vitest `packages/wasm/test/music.test.ts` (5 pass) against the built wasm.
+- Not run: `wasm-pack test --headless --chrome` (tests are in `lib.rs`, CI runs them). `catch_unwind` is not used (wasm32 aborts on panic); robustness is shown by the no-panic prefix/bit-flip tests natively.
+
+## Still open
+- Ogg duration (needs the last page), MP3 duration without TLEN: not available from a prefix.
+- Cover bytes come from a second parse (`readCover`), not JSON.
 
 ## Owner questions
-- Confirm in chat that `lofty` (0.25.4) may be downloaded; then THIRD_PARTY_NOTICES.md, deny.toml and roadmap-p27 section 19 need updating. No notices needed now (no new dependency).
+None.
 
 ## Resume here
-Everything is committed. Next: only the lofty swap, if approved.
+Everything is committed; nothing pending.

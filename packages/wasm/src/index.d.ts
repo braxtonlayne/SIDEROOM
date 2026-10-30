@@ -317,10 +317,22 @@ export interface LrcLine {
   line: string;
 }
 
+/**
+ * Thrown by `readTags` for an MP4/M4A whose `moov` box is not in the head. `offset` is the byte
+ * offset to fetch next: the `moov` box itself when the head shows it, else the next top-level box
+ * after the last one the head shows (walk the boxes by range: read 16 bytes at `offset` for
+ * size and type, repeat until `moov`, then fetch `moov` and pass `ftyp + moov` bytes to `readTags`).
+ */
+export interface MusicNeedMoovError extends Error {
+  code: 'NEED_MOOV';
+  offset: number;
+}
+
 export interface MusicApi {
   /**
    * Read tags from the head of an audio file (MP3/ID3v2, FLAC, OGG, M4A). `head` is the first bytes
    * (1 MiB is enough). Throws on unsupported, truncated or garbage input; never returns partial garbage.
+   * An M4A whose `moov` box is not in `head` throws a {@link MusicNeedMoovError} (`code: "NEED_MOOV"`).
    */
   readTags(head: Uint8Array): MusicTags;
   /** Read an ID3v1 tag from the last 128 bytes of an MP3 (`tail`). Same errors as `readTags`. */

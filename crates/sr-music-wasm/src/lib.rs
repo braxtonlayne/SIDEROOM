@@ -12,6 +12,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod flac;
 pub mod id3;
+pub mod lofty_path;
 pub mod lrc;
 pub mod mp4;
 pub mod ogg;
@@ -20,8 +21,9 @@ pub mod tags;
 pub use lrc::{LrcLine, lrc_sidecar_names, parse_lrc};
 pub use tags::{Cover, TagError, Tags};
 
-/// Read tags from the head of a file, picking the reader by magic bytes.
-pub fn read_tags(head: &[u8]) -> Result<Tags, TagError> {
+/// The hand-written readers, picking one by magic bytes. Fallback behind [`read_tags`] and the
+/// source of the stream duration (TLEN, FLAC STREAMINFO, MP4 mvhd) that lofty cannot give for a prefix.
+pub fn read_tags_builtin(head: &[u8]) -> Result<Tags, TagError> {
     if head.starts_with(b"ID3") {
         id3::read_v2(head)
     } else if head.starts_with(b"fLaC") {
@@ -35,6 +37,21 @@ pub fn read_tags(head: &[u8]) -> Result<Tags, TagError> {
         id3::read_v1(head)
     } else {
         Err(TagError::Unsupported)
+    }
+}
+
+/// Read tags from the head of a file. lofty is tried first (MP3, FLAC, Ogg Vorbis/Opus, M4A, WAV);
+/// the hand-written reader fills gaps (stream duration, a cover lofty skipped) and takes over when
+/// lofty cannot read the prefix.
+pub fn read_tags(head: &[u8]) -> Result<Tags, TagError> {
+    let builtin = read_tags_builtin(head);
+    match (lofty_path::read(head), builtin) {
+        (Some(mut l), Ok(b)) => {
+            l.fill_from(b);
+            Ok(l)
+        }
+        (Some(l), Err(_)) => Ok(l),
+        (None, b) => b,
     }
 }
 

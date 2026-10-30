@@ -64,3 +64,43 @@ describe.skipIf(!built)('music facade', () => {
     expect(music.lrcSidecarNames('m/x.flac')).toEqual(['m/x.lrc', 'm/x.LRC', 'm/x.flac.lrc']);
   });
 });
+
+describe.skipIf(!built)('music facade: M4A with moov past the head', () => {
+  const box = (type: string, body: number[]) => {
+    const size = body.length + 8;
+    return [
+      (size >>> 24) & 255,
+      (size >> 16) & 255,
+      (size >> 8) & 255,
+      size & 255,
+      ...enc.encode(type),
+      ...body,
+    ];
+  };
+  const ftyp = box('ftyp', [...enc.encode('M4A '), 0, 0, 0, 0, ...enc.encode('M4A mp42')]);
+
+  it('throws NEED_MOOV with the next box offset', async () => {
+    const music = await loadMusic(readFileSync(wasmPath));
+    // mdat declares 1000 bytes but the head carries only 8 of them.
+    const head = Uint8Array.from([...ftyp, 0, 0, 3, 232, ...enc.encode('mdat'), 1, 2, 3, 4]);
+    let err: { code?: string; offset?: number } | undefined;
+    try {
+      music.readTags(head);
+    } catch (e) {
+      err = e as { code?: string; offset?: number };
+    }
+    expect(err?.code).toBe('NEED_MOOV');
+    expect(err?.offset).toBe(ftyp.length + 1000);
+  });
+
+  it('reads ftyp + moov fetched by range', async () => {
+    const music = await loadMusic(readFileSync(wasmPath));
+    const data = box('data', [0, 0, 0, 1, 0, 0, 0, 0, ...enc.encode('Late Moov')]);
+    // The title atom type is the 4 bytes A9 'n' 'a' 'm'.
+    const nam = [0, 0, 0, data.length + 8, 0xa9, 0x6e, 0x61, 0x6d, ...data];
+    const meta = box('meta', [0, 0, 0, 0, ...box('ilst', nam)]);
+    const moov = box('moov', box('udta', meta));
+    const t = music.readTags(Uint8Array.from([...ftyp, ...moov]));
+    expect(t.title).toBe('Late Moov');
+  });
+});

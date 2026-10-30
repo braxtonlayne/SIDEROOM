@@ -8,6 +8,7 @@ struct Atom<'a> {
     body: &'a [u8],
     next: usize,
     cut: bool,
+    declared_end: u64,
 }
 
 fn atom_at(b: &[u8], pos: usize) -> Option<Atom<'_>> {
@@ -34,6 +35,7 @@ fn atom_at(b: &[u8], pos: usize) -> Option<Atom<'_>> {
         body: b.get(start..end)?,
         next: end,
         cut,
+        declared_end: want_end,
     })
 }
 
@@ -118,10 +120,10 @@ pub fn read(b: &[u8]) -> Result<Tags, TagError> {
     }
     let mut t = Tags::default();
     let mut pos = 0usize;
-    let mut found_moov = false;
+    // Where the caller should read next if the head holds no `moov`.
+    let mut next_offset = 0u64;
     while let Some(a) = atom_at(b, pos) {
         if &a.kind == b"moov" {
-            found_moov = true;
             for m in children(a.body) {
                 match &m.kind {
                     b"mvhd" => t.duration_hint = duration(m.body),
@@ -138,17 +140,23 @@ pub fn read(b: &[u8]) -> Result<Tags, TagError> {
                     _ => {}
                 }
             }
-            break;
+            if a.cut && t == Tags::default() {
+                // `moov` starts in the head but runs past it, and nothing useful was in the part we saw.
+                return Err(TagError::NeedMoov { offset: pos as u64 });
+            }
+            return Ok(t);
         }
+        next_offset = a.declared_end;
         if a.cut {
             break;
         }
         pos = a.next;
     }
-    if found_moov {
-        Ok(t)
-    } else {
-        // `moov` is often at the end of the file: the caller should retry with the tail.
-        Err(TagError::Truncated)
+    if next_offset == 0 {
+        next_offset = pos as u64;
     }
+    // `moov` is often after `mdat`: the caller walks the top-level boxes by range from here.
+    Err(TagError::NeedMoov {
+        offset: next_offset,
+    })
 }
