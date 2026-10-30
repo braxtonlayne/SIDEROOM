@@ -25,11 +25,14 @@ use sr_auth::{
 };
 use sr_core::{SnowflakeGenerator, SystemClock};
 use sr_db::testing::TestDb;
-use sr_features::{FeatureRegistry, FeatureService, InMemorySettingsStore};
+use sr_features::{FeatureRegistry, FeatureService, InMemorySettingsStore, ScopeRef};
 use sr_storage::ObjectStoreStorage;
 use sr_storage::mount_storage::MountStorages;
 use sr_storage::mounts::MemoryMountRepo;
-use sr_userfeat::{Card, Poster, SendFailure, UserFeatures, features::register_all};
+use sr_userfeat::{
+    Card, Poster, SendFailure, UserFeatures,
+    features::{RINGS_ID, register_all},
+};
 use tower::ServiceExt;
 
 /// A 1x1 PNG.
@@ -255,6 +258,11 @@ async fn an_outsider_gets_the_answer_a_missing_ring_gets_on_every_route() {
         Arc::new(InMemorySettingsStore::new()),
         None,
     );
+    // Rings start off (the operator turns them on).
+    features
+        .set_enabled(RINGS_ID, &ScopeRef::Platform, Some(true))
+        .await
+        .unwrap();
     let ids = Arc::new(SnowflakeGenerator::new(SystemClock, 28, 28).unwrap());
     let uf = UserFeatures::new(
         pool.clone(),

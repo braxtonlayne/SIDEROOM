@@ -170,6 +170,11 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
     });
 
     await test.step('PRF-RNG-001: a reported status ring is held, only its audience could see it, and the case outlives the ring', async () => {
+      // Rings start off; the operator turns them on.
+      await call(o, 'PATCH', '/admin/features/lounge.rings', {
+        enabled: true,
+        reason: 'e2e moderation gate',
+      });
       const ring = await call<{ id: string }>(b, 'POST', '/users/@me/rings', {
         kind: 'text',
         text: `ring line ${stamp}`,
