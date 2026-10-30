@@ -233,7 +233,11 @@ impl MountTransfer for MountBucket {
 
     async fn head_size(&self, mount_id: i64, key: &str) -> Result<Option<u64>, String> {
         let (mount, storage) = self.open(mount_id, key).await?;
-        if let Some(g) = &self.guard {
+        // The operator's own bucket (the platform mount) is not vetted, as in the storage routes: it is the
+        // instance's configuration, and on a self-hosted box it often sits on a loopback or private address.
+        if let Some(g) = &self.guard
+            && mount.owner != sr_storage::mounts::MountOwner::Platform
+        {
             g.validated_addrs(&mount.endpoint).await?;
         }
         match tokio::time::timeout(Duration::from_secs(8), storage.head(&mount.bucket_key(key)))
@@ -351,5 +355,77 @@ mod tests {
             Some("a/x.m3u8")
         );
         assert_eq!(entry_of(MountFormat::Mp4, &["a.m3u8"]), None);
+    }
+
+    /// Refuses every endpoint and counts the calls.
+    #[derive(Default)]
+    struct RefuseAll(std::sync::atomic::AtomicUsize);
+    #[async_trait]
+    impl EndpointGuard for RefuseAll {
+        async fn validated_addrs(&self, _url: &str) -> Result<Vec<std::net::SocketAddr>, String> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Err("refused by the guard".to_owned())
+        }
+    }
+
+    /// Not secure: the plain secret after the AAD.
+    struct TagSealer;
+    impl Sealer for TagSealer {
+        fn seal(
+            &self,
+            aad: &[u8],
+            plain: &[u8],
+        ) -> Result<Vec<u8>, sr_storage::mounts::MountError> {
+            Ok([aad, b"|", plain].concat())
+        }
+        fn open(&self, aad: &[u8], blob: &[u8]) -> Result<Vec<u8>, sr_storage::mounts::MountError> {
+            blob.strip_prefix([aad, b"|"].concat().as_slice())
+                .map(<[u8]>::to_vec)
+                .ok_or(sr_storage::mounts::MountError::Unseal)
+        }
+    }
+
+    // The media.yml mount stage failed on this: the operator's bucket on 127.0.0.1 was refused by the guard
+    // when the worker's upload was checked, and the server answered 500.
+    #[tokio::test]
+    async fn the_guard_vets_member_buckets_but_not_the_platform_bucket() {
+        use sr_storage::mounts::{
+            MemoryMountRepo, MountInput, MountOwner, MountRepo, NewMount, Provider, Secret,
+        };
+        let repo = Arc::new(MemoryMountRepo::new());
+        for (id, owner) in [(1, MountOwner::Platform), (77, MountOwner::User(9))] {
+            let input = MountInput {
+                owner,
+                label: format!("m{id}"),
+                provider: Provider::Garage,
+                // A closed port: the platform head fails on the connection, never on the guard.
+                endpoint: "http://127.0.0.1:9".into(),
+                region: "garage".into(),
+                bucket: "b".into(),
+                prefix: String::new(),
+                path_style: true,
+                access_key_id: "AKIAEXAMPLE".into(),
+            };
+            let new = NewMount::seal(&TagSealer, id, input, &Secret::new("s3cret")).unwrap();
+            repo.create(new, None).await.unwrap();
+        }
+        let guard = Arc::new(RefuseAll::default());
+        let bucket = MountBucket::new(repo, Arc::new(TagSealer)).with_guard(guard.clone());
+
+        let member = bucket
+            .head_size(77, "transcoded/a.mkv/proxy/proxy.mp4")
+            .await;
+        assert_eq!(member, Err("refused by the guard".to_owned()));
+        assert_eq!(guard.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let platform = bucket
+            .head_size(1, "transcoded/a.mkv/proxy/proxy.mp4")
+            .await;
+        assert_ne!(platform, Err("refused by the guard".to_owned()));
+        assert_eq!(
+            guard.0.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "the platform bucket is not vetted"
+        );
     }
 }
