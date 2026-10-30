@@ -14,12 +14,12 @@
 }
 .lng-scr-note {
   margin: 0;
-  color: var(--text-muted, inherit);
+  color: var(--ui-text-muted);
   font-size: 0.8125rem;
 }
 .lng-scr-loading {
   margin: 0;
-  color: var(--text-muted, inherit);
+  color: var(--ui-text-muted);
 }
 .lng-scr-filters {
   display: flex;
@@ -30,14 +30,14 @@
   display: grid;
   gap: var(--space-1, 4px);
   font-size: 0.75rem;
-  color: var(--text-muted, inherit);
+  color: var(--ui-text-muted);
 }
 .lng-scr-input {
   min-inline-size: 8rem;
   padding-block: var(--space-1, 4px);
   padding-inline: var(--space-2, 8px);
-  border-radius: var(--radius-1, 4px);
-  background: var(--surface-2, rgb(255 255 255 / 5%));
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-raised);
   color: inherit;
   font: inherit;
 }
@@ -52,13 +52,13 @@
   margin-block-end: var(--space-3, 12px);
   padding: var(--space-2, 8px);
   break-inside: avoid;
-  border-radius: var(--radius-2, 8px);
-  background: var(--surface-2, rgb(255 255 255 / 5%));
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-bg-raised);
 }
 .lng-scr-media {
   inline-size: 100%;
   block-size: auto;
-  border-radius: var(--radius-1, 4px);
+  border-radius: var(--ui-radius);
 }
 .lng-scr-audio {
   inline-size: 100%;
@@ -66,11 +66,11 @@
 .lng-scr-locked {
   margin: 0;
   padding: var(--space-3, 12px);
-  border-radius: var(--radius-1, 4px);
-  color: var(--text-muted, inherit);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-muted);
   font-size: 0.8125rem;
   text-align: center;
-  background: var(--surface-3, rgb(255 255 255 / 8%));
+  background: var(--ui-bg-hover);
 }
 .lng-scr-text {
   margin: 0;
@@ -83,7 +83,7 @@
   font-size: 0.75rem;
 }
 .lng-scr-meta span {
-  color: var(--text-muted, inherit);
+  color: var(--ui-text-muted);
 }
 .lng-scr-tags {
   display: flex;
@@ -93,7 +93,7 @@
   padding: 0;
   list-style: none;
   font-size: 0.75rem;
-  color: var(--text-muted, inherit);
+  color: var(--ui-text-muted);
 }
 .lng-scr-actions {
   display: flex;
@@ -105,8 +105,8 @@
   display: grid;
   gap: var(--space-2, 8px);
   padding: var(--space-3, 12px);
-  border-radius: var(--radius-2, 8px);
-  background: var(--surface-2, rgb(255 255 255 / 5%));
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-bg-raised);
 }
 .lng-scr-removals {
   display: grid;
@@ -117,7 +117,7 @@
 }
 .lng-scr-removal-key {
   margin: 0;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--ui-font-mono);
   font-size: 0.75rem;
   overflow-wrap: anywhere;
 }
@@ -126,8 +126,8 @@
   margin-inline: var(--space-3, 12px);
   padding-block: var(--space-1, 4px);
   padding-inline: var(--space-2, 8px);
-  border-radius: var(--radius-1, 4px);
-  background: var(--surface-2, rgb(255 255 255 / 5%));
-  color: var(--text-muted, inherit);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-muted);
   font-size: 0.75rem;
 }
