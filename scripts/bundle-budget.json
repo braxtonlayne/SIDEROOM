@@ -1,16 +1,46 @@
 {
-  "$comment": "XC-PERF-002. Sizes are gzip bytes of the JavaScript a first visit must download. 'entrance' is everything index.html loads before first paint; 'lounge' adds the Lounge route chunk and its static imports.",
+  "$comment": "XC-PERF-002. Sizes are gzip bytes of the JavaScript a first visit must download. 'entrance' is everything index.html loads before first paint; 'lounge' adds the Lounge route chunk and its static imports. 'musicWasmMaxBrotliKB' caps the lazily fetched sr-music-wasm module (MUS-WASM-001), brotli bytes.",
   "budgets": {
-    "entrance": { "maxGzipKB": 300 },
-    "lounge": { "maxGzipKB": 600, "routeChunk": "LoungeRoot" },
-    "library": { "maxGzipKB": 600, "routeChunk": "LibraryRoot" },
-    "admin": { "maxGzipKB": 600, "routeChunk": "AdminApp" },
-    "settings": { "maxGzipKB": 600, "routeChunk": "UserSettings" },
-    "cinema-player": { "maxGzipKB": 600, "routeChunk": "WatchRoute" },
-    "cinema-tv": { "maxGzipKB": 600, "routeChunk": "Guide" },
-    "cinema-tv-live": { "maxGzipKB": 600, "routeChunk": "LiveWatch" },
-    "watch-party": { "maxGzipKB": 600, "routeChunk": "PartyRoute" },
-    "developers": { "maxGzipKB": 400, "routeChunk": "DevelopersRoot" }
+    "entrance": {
+      "maxGzipKB": 300
+    },
+    "lounge": {
+      "maxGzipKB": 600,
+      "routeChunk": "LoungeRoot"
+    },
+    "library": {
+      "maxGzipKB": 600,
+      "routeChunk": "LibraryRoot"
+    },
+    "admin": {
+      "maxGzipKB": 600,
+      "routeChunk": "AdminApp"
+    },
+    "settings": {
+      "maxGzipKB": 600,
+      "routeChunk": "UserSettings"
+    },
+    "cinema-player": {
+      "maxGzipKB": 600,
+      "routeChunk": "WatchRoute"
+    },
+    "cinema-tv": {
+      "maxGzipKB": 600,
+      "routeChunk": "Guide"
+    },
+    "cinema-tv-live": {
+      "maxGzipKB": 600,
+      "routeChunk": "LiveWatch"
+    },
+    "watch-party": {
+      "maxGzipKB": 600,
+      "routeChunk": "PartyRoute"
+    },
+    "developers": {
+      "maxGzipKB": 400,
+      "routeChunk": "DevelopersRoot"
+    }
   },
-  "singleChunkMaxGzipKB": 250
+  "singleChunkMaxGzipKB": 250,
+  "musicWasmMaxBrotliKB": 600
 }

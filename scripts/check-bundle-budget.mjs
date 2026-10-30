@@ -4,7 +4,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, gzipSync } from 'node:zlib';
 import { staticImports } from './lib/bundle.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -111,6 +111,61 @@ for (const f of readdirSync(join(dist, 'assets')).filter((x) => x.endsWith('.js'
         : 'skip ffmpeg     no ffmpeg-core asset in this build',
     );
   }
+}
+
+// MUS-WASM-001 (wave 30): the sr-music-wasm tag reader (`assets/music_bg-*.wasm` and its `music-*.js` glue) is
+// fetched only when the library's tagger starts: no entrance file may be it or name it, and the .wasm stays within
+// `musicWasmMaxBrotliKB` (brotli, as a CDN serves it).
+{
+  const assets = readdirSync(join(dist, 'assets'));
+  const wasm = assets.filter((f) => /^music_bg-[\w-]+\.wasm$/.test(f));
+  const glue = new Set(
+    assets.filter((f) => /^music-[\w-]+\.js$/.test(f)).map((f) => `assets/${f}`),
+  );
+  const inEntrance = [...entrance].filter(
+    (f) => glue.has(f) || readFileSync(join(dist, f), 'utf8').includes('music_bg'),
+  );
+  const limit = config.musicWasmMaxBrotliKB ?? 600;
+  if (wasm.length !== 1) {
+    rows.push(`FAIL music     expected one music_bg-*.wasm in assets, found ${wasm.length}`);
+    failed = true;
+  } else if (inEntrance.length) {
+    rows.push(
+      `FAIL music     the music tag reader is reachable from first paint: ${inEntrance.join(', ')}`,
+    );
+    failed = true;
+  } else {
+    const br = brotliCompressSync(readFileSync(join(dist, 'assets', wasm[0]))).length;
+    const ok = br <= limit * 1024;
+    if (!ok) failed = true;
+    rows.push(
+      `${ok ? 'ok  ' : 'FAIL'} music     ${kb(br).padStart(8)} KB brotli (limit ${limit} KB), lazy (${wasm[0]})`,
+    );
+  }
+}
+
+// MUS-PLY-001, MUS-LIB-001 (wave 30, D-385): the floating player and the music library belong to the signed-in app.
+// None of their code may load on first paint (the landing page, login, invite): the entrance holds only the gate's
+// lazy stub and the public-path rule. Markers are string literals that survive minification.
+{
+  const MARKERS = [
+    'sr.player.v1',
+    'sr.player.resume',
+    'sr-ply-',
+    'sr-mlib',
+    '/music/library',
+    '/music/playlists',
+  ];
+  const hits = [...entrance].filter((f) => {
+    const code = readFileSync(join(dist, f), 'utf8');
+    return MARKERS.some((m) => code.includes(m));
+  });
+  rows.push(
+    hits.length
+      ? `FAIL player    player or music library code loads on first paint: ${hits.join(', ')}`
+      : 'ok   player     no player or music library code in the entrance',
+  );
+  if (hits.length) failed = true;
 }
 
 // RDY-I18N-002: the pseudo-locales (en-XA, ar-XB) exist on dev hosts and in a build made with SR_PSEUDO_LOCALE=1
