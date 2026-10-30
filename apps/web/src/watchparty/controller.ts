@@ -42,6 +42,8 @@ export interface SyncPlayer {
   seekMs(ms: number): void;
   /** The effective playback rate (the party rate times any nudge). */
   setRate(rate: number): void;
+  /** The player cannot express a small rate nudge (YouTube's fixed speeds), so drift is corrected by seeking. */
+  readonly coarseRate?: boolean;
   subscribe(fn: (e: 'waiting' | 'playing' | 'ended') => void): () => void;
 }
 
@@ -100,6 +102,8 @@ export interface PartyState {
 export const HEARTBEAT_MS = 15_000;
 export const TICK_MS = 500;
 export const HAND = '✋';
+/** A player that cannot nudge its rate is seeked once the drift passes this. */
+const COARSE_SEEK_MS = 400;
 const REACTION_MS = 4_000;
 const HAND_MS = 60_000;
 const MAX_LINES = 100;
@@ -410,7 +414,7 @@ export class PartyController {
   /* -------------------------------------------------------------- playback */
 
   private mediaKey(m: PartyMedia | null) {
-    return m ? `${m.asset_id}:${m.title_id}:${m.episode_id}` : '';
+    return m ? `${m.asset_id}:${m.title_id}:${m.episode_id}:${m.url ?? ''}` : '';
   }
 
   private async openMedia(media: PartyMedia | null, first: boolean) {
@@ -484,6 +488,11 @@ export class PartyController {
     }
   }
 
+  /** The external stage has a live player now (PRF-UNF-001): bring it to the party's state. */
+  reapply(): Promise<void> {
+    return this.apply();
+  }
+
   /** The viewer clicked the "join playback" button after the browser refused to autoplay. */
   async resumeFromGesture() {
     const ok = await this.deps.player.play();
@@ -511,6 +520,14 @@ export class PartyController {
         this.settleUntil = this.deps.now() + SETTLE_MS;
         break;
       case 'nudge':
+        if (p.coarseRate) {
+          // No usable rate nudge: a small hop closes a drift of a few hundred ms.
+          if (Math.abs(drift) > COARSE_SEEK_MS) {
+            p.seekMs(Math.round(expected));
+            this.settleUntil = this.deps.now() + SETTLE_MS;
+          }
+          break;
+        }
         p.setRate(c.rate);
         this.nudging = true;
         break;

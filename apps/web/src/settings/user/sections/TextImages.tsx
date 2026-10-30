@@ -3,6 +3,7 @@ import { useT } from '../../../i18n';
 import { Card, SectionTitle } from '../parts';
 import type { MediaSize, SpoilerMode } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
+import { LoadEmbedsCard } from '../../../lounge/msg/EmbedsSettings';
 import { RemoteImagesCard } from './Privacy';
 
 export function TextImagesSection({ prefs, setPrefs }: PrefsFormProps) {
@@ -26,6 +27,7 @@ export function TextImagesSection({ prefs, setPrefs }: PrefsFormProps) {
         </div>
       </Card>
       <RemoteImagesCard />
+      <LoadEmbedsCard />
       <Card id="us-attachments" title={t('settings.textImages.attachments')}>
         <Switch
           label={t('settings.textImages.inline')}

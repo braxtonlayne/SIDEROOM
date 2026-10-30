@@ -30,6 +30,20 @@ export interface PartyMedia {
   duration_ms: number | null;
   age_restricted: boolean;
   live: boolean;
+  /** Where the media comes from (PRF-UNF-001); absent on older servers, which means `cinema`. */
+  kind?: MediaKind;
+  /** The provider's privacy-enhanced embed address, or the media file, for `embed` and `direct`. */
+  url?: string | null;
+  /** `youtube`, `vimeo` or `direct`. */
+  provider?: string | null;
+}
+
+export type MediaKind = 'cinema' | 'embed' | 'direct';
+
+/** A link outside the Cinema catalog, instead of a title: the server validates and canonicalises it. */
+export interface ExternalInput {
+  url: string;
+  title?: string | null;
 }
 
 export interface Participant {
@@ -108,6 +122,8 @@ export interface CreateInput {
   channel_id?: string | null;
   start_ms?: number;
   settings?: Partial<PartySettings>;
+  /** A YouTube or Vimeo link or a media file (PRF-UNF-001), instead of `title_id`. */
+  external?: ExternalInput;
 }
 
 export interface HeartbeatInput {

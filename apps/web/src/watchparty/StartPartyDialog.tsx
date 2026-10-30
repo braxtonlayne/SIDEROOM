@@ -20,6 +20,8 @@ export interface StartPartyDialogProps {
   title?: { titleId: string; episodeId?: string | null; variantId?: string | null; label: string };
   /** A Live TV channel to watch together (G-16): no title is asked for; everyone follows the live edge. */
   liveChannel?: { channelId: string; label: string };
+  /** A YouTube or Vimeo embed address or a media file from a link card (PRF-UNF-001): no title is asked for. */
+  external?: { url: string; label: string };
   /** Preselect a channel or DM (the voice call bar passes its voice channel). */
   channelId?: string | null;
 }
@@ -31,6 +33,7 @@ export function StartPartyDialog({
   onClose,
   title,
   liveChannel,
+  external,
   channelId,
 }: StartPartyDialogProps) {
   const t = useT();
@@ -87,7 +90,7 @@ export function StartPartyDialog({
   const dest = picks ?? channelId ?? remembered ?? PRIVATE;
 
   const chosen: { titleId: string; episodeId: string | null; variantId: string | null } | null =
-    liveChannel
+    liveChannel || external
       ? { titleId: '', episodeId: null, variantId: null }
       : title
         ? {
@@ -98,7 +101,7 @@ export function StartPartyDialog({
         : picked
           ? { titleId: picked.titleId, episodeId: picked.episodeId, variantId: null }
           : null;
-  const label = liveChannel?.label ?? title?.label ?? picked?.label;
+  const label = liveChannel?.label ?? external?.label ?? title?.label ?? picked?.label;
 
   const start = async () => {
     if (!chosen) return;
@@ -107,7 +110,9 @@ export function StartPartyDialog({
     const where = { channel_id: dest === PRIVATE ? null : dest };
     const input = liveChannel
       ? { tv_channel_id: liveChannel.channelId, ...where }
-      : {
+      : external
+        ? { external: { url: external.url, title: external.label }, ...where }
+        : {
           title_id: chosen.titleId,
           episode_id: chosen.episodeId,
           variant_id: chosen.variantId,
@@ -163,8 +168,8 @@ export function StartPartyDialog({
       }
     >
       <div className="wp-start">
-        {!title && !liveChannel && !picked && <TitlePicker onPick={setPicked} />}
-        {!title && !liveChannel && picked && (
+        {!title && !liveChannel && !external && !picked && <TitlePicker onPick={setPicked} />}
+        {!title && !liveChannel && !external && picked && (
           <p className="wp-now">
             {picked.label}{' '}
             <Button size="sm" variant="ghost" onClick={() => setPicked(null)}>

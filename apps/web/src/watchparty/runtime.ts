@@ -9,6 +9,7 @@ import { setMiniExpandHref } from '../cinema/player/bridge';
 import { playerSession, type PlayerSession } from '../cinema/player/session';
 import { httpPartyApi } from './api';
 import { PartyController, type PartyState, type SyncPlayer } from './controller';
+import { externalHost } from './externalHost';
 import type { PartyMedia } from './types';
 
 /** The Cinema player session as a `SyncPlayer`. Position is in ms; the element is the session's own. */
@@ -37,6 +38,36 @@ export function sessionPlayer(session: PlayerSession): SyncPlayer {
   };
 }
 
+/** Which player the controller drives: the Cinema session, or the external host (PRF-UNF-001). */
+let activeKind: 'cinema' | 'external' = 'cinema';
+
+/** Routes the controller's player calls to the Cinema session or to the external stage, by the party's media. */
+export function routedPlayer(session: PlayerSession): SyncPlayer {
+  const cinema = sessionPlayer(session);
+  const external = externalHost().player;
+  const cur = () => (activeKind === 'external' ? external : cinema);
+  return {
+    positionMs: () => cur().positionMs(),
+    paused: () => cur().paused(),
+    waiting: () => cur().waiting(),
+    play: () => cur().play(),
+    pause: () => cur().pause(),
+    seekMs: (ms) => cur().seekMs(ms),
+    setRate: (r) => cur().setRate(r),
+    get coarseRate() {
+      return cur().coarseRate ?? false;
+    },
+    subscribe(fn) {
+      const a = cinema.subscribe(fn);
+      const b = external.subscribe(fn);
+      return () => {
+        a();
+        b();
+      };
+    },
+  };
+}
+
 /** Open the party's media in the session (idempotent when it is already the open item). */
 export async function loadPartyMedia(
   session: PlayerSession,
@@ -44,6 +75,16 @@ export async function loadPartyMedia(
   startMs: number,
   autoplay: boolean,
 ): Promise<void> {
+  if (media.kind === 'embed' || media.kind === 'direct') {
+    // A link outside the catalog (PRF-UNF-001): the Cinema session steps aside; the theatre's stage loads the
+    // provider frame or the media element after the viewer allowed it, and the controller drives it from there.
+    if (session.state.status !== 'idle') session.pause();
+    activeKind = 'external';
+    externalHost().setMedia(media);
+    return;
+  }
+  activeKind = 'cinema';
+  externalHost().setMedia(null);
   if (media.live) {
     // A Live TV party (G-16): `title_id` is the TV channel. Everybody tunes it themselves and follows the
     // live edge, so there is no start offset; the player session is told it is a channel (`tv:<id>`).
@@ -84,7 +125,7 @@ export function partyController(): PartyController {
     const session = playerSession();
     controller = new PartyController({
       api: httpPartyApi,
-      player: sessionPlayer(session),
+      player: routedPlayer(session),
       load: (m, start, autoplay) => loadPartyMedia(playerSession(), m, start, autoplay),
       now: () => Date.now(),
       me: () => useStore.getState().currentUserId ?? '',
@@ -99,6 +140,10 @@ export function partyController(): PartyController {
     // The mini player expands back into the party instead of the plain player while a party is followed.
     controller.store.subscribe((s) => {
       setMiniExpandHref(s.status === 'active' && s.party ? `/cinema/party/${s.party.id}` : null);
+      if (s.status !== 'active' && s.status !== 'opening') {
+        activeKind = 'cinema';
+        externalHost().reset();
+      }
     });
   }
   return controller;
