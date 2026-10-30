@@ -401,7 +401,7 @@ pub fn step(
                 item_id: item,
                 position_ms: p.position_ms,
                 seq,
-                next_due_ms: p.remaining_ms.min(PUBLISH_EVERY_MS).max(1),
+                next_due_ms: p.remaining_ms.clamp(1, PUBLISH_EVERY_MS),
                 publish: p.changed || publish_due,
             };
             (step, Some(p))
