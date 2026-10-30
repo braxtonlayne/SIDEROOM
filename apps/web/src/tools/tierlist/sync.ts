@@ -123,10 +123,10 @@ export class RoomSync {
 
   /** Send pending edits, one patch at a time. Resolves when nothing is left to send (or a send failed). */
   async flush(): Promise<void> {
-    if (this.busy || this.status === 'gone') return;
+    if (this.busy || this.isGone()) return;
     this.busy = true;
     try {
-      while (this.status !== 'gone') {
+      while (!this.isGone()) {
         if (!this.inflight) {
           if (!this.dirty) break;
           this.inflight = this.pending;
@@ -166,6 +166,11 @@ export class RoomSync {
     } finally {
       this.busy = false;
     }
+  }
+
+  // A method, so the compiler does not narrow `status` across the awaits of a flush.
+  private isGone(): boolean {
+    return this.status === 'gone';
   }
 
   /** Try again after an offline stretch. */
