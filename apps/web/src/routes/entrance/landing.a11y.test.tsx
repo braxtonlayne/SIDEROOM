@@ -7,7 +7,9 @@ import { http, HttpResponse, server } from '../../test/server';
 
 function at(path: string) {
   render(
-    <RouterProvider router={createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }))} />,
+    <RouterProvider
+      router={createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }))}
+    />,
   );
 }
 

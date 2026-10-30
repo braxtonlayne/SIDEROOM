@@ -28,12 +28,17 @@ export function readFragment(file) {
 }
 
 const esc = (s) =>
-  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 /** Catalog of every English fragment the legal page draws on. */
 export function loadCatalog() {
   const cat = {};
-  for (const f of ['entrance.ts', 'p30b-ent-build-1.ts']) Object.assign(cat, readFragment(join(messages, f)));
+  for (const f of ['entrance.ts', 'p30b-ent-build-1.ts'])
+    Object.assign(cat, readFragment(join(messages, f)));
   return cat;
 }
 
@@ -57,7 +62,10 @@ export function renderHouseNotes(cat, cssHref) {
     return cat[k];
   };
   const h = (k) => esc(t(k));
-  const country = esc(t('entrance.houseNotes.privacy.operatorCountry')).replace('{country}', '{{operator_country}}');
+  const country = esc(t('entrance.houseNotes.privacy.operatorCountry')).replace(
+    '{country}',
+    '{{operator_country}}',
+  );
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -114,7 +122,10 @@ function main() {
   mkdirSync(join(dist, 'entrance'), { recursive: true });
   mkdirSync(join(dist, 'legal'), { recursive: true });
   writeFileSync(join(dist, 'entrance', cssName), CSS);
-  writeFileSync(join(dist, 'legal', 'house-notes.en.html'), renderHouseNotes(cat, `/entrance/${cssName}`));
+  writeFileSync(
+    join(dist, 'legal', 'house-notes.en.html'),
+    renderHouseNotes(cat, `/entrance/${cssName}`),
+  );
   console.log(`[render-legal] dist/legal/house-notes.en.html + dist/entrance/${cssName}`);
 }
 

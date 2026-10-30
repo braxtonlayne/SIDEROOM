@@ -30,11 +30,7 @@ export function EntranceShell({ nav, footerRight, children }: EntranceShellProps
   const t = useT();
   const houseNotes = footerRight === 'House notes';
   return (
-    <ThemeProvider
-      section="entrance"
-      platformDefault="sideroom"
-      className="ent-root"
-    >
+    <ThemeProvider section="entrance" platformDefault="sideroom" className="ent-root">
       <SkipLink />
       <header className="ent-header">
         <Logo />

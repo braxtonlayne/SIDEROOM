@@ -105,7 +105,10 @@ export function AppServerTemplate() {
         {state.kind === 'login' && (
           <>
             <h1>{t('entrance.template.loginTitle')}</h1>
-            <a href={`/login?next=${encodeURIComponent(`/template/${code}`)}`} className="ent-invite-cta">
+            <a
+              href={`/login?next=${encodeURIComponent(`/template/${code}`)}`}
+              className="ent-invite-cta"
+            >
               {t('entrance.template.login')}
             </a>
           </>

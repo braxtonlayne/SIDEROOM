@@ -42,7 +42,9 @@ export default defineConfig({
     assetsDir: 'entrance',
     manifest: true,
     rollupOptions: {
-      input: Object.fromEntries(bundles.map((s) => [s.surface, fileURLToPath(new URL(s.shell!, import.meta.url))])),
+      input: Object.fromEntries(
+        bundles.map((s) => [s.surface, fileURLToPath(new URL(s.shell!, import.meta.url))]),
+      ),
     },
   },
   test: { environment: 'jsdom', globals: true, setupFiles: ['./src/test/setup.ts'], css: false },

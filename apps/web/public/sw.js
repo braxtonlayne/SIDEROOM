@@ -84,7 +84,7 @@ function classify(request, origin) {
 /**
  * Share Target (G-18): the manifest posts shared files as multipart/form-data. Files go to IndexedDB (same
  * names as src/pwa/shareFiles.ts); the page reads them after the redirect. Text fields travel in the query
- * string like the GET form, so SharePage parses both the same way.
+ * string like the GET form, so the page that handles it parses both the same way.
  */
 function stashShare(form) {
   const files = form.getAll('files').filter((f) => typeof f !== 'string');

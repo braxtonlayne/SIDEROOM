@@ -27,11 +27,7 @@ export function ServerTemplate({ code }: { code: string }) {
   }, [code]);
 
   return (
-    <ThemeProvider
-      section="entrance"
-      platformDefault="sideroom"
-      className="ent-invite-page"
-    >
+    <ThemeProvider section="entrance" platformDefault="sideroom" className="ent-invite-page">
       <main className="ent-invite-card" aria-busy={state === 'loading'}>
         {state === 'loading' ? (
           <p role="status">{t('entrance.template.loading')}</p>

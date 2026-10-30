@@ -28,7 +28,7 @@ function UserSettingsPage() {
   const onSignedOut = useCallback(() => {
     resetStore();
     nav.assign('/login');
-  }, [router]);
+  }, []);
   if (!isUserSettingsSection(section)) return null;
   return (
     <UserSettings

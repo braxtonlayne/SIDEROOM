@@ -28,11 +28,7 @@ export function AppDetailPage({ appId, tab }: { appId: string; tab: AppTab }) {
       <EmptyState
         title={t('developers.appDetail.signInTitle')}
         action={
-          <Button
-            onClick={() =>
-              exitToLogin(`/developers/applications/${appId}`)
-            }
-          >
+          <Button onClick={() => exitToLogin(`/developers/applications/${appId}`)}>
             {t('developers.appDetail.logIn')}
           </Button>
         }

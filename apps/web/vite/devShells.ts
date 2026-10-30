@@ -32,7 +32,11 @@ export function devShells(root: string): Plugin {
         const url = req.url ?? '/';
         const path = url.split('?')[0]!;
         const wantsHtml = req.method === 'GET' && (req.headers.accept ?? '').includes('text/html');
-        if (!wantsHtml || /\.[a-z0-9]+$/i.test(path) || /^\/(@|src\/|node_modules\/|api\/)/.test(path))
+        if (
+          !wantsHtml ||
+          /\.[a-z0-9]+$/i.test(path) ||
+          /^\/(@|src\/|node_modules\/|api\/)/.test(path)
+        )
           return next();
         const hit = rules.find((r) => r.re.test(path));
         req.url = (hit ? hit.shell : `/${cfg.appShell}`) + url.slice(path.length);

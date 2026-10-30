@@ -50,7 +50,9 @@ describe('useNoindex (OPS-IDX-001, D-384)', () => {
     login.unmount();
     expect(robots()).toHaveLength(0);
     render(
-      <RouterProvider router={createPublicRouter('/', createMemoryHistory({ initialEntries: ['/'] }))} />,
+      <RouterProvider
+        router={createPublicRouter('/', createMemoryHistory({ initialEntries: ['/'] }))}
+      />,
     );
     await new Promise((r) => setTimeout(r, 50));
     expect(robots()).toHaveLength(0);

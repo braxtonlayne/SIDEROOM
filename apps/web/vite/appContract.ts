@@ -27,7 +27,10 @@ export function appContractPlugin(opts: { csp: string }): Plugin {
     async closeBundle() {
       mkdirSync(outDir, { recursive: true });
       writeFileSync(join(outDir, 'csp.txt'), `${opts.csp}\n`);
-      writeFileSync(join(outDir, 'routes.json'), `${JSON.stringify(await routePaths(root), null, 2)}\n`);
+      writeFileSync(
+        join(outDir, 'routes.json'),
+        `${JSON.stringify(await routePaths(root), null, 2)}\n`,
+      );
       const manifest = join(root, 'public', 'app-manifest.webmanifest');
       if (existsSync(manifest))
         writeFileSync(join(outDir, 'manifest.webmanifest'), readFileSync(manifest));

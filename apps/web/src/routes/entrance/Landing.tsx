@@ -37,28 +37,25 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const complete = isCompleteInviteCode(code);
 
-  const submit = useCallback(
-    async (value: string) => {
-      if (!isCompleteInviteCode(value)) return;
-      setState('checking');
-      try {
-        const res = await checkInvite(value);
-        if (res.valid) {
-          holdInviteCode(value);
-          setState('valid');
-          timer.current = setTimeout(() => nav.assign('/register'), 600);
-        } else if (res.reason === 'closed') {
-          setState('closed');
-        } else {
-          setState('invalid');
-          setShakes((n) => n + 1);
-        }
-      } catch (e) {
-        setState(e instanceof ApiError && e.status === 429 ? 'limited' : 'error');
+  const submit = useCallback(async (value: string) => {
+    if (!isCompleteInviteCode(value)) return;
+    setState('checking');
+    try {
+      const res = await checkInvite(value);
+      if (res.valid) {
+        holdInviteCode(value);
+        setState('valid');
+        timer.current = setTimeout(() => nav.assign('/register'), 600);
+      } else if (res.reason === 'closed') {
+        setState('closed');
+      } else {
+        setState('invalid');
+        setShakes((n) => n + 1);
       }
-    },
-    [],
-  );
+    } catch (e) {
+      setState(e instanceof ApiError && e.status === 429 ? 'limited' : 'error');
+    }
+  }, []);
 
   // /join/:code auto-checks once on arrival.
   const auto = useRef(false);

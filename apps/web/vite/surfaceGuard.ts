@@ -51,7 +51,8 @@ export function surfaceGuard(root: string, lists: Record<string, AllowList>): Pl
       for (const s of readSurfaces(root)) {
         if (s.kind !== 'bundle' || s.reserved || !s.shell) continue;
         const list = lists[s.surface];
-        if (!list) this.error(`public build: surface "${s.surface}" has no ALLOWED.ts in the guard`);
+        if (!list)
+          this.error(`public build: surface "${s.surface}" has no ALLOWED.ts in the guard`);
         const start = resolve(root, s.shell);
         const seen = new Set<string>();
         const stack: [string, string][] = [[start, '(shell)']];

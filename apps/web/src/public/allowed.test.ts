@@ -17,7 +17,13 @@ const isFile = (p: string) => existsSync(p) && statSync(p).isFile();
 function resolveImport(from: string, spec: string): string | null {
   if (!spec.startsWith('.')) return null;
   const base = resolve(dirname(from), spec);
-  for (const c of [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')])
+  for (const c of [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    join(base, 'index.ts'),
+    join(base, 'index.tsx'),
+  ])
     if (isFile(c)) return c;
   return null;
 }
@@ -36,7 +42,12 @@ function closure(entry: string): string[] {
       if (next) stack.push(next);
     }
   }
-  return [...seen].map((f) => f.slice(SRC.length + 1).split(sep).join('/'));
+  return [...seen].map((f) =>
+    f
+      .slice(SRC.length + 1)
+      .split(sep)
+      .join('/'),
+  );
 }
 
 // The module the build replaces with a stub: the rest of the catalog (vite/surfaceGuard.ts).

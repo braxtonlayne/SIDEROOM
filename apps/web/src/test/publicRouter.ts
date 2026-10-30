@@ -4,7 +4,8 @@ import { createAuthRouter } from '../public/auth/router';
 import { createInviteRouter } from '../public/invite/router';
 import { createLandingRouter } from '../public/landing/router';
 
-const toRe = (p: string) => new RegExp(`^${p.replace(/[.+?^${}()|[\]]/g, '[$&]').replace(/\*/g, '.*')}$`);
+const toRe = (p: string) =>
+  new RegExp(`^${p.replace(/[.+?^${}()|[\]]/g, '[$&]').replace(/\*/g, '.*')}$`);
 const makers: Record<string, (h?: RouterHistory) => ReturnType<typeof createLandingRouter>> = {
   landing: createLandingRouter,
   auth: createAuthRouter,

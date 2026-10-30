@@ -131,7 +131,10 @@ export function AppServerInvite() {
                 {error && <p role="alert">{error}</p>}
               </>
             ) : (
-              <a href={`/login?next=${encodeURIComponent(`/invite/${code}`)}`} className="ent-invite-cta">
+              <a
+                href={`/login?next=${encodeURIComponent(`/invite/${code}`)}`}
+                className="ent-invite-cta"
+              >
                 {t('entrance.serverInvite.login')}
               </a>
             )}

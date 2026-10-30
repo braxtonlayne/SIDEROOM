@@ -142,9 +142,7 @@ for (const f of readdirSync(join(dist, 'app')).filter((x) => x.endsWith('.js')))
 {
   const assets = readdirSync(join(dist, 'app'));
   const wasm = assets.filter((f) => /^music_bg-[\w-]+\.wasm$/.test(f));
-  const glue = new Set(
-    assets.filter((f) => /^music-[\w-]+\.js$/.test(f)).map((f) => `app/${f}`),
-  );
+  const glue = new Set(assets.filter((f) => /^music-[\w-]+\.js$/.test(f)).map((f) => `app/${f}`));
   const inEntrance = [...entrance].filter(
     (f) => glue.has(f) || readFileSync(join(dist, f), 'utf8').includes('music_bg'),
   );

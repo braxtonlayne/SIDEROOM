@@ -7,7 +7,9 @@ import { EntranceMarkdown, resetEntranceHero, setEntranceCopy } from './entrance
 
 function at(path: string) {
   render(
-    <RouterProvider router={createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }))} />,
+    <RouterProvider
+      router={createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }))}
+    />,
   );
 }
 

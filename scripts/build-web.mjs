@@ -34,4 +34,6 @@ for (const step of ['render-legal', 'split-notices']) {
   const script = join(root, 'scripts', `${step}.mjs`);
   if (existsSync(script)) run(step, [script], root);
 }
-console.log('\n[build-web] done: dist/{index,auth,invite,app}.html, dist/entrance/, dist/app/, dist/surfaces.json');
+console.log(
+  '\n[build-web] done: dist/{index,auth,invite,app}.html, dist/entrance/, dist/app/, dist/surfaces.json',
+);

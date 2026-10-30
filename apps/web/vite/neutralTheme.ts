@@ -7,7 +7,8 @@ import type { Plugin } from 'vite';
  * (and the tests) use the package untouched.
  */
 export function neutralTheme(): Plugin {
-  const at = (id: string, tail: string) => id.replace(/\\/g, '/').includes(`packages/ui/src/${tail}`);
+  const at = (id: string, tail: string) =>
+    id.replace(/\\/g, '/').includes(`packages/ui/src/${tail}`);
   return {
     name: 'sideroom-neutral-theme',
     enforce: 'pre',
@@ -16,7 +17,8 @@ export function neutralTheme(): Plugin {
       if (at(path, 'tokens/themes.ts')) {
         const start = code.indexOf('export const sideroom: ThemeDefinition');
         const end = code.indexOf('\n};\n', start) + 4;
-        if (start < 0 || end < 4) this.error('neutralTheme: cannot find the entrance theme in themes.ts');
+        if (start < 0 || end < 4)
+          this.error('neutralTheme: cannot find the entrance theme in themes.ts');
         return {
           map: null,
           code:
@@ -30,13 +32,26 @@ export function neutralTheme(): Plugin {
         return {
           map: null,
           code: code
-            .replace(/export const THEME_IDS = \[[^\]]*\] as const;/, 'export const THEME_IDS = ["sideroom"] as const;')
+            .replace(
+              /export const THEME_IDS = \[[^\]]*\] as const;/,
+              'export const THEME_IDS = ["sideroom"] as const;',
+            )
             .replace(/^\s*"--lounge-[^\n]*\n/gm, ''),
         };
       }
       if (at(path, 'tokens/types.ts'))
-        return { map: null, code: code.replace(/export const SECTIONS = \[[^\]]*\] as const;/, 'export const SECTIONS = ["entrance"] as const;') };
-      if (/packages\/ui\/src\/.*\.css/.test(at(path, '') ? path.replace(/\\/g, '/') : path.replace(/\\/g, '/')))
+        return {
+          map: null,
+          code: code.replace(
+            /export const SECTIONS = \[[^\]]*\] as const;/,
+            'export const SECTIONS = ["entrance"] as const;',
+          ),
+        };
+      if (
+        /packages\/ui\/src\/.*\.css/.test(
+          at(path, '') ? path.replace(/\\/g, '/') : path.replace(/\\/g, '/'),
+        )
+      )
         return { map: null, code: code.replace(/^[^\n]*data-theme[^\n]*lounge[^\n]*\n/gm, '') };
       return null;
     },

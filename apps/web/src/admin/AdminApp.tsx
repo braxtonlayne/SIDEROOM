@@ -378,9 +378,7 @@ export function AdminShell({ section }: { section: string | undefined }) {
         title={t('admin.adminApp.signIn.title')}
         description={t('admin.adminApp.signIn.description')}
         action={
-          <Button onClick={() => exitToLogin('/admin')}>
-            {t('admin.adminApp.signIn.button')}
-          </Button>
+          <Button onClick={() => exitToLogin('/admin')}>{t('admin.adminApp.signIn.button')}</Button>
         }
       />
     ) : (

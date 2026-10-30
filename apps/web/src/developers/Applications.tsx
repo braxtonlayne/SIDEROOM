@@ -176,11 +176,7 @@ export function ApplicationsPage() {
         title={tt('developers.applications.signInTitle')}
         description={tt('developers.applications.signInDescription')}
         action={
-          <Button
-            onClick={() =>
-              exitToLogin('/developers/applications')
-            }
-          >
+          <Button onClick={() => exitToLogin('/developers/applications')}>
             {tt('developers.applications.logIn')}
           </Button>
         }
