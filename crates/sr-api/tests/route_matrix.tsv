@@ -34,6 +34,8 @@ DELETE	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}	au
 DELETE	/applications/{application_id}/testers/{account_id}	authenticated	owner	deny	-	-
 DELETE	/channels/{channel_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/attachments/{upload_id}	authenticated	membership	allow	-	-
+DELETE	/channels/{channel_id}/cards/{card_id}	authenticated	membership	deny	-	-
+DELETE	/channels/{channel_id}/cards/{card_id}/claim	authenticated	membership	deny	-	-
 DELETE	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-	-
@@ -264,6 +266,8 @@ GET	/channels/{channel_id}/activity	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/attachments/{upload_id}/parts	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/call	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/cards/{card_id}	authenticated	membership	deny	-	-
+GET	/channels/{channel_id}/cards/{card_id}/ics	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/invites	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/pins	authenticated	membership	allow	-	-
@@ -769,6 +773,8 @@ POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/call/ring	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/call/stop-ringing	authenticated	membership	allow	-	-
+POST	/channels/{channel_id}/cards	authenticated	membership	deny	-	-
+POST	/channels/{channel_id}/cards/{card_id}/claim	authenticated	membership	deny	-	-
 POST	/channels/{channel_id}/followers	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/invites	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/messages	authenticated	membership	allow	-	-

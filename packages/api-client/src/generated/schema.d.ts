@@ -4876,6 +4876,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make an invite card and post its message in the channel. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/cards/{card_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One card: its seats, its claimants, and what the caller may do with it. */
+        get: operations["get_card"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel a card: its host, or a member with `MANAGE_MESSAGES`. The message stays, marked canceled, without
+         *     buttons.
+         */
+        delete: operations["cancel_card"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/cards/{card_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a seat. A member who already has one keeps it (only the reminder choice changes). `409` when every seat
+         *     is taken or the card is closed.
+         */
+        post: operations["claim_seat"];
+        /** Give the seat back (nothing happens when the caller had none). */
+        delete: operations["unclaim_seat"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/cards/{card_id}/ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The card as an iCalendar file (RFC 5545) for "Add to calendar". */
+        get: operations["card_ics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/followers": {
         parameters: {
             query?: never;
@@ -16005,6 +16081,45 @@ export interface components {
             message: string;
             ok: boolean;
         };
+        CardClaimBody: {
+            /** @description DM me an hour and ten minutes before the start (default true). */
+            remind?: boolean;
+        };
+        /** @description An invite card as the API shows it. */
+        CardObject: {
+            /** @description The caller made the card or has `MANAGE_MESSAGES`. */
+            can_manage: boolean;
+            /** @description The card has a Cinema title and the caller has `START_WATCH_PARTY` here. */
+            can_start_party: boolean;
+            channel_id: string;
+            claimants: components["schemas"]["ClaimantObject"][];
+            created_by?: string | null;
+            /** Format: int32 */
+            duration_min: number;
+            guild_id?: string | null;
+            /** @description Also the id of the card's message. */
+            id: string;
+            /** @description `cinema`, `live_tv` or `game_night`. */
+            kind: string;
+            link_path?: string | null;
+            mine?: null | components["schemas"]["MySeatObject"];
+            note: string;
+            /** Format: int32 */
+            seats: number;
+            /**
+             * Format: int64
+             * @description Start, unix milliseconds (UTC).
+             */
+            starts_at: number;
+            /** @description `open`, `started`, `closed` or `canceled`. */
+            status: string;
+            /** Format: int32 */
+            taken: number;
+            /** @description The zone the host picked the time in (display only). */
+            timezone: string;
+            title: string;
+            title_id?: string | null;
+        };
         /** @description Body of a ban from a case. */
         CaseBanBody: {
             /** @description Why, for the audit log and the case. Required. */
@@ -16826,6 +16941,15 @@ export interface components {
         ClaimRequestInput: {
             note?: string;
         };
+        /** @description A member who holds a seat. */
+        ClaimantObject: {
+            /**
+             * Format: int64
+             * @description Unix milliseconds.
+             */
+            claimed_at: number;
+            user_id: string;
+        };
         /** @description Platform flags a client may read (D-216). */
         ClientFlagsObject: {
             /** @description Feature id to on/off, for platform-scope modules that declare themselves client-visible. */
@@ -17183,6 +17307,33 @@ export interface components {
         CreateApplicationBody: {
             description?: string | null;
             name: string;
+        };
+        CreateCardBody: {
+            /**
+             * Format: int32
+             * @description Minutes, 15 to 720 (default 120).
+             */
+            duration_min?: number | null;
+            /** @description `cinema`, `live_tv` or `game_night`. */
+            kind: string;
+            /** @description A path inside the app the card links to. */
+            link_path?: string | null;
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description 1 to 250.
+             */
+            seats: number;
+            /**
+             * Format: int64
+             * @description Start, unix milliseconds (UTC); the client converts the picked time and zone.
+             */
+            starts_at: number;
+            /** @description The IANA zone the time was picked in (default `UTC`). */
+            timezone?: string | null;
+            title: string;
+            /** @description A Cinema title for the watch-party hand-off (cinema cards only). */
+            title_id?: string | null;
         };
         CreateChannelBody: components["schemas"]["ForumSettingsBody"] & {
             /** Format: int32 */
@@ -20961,6 +21112,16 @@ export interface components {
             state: components["schemas"]["ReportState"];
             target_id: string;
             target_kind: components["schemas"]["TargetKind"];
+        };
+        /** @description The caller's own seat. */
+        MySeatObject: {
+            /** @description The caller asked for reminders. */
+            remind: boolean;
+            /**
+             * @description Reminders can actually be delivered: false when the caller's DM settings (server-member DMs off, the
+             *     system user blocked or muted) would stop them. The card still shows the time.
+             */
+            reminder_deliverable: boolean;
         };
         /** @description Body of `POST /submissions/naming/parse`. */
         NamingParseBody: {
@@ -42264,6 +42425,276 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCardBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The channel has too many open cards */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancel_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    claim_seat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardClaimBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No seat is left, or the card is closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unclaim_seat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    card_ics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": string;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

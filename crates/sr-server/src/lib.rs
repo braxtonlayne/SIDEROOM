@@ -8,6 +8,7 @@ pub mod admin_jobs;
 pub mod app;
 pub mod apps_jobs;
 pub mod backends;
+pub mod cards_jobs;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
 pub mod csp_reports;
@@ -62,6 +63,8 @@ pub fn openapi_json() -> serde_json::Result<String> {
     serde_json::to_string_pretty(&sr_api::routes::openapi())
 }
 
+#[cfg(test)]
+mod cards_pg_tests;
 #[cfg(test)]
 mod tests {
     #[test]

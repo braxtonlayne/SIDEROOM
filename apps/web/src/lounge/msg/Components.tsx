@@ -8,6 +8,7 @@ import { newNonce, sendInteraction } from '../apps/interactions';
 import { useReportOutcome } from '../apps/useReportOutcome';
 import { isHttpUrl } from './format';
 import { parseStaffButton, runStaffButton } from './staffActions';
+import { isCardButton, useCardPress } from '../../tools/cards/press';
 
 export type { RawComponent };
 
@@ -47,6 +48,7 @@ export function ComponentRows({
   const t = useT();
   const toast = useToast();
   const report = useReportOutcome();
+  const cardPress = useCardPress();
   const members = useMembers(guildId);
   const roles = useRoles(guildId);
   const channels = useChannels(guildId);
@@ -88,6 +90,16 @@ export function ComponentRows({
             : t('lounge.components.staffFailed'),
         variant: 'danger',
       });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Invite card buttons (`card:` ids, UTL-CRD-001) go to the card routes; the server decides who may do what. */
+  const cardButtonPress = async (key: string, customId: string | undefined, channelId: string) => {
+    setBusy(key);
+    try {
+      await cardPress(customId, channelId);
     } finally {
       setBusy(null);
     }
@@ -192,7 +204,9 @@ export function ComponentRows({
                     onClick={() =>
                       isStaff(c.custom_id) && context
                         ? void staffPress(key, c.custom_id)
-                        : interact(key, c)
+                        : isCardButton(c.custom_id) && context
+                          ? void cardButtonPress(key, c.custom_id, context.channelId)
+                          : interact(key, c)
                     }
                   >
                     {busy === key && <Spinner label={t('lounge.components.waitingForApp')} />}

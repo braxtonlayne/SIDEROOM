@@ -1,6 +1,7 @@
 //! HTTP layer of the utility drawer's server-backed tools (wave 32, roadmap-p27 sections 10 and 11).
 //! Every tool owns one submodule; this file merges their routers and OpenAPI fragments.
 //!
+//! * `cards` (UTL-CRD-001): `/channels/{id}/cards*`: Cinema ticket and game-night invite cards with seats.
 //! * `fx` (UTL-CALC-001): `GET /tools/fx`, the cached European Central Bank reference rates for the currency
 //!   converter. The browser never calls a third party; the server fetches the feed once a day.
 //! * `rooms` (UTL-COL-001): `/channels/{id}/tool-rooms*`: tier lists and poll builders edited together.
@@ -13,6 +14,7 @@
 //!
 //! Rows and limits live in `sr_userfeat::tools`; these handlers check who may do what.
 
+pub mod cards;
 pub mod fx;
 pub mod loot;
 pub mod notes;
@@ -53,6 +55,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/channels/{channel_id}/voice-timer", put(timer::set))
         .merge(rooms::router())
+        .merge(cards::router())
 }
 
 #[derive(OpenApi)]
@@ -88,6 +91,7 @@ pub struct ToolsApiDoc;
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = ToolsApiDoc::openapi();
     doc.merge(rooms::openapi());
+    doc.merge(cards::openapi());
     doc
 }
 

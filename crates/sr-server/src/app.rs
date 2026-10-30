@@ -1283,6 +1283,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         tracing::warn!("the feature poster was already set");
     }
     let system_poster_for_tv = system_poster.clone();
+    let system_poster_for_cards = system_poster.clone();
     let feed_policy = unfurl_policy_for_feeds.clone();
     // The currency converter's rates (UTL-CALC-001): fetched by the server under the same outbound policy as the
     // RSS feeds (deny and allow lists, address checks), read by GET /tools/fx.
@@ -1300,6 +1301,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         Arc::new(sr_db::tool_rooms_repo::PgToolRooms::new(pool.clone()));
     let tool_room_deps = Arc::new(routes::tools::rooms::ToolRoomDeps {
         store: tool_room_store.clone(),
+    });
+    // Invite cards (UTL-CRD-001): Cinema tickets and game-night invites with claimable seats; the reminders ask
+    // the member's DM settings (privacy, blocks, the system user's conversation) before they DM.
+    let card_deps = Arc::new(routes::tools::cards::CardDeps {
+        store: Arc::new(sr_db::cards_repo::PgCards::new(pool.clone())),
+        gate: Arc::new(sr_chat::cards::reminders::SocialGate::new(Arc::new(
+            sr_db::social_repo::PgSocialRepo::new(pool.clone()),
+        ))),
+        public_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
+        locks: routes::tools::cards::CardLocks::default(),
+    });
+    let card_jobs = Arc::new(crate::cards_jobs::CardJobs {
+        deps: card_deps.clone(),
+        messages: messages.clone(),
+        poster: system_poster_for_cards,
     });
     let user_feature_deps = Arc::new(routes::userfeat::UserFeatDeps {
         uf: user_features.clone(),
@@ -1538,6 +1554,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(user_feature_deps)
         .extension(tool_room_deps)
         .extension(fx_deps)
+        .extension(card_deps)
         .extension(storage_scope_deps)
         .extension(mount_transcode_deps)
         .extension(upload_deps)
@@ -1686,6 +1703,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::tool_rooms_jobs::register(runner, &pool, tool_room_store.clone());
+    let runner = crate::cards_jobs::register(runner, &pool, card_jobs);
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
@@ -1737,6 +1755,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::storage_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::tool_rooms_jobs::schedule(&pool).await?;
+    crate::cards_jobs::schedule(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::upload_jobs::schedule(&pool).await?;
     crate::activities_jobs::schedule(&pool).await?;
