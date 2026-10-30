@@ -46,6 +46,12 @@ export interface PlayerState {
   libraryPanel: LibraryPanelComponent | null;
   /** The reason of the last failure, shown by the skins. */
   error: string | null;
+  /**
+   * MUS-SKN-001: shuffle is on. It reorders what is still to come in the current queue; `unshuffled` keeps the
+   * order it replaced so turning shuffle off restores it. A new queue (`play(tracks)`) starts unshuffled.
+   */
+  shuffle: boolean;
+  unshuffled: PlayerTrack[] | null;
 }
 
 export const initialPlayerState: PlayerState = {
@@ -65,6 +71,8 @@ export const initialPlayerState: PlayerState = {
   seekRequest: null,
   libraryPanel: null,
   error: null,
+  shuffle: false,
+  unshuffled: null,
 };
 
 const clamp = (n: number, lo: number, hi: number) =>
@@ -171,7 +179,7 @@ export function play(what?: PlayerTrack | readonly PlayerTrack[] | number, start
   if (what) {
     const list = Array.isArray(what) ? [...what] : [what as PlayerTrack];
     if (list.length === 0) return;
-    set({ queue: list });
+    set({ queue: list, shuffle: false, unshuffled: null });
     start(clamp(Math.trunc(startAt), 0, list.length - 1));
     return;
   }
@@ -202,7 +210,11 @@ export function enqueue(
   if (add.length === 0) return;
   const s = get();
   const at = opts.next ? Math.max(0, s.index + 1) : s.queue.length;
-  set({ queue: [...s.queue.slice(0, at), ...add, ...s.queue.slice(at)] });
+  set({
+    queue: [...s.queue.slice(0, at), ...add, ...s.queue.slice(at)],
+    // While shuffled, the order shuffle restores gets the new tracks too (at its end).
+    ...(s.unshuffled ? { unshuffled: [...s.unshuffled, ...add] } : {}),
+  });
 }
 
 /** Stop and empty the queue (the skins' close button). */
@@ -215,6 +227,8 @@ export function clear(): void {
     duration: 0,
     seekRequest: null,
     error: null,
+    shuffle: false,
+    unshuffled: null,
   });
 }
 
@@ -242,6 +256,8 @@ export function removeAt(i: number): void {
     clear();
     return;
   }
+  const gone = s.queue[i];
+  if (s.unshuffled) set({ unshuffled: s.unshuffled.filter((t) => t !== gone) });
   if (i < s.index) set({ queue, index: s.index - 1 });
   else if (i === s.index) {
     set({ queue });
@@ -301,6 +317,39 @@ export function setRepeat(repeat: RepeatMode): void {
 export function cycleRepeat(): void {
   const i = REPEAT_MODES.indexOf(get().repeat);
   setRepeat(REPEAT_MODES[(i + 1) % REPEAT_MODES.length] ?? 'off');
+}
+
+/**
+ * MUS-SKN-001: shuffle on or off. On: what is still to come is put in a random order (what has played and the
+ * current track stay where they are, so nothing restarts or skips). Off: the order from before comes back and
+ * the current track keeps playing.
+ */
+export function setShuffle(on: boolean, rng: () => number = Math.random): void {
+  const s = get();
+  if (on === s.shuffle) return;
+  if (on) {
+    const keep = Math.max(0, s.index + 1);
+    const tail = s.queue.slice(keep);
+    for (let i = tail.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [tail[i], tail[j]] = [tail[j]!, tail[i]!];
+    }
+    set({ shuffle: true, unshuffled: s.queue, queue: [...s.queue.slice(0, keep), ...tail] });
+    return;
+  }
+  const order = s.unshuffled ?? s.queue;
+  const playing = s.queue[s.index];
+  const at = playing ? order.indexOf(playing) : -1;
+  set({
+    shuffle: false,
+    unshuffled: null,
+    queue: order,
+    index: at >= 0 ? at : Math.min(s.index, order.length - 1),
+  });
+}
+
+export function toggleShuffle(): void {
+  setShuffle(!get().shuffle);
 }
 
 export function setEq(bands: readonly number[]): void {

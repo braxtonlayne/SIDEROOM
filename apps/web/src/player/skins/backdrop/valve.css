@@ -1,0 +1,469 @@
+/*
+ * MUS-SKN-001 "Valve & Walnut". Drawn on the Lounge Onyx tokens (the frame sets them); every colour below is a
+ * mix of those tokens. Tokens and logical properties only.
+ */
+.sr-ply-valve {
+  --v-brass: color-mix(in oklab, var(--ui-warning) 74%, var(--ui-bg));
+  --v-brass-hi: color-mix(in oklab, var(--ui-warning) 58%, var(--ui-text));
+  --v-brass-lo: color-mix(in oklab, var(--ui-warning) 38%, var(--ui-bg));
+  --v-walnut: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--ui-danger) 45%, var(--ui-warning)) 30%,
+    var(--ui-bg)
+  );
+  --v-walnut-hi: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--ui-danger) 40%, var(--ui-warning)) 50%,
+    var(--ui-bg)
+  );
+  --v-iron: color-mix(in oklab, var(--ui-bg-hover) 88%, var(--ui-text));
+  --v-iron-lo: color-mix(in oklab, var(--ui-bg) 92%, var(--ui-text));
+  --v-cream: color-mix(in oklab, var(--ui-warning) 20%, var(--ui-text));
+  --v-ink: var(--ui-bg);
+  --v-glow: color-mix(in oklab, var(--ui-warning) 72%, var(--ui-danger));
+  --v-chrome: color-mix(in oklab, var(--ui-text) 82%, var(--ui-bg));
+  --v-chrome-lo: color-mix(in oklab, var(--ui-text) 52%, var(--ui-bg));
+
+  container-type: inline-size;
+  inline-size: min(40rem, calc(100vw - 1rem));
+  padding-block: 0.625rem;
+  padding-inline: 1.5rem;
+  color: var(--v-cream);
+  background: var(--v-iron-lo);
+  border: 2px solid var(--v-brass-lo);
+  border-radius: 14px;
+  font-family: 'Newsreader', Georgia, serif;
+}
+.v-cabinet {
+  inline-size: 100%;
+  block-size: 100%;
+}
+.v-iron {
+  fill: var(--v-iron-lo);
+}
+.sr-ply-valve .sr-ply-bd-backdrop {
+  background:
+    radial-gradient(
+      circle at 30% 20%,
+      color-mix(in oklab, var(--v-iron) 70%, transparent),
+      transparent 60%
+    ),
+    repeating-linear-gradient(
+      45deg,
+      transparent 0 3px,
+      color-mix(in oklab, var(--ui-text) 3%, transparent) 3px 4px
+    );
+}
+/* Walnut cheeks: burl drawn with layered radial gradients. */
+.v-cheek {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 1rem;
+  background:
+    radial-gradient(ellipse 40% 18% at 40% 20%, var(--v-walnut-hi), transparent 70%),
+    radial-gradient(ellipse 35% 14% at 60% 55%, var(--v-walnut-hi), transparent 70%),
+    radial-gradient(ellipse 45% 12% at 30% 82%, var(--v-walnut-hi), transparent 70%),
+    repeating-linear-gradient(
+      175deg,
+      var(--v-walnut) 0 5px,
+      color-mix(in oklab, var(--v-walnut) 80%, var(--ui-bg)) 5px 9px
+    );
+  z-index: 0;
+}
+.v-cheek-start {
+  inset-inline-start: 0;
+  border-start-start-radius: 12px;
+  border-end-start-radius: 12px;
+}
+.v-cheek-end {
+  inset-inline-end: 0;
+  border-start-end-radius: 12px;
+  border-end-end-radius: 12px;
+}
+.v-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+/* ---- Nameplate ---- */
+.v-plate {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  padding-block: 0.375rem;
+  padding-inline: 0.625rem;
+  color: var(--v-ink);
+  background: linear-gradient(var(--v-brass-hi), var(--v-brass) 55%, var(--v-brass-lo));
+  border: 1px solid var(--v-brass-lo);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--ui-text) 40%, transparent);
+}
+.v-plate .sr-ply-ticker {
+  flex: 1 1 auto;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.v-rivets svg,
+.v-plate .v-lamp {
+  flex: none;
+}
+.v-screw {
+  fill: var(--v-brass-hi);
+  stroke: var(--v-brass-lo);
+}
+.v-screw-slot {
+  stroke: var(--v-brass-lo);
+  stroke-width: 1.4;
+}
+.v-lamp {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--v-cream), var(--ui-danger) 60%);
+  box-shadow: 0 0 calc(2px + var(--bd-level, 0) * 10px) var(--ui-danger);
+}
+.sr-ply-valve[data-status='paused'] .v-lamp,
+.sr-ply-valve[data-status='idle'] .v-lamp {
+  background: radial-gradient(circle at 35% 35%, var(--v-chrome-lo), var(--v-walnut) 70%);
+  box-shadow: none;
+}
+
+/* ---- Meters row: valve, two VU meters, Nixie readout ---- */
+.v-meters {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: stretch;
+  min-inline-size: 0;
+}
+.v-tube svg {
+  inline-size: 2.75rem;
+  block-size: 5.25rem;
+}
+.v-tube-niche {
+  fill: var(--v-ink);
+  stroke: var(--v-brass);
+  stroke-width: 2;
+}
+.v-tube-glass {
+  fill: color-mix(in oklab, var(--v-chrome) 12%, transparent);
+  stroke: color-mix(in oklab, var(--v-chrome) 55%, transparent);
+}
+.v-tube-plate {
+  fill: color-mix(in oklab, var(--v-chrome-lo) 70%, var(--v-ink));
+}
+.v-tube-filament {
+  stroke: var(--v-glow);
+  stroke-width: 1.4;
+  opacity: calc(0.35 + var(--bd-level, 0) * 0.65);
+}
+.v-tube-base {
+  fill: var(--v-brass-lo);
+}
+.v-tube-pins {
+  stroke: var(--v-brass);
+  stroke-width: 2;
+}
+.v-glow-core {
+  stop-color: var(--v-glow);
+  stop-opacity: 0.85;
+}
+.v-glow-edge {
+  stop-color: var(--v-glow);
+  stop-opacity: 0;
+}
+.v-tube-halo {
+  opacity: calc(0.15 + var(--bd-level, 0) * 0.85);
+  transition: opacity 120ms linear;
+}
+.sr-ply-valve[data-motion='on'] .v-tube-halo {
+  animation: v-flicker 2.6s ease-in-out infinite;
+}
+@keyframes v-flicker {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  47% {
+    filter: brightness(1.18);
+  }
+  52% {
+    filter: brightness(0.92);
+  }
+}
+
+.v-vu {
+  min-inline-size: 0;
+}
+.v-vu svg {
+  inline-size: 100%;
+  block-size: 100%;
+  max-block-size: 5.25rem;
+}
+.v-vu-face {
+  fill: var(--v-cream);
+  stroke: var(--v-brass);
+  stroke-width: 2.5;
+}
+.v-vu-arc {
+  fill: none;
+  stroke: var(--v-ink);
+  stroke-width: 1.2;
+}
+.v-vu-red {
+  fill: none;
+  stroke: var(--ui-danger);
+  stroke-width: 3;
+}
+.v-vu-tick {
+  stroke: var(--v-ink);
+  stroke-width: 1.2;
+}
+.v-vu-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  fill: var(--v-ink);
+  letter-spacing: 0.08em;
+}
+.v-vu-needle {
+  transform-box: view-box;
+  transform-origin: 60px 64px;
+  transform: rotate(calc(-55deg + var(--needle, 0) * 110deg));
+  transition: transform 110ms ease-out;
+}
+.v-vu-needle line {
+  stroke: var(--ui-danger);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.v-vu-pivot {
+  fill: var(--v-ink);
+}
+
+.v-nixie {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.125rem;
+  padding-inline: 0.5rem;
+  min-inline-size: 5.5rem;
+  background: linear-gradient(var(--v-ink), color-mix(in oklab, var(--v-walnut) 40%, var(--v-ink)));
+  border: 2px solid var(--v-brass);
+  border-radius: 8px;
+  color: var(--v-glow);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.v-nixie-digits {
+  font-size: 1.625rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 0 4px var(--v-glow),
+    0 0 12px color-mix(in oklab, var(--v-glow) 60%, transparent);
+}
+.v-nixie-total {
+  font-size: 0.75rem;
+  color: var(--v-cream);
+}
+
+/* ---- Reel-to-reel deck ---- */
+.v-deck svg {
+  inline-size: 100%;
+  block-size: 4.75rem;
+}
+.v-deck-glass {
+  fill: color-mix(in oklab, var(--v-ink) 80%, var(--v-iron));
+  stroke: var(--v-brass);
+  stroke-width: 2;
+}
+.v-reel-tape {
+  fill: color-mix(in oklab, var(--v-walnut) 85%, var(--v-ink));
+}
+.v-reel {
+  fill: var(--v-chrome-lo);
+  stroke: var(--v-chrome);
+}
+.v-reel-hole {
+  fill: color-mix(in oklab, var(--v-walnut) 85%, var(--v-ink));
+}
+.v-reel-hub {
+  fill: var(--v-brass);
+}
+.v-tape {
+  fill: none;
+  stroke: color-mix(in oklab, var(--v-walnut) 85%, var(--v-ink));
+  stroke-width: 2;
+}
+.v-head {
+  fill: var(--v-chrome-lo);
+  stroke: var(--v-brass);
+}
+.v-reel-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.sr-ply-valve[data-motion='on'] .v-reel-spin {
+  animation: v-spin 3.2s linear infinite;
+}
+@keyframes v-spin {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* ---- Brass seek rail ---- */
+.v-rail {
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  background: linear-gradient(var(--v-brass-lo), var(--v-ink) 40%, var(--v-brass-lo));
+  border: 1px solid var(--v-brass);
+  border-radius: 6px;
+}
+.v-seek {
+  inline-size: 100%;
+  accent-color: var(--v-brass-hi);
+}
+
+/* ---- Chrome piano keys ---- */
+.v-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem;
+}
+.v-key {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 2.75rem;
+  block-size: 2.5rem;
+  padding-inline: 0.5rem;
+  font-size: 1.125rem;
+  color: var(--v-ink) !important;
+  background: linear-gradient(var(--v-chrome), var(--v-chrome-lo));
+  border: 1px solid var(--v-ink);
+  border-radius: 5px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--ui-text) 70%, transparent),
+    0 3px 0 var(--v-ink);
+}
+.v-key:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--ui-text) 70%, transparent),
+    0 1px 0 var(--v-ink);
+}
+.v-key-main {
+  min-inline-size: 3.5rem;
+  background: linear-gradient(var(--v-brass-hi), var(--v-brass));
+}
+.v-key[aria-pressed='true'] {
+  background: linear-gradient(var(--v-brass-hi), var(--v-brass));
+}
+
+/* ---- Foot: tone switch, painted knobs, volume and the window buttons ---- */
+.v-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.v-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  color: var(--v-cream) !important;
+  background: var(--v-ink);
+  border: 1px solid var(--v-brass);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.v-toggle-lever {
+  inline-size: 1.75rem;
+  block-size: 0.875rem;
+  border-radius: 999px;
+  background: var(--v-iron);
+  position: relative;
+}
+.v-toggle-lever::after {
+  content: '';
+  position: absolute;
+  inset-block: 1px;
+  inset-inline-start: 1px;
+  inline-size: 0.75rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--v-brass-hi), var(--v-brass-lo));
+  transition: inset-inline-start 120ms ease;
+}
+.v-toggle[aria-pressed='true'] .v-toggle-lever {
+  background: color-mix(in oklab, var(--v-glow) 55%, var(--v-ink));
+}
+.v-toggle[aria-pressed='true'] .v-toggle-lever::after {
+  inset-inline-start: calc(100% - 0.75rem - 1px);
+}
+.v-knobs {
+  display: flex;
+  gap: 0.5rem;
+}
+.v-knob {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--v-ink), var(--v-ink)) 50% 2px / 2px 6px no-repeat,
+    radial-gradient(circle at 35% 30%, var(--v-brass-hi), var(--v-brass) 50%, var(--v-brass-lo));
+  box-shadow: 0 2px 3px var(--v-ink);
+}
+.v-small {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: var(--v-ink) !important;
+  background: radial-gradient(circle at 35% 30%, var(--v-brass-hi), var(--v-brass) 60%);
+  border: 1px solid var(--v-brass-lo);
+  border-radius: 50%;
+}
+.v-small[aria-pressed='true'] {
+  background: radial-gradient(circle at 35% 30%, var(--v-chrome), var(--v-chrome-lo));
+}
+.sr-ply-valve .sr-ply-volume input {
+  accent-color: var(--v-brass-hi);
+}
+.v-actions {
+  display: inline-flex;
+  gap: 0.375rem;
+}
+
+/* Narrow: the valve and the painted knobs step aside so the live parts keep their room. */
+@container (max-width: 30rem) {
+  .v-meters {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+  .v-tube,
+  .v-knobs {
+    display: none;
+  }
+  .v-deck svg {
+    block-size: 3.5rem;
+  }
+  .v-nixie {
+    min-inline-size: 4.5rem;
+  }
+  .v-nixie-digits {
+    font-size: 1.25rem;
+  }
+  .sr-ply-valve .sr-ply-volume input {
+    inline-size: 4rem;
+  }
+}

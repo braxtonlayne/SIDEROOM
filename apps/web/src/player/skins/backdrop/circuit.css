@@ -1,0 +1,381 @@
+/*
+ * MUS-SKN-001 "Night Circuit". Drawn on the Lounge Onyx tokens: cyan from --ui-info, magenta from the danger and
+ * accent tokens, yellow from --ui-warning. Tokens and logical properties only.
+ */
+.sr-ply-circuit {
+  --nc-cyan: var(--ui-info);
+  --nc-magenta: color-mix(in oklab, var(--ui-status-dnd) 62%, var(--ui-accent));
+  --nc-yellow: var(--ui-warning);
+  --nc-red: var(--ui-status-dnd);
+  --nc-panel: color-mix(in oklab, var(--ui-bg) 85%, var(--ui-info));
+  --nc-panel-edge: color-mix(in oklab, var(--ui-info) 35%, var(--ui-bg));
+  --nc-ink: var(--ui-bg);
+  --nc-text: var(--ui-text);
+  --bd-bar: linear-gradient(var(--nc-magenta), var(--nc-cyan));
+  --bd-led-cool: var(--nc-cyan);
+  --bd-led-warm: var(--nc-yellow);
+  --bd-led-hot: var(--nc-red);
+
+  container-type: inline-size;
+  inline-size: min(46rem, calc(100vw - 1rem));
+  padding: 0.625rem;
+  color: var(--nc-text);
+  background: var(--ui-bg);
+  border: 1px solid var(--nc-panel-edge);
+  border-radius: 4px;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% 100%,
+    14px 100%,
+    0 calc(100% - 14px)
+  );
+  font-family: 'IBM Plex Mono', var(--ui-font-mono);
+  font-size: 0.8125rem;
+}
+.sr-ply-circuit .sr-ply-bd-backdrop {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      color-mix(in oklab, var(--nc-cyan) 5%, transparent) 3px 4px
+    ),
+    radial-gradient(
+      ellipse at 80% 0%,
+      color-mix(in oklab, var(--nc-magenta) 18%, transparent),
+      transparent 60%
+    );
+}
+.nc-scan {
+  position: absolute;
+  inset-inline: 0;
+  block-size: 30%;
+  background: linear-gradient(
+    transparent,
+    color-mix(in oklab, var(--nc-cyan) 7%, transparent),
+    transparent
+  );
+  inset-block-start: -30%;
+}
+.sr-ply-circuit[data-motion='on'] .nc-scan {
+  animation: nc-scan 4s linear infinite;
+}
+@keyframes nc-scan {
+  to {
+    transform: translateY(440%);
+  }
+}
+.nc-corner {
+  position: absolute;
+  inline-size: 18px;
+  block-size: 18px;
+  border: 2px solid var(--nc-magenta);
+}
+.nc-corner-a {
+  inset-block-start: 4px;
+  inset-inline-start: 4px;
+  border-inline-end: 0;
+  border-block-end: 0;
+}
+.nc-corner-b {
+  inset-block-end: 4px;
+  inset-inline-end: 4px;
+  border-inline-start: 0;
+  border-block-start: 0;
+}
+
+/* ---- Head ---- */
+.nc-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 0.5rem;
+  min-inline-size: 0;
+}
+.nc-tag {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem 1.25rem;
+  border: 1px solid var(--nc-red);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  background: color-mix(in oklab, var(--nc-red) 12%, var(--ui-bg));
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px color-mix(in oklab, var(--nc-red) 60%, transparent);
+}
+.nc-win {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.nc-winbtn {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.875rem;
+  block-size: 1.625rem;
+  color: var(--nc-red) !important;
+  background: var(--ui-bg);
+  border: 1px solid var(--nc-red);
+  clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
+}
+
+/* ---- Grid of panels ---- */
+.nc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 11rem;
+  grid-template-areas:
+    'vis side'
+    'seek seek'
+    'deck list'
+    'hazard list';
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+.nc-panel {
+  min-inline-size: 0;
+  padding: 0.5rem;
+  background: var(--nc-panel);
+  border: 1px solid var(--nc-panel-edge);
+  border-radius: 4px;
+  box-shadow: inset 0 0 12px color-mix(in oklab, var(--nc-cyan) 10%, transparent);
+}
+.nc-vis {
+  grid-area: vis;
+  display: grid;
+  grid-template-rows: 5.5rem auto;
+  gap: 0.25rem;
+}
+.nc-spectrum > span {
+  box-shadow: 0 0 6px color-mix(in oklab, var(--nc-cyan) 50%, transparent);
+}
+.nc-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--nc-cyan);
+}
+.nc-side {
+  grid-area: side;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: center;
+  gap: 0.25rem;
+}
+.nc-clock {
+  display: grid;
+  justify-items: center;
+}
+.nc-clock-big {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 500;
+  color: var(--nc-yellow);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px color-mix(in oklab, var(--nc-yellow) 55%, transparent);
+}
+.nc-clock-sub {
+  font-size: 0.6875rem;
+  color: var(--nc-text);
+  text-transform: uppercase;
+}
+.nc-radar svg {
+  inline-size: 4.5rem;
+  block-size: 4.5rem;
+}
+.nc-radar-ring {
+  fill: none;
+  stroke: color-mix(in oklab, var(--ui-success) 70%, var(--ui-bg));
+  stroke-width: 1;
+}
+.nc-radar-sweep {
+  transform-box: view-box;
+  transform-origin: 40px 40px;
+  fill: color-mix(in oklab, var(--ui-success) 35%, transparent);
+}
+.sr-ply-circuit[data-motion='on'] .nc-radar-sweep {
+  animation: nc-sweep 3s linear infinite;
+}
+@keyframes nc-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.nc-seek {
+  grid-area: seek;
+  display: grid;
+  gap: 0.375rem;
+}
+.nc-range {
+  accent-color: var(--nc-cyan);
+}
+.nc-leds {
+  block-size: 0.5rem;
+}
+.nc-deck {
+  grid-area: deck;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+}
+.nc-cues {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.sr-ply-circuit .sr-ply-cue {
+  inline-size: 3rem;
+  block-size: 2.75rem;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  background: color-mix(in oklab, var(--nc-cyan) 22%, var(--ui-bg));
+  color: var(--nc-text);
+  border: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.sr-ply-circuit .sr-ply-cue[data-cue='2'] {
+  background: color-mix(in oklab, var(--nc-magenta) 28%, var(--ui-bg));
+}
+.sr-ply-circuit .sr-ply-cue[data-cue='4'] {
+  background: color-mix(in oklab, var(--nc-yellow) 22%, var(--ui-bg));
+}
+.sr-ply-circuit .sr-ply-cue:focus-visible {
+  outline-offset: -3px;
+}
+.nc-transport {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.nc-btn {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 3rem;
+  block-size: 2.5rem;
+  font-size: 1.125rem;
+  border: 0;
+  color: var(--nc-ink) !important;
+  clip-path: polygon(20% 0, 100% 0, 100% 80%, 80% 100%, 0 100%, 0 20%);
+}
+.nc-btn:focus-visible {
+  outline-offset: -4px !important;
+  outline-color: var(--nc-ink) !important;
+}
+.nc-btn-y {
+  background: var(--nc-yellow);
+}
+.nc-btn-r {
+  background: var(--nc-red);
+}
+.nc-btn-play {
+  inline-size: 3.75rem;
+  block-size: 3rem;
+  font-size: 1.5rem;
+  background: var(--nc-cyan);
+  box-shadow: 0 0 calc(4px + var(--bd-level, 0) * 18px) var(--nc-cyan);
+}
+.nc-mods {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.nc-mod {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  color: var(--nc-cyan) !important;
+  background: var(--ui-bg);
+  border: 1px solid var(--nc-cyan);
+  border-radius: 3px;
+}
+.nc-mod[aria-pressed='true'] {
+  color: var(--nc-ink) !important;
+  background: var(--nc-cyan);
+}
+.sr-ply-circuit .sr-ply-volume input {
+  accent-color: var(--nc-magenta);
+}
+.nc-list {
+  grid-area: list;
+  padding: 0.25rem;
+  overflow-y: auto;
+  max-block-size: 13rem;
+}
+.nc-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.nc-queue button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.375rem;
+  inline-size: 100%;
+  padding-block: 0.25rem;
+  padding-inline: 0.375rem;
+  text-align: start;
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  color: var(--nc-text);
+}
+.nc-queue li[data-current='true'] button {
+  border-color: var(--nc-red);
+  background: color-mix(in oklab, var(--nc-red) 16%, var(--ui-bg));
+}
+.nc-queue .sr-ply-q-n {
+  color: var(--nc-yellow);
+}
+.nc-queue .sr-ply-q-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nc-hazard {
+  grid-area: hazard;
+  min-block-size: 1rem;
+  border-radius: 3px;
+  background: repeating-linear-gradient(-45deg, var(--nc-yellow) 0 10px, var(--ui-bg) 10px 20px);
+  opacity: 0.85;
+}
+
+@container (max-width: 34rem) {
+  .nc-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'vis' 'side' 'seek' 'deck' 'list';
+  }
+  .nc-side {
+    grid-template-rows: auto;
+    grid-template-columns: auto auto;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nc-radar svg {
+    inline-size: 3rem;
+    block-size: 3rem;
+  }
+  .nc-vis {
+    grid-template-rows: 3.5rem auto;
+  }
+  .nc-hazard {
+    display: none;
+  }
+  .nc-list {
+    max-block-size: 7rem;
+  }
+}
+/* The angled buttons clip anything outside their box, so their focus ring sits inside. */
+.sr-ply-circuit .nc-winbtn:focus-visible,
+.sr-ply-circuit .sr-ply-cue:focus-visible {
+  outline-offset: -3px;
+}

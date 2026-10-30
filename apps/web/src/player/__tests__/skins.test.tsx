@@ -15,7 +15,7 @@ import {
   registerLibraryPanel,
   usePlayerStore,
 } from '../store';
-import type { PlayerTrack } from '../types';
+import { PLAYER_SKINS, type PlayerSkin, type PlayerTrack } from '../types';
 
 const tracks: PlayerTrack[] = [
   { id: 'a', title: 'Alpha', artist: 'The Band', src: '/a.mp3', durationSec: 200 },
@@ -100,12 +100,16 @@ describe.each(skins)('%s skin controls', (_name, Skin) => {
     render(<Skin />);
     expect(screen.queryByRole('combobox')).toBeNull();
     const here = state().skin;
-    const order = ['retro', 'pill', 'library'] as const;
-    const want = order[(order.indexOf(here) + 1) % 3]!;
-    const names = {
+    const want = PLAYER_SKINS[(PLAYER_SKINS.indexOf(here) + 1) % PLAYER_SKINS.length]!;
+    const names: Record<PlayerSkin, string> = {
       retro: 'Retro MP3 Hardware',
       pill: 'Compact Pill / Dock',
       library: 'Full Library Manager',
+      valve: 'Valve & Walnut',
+      tidepool: 'Tidepool Glass',
+      circuit: 'Night Circuit',
+      study: 'Pastel Study Deck',
+      stack: 'Steel Stack',
     };
     await user.click(screen.getByRole('button', { name: `Switch to the ${names[want]} skin` }));
     expect(state().skin).toBe(want);
