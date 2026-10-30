@@ -869,7 +869,7 @@ async fn mutations_publish_domain_events() {
 #[tokio::test]
 async fn openapi_lists_guild_paths() {
     let f = fixture();
-    let (s, doc) = call(&f, Method::GET, "/openapi.json", None, None).await;
+    let (s, doc) = call(&f, Method::GET, "/openapi.json", Some("owner"), None).await;
     assert_eq!(s, StatusCode::OK);
     let paths = doc["paths"].as_object().unwrap();
     for p in [

@@ -457,7 +457,33 @@ pub struct Config {
     pub ingest: IngestConfig,
     pub voice: VoiceConfig,
     pub activities: ActivitiesConfig,
+    pub web: WebConfig,
 }
+
+/// `[web]`: the built web app (`apps/web/dist`) and the gate in front of it (SEC-ENT-003, D-385,
+/// docs/dev/entrance-isolation.md section 3). With `root` unset the server serves no documents (the API
+/// only). With it set, `sr-server` serves the app (`/app`, `/app/*` and every in-app path) only to a request
+/// with a valid session, and refuses to start when `<root>/app/csp.txt` is missing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WebConfig {
+    /// The built `apps/web/dist` (`SR_WEB__ROOT`). Empty or unset: no documents are served.
+    pub root: Option<String>,
+    /// Serve the public surfaces, the legal page and the error pages too (single-binary installs without a
+    /// proxy, CI). Default false: Caddy serves them and proxies the rest here.
+    pub serve_public: bool,
+}
+
+impl WebConfig {
+    /// The web root when one is configured (an empty string counts as unset).
+    pub fn root_path(&self) -> Option<&str> {
+        self.root
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+    }
+}
+
 /// `[activities]`: Activities (DEV-ACT, docs/11 section 3). Off by default: when on, the server answers on
 /// `https://<application-id>.activities.<host>` (the wildcard host of `deploy/compose/caddy/activities.snippet`,
 /// `<host>` taken from `server.public_url`), the voice call bar shows the Activities button and launching

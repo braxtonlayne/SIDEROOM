@@ -117,8 +117,11 @@ pub fn base() -> utoipa::openapi::OpenApi {
     ApiDoc::openapi()
 }
 
-/// `GET /openapi.json`
-pub async fn openapi_json(State(state): State<AppState>) -> Json<utoipa::openapi::OpenApi> {
+/// `GET /openapi.json`: the document lists every path and schema, so it needs a principal (SEC-ENT-003).
+pub async fn openapi_json(
+    State(state): State<AppState>,
+    _who: crate::Principal,
+) -> Json<utoipa::openapi::OpenApi> {
     Json(state.openapi().clone())
 }
 
