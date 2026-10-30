@@ -96,7 +96,8 @@ export function PlayHere({
           : host
       : host;
   // Only the two providers whose message API the party drives can be watched together.
-  const canParty = play.sync === true && (play.mode === 'direct' || providerOfSrc(play.src) !== null);
+  const canParty =
+    play.sync === true && (play.mode === 'direct' || providerOfSrc(play.src) !== null);
 
   return (
     <div className="lng-embed-play">

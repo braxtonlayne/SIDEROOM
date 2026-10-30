@@ -113,11 +113,11 @@ export function StartPartyDialog({
       : external
         ? { external: { url: external.url, title: external.label }, ...where }
         : {
-          title_id: chosen.titleId,
-          episode_id: chosen.episodeId,
-          variant_id: chosen.variantId,
-          ...where,
-        };
+            title_id: chosen.titleId,
+            episode_id: chosen.episodeId,
+            variant_id: chosen.variantId,
+            ...where,
+          };
     try {
       let party;
       try {

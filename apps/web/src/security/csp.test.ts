@@ -143,10 +143,9 @@ describe('CSP', () => {
     });
 
     it('PeerTube instances are framed only when the operator names them', () => {
-      expect(parsePeertubeHosts(' Tube.Example.org , https://a.example:443/ ,bad host,localhost')).toEqual([
-        'tube.example.org',
-        'a.example',
-      ]);
+      expect(
+        parsePeertubeHosts(' Tube.Example.org , https://a.example:443/ ,bad host,localhost'),
+      ).toEqual(['tube.example.org', 'a.example']);
       const none = cspOptionsFromConfig({ publicUrl: 'https://chat.example.org' });
       expect(directive(buildCsp(none), 'frame-src')).not.toContain('https://tube.example.org');
       const some = cspOptionsFromConfig({

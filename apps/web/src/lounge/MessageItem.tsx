@@ -182,7 +182,9 @@ function MessageBody({
         <PartyMessageCard message={m} />
       ) : (
         embeds.length > 0 &&
-        !m.suppressEmbeds && <EmbedList embeds={embeds} resolvers={resolvers} channelId={m.channelId} />
+        !m.suppressEmbeds && (
+          <EmbedList embeds={embeds} resolvers={resolvers} channelId={m.channelId} />
+        )
       )}
       {showCards && inviteCode && <InviteCard code={inviteCode} />}
       {showCards && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}

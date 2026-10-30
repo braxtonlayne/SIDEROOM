@@ -112,7 +112,10 @@ export interface CspConfig {
 export function parsePeertubeHosts(raw: string | undefined): string[] {
   const hosts: string[] = [];
   for (const part of (raw ?? '').split(',')) {
-    const bare = part.trim().replace(/^https:\/\//, '').replace(/\/+$/, '');
+    const bare = part
+      .trim()
+      .replace(/^https:\/\//, '')
+      .replace(/\/+$/, '');
     const host = (bare.split(':')[0] ?? '').toLowerCase();
     if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) && !hosts.includes(host)) hosts.push(host);
   }

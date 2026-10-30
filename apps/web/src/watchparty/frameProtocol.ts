@@ -36,7 +36,8 @@ export function providerOfSrc(src: string | null | undefined): FrameProvider | n
     return null;
   }
   if (u.protocol !== 'https:' || u.username || u.password || u.port) return null;
-  if (u.origin === FRAME_ORIGINS.youtube && /^\/embed\/[\w-]{11}$/.test(u.pathname)) return 'youtube';
+  if (u.origin === FRAME_ORIGINS.youtube && /^\/embed\/[\w-]{11}$/.test(u.pathname))
+    return 'youtube';
   if (u.origin === FRAME_ORIGINS.vimeo && /^\/video\/\d{1,12}$/.test(u.pathname)) return 'vimeo';
   return null;
 }
@@ -103,17 +104,27 @@ export function syncedFrameSrc(provider: FrameProvider, src: string, origin: str
 /** The message that makes the frame start reporting, sent after the frame loaded (YouTube) or said `ready` (Vimeo). */
 export function listenMessages(provider: FrameProvider, phase: 'load' | 'ready'): string[] {
   if (provider === 'youtube')
-    return phase === 'load' ? [JSON.stringify({ event: 'listening', id: 1, channel: 'widget' })] : [];
+    return phase === 'load'
+      ? [JSON.stringify({ event: 'listening', id: 1, channel: 'widget' })]
+      : [];
   if (phase === 'load') return [];
-  return ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'bufferstart', 'bufferend', 'playbackratechange'].map(
-    (value) => JSON.stringify({ method: 'addEventListener', value }),
-  );
+  return [
+    'play',
+    'pause',
+    'ended',
+    'timeupdate',
+    'seeked',
+    'bufferstart',
+    'bufferend',
+    'playbackratechange',
+  ].map((value) => JSON.stringify({ method: 'addEventListener', value }));
 }
 
 /** The wire message for a command. */
 export function commandMessage(provider: FrameProvider, c: FrameCommand): string {
   if (provider === 'youtube') {
-    const call = (func: string, args: unknown[]) => JSON.stringify({ event: 'command', func, args });
+    const call = (func: string, args: unknown[]) =>
+      JSON.stringify({ event: 'command', func, args });
     switch (c.cmd) {
       case 'play':
         return call('playVideo', []);
@@ -140,7 +151,10 @@ export function commandMessage(provider: FrameProvider, c: FrameCommand): string
 /** YouTube offers these rates only; anything else snaps, which would defeat a small nudge. */
 export const YOUTUBE_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-const YT_STATE: Record<number, 'unstarted' | 'playing' | 'paused' | 'buffering' | 'ended' | undefined> = {
+const YT_STATE: Record<
+  number,
+  'unstarted' | 'playing' | 'paused' | 'buffering' | 'ended' | undefined
+> = {
   [-1]: 'unstarted',
   0: 'ended',
   1: 'playing',
@@ -177,7 +191,11 @@ export function parseMessage(provider: FrameProvider, data: unknown): FrameEvent
       const state = YT_STATE[info];
       if (state) out.push({ type: 'state', state });
     }
-    if ((event === 'infoDelivery' || event === 'initialDelivery') && info && typeof info === 'object') {
+    if (
+      (event === 'infoDelivery' || event === 'initialDelivery') &&
+      info &&
+      typeof info === 'object'
+    ) {
       const t = num(info.currentTime);
       if (t !== undefined) {
         const duration = num(info.duration);
@@ -220,7 +238,11 @@ export function parseMessage(provider: FrameProvider, data: unknown): FrameEvent
     default:
       break;
   }
-  if (['play', 'pause', 'ended', 'timeupdate', 'seeked', 'bufferstart', 'bufferend'].includes(String(m.event))) {
+  if (
+    ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'bufferstart', 'bufferend'].includes(
+      String(m.event),
+    )
+  ) {
     const seconds = num(data2.seconds);
     if (seconds !== undefined) {
       const duration = num(data2.duration);
