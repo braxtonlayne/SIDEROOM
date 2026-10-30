@@ -345,6 +345,7 @@ pub struct TrackPresignBody {
     ),
     security(("session" = []))
 )]
+#[allow(clippy::too_many_arguments)]
 pub async fn presign(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
