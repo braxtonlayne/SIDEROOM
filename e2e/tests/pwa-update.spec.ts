@@ -496,7 +496,13 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     await page.goto(`${ORIGIN}/login`);
     await controlled(page);
     await page.goto(`${ORIGIN}/channels`);
-    await expect.poll(() => appCaches(page)).toEqual([`sr-app-${buildA}`]);
+    await expect
+      .poll(() => appCaches(page).catch(() => ['(navigating)']))
+      .toEqual([`sr-app-${buildA}`]);
+    // Caches belong to the origin, not the page: the exchange runs on the public sign-in page, which (unlike an
+    // app page with no API behind it) does not navigate away on its own in the middle of an evaluate.
+    await page.goto(`${ORIGIN}/login`);
+    await controlled(page);
     // A cache from an older build, left behind, goes with it.
     await page.evaluate(() =>
       caches.open('sr-app-0ld').then((c) => c.put('/app/x.js', new Response('x'))),
