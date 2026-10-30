@@ -24,6 +24,7 @@ import {
 } from '../playlists/api';
 import { getPlayerPort, usePortState } from '../queue/port';
 import { fetchLibrary } from '../search/api';
+import { RescanBar, useStartTagger } from './tagging';
 import { TrackList } from './TrackList';
 import {
   KEYS,
@@ -103,7 +104,8 @@ export function SearchSection(p: SectionProps) {
     staleTime: 30_000,
   });
   const lp = useListProps(p);
-  const tracks = res.data?.items ?? [];
+  const tracks = useMemo(() => res.data?.items ?? [], [res.data]);
+  useStartTagger(res.data?.items);
   return (
     <div role="search" className="sr-mlib-sect">
       <input
@@ -137,6 +139,7 @@ export function SearchSection(p: SectionProps) {
             onPlay={(i) => lp.act.play(tracks, i)}
             {...lp.props}
           />
+          <RescanBar tracks={tracks} />
         </>
       )}
     </div>

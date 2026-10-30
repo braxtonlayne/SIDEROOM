@@ -15,6 +15,8 @@ vi.mock('../../search/api', () => ({
   fetchLibrary: vi.fn(),
   presignTrack: vi.fn(async (id: string) => `https://bucket.example/${id}.mp3?sig=1`),
 }));
+// The tagger's start and Rescan bar have their own test (tagging.test.tsx).
+vi.mock('../tagging', () => ({ useStartTagger: () => undefined, RescanBar: () => null }));
 vi.mock('../../playlists/api', () => ({
   listOwnPlaylists: vi.fn(),
   listGuildPlaylists: vi.fn(),

@@ -21,12 +21,16 @@ export interface TrackDto {
   genres?: string[];
   tags?: string[];
   cover_url?: string | null;
+  /** `GET /music/library` only: the caller may write this track's tags (MUS-IDX-001). */
+  can_edit?: boolean;
 }
 
 export interface LibraryTrack extends QueueTrack {
   mountId: string;
   durationMs?: number;
   coverUrl?: string;
+  /** The caller may write tags on this track's mount (library listing only). */
+  canEdit?: boolean;
 }
 
 export function fromDto(d: TrackDto): LibraryTrack {
@@ -44,6 +48,7 @@ export function fromDto(d: TrackDto): LibraryTrack {
     tags: d.tags ?? [],
     ...(d.duration_ms ? { durationMs: d.duration_ms } : {}),
     ...(d.cover_url ? { coverUrl: d.cover_url } : {}),
+    ...(d.can_edit ? { canEdit: true } : {}),
   };
 }
 
