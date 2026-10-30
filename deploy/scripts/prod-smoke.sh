@@ -267,7 +267,7 @@ stage_preflight() {
   cli sideroom preflight --insecure-tls --json >"$json" || true
   node -e '
     const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const allowed = { "public-url": ["warn"], smtp: ["pass", "warn", "fail"], turn: ["pass", "warn"], disk: ["pass", "warn"] };
+    const allowed = { "public-url": ["warn"], smtp: ["pass", "warn", "fail"], turn: ["pass", "warn"], disk: ["pass", "warn"], web: ["pass", "warn"] };
     const bad = r.checks.filter((c) => !(allowed[c.id] ?? ["pass"]).includes(c.status));
     for (const c of r.checks) console.log(`${c.status.padEnd(4)}  ${c.id.padEnd(12)}  ${c.detail}`);
     for (const id of ["database", "migrations", "storage", "public-url", "vapid", "secrets"]) {
@@ -442,6 +442,11 @@ stage_upgrade_apply() {
   log "$(q sideroom "select count(*) from _sqlx_migrations") migrations applied (was $(cat "$(upgrade_state migrations)") at the backup)"
   log "UPGRADE.md step 7: restart sr-server on the new image"
   dc up -d sr-server
+  # UPGRADE.md step 5 and the D-385 release note (step 2): Caddy reads the release's Caddyfile only when it is
+  # recreated. Without this the previous file's try_files fallback keeps serving index.html for every path, so the
+  # gate never sees /board and /register is the landing shell.
+  log "UPGRADE.md step 5: recreate Caddy so it reads the release's Caddyfile"
+  dc up -d --force-recreate caddy
 }
 
 # `upgrade-verify <before|after-upgrade|after-rollback>`: Owner sign-in through Caddy and Admin > System, then the
@@ -480,6 +485,8 @@ stage_upgrade_rollback() {
   unpack_release "$SMOKE_BASE_SHA"
   set_image "$SMOKE_PREV_IMAGE"
   dc up -d sr-server
+  # The previous Caddyfile goes with the previous server (it is read only when Caddy is recreated).
+  dc up -d --force-recreate caddy
 }
 
 stage_logs() {

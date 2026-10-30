@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { Avatar, ContextMenu, CounterBadge, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
 import type { ReactNode } from 'react';
 import { RailPill, type RailPillState } from '@sideroom/ui';
+import { openPlayerLibrary } from '../player/presence';
 import { RovingNav } from '../a11y/RovingNav';
 import { useT } from '../i18n';
 import { firstTextChannel, HOME } from './channels';
@@ -345,6 +346,27 @@ function Folder({
   );
 }
 
+/** A music note in the rail's icon style (the shared set has none). Colour follows currentColor. */
+function MusicNoteIcon() {
+  return (
+    <svg
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      data-icon="music"
+    >
+      <path d="M9 18V6l10-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM19 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
+    </svg>
+  );
+}
+
 export function GuildRail() {
   const t = useT();
   const guilds = useGuilds();
@@ -467,6 +489,20 @@ export function GuildRail() {
                 onClick={() => openDialog({ kind: 'directory' })}
               >
                 <Icon name="compass" size={24} />
+              </button>
+            </Tooltip>
+          </div>
+        </li>
+        <li>
+          <div className="lng-rail-item">
+            <Tooltip content={t('lounge.guildRail.music')} placement="right" delay={150}>
+              <button
+                type="button"
+                className="lng-guild lng-rail-action"
+                aria-label={t('lounge.guildRail.music')}
+                onClick={openPlayerLibrary}
+              >
+                <MusicNoteIcon />
               </button>
             </Tooltip>
           </div>

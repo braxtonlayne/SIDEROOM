@@ -117,7 +117,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage); `sr-server healthcheck` runs the `/readyz` probe from the command line and is what the container health check uses.
 
-6. **Put the reverse proxy in front.** Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*` (the shipped Caddyfile forwards only `POST /internal/csp-report`, the browsers' CSP violation reports), and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the web app with the security headers and the Content-Security-Policy; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
+6. **Put the reverse proxy in front, and give the server the web build.** Set `web.root` (`SR_WEB__ROOT`) to the unpacked `apps/web/dist`: `sr-server` serves the app (`/app`, `/app/*`, every in-app path) from it to a signed-in session only and refuses to start when `app/csp.txt` is missing; the proxy serves only the public files and forwards every other path to the server (D-385). Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*` (the shipped Caddyfile forwards only `POST /internal/csp-report`, the browsers' CSP violation reports), and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the public part of the web app (landing, sign-in, invite, fonts, icons, service worker) with the security headers and the public Content-Security-Policy, proxying everything else to the server; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
 
 7. **Set the stop timeout.** The server drains for `shutdown_grace_secs` after SIGTERM, then for jobs again. Set the container or service stop timeout above `2 * shutdown_grace_secs` (50 s by default, so use 60 s). Docker's default of 10 s cuts the drain short.
 
@@ -132,16 +132,20 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 | Path | What goes there |
 |---|---|
 | `/opt/sideroom/bin/sr-server`, `/opt/sideroom/bin/sr-cli` | the static musl binaries (take them out of the server image with `docker cp`, or build them), mode 0755 |
+| `/opt/sideroom/web` | the built `apps/web/dist` of the same release, readable by `sideroom`. The unit sets `SR_WEB__ROOT` to it and the server refuses to start when `app/csp.txt` is missing there (D-385, step 6 above); another path goes in `server.env` |
 | `/etc/sideroom/config.toml` | the template of section 4, edited for your host (folder mode 0700) |
 | `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below) |
 | `/var/lib/sideroom` | the server's state and search index (`StateDirectory=sideroom` creates it) |
 
-1. **Create the service user and copy the binaries:**
+1. **Create the service user and copy the binaries and the web build:**
 
    ```
    useradd --system --no-create-home --shell /usr/sbin/nologin sideroom
    install -d -m 755 /opt/sideroom/bin
    install -m 755 sr-server sr-cli /opt/sideroom/bin/
+   install -d -m 755 /opt/sideroom/web
+   cp -R dist/. /opt/sideroom/web/   # the release's built apps/web/dist
+   test -f /opt/sideroom/web/app/csp.txt
    install -d -m 700 /etc/sideroom
    ```
 

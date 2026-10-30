@@ -17,8 +17,27 @@ import {
 const PUBLIC = resolve(__dirname, '../../public');
 
 // sw.js is a classic worker script; run it with no `self` so only its exported policy is evaluated.
-const mod = { exports: {} as { classify: (r: Request, origin: string) => string } };
-new Function('module', 'self', readFileSync(resolve(PUBLIC, 'sw.js'), 'utf8'))(mod, undefined);
+const SURFACES = [
+  { shell: 'index.html', paths: ['/', '/join/$code'] },
+  { shell: 'auth.html', paths: ['/login', '/reset/$token'] },
+  { shell: 'profile.html', paths: ['/~$handle'] },
+  { shell: null, paths: ['/house-notes'] },
+];
+const mod = {
+  exports: {} as {
+    classify: (r: Request, origin: string) => string;
+    pathMatches: (pattern: string, path: string) => boolean;
+    safeUrl: (u: unknown) => string;
+  },
+};
+new Function(
+  'module',
+  'self',
+  readFileSync(resolve(PUBLIC, 'sw.js'), 'utf8').replace(
+    '/*__SR_SURFACES__*/ []',
+    JSON.stringify(SURFACES),
+  ),
+)(mod, undefined);
 const sw = mod.exports;
 
 const ORIGIN = 'https://side.example';
@@ -42,7 +61,7 @@ const req = (
 };
 
 describe('service worker policy', () => {
-  it('never intercepts API, gateway, media, auth or internal traffic', () => {
+  it('bypasses every non-page request that is not a public file, without naming any prefix', () => {
     for (const p of [
       '/api/v1/users/@me',
       '/api/v10/sr/auth/login',
@@ -52,10 +71,62 @@ describe('service worker policy', () => {
       '/internal/metrics',
       '/developers/docs/api',
       '/oauth/discord/start',
+      '/THIRD_PARTY_NOTICES.md',
     ]) {
       expect(sw.classify(req(p), ORIGIN), p).toBe('bypass');
-      expect(sw.classify(req(p, { mode: 'navigate' }), ORIGIN), `nav ${p}`).toBe('bypass');
     }
+    // A document navigation to a file is the browser's business too.
+    expect(sw.classify(req('/THIRD_PARTY_NOTICES.md', { mode: 'navigate' }), ORIGIN)).toBe(
+      'bypass',
+    );
+    expect(sw.classify(req('/cdn/a/b.png', { mode: 'navigate' }), ORIGIN)).toBe('bypass');
+  });
+
+  it('matches a public path against its surface pattern', () => {
+    expect(sw.pathMatches('/join/$code', '/join/abc')).toBe(true);
+    expect(sw.pathMatches('/join/$code', '/join/')).toBe(false);
+    expect(sw.pathMatches('/join/$code', '/join/abc/def')).toBe(false);
+    expect(sw.pathMatches('/~$handle', '/~ada')).toBe(true);
+    expect(sw.pathMatches('/~$handle', '/~')).toBe(false);
+    expect(sw.pathMatches('/', '/x')).toBe(false);
+    expect(sw.pathMatches('/house-notes#notes-rules', '/house-notes')).toBe(true);
+    expect(sw.pathMatches('/login', '/login/')).toBe(true);
+  });
+
+  it('reads the Caddy matcher syntax of public-surfaces.json (a trailing * is a prefix, as in sr-server)', () => {
+    expect(sw.pathMatches('/join/*', '/join/abcd1234')).toBe(true);
+    expect(sw.pathMatches('/reset/*', '/reset/tok/en')).toBe(true);
+    expect(sw.pathMatches('/invite/*', '/invite')).toBe(false);
+    expect(sw.pathMatches('/join/*', '/channels')).toBe(false);
+  });
+
+  it('takes a public page and any other page as two different navigations', () => {
+    for (const p of ['/', '/join/abc', '/login', '/reset/t0k', '/~ada', '/house-notes']) {
+      expect(sw.classify(req(p, { mode: 'navigate' }), ORIGIN), p).toBe('navigate-public');
+    }
+    for (const p of ['/app', '/channels/1/2', '/anything-else', '/login/2fa']) {
+      expect(sw.classify(req(p, { mode: 'navigate' }), ORIGIN), p).toBe('navigate-app');
+    }
+    // The plain offline page and the error pages are files: never a shell, never answered with one.
+    for (const p of ['/offline.html', '/404.html', '/50x.html']) {
+      expect(sw.classify(req(p, { mode: 'navigate' }), ORIGIN), p).toBe('bypass');
+    }
+  });
+
+  it('puts files under the signed-in prefix in their own class', () => {
+    expect(sw.classify(req('/app/chunk-AbC.js'), ORIGIN)).toBe('app-file');
+    expect(sw.classify(req('/app/chunk-AbC.js', { headers: { Range: 'bytes=0-1' } }), ORIGIN)).toBe(
+      'bypass',
+    );
+    expect(sw.classify(req('/app/x.js', { method: 'POST' }), ORIGIN)).toBe('bypass');
+    expect(sw.classify(req('/entrance/landing-AbC.js'), ORIGIN)).toBe('static');
+  });
+
+  it('opens a push or a click on a same-origin path, else on the neutral door', () => {
+    expect(sw.safeUrl('/x/y?z=1')).toBe('/x/y?z=1');
+    expect(sw.safeUrl('//evil.example/x')).toBe('/app');
+    expect(sw.safeUrl('https://evil.example')).toBe('/app');
+    expect(sw.safeUrl(undefined)).toBe('/app');
   });
 
   it('intercepts only the Share Target POST to /share', () => {
@@ -87,7 +158,7 @@ describe('service worker policy', () => {
     );
   });
 
-  it('caches build output and treats page loads as the app shell', () => {
+  it('caches public build output', () => {
     for (const p of [
       '/assets/index-abc.js',
       '/fonts/inter.woff2',
@@ -96,7 +167,6 @@ describe('service worker policy', () => {
     ]) {
       expect(sw.classify(req(p), ORIGIN), p).toBe('static');
     }
-    expect(sw.classify(req('/channels/1/2', { mode: 'navigate' }), ORIGIN)).toBe('navigate');
     // Unknown subresources (data fetches from a future route) are left to the network.
     expect(sw.classify(req('/something.json'), ORIGIN)).toBe('bypass');
   });
@@ -105,6 +175,7 @@ describe('service worker policy', () => {
     const src = readFileSync(resolve(PUBLIC, 'sw.js'), 'utf8');
     expect(src).toContain('__SR_BUILD__');
     expect(src).toContain('/*__SR_PRECACHE__*/ []');
+    expect(src).toContain('/*__SR_SURFACES__*/ []');
     expect(src).not.toMatch(/importScripts|eval\(/);
   });
 });
@@ -127,17 +198,45 @@ describe('build plugin helpers', () => {
     ]);
   });
 
-  it('ships a valid manifest with the required shortcuts and a maskable icon', () => {
+  it('ships a public manifest with the neutral door, no shortcuts and a maskable icon', () => {
     const m = JSON.parse(readFileSync(resolve(PUBLIC, 'manifest.webmanifest'), 'utf8'));
     expect(m.display).toBe('standalone');
+    expect(m.start_url).toBe('/app');
+    expect(m.id).toBe('/');
+    expect(m.shortcuts).toBeUndefined();
     expect(m.icons.some((i: { purpose: string }) => i.purpose === 'maskable')).toBe(true);
-    expect(m.shortcuts.map((s: { name: string }) => s.name)).toEqual([
+    for (const i of m.icons)
+      expect(readFileSync(resolve(PUBLIC, i.src.slice(1))).length).toBeGreaterThan(100);
+  });
+
+  it('ships the signed-in manifest: the same app (id, scope, icons) plus the shortcuts', () => {
+    const pub = JSON.parse(readFileSync(resolve(PUBLIC, 'manifest.webmanifest'), 'utf8'));
+    const app = JSON.parse(readFileSync(resolve(PUBLIC, 'app-manifest.webmanifest'), 'utf8'));
+    for (const k of ['id', 'scope', 'start_url', 'name', 'icons', 'share_target'])
+      expect(app[k], k).toEqual(pub[k]);
+    expect(app.shortcuts.map((s: { name: string }) => s.name)).toEqual([
       'Lounge',
       'Cinema',
       'Library',
     ]);
-    for (const i of m.icons)
-      expect(readFileSync(resolve(PUBLIC, i.src.slice(1))).length).toBeGreaterThan(100);
+  });
+
+  it('names no section in the worker, the public manifest or the plain pages', () => {
+    const words =
+      /Lounge|Cinema|Library|Soundboard|Activities|Staff|jukebox|\/channels|\/cinema|\/library|\/gateway|\/cdn|\/voice|\/developers|\/help|\/api|\/internal/i;
+    for (const f of [
+      'sw.js',
+      'manifest.webmanifest',
+      'offline.html',
+      'offline.css',
+      '404.html',
+      '50x.html',
+    ])
+      expect(readFileSync(resolve(PUBLIC, f), 'utf8'), f).not.toMatch(words);
+    for (const f of ['offline.html', '404.html', '50x.html']) {
+      const html = readFileSync(resolve(PUBLIC, f), 'utf8');
+      expect(html, f).not.toMatch(/<script|\son[a-z]+=/i);
+    }
   });
 });
 

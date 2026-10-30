@@ -175,7 +175,18 @@ async fn readyz_reports_failures() {
 async fn openapi_served_on_v1_and_v10() {
     let f = fixture();
     for p in ["/api/v1/openapi.json", "/api/v10/openapi.json"] {
+        // SEC-ENT-003: the document lists every path of the API, so it needs a principal.
         let (s, _, b) = send(&app(&f), get_req(p)).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED, "{p} anonymous");
+        assert!(json(&b)["code"].is_number());
+        let (s, _, b) = send(
+            &app(&f),
+            Request::get(p)
+                .header(header::AUTHORIZATION, "Bot botsecret")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK, "{p}");
         let doc = json(&b);
         assert_eq!(doc["info"]["title"], "SIDE ROOM API");
@@ -534,4 +545,53 @@ async fn hsts_only_when_public_url_is_https() {
             .unwrap()
             .starts_with("max-age=")
     );
+}
+
+/// SEC-ENT-003 (no existence oracle): an unknown path under `/api/` answers like a real one does for an anonymous
+/// caller, `401`; a caller with a principal sees the honest `404`. Outside `/api/` the `404` stays.
+#[tokio::test]
+async fn unknown_api_path_is_401_anonymous_and_404_with_a_principal() {
+    let f = fixture();
+    for p in [
+        "/api/v1/nope",
+        "/api/v10/also/nope",
+        "/api/v9/x",
+        "/api/zzz",
+    ] {
+        let (s, _, _) = send(&app(&f), get_req(p)).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED, "{p} anonymous");
+        let (s, _, b) = send(
+            &app(&f),
+            Request::get(p)
+                .header(header::AUTHORIZATION, "Bot botsecret")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{p} with a principal");
+        assert_eq!(json(&b)["message"], "404: Not Found");
+    }
+    let (s, _, _) = send(&app(&f), get_req("/nope")).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}
+
+/// SEC-ENT-003: the API reference viewer is for a principal; a visitor is sent to sign in.
+#[tokio::test]
+async fn api_reference_needs_a_principal() {
+    let f = fixture();
+    let (s, h, b) = send(&app(&f), get_req("/developers/docs/api")).await;
+    assert_eq!(s, StatusCode::FOUND);
+    assert_eq!(h["location"], "/login?next=/developers/docs/api");
+    assert_eq!(h["cache-control"], "no-store");
+    assert!(b.is_empty());
+    let (s, _, b) = send(
+        &app(&f),
+        Request::get("/developers/docs/api")
+            .header(header::AUTHORIZATION, "Bot botsecret")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(!b.is_empty());
 }

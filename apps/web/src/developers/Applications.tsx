@@ -1,4 +1,5 @@
 import { Badge, Button, Checkbox, EmptyState, Modal, TextInput, useToast } from '@sideroom/ui';
+import { exitToLogin } from '../lib/enterApp';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -164,7 +165,6 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
 
 export function ApplicationsPage() {
   const tt = useT();
-  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const apps = useQuery({ queryKey: keys.apps, queryFn: listApps });
 
@@ -176,11 +176,7 @@ export function ApplicationsPage() {
         title={tt('developers.applications.signInTitle')}
         description={tt('developers.applications.signInDescription')}
         action={
-          <Button
-            onClick={() =>
-              void navigate({ to: '/login', search: { next: '/developers/applications' } })
-            }
-          >
+          <Button onClick={() => exitToLogin('/developers/applications')}>
             {tt('developers.applications.logIn')}
           </Button>
         }

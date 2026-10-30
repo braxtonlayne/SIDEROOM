@@ -84,6 +84,10 @@ Styling: approved theme package or palette pickers, background image or pattern,
 
 `packages/ui` exports two kits sharing primitives (Button, Input, Select, Checkbox, Switch, Radio, Slider, Tooltip, Popover, ContextMenu, Modal, Toast, Tabs, Avatar, Badge, Skeleton, ScrollArea, VirtualList, Kbd, EmptyState, ErrorBoundary). The `lounge` kit adds Discord-specific composites. The `sideroom` kit adds editorial composites (Eyebrow, DisplayHeading, PosterCard, PosterRow, Spotlight, GuideGrid, ReaderChrome). Every component has a Storybook-style story (Ladle) and an accessibility test (axe).
 
+### 6.1 The legal page's stylesheet (D-385)
+
+`/house-notes`, the terms, privacy, rules and credits anchors and the error pages are plain HTML with no script. Their one stylesheet (`/entrance/legal-*.css`, `offline.css` for the offline and error pages) uses the `sideroom` token custom properties only: no component library, no script-set styles, no values that are not tokens (`scripts/check-css-tokens.mjs` covers it). A plain page cannot switch theme with JavaScript, so it follows `prefers-color-scheme` through the tokens.
+
 ## 7. Accessibility
 
 WCAG 2.2 AA. Full keyboard navigation (Discord keyboard shortcuts plus `Ctrl+/` shortcut sheet), screen-reader labels, reduced-motion support (disables scanlines and parallax), font scaling 12–24px, saturation and contrast settings (Discord parity), and captions/subtitles in the player.

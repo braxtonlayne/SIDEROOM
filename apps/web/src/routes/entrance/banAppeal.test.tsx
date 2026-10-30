@@ -1,14 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 import { warmLoungeRoute } from '../../test/warmRoutes';
 
 warmLoungeRoute();
 
 function atLogin() {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: ['/login'] }));
+  const router = createPublicRouter('/login', createMemoryHistory({ initialEntries: ['/login'] }));
   render(<RouterProvider router={router} />);
 }
 

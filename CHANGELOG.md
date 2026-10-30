@@ -26,6 +26,24 @@ what the operator now has to know. Keep each wave to a handful of lines.
   playing and the next three, and disappears as soon as a manager switches the room off. Operators: a new gauge
   `sr_voice_music_egress_bits_per_second` shows the music share of voice egress.
 
+## Phase 30b - 2026-10-30
+
+- **The front door shows nothing of the inside.** A visitor who is not signed in now gets only the page in front
+  of them: the landing page, the sign-in and registration pages and the invite page each load their own small
+  bundle, and nothing in it names or fetches any part of the app. The app itself is sent only to a signed-in
+  member. The landing page names no section.
+- **Help is for members.** The handbook and What's new are behind sign-in. The sign-in form has a short help
+  panel of its own, and House Notes (terms, privacy, rules, credits) is a plain page anyone can read.
+- **Signing in and out.** Signing in opens the app at `/app`, or the page you were sent to sign in for. Signing
+  out clears the app from the browser's caches and storage; a session ended on another device does the same at
+  the next page load.
+- **A music button in the left rail.** A music-note button beside the Discover button opens the player on its
+  Library tab, so you can start music from the library even when nothing is queued. It is part of the signed-in app
+  only.
+- **For the operator:** `sr-server` now serves the app to signed-in members from `[web] root` (`SR_WEB__ROOT`)
+  and refuses to start without the web build's `app/csp.txt`. Take the new Caddyfile and compose file, unpack the
+  web build before restarting the server, and follow `deploy/UPGRADE.md` ("the web app is served by the server").
+
 ## Phase 30 - 2026-10-29
 
 - **A music player that follows you.** Music plays in a small floating player that keeps going while you move

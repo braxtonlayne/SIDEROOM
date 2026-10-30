@@ -19,7 +19,14 @@ test.skip(
 );
 test.skip(({ browserName }) => browserName !== 'chromium', 'Baselines exist for chromium only.');
 
-test.use({ viewport: { width: 1280, height: 800 }, locale: 'en-US', timezoneId: 'UTC' });
+// bypassCSP: `settle` injects a style tag to stop animations, which the house notes' no-script policy
+// (`default-src 'none'`, D-385) rightly refuses. The policy itself is checked by entrance-isolation.spec.ts.
+test.use({
+  viewport: { width: 1280, height: 800 },
+  locale: 'en-US',
+  timezoneId: 'UTC',
+  bypassCSP: true,
+});
 
 const SHOT = { animations: 'disabled', caret: 'hide', maxDiffPixelRatio: 0.01 } as const;
 

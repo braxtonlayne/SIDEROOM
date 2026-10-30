@@ -87,7 +87,7 @@ Implement these route families with Discord-compatible request and response shap
   As built (what is and is not Discord-compatible, every route): [specs/developer-platform.md](specs/developer-platform.md). Interactions are delivered over the gateway only for now; the HTTP endpoint with Ed25519 signatures is not built.
 - **OAuth2** [6]: authorize, token, revoke, introspect, scopes `identify email guilds bot applications.commands applications.commands.permissions.update` (`guilds.join` and the rest are not issued yet), PKCE `S256`. Details in [specs/developer-platform.md](specs/developer-platform.md).
 
-Each route's spec is generated from Rust (`utoipa`) and published at `/api/v1/openapi.json`. Swagger-style docs are served at `/developers/docs/api`.
+Each route's spec is generated from Rust (`utoipa`) and published at `/api/v1/openapi.json`. Swagger-style docs are served at `/developers/docs/api`. Both need a principal (D-385): a request without a session or token gets `401` (a navigation to the docs page gets `302 /login?next=`), and so does any unknown path under `/api/v1/` for an anonymous caller, so the API's status codes cannot be used to learn which routes exist. Someone building a bot from source gets the same document from the CLI (`cargo run -p sr-server -- openapi`), which is what `sdk-compat.yml` does. The public API surface is the auth family the entrance needs (`/sr/auth/*`, `/sr/register`, `/sr/usernames/check`, `/sr/age-gate`, `/sr/csrf`, `/sr/compliance/public`, `/sr/entrance/copy`) and the invite and template lookups; see [dev/entrance-isolation.md](dev/entrance-isolation.md) section 7.
 
 ## 5. SIDE ROOM–specific APIs
 

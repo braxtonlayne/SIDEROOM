@@ -1,5 +1,4 @@
 import { Checkbox, GoldButton, PasswordInput, TextInput } from '@sideroom/ui';
-import { Link, useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import {
@@ -13,6 +12,7 @@ import {
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
 import { useT } from '../../i18n/react';
+import { enterApp, nav } from '../../lib/enterApp';
 import { useCompliancePublic } from '../../lib/compliancePublic';
 import { clearInviteCode, heldInviteCode } from '../../lib/inviteCode';
 import {
@@ -36,7 +36,6 @@ function fieldErrorsFrom(e: ApiError): Partial<Record<Field, string>> {
 
 export function Register() {
   const t = useT();
-  const router = useRouter();
   const [code] = useState(() => heldInviteCode());
   const { minimum_age: minimumAge } = useCompliancePublic();
   const [email, setEmail] = useState('');
@@ -55,8 +54,8 @@ export function Register() {
 
   // No code in hand: back to the entrance.
   useEffect(() => {
-    if (!code) router.history.replace('/');
-  }, [code, router]);
+    if (!code) nav.replace('/');
+  }, [code]);
 
   // Returning from the Discord OAuth round trip: prefill from the pending link.
   useEffect(() => {
@@ -143,7 +142,7 @@ export function Register() {
         confirmed_min_age: age ? minimumAge : undefined,
       });
       clearInviteCode();
-      router.history.push('/channels');
+      enterApp();
     } catch (err) {
       if (err instanceof ApiError) {
         const fe = fieldErrorsFrom(err);
@@ -255,7 +254,7 @@ export function Register() {
             label={
               <>
                 {t('entrance.register.rulesBefore')}{' '}
-                <Link to="/house-notes">{t('entrance.register.rulesLink')}</Link>.
+                <a href="/house-notes">{t('entrance.register.rulesLink')}</a>.
               </>
             }
             checked={rules}

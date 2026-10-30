@@ -11,11 +11,13 @@ import { isCorePath } from './corePaths';
  */
 const KEY_SHAPE = /\b[a-z][a-z0-9]*\.[A-Za-z0-9]+\.[A-Za-z0-9.]+\b/;
 
-async function freshApp(path: string) {
+async function freshApp(path: string, surface = true) {
   vi.resetModules();
-  const { createAppRouter } = await import('../router');
   const store = await import('./messages/store');
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+  const history = createMemoryHistory({ initialEntries: [path] });
+  const router = surface
+    ? (await import('../test/publicRouter')).createPublicRouter(path, history)
+    : (await import('../router')).createAppRouter(history);
   render(<RouterProvider router={router} />);
   return { router, store };
 }
@@ -34,7 +36,6 @@ describe('first paint with only the core catalog', () => {
     ['/forgot', /fix that/],
     ['/reset/tok', 'Choose a new one.'],
     ['/no-invitation', 'No invitation?'],
-    ['/house-notes', 'House notes'],
   ])('renders the entrance route %s without the rest catalog', async (path, heading) => {
     const { store } = await freshApp(path);
     expect(store.isRestLoaded()).toBe(false);
@@ -45,7 +46,7 @@ describe('first paint with only the core catalog', () => {
   });
 
   it('holds a non-entrance route until the full catalog arrives, never showing keys', async () => {
-    const { store } = await freshApp('/channels');
+    const { store } = await freshApp('/channels', false);
     expect(store.isRestLoaded()).toBe(false);
     expect(await screen.findByRole('status', { busy: true })).toBeInTheDocument();
     expect(document.body.textContent ?? '').not.toMatch(KEY_SHAPE);

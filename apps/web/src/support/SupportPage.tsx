@@ -88,7 +88,8 @@ function Body() {
   if (signedOut)
     return (
       <Notice variant="info" title={t('support.page.signInTitle')}>
-        {t('support.page.signInBody')} <Link to="/login">{t('support.page.signInLink')}</Link>
+        {t('support.page.signInBody')}{' '}
+        <a href="/login?next=%2Fsupport">{t('support.page.signInLink')}</a>
       </Notice>
     );
   return (

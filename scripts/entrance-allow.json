@@ -1,0 +1,34 @@
+{
+  "$comment": "SEC-ENT-004 / D-385. Matches the isolation check tolerates, each with the surface it applies to ('*' for every surface), the exact string, an optional file substring, and a reason. A match is excused only where it sits inside an occurrence of one of these strings. An entry without a reason fails the check. The public API (the sign-in family, registration helpers, entrance copy, invite and template lookups) is built into the script (PUBLIC_API_PREFIXES), not listed here. There is no entry for Lounge, Cinema or Library and there never may be (O-7, owner decision of 2026-10-29): if one of those words shows up in third-party code, report it to the owner instead of allowing it here.",
+  "allow": [
+    {
+      "surface": "auth",
+      "token": "/moderation/appeals",
+      "reason": "The ban-appeal page belongs to the auth surface (entrance-isolation.md section 2 lists BanAppeal there): a banned member who cannot sign in files an appeal, and this is the one moderation call it makes."
+    },
+    {
+      "surface": "static",
+      "file": "sw.js",
+      "token": "/app/",
+      "reason": "Section 5: the worker caches /app/* cache-first on use in sr-app-<build> and purges it; it must name the prefix to do so. It never requests an /app/ URL on its own."
+    },
+    {
+      "surface": "static",
+      "file": "sw.js",
+      "token": "/app.html",
+      "reason": "Section 5: app.html is the app's navigation fallback in sr-app-<build>; the worker names the one file, nothing inside it."
+    },
+    {
+      "surface": "static",
+      "file": "sw.js",
+      "token": "/share",
+      "reason": "The Web Share Target contract (section 5): the manifest's share_target action is /share and the worker answers the POST by redirecting there; the name carries no feature."
+    },
+    {
+      "surface": "static",
+      "file": "manifest.webmanifest",
+      "token": "/share",
+      "reason": "The Web Share Target contract (section 5): share_target.action is /share; an anonymous share lands on /login?next=/share?..."
+    }
+  ]
+}

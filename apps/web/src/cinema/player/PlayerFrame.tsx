@@ -1,6 +1,7 @@
 // Standalone frame for the player routes when they are mounted straight on the root route (no Cinema section
 // layout around them): own query cache, theme, toasts and the "Are you 18 or older?" gate. When the Cinema
 // section layout mounts `createPlayerRoutes`, it provides all of this and this frame is not used.
+import { exitToLogin } from '../../lib/enterApp';
 import { ThemeProvider, ToastProvider } from '@sideroom/ui';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { Outlet, useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
@@ -24,7 +25,7 @@ function Session({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!unauthorized || sent.current) return;
     sent.current = true;
-    void navigate({ to: '/login', search: { next: here } });
+    exitToLogin(here);
   }, [unauthorized, navigate, here]);
   return unauthorized ? null : <>{children}</>;
 }

@@ -32,16 +32,6 @@ export default {
   'entrance.landing.invOnly': 'By invitation only',
   'entrance.landing.vertical': 'Some doors are worth finding.',
   'entrance.landing.footLine': 'The outside is quiet. The inside is yours.',
-  'entrance.landing.glimpse': 'A glimpse inside',
-  'entrance.landing.stripTitle': 'One door.',
-  'entrance.landing.stripAccent': 'A few different worlds.',
-  'entrance.landing.stripSub': 'For members, together.',
-  'entrance.landing.world.lounge.title': 'The lounge',
-  'entrance.landing.world.lounge.copy': 'Good company. Open conversations.',
-  'entrance.landing.world.cinema.title': 'The cinema',
-  'entrance.landing.world.cinema.copy': 'Something worth staying up for.',
-  'entrance.landing.world.library.title': 'The library',
-  'entrance.landing.world.library.copy': 'One more chapter. Then another.',
 
   // Shared auth layout
   'entrance.auth.welcome': 'Welcome',
@@ -131,51 +121,15 @@ export default {
     'SIDE ROOM is invitation-only. Ask someone you know who’s a member.',
 
   // House notes (the page the Library footer and the registration form link to)
-  'entrance.houseNotes.title': 'House notes',
-  'entrance.houseNotes.intro':
-    'SIDE ROOM is a small, private place for people who know each other. Be kind, keep what’s said here here, and look after the room.',
-  'entrance.houseNotes.rules.title': 'The house rules',
-  'entrance.houseNotes.rules.1': 'Be kind. Disagree without being cruel.',
-  'entrance.houseNotes.rules.2':
-    'What is said here stays here. Do not share other members’ messages or details outside.',
-  'entrance.houseNotes.rules.3':
-    'Your invitation is your word. Invite people you would be happy to vouch for.',
-  'entrance.houseNotes.rules.4':
-    'Respect age ratings and content settings, and keep adult material where it belongs.',
-  'entrance.houseNotes.rules.5':
-    'Do not post anything illegal, and do not harass, spam or impersonate anyone.',
-  'entrance.houseNotes.privacy.title': 'Privacy',
-  'entrance.houseNotes.privacy.body1':
-    'Messages are kept until they are deleted. A deleted message disappears from view at once and is purged after 30 days; until then only senior staff can see it.',
-  'entrance.houseNotes.privacy.body2':
-    'Voice and video are encrypted end to end and are never recorded. Passwords are stored hashed, and nothing is sent to advertisers or analytics services.',
-  'entrance.houseNotes.privacy.body3':
-    'You can export your data from Settings, and you decide whether your watching and reading activity is shared.',
-  'entrance.houseNotes.terms.title': 'Terms',
-  'entrance.houseNotes.terms.body':
-    'This place is run by its operator for their community, and access is by invitation. The operator may remove content or accounts that break the house rules. Your operator can replace this page with their own terms.',
-  'entrance.houseNotes.credits.title': 'Image credits',
-  'entrance.houseNotes.credits.door':
-    'The door photograph on the entrance pages was supplied by the owner.',
-  'entrance.houseNotes.credits.fonts':
-    'Typefaces: Newsreader, Hanken Grotesk, Inter and IBM Plex Mono, used under the SIL Open Font License.',
-  'entrance.houseNotes.credits.licences': 'Font licences',
 
   // Support (the Help link in the Library footer)
-  'entrance.support.title': 'Help',
-  'entrance.support.intro':
-    'The common ways to get unstuck. If none of these fit, ask the person who invited you.',
   // M-01 (D-287): third-party notices link on /help.
-  'entrance.support.notices.title': 'Third-party notices',
-  'entrance.support.notices.body':
-    'SIDE ROOM includes software under other licences that ask for attribution.',
-  'entrance.support.notices.link': 'Read the third-party notices',
   'entrance.support.signin.title': 'I cannot sign in',
   'entrance.support.signin.body': 'Reset your password with the link on the sign-in page.',
   'entrance.support.signin.link': 'Reset my password',
   'entrance.support.twofa.title': 'I lost my second factor',
   'entrance.support.twofa.body':
-    'Use one of your recovery codes on the second step of signing in. Without one, a staff member can reset it for you after confirming who you are.',
+    'Use one of your recovery codes on the second step of signing in. Without one, someone on the team can reset it for you after confirming who you are.',
   'entrance.support.invite.title': 'I do not have an invitation',
   'entrance.support.invite.body':
     'SIDE ROOM is invitation-only. Ask someone you know who is a member.',
@@ -184,6 +138,9 @@ export default {
   'entrance.support.rules.body':
     'Report it to a server moderator, or read the house notes for what is and is not allowed.',
   'entrance.support.rules.link': 'House notes',
+  'entrance.support.signinHelp.summary': 'Trouble signing in?',
+  'entrance.notFound.title': 'Nothing here',
+  'entrance.notFound.body': 'There is nothing at this address.',
   // Shared by the link and reset pages (G-86)
   'entrance.common.oneMoment': 'One moment…',
   'entrance.common.unreachable': "We couldn't reach the door. Check your connection and try again.",
@@ -266,7 +223,7 @@ export default {
   'entrance.verifyEmail.done':
     'Your email is verified. Thanks for confirming. If you were changing your address, the new one is now what you sign in with.',
   'entrance.verifyEmail.expired':
-    'That link has expired or was already used. Sign in and ask for a new one from the banner in the lounge, or, if you were changing your email, start the change again from Settings, My Account.',
+    'That link has expired or was already used. Sign in and ask for a new one from the banner at the top of the page, or, if you were changing your email, start the change again from Settings, My Account.',
 
   // Two-step sign-in
   'entrance.twoFactor.otpGroup': 'Six-digit code',
@@ -303,31 +260,13 @@ export default {
 
   // Server invite and template pages
   'entrance.serverInvite.someServer': 'a server',
-  'entrance.serverInvite.counts': '{online} online · {members} members',
   'entrance.serverInvite.loading': 'Loading invite…',
-  'entrance.serverInvite.invalid': 'This invite is invalid or has expired.',
   'entrance.serverInvite.invited': 'You’ve been invited to join',
-  'entrance.serverInvite.accept': 'Accept invite',
   'entrance.serverInvite.login': 'Log in to accept',
-  'entrance.template.tooFast': 'You are doing that too quickly. Wait a moment and try again.',
-  'entrance.template.badName': 'Server names are 2 to 100 characters.',
-  'entrance.template.failed': 'Could not create the server. Try again.',
   'entrance.template.loading': 'Loading template…',
-  'entrance.template.invalid': 'This template does not exist or was deleted.',
   'entrance.template.loginTitle': 'Log in to use this template',
   'entrance.template.login': 'Log in',
-  'entrance.template.start': 'Start a server from the template',
-  'entrance.template.stats':
-    '{channels} channels · {roles} roles · used {uses, plural, one {# time} other {# times}}',
-  'entrance.template.by': ' · by {name}',
-  'entrance.template.channelsLabel': 'Channels in this template',
-  'entrance.template.voicePrefix': 'Voice: ',
-  'entrance.template.name': 'Server name',
-  'entrance.template.create': 'Create server',
   // Group DM invites (G-47); the invite page is an entrance route, so these stay in the core fragment.
-  'entrance.invite.groupInvited': "You've been invited to join a group chat",
-  'entrance.invite.groupName': 'a group chat',
-  'entrance.invite.groupMembers': '{count} members',
   // Registration and entrance copy that states the minimum age (M-06, D-294)
   'entrance.register.ageConfirm': 'I am at least {age} years old.',
   // Its own checkbox and error since D-311 (M-21).
@@ -335,20 +274,18 @@ export default {
   'entrance.register.ageNotice': 'You must be at least {age} to join.',
   'entrance.landing.ageNotice': 'You must be at least {age} to join.',
   // Operator details on the privacy summary and /help (M-06, D-293, D-295)
-  'entrance.houseNotes.privacy.operatorCountry': 'This server is run from {country}.',
-  'entrance.houseNotes.privacy.operatorContact': 'Contact for questions about your data:',
   'entrance.support.copyright.title': 'Copyright notices',
   'entrance.support.copyright.body':
-    'If something here infringes your copyright, send the notice to this address. A person on the staff reads every one:',
+    'If something here infringes your copyright, send the notice to this address. A person on the team reads every one:',
   // The ban screen's appeal form (MOD-APL-004, D-215). Entrance strings live in this core fragment because the sign-in
   // page paints before the rest of the catalog loads.
   'entrance.appeal.banned': 'This account is banned from SIDE ROOM.',
   'entrance.appeal.intro':
-    'You can appeal the decision. A staff member who did not make it will read what you write. There is no second appeal.',
+    'You can appeal the decision. Someone on the team who did not make it will read what you write. There is no second appeal.',
   'entrance.appeal.label': 'Why should this be looked at again?',
   'entrance.appeal.send': 'Send appeal',
   'entrance.appeal.sent':
-    'Your appeal was sent. A staff member who did not make the decision will read it.',
+    'Your appeal was sent. Someone on the team who did not make the decision will read it.',
   'entrance.appeal.already': 'This decision was already appealed.',
   'entrance.appeal.failed': 'The appeal could not be sent. Try again.',
 } satisfies Record<string, string>;

@@ -4,6 +4,7 @@ import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { http, HttpResponse, server } from '../../test/server';
 import { localProgress, setProgressApi } from '../progress';
 import { A, chapter, DONE, renderAt, series, seriesPage, useLibraryApi } from './harness';
+import { nav } from '../../lib/enterApp';
 
 beforeEach(() => {
   localStorage.clear();
@@ -71,9 +72,9 @@ describe('Library home', () => {
     server.use(
       http.get('*/api/v1/users/@me', () => HttpResponse.json({ message: 'no' }, { status: 401 })),
     );
-    const { router } = renderAt('/library');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
-    expect(router.state.location.search).toMatchObject({ next: '/library' });
+    vi.spyOn(nav, 'assign').mockImplementation(() => {});
+    renderAt('/library');
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/login?next=%2Flibrary'));
   });
 });
 

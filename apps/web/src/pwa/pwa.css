@@ -35,6 +35,25 @@
   flex-wrap: wrap;
 }
 
+.sr-pwa-primary,
+.sr-pwa-secondary {
+  min-block-size: 40px;
+  padding-block: 0;
+  padding-inline: 16px;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--sr-radius, 2px);
+  border: 1px solid var(--sr-gold, #c2b08f);
+}
+.sr-pwa-primary {
+  background: var(--sr-gold, #c2b08f);
+  color: #111110;
+}
+.sr-pwa-secondary {
+  background: transparent;
+  color: var(--sr-gold, #c2b08f);
+}
+
 .sr-share {
   max-width: 640px;
   margin: 0 auto;

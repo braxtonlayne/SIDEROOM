@@ -37,6 +37,8 @@ pub struct Settings {
     pub secret_files: Vec<(String, String)>,
     /// The `config.toml` in use, when there is one.
     pub config_file: Option<String>,
+    /// `web.root` (`SR_WEB__ROOT`): the built web app the server serves behind the session (D-385).
+    pub web_root: Option<String>,
 }
 
 impl Settings {
@@ -84,6 +86,7 @@ impl Settings {
             disk_paths,
             secret_files,
             config_file: config_file.map(str::to_owned),
+            web_root: cfg.web.root_path().map(str::to_owned),
         }
     }
 }

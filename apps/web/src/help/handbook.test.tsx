@@ -44,8 +44,6 @@ describe('the handbook', () => {
     for (const s of HANDBOOK_SECTIONS) {
       expect(screen.getByRole('heading', { level: 2, name: t(s.title) })).toBeVisible();
     }
-    // The old answers stay below the handbook.
-    expect(screen.getByRole('heading', { name: 'I cannot sign in' })).toBeVisible();
   });
 
   it('every section links the screen it describes, and each link is a real route', async () => {
@@ -58,20 +56,14 @@ describe('the handbook', () => {
         const link = within(section).getByRole('link', { name: t(l.label) });
         expect(link).toHaveAttribute('href', l.href);
         const path = l.href.split('#')[0]!;
+        // The house notes are a plain page of the public build, not a route of the app.
+        if (path === '/house-notes') continue;
         const matches = router.matchRoutes(path, {});
         const leaf = matches[matches.length - 1];
         expect(leaf?.routeId, `${l.href} is not a route`).not.toBe('__root__');
         expect(leaf?.status, l.href).not.toBe('notFound');
       }
     }
-  });
-
-  it('a link opens its screen inside the app, without a reload', async () => {
-    const router = at('/help');
-    const user = userEvent.setup();
-    await screen.findByRole('heading', { level: 1, name: 'Help' });
-    await user.click(screen.getByRole('link', { name: 'Read the house notes' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/house-notes'));
   });
 
   it('says how many credits a new account gets, live, with a fallback while it is not known', async () => {
@@ -202,7 +194,8 @@ describe('the version the build embeds', () => {
   it('is the newest heading of CHANGELOG.md without its date', () => {
     const heading = /^## (.+?)\s*$/m.exec(changelog)![1]!;
     expect(APP_VERSION).toBe(heading.replace(/\s+-\s+\d{4}-\d{2}-\d{2}$/, ''));
-    expect(APP_VERSION).toMatch(/^Phase \d+$/);
+    // A wave split in two keeps its number with a letter ("Phase 30b").
+    expect(APP_VERSION).toMatch(/^Phase \d+[a-z]?$/);
   });
 
   it('the badge shows once per version: never to a new install, once after a change', () => {

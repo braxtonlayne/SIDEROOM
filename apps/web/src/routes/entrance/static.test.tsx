@@ -2,98 +2,87 @@ import { render, screen, within } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createAppRouter } from '../../router';
+import { loadCatalog, renderHouseNotes } from '../../../../../scripts/render-legal.mjs';
+import { createPublicRouter } from '../../test/publicRouter';
 import { resetCompliancePublic } from '../../lib/compliancePublic';
 import { http, HttpResponse, server } from '../../test/server';
 
 function at(path: string) {
   render(
-    <RouterProvider router={createAppRouter(createMemoryHistory({ initialEntries: [path] }))} />,
+    <RouterProvider
+      router={createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }))}
+    />,
   );
 }
 
-describe('static entrance pages', () => {
+describe('the sign-in answers on /login (they were the public /help page)', () => {
   beforeEach(() => resetCompliancePublic());
 
-  it('shows the operator country and contact on the privacy summary and /help when set', async () => {
-    server.use(
-      http.get('*/api/v1/sr/compliance/public', () =>
-        HttpResponse.json({
-          minimum_age: 13,
-          operator_country: 'DE',
-          operator_contact: 'legal@example.org',
-        }),
-      ),
-    );
-    at('/house-notes');
-    expect(await screen.findByText('This server is run from DE.')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'legal@example.org' })).toHaveAttribute(
+  it('lists the self-service answers, with plain links to the other surfaces', async () => {
+    at('/login');
+    const help = (await screen.findByText('Trouble signing in?')).closest('details')!;
+    const main = within(help);
+    for (const h of [
+      'I cannot sign in',
+      'I lost my second factor',
+      'I do not have an invitation',
+      'Something is wrong here',
+    ])
+      expect(main.getByRole('heading', { name: h, hidden: true })).toBeInTheDocument();
+    expect(main.getByRole('link', { name: 'Reset my password', hidden: true })).toHaveAttribute(
       'href',
-      'mailto:legal@example.org',
+      '/forgot',
+    );
+    expect(main.getByRole('link', { name: 'House notes', hidden: true })).toHaveAttribute(
+      'href',
+      '/house-notes',
     );
   });
 
-  it('shows the contact as the copyright notice address on /help, and nothing when unset', async () => {
+  it('shows the operator contact as the copyright notice address when set, and nothing when unset', async () => {
     server.use(
       http.get('*/api/v1/sr/compliance/public', () =>
         HttpResponse.json({ minimum_age: 13, operator_contact: 'legal@example.org' }),
       ),
     );
-    at('/help');
-    const heading = await screen.findByRole('heading', { name: 'Copyright notices' });
-    expect(heading).toBeVisible();
-    // The contact also shows in the handbook's privacy section, so look inside the notices section.
+    at('/login');
     expect(
-      within(heading.closest('section')!).getByRole('link', { name: 'legal@example.org' }),
-    ).toBeVisible();
+      await screen.findByRole('link', { name: 'legal@example.org', hidden: true }),
+    ).toHaveAttribute('href', 'mailto:legal@example.org');
   });
 
   it('adds no operator lines while the operator has set none', async () => {
     server.use(
       http.get('*/api/v1/sr/compliance/public', () => HttpResponse.json({ minimum_age: 13 })),
     );
-    at('/help');
-    await screen.findByRole('heading', { level: 1, name: 'Help' });
-    expect(screen.queryByRole('heading', { name: 'Copyright notices' })).toBeNull();
+    at('/login');
+    await screen.findByText('Trouble signing in?');
+    expect(screen.queryByRole('heading', { name: 'Copyright notices', hidden: true })).toBeNull();
+  });
+});
+
+describe('the house notes (plain HTML rendered at build time, D-385)', () => {
+  const html = renderHouseNotes(loadCatalog(), '/entrance/legal-test.css') as string;
+
+  it('has no script, no event handler and one stylesheet', () => {
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toMatch(/\son[a-z]+=/i);
+    expect(html.match(/<link /g)).toHaveLength(1);
   });
 
-  it('house notes carry every anchor the Library footer links to', async () => {
-    at('/house-notes');
-    expect(await screen.findByRole('heading', { level: 1, name: 'House notes' })).toBeVisible();
-    const footer = readFileSync(resolve(__dirname, '../../library/Home.tsx'), 'utf8');
-    const anchors = [...footer.matchAll(/href="\/house-notes#([a-z-]+)"/g)].map((m) => m[1]!);
-    expect(anchors.length).toBeGreaterThanOrEqual(3);
-    for (const id of anchors) {
-      const el = document.getElementById(id);
-      expect(el, `#${id}`).not.toBeNull();
-      expect(el!.tagName).toBe('SECTION');
-      // Each anchor is a labelled region with a heading, so it is reachable by landmark navigation.
-      expect(el!.getAttribute('aria-labelledby')).toBeTruthy();
-    }
+  it('carries the anchors the registration form and the footers link to', () => {
+    for (const id of ['notes-rules', 'notes-privacy', 'notes-terms', 'notes-credits'])
+      expect(html).toContain(`id="${id}"`);
+    expect(html).toContain('href="/fonts/README.md"');
   });
 
-  it('the Library footer help link lands on the help page', async () => {
-    const footer = readFileSync(resolve(__dirname, '../../library/Home.tsx'), 'utf8');
-    expect(footer).toContain('href="/help"');
-    at('/help');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Help' })).toBeVisible();
-    const main = within(screen.getByRole('main'));
-    for (const h of [
-      'I cannot sign in',
-      'I lost my second factor',
-      'I do not have an invitation',
-      'Something is wrong here',
-    ]) {
-      expect(main.getByRole('heading', { name: h })).toBeVisible();
-    }
-    expect(main.getByRole('link', { name: 'Read the third-party notices' })).toHaveAttribute(
-      'href',
-      '/THIRD_PARTY_NOTICES.md',
-    );
-    expect(main.getByRole('link', { name: 'Reset my password' })).toHaveAttribute(
-      'href',
-      '/forgot',
-    );
-    expect(main.getByRole('link', { name: 'House notes' })).toHaveAttribute('href', '/house-notes');
+  it('leaves the two operator placeholders for the server to fill', () => {
+    expect(html).toContain('{{operator_country}}');
+    expect(html).toContain('mailto:{{operator_contact}}');
+  });
+
+  it('is linked from the sign-in surfaces as a plain anchor, never a router link', () => {
+    const shell = readFileSync(resolve(__dirname, '../../components/EntranceShell.tsx'), 'utf8');
+    expect(shell).toContain('<a href="/house-notes">');
   });
 });

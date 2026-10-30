@@ -13,10 +13,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { finishServiceWorker } from '../../apps/web/vite/pwa';
 
 /**
- * RDY-PWA-001: the service worker's update and offline behaviour, proven in a real browser against two production
- * builds served by `vite preview`.
+ * RDY-PWA-001 and SEC-ENT-002: the service worker's update, purge and offline behaviour, proven in a real browser
+ * against two production builds served by `vite preview` (port 4174 by default, never the shared dev ports).
  *
  * Build A is the real `apps/web/dist` (built here when it is missing). Build B is a copy of A with a different embedded
  * version ("Phase 99"), different hashed file names and a different worker build id, which is what a second release
@@ -24,9 +25,15 @@ import { expect, test, type Page } from '@playwright/test';
  * after the other on ONE origin (the service worker is per origin): A is installed, then A's server is stopped and
  * B's started, the way a deploy replaces a release.
  *
- * It needs no API, database or login: the pages it uses (/, /login, /help/whats-new) are public. The Lounge is
- * reached for the offline shell only (its route is served by the same cached shell). Timing: the spec waits on
- * service worker state events and polls conditions, never sleeps for a fixed time.
+ * Two kinds of page: a public surface (`/login`, `/`, `/join/x`: precached shell, `sr-static-<build>`) and a page of
+ * the app (`/channels`: the signed-in shell, `sr-app-<build>`, which exists only after a visit). `vite preview` has
+ * no session gate, so the signed-in side is exercised by visiting an app path, which is all the worker sees of a
+ * sign-in. When `dist` is still the single-build layout (no `auth.html`), the spec lays out the public shells as the
+ * two-build output does (copies of `index.html`) and finishes the worker from its template, so it proves the worker
+ * rather than the layout.
+ *
+ * It needs no API, database or login. Timing: the spec waits on service worker state events and polls conditions,
+ * never sleeps for a fixed time.
  *
  * Chromium only. WebKit under Playwright does not expose the page's service worker controls reliably
  * (`navigator.serviceWorker.controller` stays null), and Firefox does not run the worker with an offline context the
@@ -38,7 +45,7 @@ import { expect, test, type Page } from '@playwright/test';
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '../..');
 const webDir = join(repo, 'apps/web');
-const PORT = Number(process.env.SR_PWA_PORT ?? 4175);
+const PORT = Number(process.env.SR_PWA_PORT ?? 4174);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const VERSION_B = 'Phase 99';
 const BUILD_B = 'b0b0b0b0b0b0';
@@ -70,14 +77,20 @@ function buildId(dir: string): string {
  */
 function makeSecondBuild(a: string, b: string, versionA: string): void {
   cpSync(a, b, { recursive: true });
-  const assets = join(b, 'assets');
+  // Hashed output lives in one directory (single build) or in /entrance and /app (two builds).
+  const assetDirs = ['assets', 'entrance', 'app']
+    .map((d) => join(b, d))
+    .filter((d) => existsSync(d) && statSync(d).isDirectory());
   const renamed = new Map<string, string>();
-  for (const f of readdirSync(assets)) {
-    const m = /^(.*-)([A-Za-z0-9_]{8})(\.(?:js|css))$/.exec(f);
-    if (!m) continue;
-    const hash = m[2]!;
-    const next = `${m[1]}${hash.startsWith('Z') ? 'Y' : 'Z'}${hash.slice(1)}${m[3]}`;
-    renamed.set(f, next);
+  const dirOf = new Map<string, string>();
+  for (const dir of assetDirs) {
+    for (const f of readdirSync(dir)) {
+      const m = /^(.*-)([A-Za-z0-9_]{8})(\.(?:js|css))$/.exec(f);
+      if (!m) continue;
+      const hash = m[2]!;
+      renamed.set(f, `${m[1]}${hash.startsWith('Z') ? 'Y' : 'Z'}${hash.slice(1)}${m[3]}`);
+      dirOf.set(f, dir);
+    }
   }
   if (renamed.size < 5) throw new Error(`expected hashed assets, found ${renamed.size}`);
   let versionHits = 0;
@@ -95,10 +108,24 @@ function makeSecondBuild(a: string, b: string, versionA: string): void {
     if (text !== before) writeFileSync(file, text);
   }
   for (const [from, to] of renamed) {
-    writeFileSync(join(assets, to), readFileSync(join(assets, from)));
-    rmSync(join(assets, from));
+    const dir = dirOf.get(from)!;
+    writeFileSync(join(dir, to), readFileSync(join(dir, from)));
+    rmSync(join(dir, from));
   }
   if (versionHits === 0) throw new Error(`the version "${versionA}" is not in build A's scripts`);
+}
+
+/**
+ * The single-build `dist` has one shell. Lay the public shells out the way the two-build output does and finish the
+ * worker from its template, so the worker sees the same surfaces. Returns true when it had to.
+ */
+function ensureEntranceLayout(dir: string): boolean {
+  if (existsSync(join(dir, 'auth.html'))) return false;
+  const shell = readFileSync(join(dir, 'index.html'), 'utf8');
+  for (const f of ['auth.html', 'invite.html', 'app.html']) writeFileSync(join(dir, f), shell);
+  writeFileSync(join(dir, 'sw.js'), readFileSync(join(webDir, 'public/sw.js'), 'utf8'));
+  finishServiceWorker(dir, join(webDir, 'public-surfaces.json'));
+  return true;
 }
 
 let server: ChildProcess | undefined;
@@ -122,6 +149,10 @@ async function serve(outDir: string): Promise<void> {
     [
       vite,
       'preview',
+      // The preview gate picks each public surface's shell (auth.html for /login, ...) the way the server does;
+      // plain `vite preview` would answer every path with index.html, the landing page.
+      '--config',
+      join(repo, 'e2e/vite.static.config.ts'),
       '--outDir',
       outDir,
       '--host',
@@ -216,17 +247,29 @@ async function readLedgerRow(
   );
 }
 
-/** The page has a worker that controls it. */
+/**
+ * The page has a worker that controls it. An app page here has no API behind it, so the app may leave for the
+ * sign-in page on its own (its 401 exit) while this runs; a check cut short by that navigation is run again on the
+ * page it landed on.
+ */
 async function controlled(page: Page): Promise<void> {
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
-  if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) await page.reload();
-  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.waitForLoadState('load');
+      await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+      if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) await page.reload();
+      await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+      return;
+    } catch (e) {
+      if (attempt >= 4 || !/context was destroyed|navigat/i.test(String(e))) throw e;
+    }
+  }
 }
 
 // Service worker timing is the risk: no retry in CI either, so a flake is seen (roadmap-p25 section 4, Risks).
 test.describe.configure({ mode: 'serial', retries: 0 });
 
-test.describe('the service worker update and the offline shell (RDY-PWA-001)', () => {
+test.describe('the service worker update, the purge and the offline shells (RDY-PWA-001, SEC-ENT-002)', () => {
   test.skip(
     ({ browserName }) => browserName !== 'chromium',
     'Chromium only: WebKit does not expose the service worker controls under automation (see the file comment)',
@@ -236,6 +279,7 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
   let dirA = '';
   let dirB = '';
   let versionA = '';
+  let synthesized = false;
 
   test.beforeAll(async () => {
     test.setTimeout(900_000);
@@ -254,6 +298,7 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
     const a = join(tmp, 'a');
     cpSync(dirA, a, { recursive: true });
     dirA = a;
+    synthesized = ensureEntranceLayout(a);
     dirB = join(tmp, 'b');
     makeSecondBuild(a, dirB, versionA);
   });
@@ -263,7 +308,15 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
     if (tmp) rmSync(tmp, { recursive: true, force: true });
   });
 
-  test('build A installs, works offline, then build B is offered, accepted and shown, and the upload ledger survives', async ({
+  const appCaches = (page: Page) =>
+    cacheNames(page).then((names) => names.filter((n) => n.startsWith('sr-app-')));
+  const cached = (page: Page, cache: string, key: string) =>
+    page.evaluate(async ([c, k]) => !!(await (await caches.open(c!)).match(k!)), [
+      cache,
+      key,
+    ] as const);
+
+  test('build A installs, works offline, then build B is offered, accepted and shown; the signed-in cache of A is purged and the upload ledger survives', async ({
     page,
     context,
   }) => {
@@ -271,10 +324,13 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
     const buildA = buildId(dirA);
     expect(buildId(dirB)).not.toBe(buildA);
 
-    // ---- 1. Build A: installed and controlling the page.
+    // ---- 1. Build A: installed and controlling the page; a public page creates no signed-in cache.
     await serve(dirA);
     await page.goto(`${ORIGIN}/login`);
     await controlled(page);
+    // Reload once under the worker: the page's lazy code is cached the first time it is used under control.
+    await page.reload();
+    await page.waitForLoadState('networkidle');
     expect(await cacheNames(page)).toEqual([`sr-static-${buildA}`]);
     await expect(page.getByTestId('pwa-host').getByText('A new version is ready')).toHaveCount(0);
 
@@ -282,41 +338,47 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
     await page.evaluate(([k, v]) => localStorage.setItem(k!, v!), [SEEN_KEY, versionA]);
     await putLedgerRow(page, 'p26-ledger-row');
 
-    // ---- 2. Offline with A: the cached shell serves the Lounge; with no shell cached the offline page shows.
-    // Code is cached the first time it is used (sw.js), so the Lounge's chunks are fetched once online. There is no
-    // API here, so the app ends on its signed-out or error screen; what matters is that the shell and its code ran.
+    // ---- 2. Offline with A. A public page is answered from its surface's shell in the static cache.
+    await context.setOffline(true);
+    await page.goto(`${ORIGIN}/login`);
+    await expect(page.getByRole('heading', { name: 'Come on in.' })).toBeVisible();
+    await context.setOffline(false);
+
+    // A page of the app is stored as the signed-in shell the first time it is visited online, in its own cache.
+    // There is no API here, so the app ends on its signed-out or error screen; what matters is that the shell ran.
     await page.goto(`${ORIGIN}/channels`);
     await page.waitForLoadState('networkidle');
+    await expect.poll(() => appCaches(page)).toEqual([`sr-app-${buildA}`]);
+    expect(await cached(page, `sr-app-${buildA}`, '/app.html')).toBe(true);
+    // ... and it never lands in the static cache, which holds public files only.
+    const staticKeys = await page.evaluate(
+      async (name) => (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname),
+      `sr-static-${buildA}`,
+    );
+    expect(staticKeys.filter((p) => p.startsWith('/app'))).toEqual([]);
+    expect(staticKeys).toContain('/offline.html');
+
     await context.setOffline(true);
     await page.goto(`${ORIGIN}/channels`);
     await expect(page.locator('#root > *').first()).toBeAttached();
     await expect(page.getByRole('heading', { name: "You're offline" })).toHaveCount(0);
     await expect(page).toHaveTitle(/SIDE ROOM/);
-    await page.goto(`${ORIGIN}/login`);
-    await expect(page.getByRole('heading', { name: 'Come on in.' })).toBeVisible();
     await context.setOffline(false);
 
+    // With no signed-in shell cached, an app page offline shows the offline page.
     await page.evaluate(async (name) => {
-      const c = await caches.open(name);
-      await c.delete('/index.html');
-    }, `sr-static-${buildA}`);
+      await (await caches.open(name)).delete('/app.html');
+    }, `sr-app-${buildA}`);
     await context.setOffline(true);
     await page.goto(`${ORIGIN}/channels`);
     await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
     await context.setOffline(false);
     // Online again: the next navigation stores the shell again.
-    await page.goto(`${ORIGIN}/login`);
+    await page.goto(`${ORIGIN}/channels`);
     await controlled(page);
-    await expect
-      .poll(() =>
-        page.evaluate(
-          async (name) => !!(await (await caches.open(name)).match('/index.html')),
-          `sr-static-${buildA}`,
-        ),
-      )
-      .toBe(true);
+    await expect.poll(() => cached(page, `sr-app-${buildA}`, '/app.html')).toBe(true);
 
-    // Opening the offline page itself while online must not turn it into the shell (it once was stored as one, and
+    // Opening the offline page itself while online must not turn it into a shell (it once was stored as one, and
     // every offline navigation then showed "You're offline" for as long as the worker lived).
     await page.goto(`${ORIGIN}/offline.html`);
     await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
@@ -327,45 +389,54 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
 
     // ---- 3. Deploy B: the new worker installs and waits; the page offers it.
     await serve(dirB);
-    const waiting = page.evaluate(
-      () =>
-        new Promise<string>((resolve) => {
-          void navigator.serviceWorker.getRegistration().then((reg) => {
-            if (!reg) return resolve('no registration');
-            const done = () => resolve(reg.waiting ? reg.waiting.state : 'none');
-            if (reg.waiting) return done();
-            reg.addEventListener('updatefound', () => {
-              const next = reg.installing;
-              next?.addEventListener('statechange', () => {
-                if (next.state === 'installed') done();
-              });
-            });
-            // The same check the app runs when the tab becomes visible again.
-            void reg.update();
-          });
-        }),
-    );
-    expect(await waiting).toBe('installed');
+    // Polled, not awaited on one event: the browser's own update check (it schedules one after a navigation) may
+    // already be installing B before a listener could be attached, and an update() racing B's server start rejects.
+    // Each poll reads the registration and, when nothing is installing yet, runs the same check the app runs when
+    // the tab becomes visible again.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (!reg) return 'no registration';
+            if (reg.waiting) return reg.waiting.state;
+            if (!reg.installing) await reg.update().catch(() => undefined);
+            // Read again: update() may have finished installing B while it was awaited.
+            const after = reg.waiting as ServiceWorker | null;
+            return after?.state ?? (reg.installing ? 'installing' : 'none');
+          }),
+        { timeout: 60_000, message: 'build B is installed and waiting' },
+      )
+      .toBe('installed');
     const banner = page.getByTestId('pwa-host');
     await expect(banner.getByText('A new version is ready')).toBeVisible();
-    // The old release keeps running until the member accepts: A's cache is still the only active one.
-    expect(await cacheNames(page)).toContain(`sr-static-${buildA}`);
+    // The old release keeps running until the member accepts: A's caches are still there, signed-in one included.
+    expect(await cacheNames(page)).toEqual(
+      expect.arrayContaining([`sr-static-${buildA}`, `sr-app-${buildA}`]),
+    );
 
-    // ---- 4. Accept: the page reloads under the new worker, which cleans up the old cache.
+    // ---- 4. Accept: the page reloads under the new worker, which cleans up the old caches. Drill 1 (SEC-ENT-002):
+    // signed in, the update purges sr-app-A, so no signed-in file of the old build outlives its release.
     const reloaded = page.waitForEvent('load');
     await banner.getByRole('button', { name: 'Reload' }).click();
     await reloaded;
     await controlled(page);
     await expect.poll(() => cacheNames(page)).toEqual([`sr-static-${BUILD_B}`]);
+    expect(await appCaches(page)).toEqual([]);
     await expect(page.getByTestId('pwa-host').getByText('A new version is ready')).toHaveCount(0);
 
-    // ---- 5. What's new shows the new version and the member has news they have not seen.
+    // ---- 5. What's new shows the new version and the member has news they have not seen. In the two-build layout
+    // this page is behind the sign-in, so it is proven by the signed-in run (e2e/tests/entrance-isolation.spec.ts).
     expect(await page.evaluate((k) => localStorage.getItem(k), SEEN_KEY)).toBe(versionA);
-    await page.goto(`${ORIGIN}/help/whats-new`);
-    await expect(page.getByRole('heading', { name: new RegExp(VERSION_B) }).first()).toBeVisible();
-    await expect
-      .poll(() => page.evaluate((k) => localStorage.getItem(k), SEEN_KEY))
-      .toBe(VERSION_B);
+    if (synthesized) {
+      await page.goto(`${ORIGIN}/help/whats-new`);
+      await expect(
+        page.getByRole('heading', { name: new RegExp(VERSION_B) }).first(),
+      ).toBeVisible();
+      await expect
+        .poll(() => page.evaluate((k) => localStorage.getItem(k), SEEN_KEY))
+        .toBe(VERSION_B);
+    }
 
     // ---- 6. The upload row survived the update, file and all.
     expect(await readLedgerRow(page, 'p26-ledger-row')).toEqual({
@@ -378,8 +449,79 @@ test.describe('the service worker update and the offline shell (RDY-PWA-001)', (
     await context.setOffline(true);
     await page.goto(`${ORIGIN}/login`);
     await expect(page.getByRole('heading', { name: 'Come on in.' })).toBeVisible();
+    // The purge took A's signed-in shell. B has its own only if step 5 visited an app page: otherwise an app page
+    // offline is the offline page, never a stale app of the old build.
     await page.goto(`${ORIGIN}/channels`);
-    await expect(page.getByRole('heading', { name: "You're offline" })).toHaveCount(0);
+    const offlineHeading = page.getByRole('heading', { name: "You're offline" });
+    if (synthesized) await expect(offlineHeading).toHaveCount(0);
+    else await expect(offlineHeading).toBeVisible();
     await context.setOffline(false);
+  });
+
+  test('anonymous: an update on a public page is offered, accepted and never creates a signed-in cache', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const buildA = buildId(dirA);
+    await serve(dirA);
+    // Only public surfaces: the landing, an invite-style path, the sign-in page.
+    for (const p of ['/', '/join/abc', '/login']) {
+      await page.goto(`${ORIGIN}${p}`);
+      await controlled(page);
+      expect(await appCaches(page), p).toEqual([]);
+    }
+    expect(await cacheNames(page)).toEqual([`sr-static-${buildA}`]);
+
+    await serve(dirB);
+    await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r?.update()));
+    const banner = page.getByTestId('pwa-host');
+    await expect(banner.getByText('A new version is ready')).toBeVisible();
+    // Whatever the second worker did while installing, it made no signed-in cache.
+    expect(await appCaches(page)).toEqual([]);
+
+    const reloaded = page.waitForEvent('load');
+    await banner.getByRole('button', { name: 'Reload' }).click();
+    await reloaded;
+    await controlled(page);
+    await expect.poll(() => cacheNames(page)).toEqual([`sr-static-${BUILD_B}`]);
+    expect(await appCaches(page)).toEqual([]);
+  });
+
+  test('sign-out: PURGE_APP deletes the signed-in caches and is answered, and the public ones stay', async ({
+    page,
+    context,
+  }) => {
+    test.setTimeout(120_000);
+    const buildA = buildId(dirA);
+    await serve(dirA);
+    await page.goto(`${ORIGIN}/login`);
+    await controlled(page);
+    await page.goto(`${ORIGIN}/channels`);
+    await expect
+      .poll(() => appCaches(page).catch(() => ['(navigating)']))
+      .toEqual([`sr-app-${buildA}`]);
+    // Caches and the worker belong to the origin, not the page. With no API behind it the app page leaves for /login
+    // on its own, at a moment the drill cannot control (a goto then races it), so it is closed and the exchange runs
+    // on a fresh tab of the same context, on the public sign-in page, which stays put.
+    await page.close();
+    const tab = await context.newPage();
+    await tab.goto(`${ORIGIN}/login`);
+    await controlled(tab);
+    // A cache from an older build, left behind, goes with it.
+    await tab.evaluate(() =>
+      caches.open('sr-app-0ld').then((c) => c.put('/app/x.js', new Response('x'))),
+    );
+
+    // The same exchange src/pwa/purge.ts makes: a message with a reply port, then the reply.
+    const reply = await tab.evaluate(
+      () =>
+        new Promise<string>((resolve) => {
+          const ch = new MessageChannel();
+          ch.port1.onmessage = (e) => resolve((e.data as { type: string }).type);
+          navigator.serviceWorker.controller!.postMessage({ type: 'PURGE_APP' }, [ch.port2]);
+        }),
+    );
+    expect(reply).toBe('PURGED');
+    expect(await cacheNames(tab)).toEqual([`sr-static-${buildA}`]);
   });
 });

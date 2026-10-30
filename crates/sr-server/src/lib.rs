@@ -54,6 +54,7 @@ pub mod userfeat;
 pub mod userset_jobs;
 pub mod voice;
 pub mod watchparty;
+pub mod web;
 
 /// The OpenAPI document served at `/api/v1/openapi.json` and printed by
 /// `sr-server openapi`.

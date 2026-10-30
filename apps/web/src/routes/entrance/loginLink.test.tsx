@@ -1,13 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 import { warmLoungeRoute } from '../../test/warmRoutes';
+import { nav } from '../../lib/enterApp';
 
 warmLoungeRoute();
 
+beforeEach(() => {
+  vi.spyOn(nav, 'assign').mockImplementation(() => {});
+  vi.spyOn(nav, 'replace').mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
 function at(path: string) {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+  const router = createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }));
   render(<RouterProvider router={router} />);
   return router;
 }
@@ -27,9 +34,9 @@ describe('owner login link page (/login/link?token=)', () => {
         return HttpResponse.json({ status: 'ok' });
       }),
     );
-    const router = at('/login/link?token=abc123');
+    at('/login/link?token=abc123');
     // The Lounge may land on the remembered location under /channels (Q166).
-    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/channels/));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
     expect(posted).toEqual([{ token: 'abc123' }]);
   });
 
@@ -40,11 +47,11 @@ describe('owner login link page (/login/link?token=)', () => {
         return HttpResponse.json({ status: 'ok' });
       }),
     );
-    const router = at('/login/link?token=abc123');
+    at('/login/link?token=abc123');
     expect(await screen.findByRole('status')).toHaveTextContent('One moment…');
     // Let the exchange finish before the test ends: otherwise its navigation lands after the environment is
     // torn down ("window is not defined", an unhandled rejection that fails the CI run).
-    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/channels/), {
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'), {
       timeout: 10_000,
     });
   });
