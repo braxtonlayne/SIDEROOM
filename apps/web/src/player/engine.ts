@@ -98,6 +98,7 @@ export interface EngineOptions {
 }
 
 let active: PlayerEngine | null = null;
+const graphOf = new WeakMap<HTMLAudioElement, AudioGraph>();
 /** The live graph (for the VU bar), or null before the first track or without Web Audio. */
 export const activeGraph = (): AudioGraph | null => active?.graph() ?? null;
 
@@ -151,9 +152,13 @@ export function createPlayerEngine(
     if (graph || graphTried) return graph;
     graphTried = true;
     try {
-      const ctx = makeContext();
+      // An element can feed one MediaElementSource for its whole life: a second engine on the same elements (a
+      // strict-mode re-run of the host's effect) takes over the graph the first one built.
+      const reused = graphOf.get(audio);
+      const ctx = reused ? reused.ctx : makeContext();
       if (ctx) {
-        graph = buildGraph(ctx, elements);
+        graph = reused ?? buildGraph(ctx, elements);
+        graphOf.set(audio, graph);
         const s = store.getState();
         applyEq(graph, s.eq, s.eqEnabled);
         applyVolume(graph, s.volume, s.muted);
@@ -381,10 +386,15 @@ export function createPlayerEngine(
       return;
     }
     const el = playing();
-    if (s.status === 'playing' && el.paused && loadedKey === key) {
+    // Resume only when the store turns to playing (the member pressed Play). A clock report while playing must not
+    // restart a deck: the outgoing deck of a hand-over is paused at its end while the store still says playing.
+    if (s.status === 'playing' && prev.status !== 'playing' && el.paused && loadedKey === key) {
       if (graph) void graph.ctx.resume().catch(() => undefined);
       const p = decks ? decks.resume() : el.play();
-      void Promise.resolve(p).catch(() => engineReport.status('paused'));
+      void Promise.resolve(p).catch((e: unknown) => {
+        // AbortError: a newer load or pause took over; that is not the member's pause.
+        if ((e as { name?: string } | null)?.name !== 'AbortError') engineReport.status('paused');
+      });
     } else if (s.status === 'paused' && !el.paused) {
       if (decks) decks.pause();
       else el.pause();

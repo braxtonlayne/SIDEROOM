@@ -200,6 +200,26 @@ describe('gapless engine', () => {
     expect(state().position).toBe(4);
   });
 
+  it('a clock report from the outgoing deck at its end does not restart it (found in Chromium)', async () => {
+    setCrossfade(1);
+    play([track(1), track(2), track(3)]);
+    await flush();
+    nearEnd(a, 30, 1);
+    const plays = a.playCalls;
+    // The browser pauses an element that reaches its end and reports the time once more.
+    a.paused = true;
+    a.currentTime = 30;
+    a.fire('timeupdate');
+    await flush();
+    expect(a.playCalls).toBe(plays);
+    expect(state().status).toBe('playing');
+    a.fire('ended'); // completes the hand-over
+    await flush();
+    expect(state().index).toBe(1);
+    expect(state().status).toBe('playing');
+    expect(b.paused).toBe(false);
+  });
+
   it('crossfades with the equal-power curves over the chosen seconds', async () => {
     setCrossfade(4);
     play([track(1), track(2)]);
@@ -280,6 +300,24 @@ describe('gapless engine', () => {
     usePlayerStore.setState({ eqEnabled: false });
     expect(low.value).toBe(0);
     expect(pre.value).toBeCloseTo(1);
+  });
+
+  it('a second engine on the same elements (a strict-mode re-run) takes over the graph', async () => {
+    play([track(1), track(2)]);
+    await flush();
+    const first = engine.graph();
+    engine.destroy();
+    engine = createPlayerEngine(a as unknown as HTMLAudioElement, {
+      nextAudio: b as unknown as HTMLAudioElement,
+      contextFactory: () => {
+        throw new Error('no second context');
+      },
+    });
+    play([track(3), track(4)]);
+    await flush();
+    expect(engine.graph()).toBe(first);
+    expect(engine.gapless()).toBe(true);
+    expect(ctx.sources).toHaveLength(2); // no second MediaElementSource for either element
   });
 
   it('the last track ends the queue', async () => {

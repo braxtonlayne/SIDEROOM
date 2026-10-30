@@ -177,7 +177,9 @@ await panel('Playlists', 'library-panel-playlist-open.png', async () => {
   await page.getByRole('button', { name: /Late drive/ }).click();
   await page.getByText('Tail Lights').first().waitFor();
 });
-await panel('Equalizer', 'library-panel-equalizer.png');
+await panel('Equalizer', 'library-panel-equalizer.png', async () => {
+  await page.locator('.sr-mlib select').first().selectOption('rock');
+});
 await page.screenshot({ path: join(out, 'library-panel-fullviewport-1280x800.png') });
 console.log('saved', join(out, 'library-panel-fullviewport-1280x800.png'));
 

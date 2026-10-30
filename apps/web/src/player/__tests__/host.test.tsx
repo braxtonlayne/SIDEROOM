@@ -5,6 +5,7 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  useRouterState,
 } from '@tanstack/react-router';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -36,13 +37,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** router.tsx renders the gate on app routes only (D-385); `mountAt(path, true)` does the same. */
+function RouterLikeGate() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return isPublicPath(pathname) ? null : <PlayerGate />;
+}
+
 /** The gate at the root of a small router, like router.tsx's root layout. */
-async function mountAt(path: string) {
+async function mountAt(path: string, likeRouter = false) {
   const root = createRootRoute({
     component: () => (
       <>
         <Outlet />
-        <PlayerGate />
+        {likeRouter ? <RouterLikeGate /> : <PlayerGate />}
       </>
     ),
   });
@@ -171,6 +178,22 @@ describe('PlayerGate', () => {
     // Coming back in starts fresh.
     await go(router, '/channels');
     expect(screen.queryByRole('region', { name: 'Music player' })).toBeNull();
+  });
+
+  it('rendered only on app routes like router.tsx, it still ends the music on a public page', async () => {
+    const router = await mountAt('/channels', true);
+    act(() => play([TRACK]));
+    await screen.findByRole('region', { name: 'Music player' });
+    await go(router, '/cinema');
+    expect(usePlayerStore.getState().queue).toHaveLength(1);
+    await go(router, '/login');
+    expect(document.querySelectorAll('audio')).toHaveLength(0);
+    expect(usePlayerStore.getState().queue).toHaveLength(0);
+    // Back in the app the gate mounts again, and a new play is not dropped by the remount.
+    await go(router, '/channels');
+    act(() => play([TRACK]));
+    expect(await screen.findByRole('region', { name: 'Music player' })).toBeTruthy();
+    expect(usePlayerStore.getState().queue).toHaveLength(1);
   });
 
   it('stopAndForget clears the queue and the parked copy', () => {
