@@ -38,7 +38,12 @@ export type RollErrorCode =
   | 'overflow'
   | 'unavailable';
 
-export type RollOutcome = { ok: true; result: RollResult } | { ok: false; code: RollErrorCode; at?: number };
+/** The catalog key of a roll error message (catalog keys have no hyphens). */
+export const rollErrorKey = (code: RollErrorCode): string =>
+  `tools.dice.error.${code.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())}`;
+
+export type RollOutcome =
+  { ok: true; result: RollResult } | { ok: false; code: RollErrorCode; at?: number };
 
 const CODES: readonly string[] = [
   'empty',
@@ -85,7 +90,8 @@ export async function pickWeighted(weights: number[]): Promise<number> {
   return w.dicePickWeighted(Uint32Array.from(weights), hi, lo);
 }
 
-const render = (d: Die) => (d.dropped ? `~~${d.value}~~` : d.exploded ? `${d.value}!` : String(d.value));
+const render = (d: Die) =>
+  d.dropped ? `~~${d.value}~~` : d.exploded ? `${d.value}!` : String(d.value);
 
 /**
  * The message `/roll` posts, for example `**2d20kh1+5** = **17** (2d20kh1: [12, ~~5~~])`: the total, then each
@@ -101,7 +107,11 @@ export function formatRollMessage(r: RollResult): string {
 }
 
 /** What `/roll` does with its argument: roll it and give back the message, or an error code. */
-export async function rollMessage(expression: string): Promise<{ ok: true; content: string } | { ok: false; code: RollErrorCode }> {
+export async function rollMessage(
+  expression: string,
+): Promise<{ ok: true; content: string } | { ok: false; code: RollErrorCode }> {
   const out = await rollDice(expression.trim() === '' ? 'd20' : expression);
-  return out.ok ? { ok: true, content: formatRollMessage(out.result) } : { ok: false, code: out.code };
+  return out.ok
+    ? { ok: true, content: formatRollMessage(out.result) }
+    : { ok: false, code: out.code };
 }

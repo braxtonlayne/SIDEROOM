@@ -61,7 +61,12 @@ export interface ToolEntry {
   load: () => Promise<{ default: ComponentType<ToolProps> }>;
 }
 
-export const DEFAULT_TOOL_SIZE: ToolSize = { width: 360, height: 420, minWidth: 240, minHeight: 160 };
+export const DEFAULT_TOOL_SIZE: ToolSize = {
+  width: 360,
+  height: 420,
+  minWidth: 240,
+  minHeight: 160,
+};
 
 /** The drawer's own guide: how the drawer works. Keeps the shell usable and testable before any other tool lands. */
 const guide: ToolEntry = {
@@ -75,6 +80,10 @@ const guide: ToolEntry = {
   load: () => import('./drawer/GuideTool'),
 };
 
+/** The catalog segment of a tool id: catalog keys have no hyphens (`md-table` is `mdTable`). */
+export const catalogId = (id: string): string =>
+  id.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+
 // ---- UTL-DEV-001 (utl-dev): developer tools, dice, notes, timers. Sizes are the popped-out window. ----
 const devSize: ToolSize = { width: 420, height: 480, minWidth: 280, minHeight: 240 };
 const small: ToolSize = { width: 340, height: 380, minWidth: 240, minHeight: 200 };
@@ -87,8 +96,8 @@ const devTool = (
   load: ToolEntry['load'],
 ): ToolEntry => ({
   id,
-  nameKey: `tools.${id}.name`,
-  descriptionKey: `tools.${id}.description`,
+  nameKey: `tools.${catalogId(id)}.name`,
+  descriptionKey: `tools.${catalogId(id)}.description`,
   icon,
   group,
   aliases,
@@ -97,23 +106,142 @@ const devTool = (
 });
 
 const utlDev: ToolEntry[] = [
-  devTool('json', 'list', 'dev', ['json', 'format', 'validate', 'minify', 'prettify'], devSize, () => import('./dev/JsonTool')),
-  devTool('regex', 'search', 'dev', ['regex', 'regexp', 'pattern', 'match'], devSize, () => import('./dev/RegexTool')),
-  devTool('base64', 'lock', 'dev', ['base64', 'b64', 'encode', 'decode'], devSize, () => import('./dev/Base64Tool')),
-  devTool('url', 'link', 'dev', ['url', 'uri', 'percent', 'query', 'encode'], devSize, () => import('./dev/UrlTool')),
-  devTool('jwt', 'shield', 'dev', ['jwt', 'token', 'bearer', 'jws'], devSize, () => import('./dev/JwtTool')),
-  devTool('md-table', 'grid', 'text', ['markdown', 'table', 'csv', 'tsv'], devSize, () => import('./dev/MdTableTool')),
-  devTool('counter', 'edit', 'text', ['count', 'words', 'characters', 'length'], small, () => import('./dev/CounterTool')),
-  devTool('hash', 'hash', 'dev', ['hash', 'md5', 'sha', 'sha256', 'crc32', 'checksum'], devSize, () => import('./dev/HashTool')),
-  devTool('diff', 'filter', 'dev', ['diff', 'compare', 'difference', 'changes'], { ...devSize, width: 520 }, () => import('./dev/DiffTool')),
-  devTool('dice', 'sparkle', 'fun', ['dice', 'roll', 'd20', 'rpg', 'random'], small, () => import('./dice/DiceTool')),
-  devTool('coin', 'star', 'fun', ['coin', 'flip', 'heads', 'tails'], small, () => import('./dice/CoinTool')),
-  devTool('wheel', 'compass', 'fun', ['wheel', 'spin', 'picker', 'raffle', 'choose'], small, () => import('./dice/WheelTool')),
-  devTool('loot', 'heart', 'fun', ['loot', 'table', 'drop', 'weighted'], devSize, () => import('./dice/LootTool')),
-  devTool('notes', 'bookmark', 'collab', ['notes', 'scratchpad', 'sticky', 'memo', 'jot'], devSize, () => import('./notes/NotesTool')),
-  devTool('pomodoro', 'clock', 'time', ['pomodoro', 'focus', 'timer', 'study'], small, () => import('./timers/PomodoroTool')),
-  devTool('stopwatch', 'clock', 'time', ['stopwatch', 'lap', 'timer'], small, () => import('./timers/StopwatchTool')),
-  devTool('countdown', 'clock', 'time', ['countdown', 'timer', 'alarm'], small, () => import('./timers/CountdownTool')),
+  devTool(
+    'json',
+    'list',
+    'dev',
+    ['json', 'format', 'validate', 'minify', 'prettify'],
+    devSize,
+    () => import('./dev/JsonTool'),
+  ),
+  devTool(
+    'regex',
+    'search',
+    'dev',
+    ['regex', 'regexp', 'pattern', 'match'],
+    devSize,
+    () => import('./dev/RegexTool'),
+  ),
+  devTool(
+    'base64',
+    'lock',
+    'dev',
+    ['base64', 'b64', 'encode', 'decode'],
+    devSize,
+    () => import('./dev/Base64Tool'),
+  ),
+  devTool(
+    'url',
+    'link',
+    'dev',
+    ['url', 'uri', 'percent', 'query', 'encode'],
+    devSize,
+    () => import('./dev/UrlTool'),
+  ),
+  devTool(
+    'jwt',
+    'shield',
+    'dev',
+    ['jwt', 'token', 'bearer', 'jws'],
+    devSize,
+    () => import('./dev/JwtTool'),
+  ),
+  devTool(
+    'md-table',
+    'grid',
+    'text',
+    ['markdown', 'table', 'csv', 'tsv'],
+    devSize,
+    () => import('./dev/MdTableTool'),
+  ),
+  devTool(
+    'counter',
+    'edit',
+    'text',
+    ['count', 'words', 'characters', 'length'],
+    small,
+    () => import('./dev/CounterTool'),
+  ),
+  devTool(
+    'hash',
+    'hash',
+    'dev',
+    ['hash', 'md5', 'sha', 'sha256', 'crc32', 'checksum'],
+    devSize,
+    () => import('./dev/HashTool'),
+  ),
+  devTool(
+    'diff',
+    'filter',
+    'dev',
+    ['diff', 'compare', 'difference', 'changes'],
+    { ...devSize, width: 520 },
+    () => import('./dev/DiffTool'),
+  ),
+  devTool(
+    'dice',
+    'sparkle',
+    'fun',
+    ['dice', 'roll', 'd20', 'rpg', 'random'],
+    small,
+    () => import('./dice/DiceTool'),
+  ),
+  devTool(
+    'coin',
+    'star',
+    'fun',
+    ['coin', 'flip', 'heads', 'tails'],
+    small,
+    () => import('./dice/CoinTool'),
+  ),
+  devTool(
+    'wheel',
+    'compass',
+    'fun',
+    ['wheel', 'spin', 'picker', 'raffle', 'choose'],
+    small,
+    () => import('./dice/WheelTool'),
+  ),
+  devTool(
+    'loot',
+    'heart',
+    'fun',
+    ['loot', 'table', 'drop', 'weighted'],
+    devSize,
+    () => import('./dice/LootTool'),
+  ),
+  devTool(
+    'notes',
+    'bookmark',
+    'collab',
+    ['notes', 'scratchpad', 'sticky', 'memo', 'jot'],
+    devSize,
+    () => import('./notes/NotesTool'),
+  ),
+  devTool(
+    'pomodoro',
+    'clock',
+    'time',
+    ['pomodoro', 'focus', 'timer', 'study'],
+    small,
+    () => import('./timers/PomodoroTool'),
+  ),
+  devTool(
+    'stopwatch',
+    'clock',
+    'time',
+    ['stopwatch', 'lap', 'timer'],
+    small,
+    () => import('./timers/StopwatchTool'),
+  ),
+  devTool(
+    'countdown',
+    'clock',
+    'time',
+    ['countdown', 'timer', 'alarm'],
+    small,
+    () => import('./timers/CountdownTool'),
+  ),
 ];
 
 /** Append new entries after the last one. */
@@ -129,8 +257,9 @@ export function registryProblems(list: readonly ToolEntry[] = TOOLS): string[] {
     if (!ID.test(e.id)) out.push(`bad id: ${e.id}`);
     if (seen.has(e.id)) out.push(`duplicate id: ${e.id}`);
     seen.add(e.id);
-    if (e.nameKey !== `tools.${e.id}.name`) out.push(`${e.id}: nameKey`);
-    if (e.descriptionKey !== `tools.${e.id}.description`) out.push(`${e.id}: descriptionKey`);
+    if (e.nameKey !== `tools.${catalogId(e.id)}.name`) out.push(`${e.id}: nameKey`);
+    if (e.descriptionKey !== `tools.${catalogId(e.id)}.description`)
+      out.push(`${e.id}: descriptionKey`);
     if (e.size.minWidth > e.size.width || e.size.minHeight > e.size.height)
       out.push(`${e.id}: size below its minimum`);
   }

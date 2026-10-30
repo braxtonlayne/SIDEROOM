@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
 import { Field, Root } from '../dev/parts';
-import type { ToolProps } from '../registry';
 import { pickWeighted } from './engine';
 
 /** True when the member (or the OS) asked for less motion: the wheel then lands without spinning. */
 export function prefersReducedMotion(): boolean {
   try {
     if (document.documentElement.dataset.reducedMotion === 'true') return true;
-    return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return (
+      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
   } catch {
     return false;
   }
@@ -17,7 +18,7 @@ export function prefersReducedMotion(): boolean {
 const MAX_NAMES = 100;
 
 /** One name per line in; a wheel picks one. The pick is made first, then the wheel turns to show it. */
-export default function WheelTool(_props: ToolProps) {
+export default function WheelTool() {
   const t = useT();
   const [text, setText] = useState('');
   const [winner, setWinner] = useState<string | null>(null);
@@ -43,7 +44,9 @@ export default function WheelTool(_props: ToolProps) {
     // Land the middle of slice i under the pointer at the top: full turns plus the offset.
     const slice = 360 / names.length;
     const target = 360 - (i + 0.5) * slice;
-    setTurn((cur) => (prefersReducedMotion() ? target : cur + 360 * 4 + ((target - (cur % 360) + 360) % 360)));
+    setTurn((cur) =>
+      prefersReducedMotion() ? target : cur + 360 * 4 + ((target - (cur % 360) + 360) % 360),
+    );
   };
 
   const gradient = useMemo(() => {

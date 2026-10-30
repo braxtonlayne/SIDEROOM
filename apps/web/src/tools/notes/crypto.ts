@@ -42,7 +42,8 @@ const b64 = (bytes: Uint8Array): string => {
   return btoa(s);
 };
 const unb64 = (s: string): Uint8Array => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-const buf = (u: Uint8Array): ArrayBuffer => u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;
+const buf = (u: Uint8Array): ArrayBuffer =>
+  u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;
 
 function subtle(): SubtleCrypto {
   const s = globalThis.crypto?.subtle;
@@ -50,11 +51,19 @@ function subtle(): SubtleCrypto {
   return s;
 }
 
-async function passphraseKey(passphrase: string, salt: Uint8Array, rounds: number): Promise<CryptoKey> {
+async function passphraseKey(
+  passphrase: string,
+  salt: Uint8Array,
+  rounds: number,
+): Promise<CryptoKey> {
   const s = subtle();
-  const base = await s.importKey('raw', buf(new TextEncoder().encode(passphrase.normalize('NFKC'))), 'PBKDF2', false, [
-    'deriveKey',
-  ]);
+  const base = await s.importKey(
+    'raw',
+    buf(new TextEncoder().encode(passphrase.normalize('NFKC'))),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  );
   return s.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt: buf(salt), iterations: rounds },
     base,
@@ -79,8 +88,13 @@ export async function createNotesKey(passphrase: string, rounds = PBKDF2_ROUNDS)
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const wrapKey = await passphraseKey(passphrase, salt, rounds);
-    const wrapped = new Uint8Array(await s.encrypt({ name: 'AES-GCM', iv: buf(iv) }, wrapKey, buf(raw)));
-    const key = await s.importKey('raw', buf(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    const wrapped = new Uint8Array(
+      await s.encrypt({ name: 'AES-GCM', iv: buf(iv) }, wrapKey, buf(raw)),
+    );
+    const key = await s.importKey('raw', buf(raw), { name: 'AES-GCM' }, false, [
+      'encrypt',
+      'decrypt',
+    ]);
     return {
       key,
       bundle: {
@@ -117,7 +131,9 @@ export async function openRecoveryBundle(bundle: unknown, passphrase: string): P
   let raw: Uint8Array;
   try {
     const wrapKey = await passphraseKey(passphrase, unb64(b.salt), b.rounds);
-    raw = new Uint8Array(await s.decrypt({ name: 'AES-GCM', iv: buf(unb64(b.iv)) }, wrapKey, buf(unb64(b.wrapped))));
+    raw = new Uint8Array(
+      await s.decrypt({ name: 'AES-GCM', iv: buf(unb64(b.iv)) }, wrapKey, buf(unb64(b.wrapped))),
+    );
   } catch {
     // AES-GCM fails its tag check for a wrong passphrase and for a damaged bundle alike.
     throw new NotesCryptoError('bad-passphrase');
@@ -131,7 +147,11 @@ export async function openRecoveryBundle(bundle: unknown, passphrase: string): P
 }
 
 /** `0x01 || iv || ciphertext`, bound to `noteId`. */
-export async function encryptNote(key: CryptoKey, plaintext: string, noteId: string): Promise<Uint8Array> {
+export async function encryptNote(
+  key: CryptoKey,
+  plaintext: string,
+  noteId: string,
+): Promise<Uint8Array> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ct = new Uint8Array(
     await subtle().encrypt(
@@ -147,8 +167,13 @@ export async function encryptNote(key: CryptoKey, plaintext: string, noteId: str
   return out;
 }
 
-export async function decryptNote(key: CryptoKey, bytes: Uint8Array, noteId: string): Promise<string> {
-  if (bytes.length < 1 + 12 + 16 || bytes[0] !== FORMAT) throw new NotesCryptoError('bad-ciphertext');
+export async function decryptNote(
+  key: CryptoKey,
+  bytes: Uint8Array,
+  noteId: string,
+): Promise<string> {
+  if (bytes.length < 1 + 12 + 16 || bytes[0] !== FORMAT)
+    throw new NotesCryptoError('bad-ciphertext');
   try {
     const pt = await subtle().decrypt(
       {
@@ -210,7 +235,10 @@ function run<T>(mode: IDBTransactionMode, f: (s: IDBObjectStore) => IDBRequest<T
 /** The real thing: a structured-clonable `CryptoKey` in IndexedDB, one record pair per account (two accounts in one browser never share a key). */
 export const indexedDbKeys = (userId: string): KeyStorage => ({
   async load() {
-    const key = await run('readonly', (s) => s.get(`key:${userId}`) as IDBRequest<CryptoKey | undefined>);
+    const key = await run(
+      'readonly',
+      (s) => s.get(`key:${userId}`) as IDBRequest<CryptoKey | undefined>,
+    );
     const bundle = await run(
       'readonly',
       (s) => s.get(`bundle:${userId}`) as IDBRequest<RecoveryBundle | undefined>,

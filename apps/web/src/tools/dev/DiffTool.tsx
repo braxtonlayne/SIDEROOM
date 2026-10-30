@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { canonicalJson } from './logic';
 import { Field, Problem, Root } from './parts';
 import { devWasm } from './wasmTools';
@@ -17,7 +16,7 @@ interface Diffed {
 }
 
 /** Text and JSON diff. The comparison is our LCS in `sr-tools-wasm`; JSON is compared by content (sorted keys). */
-export default function DiffTool(_props: ToolProps) {
+export default function DiffTool() {
   const t = useT();
   const [a, setA] = useState('');
   const [b, setB] = useState('');
@@ -55,7 +54,11 @@ export default function DiffTool(_props: ToolProps) {
       } catch (e) {
         if (live) {
           setRes(null);
-          setProblem(e instanceof Error && /too-large/.test(e.message) ? t('tools.diff.tooLarge') : t('tools.diff.failed'));
+          setProblem(
+            e instanceof Error && /too-large/.test(e.message)
+              ? t('tools.diff.tooLarge')
+              : t('tools.diff.failed'),
+          );
         }
       }
     })();
@@ -76,10 +79,20 @@ export default function DiffTool(_props: ToolProps) {
       </Field>
       <div className="ud-row">
         <Field label={t('tools.diff.before')}>
-          <textarea className="ud-mono" value={a} spellCheck={false} onChange={(e) => setA(e.target.value)} />
+          <textarea
+            className="ud-mono"
+            value={a}
+            spellCheck={false}
+            onChange={(e) => setA(e.target.value)}
+          />
         </Field>
         <Field label={t('tools.diff.after')}>
-          <textarea className="ud-mono" value={b} spellCheck={false} onChange={(e) => setB(e.target.value)} />
+          <textarea
+            className="ud-mono"
+            value={b}
+            spellCheck={false}
+            onChange={(e) => setB(e.target.value)}
+          />
         </Field>
       </div>
       {problem ? <Problem>{problem}</Problem> : null}
@@ -88,7 +101,7 @@ export default function DiffTool(_props: ToolProps) {
           <p className="ud-muted" role="status">
             {t('tools.diff.summary', { added: res.added, removed: res.removed })}
           </p>
-          <pre className="ud-out ud-mono" aria-label={t('tools.diff.output')}>
+          <pre className="ud-out ud-mono" role="group" aria-label={t('tools.diff.output')}>
             {res.ops.map((o, i) =>
               o.op === 'eq' ? (
                 <span key={i}>{o.text}</span>

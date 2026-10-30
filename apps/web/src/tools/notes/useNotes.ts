@@ -14,7 +14,13 @@ export interface UseNotes {
   store: NotesStore | null;
 }
 
-const IDLE: NotesState = { status: 'loading', notes: [], remoteCount: 0, bundle: null, problem: null };
+const IDLE: NotesState = {
+  status: 'loading',
+  notes: [],
+  remoteCount: 0,
+  bundle: null,
+  problem: null,
+};
 const started = new WeakSet<NotesStore>();
 const noop = () => () => undefined;
 

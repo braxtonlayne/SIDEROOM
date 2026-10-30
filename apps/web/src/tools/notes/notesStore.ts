@@ -63,7 +63,7 @@ export interface NotesState {
   /** The recovery bundle for this browser's key, for "download recovery file". */
   bundle: RecoveryBundle | null;
   /** The last problem, as a code the UI turns into words. */
-  problem: 'offline' | 'full' | 'too-big' | 'bad-passphrase' | 'bad-file' | 'unsupported' | null;
+  problem: 'offline' | 'full' | 'tooBig' | 'badPassphrase' | 'badFile' | 'unsupported' | null;
 }
 
 /** The longest plaintext that surely fits the 64 KiB ciphertext cap (UTF-8, plus 29 bytes of overhead). */
@@ -94,9 +94,16 @@ export interface NotesDeps {
   uuid?: () => string;
 }
 
-const EMPTY: NotesState = { status: 'loading', notes: [], remoteCount: 0, bundle: null, problem: null };
+const EMPTY: NotesState = {
+  status: 'loading',
+  notes: [],
+  remoteCount: 0,
+  bundle: null,
+  problem: null,
+};
 
-const newest = (a: Note, b: Note) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id);
+const newest = (a: Note, b: Note) =>
+  b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id);
 
 export function createNotesStore(deps: NotesDeps): NotesStore {
   const api = deps.api ?? notesApi;
@@ -117,22 +124,34 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
   const open = async (r: RemoteNote): Promise<Note> => {
     try {
       const text = await decryptNote(key!, fromBase64(r.ciphertext), r.note_id);
-      return { id: r.note_id, text, revision: r.revision, updatedAt: r.updated_at, unreadable: false };
+      return {
+        id: r.note_id,
+        text,
+        revision: r.revision,
+        updatedAt: r.updated_at,
+        unreadable: false,
+      };
     } catch {
-      return { id: r.note_id, text: '', revision: r.revision, updatedAt: r.updated_at, unreadable: true };
+      return {
+        id: r.note_id,
+        text: '',
+        revision: r.revision,
+        updatedAt: r.updated_at,
+        unreadable: true,
+      };
     }
   };
 
   const fail = (e: unknown): NotesState['problem'] => {
     if (e instanceof NotesCryptoError) {
       return e.problem === 'bad-passphrase'
-        ? 'bad-passphrase'
+        ? 'badPassphrase'
         : e.problem === 'unsupported'
           ? 'unsupported'
-          : 'bad-file';
+          : 'badFile';
     }
     if (e instanceof ApiError && e.status === 409) return 'full';
-    if (e instanceof ApiError && e.status === 400) return 'too-big';
+    if (e instanceof ApiError && e.status === 400) return 'tooBig';
     return 'offline';
   };
 
@@ -205,7 +224,13 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
     async create(text = '') {
       if (!key) return null;
       const id = uuid();
-      const note: Note = { id, text, revision: 0, updatedAt: new Date().toISOString(), unreadable: false };
+      const note: Note = {
+        id,
+        text,
+        revision: 0,
+        updatedAt: new Date().toISOString(),
+        unreadable: false,
+      };
       upsert(note);
       await store.save(id, text);
       return id;
@@ -215,7 +240,7 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
       const run = async () => {
         if (!key) return;
         if (new TextEncoder().encode(text).length > MAX_NOTE_TEXT_BYTES) {
-          set({ problem: 'too-big' });
+          set({ problem: 'tooBig' });
           return;
         }
         const cur = state.notes.find((n) => n.id === id);

@@ -33,10 +33,22 @@ export const resetVoiceTimers = () => useVoiceTimers.setState({ byChannel: {} })
 
 /** Apply a gateway dispatch. Safe to call for every event. */
 export function applyVoiceTimerEvent(event: string, data: unknown, localNow = Date.now()): void {
-  if (event !== 'VOICE_TIMER_UPDATE') return;
   const d = (data ?? {}) as Record<string, unknown>;
   const id = typeof d.id === 'string' ? d.id : null;
   if (!id) return;
+  // A timer ends with the channel's status line (the last person left, or someone cleared it).
+  if (event === 'VOICE_CHANNEL_STATUS_UPDATE') {
+    if (!d.status) {
+      useVoiceTimers.setState((s) => {
+        if (!(id in s.byChannel)) return s;
+        const next = { ...s.byChannel };
+        delete next[id];
+        return { byChannel: next };
+      });
+    }
+    return;
+  }
+  if (event !== 'VOICE_TIMER_UPDATE') return;
   const timer = parseWire(d.timer);
   useVoiceTimers.setState((s) => {
     const next = { ...s.byChannel };

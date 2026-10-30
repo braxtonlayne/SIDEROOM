@@ -14,12 +14,26 @@ export default function VoiceSyncControl({ state }: { state: TimerState }) {
   const t = useT();
   const channelId = useVoiceSession((s) => s.channelId);
   const guildId = useVoiceSession((s) => s.guildId);
-  const perms = useVoicePerms(guildId ?? undefined, channelId ?? undefined);
+  if (!channelId) return <p className="ud-muted">{t('tools.timers.voiceJoin')}</p>;
+  return <Connected state={state} channelId={channelId} guildId={guildId} />;
+}
+
+/** Rendered only while connected, so the channel and permission lookups happen only then. */
+function Connected({
+  state,
+  channelId,
+  guildId,
+}: {
+  state: TimerState;
+  channelId: string;
+  guildId: string | null;
+}) {
+  const t = useT();
+  const perms = useVoicePerms(guildId ?? undefined, channelId);
   const [synced, setSynced] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!channelId) return <p className="ud-muted">{t('tools.timers.voiceJoin')}</p>;
   const allowed = perms.setVoiceStatus || perms.manageChannels;
   const on = synced === channelId;
   const idle = state.phase === 'idle' || state.phase === 'done';
@@ -37,7 +51,11 @@ export default function VoiceSyncControl({ state }: { state: TimerState }) {
     setError(null);
     try {
       const wire = publish ? toWire(state) : null;
-      await publishVoiceTimer(channelId, wire, publish ? statusLine(state, Date.now(), labels) : '');
+      await publishVoiceTimer(
+        channelId,
+        wire,
+        publish ? statusLine(state, Date.now(), labels) : '',
+      );
       setSynced(publish ? channelId : null);
     } catch (e) {
       setError(

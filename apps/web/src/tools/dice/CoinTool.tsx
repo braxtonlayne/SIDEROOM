@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import { Root } from '../dev/parts';
-import type { ToolProps } from '../registry';
 import { flipCoin } from './engine';
 
 /** A coin: heads or tails, with a running tally. */
-export default function CoinTool(_props: ToolProps) {
+export default function CoinTool() {
   const t = useT();
   const [last, setLast] = useState<boolean | null>(null);
   const [tally, setTally] = useState({ heads: 0, tails: 0 });

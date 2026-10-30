@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { type UrlMode, urlDecode, urlEncode, urlParams } from './logic';
 import { CopyButton, Field, Problem, Root } from './parts';
 
 /** URL encode and decode (component or whole address), and a list of a URL's query parameters. */
-export default function UrlTool(_props: ToolProps) {
+export default function UrlTool() {
   const t = useT();
   const [direction, setDirection] = useState<'encode' | 'decode'>('encode');
   const [kind, setKind] = useState<UrlMode>('component');
@@ -22,10 +21,20 @@ export default function UrlTool(_props: ToolProps) {
   return (
     <Root label={t('tools.url.name')}>
       <div className="ud-row" role="group" aria-label={t('tools.url.direction')}>
-        <button type="button" className="ud-btn" aria-pressed={direction === 'encode'} onClick={() => setDirection('encode')}>
+        <button
+          type="button"
+          className="ud-btn"
+          aria-pressed={direction === 'encode'}
+          onClick={() => setDirection('encode')}
+        >
           {t('tools.url.encode')}
         </button>
-        <button type="button" className="ud-btn" aria-pressed={direction === 'decode'} onClick={() => setDirection('decode')}>
+        <button
+          type="button"
+          className="ud-btn"
+          aria-pressed={direction === 'decode'}
+          onClick={() => setDirection('decode')}
+        >
           {t('tools.url.decode')}
         </button>
         <Field label={t('tools.url.scope')}>
@@ -36,10 +45,15 @@ export default function UrlTool(_props: ToolProps) {
         </Field>
       </div>
       <Field label={t('tools.url.input')}>
-        <textarea className="ud-mono" value={text} spellCheck={false} onChange={(e) => setText(e.target.value)} />
+        <textarea
+          className="ud-mono"
+          value={text}
+          spellCheck={false}
+          onChange={(e) => setText(e.target.value)}
+        />
       </Field>
       {out.bad ? <Problem>{t('tools.url.invalid')}</Problem> : null}
-      <pre className="ud-out ud-mono" aria-label={t('tools.url.output')}>
+      <pre className="ud-out ud-mono" role="group" aria-label={t('tools.url.output')}>
         {out.value}
       </pre>
       <div className="ud-row">

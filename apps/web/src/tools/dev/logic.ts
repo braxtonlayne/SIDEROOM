@@ -28,7 +28,9 @@ function locate(text: string, message: string): JsonProblem {
   return { message, line: null, column: null };
 }
 
-export function parseJson(text: string): { ok: true; value: unknown } | { ok: false; problem: JsonProblem } {
+export function parseJson(
+  text: string,
+): { ok: true; value: unknown } | { ok: false; problem: JsonProblem } {
   try {
     return { ok: true, value: JSON.parse(text) as unknown };
   } catch (e) {
@@ -48,7 +50,11 @@ function sortKeys(v: unknown): unknown {
   return v;
 }
 
-export function formatJson(text: string, indent: 0 | 2 | 4 | 'tab' = 2, sorted = false): JsonResult {
+export function formatJson(
+  text: string,
+  indent: 0 | 2 | 4 | 'tab' = 2,
+  sorted = false,
+): JsonResult {
   const r = parseJson(text);
   if (!r.ok) return r;
   const value = sorted ? sortKeys(r.value) : r.value;
@@ -89,7 +95,8 @@ export function base64ToBytes(text: string): Uint8Array | null {
   }
 }
 
-export const base64Encode = (text: string, urlSafe = false) => bytesToBase64(enc.encode(text), urlSafe);
+export const base64Encode = (text: string, urlSafe = false) =>
+  bytesToBase64(enc.encode(text), urlSafe);
 
 /** Decode Base64 (standard or URL-safe) as UTF-8 text; `null` when it is not valid Base64 or not UTF-8. */
 export function base64Decode(text: string): string | null {
@@ -136,7 +143,10 @@ export interface JwtDecoded {
 }
 
 export function jwtDecode(token: string): JwtDecoded | null {
-  const parts = token.trim().replace(/^bearer\s+/i, '').split('.');
+  const parts = token
+    .trim()
+    .replace(/^bearer\s+/i, '')
+    .split('.');
   if (parts.length !== 3) return null;
   const json = (seg: string): unknown => {
     const s = base64Decode(seg);
@@ -146,7 +156,8 @@ export function jwtDecode(token: string): JwtDecoded | null {
   try {
     const header = json(parts[0] ?? '');
     const payload = json(parts[1] ?? '');
-    if (!header || typeof header !== 'object' || !payload || typeof payload !== 'object') return null;
+    if (!header || typeof header !== 'object' || !payload || typeof payload !== 'object')
+      return null;
     const times: JwtDecoded['times'] = [];
     for (const claim of ['exp', 'iat', 'nbf'] as const) {
       const v = (payload as Record<string, unknown>)[claim];
@@ -168,7 +179,11 @@ export type Align = 'left' | 'center' | 'right' | 'none';
 /** Split pasted CSV or TSV into rows (a quoted field may hold the delimiter and doubled quotes). */
 export function parseDelimited(text: string): string[][] {
   const first = text.split('\n', 1)[0] ?? '';
-  const delim = first.includes('\t') ? '\t' : first.includes(';') && !first.includes(',') ? ';' : ',';
+  const delim = first.includes('\t')
+    ? '\t'
+    : first.includes(';') && !first.includes(',')
+      ? ';'
+      : ',';
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -217,12 +232,19 @@ export function markdownTable(rows: string[][], aligns: Align[] = [], pretty = t
     if (a === 'center') return ' '.repeat(Math.floor(gap / 2)) + s + ' '.repeat(Math.ceil(gap / 2));
     return s + ' '.repeat(gap);
   };
-  const line = (cells: string[]) => `| ${cells.map((c, i) => pad(c, i, aligns[i] ?? 'none')).join(' | ')} |`;
+  const line = (cells: string[]) =>
+    `| ${cells.map((c, i) => pad(c, i, aligns[i] ?? 'none')).join(' | ')} |`;
   const sep = Array.from({ length: cols }, (_, i) => {
     const a = aligns[i] ?? 'none';
     const w = pretty ? widths[i]! : 3;
     const dashes = '-'.repeat(Math.max(1, w - (a === 'center' ? 2 : a === 'none' ? 0 : 1)));
-    return a === 'left' ? `:${dashes}` : a === 'right' ? `${dashes}:` : a === 'center' ? `:${dashes}:` : dashes.padEnd(w, '-');
+    return a === 'left'
+      ? `:${dashes}`
+      : a === 'right'
+        ? `${dashes}:`
+        : a === 'center'
+          ? `:${dashes}:`
+          : dashes.padEnd(w, '-');
   });
   return [line(grid[0]!), `| ${sep.join(' | ')} |`, ...grid.slice(1).map(line)].join('\n');
 }
@@ -244,7 +266,9 @@ export interface TextCounts {
 export function countText(text: string): TextCounts {
   const chars = [...text];
   const words = text.trim() === '' ? 0 : text.trim().split(/\s+/u).length;
-  const sentences = (text.match(/[^.!?\n]+[.!?]+(?=\s|$)|[^.!?\n]+$/gmu) ?? []).filter((s) => /\S/u.test(s)).length;
+  const sentences = (text.match(/[^.!?\n]+[.!?]+(?=\s|$)|[^.!?\n]+$/gmu) ?? []).filter((s) =>
+    /\S/u.test(s),
+  ).length;
   return {
     characters: chars.length,
     charactersNoSpaces: chars.filter((c) => !/\s/u.test(c)).length,
@@ -267,8 +291,7 @@ export interface RegexMatch {
 }
 
 export type RegexResult =
-  | { ok: true; matches: RegexMatch[]; truncated: boolean }
-  | { ok: false; message: string };
+  { ok: true; matches: RegexMatch[]; truncated: boolean } | { ok: false; message: string };
 
 export const MAX_REGEX_INPUT = 100_000;
 export const MAX_REGEX_MATCHES = 500;

@@ -98,7 +98,11 @@ export function pause(s: TimerState, now: number): TimerState {
 }
 
 export function reset(s: TimerState, cfg: PomodoroConfig = DEFAULT_POMODORO): TimerState {
-  return initialState(s.kind, cfg, s.kind === 'countdown' ? (s.durationMs ?? undefined) : undefined);
+  return initialState(
+    s.kind,
+    cfg,
+    s.kind === 'countdown' ? (s.durationMs ?? undefined) : undefined,
+  );
 }
 
 /** Change the length of a countdown (only while it is not running). */
@@ -128,7 +132,11 @@ export interface Advance {
  * `autoContinue`, begin the next one at the exact moment the last ended (so a tab that slept through a break
  * wakes up in the right place). A countdown or a pomodoro without auto-continue stops at `done`.
  */
-export function advance(s: TimerState, now: number, cfg: PomodoroConfig = DEFAULT_POMODORO): Advance {
+export function advance(
+  s: TimerState,
+  now: number,
+  cfg: PomodoroConfig = DEFAULT_POMODORO,
+): Advance {
   let state = s;
   const finished: Segment[] = [];
   // A day of one-second segments would be 86 400 turns; the bound stops a corrupt state, not a real one.
@@ -163,7 +171,11 @@ export function advance(s: TimerState, now: number, cfg: PomodoroConfig = DEFAUL
 }
 
 /** Skip to the next pomodoro segment now (keeps running if it was running). */
-export function skip(s: TimerState, now: number, cfg: PomodoroConfig = DEFAULT_POMODORO): TimerState {
+export function skip(
+  s: TimerState,
+  now: number,
+  cfg: PomodoroConfig = DEFAULT_POMODORO,
+): TimerState {
   if (s.kind !== 'pomodoro') return s;
   const completed = s.segment === 'focus' ? s.completed + 1 : s.completed;
   const segment = nextSegment(s.segment, completed, cfg);
@@ -215,12 +227,22 @@ export function parseClock(text: string): number | null {
 }
 
 /** A line for a voice channel's status ("Focus 24:12"), at most 500 characters. */
-export function statusLine(s: TimerState, now: number, labels: Record<Segment | 'countdown' | 'stopwatch', string>): string {
+export function statusLine(
+  s: TimerState,
+  now: number,
+  labels: Record<Segment | 'countdown' | 'stopwatch', string>,
+): string {
   const left = remainingMs(s, now);
   const name =
-    s.kind === 'pomodoro' ? labels[s.segment] : s.kind === 'countdown' ? labels.countdown : labels.stopwatch;
+    s.kind === 'pomodoro'
+      ? labels[s.segment]
+      : s.kind === 'countdown'
+        ? labels.countdown
+        : labels.stopwatch;
   const clock = formatClock(left ?? elapsedMs(s, now));
-  return s.phase === 'paused' ? `${name} ${clock} (paused)`.slice(0, 500) : `${name} ${clock}`.slice(0, 500);
+  return s.phase === 'paused'
+    ? `${name} ${clock} (paused)`.slice(0, 500)
+    : `${name} ${clock}`.slice(0, 500);
 }
 
 /** The compact form that goes over the wire to a voice channel. */
@@ -269,7 +291,8 @@ export function parseWire(v: unknown): WireTimer | null {
   const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? x : null);
   if (typeof o.kind !== 'string' || !kinds.includes(o.kind)) return null;
   if (o.phase !== 'running' && o.phase !== 'paused') return null;
-  const segment = typeof o.segment === 'string' && segs.includes(o.segment) ? (o.segment as Segment) : 'focus';
+  const segment =
+    typeof o.segment === 'string' && segs.includes(o.segment) ? (o.segment as Segment) : 'focus';
   const accumulatedMs = num(o.accumulatedMs);
   if (accumulatedMs === null) return null;
   const durationMs = o.durationMs === null ? null : num(o.durationMs);

@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { formatJson, parseJson } from './logic';
 import { CopyButton, Field, Problem, Root } from './parts';
 
 type Indent = '2' | '4' | 'tab' | 'min';
 
 /** JSON: validate (with line and column), format, minify, sort keys. */
-export default function JsonTool(_props: ToolProps) {
+export default function JsonTool() {
   const t = useT();
   const [text, setText] = useState('');
   const [indent, setIndent] = useState<Indent>('2');
@@ -50,7 +49,11 @@ export default function JsonTool(_props: ToolProps) {
       {problem ? (
         <Problem>
           {problem.line !== null
-            ? t('tools.json.errorAt', { line: problem.line, column: problem.column ?? 0, message: problem.message })
+            ? t('tools.json.errorAt', {
+                line: problem.line,
+                column: problem.column ?? 0,
+                message: problem.message,
+              })
             : problem.message}
         </Problem>
       ) : valid ? (
@@ -60,7 +63,7 @@ export default function JsonTool(_props: ToolProps) {
       ) : null}
       {result?.ok ? (
         <>
-          <pre className="ud-out ud-mono" aria-label={t('tools.json.output')}>
+          <pre className="ud-out ud-mono" role="group" aria-label={t('tools.json.output')}>
             {result.text}
           </pre>
           <div className="ud-row">

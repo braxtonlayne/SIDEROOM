@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { Field, Problem, Root } from '../dev/parts';
-import type { ToolProps } from '../registry';
 import type { Note, NotesState, NotesStore } from './notesStore';
 import { useNotes } from './useNotes';
 
@@ -20,7 +19,7 @@ function download(name: string, text: string, type = 'application/json') {
 const titleOf = (n: Note) => n.text.split('\n', 1)[0]?.trim().slice(0, 60) || '';
 
 /** The encrypted scratchpad: notes are encrypted in this browser; the server holds ciphertext it cannot read. */
-export default function NotesTool(_props: ToolProps) {
+export default function NotesTool() {
   const t = useT();
   const { state, store } = useNotes();
 
@@ -99,7 +98,9 @@ function Setup({ state, store }: { state: NotesState; store: NotesStore }) {
       </section>
 
       <section aria-labelledby="ud-notes-new">
-        <h4 id="ud-notes-new">{hasRemote ? t('tools.notes.startOverTitle') : t('tools.notes.setupTitle')}</h4>
+        <h4 id="ud-notes-new">
+          {hasRemote ? t('tools.notes.startOverTitle') : t('tools.notes.setupTitle')}
+        </h4>
         {hasRemote ? (
           <>
             <p className="ud-muted">{t('tools.notes.startOverBody')}</p>
@@ -143,7 +144,9 @@ function Setup({ state, store }: { state: NotesState; store: NotesStore }) {
                 />
               </Field>
             </div>
-            {weak ? <Problem>{t('tools.notes.passphraseShort', { n: MIN_PASSPHRASE })}</Problem> : null}
+            {weak ? (
+              <Problem>{t('tools.notes.passphraseShort', { n: MIN_PASSPHRASE })}</Problem>
+            ) : null}
             {mismatch ? <Problem>{t('tools.notes.passphraseMismatch')}</Problem> : null}
             <button
               type="button"
@@ -257,7 +260,8 @@ function Editor({ state, store }: { state: NotesState; store: NotesStore }) {
               >
                 {n.unreadable
                   ? t('tools.notes.unreadable')
-                  : (n.id === selected ? titleOf({ ...n, text: draft }) : titleOf(n)) || t('tools.notes.untitled')}
+                  : (n.id === selected ? titleOf({ ...n, text: draft }) : titleOf(n)) ||
+                    t('tools.notes.untitled')}
               </button>
             </li>
           ))}
@@ -281,7 +285,11 @@ function Editor({ state, store }: { state: NotesState; store: NotesStore }) {
           ) : null}
           {current ? (
             <div className="ud-row">
-              <button type="button" className="ud-btn" onClick={() => void store.remove(current.id)}>
+              <button
+                type="button"
+                className="ud-btn"
+                onClick={() => void store.remove(current.id)}
+              >
                 {t('tools.notes.delete')}
               </button>
             </div>
@@ -303,7 +311,10 @@ function Editor({ state, store }: { state: NotesState; store: NotesStore }) {
           onClick={() =>
             download(
               'sideroom-notes.txt',
-              state.notes.filter((n) => !n.unreadable).map((n) => n.text).join('\n\n----\n\n'),
+              state.notes
+                .filter((n) => !n.unreadable)
+                .map((n) => n.text)
+                .join('\n\n----\n\n'),
               'text/plain',
             )
           }

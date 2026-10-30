@@ -4,7 +4,6 @@ import { useT } from '../../i18n';
 import { useGuilds } from '../../lounge/data';
 import { useViewer } from '../../settings/server/hooks';
 import { Field, Problem, Root } from '../dev/parts';
-import type { ToolProps } from '../registry';
 import { pickWeighted } from './engine';
 import {
   type LootScope,
@@ -20,14 +19,17 @@ import {
 const MAX_HISTORY = 10;
 
 /** Loot tables: weighted rows saved to the account or to a server, rolled in the browser. */
-export default function LootTool(_props: ToolProps) {
+export default function LootTool() {
   const t = useT();
   const guilds = useGuilds();
   const [scope, setScope] = useState<LootScope>(null);
   return (
     <Root label={t('tools.loot.name')}>
       <Field label={t('tools.loot.scope')}>
-        <select value={scope ?? ''} onChange={(e) => setScope(e.target.value === '' ? null : e.target.value)}>
+        <select
+          value={scope ?? ''}
+          onChange={(e) => setScope(e.target.value === '' ? null : e.target.value)}
+        >
           <option value="">{t('tools.loot.mine')}</option>
           {guilds.map((g) => (
             <option key={g.id} value={g.id}>
@@ -36,7 +38,11 @@ export default function LootTool(_props: ToolProps) {
           ))}
         </select>
       </Field>
-      {scope === null ? <LootBody key="mine" scope={null} canWrite /> : <GuildLoot key={scope} guildId={scope} />}
+      {scope === null ? (
+        <LootBody key="mine" scope={null} canWrite />
+      ) : (
+        <GuildLoot key={scope} guildId={scope} />
+      )}
     </Root>
   );
 }
@@ -92,7 +98,10 @@ function LootBody({ scope, canWrite }: { scope: LootScope; canWrite: boolean }) 
       return;
     }
     try {
-      const saved = current && !asNew ? await updateLoot(scope, current.id, input) : await createLoot(scope, input);
+      const saved =
+        current && !asNew
+          ? await updateLoot(scope, current.id, input)
+          : await createLoot(scope, input);
       await load();
       setSelected(saved.id);
       setProblem(null);
@@ -141,7 +150,12 @@ function LootBody({ scope, canWrite }: { scope: LootScope; canWrite: boolean }) 
       )}
       {!canWrite ? <p className="ud-muted">{t('tools.loot.readOnly')}</p> : null}
       <Field label={t('tools.loot.nameLabel')}>
-        <input value={name} maxLength={80} disabled={!canWrite} onChange={(e) => setName(e.target.value)} />
+        <input
+          value={name}
+          maxLength={80}
+          disabled={!canWrite}
+          onChange={(e) => setName(e.target.value)}
+        />
       </Field>
       <Field label={t('tools.loot.rows')}>
         <textarea
@@ -155,15 +169,30 @@ function LootBody({ scope, canWrite }: { scope: LootScope; canWrite: boolean }) 
         <button type="button" className="ud-btn ud-btn-primary" onClick={() => void roll()}>
           {t('tools.loot.roll')}
         </button>
-        <button type="button" className="ud-btn" disabled={!canWrite} onClick={() => void save(false)}>
+        <button
+          type="button"
+          className="ud-btn"
+          disabled={!canWrite}
+          onClick={() => void save(false)}
+        >
           {current ? t('tools.loot.save') : t('tools.loot.create')}
         </button>
         {current ? (
           <>
-            <button type="button" className="ud-btn" disabled={!canWrite} onClick={() => void save(true)}>
+            <button
+              type="button"
+              className="ud-btn"
+              disabled={!canWrite}
+              onClick={() => void save(true)}
+            >
               {t('tools.loot.saveCopy')}
             </button>
-            <button type="button" className="ud-btn" disabled={!canWrite} onClick={() => void remove()}>
+            <button
+              type="button"
+              className="ud-btn"
+              disabled={!canWrite}
+              onClick={() => void remove()}
+            >
               {t('tools.loot.delete')}
             </button>
           </>
@@ -171,7 +200,9 @@ function LootBody({ scope, canWrite }: { scope: LootScope; canWrite: boolean }) 
       </div>
       {problem ? <Problem>{problem}</Problem> : null}
       <div role="status" aria-live="polite">
-        {drops[0] ? <p className="ud-winner">{t('tools.loot.dropped', { label: drops[0] })}</p> : null}
+        {drops[0] ? (
+          <p className="ud-winner">{t('tools.loot.dropped', { label: drops[0] })}</p>
+        ) : null}
       </div>
       {drops.length > 1 ? (
         <ol className="ud-history" aria-label={t('tools.loot.history')}>

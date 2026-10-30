@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { jwtDecode } from './logic';
 import { CopyButton, Field, Problem, Root } from './parts';
 
@@ -8,7 +7,7 @@ import { CopyButton, Field, Problem, Root } from './parts';
  * JWT decode. It reads the header and payload; it never checks the signature, and the banner says so. Nothing
  * is sent anywhere: the token stays in this page.
  */
-export default function JwtTool(_props: ToolProps) {
+export default function JwtTool() {
   const t = useT();
   const [token, setToken] = useState('');
   const decoded = useMemo(() => (token.trim() === '' ? null : jwtDecode(token)), [token]);

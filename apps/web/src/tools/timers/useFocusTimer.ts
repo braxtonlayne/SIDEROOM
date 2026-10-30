@@ -49,7 +49,10 @@ export interface FocusTimerOptions {
   tickMs?: number;
 }
 
-export function useFocusTimer(kind: TimerKind = 'pomodoro', opts: FocusTimerOptions = {}): FocusTimer {
+export function useFocusTimer(
+  kind: TimerKind = 'pomodoro',
+  opts: FocusTimerOptions = {},
+): FocusTimer {
   const store = opts.store ?? timerStore(kind);
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState);
   const [now, setNow] = useState(() => Date.now());

@@ -604,10 +604,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         return;
       case 'roll':
         // Dice are in WebAssembly (loaded on first use); the result is posted as an ordinary message.
-        void import('../tools/dice/engine').then(async ({ rollMessage }) => {
+        void import('../tools/dice/engine').then(async ({ rollMessage, rollErrorKey }) => {
           const out = await rollMessage(r.expression);
           if (!out.ok) {
-            fail(t(`tools.dice.error.${out.code}`));
+            fail(t(rollErrorKey(out.code)));
             return;
           }
           actions.sendMessage(channelId, out.content, replyTo?.id ?? null);

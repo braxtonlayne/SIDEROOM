@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { useT } from '../../i18n';
 import { Field, Problem, Root } from '../dev/parts';
-import type { ToolProps } from '../registry';
-import { type RollErrorCode, type RollResult, rollDice } from './engine';
+import { type RollErrorCode, type RollResult, rollDice, rollErrorKey } from './engine';
 
 const QUICK = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd%'] as const;
 const MAX_HISTORY = 20;
 
 /** Dice notation roller: `2d20kh1+5`, `4d6dl1`, `d%`, exploding `!`, success counting `>=`. */
-export default function DiceTool(_props: ToolProps) {
+export default function DiceTool() {
   const t = useT();
   const [expr, setExpr] = useState('d20');
   const [result, setResult] = useState<RollResult | null>(null);
@@ -67,7 +66,7 @@ export default function DiceTool(_props: ToolProps) {
       <p className="ud-muted">{t('tools.dice.syntax')}</p>
       {error ? (
         <Problem>
-          {t(`tools.dice.error.${error.code}`)}
+          {t(rollErrorKey(error.code))}
           {error.at !== undefined ? ` (${error.at + 1})` : ''}
         </Problem>
       ) : null}

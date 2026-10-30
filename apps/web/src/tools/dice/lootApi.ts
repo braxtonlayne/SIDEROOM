@@ -26,7 +26,8 @@ export interface LootInput {
 /** `null` is the member's own account; a string is a server (guild) id. */
 export type LootScope = string | null;
 
-const base = (scope: LootScope) => (scope === null ? '/users/@me/tools/loot-tables' : `/guilds/${scope}/tools/loot-tables`);
+const base = (scope: LootScope) =>
+  scope === null ? '/users/@me/tools/loot-tables' : `/guilds/${scope}/tools/loot-tables`;
 
 export const listLoot = (scope: LootScope) => apiFetch<LootTable[]>(base(scope));
 
@@ -53,4 +54,5 @@ export function parseLootRows(text: string): LootRow[] {
   return rows;
 }
 
-export const lootRowsToText = (rows: LootRow[]) => rows.map((r) => `${r.label}, ${r.weight}`).join('\n');
+export const lootRowsToText = (rows: LootRow[]) =>
+  rows.map((r) => `${r.label}, ${r.weight}`).join('\n');

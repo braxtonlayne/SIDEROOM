@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { countText } from './logic';
 import { Field, Root } from './parts';
 
 /** Character, word, line, sentence and byte counts, and a reading time. */
-export default function CounterTool(_props: ToolProps) {
+export default function CounterTool() {
   const t = useT();
   const [text, setText] = useState('');
   const c = useMemo(() => countText(text), [text]);

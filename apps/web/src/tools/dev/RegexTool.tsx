@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { MAX_REGEX_INPUT, runRegex } from './logic';
 import { Field, Problem, Root } from './parts';
 
 const FLAGS = ['g', 'i', 'm', 's', 'u'] as const;
 
 /** Regex tester over the browser's own RegExp, with the flavour note the roadmap asks for. */
-export default function RegexTool(_props: ToolProps) {
+export default function RegexTool() {
   const t = useT();
   const [pattern, setPattern] = useState('');
   const [flags, setFlags] = useState('g');
@@ -17,8 +16,7 @@ export default function RegexTool(_props: ToolProps) {
     () => (pattern === '' ? null : runRegex(pattern, flags, text)),
     [pattern, flags, text],
   );
-  const toggle = (f: string) =>
-    setFlags((cur) => (cur.includes(f) ? cur.replace(f, '') : cur + f));
+  const toggle = (f: string) => setFlags((cur) => (cur.includes(f) ? cur.replace(f, '') : cur + f));
 
   return (
     <Root label={t('tools.regex.name')}>

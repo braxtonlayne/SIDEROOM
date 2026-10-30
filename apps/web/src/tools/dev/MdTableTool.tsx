@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { type Align, markdownTable, parseDelimited } from './logic';
 import { CopyButton, Field, Root } from './parts';
 
 /** Markdown table builder: paste a spreadsheet selection or CSV, pick alignments, copy the table. */
-export default function MdTableTool(_props: ToolProps) {
+export default function MdTableTool() {
   const t = useT();
   const [text, setText] = useState('');
   const [aligns, setAligns] = useState<Align[]>([]);
@@ -16,9 +15,14 @@ export default function MdTableTool(_props: ToolProps) {
   const table = useMemo(() => markdownTable(rows, aligns, pretty), [rows, aligns, pretty]);
 
   return (
-    <Root label={t('tools.md-table.name')}>
+    <Root label={t('tools.mdTable.name')}>
       <Field label={t('tools.mdtable.input')}>
-        <textarea className="ud-mono" value={text} spellCheck={false} onChange={(e) => setText(e.target.value)} />
+        <textarea
+          className="ud-mono"
+          value={text}
+          spellCheck={false}
+          onChange={(e) => setText(e.target.value)}
+        />
       </Field>
       <p className="ud-muted">{t('tools.mdtable.hint')}</p>
       <div className="ud-row">
@@ -46,7 +50,7 @@ export default function MdTableTool(_props: ToolProps) {
           <span>{t('tools.mdtable.pretty')}</span>
         </label>
       </div>
-      <pre className="ud-out ud-mono" aria-label={t('tools.mdtable.output')}>
+      <pre className="ud-out ud-mono" role="group" aria-label={t('tools.mdtable.output')}>
         {table}
       </pre>
       <div className="ud-row">
