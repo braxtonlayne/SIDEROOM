@@ -45,6 +45,7 @@ pub mod staff_feed;
 pub mod storage_jobs;
 pub mod suspicion_jobs;
 pub mod takedown_jobs;
+pub mod tool_rooms_jobs;
 pub mod tv_catalog;
 pub mod upload_jobs;
 pub mod upload_limits;

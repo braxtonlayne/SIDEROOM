@@ -501,6 +501,14 @@ pub enum DomainEvent {
         answer_id: u32,
     },
     // --- end rich messages ---
+    /// `TOOL_ROOM_UPDATE` (UTL-COL-001): a tool room was created, edited or deleted. `payload` carries the
+    /// room id, kind, new version and the patch (or `deleted`); delivered to members who can view the
+    /// channel.
+    ToolRoomUpdated {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        payload: Value,
+    },
     /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
     TypingStarted {
         guild: Option<GuildId>,
@@ -572,6 +580,11 @@ impl DomainEvent {
                 channel,
                 ..
             }
+            | Self::ToolRoomUpdated {
+                guild: None,
+                channel,
+                ..
+            }
             | Self::ChannelPinsUpdated {
                 guild: None,
                 channel,
@@ -634,6 +647,7 @@ impl DomainEvent {
             | Self::ReactionEmojiCleared { guild, channel, .. }
             | Self::PollVoteAdded { guild, channel, .. }
             | Self::PollVoteRemoved { guild, channel, .. }
+            | Self::ToolRoomUpdated { guild, channel, .. }
             | Self::ChannelPinsUpdated { guild, channel, .. }
             | Self::TypingStarted { guild, channel, .. } => {
                 let mut t = vec![Topic::Channel(*channel)];

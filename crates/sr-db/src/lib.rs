@@ -54,6 +54,7 @@ pub mod storage_figures;
 pub mod storage_legal;
 pub mod testing;
 pub mod thread_repo;
+pub mod tool_rooms_repo;
 mod tx;
 
 pub use error::{DbError, DbResult};

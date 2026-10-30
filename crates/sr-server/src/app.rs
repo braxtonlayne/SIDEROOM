@@ -1289,6 +1289,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         system_poster.clone(),
         Some(crate::userfeat::feed_client(feed_policy.clone())),
     ));
+    // Tool rooms (UTL-COL-001): the shared documents of the tier list and poll builder.
+    let tool_room_store: Arc<dyn sr_chat::tool_rooms::ToolRoomStore> =
+        Arc::new(sr_db::tool_rooms_repo::PgToolRooms::new(pool.clone()));
+    let tool_room_deps = Arc::new(routes::tools::rooms::ToolRoomDeps {
+        store: tool_room_store.clone(),
+    });
     let user_feature_deps = Arc::new(routes::userfeat::UserFeatDeps {
         uf: user_features.clone(),
         poster: system_poster,
@@ -1524,6 +1530,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
+        .extension(tool_room_deps)
         .extension(storage_scope_deps)
         .extension(mount_transcode_deps)
         .extension(upload_deps)
@@ -1670,6 +1677,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mount_repo.clone(),
     );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
+    let runner = crate::tool_rooms_jobs::register(runner, &pool, tool_room_store.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
@@ -1720,6 +1728,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::admin_jobs::schedule(&pool).await?;
     crate::storage_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
+    crate::tool_rooms_jobs::schedule(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::upload_jobs::schedule(&pool).await?;
     crate::activities_jobs::schedule(&pool).await?;
