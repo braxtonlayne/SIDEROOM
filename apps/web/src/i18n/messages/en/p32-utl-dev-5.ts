@@ -32,4 +32,6 @@ export default {
   'tools.timers.voiceDenied':
     'You need the permission to set the channel status to share a timer here.',
   'tools.timers.voiceFailed': 'Could not share the timer.',
+  'tools.timers.sharedClock':
+    '{name} {clock}, shared by someone in this channel ({phase, select, paused {paused} other {running}})',
 } satisfies Record<string, string>;

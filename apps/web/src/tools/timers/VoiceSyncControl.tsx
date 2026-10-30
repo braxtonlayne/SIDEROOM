@@ -1,10 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { useVoicePerms } from '../../lounge/voice/perms';
 import { useVoiceSession } from '../../voice/session';
-import { type Segment, type TimerState, statusLine, toWire } from './timerCore';
-import { publishVoiceTimer } from './voiceTimer';
+import {
+  type Segment,
+  type TimerState,
+  elapsedMs,
+  formatClock,
+  fromWire,
+  remainingMs,
+  statusLine,
+  toWire,
+} from './timerCore';
+import {
+  type SharedTimer,
+  publishVoiceTimer,
+  startVoiceTimerListener,
+  useVoiceTimers,
+} from './voiceTimer';
 
 /**
  * "Sync to voice channel": publishes the timer to the channel the member is connected to, as its status line
@@ -46,17 +60,16 @@ function Connected({
     stopwatch: t('tools.timers.statusStopwatch'),
   };
 
-  const run = async (publish: boolean) => {
+  const publish = async (on: boolean) => {
     setBusy(true);
     setError(null);
     try {
-      const wire = publish ? toWire(state) : null;
       await publishVoiceTimer(
         channelId,
-        wire,
-        publish ? statusLine(state, Date.now(), labels) : '',
+        on ? toWire(state) : null,
+        on ? statusLine(state, Date.now(), labels) : '',
       );
-      setSynced(publish ? channelId : null);
+      setSynced(on ? channelId : null);
     } catch (e) {
       setError(
         e instanceof ApiError && e.status === 403
@@ -68,6 +81,29 @@ function Connected({
     }
   };
 
+  // While shared, every change of the timer (pause, resume, skip, a new segment) is sent on; a timer that is
+  // reset or has finished stops being shared.
+  const sent = useRef<TimerState | null>(null);
+  useEffect(() => {
+    if (!on) {
+      sent.current = null;
+      return;
+    }
+    if (sent.current === null) {
+      sent.current = state;
+      return;
+    }
+    if (sent.current === state) return;
+    sent.current = state;
+    void publish(!idle);
+    // `publish` closes over the state it is called with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on, state]);
+
+  // Follow other members' timers in this channel for as long as this control is on screen.
+  useEffect(() => startVoiceTimerListener(), []);
+  const shared = useVoiceTimers((s) => s.byChannel[channelId]);
+
   return (
     <div className="ud-voice">
       <button
@@ -75,7 +111,7 @@ function Connected({
         className="ud-btn"
         disabled={busy || !allowed || (!on && idle)}
         aria-pressed={on}
-        onClick={() => void run(!on)}
+        onClick={() => void publish(!on)}
       >
         {on ? t('tools.timers.voiceStop') : t('tools.timers.voiceStart')}
       </button>
@@ -86,6 +122,37 @@ function Connected({
           {error}
         </p>
       ) : null}
+      {shared && !on ? <SharedClock shared={shared} labels={labels} /> : null}
     </div>
+  );
+}
+
+/** Another member's timer in the connected channel, on the server's clock. */
+function SharedClock({
+  shared,
+  labels,
+}: {
+  shared: SharedTimer;
+  labels: Record<Segment | 'countdown' | 'stopwatch', string>;
+}) {
+  const t = useT();
+  const [now, setNow] = useState(() => Date.now());
+  const state = fromWire(shared.timer);
+  useEffect(() => {
+    if (state.phase !== 'running') return undefined;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [state.phase]);
+  const at = now + shared.skewMs;
+  const left = remainingMs(state, at);
+  const name = state.kind === 'pomodoro' ? labels[state.segment] : labels[state.kind];
+  return (
+    <p className="ud-muted" role="status">
+      {t('tools.timers.sharedClock', {
+        name,
+        clock: formatClock(left ?? elapsedMs(state, at)),
+        phase: state.phase,
+      })}
+    </p>
   );
 }
