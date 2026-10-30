@@ -9,6 +9,7 @@
 //!
 //! The one allowed header read (the first 1 MiB of a file, for container facts) is [`sniff`].
 
+pub mod audio;
 pub mod classify;
 pub mod shelf;
 pub mod sniff;
