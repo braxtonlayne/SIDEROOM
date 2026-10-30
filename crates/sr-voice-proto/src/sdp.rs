@@ -118,10 +118,11 @@ pub fn expand_opus_lines(sdp: &str) -> (String, HashSet<String>) {
             .map(|m| m.trim().to_owned());
         // The payload type listed first on the m-line says what the line carries.
         let first: Option<u32> = section[0].split(' ').nth(3).and_then(|p| p.parse().ok());
-        if has_stereo && (!has_mono || first == Some(stereo)) {
-            if let Some(m) = &mid {
-                music.insert(m.clone());
-            }
+        if has_stereo
+            && (!has_mono || first == Some(stereo))
+            && let Some(m) = &mid
+        {
+            music.insert(m.clone());
         }
         let (have, add, fmtp) = match (has_mono, has_stereo) {
             (true, false) => (mono, stereo, STEREO_FMTP),
