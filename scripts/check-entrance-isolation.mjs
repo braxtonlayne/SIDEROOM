@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Entrance isolation check (SEC-ENT-004, D-385; docs/dev/entrance-isolation.md section 8).
 //
-//   node scripts/check-entrance-isolation.mjs [distDir] [--quiet]
+//   node scripts/check-entrance-isolation.mjs [distDir] [--quiet] [--repo=<checkout the dist was built from>]
 //
 // The owner's rule: a visitor without a login receives only the code their page needs, and that code tells them
 // nothing about what is inside. The Web job runs this after the build, beside the bundle budget. For every public
@@ -50,6 +50,30 @@ const GENERIC_CHUNKS = new Set([
   'entry',
   'polyfills',
 ]);
+
+/**
+ * The API a visitor's pages may call (docs/dev/entrance-isolation.md sections 4 and 7): the sign-in family, the
+ * registration helpers, the entrance copy and the invite and template lookups. API paths under these prefixes are
+ * not denylist tokens; every other operation of openapi.json is.
+ */
+export const PUBLIC_API_PREFIXES = [
+  '/sr/auth/',
+  '/sr/register',
+  '/sr/usernames',
+  '/sr/age-gate',
+  '/sr/csrf',
+  '/sr/compliance/public',
+  '/sr/entrance/',
+  '/sr/invites',
+  '/guilds/templates/',
+];
+/** Exact paths the entrance calls that sit beside app paths; a match inside them is excused (see `excusedBy`). */
+export const PUBLIC_API_EXACT = [
+  {
+    token: '/users/@me',
+    reason: 'section 4: the hand-off asks whether a session exists (useRedirectIfLoggedIn)',
+  },
+];
 
 const isWordChar = (c) => c !== undefined && /[A-Za-z0-9_]/.test(c);
 
@@ -176,7 +200,16 @@ export function buildDenylist({ dist, repoRoot, surfaces, handFile }) {
   for (const name of new Set(appFiles.map(chunkBase))) {
     if (name.length < 4 || GENERIC_CHUNKS.has(name.toLowerCase()) || publicNames.has(name))
       continue;
-    add(name, 'chunk', 'dist/app chunk name');
+    // A reference to the file (`Name-<hash>.js`) always counts; the bare name only when it is a compound
+    // identifier (LoungeRoot, UserSettings), because a lone word (Account, Home, theme) is also plain English.
+    add(name, 'chunkref', 'dist/app chunk name');
+    if (
+      /[a-z][A-Z]/.test(name) ||
+      /[A-Z].*[A-Z]/.test(name) ||
+      (name.includes('-') && name.length >= 6)
+    ) {
+      add(name, 'chunk', 'dist/app chunk name');
+    }
   }
 
   // 2. the app's route paths (minus the neutral ones and any public surface's own paths)
@@ -211,7 +244,12 @@ export function buildDenylist({ dist, repoRoot, surfaces, handFile }) {
         methods.length > 0 && methods.every((o) => (o.tags ?? []).some((t) => /^auth$/i.test(t)));
       if (allAuth) continue;
       const p = staticPrefix(path.replace(/^\/api\/v\d+/, ''));
-      if (p.length < 5 || seen.has(p)) continue;
+      if (
+        p.length < 5 ||
+        seen.has(p) ||
+        PUBLIC_API_PREFIXES.some((x) => (p + '/').startsWith(x) || p.startsWith(x))
+      )
+        continue;
       seen.add(p);
       add(p, 'api', `${basename(openapi)} ${path}`);
     }
@@ -243,12 +281,21 @@ export function buildDenylist({ dist, repoRoot, surfaces, handFile }) {
 // Scanning
 
 /** First match of `tok` in `text` (and `lower` = text.toLowerCase()), or null. */
-export function findToken(text, lower, tok) {
+export function findToken(text, lower, tok, start = 0) {
   const { token, kind } = tok;
+  if (kind === 'chunkref') {
+    const re = new RegExp(
+      `(?<![A-Za-z0-9_])${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-[A-Za-z0-9_-]{6,10}\\.(?:m?js|css|wasm)`,
+      'g',
+    );
+    re.lastIndex = start;
+    const m = re.exec(text);
+    return m ? m.index : null;
+  }
   const ci = kind === 'word';
   const hay = ci ? lower : text;
   const needle = ci ? token.toLowerCase() : token;
-  let from = 0;
+  let from = start;
   for (;;) {
     const i = hay.indexOf(needle, from);
     if (i === -1) return null;
@@ -310,13 +357,29 @@ function loadAllow(file) {
   return { entries, problems };
 }
 
-function allowed(entries, surface, token, file) {
-  return entries.find(
+/** The allow entries that apply to this surface and file. */
+function scoped(entries, surface, file) {
+  return entries.filter(
     (e) =>
-      e.token === token &&
-      (e.surface === surface || e.surface === '*') &&
-      (!e.file || file.includes(e.file)),
+      e.token && (e.surface === surface || e.surface === '*') && (!e.file || file.includes(e.file)),
   );
+}
+
+/**
+ * Is the match at [i, i+len) inside an occurrence of an allowed string? An entry excuses the denylist token it
+ * contains where it occurs inside the entry itself (`/users/@me` excuses `/users` there and nowhere else).
+ */
+function excusedBy(entries, text, lower, i, tok) {
+  const ci = tok.kind === 'word';
+  const hay = ci ? lower : text;
+  const needle = ci ? tok.token.toLowerCase() : tok.token;
+  for (const e of entries) {
+    const a = ci ? e.token.toLowerCase() : e.token;
+    for (let k = a.indexOf(needle); k !== -1; k = a.indexOf(needle, k + 1)) {
+      if (hay.startsWith(a, i - k) && i - k >= 0) return e;
+    }
+  }
+  return null;
 }
 
 /** Reads ALLOWED.ts: every quoted string that looks like a repo path or package. */
@@ -338,10 +401,14 @@ export function expandBraces(s) {
 }
 
 /** Is a manifest `src` (e.g. "src/routes/entrance/Landing.tsx") covered by the surface's allowed list? */
-export function moduleAllowed(src, surface, allowList) {
+export function moduleAllowed(src, surface, allowList, otherSurfaces = []) {
+  if (/\.html$/.test(src)) return true;
   if (src.startsWith('node_modules/') || src.startsWith('../../node_modules/')) return true;
   if (src.startsWith('vite/') || src.startsWith('\0')) return true;
-  if (src.startsWith(`src/public/${surface}/`) || src.startsWith('src/public/shared/')) return true;
+  if (src.startsWith(`src/public/${surface}/`)) return true;
+  // Shared files of the public tree (stubs, helpers) are public by directory; another surface's folder is not.
+  const publicDir = /^src\/public\/([^/]+)\//.exec(src)?.[1];
+  if (publicDir && !otherSurfaces.includes(publicDir)) return true;
   const bare = src.replace(/\.(tsx?|jsx?|css|mjs)$/, '');
   return allowList.some((a) => {
     const entry = a.replace(/^@\//, 'src/').replace(/^\.\//, '').replace(/\/$/, '');
@@ -370,8 +437,8 @@ const kb = (n) => (n / 1024).toFixed(1);
 export function runCheck(distArg, options = {}) {
   const dist = resolve(distArg);
   const repoRoot = options.repoRoot ?? repo;
-  const handFile = options.denylistFile ?? join(repoRoot, 'scripts', 'entrance-denylist.json');
-  const allowFile = options.allowFile ?? join(repoRoot, 'scripts', 'entrance-allow.json');
+  const handFile = options.denylistFile ?? join(here, 'entrance-denylist.json');
+  const allowFile = options.allowFile ?? join(here, 'entrance-allow.json');
   const lines = [];
   const failures = [];
   const fail = (surface, file, token, rule) => failures.push({ surface, file, token, rule });
@@ -399,6 +466,8 @@ export function runCheck(distArg, options = {}) {
   };
 
   const allow = loadAllow(allowFile);
+  const implicit = PUBLIC_API_EXACT.map((e) => ({ surface: '*', ...e }));
+  allow.entries = [...allow.entries, ...implicit];
   for (const p of allow.problems) fail('-', basename(allowFile), '', p);
   const usedAllow = new Set();
 
@@ -406,7 +475,7 @@ export function runCheck(distArg, options = {}) {
   for (const n of notes) fail('-', 'denylist', '', n);
   lines.push(
     `     denylist  ${tokens.length} tokens (` +
-      ['chunk', 'route', 'api', 'i18n', 'word', 'structural']
+      ['chunkref', 'chunk', 'route', 'api', 'i18n', 'word', 'structural']
         .map((k) => `${tokens.filter((t) => t.kind === k).length} ${k}`)
         .join(', ') +
       ')',
@@ -415,20 +484,23 @@ export function runCheck(distArg, options = {}) {
   /** Scans one file's text for the denylist; records failures for non-allowed hits. */
   const scan = (surface, file, text) => {
     const lower = text.toLowerCase();
+    const here = scoped(allow.entries, surface, file);
     for (const tok of tokens) {
-      const i = findToken(text, lower, tok);
-      if (i === null) continue;
-      const hit = allowed(allow.entries, surface, tok.token, file);
-      if (hit) {
+      let i = findToken(text, lower, tok);
+      while (i !== null) {
+        const hit = here.length ? excusedBy(here, text, lower, i, tok) : null;
+        if (!hit) {
+          fail(
+            surface,
+            file,
+            tok.token,
+            `denylist (${tok.kind}: ${tok.source}) near "${snippet(text, i, tok.token.length)}"`,
+          );
+          break;
+        }
         usedAllow.add(hit);
-        continue;
+        i = findToken(text, lower, tok, i + 1);
       }
-      fail(
-        surface,
-        file,
-        tok.token,
-        `denylist (${tok.kind}: ${tok.source}) near "${snippet(text, i, tok.token.length)}"`,
-      );
     }
   };
 
@@ -473,6 +545,7 @@ export function runCheck(distArg, options = {}) {
   };
 
   const sourceFilesSeen = new Set();
+  const bundleNames = surfaces.filter((x) => x.kind === 'bundle').map((x) => x.surface);
 
   for (const s of surfaces) {
     const name = s.surface;
@@ -578,7 +651,15 @@ export function runCheck(distArg, options = {}) {
         const list = readAllowedModules(allowedTs);
         for (const f of reach) {
           const src = srcFor(f);
-          if (src && !moduleAllowed(src, name, list)) {
+          if (
+            src &&
+            !moduleAllowed(
+              src,
+              name,
+              list,
+              bundleNames.filter((n) => n !== name),
+            )
+          ) {
             fail(name, f, src, `rule: module outside src/public/${name}/ALLOWED.ts`);
           }
         }
@@ -688,7 +769,7 @@ export function runCheck(distArg, options = {}) {
 
   // stale allow entries are reported, not failed
   for (const e of allow.entries) {
-    if (!usedAllow.has(e) && e.reason)
+    if (!usedAllow.has(e) && e.reason && !implicit.includes(e))
       lines.push(`note stale allow entry: ${e.surface} ${e.token} (matched nothing)`);
   }
 
@@ -703,7 +784,8 @@ function main() {
     console.error(`No build at ${dist}. Run: node scripts/build-web.mjs`);
     process.exit(2);
   }
-  const { ok, lines, failures } = runCheck(dist);
+  const repoArg = args.find((a) => a.startsWith('--repo='))?.slice(7);
+  const { ok, lines, failures } = runCheck(dist, repoArg ? { repoRoot: resolve(repoArg) } : {});
   if (!quiet || !ok) for (const l of lines) console.log(l);
   const shown = failures.slice(0, 60);
   for (const f of shown) {

@@ -145,7 +145,16 @@ function fixture(mutate) {
   put(dist, 'manifest.webmanifest', JSON.stringify({ start_url: '/app', name: 'SIDE ROOM' }));
   put(dist, 'robots.txt', 'User-agent: *\nDisallow: /\n');
   if (mutate) mutate(root, dist);
-  return { root, dist, run: () => runCheck(dist, { repoRoot: root }) };
+  return {
+    root,
+    dist,
+    run: () =>
+      runCheck(dist, {
+        repoRoot: root,
+        denylistFile: join(root, 'scripts/entrance-denylist.json'),
+        allowFile: join(root, 'scripts/entrance-allow.json'),
+      }),
+  };
 }
 
 const rules = (r) => r.failures.map((f) => `${f.surface}|${f.file}|${f.token}|${f.rule}`);
@@ -387,7 +396,9 @@ test('helpers: chunk names, prefixes, dynamic imports, tokens, modules', () => {
     !moduleAllowed('src/routes/entrance/Login.tsx', 'landing', ['routes/entrance/Landing']),
   );
   assert.ok(moduleAllowed('src/public/landing/main.tsx', 'landing', []));
-  assert.ok(!moduleAllowed('src/public/auth/main.tsx', 'landing', []));
+  assert.ok(!moduleAllowed('src/public/auth/main.tsx', 'landing', [], ['auth']));
+  assert.ok(moduleAllowed('src/public/stubs/enRest.ts', 'landing', [], ['auth']));
+  assert.ok(moduleAllowed('index.html', 'landing', []));
   assert.ok(moduleAllowed('node_modules/react/index.js', 'landing', []));
   const dir = mkdtempSync(join(tmpdir(), 'sr-ent-'));
   roots.push(dir);
