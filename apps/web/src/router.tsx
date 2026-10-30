@@ -25,6 +25,7 @@ import { createSupportRoutes } from './support/routes';
 import { createProfilePageRoutes } from './profilepage/routes';
 import { createPwaRoutes } from './pwa/routes';
 import { createStorageRoutes } from './storage/routes';
+import { PlayerGate } from './player/PlayerGate';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
 import { LoginLink } from './routes/entrance/LoginLink';
@@ -74,6 +75,8 @@ function RootLayout() {
         <Suspense fallback={null}>
           <ReauthHost />
         </Suspense>
+        {/* The floating player lives here, above every route, so playback survives navigation (MUS-PLY-001). */}
+        <PlayerGate />
       </CatalogGate>
     </>
   );

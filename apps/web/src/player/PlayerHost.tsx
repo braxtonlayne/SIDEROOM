@@ -1,0 +1,69 @@
+/**
+ * MUS-PLY-001: the persistent floating player. One host mounted at the root of the router, so the `<audio>`
+ * element keeps playing across the Lounge, Cinema, Library, Settings and Admin. It renders nothing visible
+ * until something is queued. Loaded on demand (see `PlayerGate` in router.tsx).
+ */
+import { useEffect, useRef } from 'react';
+import { isPlayerShortcut, matchCustomShortcut } from '../lounge/shortcuts';
+import { usePrefsStore } from '../settings/user/prefs';
+import { createPlayerEngine, restoreResume } from './engine';
+import './player.css';
+import { LibrarySkin } from './skins/LibrarySkin';
+import { PillSkin } from './skins/PillSkin';
+import { RetroSkin } from './skins/RetroSkin';
+import * as actions from './store';
+import { usePlayerStore } from './store';
+
+const SKINS = { retro: RetroSkin, pill: PillSkin, library: LibrarySkin } as const;
+
+/** Player keys work on every route, so they live here and not in the Lounge. */
+function usePlayerKeys() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (usePlayerStore.getState().queue.length === 0) return;
+      const id = matchCustomShortcut(e, usePrefsStore.getState().prefs.keybinds);
+      if (!id || !isPlayerShortcut(id)) return;
+      e.preventDefault();
+      if (id === 'playerToggle') actions.toggle();
+      else if (id === 'playerPrev') actions.prev();
+      else if (id === 'playerNext') actions.next();
+      else actions.toggleMute();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+}
+
+export default function PlayerHost() {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const skin = usePlayerStore((s) => s.skin);
+  const dock = usePlayerStore((s) => s.dock);
+  const queued = usePlayerStore((s) => s.queue.length > 0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    restoreResume();
+    const engine = createPlayerEngine(audio);
+    // Browser tests (and only they) drive the player through this handle.
+    const dev = import.meta.env.DEV || import.meta.env.MODE === 'test';
+    if (dev) (window as unknown as { __srPlayer?: unknown }).__srPlayer = { ...actions, audio };
+    return () => {
+      engine.destroy();
+      if (dev) delete (window as unknown as { __srPlayer?: unknown }).__srPlayer;
+    };
+  }, []);
+  usePlayerKeys();
+
+  const Skin = SKINS[skin];
+  return (
+    <>
+      <audio ref={audioRef} data-testid="player-audio" preload="auto" />
+      {queued && (
+        <div className="sr-ply-dock" data-dock={dock} data-skin={skin}>
+          <Skin />
+        </div>
+      )}
+    </>
+  );
+}

@@ -51,7 +51,7 @@ import { ThreadPane } from './threads/ThreadPane';
 import { useThreadRoute } from './threads/useThreadRoute';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
-import { matchCustomShortcut } from './shortcuts';
+import { isPlayerShortcut, matchCustomShortcut } from './shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
 import { UserPanel } from './UserPanel';
@@ -83,7 +83,7 @@ function useLoungeShortcuts(h: {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const id = matchCustomShortcut(e, usePrefsStore.getState().prefs.keybinds);
-      if (!id) return;
+      if (!id || isPlayerShortcut(id)) return; // the player host owns its keys (MUS-PLY-001)
       const c = latest.current;
       if (id === 'markRead' || id === 'focusComposer') {
         // Esc and typing belong to open dialogs, menus and text fields first.

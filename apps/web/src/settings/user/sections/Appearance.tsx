@@ -3,6 +3,7 @@ import type { ThemeId } from '@sideroom/ui';
 import { useT, type MessageKey } from '../../../i18n';
 import { useLoungeUi } from '../../../lounge/store';
 import { ThemeStore } from '../../../packages/ThemeStore';
+import { PlayerSkinCard } from '../../../player/PlayerSkinCard';
 import { Card, SectionTitle } from '../parts';
 import {
   FONT_SCALE_RANGE,
@@ -159,6 +160,7 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
           ))}
         </div>
       </Card>
+      <PlayerSkinCard />
       <Card id="us-messages" title={t('settings.appearance.messageDisplay')}>
         <div className="us-stack">
           <SegmentedControl
