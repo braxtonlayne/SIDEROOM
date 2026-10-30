@@ -4919,6 +4919,223 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/jukebox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The jukebox of a voice channel. Needs `VIEW_CHANNEL` and `CONNECT`. A track in a bucket the caller cannot
+         *     read is listed without a title and with `playable: false`.
+         */
+        get: operations["state"];
+        /**
+         * Switch between `stream` and `synced`. Needs `SPEAK`; while a DJ holds the decks only the DJ or a moderator
+         *     may.
+         */
+        put: operations["set_mode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/dj": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Claim the decks (while nobody holds them), hand them to a listening member, or let go (`null`). The DJ and
+         *     moderators may hand over at any time.
+         */
+        put: operations["set_dj"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/ended": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A listener reports that the playing track reached its end. Ignored unless it is the playing track and its
+         *     known end is near; the server clock decides, so a liar cannot skip.
+         */
+        post: operations["ended"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/listening": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Say you are listening (on joining the call, then every 30 s). Listeners are who a skip vote is counted
+         *     against; a listener not heard from for a minute stops counting.
+         */
+        put: operations["listen"];
+        post?: never;
+        /** Stop listening: your skip vote and the decks (if you held them) go. */
+        delete: operations["leave"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Skip the playing track outright: the DJ, a moderator, or the member who queued it. */
+        post: operations["skip_now"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Pause or resume the playing track: the DJ or a moderator. */
+        put: operations["set_playback"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A presigned `GET` for the playing track (or the next waiting one, to prefetch), made for the caller alone.
+         *     The stored mount and key are checked against the caller's own storage scopes: a track in a bucket the
+         *     caller cannot read is a 404 ("not shared with you") and nothing is signed.
+         */
+        post: operations["presign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Queue tracks from the caller's reachable library. Needs `SPEAK`. A track the caller cannot read is a 404,
+         *     the same answer as for one that does not exist.
+         */
+        post: operations["enqueue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/queue/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a queue entry: whoever queued it, the DJ or a moderator. Removing the playing track skips it. */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/jukebox/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Vote to skip the playing track. The vote counts against `jukebox.vote_skip_percent` of the members who are
+         *     listening; reaching it skips.
+         */
+        post: operations["vote_skip"];
+        /** Take a skip vote back. */
+        delete: operations["withdraw_vote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/listening-room": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The room's cursor now, in the shape of the `LISTENING_ROOM_UPDATE` event. */
+        get: operations["cursor"];
+        /** Make the voice channel a listening room on a server playlist. */
+        put: operations["enable"];
+        post?: never;
+        /** Stop the channel being a listening room. */
+        delete: operations["disable"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/messages": {
         parameters: {
             query?: never;
@@ -17993,6 +18210,11 @@ export interface components {
             /** Format: int64 */
             total_bytes?: number | null;
         };
+        /** @description Body of `PUT /channels/{id}/jukebox/dj`. */
+        DjBody: {
+            /** @description The new DJ, a member who is listening; `null` lets go of the decks. */
+            user_id?: string | null;
+        };
         DmChannelObject: {
             icon?: string | null;
             id: string;
@@ -18249,12 +18471,27 @@ export interface components {
              */
             section?: string | null;
         };
+        /** @description Body of `PUT /channels/{id}/listening-room`. */
+        EnableRoomBody: {
+            /** @description A playlist of this server (`GET /guilds/{id}/music/playlists`). */
+            playlist_id: string;
+        };
+        /** @description Body of `POST /channels/{id}/jukebox/ended`. */
+        EndedBody: {
+            /** @description The queue row that reached its end. */
+            item_id: string;
+        };
         /** @description State of an application's HTTP interactions endpoint (D-186). */
         EndpointStatusObject: {
             /** @description `enabled`, or `disabled` after 25 consecutive failed deliveries within 10 minutes. */
             interactions_endpoint_state: string;
             interactions_endpoint_url?: string | null;
             verify_key?: string | null;
+        };
+        /** @description Body of `POST /channels/{id}/jukebox/queue`. */
+        EnqueueBody: {
+            /** @description Index track snowflakes (`GET /music/library`), at most 50. */
+            track_ids: string[];
         };
         /** @description Body of `PUT /admin/entrance/copy/{key}`. */
         EntranceCopyBody: {
@@ -19557,6 +19794,93 @@ export interface components {
             state: components["schemas"]["JobState"];
             worker_id?: string | null;
         };
+        /** @description One queue row as the viewer may see it. */
+        JukeboxItemView: {
+            /** @description Who queued it. */
+            added_by?: string | null;
+            /** @description Artist; absent when the viewer cannot read the bucket. */
+            artist?: string | null;
+            /**
+             * Format: int64
+             * @description Length in milliseconds, when known.
+             */
+            duration_ms?: number | null;
+            /** @description Queue row snowflake. */
+            id: string;
+            /** @description The viewer can read the track's bucket now. `false` means "not shared with you": silence for them. */
+            playable: boolean;
+            /** @description `playing`, `queued`, `played` or `skipped`. */
+            state: string;
+            /** @description Title; absent when the viewer cannot read the bucket. */
+            title?: string | null;
+        };
+        /** @description Body of `POST /channels/{id}/jukebox/presign`. */
+        JukeboxPresignBody: {
+            /** @description The queue row: the playing one, or the next waiting one (prefetch). */
+            item_id: string;
+            /** @description A request range the client will send, `bytes=a-b`. */
+            range?: string | null;
+        };
+        /** @description The jukebox of a voice channel, for one viewer. */
+        JukeboxStateView: {
+            /** @description `false` while nobody has queued anything in this channel. */
+            active: boolean;
+            /** @description The viewer may pause, skip outright, remove any track and hand the decks over. */
+            can_control: boolean;
+            /** @description The viewer may queue tracks and pick the mode. */
+            can_queue: boolean;
+            /** @description The voice channel. */
+            channel_id: string;
+            current?: null | components["schemas"]["JukeboxItemView"];
+            /** @description The DJ. */
+            dj_id?: string | null;
+            /** @description The viewer holds the decks. */
+            i_am_dj: boolean;
+            /**
+             * Format: int64
+             * @description Members listening now.
+             */
+            listeners: number;
+            /** @description `stream` (a DJ sends the audio into the call) or `synced` (everyone plays from a bucket they read). */
+            mode: string;
+            /** @description The viewer has voted. */
+            my_vote: boolean;
+            /** @description The DJ paused the track. */
+            paused: boolean;
+            /**
+             * Format: int64
+             * @description Position in the current track at `server_now_ms`.
+             */
+            position_ms: number;
+            /** @description Waiting tracks in play order. */
+            queue: components["schemas"]["JukeboxItemView"][];
+            /**
+             * Format: int64
+             * @description The server clock when this was read, unix ms. Compare with the local clock once and keep the offset.
+             */
+            server_now_ms: number;
+            /**
+             * Format: int64
+             * @description The server clock at which the current track was at position 0 (`server_now_ms - position_ms`) while it
+             *     plays; absent while paused or idle. Listeners align their `currentTime` to `now - started_at_ms`.
+             */
+            started_at_ms?: number | null;
+            /**
+             * Format: int64
+             * @description Changes with every change; clients refetch when it moves.
+             */
+            version: number;
+            /**
+             * Format: int64
+             * @description Skip votes standing for the current track.
+             */
+            votes: number;
+            /**
+             * Format: int64
+             * @description Skip votes needed.
+             */
+            votes_needed: number;
+        };
         /** @description A kind available for creation. */
         KindInfo: {
             id: string;
@@ -20337,6 +20661,11 @@ export interface components {
              * @description Length of the window in seconds.
              */
             window_secs: number;
+        };
+        /** @description Body of `PUT /channels/{id}/jukebox`. */
+        ModeBody: {
+            /** @description `stream` or `synced`. */
+            mode: string;
         };
         ModifyChannelBody: components["schemas"]["ForumSettingsBody"] & {
             applied_tags?: string[] | null;
@@ -21577,6 +21906,11 @@ export interface components {
             title: string;
             title_id: string;
             variant_id?: string | null;
+        };
+        /** @description Body of `PUT /channels/{id}/jukebox/playback`. */
+        PlaybackBody: {
+            /** @description `true` pauses, `false` resumes. */
+            paused: boolean;
         };
         /** @description Body of `POST` for a new playlist. */
         PlaylistBody: {
@@ -42079,6 +42413,728 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_mode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_dj: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DjBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description NOT_LISTENING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ended: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EndedBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    listen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    skip_now: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description NOTHING_PLAYING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_playback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaybackBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description NOTHING_PLAYING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    presign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JukeboxPresignBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    enqueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnqueueBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description QUEUE_FULL or MEMBER_QUEUE_FULL */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+                /** @description Queue entry snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vote_skip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description NOTHING_PLAYING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    withdraw_vote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JukeboxStateView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cursor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cursor: mode, seq, at_ms, position_ms, now_playing, next, skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a listening room */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    enable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnableRoomBody"];
+            };
+        };
+        responses: {
+            /** @description The channel is a listening room */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The channel is an ordinary voice channel */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {
