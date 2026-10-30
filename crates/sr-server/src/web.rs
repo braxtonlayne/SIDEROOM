@@ -584,9 +584,20 @@ fn plain(status: StatusCode) -> Response {
 }
 
 /// Whether the request is a browser navigation: `Sec-Fetch-Mode: navigate`, or an `Accept` that prefers HTML.
+///
+/// A page the service worker passes on (`fetch(event.request)`) is a navigation too, but the Fetch standard turns
+/// its mode into `same-origin`, which is what Firefox sends for it (Chromium and WebKit keep `navigate`). So
+/// `same-origin` with an HTML `Accept` counts, as does no `Sec-Fetch-Mode` at all; `cors` and `no-cors` never do.
+/// Without this, Firefox with the worker installed got the empty `401`/`404` of a non-navigation for `/board` and
+/// for signed-in app pages (`NS_ERROR_NET_EMPTY_RESPONSE` in the built-bundle e2e, wave 30b).
 pub fn is_navigation(headers: &HeaderMap) -> bool {
     if let Some(mode) = headers.get("sec-fetch-mode").and_then(|v| v.to_str().ok()) {
-        return mode.eq_ignore_ascii_case("navigate");
+        if mode.eq_ignore_ascii_case("navigate") {
+            return true;
+        }
+        if !mode.eq_ignore_ascii_case("same-origin") {
+            return false;
+        }
     }
     let accept = headers
         .get(header::ACCEPT)
@@ -970,6 +981,13 @@ mod tests {
         assert!(is_navigation(&h));
         h.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
         h.insert(header::ACCEPT, HeaderValue::from_static("text/html"));
+        assert!(!is_navigation(&h));
+        h.insert("sec-fetch-mode", HeaderValue::from_static("no-cors"));
+        assert!(!is_navigation(&h));
+        // A page the service worker passed on (Firefox): same-origin, HTML first.
+        h.insert("sec-fetch-mode", HeaderValue::from_static("same-origin"));
+        assert!(is_navigation(&h));
+        h.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
         assert!(!is_navigation(&h));
     }
 

@@ -91,7 +91,11 @@ export function loginLocation(pathAndQuery: string): string {
 /** A navigation to a document, as the server's gate defines it: `Sec-Fetch-Mode: navigate`, or `Accept` preferring HTML. */
 export function isNavigation(req: Pick<IncomingMessage, 'method' | 'headers'>): boolean {
   if (req.method !== 'GET' && req.method !== 'HEAD') return false;
-  if (req.headers['sec-fetch-mode'] === 'navigate') return true;
+  const mode = req.headers['sec-fetch-mode'];
+  if (mode === 'navigate') return true;
+  // A page the service worker passes on is `same-origin` (Firefox); a script's fetch (`cors`, `no-cors`) never
+  // counts. The same rule as web.rs::is_navigation.
+  if (mode !== undefined && mode !== 'same-origin') return false;
   return /^text\/html\b/.test(String(req.headers['accept'] ?? ''));
 }
 

@@ -88,6 +88,8 @@ describe('publicDev: next and navigation', () => {
     expect(nav({ accept: 'text/html,application/xhtml+xml' })).toBe(true);
     expect(nav({ accept: '*/*' })).toBe(false);
     expect(nav({ accept: 'application/json' })).toBe(false);
+    expect(nav({ 'sec-fetch-mode': 'same-origin', accept: 'text/html' })).toBe(true);
+    expect(nav({ 'sec-fetch-mode': 'cors', accept: 'text/html' })).toBe(false);
     expect(nav({ 'sec-fetch-mode': 'navigate' }, 'POST')).toBe(false);
   });
 });

@@ -239,6 +239,34 @@ async fn anonymous_navigation_is_a_302_to_login_whether_or_not_the_path_exists()
 }
 
 #[tokio::test]
+async fn a_page_the_service_worker_passes_on_is_a_navigation() {
+    // `fetch(event.request)` in the worker: Firefox sends Sec-Fetch-Mode: same-origin, the Accept of the page.
+    let f = fixture(false).await;
+    let r = send(
+        &f,
+        empty(
+            req(Method::GET, "/board")
+                .header("sec-fetch-mode", "same-origin")
+                .header(header::ACCEPT, "text/html,application/xhtml+xml"),
+        ),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::FOUND);
+    assert_eq!(r.h("location"), "/login?next=/board");
+    // A script's fetch is not a page, whatever it accepts.
+    let r = send(
+        &f,
+        empty(
+            req(Method::GET, "/board")
+                .header("sec-fetch-mode", "cors")
+                .header(header::ACCEPT, "text/html"),
+        ),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn unsafe_next_values_are_dropped() {
     let f = fixture(false).await;
     for path in [
