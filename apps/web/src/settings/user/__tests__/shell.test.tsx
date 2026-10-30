@@ -9,6 +9,12 @@ import { useLoungeUi } from '../../../lounge/store';
 import { usePrefsStore } from '../prefs';
 import { openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
 import { warmLoungeRoute } from '../../../test/warmRoutes';
+import { nav as docNav } from '../../../lib/enterApp';
+
+beforeEach(() => {
+  vi.spyOn(docNav, 'assign').mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
 
 // The Lounge runs against the deterministic mock seed here (ESC returns to it).
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
@@ -157,7 +163,7 @@ describe('User Settings shell', () => {
     await user.click(within(nav).getByRole('button', { name: 'Log Out' }));
     dialog = await screen.findByRole('dialog', { name: 'Log out?' });
     await user.click(within(dialog).getByRole('button', { name: 'Log Out' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    await waitFor(() => expect(docNav.assign).toHaveBeenCalledWith('/login'));
   });
 
   it('shows the error when logging out fails', async () => {

@@ -14,7 +14,7 @@ import { useT } from '../../i18n/react';
 import { rememberMfaMethods } from '../../lib/mfaMethods';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
-import { enterApp } from '../../lib/enterApp';
+import { enterApp, nav } from '../../lib/enterApp';
 
 export function loginErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -54,7 +54,7 @@ export function Login() {
       const res = await login({ login: id.trim(), password: pw });
       if (res.status === 'mfa_required') {
         rememberMfaMethods(res.methods);
-        window.location.assign(`/login/2fa${next ? `?next=${encodeURIComponent(next)}` : ''}`);
+        nav.assign(`/login/2fa${next ? `?next=${encodeURIComponent(next)}` : ''}`);
       } else finish();
     } catch (err) {
       if (isBannedError(err)) {

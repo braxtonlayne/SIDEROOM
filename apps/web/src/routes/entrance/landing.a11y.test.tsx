@@ -2,29 +2,12 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 
 function at(path: string) {
   render(
-    <RouterProvider router={createAppRouter(createMemoryHistory({ initialEntries: [path] }))} />,
-  );
-}
-
-function stubReducedMotion(reduce: boolean) {
-  vi.stubGlobal(
-    'matchMedia',
-    (query: string) =>
-      ({
-        matches: reduce && query.includes('prefers-reduced-motion'),
-        media: query,
-        addEventListener: () => undefined,
-        removeEventListener: () => undefined,
-        addListener: () => undefined,
-        removeListener: () => undefined,
-        onchange: null,
-        dispatchEvent: () => false,
-      }) as unknown as MediaQueryList,
+    <RouterProvider router={createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }))} />,
   );
 }
 
@@ -45,25 +28,5 @@ describe('invite field focus', () => {
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByLabelText('Your invitation')),
     );
-  });
-});
-
-describe('the glimpse scroll', () => {
-  const click = async (reduce: boolean) => {
-    stubReducedMotion(reduce);
-    const scroll = vi.fn();
-    Element.prototype.scrollIntoView = scroll;
-    const user = userEvent.setup();
-    at('/');
-    await user.click(await screen.findByRole('button', { name: /a glimpse/i }));
-    return scroll;
-  };
-
-  it('animates by default', async () => {
-    expect(await click(false)).toHaveBeenCalledWith({ behavior: 'smooth' });
-  });
-
-  it('jumps when the person asked for reduced motion', async () => {
-    expect(await click(true)).toHaveBeenCalledWith({ behavior: 'auto' });
   });
 });

@@ -10,6 +10,7 @@ import { useT } from '../../i18n/react';
 import type { MessageKey } from '../../i18n/messages/en';
 import { useCompliancePublic } from '../../lib/compliancePublic';
 import { formatInviteCode, holdInviteCode, isCompleteInviteCode } from '../../lib/inviteCode';
+import { nav } from '../../lib/enterApp';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
 
 type CheckState = 'idle' | 'checking' | 'valid' | 'invalid' | 'closed' | 'limited' | 'error';
@@ -45,7 +46,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
         if (res.valid) {
           holdInviteCode(value);
           setState('valid');
-          timer.current = setTimeout(() => window.location.assign('/register'), 600);
+          timer.current = setTimeout(() => nav.assign('/register'), 600);
         } else if (res.reason === 'closed') {
           setState('closed');
         } else {

@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { createAppRouter } from '../router';
+import { createPublicRouter } from '../test/publicRouter';
 import { warmLoungeRoute } from '../test/warmRoutes';
 import { isIndexablePath, useNoindex } from './useNoindex';
 
@@ -43,14 +43,14 @@ describe('useNoindex (OPS-IDX-001, D-384)', () => {
   it('is applied by the real router: noindex on /login, none on /', async () => {
     const login = render(
       <RouterProvider
-        router={createAppRouter(createMemoryHistory({ initialEntries: ['/login'] }))}
+        router={createPublicRouter('/login', createMemoryHistory({ initialEntries: ['/login'] }))}
       />,
     );
     await vi.waitFor(() => expect(robots()).toHaveLength(1));
     login.unmount();
     expect(robots()).toHaveLength(0);
     render(
-      <RouterProvider router={createAppRouter(createMemoryHistory({ initialEntries: ['/'] }))} />,
+      <RouterProvider router={createPublicRouter('/', createMemoryHistory({ initialEntries: ['/'] }))} />,
     );
     await new Promise((r) => setTimeout(r, 50));
     expect(robots()).toHaveLength(0);

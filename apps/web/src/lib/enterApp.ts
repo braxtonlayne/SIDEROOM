@@ -24,13 +24,19 @@ export function safeNext(next: string | undefined | null): string | null {
   return next;
 }
 
+/** Document navigations go through here so a test can observe them (jsdom cannot navigate). */
+export const nav = {
+  assign: (url: string): void => window.location.assign(url),
+  replace: (url: string): void => window.location.replace(url),
+};
+
 /** Leave for the app (or a validated `next`) with a document load. */
 export function enterApp(next?: string | null): void {
-  window.location.assign(safeNext(next) ?? APP_DOOR);
+  nav.assign(safeNext(next) ?? APP_DOOR);
 }
 
 /** Leave for the sign-in page, remembering where the person was (the API client's 401 exit uses this). */
 export function exitToLogin(current: string = window.location.pathname + window.location.search) {
   const safe = safeNext(current);
-  window.location.assign(safe ? `/login?next=${encodeURIComponent(safe)}` : '/login');
+  nav.assign(safe ? `/login?next=${encodeURIComponent(safe)}` : '/login');
 }

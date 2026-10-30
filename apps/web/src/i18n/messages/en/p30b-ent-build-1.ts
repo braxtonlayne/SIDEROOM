@@ -16,7 +16,7 @@ export default {
     'Do not post anything illegal, and do not harass, spam or impersonate anyone.',
   'entrance.houseNotes.privacy.title': 'Privacy',
   'entrance.houseNotes.privacy.body1':
-    'Messages are kept until they are deleted. A deleted message disappears from view at once and is purged after 30 days; until then only senior staff can see it.',
+    'Messages are kept until they are deleted. A deleted message disappears from view at once and is purged after 30 days; until then only a few senior people can see it.',
   'entrance.houseNotes.privacy.body2':
     'Voice and video are encrypted end to end and are never recorded. Passwords are stored hashed, and nothing is sent to advertisers or analytics services.',
   'entrance.houseNotes.privacy.body3':

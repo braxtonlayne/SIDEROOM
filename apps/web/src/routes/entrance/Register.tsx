@@ -12,7 +12,7 @@ import {
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
 import { useT } from '../../i18n/react';
-import { enterApp } from '../../lib/enterApp';
+import { enterApp, nav } from '../../lib/enterApp';
 import { useCompliancePublic } from '../../lib/compliancePublic';
 import { clearInviteCode, heldInviteCode } from '../../lib/inviteCode';
 import {
@@ -54,7 +54,7 @@ export function Register() {
 
   // No code in hand: back to the entrance.
   useEffect(() => {
-    if (!code) window.location.replace('/');
+    if (!code) nav.replace('/');
   }, [code]);
 
   // Returning from the Discord OAuth round trip: prefill from the pending link.

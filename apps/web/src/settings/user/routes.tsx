@@ -1,3 +1,4 @@
+import { nav } from '../../lib/enterApp';
 import { createRoute, redirect, useRouter, type AnyRoute } from '@tanstack/react-router';
 import { useCallback } from 'react';
 import { resetStore } from '../../store';
@@ -26,7 +27,7 @@ function UserSettingsPage() {
   const onClose = useCallback(() => router.history.push(takeSettingsReturn()), [router]);
   const onSignedOut = useCallback(() => {
     resetStore();
-    window.location.assign('/login');
+    nav.assign('/login');
   }, [router]);
   if (!isUserSettingsSection(section)) return null;
   return (
