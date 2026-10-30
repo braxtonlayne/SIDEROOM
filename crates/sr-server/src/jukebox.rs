@@ -194,12 +194,33 @@ impl JukeboxEvents for BusJukeboxEvents {
 /// (`jukebox_jobs`) advances the rows; this only creates, removes and reads them.
 pub struct PgListeningRooms {
     pool: sqlx::PgPool,
+    bus: Option<Arc<dyn sr_events::EventBus>>,
 }
 
 impl PgListeningRooms {
     /// Wrap a pool.
     pub fn new(pool: sqlx::PgPool) -> Self {
-        Self { pool }
+        Self { pool, bus: None }
+    }
+
+    /// Announce a closed room on the bus, so its card disappears at once.
+    #[must_use]
+    pub fn with_bus(mut self, bus: Arc<dyn sr_events::EventBus>) -> Self {
+        self.bus = Some(bus);
+        self
+    }
+}
+
+/// The `LISTENING_ROOM_UPDATE` that says a channel stopped being a listening room.
+pub fn room_closed_event(channel: i64, guild: i64) -> sr_events::DomainEvent {
+    sr_events::DomainEvent::ListeningRoomUpdated {
+        guild: sr_core::GuildId::new(u64::try_from(guild).unwrap_or(0)),
+        channel: ChannelId::new(u64::try_from(channel).unwrap_or(0)),
+        payload: serde_json::json!({
+            "channel_id": channel.to_string(),
+            "guild_id": guild.to_string(),
+            "closed": true,
+        }),
     }
 }
 
@@ -239,12 +260,25 @@ impl sr_chat::jukebox::ports::ListeningRooms for PgListeningRooms {
     }
 
     async fn disable(&self, channel: i64) -> Result<bool, sr_chat::jukebox::ports::RoomError> {
-        let r = sqlx::query("DELETE FROM listening_rooms WHERE channel_id = $1")
-            .bind(channel)
-            .execute(&self.pool)
-            .await
-            .map_err(room_err)?;
-        Ok(r.rows_affected() > 0)
+        let guild: Option<i64> = sqlx::query_scalar(
+            "DELETE FROM listening_rooms WHERE channel_id = $1 RETURNING guild_id",
+        )
+        .bind(channel)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(room_err)?;
+        let Some(guild) = guild else {
+            return Ok(false);
+        };
+        if let Some(bus) = &self.bus {
+            let ev = room_closed_event(channel, guild);
+            for topic in ev.topics() {
+                if let Err(e) = bus.publish(topic, ev.clone()).await {
+                    tracing::warn!(error = %e, "publishing the closed LISTENING_ROOM_UPDATE failed");
+                }
+            }
+        }
+        Ok(true)
     }
 
     async fn cursor(

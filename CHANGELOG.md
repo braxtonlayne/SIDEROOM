@@ -16,6 +16,15 @@ what the operator now has to know. Keep each wave to a handful of lines.
   cannot read shows as "not shared with you" and stays silent for you. Server managers can turn a voice channel
   into a 24/7 listening room on a server playlist. Operators: the skip share is the setting
   `jukebox.vote_skip_percent`.
+- **Music in the call.** Members with Speak can play music into a voice channel in stereo at up to 320 kbit/s,
+  end-to-end encrypted like speech; your microphone stays mono. The DJ of a jukebox in stream mode does this
+  for the room, and bots can too. Listeners have their own music mute and volume, apart from the voices.
+  Server managers can switch music off for a channel or set its bitrate (`sr_music_allowed`,
+  `sr_music_bitrate_kbps` on the channel, default on and 256).
+- **Listening rooms.** The server never streams the audio: it keeps the place in the playlist, and everyone who
+  listens along plays the same track at the same moment from the server shelf. The channel card shows what is
+  playing and the next three, and disappears as soon as a manager switches the room off. Operators: a new gauge
+  `sr_voice_music_egress_bits_per_second` shows the music share of voice egress.
 
 ## Phase 30 - 2026-10-29
 

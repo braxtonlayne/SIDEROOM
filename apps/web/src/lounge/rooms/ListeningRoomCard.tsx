@@ -5,7 +5,7 @@ import { useT } from '../../i18n';
 import { onDispatch } from '../../store/events';
 import type { RoomUpdate } from './cursor';
 import { followRoom, joinRoom, leaveRoom, type JoinDeps, type RoomPlayer } from './join';
-import { ingestRoomUpdate, useListeningRooms } from './store';
+import { ingestRoomClosed, ingestRoomUpdate, useListeningRooms } from './store';
 import './rooms.css';
 
 export const ROOM_EVENT = 'LISTENING_ROOM_UPDATE';
@@ -54,6 +54,13 @@ function useRoomFeed(channelId: string) {
     () =>
       onDispatch((event, data) => {
         if (event !== ROOM_EVENT) return;
+        const closed = ingestRoomClosed(data);
+        if (closed !== null) {
+          // The room was switched off: the card goes, and a listener stops playing it.
+          if (closed === channelId && useListeningRooms.getState().listening === channelId)
+            void realDeps().then((d) => leaveRoom(d));
+          return;
+        }
         const u = ingestRoomUpdate(data);
         if (!u || u.channel_id !== channelId) return;
         if (useListeningRooms.getState().listening !== channelId) return;

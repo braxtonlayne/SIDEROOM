@@ -11,7 +11,12 @@ import {
 } from '../cursor';
 import { followRoom, joinRoom, leaveRoom, type JoinDeps } from '../join';
 import { RoomCardView } from '../ListeningRoomCard';
-import { __resetListeningRooms, ingestRoomUpdate, useListeningRooms } from '../store';
+import {
+  __resetListeningRooms,
+  ingestRoomClosed,
+  ingestRoomUpdate,
+  useListeningRooms,
+} from '../store';
 
 const track = (n: number, ms: number): RoomTrack => ({
   item_id: `i${n}`,
@@ -172,6 +177,14 @@ describe('the store', () => {
     ingestRoomUpdate(wire(room({ seq: 4, at_ms: 9e9 })));
     ingestRoomUpdate({ junk: true });
     expect(useListeningRooms.getState().rooms.c1?.seq).toBe(5);
+  });
+
+  it('forgets a room the server closed (the card disappears)', () => {
+    ingestRoomUpdate(wire(room({ seq: 5 })));
+    expect(ingestRoomClosed(wire(room()))).toBeNull();
+    expect(ingestRoomClosed({ channel_id: 'c1', guild_id: 'g1', closed: true })).toBe('c1');
+    expect(useListeningRooms.getState().rooms.c1).toBeUndefined();
+    expect(ingestRoomClosed({ channel_id: 'c1', closed: 'yes' })).toBeNull();
   });
 });
 

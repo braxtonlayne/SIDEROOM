@@ -308,3 +308,33 @@ async fn a_second_tick_inside_the_first_skips_the_locked_room() {
     tx.rollback().await.unwrap();
     assert_eq!(tick(&f.pool).await.unwrap().len(), 1);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn closing_a_room_announces_it_so_the_card_disappears() {
+    use futures::StreamExt;
+    use sr_chat::jukebox::ports::ListeningRooms;
+    use sr_events::{EventBus, InProcessBus, Topic};
+
+    let f = fx().await;
+    let a = item(&f, 1, 5001, Some(600_000), 0).await;
+    room(&f, Some(a), 0, 1_000, None).await;
+    let bus = Arc::new(InProcessBus::new());
+    let mut feed = bus.subscribe(Topic::Channel(sr_core::ChannelId::new(f.channel as u64)));
+    let rooms = crate::jukebox::PgListeningRooms::new(f.pool.clone()).with_bus(bus.clone());
+    assert!(rooms.disable(f.channel).await.unwrap());
+    let ev = tokio::time::timeout(std::time::Duration::from_secs(2), feed.next())
+        .await
+        .unwrap()
+        .unwrap();
+    let p = payload(&ev);
+    assert_eq!(p["closed"], true, "{p}");
+    assert_eq!(p["channel_id"], f.channel.to_string());
+    // A second close is not a room any more and says nothing.
+    assert!(!rooms.disable(f.channel).await.unwrap());
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(200), feed.next())
+            .await
+            .is_err()
+    );
+}

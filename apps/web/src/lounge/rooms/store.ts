@@ -20,6 +20,24 @@ export function ingestRoomUpdate(raw: unknown): RoomUpdate | null {
   return u;
 }
 
+/**
+ * A `LISTENING_ROOM_UPDATE` with `closed: true` (the channel stopped being a room): forget the room. Returns the
+ * channel id when the payload was a close, or null for any other payload.
+ */
+export function ingestRoomClosed(raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const r = raw as { closed?: unknown; channel_id?: unknown };
+  if (r.closed !== true || typeof r.channel_id !== 'string' || !r.channel_id) return null;
+  const id = r.channel_id;
+  useListeningRooms.setState((s) => {
+    if (!(id in s.rooms)) return s;
+    const rooms = { ...s.rooms };
+    delete rooms[id];
+    return { rooms };
+  });
+  return id;
+}
+
 export function setListening(channelId: string | null): void {
   useListeningRooms.setState({ listening: channelId });
 }
