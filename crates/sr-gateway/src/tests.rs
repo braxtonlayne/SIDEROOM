@@ -1365,6 +1365,45 @@ async fn storage_mount_updates_are_dispatched_to_members() {
     assert_eq!(d["d"]["change"], "created");
 }
 
+/// MUS-JB-003: a listening room's cursor reaches the sessions that may view the voice channel and hold the voice
+/// states intent; nobody else. (`outsider` is user 2, who sees the open channel but not the secret one.)
+#[tokio::test]
+async fn listening_room_updates_follow_the_channel_and_the_voice_intent() {
+    let e = env();
+    let mut listener = connect(&e);
+    listener.identify("bot:1", intents::GUILD_VOICE_STATES, 1).await;
+    let mut no_intent = connect(&e);
+    no_intent.identify("bot:1", intents::GUILDS, 1).await;
+    let mut outsider = connect(&e);
+    outsider.identify("bot:2", intents::GUILD_VOICE_STATES, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::ListeningRoomUpdated {
+            guild: G1,
+            channel: OPEN,
+            payload: json!({ "channel_id": "10", "guild_id": "1", "seq": 3, "position_ms": 1500 }),
+        },
+    )
+    .await;
+    let d = listener.expect_event("LISTENING_ROOM_UPDATE").await;
+    assert_eq!(d["d"]["seq"], 3);
+    outsider.expect_event("LISTENING_ROOM_UPDATE").await;
+    no_intent.silent().await;
+    emit(
+        &e.bus,
+        DomainEvent::ListeningRoomUpdated {
+            guild: G1,
+            channel: SECRET,
+            payload: json!({ "channel_id": "11", "guild_id": "1", "seq": 4 }),
+        },
+    )
+    .await;
+    // user 2 cannot view SECRET (see invite_for_a_hidden_channel_is_not_delivered); user 1 can.
+    let d = listener.expect_event("LISTENING_ROOM_UPDATE").await;
+    assert_eq!(d["d"]["seq"], 4);
+    outsider.silent().await;
+}
+
 #[tokio::test]
 async fn guild_appearance_update_is_dispatched_to_members() {
     let e = env();

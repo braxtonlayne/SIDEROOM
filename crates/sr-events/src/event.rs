@@ -409,6 +409,13 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// `LISTENING_ROOM_UPDATE` (MUS-JB-003): the cursor of a 24/7 listening room, every 15 seconds and on a
+    /// track change; `payload` is `{channel_id, guild_id, mode, seq, position_ms, at_ms, now_playing, next}`.
+    ListeningRoomUpdated {
+        guild: GuildId,
+        channel: ChannelId,
+        payload: Value,
+    },
     /// `GUILD_STICKERS_UPDATE`; `payload` is `{guild_id, stickers}`.
     StickersUpdated {
         guild: GuildId,
@@ -605,6 +612,7 @@ impl DomainEvent {
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
             | Self::StorageMountUpdated { guild, .. }
+            | Self::ListeningRoomUpdated { guild, .. }
             | Self::SoundboardUpdated { guild, .. }
             | Self::ScheduledEvent { guild, .. }
             | Self::VoiceJoined { guild, .. }
@@ -831,6 +839,11 @@ mod tests {
             },
             DomainEvent::StorageMountUpdated {
                 guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::ListeningRoomUpdated {
+                guild: g,
+                channel: c,
                 payload: p.clone(),
             },
             DomainEvent::SoundboardUpdated {
