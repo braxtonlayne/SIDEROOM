@@ -136,7 +136,11 @@ export function NoticesBar() {
     notices.push({
       key: 'update',
       tone: 'info',
-      body: <span>{t('lounge.banners.updateReady')}</span>,
+      body: (
+        <span>
+          {pwa.updateDeferred ? t('player.update.deferred') : t('lounge.banners.updateReady')}
+        </span>
+      ),
       action: (
         <Button size="sm" variant="secondary" onClick={applyPendingUpdate}>
           {t('lounge.banners.updateReload')}

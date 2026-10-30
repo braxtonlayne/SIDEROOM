@@ -19,6 +19,8 @@ export interface PwaState {
   installed: boolean;
   /** The Lounge notices bar is mounted and shows the update notice itself (G-49). */
   noticesBar: boolean;
+  /** The member asked for the update while music plays: it waits for the track boundary (MUS-PLY-001). */
+  updateDeferred: boolean;
 }
 
 let state: PwaState = {
@@ -26,7 +28,9 @@ let state: PwaState = {
   canInstall: false,
   installed: isStandalone(),
   noticesBar: false,
+  updateDeferred: false,
 };
+let updateGuard: (() => boolean) | null = null;
 let deferred: BeforeInstallPromptEvent | null = null;
 let applyUpdate: (() => void) | null = null;
 const listeners = new Set<() => void>();
@@ -74,8 +78,32 @@ export function setNoticesBarMounted(mounted: boolean) {
   set({ noticesBar: mounted });
 }
 
+/**
+ * Let a feature that must not be cut off (the floating player, MUS-PLY-001) hold the update reload back: while
+ * `guard()` is true, `applyPendingUpdate` waits instead of reloading, and the feature calls
+ * `flushDeferredUpdate` at its next safe point (a track boundary, a pause). Returns the remover.
+ */
+export function setUpdateGuard(guard: (() => boolean) | null): () => void {
+  updateGuard = guard;
+  return () => {
+    if (updateGuard === guard) updateGuard = null;
+  };
+}
+
 export function applyPendingUpdate() {
+  if (updateGuard?.()) {
+    set({ updateDeferred: true });
+    return;
+  }
+  set({ updateDeferred: false });
   applyUpdate?.();
+}
+
+/** The guard's feature reached a safe point: run the update the member already asked for. */
+export function flushDeferredUpdate(): boolean {
+  if (!state.updateDeferred || updateGuard?.()) return false;
+  applyPendingUpdate();
+  return true;
 }
 
 /** Show the browser install dialog. Resolves to whether the user accepted. */
@@ -101,8 +129,18 @@ export function usePwaState(): PwaState {
 
 /** Test hook: reset module state. */
 export function __resetPwaState() {
-  state = { updateReady: false, canInstall: false, installed: false, noticesBar: false };
+  state = {
+    updateReady: false,
+    canInstall: false,
+    installed: false,
+    noticesBar: false,
+    updateDeferred: false,
+  };
+  updateGuard = null;
   deferred = null;
   applyUpdate = null;
   for (const l of listeners) l();
 }
+
+/** True while an update the member asked for waits for a safe point (the player's track boundary). */
+export const isUpdateDeferred = (): boolean => state.updateDeferred;
