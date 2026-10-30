@@ -173,6 +173,10 @@ pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
 /// Mount caps and the upload part quota (wave 28, byos-browser; BYOS-BRW-001).
 pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
 pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
+/// Music library caps (wave 30, MUS-LIB-001): playlists one member or one server may keep, and items one
+/// playlist (or one member's favorites) may hold.
+pub const MUSIC_MAX_PLAYLISTS: &str = "music.max_playlists";
+pub const MUSIC_MAX_ITEMS: &str = "music.max_items";
 pub const BYOS_UPLOAD_PARTS_PER_HOUR: &str = "byos.upload_parts_per_hour";
 /// Whether the operator's own transcoder workers serve members' conversions in their own buckets (wave 29,
 /// conv-worker; BYOS-CNV-003). Off by default: a member then needs a worker token of their own.
@@ -413,6 +417,22 @@ pub const CATALOG: &[SettingDef] = &[
         100,
         5,
         "Most buckets one server may connect. Lowering it keeps the buckets already connected.",
+    ),
+    int(
+        MUSIC_MAX_PLAYLISTS,
+        "storage",
+        1,
+        1_000,
+        100,
+        "Most music playlists one member (or one server) may keep. Lowering it keeps the playlists already made.",
+    ),
+    int(
+        MUSIC_MAX_ITEMS,
+        "storage",
+        10,
+        50_000,
+        5_000,
+        "Most tracks one music playlist, or one member's favorites, may hold. Lowering it keeps the rows already saved.",
     ),
     int(
         BYOS_UPLOAD_PARTS_PER_HOUR,

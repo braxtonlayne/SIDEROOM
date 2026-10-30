@@ -17,6 +17,7 @@ pub mod mount_cache;
 pub mod mount_policy;
 pub mod mount_storage;
 pub mod mounts;
+pub mod music_lib;
 pub mod path;
 pub mod probe;
 pub mod recheck;

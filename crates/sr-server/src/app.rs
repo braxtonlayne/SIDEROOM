@@ -510,6 +510,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         sealer: mount_sealer.clone(),
         guard: Some(mount_guard.clone()),
     });
+    // The member's music library (MUS-LIB-001): playlists, favorites, recently played.
+    let music_lib_deps = Arc::new(routes::music::MusicLibDeps::new(
+        Arc::new(sr_db::music_lib_repo::PgMusicLib::new(pool.clone())),
+        Arc::new(routes::music::ShelfReach {
+            scopes: storage_scope_deps.clone(),
+            shelves: shelf_deps.clone(),
+        }),
+        id_src.clone(),
+    ));
     // Browser uploads and object changes in a mount (BYOS-BRW-001): the ledger, the signed bucket calls, ids.
     let upload_io: Arc<dyn sr_storage::uploads::MountIo> = Arc::new(
         sr_storage::uploads::S3MountIo::new(mount_sealer.clone()).with_guard(mount_guard.clone()),
@@ -1522,6 +1531,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(routes::music::MusicDeps {
             store: Arc::new(sr_db::music_repo::PgMusicStore::new(pool.clone())),
         }))
+        .extension(music_lib_deps)
         // The browser's delete and move update the index at once (wave-28 integration).
         .extension(Arc::new(routes::storage::IndexHooks {
             changes: index_store.clone(),
