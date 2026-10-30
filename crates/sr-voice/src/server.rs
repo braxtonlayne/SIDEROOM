@@ -353,6 +353,7 @@ fn control_channel(c: &VoiceCommand) -> ChannelId {
         | VoiceCommand::Disconnect { channel, .. }
         | VoiceCommand::StreamViewers { channel, .. }
         | VoiceCommand::E2eeKeyed { channel, .. }
+        | VoiceCommand::SetMusic { channel, .. }
         | VoiceCommand::CloseRoom { channel } => *channel,
     }
 }
@@ -698,6 +699,8 @@ fn merge_snapshots(all: &[Snapshot]) -> Snapshot {
         governor_severity: all.iter().map(|s| s.governor_severity).max().unwrap_or(0),
         keyframe_requests: all.iter().map(|s| s.keyframe_requests).sum(),
         unkeyed_frames: all.iter().map(|s| s.unkeyed_frames).sum(),
+        music_packets: all.iter().map(|s| s.music_packets).sum(),
+        music_egress_bps: all.iter().map(|s| s.music_egress_bps).sum(),
     }
 }
 
@@ -1187,6 +1190,14 @@ impl Actor {
                         self.pending_keyed.remove(&(channel, user));
                     }
                 }
+            }
+            VoiceCommand::SetMusic {
+                channel,
+                music_allowed,
+                bitrate_kbps,
+            } => {
+                self.core
+                    .set_music(now, channel, music_allowed, bitrate_kbps);
             }
             VoiceCommand::CloseRoom { channel } => {
                 self.pending_keyed.retain(|(c, _), _| *c != channel);

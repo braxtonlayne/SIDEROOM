@@ -60,6 +60,14 @@ export const REJOIN_VOICE_CLOSES: ReadonlySet<number> = new Set([
  */
 export const VIDEO_PUBLISH = true;
 
+/** Music bitrate bounds in kbit/s (MUS-JB-001): the channel setting `voice.music_bitrate_kbps`. */
+export const MUSIC_MIN_KBPS = 32;
+export const MUSIC_DEFAULT_KBPS = 256;
+export const MUSIC_MAX_KBPS = 320;
+
+export const clampMusicKbps = (kbps: number | undefined): number =>
+  Math.min(MUSIC_MAX_KBPS, Math.max(MUSIC_MIN_KBPS, Math.round(kbps ?? MUSIC_DEFAULT_KBPS)));
+
 /** SPEAKING bitmask. */
 export const SPEAKING_VOICE = 1;
 export const SPEAKING_PRIORITY = 4;
@@ -137,20 +145,38 @@ export function voiceUrl(
 }
 
 /**
- * Opus tuning for voice: DTX and in-band FEC on, mono, constrained bitrate (spec section 2).
+ * Opus tuning (spec section 2): the `voice` profile is DTX and in-band FEC on, mono, constrained bitrate. The
+ * `music` profile (MUS-JB-001, used while a music line is attached to the connection) is stereo with
+ * `sprop-stereo`, DTX off, in-band FEC on and the music bitrate as the ceiling. Both lines share one Opus
+ * payload type, so the profile applies to the whole connection while music plays; each sender's real cap is set
+ * per sender with `setParameters` (the microphone stays at the channel bitrate).
  * Rewrites (or adds) the `a=fmtp` line of the opus payload type in an offer.
  */
-export function tuneOpus(sdp: string, maxBitrate: number | undefined = 64_000): string {
+export function tuneOpus(
+  sdp: string,
+  maxBitrate: number | undefined = 64_000,
+  profile: 'voice' | 'music' = 'voice',
+): string {
   const m = /a=rtpmap:(\d+) opus\/48000/i.exec(sdp);
   if (!m) return sdp;
   const pt = m[1]!;
-  const wanted: Record<string, string> = {
-    minptime: '10',
-    useinbandfec: '1',
-    usedtx: '1',
-    stereo: '0',
-    maxaveragebitrate: String(maxBitrate),
-  };
+  const wanted: Record<string, string> =
+    profile === 'music'
+      ? {
+          minptime: '10',
+          useinbandfec: '1',
+          usedtx: '0',
+          stereo: '1',
+          'sprop-stereo': '1',
+          maxaveragebitrate: String(maxBitrate),
+        }
+      : {
+          minptime: '10',
+          useinbandfec: '1',
+          usedtx: '1',
+          stereo: '0',
+          maxaveragebitrate: String(maxBitrate),
+        };
   const re = new RegExp(`a=fmtp:${pt} ([^\\r\\n]*)`);
   const cur = re.exec(sdp);
   const params = new Map<string, string>();
@@ -166,10 +192,81 @@ export function tuneOpus(sdp: string, maxBitrate: number | undefined = 64_000): 
   return sdp.replace(m[0], `${m[0]}\r\n${line}`);
 }
 
+/**
+ * Payload types of the two Opus flavours (crates/sr-voice-proto/src/sdp.rs): the microphone is mono Opus on the
+ * browser's own type (111) and never carries a `stereo` fmtp; the music line is stereo Opus on 112. A browser
+ * shares one payload-type table across a connection, so the only way to keep the two apart is to give the music
+ * m-line its own payload type, which `tuneOpusOffer` does to the offer text before it is applied.
+ */
+export const STEREO_OPUS_PT = 112;
+
+/** Which m-line of an offer is the music line: by the msid stream id we gave its stream, or by its mid. */
+export interface MusicLine {
+  streamId: string;
+  mid?: string | null;
+  kbps: number;
+}
+
+/**
+ * The offer text the engine applies: every audio line gets the voice profile (mono, DTX, the channel bitrate) and
+ * the music line (when there is one) is rewritten to list only [`STEREO_OPUS_PT`] with the music profile
+ * (`stereo=1; sprop-stereo=1`, no DTX, the music bitrate), so the mic line never carries a stereo fmtp and the
+ * music line always does. If 112 is already taken by something else in the offer the music line is left as a plain
+ * voice line (mono music) instead of risking a clash.
+ */
+export function tuneOpusOffer(
+  sdp: string,
+  voiceBitrate: number | undefined,
+  music: MusicLine | null,
+): string {
+  const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+  const sections = sdp.split(new RegExp(`${eol}(?=m=)`));
+  const taken = new RegExp(`a=rtpmap:${STEREO_OPUS_PT} `).test(sdp);
+  const isMusic = (s: string) =>
+    music !== null &&
+    (s.includes(`a=msid:${music.streamId} `) ||
+      (music.mid != null && s.includes(`a=mid:${music.mid}${eol}`)));
+  const out = sections.map((s) => {
+    if (!s.startsWith('m=audio')) return s;
+    if (!isMusic(s) || taken) return tuneOpus(s, voiceBitrate);
+    const m = /a=rtpmap:(\d+) opus\/48000/i.exec(s);
+    if (!m) return s;
+    const from = m[1]!;
+    const pt = String(STEREO_OPUS_PT);
+    const lines = s
+      .split(eol)
+      // Drop every payload type's attributes but Opus' own, then give Opus the stereo type.
+      .filter((l) => {
+        const a = /^a=(?:rtpmap|fmtp|rtcp-fb):(\d+) /.exec(l);
+        return !a || a[1] === from;
+      })
+      .map((l) => {
+        if (l.startsWith('m=audio ')) return l.replace(/^(m=audio \S+ \S+).*$/, `$1 ${pt}`);
+        return l.replace(new RegExp(`^(a=(?:rtpmap|fmtp|rtcp-fb)):${from} `), `$1:${pt} `);
+      });
+    return tuneOpus(lines.join(eol), music!.kbps * 1000, 'music');
+  });
+  return out.join(eol);
+}
+
+/**
+ * The answer to an SFU offer: Chrome drops `stereo` from the fmtp of the payload type it answers, and the decoder
+ * only outputs two channels when the local description says so, so put it back on the stereo type (and on it alone;
+ * a mono line never lists that type).
+ */
+export function stereoAnswer(sdp: string): string {
+  const re = new RegExp(`(a=fmtp:${STEREO_OPUS_PT} )([^\\r\\n]*)`, 'g');
+  if (!sdp.includes(`a=rtpmap:${STEREO_OPUS_PT} `)) return sdp;
+  return sdp.replace(re, (_m, head: string, rest: string) => {
+    const params = rest.split(';').filter((p) => p && !/^(stereo|sprop-stereo)=/.test(p));
+    return `${head}${[...params, 'stereo=1', 'sprop-stereo=1'].join(';')}`;
+  });
+}
+
 // ---- video (op 12), crates/sr-voice-proto/src/video.rs ----
 
 /** What a published or forwarded track carries. */
-export type VideoSource = 'camera' | 'screen' | 'screen_audio';
+export type VideoSource = 'camera' | 'screen' | 'screen_audio' | 'music';
 export type VideoLayer = 'low' | 'mid' | 'high';
 
 /** C->S: the m-line `mid` carries `source` (or stops carrying it with `active: false`). */
@@ -186,7 +283,8 @@ export interface VideoPublishOut {
 /** What a subscriber wants from one source of one participant. */
 export interface VideoHint {
   user_id: string;
-  source: 'camera' | 'screen';
+  /** `music` (MUS-JB-001) only uses `enabled`: a listener mutes someone's music track separately. */
+  source: 'camera' | 'screen' | 'music';
   enabled?: boolean;
   layer?: VideoLayer;
   viewport?: { width: number; height: number };
@@ -221,9 +319,14 @@ export type VideoIn = VideoPublishedIn | VideoLayerIn;
 
 /**
  * The SFU names each forwarded line's msid stream: `<user>` is the microphone, `<user>-camera` the camera,
- * `<user>-screen` the screen and its audio (one stream group, so the browser plays them in sync).
+ * `<user>-screen` the screen and its audio (one stream group, so the browser plays them in sync),
+ * `<user>-music` the stereo music track (MUS-JB-001).
  */
-export function parseStreamId(id: string): { userId: string; kind: 'mic' | 'camera' | 'screen' } {
+export function parseStreamId(id: string): {
+  userId: string;
+  kind: 'mic' | 'camera' | 'screen' | 'music';
+} {
+  if (id.endsWith('-music')) return { userId: id.slice(0, -'-music'.length), kind: 'music' };
   if (id.endsWith('-camera')) return { userId: id.slice(0, -'-camera'.length), kind: 'camera' };
   if (id.endsWith('-screen')) return { userId: id.slice(0, -'-screen'.length), kind: 'screen' };
   return { userId: id, kind: 'mic' };

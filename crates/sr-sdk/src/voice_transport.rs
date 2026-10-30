@@ -19,6 +19,12 @@
 //! cannot be decrypted. Encoded frames are encrypted before RTP packetisation exactly as in the browser
 //! (the SFU only ever sees ciphertext).
 //!
+//! A bot DJ (MUS-JB-001): [`VoiceSession::connect_with`] with [`ConnectOptions::music`] adds a second send-only
+//! audio line, announced to the SFU as the `music` source (op 12 `publish`); [`VoiceSession::send_music_opus`]
+//! publishes one 20 ms stereo Opus frame on it through the same frame transform as the microphone (D-249), so the
+//! music is end-to-end encrypted exactly like speech. Encode with `crate::audio` (`Channels::Stereo`, then
+//! `set_bitrate` up to 320 kbit/s; 1920 interleaved samples per 20 ms frame). The SFU never decodes it.
+//!
 //! The session is one task's worth of state, not a thread: call `pump` in a loop. A bare [`VoiceSession`] does
 //! not reconnect; on [`VoiceEvent::Closed`] it is done. [`VoiceLink`] wraps one and does what a client does
 //! (RDY-DEV-002): when the signalling WebSocket drops while the media connection is up it re-attaches with the
@@ -32,11 +38,12 @@ use std::collections::VecDeque;
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
 
+use crate::opus_sdp::{MONO_OPUS_PT, STEREO_OPUS_PT, expand_opus_lines, restrict_opus_lines};
 use futures::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use str0m::change::{SdpAnswer, SdpOffer, SdpPendingOffer};
-use str0m::format::Codec;
-use str0m::media::{Direction, MediaKind, Mid};
+use str0m::format::{Codec, FormatParams};
+use str0m::media::{Direction, Frequency, MediaKind, Mid, Pt};
 use str0m::net::{Protocol, Receive};
 use str0m::{Candidate, Event, Input, Output, Rtc};
 use tokio::net::{TcpStream, UdpSocket};
@@ -51,6 +58,7 @@ mod op {
     pub const SDP_OFFER: u8 = 4;
     pub const SDP_ANSWER: u8 = 5;
     pub const SPEAKING: u8 = 7;
+    pub const VIDEO: u8 = 12;
     pub const RESUME: u8 = 8;
     pub const RESUMED: u8 = 9;
     pub const CLIENT_CONNECT: u8 = 10;
@@ -87,6 +95,40 @@ pub enum TransportError {
     EncryptionRequired,
     #[error("frame transform: {0}")]
     Transform(String),
+    #[error("this session was joined without a music line: connect with ConnectOptions::music")]
+    NoMusicLine,
+}
+
+/// An `Rtc` with the two Opus payload types the SFU uses (MUS-JB-001): 111 mono for the microphone, 112 stereo
+/// for the music line. Which audio line carries which is fixed in the SDP text (see [`crate::opus_sdp`]): the
+/// offers and answers that leave this session list one type per line, and the ones that enter it are widened
+/// first, because str0m needs to see both types on every line to keep its two entries apart.
+fn new_rtc(now: Instant) -> Rtc {
+    let mut b = Rtc::builder().clear_codecs();
+    for (pt, stereo) in [(MONO_OPUS_PT, false), (STEREO_OPUS_PT, true)] {
+        b.codec_config().add_config(
+            Pt::new_with_value(pt),
+            None,
+            Codec::Opus,
+            Frequency::FORTY_EIGHT_KHZ,
+            Some(2),
+            FormatParams {
+                min_p_time: Some(10),
+                use_inband_fec: Some(true),
+                stereo: stereo.then_some(true),
+                sprop_stereo: stereo.then_some(true),
+                ..Default::default()
+            },
+        );
+    }
+    b.build(now)
+}
+
+/// Options for [`VoiceSession::connect_with`] and [`VoiceLink::connect_with`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ConnectOptions {
+    /// Offer a second send-only audio line for a stereo music track (MUS-JB-001).
+    pub music: bool,
 }
 
 /// Encrypts the bot's own frames and decrypts everyone else's.
@@ -212,6 +254,12 @@ pub enum VoiceEvent {
         user: u64,
         frame: Vec<u8>,
     },
+    /// One frame of someone's stereo music track (MUS-JB-001), already decrypted when a transform is
+    /// installed. Decode it with a stereo decoder (`crate::audio`, `Channels::Stereo`).
+    Music {
+        user: u64,
+        frame: Vec<u8>,
+    },
     /// A frame that could not be decrypted was dropped.
     Undecryptable {
         user: u64,
@@ -253,6 +301,10 @@ pub struct VoiceSession {
     socket: UdpSocket,
     local: SocketAddr,
     mic: Mid,
+    /// The music line, when joined with [`ConnectOptions::music`].
+    music: Option<Mid>,
+    /// The SFU was told the music line is live.
+    music_live: bool,
     pending: Option<SdpPendingOffer>,
     start: Instant,
     heartbeat_every: Duration,
@@ -284,6 +336,15 @@ impl VoiceSession {
     pub async fn connect(
         update: &VoiceServerUpdate,
         bind_ip: IpAddr,
+    ) -> Result<Self, TransportError> {
+        Self::connect_with(update, bind_ip, ConnectOptions::default()).await
+    }
+
+    /// [`connect`](Self::connect) with options: a bot DJ asks for the music line.
+    pub async fn connect_with(
+        update: &VoiceServerUpdate,
+        bind_ip: IpAddr,
+        options: ConnectOptions,
     ) -> Result<Self, TransportError> {
         if !(update.endpoint.starts_with("ws://") || update.endpoint.starts_with("wss://")) {
             return Err(TransportError::BadEndpoint);
@@ -320,20 +381,23 @@ impl VoiceSession {
         let local = socket
             .local_addr()
             .map_err(|e| TransportError::Socket(e.to_string()))?;
-        let mut rtc = Rtc::builder().build(Instant::now());
+        let mut rtc = new_rtc(Instant::now());
         rtc.add_local_candidate(
             Candidate::host(local, "udp").map_err(|e| TransportError::Rtc(e.to_string()))?,
         );
         let mut change = rtc.sdp_api();
         let mic = change.add_media(MediaKind::Audio, Direction::SendOnly, None, None, None);
+        let music = options
+            .music
+            .then(|| change.add_media(MediaKind::Audio, Direction::SendOnly, None, None, None));
         let (offer, pending) = change
             .apply()
             .ok_or_else(|| TransportError::Rtc("nothing to offer".into()))?;
-        send_ws(
-            &mut ws,
-            json!({"op": op::SDP_OFFER, "d": {"sdp": offer.to_sdp_string()}}),
-        )
-        .await?;
+        // The microphone line lists the mono type only, the music line the stereo type only.
+        let music_mids = music.iter().map(ToString::to_string).collect();
+        let sdp = restrict_opus_lines(&offer.to_sdp_string(), &music_mids);
+        send_ws(&mut ws, json!({"op": op::SDP_OFFER, "d": {"sdp": sdp}})).await?;
+        // The line is named to the SFU by the first music frame (or start_music), not at join.
         let heartbeat_every = Duration::from_millis(
             ready["heartbeat_interval"]
                 .as_u64()
@@ -360,6 +424,8 @@ impl VoiceSession {
             socket,
             local,
             mic,
+            music,
+            music_live: false,
             pending: Some(pending),
             start: Instant::now(),
             heartbeat_every,
@@ -456,6 +522,50 @@ impl VoiceSession {
     /// Publish one Opus frame (20 ms). `audio_level` is the frame's level in dBov (-127 quiet .. 0 loud);
     /// the SFU's speaking indicator follows it. In an encrypted call this fails without a transform.
     pub fn send_opus(&mut self, frame: &[u8], audio_level: i8) -> Result<(), TransportError> {
+        self.send_on(self.mic, frame, audio_level, false)
+    }
+
+    /// Publish one 20 ms stereo Opus frame on the music line (MUS-JB-001), encrypted by the same transform as
+    /// speech. Fails with [`TransportError::NoMusicLine`] when the session was joined without
+    /// [`ConnectOptions::music`]. Music does not set the speaking indicator.
+    pub fn send_music_opus(&mut self, frame: &[u8]) -> Result<(), TransportError> {
+        let mid = self.music.ok_or(TransportError::NoMusicLine)?;
+        if !self.music_live {
+            self.start_music();
+        }
+        self.send_on(mid, frame, -127, true)
+    }
+
+    /// Stop the music: tell the SFU the line carries nothing now (the line itself stays for the next track).
+    pub fn stop_music(&mut self) {
+        self.music_live = false;
+        if let Some(mid) = self.music {
+            self.out.push(
+                json!({"op": op::VIDEO, "d": {"t": "publish", "mid": mid.to_string(),
+                "source": "music", "active": false, "width": 0, "height": 0, "fps": 0}}),
+            );
+        }
+    }
+
+    /// Start the music again after [`stop_music`](Self::stop_music).
+    pub fn start_music(&mut self) {
+        self.music_live = true;
+        if let Some(mid) = self.music {
+            self.out.push(
+                json!({"op": op::VIDEO, "d": {"t": "publish", "mid": mid.to_string(),
+                "source": "music", "active": true, "width": 0, "height": 0, "fps": 0}}),
+            );
+        }
+    }
+
+    /// Write one frame on `mid`: the microphone on the mono Opus type, music on the stereo one.
+    fn send_on(
+        &mut self,
+        mid: Mid,
+        frame: &[u8],
+        audio_level: i8,
+        stereo: bool,
+    ) -> Result<(), TransportError> {
         if !self.rtc.is_connected() {
             return Err(TransportError::NotConnected);
         }
@@ -466,11 +576,13 @@ impl VoiceSession {
         };
         let mut w = self
             .rtc
-            .writer(self.mic)
+            .writer(mid)
             .ok_or_else(|| TransportError::Rtc("no audio line".into()))?;
         let pt = w
             .payload_params()
-            .find(|p| p.spec().codec == Codec::Opus)
+            .find(|p| {
+                p.spec().codec == Codec::Opus && (p.spec().format.stereo == Some(true)) == stereo
+            })
             .ok_or_else(|| TransportError::Rtc("Opus was not negotiated".into()))?
             .pt();
         w = w.audio_level(audio_level, true);
@@ -569,21 +681,30 @@ impl VoiceSession {
     }
 
     fn on_media(&mut self, stream: &str, data: &[u8]) {
-        // The SFU names each incoming audio line after its speaker's user id.
-        let Ok(user) = stream.parse::<u64>() else {
+        // The SFU names each incoming audio line after its speaker's user id; the music line is
+        // `<user>-music` (MUS-JB-001).
+        let (user, music) = match stream.strip_suffix("-music") {
+            Some(id) => (id.parse::<u64>(), true),
+            None => (stream.parse::<u64>(), false),
+        };
+        let Ok(user) = user else {
             return;
+        };
+        let make = |frame: Vec<u8>| {
+            if music {
+                VoiceEvent::Music { user, frame }
+            } else {
+                VoiceEvent::Audio { user, frame }
+            }
         };
         match self.transform.as_mut() {
             Some(t) => match t.decrypt(user, data) {
-                Ok(frame) => self.events.push_back(VoiceEvent::Audio { user, frame }),
+                Ok(frame) => self.events.push_back(make(frame)),
                 Err(_) => self.events.push_back(VoiceEvent::Undecryptable { user }),
             },
             // An encrypted call without a transform: never hand ciphertext to the application as audio.
             None if self.e2ee => self.events.push_back(VoiceEvent::Undecryptable { user }),
-            None => self.events.push_back(VoiceEvent::Audio {
-                user,
-                frame: data.to_vec(),
-            }),
+            None => self.events.push_back(make(data.to_vec())),
         }
     }
 
@@ -600,7 +721,8 @@ impl VoiceSession {
                 match v["op"].as_u64().and_then(|o| u8::try_from(o).ok()) {
                     Some(op::SDP_ANSWER) => {
                         if let (Some(p), Some(sdp)) = (self.pending.take(), d["sdp"].as_str())
-                            && let Ok(answer) = SdpAnswer::from_sdp_string(sdp)
+                            && let Ok(answer) =
+                                SdpAnswer::from_sdp_string(&expand_opus_lines(sdp).0)
                         {
                             self.rtc
                                 .sdp_api()
@@ -609,19 +731,22 @@ impl VoiceSession {
                         }
                     }
                     Some(op::SDP_OFFER) => {
-                        if let Some(sdp) = d["sdp"].as_str()
-                            && let Ok(offer) = SdpOffer::from_sdp_string(sdp)
-                        {
-                            let answer = self
-                                .rtc
-                                .sdp_api()
-                                .accept_offer(offer)
-                                .map_err(|e| TransportError::Rtc(e.to_string()))?;
-                            send_ws(
-                                &mut self.ws,
-                                json!({"op": op::SDP_ANSWER, "d": {"sdp": answer.to_sdp_string()}}),
-                            )
-                            .await?;
+                        if let Some(sdp) = d["sdp"].as_str() {
+                            let (wide, music_mids) = expand_opus_lines(sdp);
+                            if let Ok(offer) = SdpOffer::from_sdp_string(&wide) {
+                                let answer = self
+                                    .rtc
+                                    .sdp_api()
+                                    .accept_offer(offer)
+                                    .map_err(|e| TransportError::Rtc(e.to_string()))?;
+                                let narrow =
+                                    restrict_opus_lines(&answer.to_sdp_string(), &music_mids);
+                                send_ws(
+                                    &mut self.ws,
+                                    json!({"op": op::SDP_ANSWER, "d": {"sdp": narrow}}),
+                                )
+                                .await?;
+                            }
                         }
                     }
                     Some(op::CLIENT_CONNECT) => {
@@ -690,6 +815,7 @@ pub struct VoiceLink {
     update: VoiceServerUpdate,
     bind_ip: IpAddr,
     policy: ReconnectPolicy,
+    options: ConnectOptions,
 }
 
 impl std::fmt::Debug for VoiceLink {
@@ -708,12 +834,23 @@ impl VoiceLink {
         bind_ip: IpAddr,
         policy: ReconnectPolicy,
     ) -> Result<Self, TransportError> {
-        let session = VoiceSession::connect(&update, bind_ip).await?;
+        Self::connect_with(update, bind_ip, policy, ConnectOptions::default()).await
+    }
+
+    /// [`connect`](Self::connect) with options; rejoins keep them (a bot DJ keeps its music line).
+    pub async fn connect_with(
+        update: VoiceServerUpdate,
+        bind_ip: IpAddr,
+        policy: ReconnectPolicy,
+        options: ConnectOptions,
+    ) -> Result<Self, TransportError> {
+        let session = VoiceSession::connect_with(&update, bind_ip, options).await?;
         Ok(Self {
             session,
             update,
             bind_ip,
             policy,
+            options,
         })
     }
 
@@ -726,7 +863,7 @@ impl VoiceLink {
     /// Join again with a fresh `VOICE_SERVER_UPDATE` (after [`VoiceEvent::Closed`] with a refused token, or
     /// because the gateway moved the call to another node), keeping the frame transform.
     pub async fn rejoin(&mut self, update: VoiceServerUpdate) -> Result<(), TransportError> {
-        let mut fresh = VoiceSession::connect(&update, self.bind_ip).await?;
+        let mut fresh = VoiceSession::connect_with(&update, self.bind_ip, self.options).await?;
         if let Some(t) = self.session.take_transform() {
             fresh.transform = Some(t);
         }
@@ -786,7 +923,7 @@ impl VoiceLink {
                 }
             }
             if resume_failed {
-                match VoiceSession::connect(&self.update, self.bind_ip).await {
+                match VoiceSession::connect_with(&self.update, self.bind_ip, self.options).await {
                     Ok(mut fresh) => {
                         if let Some(t) = self.session.take_transform() {
                             fresh.transform = Some(t);
@@ -816,6 +953,38 @@ async fn send_ws(ws: &mut Ws, v: Value) -> Result<(), TransportError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// MUS-JB-001: the microphone line of the bot's offer never carries a stereo fmtp, the music line always does.
+    #[test]
+    fn the_microphone_line_is_mono_and_the_music_line_is_stereo_in_the_offer() {
+        let mut rtc = new_rtc(Instant::now());
+        let mut change = rtc.sdp_api();
+        let mic = change.add_media(MediaKind::Audio, Direction::SendOnly, None, None, None);
+        let music = change.add_media(MediaKind::Audio, Direction::SendOnly, None, None, None);
+        let (offer, _) = change.apply().unwrap();
+        let raw = offer.to_sdp_string();
+        assert!(
+            raw.contains("a=rtpmap:111") && raw.contains("a=rtpmap:112"),
+            "str0m offers both"
+        );
+        let sdp = restrict_opus_lines(&raw, &[music.to_string()].into_iter().collect());
+        let section = |mid: Mid| {
+            sdp.split("\r\nm=")
+                .find(|s| s.contains(&format!("a=mid:{mid}\r\n")))
+                .unwrap()
+                .to_owned()
+        };
+        let (m, s) = (section(mic), section(music));
+        assert!(
+            m.contains("a=rtpmap:111") && !m.contains("112") && !m.contains("stereo"),
+            "{m}"
+        );
+        assert!(s.contains("a=rtpmap:112") && !s.contains("111"), "{s}");
+        assert!(
+            s.contains("stereo=1") && s.contains("sprop-stereo=1"),
+            "{s}"
+        );
+    }
 
     #[test]
     fn the_server_update_parses_and_defaults_to_encrypted() {
