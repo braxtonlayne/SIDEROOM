@@ -7,7 +7,7 @@ import { Button, Icon, ProgressBar } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import { announce } from '../../a11y/announcer';
 import { useT } from '../../i18n';
-import { captureFrames, planFrames, MAX_SECONDS } from './videoFrames';
+import { captureFrames, planFrames, resolveDuration, MAX_SECONDS } from './videoFrames';
 import { loadStudioWasm } from './wasm';
 import './studio.css';
 
@@ -154,14 +154,13 @@ export default function GifTool() {
           preload="auto"
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
-            setMeta({
-              duration: v.duration,
-              width: v.videoWidth || 480,
-              height: v.videoHeight || 270,
+            void resolveDuration(v).then((duration) => {
+              if (!duration) return setInvalid(true);
+              setMeta({ duration, width: v.videoWidth || 480, height: v.videoHeight || 270 });
+              setStart(0);
+              setLength(Math.min(5, duration));
+              setWidth(Math.min(480, v.videoWidth || 480));
             });
-            setStart(0);
-            setLength(Math.min(5, v.duration || 5));
-            setWidth(Math.min(480, v.videoWidth || 480));
           }}
           onError={() => setInvalid(true)}
         />

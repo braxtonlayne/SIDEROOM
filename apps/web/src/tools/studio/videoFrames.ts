@@ -68,3 +68,23 @@ export async function captureFrames(
     onFrame(b.data, i);
   }
 }
+
+/**
+ * The duration of a loaded video. A clip recorded in the browser (MediaRecorder WebM) reports Infinity until the
+ * end has been seeked to, so seek far ahead once and read it back.
+ */
+export async function resolveDuration(video: HTMLVideoElement): Promise<number> {
+  if (Number.isFinite(video.duration)) return video.duration;
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      video.removeEventListener('durationchange', done);
+      resolve();
+    };
+    video.addEventListener('durationchange', done);
+    video.currentTime = 1e7;
+    setTimeout(done, 3000);
+  });
+  const d = Number.isFinite(video.duration) ? video.duration : 0;
+  video.currentTime = 0;
+  return d;
+}
