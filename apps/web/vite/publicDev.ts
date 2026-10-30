@@ -1,8 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingMessage } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
+import {
+  CSS as LEGAL_CSS,
+  cssFileName,
+  loadCatalog,
+  renderHouseNotes,
+} from '../../../scripts/render-legal.mjs';
+import { NO_SCRIPT_CSP } from '../src/security/csp';
 
 /**
  * SEC-ENT-004 / D-385 (docs/dev/entrance-isolation.md sections 3 and 9): the development counterpart of the
@@ -10,7 +17,10 @@ import type { Plugin } from 'vite';
  * would see the app, not the `302` production sends. The middleware:
  *
  *  - serves the shell of a public surface (`public-surfaces.json`: landing, auth, invite, ...) for its paths;
- *  - forwards `/house-notes` to `sr-server` (the legal page is rendered there);
+ *  - serves `/house-notes` as the server does (web.rs::legal): the template scripts/render-legal.mjs writes into
+ *    the build, rendered here from the same source on every request, the operator values from
+ *    `GET /sr/compliance/public` filled in HTML-escaped, the no-script policy; and its stylesheet. In dev
+ *    sr-server has no web root, so forwarding the page there answered the API's JSON 404;
  *  - for any other document navigation asks `sr-server` for the gate decision (`GET /api/v1/users/@me` with the
  *    request's cookie): a session gets `app.html`, no session gets `302 /login?next=<path>`.
  *
@@ -128,25 +138,84 @@ export function hasSession(api: URL, cookie: string | undefined): Promise<boolea
   });
 }
 
-function forward(api: URL, req: IncomingMessage, res: ServerResponse): void {
-  const out = httpRequest(
-    {
-      hostname: api.hostname,
-      port: api.port,
-      method: req.method,
-      path: req.url,
-      headers: req.headers,
-    },
-    (r) => {
-      res.writeHead(r.statusCode ?? 502, r.headers);
-      r.pipe(res);
-    },
+/** HTML-escape a value the way web.rs::escape_html does. */
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** web.rs::fill_placeholders: one pass, escaped, so a value holding a placeholder is never expanded again. */
+export function fillPlaceholders(template: string, country: string, contact: string): string {
+  return template.replace(/{{operator_(country|contact)}}/g, (_, k: string) =>
+    escapeHtml(k === 'country' ? country : contact),
   );
-  out.on('error', () => {
-    res.statusCode = 502;
-    res.end();
+}
+
+/** The operator's country and contact from sr-server's public compliance settings; empty when unset or down. */
+function operatorValues(api: URL): Promise<{ country: string; contact: string }> {
+  const none = { country: '', contact: '' };
+  return new Promise((resolve) => {
+    const out = httpRequest(
+      {
+        hostname: api.hostname,
+        port: api.port,
+        path: '/api/v1/sr/compliance/public',
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        timeout: 3000,
+      },
+      (r) => {
+        let body = '';
+        r.setEncoding('utf8');
+        r.on('data', (c: string) => (body += c));
+        r.on('end', () => {
+          try {
+            const j = JSON.parse(body) as {
+              operator_country?: unknown;
+              operator_contact?: unknown;
+            };
+            resolve({
+              country: typeof j.operator_country === 'string' ? j.operator_country : '',
+              contact: typeof j.operator_contact === 'string' ? j.operator_contact : '',
+            });
+          } catch {
+            resolve(none);
+          }
+        });
+      },
+    );
+    out.on('error', () => resolve(none));
+    out.on('timeout', () => {
+      out.destroy();
+      resolve(none);
+    });
+    out.end();
   });
-  req.pipe(out);
+}
+
+/** The legal page's response headers, as web.rs::legal sends them. */
+export const HOUSE_NOTES_HEADERS: Record<string, string> = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'Cache-Control': 'no-cache',
+  'Content-Security-Policy': NO_SCRIPT_CSP,
+  'Reporting-Endpoints': 'csp-endpoint="/internal/csp-report"',
+  Vary: 'Accept-Language',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Robots-Tag': 'noindex, nofollow',
+};
+
+/** The house notes, rendered now from the catalog (only English exists, as in the build). */
+export async function renderDevHouseNotes(api: URL): Promise<string> {
+  const { country, contact } = await operatorValues(api);
+  return fillPlaceholders(
+    renderHouseNotes(loadCatalog(), `/entrance/${cssFileName()}`),
+    country,
+    contact,
+  );
 }
 
 export interface PublicDevOptions {
@@ -168,6 +237,24 @@ export function publicDev(options: PublicDevOptions = {}): Plugin {
       server.middlewares.use((req, res, next) => {
         const url = req.url ?? '/';
         const pathname = url.split(/[?#]/)[0] ?? '/';
+        const readOnly = req.method === 'GET' || req.method === 'HEAD';
+        if (readOnly && pathname === `/entrance/${cssFileName()}`) {
+          res.setHeader('Content-Type', 'text/css; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.end(req.method === 'HEAD' ? undefined : LEGAL_CSS);
+          return;
+        }
+        if (readOnly && pathname === '/house-notes') {
+          renderDevHouseNotes(api).then(
+            (html) => {
+              for (const [k, v] of Object.entries(HOUSE_NOTES_HEADERS)) res.setHeader(k, v);
+              res.statusCode = 200;
+              res.end(req.method === 'HEAD' ? undefined : html);
+            },
+            (e: unknown) => next(e),
+          );
+          return;
+        }
         if (DEV_PASS.test(pathname) || !isNavigation(req)) {
           next();
           return;
@@ -181,10 +268,6 @@ export function publicDev(options: PublicDevOptions = {}): Plugin {
         if (surface?.kind === 'bundle' && surface.shell && !surface.reserved) {
           req.url = `/${surface.shell}${url.slice(pathname.length)}`;
           next();
-          return;
-        }
-        if (pathname === '/house-notes') {
-          forward(api, req, res);
           return;
         }
         // Everything else is the app: the session decides.

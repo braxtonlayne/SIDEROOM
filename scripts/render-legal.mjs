@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // SEC-ENT-001 (D-385, entrance-isolation.md section 7): renders the house notes as plain HTML, with no script.
 //
 //   dist/legal/house-notes.<locale>.html   one template per locale, served by sr-server (web.rs::legal)
@@ -42,7 +41,7 @@ export function loadCatalog() {
   return cat;
 }
 
-const CSS = `/* House notes (plain HTML, no script): token custom properties only. */
+export const CSS = `/* House notes (plain HTML, no script): token custom properties only. */
 :root{--bg:#111110;--bg-1:#161613;--line:#2a2b24;--text:#ece6d6;--text-2:#a9a493;--gold:#c8a96a;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 Newsreader,Georgia,serif}
@@ -115,10 +114,14 @@ ${[1, 2, 3, 4, 5].map((n) => `<li>${h(`entrance.houseNotes.rules.${n}`)}</li>`).
 `;
 }
 
+/** The stylesheet's file name under /entrance/ (content-hashed). vite/publicDev.ts serves the same name in dev. */
+export function cssFileName() {
+  return `legal-${createHash('sha256').update(CSS).digest('hex').slice(0, 8)}.css`;
+}
+
 function main() {
   const cat = loadCatalog();
-  const hash = createHash('sha256').update(CSS).digest('hex').slice(0, 8);
-  const cssName = `legal-${hash}.css`;
+  const cssName = cssFileName();
   mkdirSync(join(dist, 'entrance'), { recursive: true });
   mkdirSync(join(dist, 'legal'), { recursive: true });
   writeFileSync(join(dist, 'entrance', cssName), CSS);
