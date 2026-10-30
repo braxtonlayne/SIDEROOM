@@ -111,3 +111,6 @@ mod feature_actions_pg_tests;
 
 #[cfg(test)]
 mod moderation_index_pg_tests;
+
+#[cfg(test)]
+mod scrapbook_pg_tests;
