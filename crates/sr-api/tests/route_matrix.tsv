@@ -501,6 +501,7 @@ GET	/submissions/{submission_id}/library/uploads/{upload_id}	authenticated	autho
 GET	/submissions/{submission_id}/library/uploads/{upload_id}/inspect	authenticated	author	allow	-	-
 GET	/submissions/{submission_id}/library/uploads/{upload_id}/parts	authenticated	author	allow	-	-
 GET	/submissions/{submission_id}/preview	authenticated	author	allow	-	-
+GET	/tools/fx	authenticated	user	allow	-	-
 GET	/tv/channels	authenticated	user	allow	-	-
 GET	/tv/channels/{channel_id}	authenticated	user	allow	-	-
 GET	/tv/channels/{channel_id}/live/audio.m3u8	authenticated	user	allow	-	-
