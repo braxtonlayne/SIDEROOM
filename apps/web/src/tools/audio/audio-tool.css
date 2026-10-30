@@ -1,0 +1,45 @@
+/* UTL-AUD-001: the audio trimmer and normalizer. */
+.utl-aud {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+.utl-aud-wave {
+  inline-size: 100%;
+  block-size: 64px;
+  fill: var(--ui-text-faint, #888);
+}
+.utl-aud-window {
+  fill: var(--brand, #5865f2);
+  fill-opacity: 0.25;
+}
+.utl-aud-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.utl-aud-field {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 140px;
+  font-size: 0.875rem;
+}
+.utl-aud-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.utl-aud-sub {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ui-text-muted, #888);
+}
+.utl-aud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.utl-aud-error {
+  margin: 0;
+  color: var(--danger, #d33);
+}

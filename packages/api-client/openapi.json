@@ -24242,6 +24242,438 @@
         ]
       }
     },
+    "/channels/{channel_id}/cards": {
+      "post": {
+        "tags": [],
+        "summary": "Make an invite card and post its message in the channel.",
+        "operationId": "create",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCardBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The channel has too many open cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/cards/{card_id}": {
+      "get": {
+        "tags": [],
+        "summary": "One card: its seats, its claimants, and what the caller may do with it.",
+        "operationId": "get_card",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Cancel a card: its host, or a member with `MANAGE_MESSAGES`. The message stays, marked canceled, without\nbuttons.",
+        "operationId": "cancel_card",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/cards/{card_id}/claim": {
+      "post": {
+        "tags": [],
+        "summary": "Take a seat. A member who already has one keeps it (only the reminder choice changes). `409` when every seat\nis taken or the card is closed.",
+        "operationId": "claim_seat",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardClaimBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No seat is left, or the card is closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Give the seat back (nothing happens when the caller had none).",
+        "operationId": "unclaim_seat",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/cards/{card_id}/ics": {
+      "get": {
+        "tags": [],
+        "summary": "The card as an iCalendar file (RFC 5545) for \"Add to calendar\".",
+        "operationId": "card_ics",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "path",
+            "description": "Card (message) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/followers": {
       "post": {
         "tags": [
@@ -28873,6 +29305,373 @@
         ]
       }
     },
+    "/channels/{channel_id}/tool-rooms": {
+      "get": {
+        "tags": [],
+        "summary": "The live tool rooms of a channel, newest first.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ToolRoomObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Create a tool room in a channel or DM.",
+        "operationId": "create",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoomBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolRoomObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The channel has too many rooms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/tool-rooms/{room_id}": {
+      "get": {
+        "tags": [],
+        "summary": "One tool room.",
+        "operationId": "get_room",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolRoomObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Delete a tool room: its creator, or a member with `MANAGE_MESSAGES`.",
+        "operationId": "delete_room",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Edit a tool room: set or remove whole keys against the version the client last saw. A stale version is\n409 with the current room; the client re-applies its own keys on top and retries.",
+        "operationId": "patch_room",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "room_id",
+            "in": "path",
+            "description": "Room snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchRoomBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolRoomObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale version; `current` is the room now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaleRoomBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/typing": {
       "post": {
         "tags": [
@@ -29047,6 +29846,79 @@
           },
           "400": {
             "description": "Not a voice channel, or longer than 500 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/voice-timer": {
+      "put": {
+        "tags": [
+          "timer"
+        ],
+        "summary": "Share (or stop sharing) a timer with a voice channel. Needs `SET_VOICE_CHANNEL_STATUS` and a seat in the\nchannel, or `MANAGE_CHANNELS`, exactly like the status line it also sets. Announced as `VOICE_TIMER_UPDATE`.",
+        "operationId": "set",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice or stage channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceTimerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Applied"
+          },
+          "400": {
+            "description": "Not a voice channel, a malformed timer, or a label over 500 characters",
             "content": {
               "application/json": {
                 "schema": {
@@ -46242,6 +47114,296 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/tools/loot-tables": {
+      "get": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "A server's loot tables. Members only.",
+        "operationId": "list_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LootTable"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Save a loot table for the server (`MANAGE_GUILD`; up to 50).",
+        "operationId": "create_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/tools/loot-tables/{table_id}": {
+      "delete": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Delete a server's loot table (`MANAGE_GUILD`).",
+        "operationId": "delete_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Replace a server's loot table (`MANAGE_GUILD`).",
+        "operationId": "update_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -64857,6 +66019,45 @@
         ]
       }
     },
+    "/tools/fx": {
+      "get": {
+        "tags": [
+          "fx"
+        ],
+        "summary": "The cached ECB reference rates (EUR base). Any signed-in account or bot may read them.",
+        "operationId": "rates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxRatesObject"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/tv/channels": {
       "get": {
         "tags": [
@@ -70408,6 +71609,439 @@
           }
         },
         "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/tools/loot-tables": {
+      "get": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "The caller's own loot tables.",
+        "operationId": "list_mine",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LootTable"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Save a loot table to the caller's account (up to 50, names unique ignoring case).",
+        "operationId": "create_mine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/tools/loot-tables/{table_id}": {
+      "delete": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Delete one of the caller's loot tables.",
+        "operationId": "delete_mine",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "loot"
+        ],
+        "summary": "Replace one of the caller's loot tables.",
+        "operationId": "update_mine",
+        "parameters": [
+          {
+            "name": "table_id",
+            "in": "path",
+            "description": "Loot table snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LootTableInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LootTable"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/tools/notes": {
+      "get": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "All of the caller's encrypted notes, most recently changed first.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScratchNoteObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/tools/notes/{note_id}": {
+      "put": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Create a note (no `base_revision`) or replace one (the revision you read). 409 when the note changed\nsomewhere else or already exists; 400 when the ciphertext is empty or over 64 KiB.",
+        "operationId": "put",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "description": "Lowercase UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutNoteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScratchNoteObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "notes"
+        ],
+        "summary": "Delete a note. 404 when it does not exist (for the caller).",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "description": "Lowercase UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
           {
             "session": []
           }
@@ -76652,6 +78286,128 @@
           }
         }
       },
+      "CardClaimBody": {
+        "type": "object",
+        "properties": {
+          "remind": {
+            "type": "boolean",
+            "description": "DM me an hour and ten minutes before the start (default true)."
+          }
+        }
+      },
+      "CardObject": {
+        "type": "object",
+        "description": "An invite card as the API shows it.",
+        "required": [
+          "id",
+          "channel_id",
+          "kind",
+          "title",
+          "note",
+          "starts_at",
+          "duration_min",
+          "timezone",
+          "seats",
+          "taken",
+          "status",
+          "claimants",
+          "can_start_party",
+          "can_manage"
+        ],
+        "properties": {
+          "can_manage": {
+            "type": "boolean",
+            "description": "The caller made the card or has `MANAGE_MESSAGES`."
+          },
+          "can_start_party": {
+            "type": "boolean",
+            "description": "The card has a Cinema title and the caller has `START_WATCH_PARTY` here."
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "claimants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimantObject"
+            }
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_min": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "Also the id of the card's message."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`cinema`, `live_tv` or `game_night`."
+          },
+          "link_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mine": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MySeatObject",
+                "description": "Present when the caller holds a seat."
+              }
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "starts_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Start, unix milliseconds (UTC)."
+          },
+          "status": {
+            "type": "string",
+            "description": "`open`, `started`, `closed` or `canceled`."
+          },
+          "taken": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "The zone the host picked the time in (display only)."
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CaseBanBody": {
         "type": "object",
         "description": "Body of a ban from a case.",
@@ -79351,6 +81107,24 @@
           }
         }
       },
+      "ClaimantObject": {
+        "type": "object",
+        "description": "A member who holds a seat.",
+        "required": [
+          "user_id",
+          "claimed_at"
+        ],
+        "properties": {
+          "claimed_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds."
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
       "ClientFlagsObject": {
         "type": "object",
         "description": "Platform flags a client may read (D-216).",
@@ -80439,6 +82213,69 @@
           }
         }
       },
+      "CreateCardBody": {
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "starts_at",
+          "seats"
+        ],
+        "properties": {
+          "duration_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minutes, 15 to 720 (default 120)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`cinema`, `live_tv` or `game_night`."
+          },
+          "link_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A path inside the app the card links to."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seats": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to 250."
+          },
+          "starts_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Start, unix milliseconds (UTC); the client converts the picked time and zone."
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The IANA zone the time was picked in (default `UTC`)."
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A Cinema title for the watch-party hand-off (cinema cards only)."
+          }
+        }
+      },
       "CreateChannelBody": {
         "allOf": [
           {
@@ -81095,6 +82932,31 @@
             "description": "Decimal permission bitfield."
           },
           "unicode_emoji": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateRoomBody": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`tierlist` or `poll`."
+          },
+          "state": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The starting keys."
+          },
+          "title": {
             "type": [
               "string",
               "null"
@@ -85023,6 +86885,55 @@
           "submission_id": {
             "type": "string",
             "description": "A published submission of the request's section."
+          }
+        }
+      },
+      "FxRatesObject": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "base",
+          "stale",
+          "rates"
+        ],
+        "properties": {
+          "as_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ECB reference date, `YYYY-MM-DD`; absent until the first fetch succeeded."
+          },
+          "base": {
+            "type": "string",
+            "description": "The currency every rate is quoted against; always `EUR`."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "False when the instance switched the converter off (`tools.currency_rates`); nothing else is set then."
+          },
+          "fetched_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the server stored the rates, unix seconds; absent until the first fetch succeeded."
+          },
+          "rates": {
+            "type": "object",
+            "description": "Units of the currency per one euro, for example `{\"USD\": 1.0845}`.",
+            "additionalProperties": {
+              "type": "number",
+              "format": "double"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "True when there are no rates yet or the newest fetch is older than `tools.currency_stale_hours`. The\nclient still converts with the old rates and says so."
           }
         }
       },
@@ -89714,6 +91625,75 @@
           }
         }
       },
+      "LootRow": {
+        "type": "object",
+        "description": "One weighted row of a loot table.",
+        "required": [
+          "label",
+          "weight"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Relative chance, 0 to 10000 (a row of weight 0 never drops).",
+            "minimum": 0
+          }
+        }
+      },
+      "LootTable": {
+        "type": "object",
+        "required": [
+          "id",
+          "scope",
+          "name",
+          "rows",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LootRow"
+            }
+          },
+          "scope": {
+            "type": "string",
+            "description": "`user` or `guild`."
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "LootTableInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "rows"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique among the owner's tables, ignoring case."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LootRow"
+            }
+          }
+        }
+      },
       "MailTestResult": {
         "type": "object",
         "description": "Result of the mail test.",
@@ -92063,6 +94043,24 @@
           }
         }
       },
+      "MySeatObject": {
+        "type": "object",
+        "description": "The caller's own seat.",
+        "required": [
+          "remind",
+          "reminder_deliverable"
+        ],
+        "properties": {
+          "remind": {
+            "type": "boolean",
+            "description": "The caller asked for reminders."
+          },
+          "reminder_deliverable": {
+            "type": "boolean",
+            "description": "Reminders can actually be delivered: false when the caller's DM settings (server-member DMs off, the\nsystem user blocked or muted) would stop them. The card still shows the time."
+          }
+        }
+      },
       "NamingParseBody": {
         "type": "object",
         "description": "Body of `POST /submissions/naming/parse`.",
@@ -94393,6 +96391,29 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "PatchRoomBody": {
+        "type": "object",
+        "required": [
+          "base_version"
+        ],
+        "properties": {
+          "base_version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The version the client last saw."
+          },
+          "set": {
+            "type": "object",
+            "description": "Keys to set; `null` removes a key."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -96730,6 +98751,26 @@
           "tag": {
             "type": "string",
             "description": "2 to 4 letters or digits."
+          }
+        }
+      },
+      "PutNoteBody": {
+        "type": "object",
+        "required": [
+          "ciphertext"
+        ],
+        "properties": {
+          "base_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The revision this edit started from; absent when creating the note. A different current revision is a 409."
+          },
+          "ciphertext": {
+            "type": "string",
+            "description": "The encrypted note, standard Base64, 1 to 65536 bytes once decoded."
           }
         }
       },
@@ -99128,6 +101169,34 @@
           }
         }
       },
+      "ScratchNoteObject": {
+        "type": "object",
+        "description": "One stored note.",
+        "required": [
+          "note_id",
+          "ciphertext",
+          "revision",
+          "updated_at"
+        ],
+        "properties": {
+          "ciphertext": {
+            "type": "string",
+            "description": "The encrypted note, standard Base64. Opaque to the server."
+          },
+          "note_id": {
+            "type": "string",
+            "description": "A lowercase UUID the browser chose."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Starts at 1, goes up by one on every write."
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
       "SearchResponse": {
         "type": "object",
         "description": "Discord search response: each result is a one-message group (no context\nlines), flagged with `hit: true`.",
@@ -101003,6 +103072,29 @@
             "minimum": 0
           },
           "topic": {
+            "type": "string"
+          }
+        }
+      },
+      "StaleRoomBody": {
+        "type": "object",
+        "description": "The 409 body of a stale edit.",
+        "required": [
+          "code",
+          "message",
+          "current"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "current": {
+            "$ref": "#/components/schemas/ToolRoomObject",
+            "description": "The room as it is now: re-apply your keys on top of it and retry with its `version`."
+          },
+          "message": {
             "type": "string"
           }
         }
@@ -103726,6 +105818,66 @@
           },
           "token_type": {
             "type": "string"
+          }
+        }
+      },
+      "ToolRoomObject": {
+        "type": "object",
+        "description": "A tool room as the API shows it.",
+        "required": [
+          "id",
+          "channel_id",
+          "kind",
+          "title",
+          "state",
+          "version",
+          "created_at",
+          "expires_at"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds; a room lives 7 days from creation."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`tierlist` or `poll`."
+          },
+          "state": {
+            "type": "object",
+            "description": "A flat object of keys; images are references (`{\"img\": {\"k\": \"mount\", \"mount\", \"key\"}}`), never URLs."
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bumps by one on every accepted edit."
           }
         }
       },
@@ -106919,6 +109071,22 @@
               "null"
             ],
             "description": "The new status, at most 500 characters. `null` or an empty string clears it."
+          }
+        }
+      },
+      "VoiceTimerBody": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "The status line that goes with the timer (\"Focus 24:12\"); required when `timer` is set."
+          },
+          "timer": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The timer to share: `{ kind: pomodoro|stopwatch|countdown, phase: running|paused, segment, startedMs,\naccumulatedMs, durationMs, completed }`. `null` stops sharing."
           }
         }
       },

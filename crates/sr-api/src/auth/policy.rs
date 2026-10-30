@@ -83,6 +83,8 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         // library (MUS-IDX-001, MUS-LIB-001).
         || p.starts_with("/music/")
         || p.starts_with("/users/@me/music")
+        // The utility drawer's private notes and loot tables belong to a person (UTL-DEV-001).
+        || p.starts_with("/users/@me/tools")
         || (p.starts_with("/guilds/") && p.contains("/music/"))
     {
         return true;
@@ -93,6 +95,14 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     }
     // Scheduling a message is a user feature (D-189); a bot posts directly.
     if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
+        return true;
+    }
+    // Tool rooms (the tier list and poll builder, UTL-COL-001) are shared documents of people.
+    if p.starts_with("/channels/") && p.contains("/tool-rooms") {
+        return true;
+    }
+    // Invite cards (Cinema tickets and game nights, UTL-CRD-001) are for people: a seat belongs to a member.
+    if p.starts_with("/channels/") && p.contains("/cards") {
         return true;
     }
     // Packages, profile pages and guestbooks (EXT-PKG, EXT-PRF) are for people: themes, layouts, recipes
@@ -204,6 +214,9 @@ mod tests {
             (Method::PATCH, "/users/@me/scheduled-messages/{id}"),
             (Method::POST, "/channels/{channel_id}/scheduled-messages"),
             (Method::GET, "/users/@me/bookmarks"),
+            (Method::GET, "/users/@me/tools/notes"),
+            (Method::PUT, "/users/@me/tools/notes/{note_id}"),
+            (Method::POST, "/users/@me/tools/loot-tables"),
             (Method::PATCH, "/users/@me/bookmarks/{message_id}"),
             (Method::PUT, "/users/@me/birthday"),
             (Method::DELETE, "/users/@me/birthday"),

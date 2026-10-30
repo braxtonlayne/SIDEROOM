@@ -369,6 +369,19 @@ impl VoiceBackend for ServerVoice {
             .map_err(status_err)
     }
 
+    async fn voice_timer_set(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        timer: Option<serde_json::Value>,
+        label: String,
+    ) -> Result<(), VoiceError> {
+        self.gateway
+            .voice_timer_set(actor, channel, timer.as_ref(), &label)
+            .await
+            .map_err(status_err)
+    }
+
     async fn stage_self(
         &self,
         actor: UserId,

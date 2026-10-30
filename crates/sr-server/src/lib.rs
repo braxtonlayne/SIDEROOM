@@ -8,6 +8,7 @@ pub mod admin_jobs;
 pub mod app;
 pub mod apps_jobs;
 pub mod backends;
+pub mod cards_jobs;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
 pub mod csp_reports;
@@ -16,6 +17,7 @@ pub mod events_jobs;
 pub mod external_jobs;
 pub mod feature_actions;
 pub mod features_store;
+pub mod fx_jobs;
 pub mod gateway_pg;
 pub mod healthcheck;
 pub mod inbox_pg;
@@ -47,6 +49,7 @@ pub mod staff_feed;
 pub mod storage_jobs;
 pub mod suspicion_jobs;
 pub mod takedown_jobs;
+pub mod tool_rooms_jobs;
 pub mod tv_catalog;
 pub mod upload_jobs;
 pub mod upload_limits;
@@ -62,6 +65,8 @@ pub fn openapi_json() -> serde_json::Result<String> {
     serde_json::to_string_pretty(&sr_api::routes::openapi())
 }
 
+#[cfg(test)]
+mod cards_pg_tests;
 #[cfg(test)]
 mod tests {
     #[test]
@@ -97,6 +102,8 @@ mod storage_index_pg_tests;
 #[cfg(test)]
 mod storage_measure_pg_tests;
 #[cfg(test)]
+mod tool_rooms_pg_tests;
+#[cfg(test)]
 mod tv_wiring_pg_tests;
 #[cfg(test)]
 mod userfeat_pg_tests;
@@ -107,6 +114,9 @@ mod watchparty_pg_tests;
 
 #[cfg(test)]
 mod feature_actions_pg_tests;
+
+#[cfg(test)]
+mod fx_pg_tests;
 
 #[cfg(test)]
 mod moderation_index_pg_tests;

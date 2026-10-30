@@ -1,0 +1,37 @@
+// UTL-DEV-001: pomodoro, stopwatch and countdown, and sharing a timer with a voice channel.
+export default {
+  'tools.timers.start': 'Start',
+  'tools.timers.pause': 'Pause',
+  'tools.timers.resume': 'Resume',
+  'tools.timers.restart': 'Start again',
+  'tools.timers.reset': 'Reset',
+  'tools.timers.skip': 'Skip',
+  'tools.timers.lap': 'Lap',
+  'tools.timers.laps': 'Laps',
+  'tools.timers.set': 'Set',
+  'tools.timers.length': 'Length (5:00, 90s, 1h30m)',
+  'tools.timers.badLength': 'That is not a length of time. Try 5:00 or 10m.',
+  'tools.timers.lengths': 'Minutes for each part',
+  'tools.timers.segmentFocus': 'Focus',
+  'tools.timers.segmentShort': 'Short break',
+  'tools.timers.segmentLong': 'Long break',
+  'tools.timers.sessions': '{n, plural, one {# session done} other {# sessions done}}',
+  'tools.timers.focusDone': 'Focus time is over. Take a break.',
+  'tools.timers.breakDone': 'Break is over. Back to focus.',
+  'tools.timers.countdownDone': 'Time is up.',
+
+  'tools.timers.statusFocus': 'Focus',
+  'tools.timers.statusShort': 'Short break',
+  'tools.timers.statusLong': 'Long break',
+  'tools.timers.statusCountdown': 'Countdown',
+  'tools.timers.statusStopwatch': 'Stopwatch',
+  'tools.timers.voiceStart': 'Share with my voice channel',
+  'tools.timers.voiceStop': 'Stop sharing',
+  'tools.timers.voiceOn': 'Everyone in the channel can see this timer.',
+  'tools.timers.voiceJoin': 'Join a voice channel to share this timer with it.',
+  'tools.timers.voiceDenied':
+    'You need the permission to set the channel status to share a timer here.',
+  'tools.timers.voiceFailed': 'Could not share the timer.',
+  'tools.timers.sharedClock':
+    '{name} {clock}, shared by someone in this channel ({phase, select, paused {paused} other {running}})',
+} satisfies Record<string, string>;

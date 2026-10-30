@@ -26,6 +26,7 @@ mod voice_sound;
 mod voice_stage;
 mod voice_status;
 mod voice_stream;
+mod voice_timer;
 pub mod ws;
 
 pub use compress::Compression;

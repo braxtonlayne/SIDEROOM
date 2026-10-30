@@ -1,0 +1,276 @@
+/*
+ * UTL-SHL-001: the utility drawer, the floating gadgets and the pin rail. Semantic tokens only (var(--ui-*)),
+ * logical properties only (scripts/check-css-tokens.mjs and the logical-property test cover this directory).
+ * The "Go to" tab reuses the Lounge's switcher classes, which are repeated here because this stylesheet loads
+ * on every signed-in route and lounge.css does not.
+ */
+.sr-tl-muted {
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}
+.sr-tl-pad {
+  padding: 0.5rem;
+}
+
+/* ---------- the drawer ---------- */
+.sr-tl-drawer .lng-switcher-input {
+  inline-size: 100%;
+  block-size: 2.75rem;
+  padding-block: 0;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-bg-sunken);
+  color: var(--ui-text);
+  font-size: 1.125rem;
+  box-sizing: border-box;
+}
+.sr-tl-drawer .lng-switcher-list {
+  list-style: none;
+  margin-block: 0.5rem 0;
+  margin-inline: 0;
+  padding: 0;
+  max-block-size: 20rem;
+  overflow-y: auto;
+}
+.sr-tl-drawer .lng-switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.375rem;
+  padding-inline: 0.5rem;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+.sr-tl-drawer .lng-switcher-item[data-active] {
+  background: var(--ui-bg-hover);
+}
+.sr-tl-drawer .lng-switcher-label {
+  font-weight: 600;
+}
+.sr-tl-drawer .lng-switcher-label + .lng-muted,
+.sr-tl-drawer .lng-switcher-label + .sr-tl-muted {
+  margin-inline-start: auto;
+  font-size: 0.75rem;
+}
+.sr-tl-drawer .lng-switcher-tip {
+  margin-block: 0.75rem 0;
+  margin-inline: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+}
+.sr-tl-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-block-end: 0.5rem;
+}
+.sr-tl-tab,
+.sr-tl-btn,
+.sr-tl-icon-btn,
+.sr-tl-rail-btn {
+  font: inherit;
+  color: var(--ui-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+.sr-tl-tab {
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem;
+}
+.sr-tl-tab[aria-selected='true'] {
+  background: var(--ui-bg-hover);
+  border-color: var(--ui-border);
+  font-weight: 600;
+}
+.sr-tl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  border-color: var(--ui-border);
+}
+.sr-tl-btn[aria-pressed='true'],
+.sr-tl-icon-btn[aria-pressed='true'],
+.sr-tl-rail-btn[aria-pressed='true'] {
+  background: var(--ui-bg-hover);
+}
+.sr-tl-btn:hover:not(:disabled),
+.sr-tl-icon-btn:hover:not(:disabled),
+.sr-tl-rail-btn:hover:not(:disabled),
+.sr-tl-tab:hover {
+  background: var(--ui-bg-hover);
+}
+.sr-tl-btn:disabled,
+.sr-tl-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sr-tl-tab:focus-visible,
+.sr-tl-btn:focus-visible,
+.sr-tl-icon-btn:focus-visible,
+.sr-tl-rail-btn:focus-visible,
+.sr-tl-gadget-head:focus-visible,
+.sr-tl-drawer .lng-switcher-input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.sr-tl-panel {
+  min-block-size: 8rem;
+}
+.sr-tl-view-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-block-start: 0.75rem;
+}
+.sr-tl-view-title {
+  margin: 0;
+  margin-inline-end: auto;
+  font-size: 1rem;
+}
+.sr-tl-view-body {
+  margin-block-start: 0.75rem;
+  max-block-size: 22rem;
+  overflow: auto;
+}
+.sr-tl-guide {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* ---------- gadgets ---------- */
+.sr-tl-gadgets {
+  position: fixed;
+  inset: 0;
+  z-index: 909; /* under the player (910), above full-screen Settings (900) and the Lounge; menus (950) and modals (1000) stay above */
+  pointer-events: none;
+}
+.sr-tl-gadget {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  pointer-events: auto;
+  color: var(--ui-text);
+  background: var(--ui-bg-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-overlay);
+  font-family: var(--ui-font-body);
+  font-size: 0.875rem;
+  overflow: hidden;
+}
+.sr-tl-gadget-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  border-block-end: 1px solid var(--ui-border);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.sr-tl-gadget-head:active {
+  cursor: grabbing;
+}
+.sr-tl-gadget-title {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.sr-tl-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding: 0;
+}
+.sr-tl-gadget-body {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  padding: 0.5rem;
+}
+.sr-tl-gadget-grip {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  inline-size: 1rem;
+  block-size: 1rem;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, var(--ui-border) 50%);
+}
+.sr-tl-gadget-grip:dir(rtl) {
+  cursor: nesw-resize;
+}
+
+/* ---------- the pin rail ---------- */
+.sr-tl-rail-wrap {
+  position: fixed;
+  inset-block-start: 50%;
+  inset-inline-end: 0;
+  transform: translateY(-50%);
+  z-index: 908;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+.sr-tl-rail {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--ui-bg-raised);
+  border: 1px solid var(--ui-border);
+  border-inline-end: 0;
+  border-start-start-radius: var(--ui-radius-lg);
+  border-end-start-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-overlay);
+}
+.sr-tl-rail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+}
+.sr-tl-rail-panel {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  inline-size: min(22rem, calc(100vw - 4rem));
+  block-size: min(26rem, 70vh);
+  color: var(--ui-text);
+  background: var(--ui-bg-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-overlay);
+  overflow: hidden;
+}
+.sr-tl-rail-head {
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sr-tl-rail-btn,
+  .sr-tl-btn,
+  .sr-tl-icon-btn,
+  .sr-tl-tab {
+    transition: background-color 120ms ease;
+  }
+}

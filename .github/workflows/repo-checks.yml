@@ -33,6 +33,9 @@ jobs:
       - name: Secret scan (lines added by this PR)
         if: github.event_name == 'pull_request'
         run: node scripts/secret-scan.mjs --diff "${{ github.event.pull_request.base.sha }}"
+      # UTL-SRC-001: the drawer search corpus (10 to 30 phrases per tool, no duplicates) and its ids equal the registry ids.
+      - name: Tools search corpus
+        run: node scripts/check-tools-corpus.mjs
       - name: Dependabot directories exist
         run: node scripts/check-dependabot.mjs
       - name: Automation scripts

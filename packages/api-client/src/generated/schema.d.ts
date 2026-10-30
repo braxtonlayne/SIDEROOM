@@ -4876,6 +4876,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make an invite card and post its message in the channel. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/cards/{card_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One card: its seats, its claimants, and what the caller may do with it. */
+        get: operations["get_card"];
+        put?: never;
+        post?: never;
+        /**
+         * Cancel a card: its host, or a member with `MANAGE_MESSAGES`. The message stays, marked canceled, without
+         *     buttons.
+         */
+        delete: operations["cancel_card"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/cards/{card_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take a seat. A member who already has one keeps it (only the reminder choice changes). `409` when every seat
+         *     is taken or the card is closed.
+         */
+        post: operations["claim_seat"];
+        /** Give the seat back (nothing happens when the caller had none). */
+        delete: operations["unclaim_seat"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/cards/{card_id}/ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The card as an iCalendar file (RFC 5545) for "Add to calendar". */
+        get: operations["card_ics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/followers": {
         parameters: {
             query?: never;
@@ -5701,6 +5777,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/tool-rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live tool rooms of a channel, newest first. */
+        get: operations["list"];
+        put?: never;
+        /** Create a tool room in a channel or DM. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/tool-rooms/{room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One tool room. */
+        get: operations["get_room"];
+        put?: never;
+        post?: never;
+        /** Delete a tool room: its creator, or a member with `MANAGE_MESSAGES`. */
+        delete: operations["delete_room"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a tool room: set or remove whole keys against the version the client last saw. A stale version is
+         *     409 with the current room; the client re-applies its own keys on top and retries.
+         */
+        patch: operations["patch_room"];
+        trace?: never;
+    };
     "/channels/{channel_id}/typing": {
         parameters: {
             query?: never;
@@ -5749,6 +5865,26 @@ export interface paths {
          *     when the last member leaves. Announced as `VOICE_CHANNEL_STATUS_UPDATE`.
          */
         put: operations["set_voice_status"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/voice-timer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Share (or stop sharing) a timer with a voice channel. Needs `SET_VOICE_CHANNEL_STATUS` and a seat in the
+         *     channel, or `MANAGE_CHANNELS`, exactly like the status line it also sets. Announced as `VOICE_TIMER_UPDATE`.
+         */
+        put: operations["set"];
         post?: never;
         delete?: never;
         options?: never;
@@ -8858,6 +8994,42 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/tools/loot-tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A server's loot tables. Members only. */
+        get: operations["list_guild"];
+        put?: never;
+        /** Save a loot table for the server (`MANAGE_GUILD`; up to 50). */
+        post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/tools/loot-tables/{table_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a server's loot table (`MANAGE_GUILD`). */
+        delete: operations["delete_guild"];
+        options?: never;
+        head?: never;
+        /** Replace a server's loot table (`MANAGE_GUILD`). */
+        patch: operations["update_guild"];
         trace?: never;
     };
     "/guilds/{guild_id}/vanity-url": {
@@ -12866,6 +13038,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tools/fx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The cached ECB reference rates (EUR base). Any signed-in account or bot may read them. */
+        get: operations["rates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tv/channels": {
         parameters: {
             query?: never;
@@ -14276,6 +14465,80 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/tools/loot-tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own loot tables. */
+        get: operations["list_mine"];
+        put?: never;
+        /** Save a loot table to the caller's account (up to 50, names unique ignoring case). */
+        post: operations["create_mine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/tools/loot-tables/{table_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one of the caller's loot tables. */
+        delete: operations["delete_mine"];
+        options?: never;
+        head?: never;
+        /** Replace one of the caller's loot tables. */
+        patch: operations["update_mine"];
+        trace?: never;
+    };
+    "/users/@me/tools/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All of the caller's encrypted notes, most recently changed first. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/tools/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Create a note (no `base_revision`) or replace one (the revision you read). 409 when the note changed
+         *     somewhere else or already exists; 400 when the ciphertext is empty or over 64 KiB.
+         */
+        put: operations["put"];
+        post?: never;
+        /** Delete a note. 404 when it does not exist (for the caller). */
+        delete: operations["remove"];
         options?: never;
         head?: never;
         patch?: never;
@@ -16035,6 +16298,45 @@ export interface components {
             message: string;
             ok: boolean;
         };
+        CardClaimBody: {
+            /** @description DM me an hour and ten minutes before the start (default true). */
+            remind?: boolean;
+        };
+        /** @description An invite card as the API shows it. */
+        CardObject: {
+            /** @description The caller made the card or has `MANAGE_MESSAGES`. */
+            can_manage: boolean;
+            /** @description The card has a Cinema title and the caller has `START_WATCH_PARTY` here. */
+            can_start_party: boolean;
+            channel_id: string;
+            claimants: components["schemas"]["ClaimantObject"][];
+            created_by?: string | null;
+            /** Format: int32 */
+            duration_min: number;
+            guild_id?: string | null;
+            /** @description Also the id of the card's message. */
+            id: string;
+            /** @description `cinema`, `live_tv` or `game_night`. */
+            kind: string;
+            link_path?: string | null;
+            mine?: null | components["schemas"]["MySeatObject"];
+            note: string;
+            /** Format: int32 */
+            seats: number;
+            /**
+             * Format: int64
+             * @description Start, unix milliseconds (UTC).
+             */
+            starts_at: number;
+            /** @description `open`, `started`, `closed` or `canceled`. */
+            status: string;
+            /** Format: int32 */
+            taken: number;
+            /** @description The zone the host picked the time in (display only). */
+            timezone: string;
+            title: string;
+            title_id?: string | null;
+        };
         /** @description Body of a ban from a case. */
         CaseBanBody: {
             /** @description Why, for the audit log and the case. Required. */
@@ -16863,6 +17165,15 @@ export interface components {
         ClaimRequestInput: {
             note?: string;
         };
+        /** @description A member who holds a seat. */
+        ClaimantObject: {
+            /**
+             * Format: int64
+             * @description Unix milliseconds.
+             */
+            claimed_at: number;
+            user_id: string;
+        };
         /** @description Platform flags a client may read (D-216). */
         ClientFlagsObject: {
             /** @description Feature id to on/off, for platform-scope modules that declare themselves client-visible. */
@@ -17221,6 +17532,33 @@ export interface components {
             description?: string | null;
             name: string;
         };
+        CreateCardBody: {
+            /**
+             * Format: int32
+             * @description Minutes, 15 to 720 (default 120).
+             */
+            duration_min?: number | null;
+            /** @description `cinema`, `live_tv` or `game_night`. */
+            kind: string;
+            /** @description A path inside the app the card links to. */
+            link_path?: string | null;
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description 1 to 250.
+             */
+            seats: number;
+            /**
+             * Format: int64
+             * @description Start, unix milliseconds (UTC); the client converts the picked time and zone.
+             */
+            starts_at: number;
+            /** @description The IANA zone the time was picked in (default `UTC`). */
+            timezone?: string | null;
+            title: string;
+            /** @description A Cinema title for the watch-party hand-off (cinema cards only). */
+            title_id?: string | null;
+        };
         CreateChannelBody: components["schemas"]["ForumSettingsBody"] & {
             /** Format: int32 */
             bitrate?: number | null;
@@ -17430,6 +17768,13 @@ export interface components {
             /** @description Decimal permission bitfield. */
             permissions?: string | null;
             unicode_emoji?: string | null;
+        };
+        CreateRoomBody: {
+            /** @description `tierlist` or `poll`. */
+            kind: string;
+            /** @description The starting keys. */
+            state?: Record<string, never> | null;
+            title?: string | null;
         };
         CreateSoundBody: {
             /** @description A custom emoji of this server. */
@@ -18789,6 +19134,28 @@ export interface components {
         FulfilBody: {
             /** @description A published submission of the request's section. */
             submission_id: string;
+        };
+        FxRatesObject: {
+            /** @description The ECB reference date, `YYYY-MM-DD`; absent until the first fetch succeeded. */
+            as_of?: string | null;
+            /** @description The currency every rate is quoted against; always `EUR`. */
+            base: string;
+            /** @description False when the instance switched the converter off (`tools.currency_rates`); nothing else is set then. */
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description When the server stored the rates, unix seconds; absent until the first fetch succeeded.
+             */
+            fetched_at?: number | null;
+            /** @description Units of the currency per one euro, for example `{"USD": 1.0845}`. */
+            rates: {
+                [key: string]: number;
+            };
+            /**
+             * @description True when there are no rates yet or the newest fetch is older than `tools.currency_stale_hours`. The
+             *     client still converts with the old rates and says so.
+             */
+            stale: boolean;
         };
         GatewayBotInfo: {
             session_start_limit: components["schemas"]["SessionStartLimit"];
@@ -20319,6 +20686,28 @@ export interface components {
         LookupResults: {
             candidates: components["schemas"]["LookupCandidate"][];
         };
+        /** @description One weighted row of a loot table. */
+        LootRow: {
+            label: string;
+            /**
+             * Format: int32
+             * @description Relative chance, 0 to 10000 (a row of weight 0 never drops).
+             */
+            weight: number;
+        };
+        LootTable: {
+            id: string;
+            name: string;
+            rows: components["schemas"]["LootRow"][];
+            /** @description `user` or `guild`. */
+            scope: string;
+            updated_at: string;
+        };
+        LootTableInput: {
+            /** @description Unique among the owner's tables, ignoring case. */
+            name: string;
+            rows: components["schemas"]["LootRow"][];
+        };
         /** @description Result of the mail test. */
         MailTestResult: {
             /** @description The caller's address with the local part masked. */
@@ -21067,6 +21456,16 @@ export interface components {
             target_id: string;
             target_kind: components["schemas"]["TargetKind"];
         };
+        /** @description The caller's own seat. */
+        MySeatObject: {
+            /** @description The caller asked for reminders. */
+            remind: boolean;
+            /**
+             * @description Reminders can actually be delivered: false when the caller's DM settings (server-member DMs off, the
+             *     system user blocked or muted) would stop them. The card still shows the time.
+             */
+            reminder_deliverable: boolean;
+        };
         /** @description Body of `POST /submissions/naming/parse`. */
         NamingParseBody: {
             /** @description Up to 200 file names or relative paths. */
@@ -21783,6 +22182,16 @@ export interface components {
             server_dm_overrides?: {
                 [key: string]: boolean | null;
             } | null;
+        };
+        PatchRoomBody: {
+            /**
+             * Format: int64
+             * @description The version the client last saw.
+             */
+            base_version: number;
+            /** @description Keys to set; `null` removes a key. */
+            set?: Record<string, never>;
+            title?: string | null;
         };
         /** @description Partial `sensitive_media`. */
         PatchSensitiveMedia: {
@@ -22598,6 +23007,15 @@ export interface components {
             /** @description 2 to 4 letters or digits. */
             tag: string;
         };
+        PutNoteBody: {
+            /**
+             * Format: int64
+             * @description The revision this edit started from; absent when creating the note. A different current revision is a 409.
+             */
+            base_revision?: number | null;
+            /** @description The encrypted note, standard Base64, 1 to 65536 bytes once decoded. */
+            ciphertext: string;
+        };
         PutPrimaryGuildBody: {
             /** @description The server whose tag to display, or `null` to display none. */
             guild_id?: string | null;
@@ -23391,6 +23809,19 @@ export interface components {
              */
             score: number;
         };
+        /** @description One stored note. */
+        ScratchNoteObject: {
+            /** @description The encrypted note, standard Base64. Opaque to the server. */
+            ciphertext: string;
+            /** @description A lowercase UUID the browser chose. */
+            note_id: string;
+            /**
+             * Format: int64
+             * @description Starts at 1, goes up by one on every write.
+             */
+            revision: number;
+            updated_at: string;
+        };
         /**
          * @description Discord search response: each result is a one-message group (no context
          *     lines), flagged with `hit: true`.
@@ -24001,6 +24432,14 @@ export interface components {
              */
             privacy_level: number;
             topic: string;
+        };
+        /** @description The 409 body of a stale edit. */
+        StaleRoomBody: {
+            /** Format: int32 */
+            code: number;
+            /** @description The room as it is now: re-apply your keys on top of it and retry with its `version`. */
+            current: components["schemas"]["ToolRoomObject"];
+            message: string;
         };
         /** @description The tracks of a stamped list the viewer can reach, and how many were left out. */
         StampedListView: {
@@ -24863,6 +25302,33 @@ export interface components {
             /** @description Space-separated scopes. */
             scope: string;
             token_type: string;
+        };
+        /** @description A tool room as the API shows it. */
+        ToolRoomObject: {
+            channel_id: string;
+            /**
+             * Format: int64
+             * @description Unix milliseconds.
+             */
+            created_at: number;
+            created_by?: string | null;
+            /**
+             * Format: int64
+             * @description Unix milliseconds; a room lives 7 days from creation.
+             */
+            expires_at: number;
+            guild_id?: string | null;
+            id: string;
+            /** @description `tierlist` or `poll`. */
+            kind: string;
+            /** @description A flat object of keys; images are references (`{"img": {"k": "mount", "mount", "key"}}`), never URLs. */
+            state: Record<string, never>;
+            title: string;
+            /**
+             * Format: int64
+             * @description Bumps by one on every accepted edit.
+             */
+            version: number;
         };
         /** @description A page of tracks and the sources behind them. */
         TrackListView: {
@@ -25907,6 +26373,15 @@ export interface components {
         VoiceStatusBody: {
             /** @description The new status, at most 500 characters. `null` or an empty string clears it. */
             status?: string | null;
+        };
+        VoiceTimerBody: {
+            /** @description The status line that goes with the timer ("Focus 24:12"); required when `timer` is set. */
+            label?: string;
+            /**
+             * @description The timer to share: `{ kind: pomodoro|stopwatch|countdown, phase: running|paused, segment, startedMs,
+             *     accumulatedMs, durationMs, completed }`. `null` stops sharing.
+             */
+            timer?: Record<string, never> | null;
         };
         Volume: {
             edition_id: string;
@@ -42307,6 +42782,276 @@ export interface operations {
             };
         };
     };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCardBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The channel has too many open cards */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancel_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    claim_seat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardClaimBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No seat is left, or the card is closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unclaim_seat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    card_ics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Card (message) snowflake */
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": string;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     follow_channel: {
         parameters: {
             query?: never;
@@ -45146,6 +45891,242 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoomBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The channel has too many rooms */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Room snowflake */
+                room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Room snowflake */
+                room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Room snowflake */
+                room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchRoomBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Stale version; `current` is the room now */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaleRoomBody"];
+                };
+            };
+        };
+    };
     trigger_typing: {
         parameters: {
             query?: never;
@@ -45257,6 +46238,56 @@ export interface operations {
                 content?: never;
             };
             /** @description Not a voice channel, or longer than 500 characters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice or stage channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceTimerBody"];
+            };
+        };
+        responses: {
+            /** @description Applied */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a voice channel, a malformed timer, or a label over 500 characters */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -55911,6 +56942,184 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LootTable"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LootTableInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LootTable"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Loot table snowflake */
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Loot table snowflake */
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LootTableInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LootTable"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -68131,6 +69340,33 @@ export interface operations {
             };
         };
     };
+    rates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FxRatesObject"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     tv_channels: {
         parameters: {
             query?: never;
@@ -71852,6 +73088,295 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IncomingShare"][];
+                };
+            };
+        };
+    };
+    list_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LootTable"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LootTableInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LootTable"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Loot table snowflake */
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Loot table snowflake */
+                table_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LootTableInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LootTable"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScratchNoteObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Lowercase UUID */
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutNoteBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScratchNoteObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Lowercase UUID */
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

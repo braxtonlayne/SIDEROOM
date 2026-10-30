@@ -1,11 +1,18 @@
 import { Button, Icon, Modal, ProgressBar } from '@sideroom/ui';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { announce } from '../../a11y/announcer';
 import { useT } from '../../i18n';
 import { fileIcon } from './Attachments';
+import { imageMeta } from './blurhash';
 import { formatBytes } from './format';
 import { CHECK_FROM, limitHint, useUploadLimits } from './uploadLimit';
 import type { PendingFile } from './upload';
+
+// UTL-IMG-001: the image studio opens in a dialog from the tray; loaded only when somebody clicks Edit image.
+const StudioModal = lazy(() => import('../../tools/studio/StudioModal'));
+
+/** Still images the studio can edit (an animated GIF would lose its motion, an SVG is not a bitmap). */
+const studioCanEdit = (f: File) => /^image\/(png|jpeg|webp|bmp)$/.test(f.type);
 
 function Thumb({ file }: { file: File }) {
   const url = useMemo(
@@ -40,6 +47,8 @@ export function UploadTray({
 }) {
   const t = useT();
   const [editing, setEditing] = useState<string | null>(null);
+  const [studioId, setStudioId] = useState<string | null>(null);
+  const studioTarget = files.find((f) => f.id === studioId);
   const target = files.find((f) => f.id === editing);
   const [name, setName] = useState('');
   const [alt, setAlt] = useState('');
@@ -104,6 +113,18 @@ export function UploadTray({
               </span>
             )}
             <span className="lng-tray-actions">
+              {studioCanEdit(f.file) && (
+                <button
+                  type="button"
+                  className="lng-icon-btn"
+                  aria-label={t('studio.edit.button', { name: f.name })}
+                  data-testid="tray-edit-image"
+                  disabled={busy || f.status === 'uploading'}
+                  onClick={() => setStudioId(f.id)}
+                >
+                  <Icon name="image" size={16} />
+                </button>
+              )}
               <button
                 type="button"
                 className="lng-icon-btn"
@@ -129,6 +150,33 @@ export function UploadTray({
           </li>
         ))}
       </ul>
+      {studioTarget && (
+        <Suspense fallback={null}>
+          <StudioModal
+            source={studioTarget.file}
+            name={studioTarget.name.replace(/\.[^.]+$/, '')}
+            onClose={() => setStudioId(null)}
+            onUse={(file) => {
+              const id = studioTarget.id;
+              // The edited file replaces the pending one; nothing of the old file is kept for the upload.
+              onChange(id, {
+                file,
+                name: file.name,
+                status: 'queued',
+                progress: 0,
+                error: undefined,
+                meta: undefined,
+                resume: undefined,
+                uploaded: undefined,
+              });
+              void imageMeta(file).then((meta) => {
+                if (meta) onChange(id, { meta });
+              });
+              setStudioId(null);
+            }}
+          />
+        </Suspense>
+      )}
       <Modal
         open={!!target}
         onClose={() => setEditing(null)}

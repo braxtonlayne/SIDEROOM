@@ -2,6 +2,8 @@ import { Button, Icon } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { formatDuration } from './format';
+import { decodeAudioFile, durationOf } from '../../settings/server/sections/soundTrim';
+import { AudioTool } from '../../tools/audio/AudioTool';
 import { FLAT_WAVEFORM, MAX_VOICE_SECS, voiceMimeType, waveformOf } from './voice';
 
 export interface VoiceClip {
@@ -10,7 +12,7 @@ export interface VoiceClip {
   waveform: string;
 }
 
-type Phase = 'starting' | 'recording' | 'processing' | 'preview' | 'error';
+type Phase = 'starting' | 'recording' | 'processing' | 'preview' | 'trim' | 'error';
 
 /**
  * Voice message recorder bar (LNG-CMP-012): record, stop, listen, send or discard. It starts as soon as it
@@ -111,6 +113,20 @@ export function VoiceRecorder({
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
 
+  /** The trimmed part replaces the recording (UTL-AUD-001); the same Ogg and two-minute rules apply. */
+  const acceptTrimmed = async (file: File) => {
+    let durationSecs = clip?.durationSecs ?? 0.1;
+    try {
+      durationSecs = Math.min(MAX_VOICE_SECS, durationOf(await decodeAudioFile(file)));
+    } catch {
+      /* keep the old duration */
+    }
+    const waveform = (await waveformOf(file)) || FLAT_WAVEFORM;
+    setClip({ file, durationSecs, waveform });
+    setUrl(URL.createObjectURL(file));
+    setPhase('preview');
+  };
+
   // Elapsed time, and the two-minute cap.
   useEffect(() => {
     if (phase !== 'recording') return;
@@ -154,10 +170,21 @@ export function VoiceRecorder({
       {phase === 'preview' && clip && url && (
         <>
           <audio controls src={url} aria-label={t('lounge.voiceRecorder.preview')} />
+          <Button size="sm" variant="secondary" onClick={() => setPhase('trim')}>
+            {t('lounge.voiceRecorder.trim')}
+          </Button>
           <Button size="sm" onClick={() => onSend(clip)}>
             <Icon name="arrow-right" size={16} /> {t('lounge.voiceRecorder.send')}
           </Button>
         </>
+      )}
+      {phase === 'trim' && clip && (
+        <AudioTool
+          file={clip.file}
+          limits={{ maxSeconds: MAX_VOICE_SECS, format: 'ogg' }}
+          onUse={(f) => void acceptTrimmed(f)}
+          onCancel={() => setPhase('preview')}
+        />
       )}
       <Button size="sm" variant="ghost" onClick={onCancel}>
         {phase === 'preview' ? t('lounge.voiceRecorder.delete') : t('lounge.voiceRecorder.cancel')}

@@ -33,6 +33,7 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
   { name: 'rank', description: 'Show your level and the leaderboard', needs: 'guild' },
   { name: 'suggest', description: 'Post a suggestion to this server', needs: 'guild' },
   { name: 'ticket', description: 'Open a ticket with the staff', needs: 'guild' },
+  { name: 'roll', description: 'Roll dice, for example 2d20kh1+5', arg: 'dice' },
 ];
 
 const SHRUG = '¯\\_(ツ)_/¯';
@@ -58,7 +59,8 @@ export type SlashResult =
   | { kind: 'thread'; name: string }
   | { kind: 'msg'; userId: string; content: string }
   | { kind: 'remind'; ms: number; text: string }
-  | { kind: 'community'; tab: 'rank' | 'suggestions' | 'tickets' };
+  | { kind: 'community'; tab: 'rank' | 'suggestions' | 'tickets' }
+  | { kind: 'roll'; expression: string };
 
 const UNITS: Record<string, number> = {
   s: 1000,
@@ -171,6 +173,9 @@ export function runSlash(
         return { kind: 'error', message: 'Reminders can be 5 seconds to a year away.' };
       return { kind: 'remind', ms: d.ms, text: d.rest || 'Reminder' };
     }
+    case 'roll':
+      // The roll itself is made by the composer (the dice are in WebAssembly, which loads asynchronously).
+      return { kind: 'roll', expression: arg };
     case 'rank':
     case 'suggest':
     case 'ticket':

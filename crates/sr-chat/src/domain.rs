@@ -354,6 +354,9 @@ pub enum MessageType {
     /// The live card of a watch party in its bound channel (SIDE ROOM type 200, WP-BE-008): the system
     /// user posts it when the party starts and rewrites it while the party changes and when it ends.
     WatchParty,
+    /// An invite card (SIDE ROOM type 201, UTL-CRD-001): a Cinema ticket, Live TV slot or game night with a seat
+    /// count and buttons, posted by the system user and rewritten when seats change.
+    InviteCard,
 }
 
 impl MessageType {
@@ -379,6 +382,7 @@ impl MessageType {
             Self::ContextMenuCommand => 23,
             Self::AutoModerationAction => 24,
             Self::WatchParty => 200,
+            Self::InviteCard => 201,
         }
     }
 
@@ -404,6 +408,7 @@ impl MessageType {
             23 => Self::ContextMenuCommand,
             24 => Self::AutoModerationAction,
             200 => Self::WatchParty,
+            201 => Self::InviteCard,
             _ => return None,
         })
     }

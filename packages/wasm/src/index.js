@@ -142,3 +142,66 @@ export const loadMusic = once(async (wasmUrl) => {
     lrcSidecarNames: (trackKey) => m.lrcSidecarNames(trackKey),
   };
 });
+
+// UTL-SRC-001: the utility drawer's logic (sr-tools-wasm). One module per tool group; each owner adds
+// its own key to the object loadTools returns (search is utl-search's); raw is the wasm-bindgen module.
+const toolsSearch = (m) => ({
+  /** A search index over the embedded tool corpus; the client sets the channels and people. */
+  create() {
+    const s = new m.ToolSearch();
+    return {
+      setEntities: (entities) => s.setEntities(JSON.stringify(entities)),
+      search: (query, limit = 20) => JSON.parse(s.search(String(query), limit)),
+      free: () => s.free(),
+    };
+  },
+});
+
+// UTL-IMG-001 (utl-image): the GIF encoder and the palette extraction.
+const toolsGif = (m) => {
+  const [maxDurationMs, maxBytes, maxEdge, minDelayCs] = m.gifLimits();
+  return {
+    limits: { maxDurationMs, maxBytes, maxEdge, minDelayCs },
+    /** A builder: addFrame(rgba) per frame, then finish() gives the GIF bytes. Errors carry a GIF_* code. */
+    create: (width, height, delayCs) => {
+      const b = new m.GifBuilder(width, height, delayCs);
+      return {
+        addFrame: (rgba) => b.addFrame(rgba),
+        finish: () => b.finish(),
+        get frameCount() {
+          return b.frameCount;
+        },
+        get maxFrames() {
+          return b.maxFrames;
+        },
+        free: () => b.free(),
+      };
+    },
+  };
+};
+const toolsPalette = (m) => ({
+  extract: (rgba, k = 6) => JSON.parse(m.extractPalette(rgba, k)),
+});
+
+// UTL-DEV-001 (utl-dev): dice, diff and hashes. Results are JSON text (dice, diff) or hex (hashes).
+const toolsDev = (m) => ({
+  diceRoll: (expression, seedHi, seedLo) => m.diceRoll(expression, seedHi, seedLo),
+  diceFlip: (seedHi, seedLo) => m.diceFlip(seedHi, seedLo),
+  dicePickWeighted: (weights, seedHi, seedLo) => m.dicePickWeighted(weights, seedHi, seedLo),
+  diffText: (a, b, mode) => m.diffText(a, b, mode),
+  hashMd5: (data) => m.hashMd5(data),
+  hashCrc32: (data) => m.hashCrc32(data),
+});
+
+// UTL-CALC-001 (utl-calc) uses `raw` through its own typed wrapper (apps/web/src/tools/calc/engine.ts).
+export const loadTools = once(async (wasmUrl) => {
+  const m = await import('../dist/tools/tools.js');
+  await m.default({ module_or_path: wasmUrl });
+  return {
+    raw: m,
+    search: toolsSearch(m),
+    gif: toolsGif(m),
+    palette: toolsPalette(m),
+    dev: toolsDev(m),
+  };
+});

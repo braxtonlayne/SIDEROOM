@@ -396,6 +396,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             channel: Some(*channel),
             audience: None,
         },
+        DomainEvent::ToolRoomUpdated {
+            channel, payload, ..
+        } => passthrough("TOOL_ROOM_UPDATE", payload, Some(*channel)),
         DomainEvent::ChannelPinsUpdated {
             guild,
             channel,

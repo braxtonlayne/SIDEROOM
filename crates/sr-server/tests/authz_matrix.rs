@@ -2054,6 +2054,78 @@ async fn seed(
         .await;
     }
 
+    // UTL-COL-001, UTL-CRD-001, UTL-DEV-001 (wave 32): a tool room and an invite card in each tenant's channel
+    // (made by its owner through the API, so the card is a real system message), a loot table of the server
+    // (`guild_loot_table_id`) and one of the account (`table_id`: the member's in A, owner B's in B), and an
+    // encrypted note of the same account (`note_id`). `{future_ms}` is a card start a week ahead for the
+    // write phase's create body.
+    let future_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+        + 7 * 24 * 3600 * 1000;
+    for (ids_map, guild, owner, person) in [
+        (&mut a, ga, &oa, u("member")),
+        (&mut b, gb, &ob, u("ownerb")),
+    ] {
+        ids_map.insert("future_ms", future_ms.to_string());
+        let chan = ids_map["channel_id"].clone();
+        if let Some(v) = create(
+            &srv,
+            owner,
+            "POST",
+            "/channels/{channel_id}/tool-rooms",
+            &format!("/channels/{chan}/tool-rooms"),
+            infos,
+            Some(json!({"kind": "tierlist", "title": "Authz tiers"})),
+        )
+        .await
+            && let Some(id) = v["id"].as_str()
+        {
+            ids_map.insert("room_id", id.to_owned());
+        }
+        if let Some(v) = create(
+            &srv,
+            owner,
+            "POST",
+            "/channels/{channel_id}/cards",
+            &format!("/channels/{chan}/cards"),
+            infos,
+            Some(json!({"kind": "game_night", "title": "Authz night", "starts_at": future_ms, "seats": 4})),
+        )
+        .await
+            && let Some(id) = v["id"].as_str()
+        {
+            ids_map.insert("card_id", id.to_owned());
+        }
+        for (owner_col, owner_id, slot) in [
+            ("owner_guild_id", guild, "guild_loot_table_id"),
+            ("owner_user_id", person, "table_id"),
+        ] {
+            let table = ids.generate().get() as i64;
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "INSERT INTO loot_tables (id, {owner_col}, name, rows) \
+                 VALUES ($1, $2, 'Authz loot', '[{{\"label\":\"Gold\",\"weight\":1}}]'::jsonb)"
+            )))
+            .bind(table)
+            .bind(owner_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+            ids_map.insert(slot, table.to_string());
+        }
+        let note = "00000000-0000-4000-8000-00000000a001";
+        sqlx::query(
+            "INSERT INTO scratch_notes (user_id, note_id, ciphertext) VALUES ($1, $2, '\\x01020304'::bytea)",
+        )
+        .bind(person)
+        .bind(note)
+        .execute(&pool)
+        .await
+        .unwrap();
+        ids_map.insert("note_id", note.to_owned());
+    }
+
     // MUS-JB-002/MUS-JB-003 (wave 31): the jukebox and listening-room routes need a voice channel
     // (`jukebox_channel_id`, mapped onto `{channel_id}` by `ctx_for`) with a session whose playing queue row
     // is the tenant's own track on its user mount. The write phase runs POST `ended` (a no-op this early),
@@ -3660,7 +3732,7 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
 
 /// Tables a background job or any request moves (the job runner, sessions, the access log, the payment
 /// watcher cursor), so that they say nothing about one refused call.
-const NOISY: [&str; 13] = [
+const NOISY: [&str; 15] = [
     "payment_watcher",
     "staff_access_log",
     "sessions",
@@ -3674,6 +3746,9 @@ const NOISY: [&str; 13] = [
     "login_attempts",
     "presence",
     "user_activity",
+    // UTL-CALC-001: the hourly ECB rates job records its attempt (and, online, the rates) at any moment.
+    "fx_rates",
+    "fx_fetch_state",
 ];
 
 /// Columns stamped by authentication itself (a bot token's last use, a session's last sight).
@@ -4125,6 +4200,27 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/moderation/age/restrictions") => {
             r#"{"kind":"channel","id":"{channel_id}","restricted":true,"reason":"authz matrix"}"#
         }
+        // UTL-COL-001, UTL-CRD-001, UTL-DEV-001 (wave 32): the seeded room, card, tables and note.
+        ("POST", "/channels/{channel_id}/tool-rooms") => r#"{"kind":"poll","title":"Authz poll"}"#,
+        ("PATCH", "/channels/{channel_id}/tool-rooms/{room_id}") => {
+            r#"{"base_version":1,"set":{"tier.authz":"S"}}"#
+        }
+        ("POST", "/channels/{channel_id}/cards") => {
+            r#"{"kind":"game_night","title":"Authz write","starts_at":{future_ms},"seats":2}"#
+        }
+        ("POST", "/channels/{channel_id}/cards/{card_id}/claim") => r#"{"remind":false}"#,
+        ("POST", "/users/@me/tools/loot-tables")
+        | ("POST", "/guilds/{guild_id}/tools/loot-tables") => {
+            r#"{"name":"Authz loot write","rows":[{"label":"Gem","weight":2}]}"#
+        }
+        ("PATCH", "/users/@me/tools/loot-tables/{table_id}")
+        | ("PATCH", "/guilds/{guild_id}/tools/loot-tables/{table_id}") => {
+            r#"{"name":"Authz loot edit","rows":[{"label":"Gem","weight":3}]}"#
+        }
+        ("PUT", "/users/@me/tools/notes/{note_id}") => {
+            r#"{"ciphertext":"AQIDBA==","base_revision":1}"#
+        }
+        ("PUT", "/channels/{channel_id}/voice-timer") => r#"{"timer":null}"#,
         ("POST", "/watch-parties") => r#"{"title_id":"{title_id}","channel_id":"{channel_id}"}"#,
         // MUS-IDX-001/MUS-LIB-001 (wave 30): the member's own mount and track; the guild's track for its playlist.
         ("POST", "/music/library/rescan") => r#"{"mount_id":"{mount_id}"}"#,
@@ -4765,8 +4861,11 @@ fn ctx_for(
         "tv_channel_id"
     } else if r.path.starts_with("/tv/reminders/") {
         "block_id"
-    } else if r.path.contains("/jukebox") || r.path.ends_with("/listening-room") {
-        // MUS-JB-002/003: a voice channel with a jukebox session.
+    } else if r.path.contains("/jukebox")
+        || r.path.ends_with("/listening-room")
+        || r.path.ends_with("/voice-timer")
+    {
+        // MUS-JB-002/003: a voice channel with a jukebox session. UTL-DEV-001: a timer goes to a voice channel too.
         "jukebox_channel_id"
     } else {
         return (overlay(r, base.clone()), false);
@@ -4865,6 +4964,12 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     ),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
     (&["/music/playlists/"], "item_id", "playlist_item_id"),
+    // UTL-DEV-001: a server's loot table is not the account's.
+    (
+        &["/guilds/{guild_id}/tools/"],
+        "table_id",
+        "guild_loot_table_id",
+    ),
     // Matched inside the path (no leading slash): the route is /channels/{channel_id}/jukebox/queue/{item_id}.
     (
         &["jukebox/queue/{item_id}"],
