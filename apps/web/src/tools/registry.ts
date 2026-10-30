@@ -14,6 +14,7 @@
  */
 import type { ComponentType } from 'react';
 import type { IconName } from '@sideroom/ui';
+import type { MessageKey } from '../i18n/messages/en';
 
 /** Where the tool is shown right now. A tool may adapt its layout, never its behaviour. */
 export type ToolHost = 'drawer' | 'gadget' | 'rail';
@@ -49,8 +50,8 @@ export interface ToolEntry {
   /** Lowercase letters, digits and hyphens; stable forever (it is stored in the account's layout). */
   id: string;
   /** i18n keys: `tools.<id>.name`, `tools.<id>.description`. */
-  nameKey: string;
-  descriptionKey: string;
+  nameKey: MessageKey;
+  descriptionKey: MessageKey;
   icon: IconName;
   group: ToolGroup;
   /** English search words besides the name ("calc" for the calculator). */

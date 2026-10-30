@@ -5,7 +5,13 @@ import type { Channel, Member, Message, Presence, Role } from '../data';
 import { isJumbo, parseMarkdown, setMarkdownEngine, testFallbackEngine } from '../markdown';
 import { buildMemberRows } from '../memberGroups';
 import { buildRows } from '../messageRows';
-import { matchShortcut } from '../shortcuts';
+import {
+  SHORTCUTS,
+  isDrawerShortcut,
+  isPlayerShortcut,
+  matchCustomShortcut,
+  matchShortcut,
+} from '../shortcuts';
 import { buildSwitcherItems, fuzzyScore, searchSwitcher } from '../switcherSearch';
 
 const user = (id: string, name = id) => ({ id, username: name, displayName: name });
@@ -282,6 +288,26 @@ describe('quick switcher search', () => {
   });
   it('shows recents on an empty query', () => {
     expect(searchSwitcher(items, '', ['ch:c1'])[0]?.label).toBe('general');
+  });
+});
+
+describe('the drawer owns Mod+K (UTL-SHL-001)', () => {
+  const base = { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false };
+  it('treats the quickSwitcher id as a drawer shortcut, so the Lounge shell leaves it to the drawer gate', () => {
+    expect(isDrawerShortcut('quickSwitcher')).toBe(true);
+    expect(isDrawerShortcut('shortcutSheet')).toBe(false);
+    expect(isDrawerShortcut('userSettings')).toBe(false);
+    expect(isPlayerShortcut('quickSwitcher')).toBe(false);
+  });
+  it('still maps Ctrl+K and Cmd+K, and honours a rebind', () => {
+    expect(matchCustomShortcut({ ...base, key: 'k', ctrlKey: true }, {})).toBe('quickSwitcher');
+    expect(matchCustomShortcut({ ...base, key: 'j', ctrlKey: true }, { quickSwitcher: 'Mod+J' })).toBe(
+      'quickSwitcher',
+    );
+    expect(matchCustomShortcut({ ...base, key: 'k', ctrlKey: true }, { quickSwitcher: 'Mod+J' })).toBe(null);
+  });
+  it('describes the shortcut as the drawer', () => {
+    expect(SHORTCUTS.find((d) => d.id === 'quickSwitcher')?.description).toMatch(/drawer/i);
   });
 });
 

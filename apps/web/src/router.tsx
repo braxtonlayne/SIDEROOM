@@ -52,6 +52,11 @@ const ReauthHost = lazy(() =>
 const PlayerGate = lazy(() =>
   import('./player/PlayerGate').then((m) => ({ default: m.PlayerGate })),
 );
+// The utility drawer, its floating gadgets and the pin rail (UTL-SHL-001) follow the same rule as the player: a
+// chunk of the signed-in app, never requested on a public page (D-385).
+const DrawerGate = lazy(() =>
+  import('./tools/drawer/DrawerGate').then((m) => ({ default: m.DrawerGate })),
+);
 // The handbook waits for the full catalog (it is not a first-paint path); it shows the entrance skeleton meanwhile.
 const isHelpPath = (p: string) => p === '/help' || p.startsWith('/help/');
 
@@ -72,6 +77,12 @@ function RootLayout() {
         {!isPublicPath(pathname) && (
           <Suspense fallback={null}>
             <PlayerGate />
+          </Suspense>
+        )}
+        {/* The drawer host lives here too, so gadgets survive navigation (UTL-SHL-001). */}
+        {!isPublicPath(pathname) && (
+          <Suspense fallback={null}>
+            <DrawerGate />
           </Suspense>
         )}
       </CatalogGate>
