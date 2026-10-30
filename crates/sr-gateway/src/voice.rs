@@ -80,6 +80,10 @@ pub struct VoiceChannelInfo {
     pub age_restricted: bool,
     /// The channel's `video_quality_mode`: 1 auto, 2 full (J-11).
     pub video_quality: u8,
+    /// Members with SPEAK may play a music track into the call (MUS-JB-001), told to the SFU.
+    pub music_allowed: bool,
+    /// The music track's bitrate in kbit/s (32 to 320, default 256).
+    pub music_bitrate_kbps: u16,
 }
 
 /// Per-guild voice settings the gateway acts on (VOX-SIG-003).
@@ -757,6 +761,8 @@ impl Gateway {
                     bitrate: None,
                     age_restricted: false,
                     video_quality: 1,
+                    music_allowed: true,
+                    music_bitrate_kbps: 256,
                 };
                 (info, DM_PERMS)
             }
@@ -894,6 +900,13 @@ impl Gateway {
             self.call_member_joined(s.user, channel).await;
         }
         if fresh_join {
+            // MUS-JB-001: the room's music settings reach the SFU before the member connects.
+            self.relay(VoiceCommand::SetMusic {
+                channel,
+                music_allowed: info.music_allowed,
+                bitrate_kbps: info.music_bitrate_kbps,
+            })
+            .await;
             self.voice_server_update(&new, flags)?;
             self.e2ee_expect_hello(&new);
         } else {
@@ -1367,6 +1380,23 @@ impl Gateway {
         }
     }
 
+    /// An edited voice channel with members in it: the SFU learns its music settings again
+    /// (MUS-JB-001; `music_allowed` off withdraws every music line at once).
+    async fn music_refresh(&self, guild: GuildId, channel: ChannelId) {
+        let occupied = self.st().voice.values().any(|v| v.channel_id == channel);
+        if !occupied {
+            return;
+        }
+        if let Some(info) = self.inner.dir.voice_channel(guild, channel).await {
+            self.relay(VoiceCommand::SetMusic {
+                channel,
+                music_allowed: info.music_allowed,
+                bitrate_kbps: info.music_bitrate_kbps,
+            })
+            .await;
+        }
+    }
+
     /// Hook called for every guild-topic event.
     pub(crate) async fn voice_on_guild_event(&self, guild: GuildId, ev: &DomainEvent) {
         // A deleted stage channel takes its stage with it, even when nobody is connected.
@@ -1385,8 +1415,11 @@ impl Gateway {
             DomainEvent::ChannelDeleted { channel, .. } => {
                 self.voice_channel_deleted(guild, *channel).await;
             }
-            DomainEvent::ChannelUpdated { .. }
-            | DomainEvent::RoleUpdated { .. }
+            DomainEvent::ChannelUpdated { channel, .. } => {
+                self.music_refresh(guild, *channel).await;
+                self.voice_revalidate(guild).await;
+            }
+            DomainEvent::RoleUpdated { .. }
             | DomainEvent::RoleDeleted { .. }
             | DomainEvent::MemberUpdated { .. } => self.voice_revalidate(guild).await,
             // The server's level changed: new limits apply to new senders and viewers only.
@@ -1410,6 +1443,8 @@ mod tests {
             bitrate: Some(64_000),
             age_restricted: false,
             video_quality: 1,
+            music_allowed: true,
+            music_bitrate_kbps: 256,
         }
     }
 

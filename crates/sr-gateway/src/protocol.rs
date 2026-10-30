@@ -137,9 +137,10 @@ pub mod intents {
             "STAGE_INSTANCE_CREATE" | "STAGE_INSTANCE_UPDATE" | "STAGE_INSTANCE_DELETE" => {
                 Some(GUILDS)
             }
-            "VOICE_STATE_UPDATE" | "VOICE_CHANNEL_STATUS_UPDATE" | "VOICE_TIMER_UPDATE" => {
-                Some(GUILD_VOICE_STATES)
-            }
+            "VOICE_STATE_UPDATE"
+            | "VOICE_CHANNEL_STATUS_UPDATE"
+            | "VOICE_TIMER_UPDATE"
+            | "LISTENING_ROOM_UPDATE" => Some(GUILD_VOICE_STATES),
             _ => None,
         }
     }

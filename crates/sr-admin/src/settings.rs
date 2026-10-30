@@ -177,6 +177,9 @@ pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
 /// playlist (or one member's favorites) may hold.
 pub const MUSIC_MAX_PLAYLISTS: &str = "music.max_playlists";
 pub const MUSIC_MAX_ITEMS: &str = "music.max_items";
+/// The share of listening members whose skip votes skip the playing jukebox track, in percent (wave 31,
+/// MUS-JB-002; the roadmap's `jukebox.vote_skip_ratio` 0.5, stored as an integer like every setting).
+pub const JUKEBOX_VOTE_SKIP_PERCENT: &str = "jukebox.vote_skip_percent";
 pub const BYOS_UPLOAD_PARTS_PER_HOUR: &str = "byos.upload_parts_per_hour";
 /// Whether the operator's own transcoder workers serve members' conversions in their own buckets (wave 29,
 /// conv-worker; BYOS-CNV-003). Off by default: a member then needs a worker token of their own.
@@ -439,6 +442,14 @@ pub const CATALOG: &[SettingDef] = &[
         50_000,
         5_000,
         "Most tracks one music playlist, or one member's favorites, may hold. Lowering it keeps the rows already saved.",
+    ),
+    int(
+        JUKEBOX_VOTE_SKIP_PERCENT,
+        "storage",
+        1,
+        100,
+        50,
+        "Percent of the members listening to a voice jukebox whose skip votes skip the playing track (50 means half of them).",
     ),
     int(
         BYOS_UPLOAD_PARTS_PER_HOUR,

@@ -44,6 +44,16 @@ pub enum VoiceCommand {
         user: UserId,
         keyed: bool,
     },
+    /// The channel's music settings (MUS-JB-001): `music_allowed` (default on; off makes the SFU drop
+    /// every music line of the room) and `bitrate_kbps` (the channel setting
+    /// `voice.music_bitrate_kbps`, clamped to 32..=320). The SFU never decodes, so the bitrate is
+    /// only recorded for the room (and the egress accounting). The gateway sends this when a room
+    /// opens and when the channel is edited; until then the defaults (allowed, 256) apply.
+    SetMusic {
+        channel: ChannelId,
+        music_allowed: bool,
+        bitrate_kbps: u16,
+    },
     /// Drop a whole room (channel deleted).
     CloseRoom { channel: ChannelId },
 }

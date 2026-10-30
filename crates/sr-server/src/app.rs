@@ -519,6 +519,20 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }),
         id_src.clone(),
     ));
+    // The voice jukebox (MUS-JB-002): queue, vote-skip and synced playback per voice channel.
+    let jukebox_deps = Arc::new(routes::voice::jukebox::JukeboxDeps {
+        service: sr_chat::jukebox::JukeboxService::new(
+            Arc::new(sr_db::jukebox_repo::PgJukebox::new(pool.clone())),
+            clock.clone(),
+            id_src.clone(),
+        ),
+        access: Arc::new(crate::jukebox::ChatJukeboxAccess::new(
+            PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
+            clock.clone(),
+        )),
+        events: Arc::new(crate::jukebox::BusJukeboxEvents::new(bus.clone())),
+        rooms: Arc::new(crate::jukebox::PgListeningRooms::new(pool.clone()).with_bus(bus.clone())),
+    });
     // Browser uploads and object changes in a mount (BYOS-BRW-001): the ledger, the signed bucket calls, ids.
     let upload_io: Arc<dyn sr_storage::uploads::MountIo> = Arc::new(
         sr_storage::uploads::S3MountIo::new(mount_sealer.clone()).with_guard(mount_guard.clone()),
@@ -1563,6 +1577,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             store: Arc::new(sr_db::music_repo::PgMusicStore::new(pool.clone())),
         }))
         .extension(music_lib_deps)
+        .extension(jukebox_deps)
         // The browser's delete and move update the index at once (wave-28 integration).
         .extension(Arc::new(routes::storage::IndexHooks {
             changes: index_store.clone(),
@@ -1709,6 +1724,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
+    let runner = crate::jukebox_jobs::register(runner, &pool, bus.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::suspicion_jobs::register(runner, &pool, moderation.clone());
@@ -1762,6 +1778,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
+    crate::jukebox_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
     crate::takedown_jobs::schedule(&pool).await?;
     crate::suspicion_jobs::schedule(&pool).await?;

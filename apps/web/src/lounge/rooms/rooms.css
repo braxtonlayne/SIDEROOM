@@ -1,0 +1,34 @@
+.lng-room-card {
+  display: grid;
+  gap: var(--space-2, 8px);
+  margin-block: var(--space-1, 4px);
+  margin-inline: var(--space-2, 8px);
+  padding: var(--space-2, 8px);
+  border-radius: var(--radius-2, 8px);
+  background: var(--surface-2, rgb(255 255 255 / 5%));
+  font-size: 0.8125rem;
+}
+.lng-room-desc,
+.lng-room-note {
+  margin: 0;
+  color: var(--text-muted, inherit);
+}
+.lng-room-h {
+  margin: 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, inherit);
+}
+.lng-room-now {
+  display: grid;
+  margin: 0;
+}
+.lng-room-now span,
+.lng-room-next span {
+  color: var(--text-muted, inherit);
+}
+.lng-room-next {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+}

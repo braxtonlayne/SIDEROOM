@@ -250,6 +250,10 @@ impl Member {
 pub const VIDEO_QUALITY_AUTO: u8 = 1;
 /// `video_quality_mode` 2: camera tracks may use the 720p tier regardless of occupancy.
 pub const VIDEO_QUALITY_FULL: u8 = 2;
+/// The voice channel music bitrate bounds and default in kbit/s (MUS-JB-001; the SFU clamps the same way).
+pub const MUSIC_BITRATE_MIN_KBPS: u16 = 32;
+pub const MUSIC_BITRATE_DEFAULT_KBPS: u16 = 256;
+pub const MUSIC_BITRATE_MAX_KBPS: u16 = 320;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Channel {
@@ -280,6 +284,11 @@ pub struct Channel {
     /// A voice channel with a standing (persistent, not ended) watch party: a Watch party room
     /// (D-208). Read from the party table with the channel; never stored on the channel itself.
     pub watch_party_room: bool,
+    /// Voice-like channels: members with `SPEAK` may play a stereo music track into the call
+    /// (MUS-JB-001, migration 1560). Default on; off withdraws every music line of the room.
+    pub music_allowed: bool,
+    /// The music track's Opus bitrate in kbit/s (`voice.music_bitrate_kbps`), 32 to 320, default 256.
+    pub music_bitrate_kbps: u16,
 }
 
 impl Channel {
@@ -303,6 +312,8 @@ impl Channel {
             forum: ForumConfig::default(),
             video_quality_mode: VIDEO_QUALITY_AUTO,
             watch_party_room: false,
+            music_allowed: true,
+            music_bitrate_kbps: MUSIC_BITRATE_DEFAULT_KBPS,
         }
     }
 }

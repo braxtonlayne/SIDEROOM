@@ -22,6 +22,8 @@ pub mod gateway;
 pub mod http;
 pub mod model;
 pub mod ops;
+#[cfg(feature = "voice-transport")]
+mod opus_sdp;
 #[cfg(feature = "voice-e2ee")]
 pub mod voice;
 #[cfg(feature = "voice-transport")]
