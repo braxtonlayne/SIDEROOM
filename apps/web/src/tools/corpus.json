@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "id": "calculator",
+      "name": "Calculator",
+      "aliases": ["calc", "scientific calculator"],
+      "phrases": ["do some maths", "add up numbers", "square root of a number", "work out a sum", "multiply and divide", "sine cosine and tangent", "evaluate an expression", "scientific notation", "raise a number to a power", "logarithm of a number", "quick arithmetic", "compute brackets and precedence"]
+    },
+    {
+      "id": "programmer",
+      "name": "Programmer Calculator",
+      "aliases": ["hex calculator", "bitwise calculator"],
+      "phrases": ["convert decimal to hexadecimal", "binary to decimal", "octal number", "bitwise and or xor", "shift bits left", "two's complement", "show a number in base 2", "hex to binary", "eight bit integer overflow", "sixty four bit integer", "flip the bits", "number bases"]
+    },
+    {
+      "id": "units",
+      "name": "Unit Converter",
+      "aliases": ["converter", "unit conversion"],
+      "phrases": ["miles to kilometres", "pounds to kilograms", "celsius to fahrenheit", "inches to centimetres", "litres to gallons", "megabytes to gigabytes", "convert a length", "convert a weight", "convert a temperature", "kilometres per hour to miles per hour", "feet to metres", "convert an area", "minutes to seconds", "ounces to grams"]
+    },
+    {
+      "id": "currency",
+      "name": "Currency Converter",
+      "aliases": ["exchange rates", "money converter"],
+      "phrases": ["convert dollars to euros", "exchange rate for a currency", "how much is this in pounds", "euro to yen", "foreign money", "convert my money to another currency", "what is a dollar worth", "price in another currency", "currency rates today", "swiss francs to dollars"]
+    },
+    {
+      "id": "percent",
+      "name": "Percentage Calculator",
+      "aliases": ["percent", "percentages"],
+      "phrases": ["fifteen percent of eighty", "work out a tip", "what percent is this of that", "percentage increase", "percentage decrease", "add a percentage to a price", "take a discount off", "sale price after discount", "percent change between two numbers", "how much is vat", "split the bill with a tip", "what is ten percent of"]
+    },
+    {
+      "id": "timezone",
+      "name": "Time Zone Planner",
+      "aliases": ["time zones", "world clock", "meeting planner"],
+      "phrases": ["what time is it for everyone", "find a time that works across zones", "when are we all awake", "schedule a meeting across countries", "overlap of working hours", "convert a time to another zone", "copy a timestamp for discord", "time for people in different countries", "pick a time for an event", "what is the time in tokyo", "world time", "daylight saving difference"]
+    },
+    {
+      "id": "json",
+      "name": "JSON Formatter",
+      "aliases": ["json validator", "pretty print json"],
+      "phrases": ["format json", "pretty print some json", "validate json", "minify json", "fix a json syntax error", "indent a json blob", "check if json is valid", "beautify an api response", "compact json onto one line", "inspect a json document", "sort the keys of json", "make json readable"]
+    },
+    {
+      "id": "regex",
+      "name": "Regex Tester",
+      "aliases": ["regular expression", "regexp"],
+      "phrases": ["test a regular expression", "match a pattern in text", "try out a regex", "capture groups", "find all matches in a string", "replace text with a pattern", "check my regex flags", "debug a regular expression", "highlight regex matches", "pattern matching", "extract text with a regex", "global and case insensitive flags"]
+    },
+    {
+      "id": "base64",
+      "name": "Base64 Encoder",
+      "aliases": ["base64", "base64 decoder"],
+      "phrases": ["encode text as base64", "decode a base64 string", "turn bytes into base64", "base64 to text", "what does this base64 say", "encode a file in base64", "decode an encoded blob", "text to base64 and back", "unpack a base64 string", "base sixty four", "url safe base64", "convert text to base64"]
+    },
+    {
+      "id": "url",
+      "name": "URL Encoder",
+      "aliases": ["url decode", "percent encoding", "query string"],
+      "phrases": ["encode a url", "decode a url", "escape special characters in a link", "percent encode a string", "fix a link with spaces", "parse query parameters", "unescape a url", "make text safe for a web address", "decode percent twenty", "break a url into parts", "encode a query string", "uri component"]
+    },
+    {
+      "id": "jwt",
+      "name": "JWT Decoder",
+      "aliases": ["json web token", "token decoder"],
+      "phrases": ["decode a jwt", "read a json web token", "inspect a bearer token", "see the claims in a token", "when does this token expire", "what is inside this access token", "decode the payload of a token", "view the header of a jwt", "debug an auth token", "token expiry time", "show the issuer and subject", "look inside a login token"]
+    },
+    {
+      "id": "md-table",
+      "name": "Markdown Table Builder",
+      "aliases": ["table builder", "markdown table"],
+      "phrases": ["make a markdown table", "build a table for chat", "turn a spreadsheet into a table", "align table columns", "create a table with rows and columns", "paste csv into a table", "format a table for a message", "table in markdown", "draw a table", "add a row to a table", "tabular data for a post", "generate table syntax"]
+    },
+    {
+      "id": "counter",
+      "name": "Word Counter",
+      "aliases": ["character counter", "text counter"],
+      "phrases": ["count the words", "how many characters is this", "character limit check", "count lines in text", "length of my message", "does this fit in two thousand characters", "count sentences", "words in an essay", "reading time of a text", "count letters", "text statistics", "measure how long a post is"]
+    },
+    {
+      "id": "hash",
+      "name": "Hash Generator",
+      "aliases": ["checksum", "sha256", "md5"],
+      "phrases": ["hash a string", "compute a sha256", "generate an md5 checksum", "crc32 of a file", "checksum of a download", "verify a file hash", "sha1 of some text", "sha512 digest", "fingerprint some text", "make a digest", "compare two hashes", "hash a file to check it"]
+    },
+    {
+      "id": "diff",
+      "name": "Text Diff",
+      "aliases": ["compare text", "diff checker"],
+      "phrases": ["compare two texts", "what changed between two versions", "find the difference between files", "show added and removed lines", "diff two pieces of text", "spot edits between drafts", "compare two json documents", "line by line comparison", "highlight what is different", "check what was modified", "side by side comparison", "which words changed"]
+    },
+    {
+      "id": "dice",
+      "name": "Dice Roller",
+      "aliases": ["roll dice", "rpg dice"],
+      "phrases": ["roll a twenty sided die", "roll two d20 and keep the highest", "roll four d6 drop the lowest", "exploding dice", "count successes on a dice pool", "roll for initiative", "tabletop role playing dice", "advantage and disadvantage roll", "percentile dice", "roll damage", "dungeons and dragons dice", "random number from dice"]
+    },
+    {
+      "id": "coin",
+      "name": "Coin Flip",
+      "aliases": ["flip a coin", "heads or tails"],
+      "phrases": ["flip a coin", "heads or tails", "toss a coin to decide", "settle an argument with chance", "call it in the air", "make a fifty fifty choice", "yes or no at random", "let luck decide between two", "coin toss", "random head or tail", "pick one of two options"]
+    },
+    {
+      "id": "wheel",
+      "name": "Random Wheel",
+      "aliases": ["spin the wheel", "name picker"],
+      "phrases": ["pick a name at random", "choose a winner from a list", "spin a wheel", "who goes first", "random picker for a giveaway", "choose a game to play", "draw a name from a hat", "pick someone from the group", "decide where to eat", "randomly select one option", "raffle winner", "shuffle choices and pick"]
+    },
+    {
+      "id": "loot",
+      "name": "Loot Tables",
+      "aliases": ["loot table", "weighted random"],
+      "phrases": ["roll on a loot table", "weighted random drops", "treasure table for a campaign", "rare and common item chances", "random encounter table", "make a drop table", "save a table of weighted rows", "random reward from a table", "probability table", "game master loot", "randomise an item by rarity", "table of outcomes with weights"]
+    },
+    {
+      "id": "notes",
+      "name": "Scratchpad",
+      "aliases": ["notes", "sticky notes", "private notes"],
+      "phrases": ["jot something down", "write a private note", "keep a quick note", "encrypted notes", "scratch space for text", "sticky note on my screen", "save a snippet for later", "a place to paste things", "note to self", "keep a to do list", "private scratchpad nobody can read", "remember something for later"]
+    },
+    {
+      "id": "pomodoro",
+      "name": "Pomodoro Timer",
+      "aliases": ["focus timer", "work timer"],
+      "phrases": ["focus for twenty five minutes", "work and break intervals", "study timer", "pomodoro technique", "stay on task with a timer", "short break reminder", "timed work sessions", "concentrate for a while", "productivity timer", "start a focus session", "break every half hour", "cycles of work and rest"]
+    },
+    {
+      "id": "stopwatch",
+      "name": "Stopwatch",
+      "aliases": ["lap timer", "time something"],
+      "phrases": ["time how long something takes", "measure elapsed time", "record lap times", "start and stop a timer", "count up from zero", "time my speedrun", "how long did that take", "split times", "time a race", "track duration of a task", "clock how long I talk", "elapsed seconds"]
+    },
+    {
+      "id": "countdown",
+      "name": "Countdown Timer",
+      "aliases": ["timer", "alarm"],
+      "phrases": ["set a timer for ten minutes", "count down from five minutes", "remind me when time is up", "egg timer", "timer for cooking", "alarm in an hour", "wait for a countdown", "timer shared with a voice channel", "show everyone the timer", "count down to an event", "buzz when the time runs out", "kitchen timer"]
+    },
+    {
+      "id": "image-studio",
+      "name": "Image Studio",
+      "aliases": ["meme maker", "image editor", "photo editor"],
+      "phrases": ["make a meme", "add a caption to a picture", "crop a photo", "resize an image", "make my image smaller", "shrink a picture for upload", "add top and bottom text", "pad an image to a square", "convert png to jpeg", "export an image as webp", "edit a picture before sending", "change the size of a photo", "rotate or flip an image", "turn a screenshot into a sticker"]
+    },
+    {
+      "id": "redact",
+      "name": "Redact and Pixelate",
+      "aliases": ["blur image", "censor image", "hide details"],
+      "phrases": ["blur out a face", "hide personal information in a screenshot", "censor part of an image", "pixelate a region", "black out a name", "cover up an address in a photo", "redact a screenshot", "hide an email address in a picture", "obscure a license plate", "blur a password", "mosaic part of a picture", "remove sensitive details from an image"]
+    },
+    {
+      "id": "palette",
+      "name": "Palette Extractor",
+      "aliases": ["colour palette", "color picker", "dominant colours"],
+      "phrases": ["get the colours from a picture", "what colour is this", "find the main colours of an image", "extract a colour palette", "dominant colour in a photo", "colour scheme from artwork", "hex codes from an image", "pick colours for a theme", "match the colours of a logo", "list the colours used", "swatches from a photo", "colour of a pixel"]
+    },
+    {
+      "id": "gif",
+      "name": "Video to GIF",
+      "aliases": ["gif maker", "make a gif"],
+      "phrases": ["turn a video into a gif", "make a gif from a clip", "convert a video to an animated image", "record a short loop", "gif from a screen recording", "animated gif creator", "cut a clip into a gif", "reaction gif from a video", "shrink a gif", "create a looping animation", "video clip to gif under the size cap", "frames to gif"]
+    },
+    {
+      "id": "audio-trimmer",
+      "name": "Audio Trimmer",
+      "aliases": ["trim audio", "normalize audio", "audio editor"],
+      "phrases": ["trim an audio clip", "cut the silence from a recording", "make a sound quieter or louder", "normalize the volume", "fade in and fade out", "shorten a voice message", "edit a soundboard clip", "cut a song down", "see the waveform of a sound", "export a clip as wav", "even out loudness", "trim a recording before sending", "audio that is too long for a soundboard"]
+    },
+    {
+      "id": "tier-list",
+      "name": "Tier List Maker",
+      "aliases": ["tier list", "ranking board"],
+      "phrases": ["rank things from best to worst", "make a tier list", "s tier a tier b tier", "drag items into tiers", "sort my favourite games", "rank characters", "group items by rating", "tier ranking with friends", "build a ranking together", "put images into tiers", "create a leaderboard of opinions", "rate and order a list"]
+    },
+    {
+      "id": "poll",
+      "name": "Poll Builder",
+      "aliases": ["poll maker", "survey", "vote"],
+      "phrases": ["create a poll", "ask the server a question", "let people vote", "multiple choice question", "build a survey", "gather opinions", "vote on where to meet", "poll with several options", "set up a vote with a deadline", "quick straw poll", "ask for a show of hands", "make a ballot"]
+    },
+    {
+      "id": "invite",
+      "name": "Event Invite Card",
+      "aliases": ["game night invite", "ticket card", "movie night invite"],
+      "phrases": ["invite everyone to movie night", "make a game night invitation", "event card with seats", "claim a seat for a screening", "send a calendar file", "add an event to my calendar", "remind people before the show", "watch party invitation", "plan a get together", "rsvp for an event", "ticket for a cinema showing", "ics file for an event"]
+    }
+  ]
+}
