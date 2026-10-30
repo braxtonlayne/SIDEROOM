@@ -225,9 +225,7 @@ pub fn cover_key_for(hash: &str) -> String {
 pub fn cover_hash_of(key: &str) -> Option<&str> {
     let hash = key.strip_prefix(COVER_DIR)?.strip_suffix(".jpg")?;
     let ok = (8..=64).contains(&hash.len())
-        && hash
-            .bytes()
-            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+        && hash.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
     ok.then_some(hash)
 }
 

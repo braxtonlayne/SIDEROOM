@@ -81,7 +81,9 @@ fn push_filters(qb: &mut QueryBuilder<Postgres>, mounts: &[i64], f: &LibraryFilt
         qb.push(" AND m.mount_id = ").push_bind(m);
     }
     if let Some(a) = &f.album {
-        qb.push(" AND lower(m.album) = lower(").push_bind(a.clone()).push(")");
+        qb.push(" AND lower(m.album) = lower(")
+            .push_bind(a.clone())
+            .push(")");
     }
     if let Some(a) = &f.artist {
         qb.push(" AND (lower(m.artist) = lower(")
@@ -128,10 +130,12 @@ fn set(
 #[async_trait]
 impl MusicStore for PgMusicStore {
     async fn mounts(&self) -> Result<Vec<i64>, StoreError> {
-        sqlx::query_scalar("SELECT DISTINCT mount_id FROM music_tracks WHERE shelf_state = 'listed'")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(se)
+        sqlx::query_scalar(
+            "SELECT DISTINCT mount_id FROM music_tracks WHERE shelf_state = 'listed'",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(se)
     }
 
     async fn list(&self, mounts: &[i64], f: &LibraryFilter) -> Result<TrackPage, StoreError> {
@@ -147,10 +151,7 @@ impl MusicStore for PgMusicStore {
         .push(" OFFSET ")
         .push_bind(i64::from(f.offset));
         let rows = qb.build().fetch_all(&self.pool).await.map_err(se)?;
-        let items = rows
-            .iter()
-            .map(track_from)
-            .collect::<Result<Vec<_>, _>>()?;
+        let items = rows.iter().map(track_from).collect::<Result<Vec<_>, _>>()?;
         let mut cb = QueryBuilder::<Postgres>::new(
             "SELECT count(*) FROM music_tracks m JOIN storage_objects o ON o.id = m.mount_object_id \
              AND o.state = 'indexed' WHERE m.shelf_state = 'listed'",
@@ -178,11 +179,13 @@ impl MusicStore for PgMusicStore {
     }
 
     async fn mount_of(&self, id: i64) -> Result<Option<i64>, StoreError> {
-        sqlx::query_scalar("SELECT mount_id FROM music_tracks WHERE id = $1 AND shelf_state = 'listed'")
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(se)
+        sqlx::query_scalar(
+            "SELECT mount_id FROM music_tracks WHERE id = $1 AND shelf_state = 'listed'",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(se)
     }
 
     async fn write(&self, id: i64, w: &TagWrite, source: TagSource) -> Result<(), PatchError> {

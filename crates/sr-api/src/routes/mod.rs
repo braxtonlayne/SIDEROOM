@@ -57,6 +57,7 @@ pub mod library;
 pub mod media;
 pub mod messages;
 pub mod moderation;
+pub mod music;
 pub mod packages;
 pub mod push;
 pub mod review;
@@ -145,6 +146,7 @@ pub fn all() -> Router<AppState> {
         .merge(inbox::router())
         .merge(userfeat::router())
         .merge(storage::router())
+        .merge(music::router())
         .merge(moderation::router())
 }
 
@@ -190,6 +192,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(inbox::openapi());
     doc.merge(userfeat::openapi());
     doc.merge(storage::openapi());
+    doc.merge(music::openapi());
     doc.merge(moderation::openapi());
     doc
 }

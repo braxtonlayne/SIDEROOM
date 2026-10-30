@@ -1519,6 +1519,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(mount_transcode_deps)
         .extension(upload_deps)
         .extension(shelf_deps)
+        .extension(Arc::new(routes::music::MusicDeps {
+            store: Arc::new(sr_db::music_repo::PgMusicStore::new(pool.clone())),
+        }))
         // The browser's delete and move update the index at once (wave-28 integration).
         .extension(Arc::new(routes::storage::IndexHooks {
             changes: index_store.clone(),
