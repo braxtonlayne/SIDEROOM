@@ -247,11 +247,23 @@ async function readLedgerRow(
   );
 }
 
-/** The page has a worker that controls it. */
+/**
+ * The page has a worker that controls it. An app page here has no API behind it, so the app may leave for the
+ * sign-in page on its own (its 401 exit) while this runs; a check cut short by that navigation is run again on the
+ * page it landed on.
+ */
 async function controlled(page: Page): Promise<void> {
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
-  if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) await page.reload();
-  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.waitForLoadState('load');
+      await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+      if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) await page.reload();
+      await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+      return;
+    } catch (e) {
+      if (attempt >= 4 || !/context was destroyed|navigat/i.test(String(e))) throw e;
+    }
+  }
 }
 
 // Service worker timing is the risk: no retry in CI either, so a flake is seen (roadmap-p25 section 4, Risks).
