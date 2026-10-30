@@ -1,0 +1,92 @@
+{
+  "$comment": "SEC-ENT-001 / D-385. The one list of what a visitor without a login may receive (docs/dev/entrance-isolation.md section 2). Read by vite.public.config.ts, scripts/build-web.mjs (copied to dist/surfaces.json), vite/pwa.ts, deploy/scripts/render-caddyfile.mjs, crates/sr-server/src/web.rs, scripts/check-entrance-isolation.mjs, check-bundle-budget.mjs and e2e/tests/entrance-isolation.spec.ts. Paths use Caddy matcher syntax (a trailing /* matches any depth, no other wildcards). 'samples' are concrete URLs for the e2e run (a dummy code or token where the path has a parameter). kind 'bundle' = one HTML shell plus a minimal JS closure under /entrance/; kind 'html' = plain HTML, no script at all. 'reserved' = named now so its budget and path exist, but no shell is built yet (wave 34): consumers skip it until it has a shell.",
+  "version": 1,
+  "appShell": "app.html",
+  "appPrefix": "/app",
+  "appBudget": { "firstLoadGzipKB": 300 },
+  "surfaces": [
+    {
+      "surface": "landing",
+      "kind": "bundle",
+      "shell": "index.html",
+      "entry": "src/public/landing/main.tsx",
+      "paths": ["/", "/join/*"],
+      "samples": ["/", "/join/abcd1234"],
+      "budgetGzipKB": 120
+    },
+    {
+      "surface": "auth",
+      "kind": "bundle",
+      "shell": "auth.html",
+      "entry": "src/public/auth/main.tsx",
+      "paths": [
+        "/login",
+        "/login/*",
+        "/register",
+        "/forgot",
+        "/reset/*",
+        "/verify-email/*",
+        "/email-change/cancel",
+        "/oauth/discord/callback"
+      ],
+      "samples": [
+        "/login",
+        "/login/2fa",
+        "/login/link",
+        "/register",
+        "/forgot",
+        "/reset/dummytoken",
+        "/verify-email/dummytoken",
+        "/email-change/cancel",
+        "/oauth/discord/callback"
+      ],
+      "budgetGzipKB": 150
+    },
+    {
+      "surface": "invite",
+      "kind": "bundle",
+      "shell": "invite.html",
+      "entry": "src/public/invite/main.tsx",
+      "paths": ["/invite/*", "/template/*", "/no-invitation"],
+      "samples": ["/invite/abcd1234", "/template/abcd1234", "/no-invitation"],
+      "budgetGzipKB": 120
+    },
+    {
+      "surface": "profile",
+      "kind": "bundle",
+      "shell": "profile.html",
+      "entry": "src/public/profile/main.tsx",
+      "paths": ["/~*"],
+      "samples": [],
+      "budgetGzipKB": 150,
+      "reserved": true,
+      "wave": 34
+    },
+    {
+      "surface": "legal",
+      "kind": "html",
+      "paths": ["/house-notes", "/fonts/README.md", "/THIRD_PARTY_NOTICES.md"],
+      "samples": ["/house-notes"],
+      "budgetGzipKB": 0
+    },
+    {
+      "surface": "error",
+      "kind": "html",
+      "files": ["404.html", "50x.html", "offline.html"],
+      "paths": [],
+      "samples": [],
+      "budgetGzipKB": 0
+    }
+  ],
+  "publicFiles": [
+    "/entrance/*",
+    "/fonts/*",
+    "/icons/*",
+    "/sw.js",
+    "/manifest.webmanifest",
+    "/offline.html",
+    "/offline.css",
+    "/robots.txt",
+    "/THIRD_PARTY_NOTICES.md"
+  ]
+}
