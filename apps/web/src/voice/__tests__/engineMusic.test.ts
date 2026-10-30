@@ -1,7 +1,53 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RtcVoiceEngine, type ConnectParams, type EngineEvents } from '../engine';
-import { clampMusicKbps, parseStreamId, tuneOpus, VoiceOp } from '../protocol';
-import { fakeEngineDeps, FakeStream, FakeTrack, type FakeEngineWorld } from './fakes';
+import {
+  clampMusicKbps,
+  parseStreamId,
+  stereoAnswer,
+  tuneOpus,
+  tuneOpusOffer,
+  VoiceOp,
+} from '../protocol';
+import {
+  fakeEngineDeps,
+  FakeStream,
+  FakeTrack,
+  type FakeEngineWorld,
+  type FakePeer,
+} from './fakes';
+
+/**
+ * Like Chrome, the fake peer's offer has one audio m-line per transceiver, each carrying the msid of the stream it
+ * was added with and listing Opus 111 (and RED 63, which refers to it). The default canned offer has one line.
+ */
+function realisticOffers(world: FakeEngineWorld) {
+  const create = world.deps.createPeer;
+  world.deps.createPeer = (config) => {
+    const pc = create(config) as FakePeer;
+    const original = pc.createOffer.bind(pc);
+    pc.createOffer = async (o) => {
+      const base = await original(o);
+      const sections = pc.transceivers.map((tx, i) => {
+        const stream = (tx.init as { streams: { id: string }[] }).streams[0]!.id;
+        return [
+          'm=audio 9 UDP/TLS/RTP/SAVPF 111 63',
+          `a=mid:${i}`,
+          `a=msid:${stream} track${i}`,
+          'a=rtpmap:111 opus/48000/2',
+          'a=rtcp-fb:111 transport-cc',
+          'a=fmtp:111 minptime=10;useinbandfec=1',
+          'a=rtpmap:63 red/48000/2',
+          'a=fmtp:63 111/111',
+        ].join('\r\n');
+      });
+      return { ...base, sdp: ['v=0', ...sections, ''].join('\r\n') };
+    };
+    return pc;
+  };
+}
+
+/** The m-line sections of a description, split into the mic (first) and the rest. */
+const sectionsOf = (sdp: string) => sdp.split('\r\nm=').filter((s) => s.startsWith('audio'));
 
 // MUS-JB-001: a stereo music track as a second audio sender, under the same per-sender frame encryptor as the
 // microphone, announced to the SFU as `music`, with its own Opus profile and bitrate, and received on its own
@@ -46,6 +92,7 @@ function setup(extra: Partial<ConnectParams> = {}) {
     e2ee,
     ...extra,
   };
+  realisticOffers(world);
   const engine = new RtcVoiceEngine(events, world.deps);
   return { world, events, engine, params, e2ee };
 }
@@ -107,6 +154,58 @@ describe('tuneOpus profiles', () => {
   });
 });
 
+describe('the per-line offer and the answer', () => {
+  const offer = [
+    'v=0',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111 63',
+    'a=mid:0',
+    'a=msid:mic t0',
+    'a=rtpmap:111 opus/48000/2',
+    'a=fmtp:111 minptime=10;useinbandfec=1',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111 63',
+    'a=mid:1',
+    'a=msid:song t1',
+    'a=rtpmap:111 opus/48000/2',
+    'a=fmtp:111 minptime=10;useinbandfec=1',
+    '',
+  ].join('\r\n');
+
+  it('finds the music line by its stream id or its mid', () => {
+    for (const line of [{ streamId: 'song' }, { streamId: 'nope', mid: '1' }]) {
+      const [mic, song] = sectionsOf(tuneOpusOffer(offer, 64_000, { ...line, kbps: 256 }));
+      expect(mic).not.toContain('stereo=1');
+      expect(song).toContain('SAVPF 112');
+      expect(song).toContain('stereo=1');
+    }
+  });
+
+  it('with no music line every audio line is voice, and a clash on the stereo type keeps the music line mono', () => {
+    const none = tuneOpusOffer(offer, 64_000, null);
+    expect(none).not.toContain('stereo=1');
+    expect(none).not.toContain('112');
+    const clash = offer + 'a=rtpmap:112 VP8/90000\r\n';
+    const out = tuneOpusOffer(clash, 64_000, { streamId: 'song', kbps: 256 });
+    expect(out).not.toContain('stereo=1');
+  });
+
+  it('puts stereo=1 back on the stereo type in an answer, and nowhere else', () => {
+    const answer = [
+      'v=0',
+      'm=audio 9 UDP/TLS/RTP/SAVPF 112',
+      'a=rtpmap:112 opus/48000/2',
+      'a=fmtp:112 minptime=10;useinbandfec=1',
+      'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+      'a=rtpmap:111 opus/48000/2',
+      'a=fmtp:111 minptime=10;useinbandfec=1',
+      '',
+    ].join('\r\n');
+    const out = stereoAnswer(answer);
+    expect(out).toContain('a=fmtp:112 minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1');
+    expect(out).toContain('a=fmtp:111 minptime=10;useinbandfec=1\r\n');
+    expect(stereoAnswer('answer-sdp')).toBe('answer-sdp');
+  });
+});
+
 describe('sending music', () => {
   it('adds a second sendonly audio line under the same E2EE hook, announced as music', async () => {
     const { world, engine, params, e2ee } = setup();
@@ -127,17 +226,33 @@ describe('sending music', () => {
     ]);
   });
 
-  it('negotiates the stereo profile while music is attached and the voice profile again after', async () => {
+  it('keeps the microphone line mono and gives the music line its own stereo payload type', async () => {
     const { world, engine, params } = setup({ maxBitrate: 64_000 });
     const { ws, pc } = await handshake(world, engine, params);
-    expect(pc.localDescription?.sdp).toContain('stereo=0');
+    const first = pc.localDescription?.sdp ?? '';
+    expect(first).toContain('stereo=0');
+    expect(first).not.toContain('112');
     engine.publishMusic(musicStream(), 320);
     await flush();
-    const withMusic = pc.localDescription?.sdp ?? '';
-    expect(withMusic).toContain('stereo=1');
-    expect(withMusic).toContain('sprop-stereo=1');
-    expect(withMusic).toContain('usedtx=0');
-    expect(withMusic).toContain('maxaveragebitrate=320000');
+    const [mic, song] = sectionsOf(pc.localDescription?.sdp ?? '');
+    // The microphone line: mono, DTX, the channel bitrate, never a stereo fmtp, never the stereo type.
+    expect(mic).toContain('SAVPF 111');
+    expect(mic).toContain('stereo=0');
+    expect(mic).toContain('usedtx=1');
+    expect(mic).toContain('maxaveragebitrate=64000');
+    expect(mic).not.toContain('stereo=1');
+    expect(mic).not.toContain('sprop-stereo');
+    expect(mic).not.toContain('112');
+    // The music line: only the stereo type, stereo with sprop-stereo, no DTX, the music bitrate, no mono type.
+    expect(song).toMatch(/^audio 9 UDP\/TLS\/RTP\/SAVPF 112\r\n/);
+    expect(song).toContain('a=rtpmap:112 opus/48000/2');
+    expect(song).toContain('a=rtcp-fb:112 transport-cc');
+    expect(song).toMatch(/a=fmtp:112 [^\r\n]*stereo=1/);
+    expect(song).toContain('sprop-stereo=1');
+    expect(song).toContain('usedtx=0');
+    expect(song).toContain('maxaveragebitrate=320000');
+    expect(song).not.toContain('111');
+    expect(song).not.toContain('a=rtpmap:63');
     ws.serve(VoiceOp.SDP_ANSWER, { sdp: 'answer-2' });
     await flush();
 
@@ -146,9 +261,9 @@ describe('sending music', () => {
     expect(published(ws).at(-1)).toMatchObject({ source: 'music', active: false });
     expect(pc.transceivers[1]!.stopped).toBe(true);
     const after = pc.localDescription?.sdp ?? '';
-    expect(after).toContain('stereo=0');
+    expect(after).not.toContain('stereo=1');
+    expect(after).not.toContain('112');
     expect(after).toContain('usedtx=1');
-    expect(after).toContain('maxaveragebitrate=64000');
   });
 
   it('uses the channel bitrate from the connect params and never goes above 320 kbit/s', async () => {
@@ -184,7 +299,10 @@ describe('sending music', () => {
     const pc = world.peers[0]!;
     expect(pc.transceivers).toHaveLength(2);
     expect(published(ws)).toHaveLength(1);
-    expect(pc.localDescription?.sdp ?? '').toContain('sprop-stereo=1');
+    const [mic, song] = sectionsOf(pc.localDescription?.sdp ?? '');
+    expect(mic).not.toContain('stereo=1');
+    expect(song).toContain('sprop-stereo=1');
+    expect(song).toContain('SAVPF 112');
   });
 
   it('ignores a stream without an audio track', async () => {

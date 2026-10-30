@@ -256,6 +256,39 @@ function openSocket(endpoint: string): Promise<WebSocket> {
   });
 }
 
+/** Opus payload types (crates/sr-voice-proto/src/sdp.rs): mono for the microphone, stereo for the music line. */
+export const MONO_OPUS_PT = 111;
+export const STEREO_OPUS_PT = 112;
+const MONO_FMTP = 'minptime=10;useinbandfec=1';
+const STEREO_FMTP = 'minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1';
+
+/**
+ * The bot's peer connection (MUS-JB-001): the microphone line lists mono Opus only (no `stereo` in its fmtp) and
+ * the music line, when asked for, lists stereo Opus only (`stereo=1; sprop-stereo=1`), each on its own payload type.
+ * werift keeps a codec list per transceiver, so this needs no SDP text work.
+ */
+export function createVoicePeer(
+  bindIp: string,
+  music: boolean,
+): { pc: RTCPeerConnection; mic: RTCRtpTransceiver; musicLine: RTCRtpTransceiver | null } {
+  const mono = useOPUS({ payloadType: MONO_OPUS_PT, parameters: MONO_FMTP });
+  const stereo = useOPUS({ payloadType: STEREO_OPUS_PT, parameters: STEREO_FMTP });
+  const pc = new RTCPeerConnection({
+    codecs: { audio: music ? [mono, stereo] : [mono] },
+    iceInterfaceAddresses: { udp4: bindIp },
+    iceAdditionalHostAddresses: [bindIp],
+    iceUseIpv6: false,
+    iceUseTcp: false,
+  });
+  const mic = pc.addTransceiver('audio', { direction: 'sendonly' });
+  const musicLine = music ? pc.addTransceiver('audio', { direction: 'sendonly' }) : null;
+  // Codec preferences match on the MIME type alone, which cannot tell the two Opus flavours apart, so the lists
+  // are set directly.
+  mic.codecs = [mono];
+  if (musicLine) musicLine.codecs = [stereo];
+  return { pc, mic, musicLine };
+}
+
 /** One bot's connection to one voice channel. */
 export class VoiceSession {
   private ws: WebSocket;
@@ -314,15 +347,7 @@ export class VoiceSession {
     try {
       ws.send(JSON.stringify({ op: OP.IDENTIFY, d: { token: update.token } }));
       const ready = await waitForOp(ws, OP.READY, 10_000);
-      const pc = new RTCPeerConnection({
-        codecs: { audio: [useOPUS()] },
-        iceInterfaceAddresses: { udp4: opts.bindIp },
-        iceAdditionalHostAddresses: [opts.bindIp],
-        iceUseIpv6: false,
-        iceUseTcp: false,
-      });
-      const transceiver = pc.addTransceiver('audio', { direction: 'sendonly' });
-      const musicLine = opts.music ? pc.addTransceiver('audio', { direction: 'sendonly' }) : null;
+      const { pc, mic: transceiver, musicLine } = createVoicePeer(opts.bindIp, opts.music === true);
       const heartbeatMs = Math.max(
         1000,
         Math.min(
@@ -562,7 +587,7 @@ export class VoiceSession {
     this.seq = (this.seq + 1) & 0xffff;
     const timestamp = Math.floor(((Date.now() - this.started) * 48) % 0x1_0000_0000);
     const header = new RtpHeader({
-      payloadType: 111,
+      payloadType: MONO_OPUS_PT,
       sequenceNumber: this.seq,
       timestamp,
       ssrc: 0,
@@ -600,7 +625,7 @@ export class VoiceSession {
     this.musicSeq = (this.musicSeq + 1) & 0xffff;
     const timestamp = Math.floor(((Date.now() - this.started) * 48) % 0x1_0000_0000);
     const header = new RtpHeader({
-      payloadType: 111,
+      payloadType: STEREO_OPUS_PT,
       sequenceNumber: this.musicSeq,
       timestamp,
       ssrc: 0,

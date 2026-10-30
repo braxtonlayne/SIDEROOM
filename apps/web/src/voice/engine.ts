@@ -18,7 +18,8 @@ import {
   SPEAKING_VOICE,
   clampMusicKbps,
   parseStreamId,
-  tuneOpus,
+  stereoAnswer,
+  tuneOpusOffer,
   VoiceClose,
   VoiceOp,
   voiceUrl,
@@ -613,13 +614,18 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.offerPending = true;
     const offer = await pc.createOffer(restart ? { iceRestart: true } : undefined);
     // Opus DTX / FEC / mono go into the local description too, so what we sent is what we run.
-    // While a music line is attached the Opus payload type is stereo with the music ceiling (MUS-JB-001).
-    const music = this.outgoing.has('music');
+    // The music line (when one is attached) gets its own stereo Opus payload type and profile; every other audio
+    // line, the microphone first, stays mono with no stereo fmtp (MUS-JB-001).
+    const music = this.outgoing.get('music');
     await pc.setLocalDescription({
       type: 'offer',
-      sdp: music
-        ? tuneOpus(offer.sdp ?? '', this.musicKbps * 1000, 'music')
-        : tuneOpus(offer.sdp ?? '', this.params.maxBitrate),
+      sdp: tuneOpusOffer(
+        offer.sdp ?? '',
+        this.params.maxBitrate,
+        music
+          ? { streamId: music.stream.id, mid: music.tx?.mid ?? null, kbps: this.musicKbps }
+          : null,
+      ),
     });
     await this.gathered(pc);
     const sdp = pc.localDescription?.sdp ?? offer.sdp ?? '';
@@ -669,7 +675,10 @@ export class RtcVoiceEngine implements VoiceEngine {
     if (this.offerPending || pc.signalingState === 'have-local-offer') return;
     await pc.setRemoteDescription({ type: 'offer', sdp });
     const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+    // Keep `stereo=1` on the music payload type so the decoder outputs two channels.
+    await pc.setLocalDescription(
+      answer.sdp ? { type: answer.type, sdp: stereoAnswer(answer.sdp) } : answer,
+    );
     this.send(VoiceOp.SDP_ANSWER, { sdp: pc.localDescription?.sdp ?? answer.sdp });
     if (this.reoffer) await this.negotiate(this.reoffer.restart);
   }

@@ -17,7 +17,7 @@ server or browser started (8080/5173 were not released, so the Playwright step h
   (`e2ee_keyed`, frames counted in `unkeyed_frames`), the deaf flag and the room allowance.
 - `SPEAK` is required (`Participant::allowed(Music)`); the channel setting `music_allowed` is `SfuCore::set_music`
   (off: the lines are withdrawn from everyone at once, voice untouched; the bitrate is clamped to 32..320 and kept per room).
-- The SFU's Opus payload type 111 now advertises `stereo=1; sprop-stereo=1` (needed so the receiving browser decodes
+- (Superseded, see "Follow-up": the SFU configures mono Opus 111 and stereo Opus 112.) The SFU used to advertise stereo on 111 (needed so the receiving browser decodes
   stereo). Consequence: a microphone line shares that payload type, so browsers may encode the (mono) mic as dual-mono
   stereo; each sender's real rate is capped client-side, so the cost is a few bytes per packet.
 - Governor: the governor feeds on measured node egress, which already includes the music bytes, so music is counted once
@@ -120,7 +120,50 @@ engine need not have them). The member needs SPEAK; the SFU silently drops the l
 - `music_allowed` and the bitrate reach the SFU as a separate `VoiceCommand::SetMusic` instead of new fields on `SetFlags`/
   `JoinClaims`, to avoid breaking sr-gateway (not my files).
 
+## Follow-up (owner: "keep the mic mono"): two Opus payload types
+
+The earlier design shared payload type 111 and made the SFU advertise `stereo=1` on it. That is replaced; the
+statements above about a shared payload type, the stereo fmtp on 111 and the dual-mono microphone are **superseded** by this:
+
+- **Mic: mono Opus, payload type 111, no `stereo` in any fmtp. Music: stereo Opus, payload type 112, `stereo=1; sprop-stereo=1`.**
+  Which audio line carries which is fixed in the SDP text: a line lists the payload type of what it carries and no other
+  (checked by tests on every side). The web engine's music profile (`stereo=1; sprop-stereo=1; usedtx=0;
+  maxaveragebitrate=<kbps>`) applies to the music m-line only; every other audio line gets the voice profile.
+- **str0m limitation, and how it is handled.** str0m keeps one payload-type table per connection, and with two Opus entries
+  it panics ("Pt locked multiple times") when a line lists only one of them. So `sr_voice_proto::sdp` (new, pure text
+  functions, no media) has `restrict_opus_lines` (narrow: one payload type per audio line, music lines by mid) and
+  `expand_opus_lines` (widen: add the missing type, report which mids are music). The SFU widens everything it feeds into
+  str0m (client offers, client answers) and narrows everything it sends (its offers, its answers); it remembers a client's
+  music mids (`Participant::stereo_mids`) so its re-offers keep the client's own music line on 112. Forwarding, the governor
+  accounting and the per-listener mute stay per mid. `sr-sdk` has a private copy (`crates/sr-sdk/src/opus_sdp.rs`; it does
+  not depend on the server crates) and a `new_rtc` with the two entries; `send_opus` writes on the mono type,
+  `send_music_opus` on the stereo one. A client that lists only 111 on its "music" line still works (mono music).
+- **Web (`protocol.ts`, `engine.ts`)**: `tuneOpusOffer(sdp, voiceBitrate, musicLine | null)` rewrites the offer text
+  (music line found by its msid stream id or its mid: only payload type 112, the music profile; if 112 is already used by
+  something else in the offer the music line stays a plain mono line); `stereoAnswer` puts `stereo=1` back on 112 in the
+  answer to the SFU's offers (Chrome drops it, and without it the decoder outputs mono). `tuneOpus` itself is unchanged.
+- **Bot TS (`packages/bot`)**: `createVoicePeer` gives the mic transceiver the mono codec and the music transceiver the
+  stereo codec (werift keeps a codec list per transceiver; `setCodecPreferences` only matches by MIME type, so the lists
+  are set directly), RTP payload types 111 and 112.
+
+Tests added or changed for this: `sr-voice-proto` sdp unit tests (3), `sr-voice/tests/music.rs`
+`the_mic_line_never_carries_a_stereo_fmtp_and_the_music_line_always_does` (SFU offer text, and on the wire: mic packets
+arrive on 111 without stereo, music on 112 with it) and the whole file now runs with a client that lists one payload type
+per line; `sr-sdk` `the_microphone_line_is_mono_and_the_music_line_is_stereo_in_the_offer` (and the real-SFU bot DJ test
+still passes); `engineMusic.test.ts` (16: per-line offer with a Chrome-like offer, find-by-msid-or-mid, clash fallback,
+`stereoAnswer`); `packages/bot` offer test (2).
+
+**Run for real in Chromium (not a committed test).** The `voice-live.spec.ts` music step needs the full server and
+Postgres, and the password file is still missing, so it has not run. In its place I ran the real `RtcVoiceEngine` (bundled
+with esbuild) in two Chromium pages against the real in-process SFU (a scratch test, not committed): A publishes a generated
+stereo tone as music, B received exactly the bytes A sent on payload type 112 with `sprop-stereo=1;stereo=1`, B's microphone
+line stayed on 111 with `minptime=10;useinbandfec=1` (no stereo), `remoteMusic` fired on and off, and unpublishing tore
+the line down. A two-peer Chromium loopback also showed a renegotiation with a video line added keeps working and that the
+listener's answer, with `stereoAnswer`, decodes the music as stereo. The committed `voice-live.spec.ts` step is unchanged
+and still asserts a second inbound audio stream with Opus `channels: 2`.
+
+Not verified: the werift bot against a live SFU (only its offer text is tested); how werift answers an SFU offer whose music
+line lists 112 only (the bot ignores other people's music, and the SFU accepts whichever payload type the answer uses).
+
 ## Owner questions
-- None blocking. For information: with the shared payload type a microphone may go out as dual-mono stereo Opus for
-  everyone (negligible rate effect, capped client-side). If you would rather keep mono mic packets strictly, the alternative is
-  a second Opus payload type for music (more SDP surgery on both sides); say so and I will do that in a follow-up.
+- None. (The mono-mic question is settled by the follow-up.)

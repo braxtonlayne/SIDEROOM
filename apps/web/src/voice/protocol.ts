@@ -192,6 +192,77 @@ export function tuneOpus(
   return sdp.replace(m[0], `${m[0]}\r\n${line}`);
 }
 
+/**
+ * Payload types of the two Opus flavours (crates/sr-voice-proto/src/sdp.rs): the microphone is mono Opus on the
+ * browser's own type (111) and never carries a `stereo` fmtp; the music line is stereo Opus on 112. A browser
+ * shares one payload-type table across a connection, so the only way to keep the two apart is to give the music
+ * m-line its own payload type, which `tuneOpusOffer` does to the offer text before it is applied.
+ */
+export const STEREO_OPUS_PT = 112;
+
+/** Which m-line of an offer is the music line: by the msid stream id we gave its stream, or by its mid. */
+export interface MusicLine {
+  streamId: string;
+  mid?: string | null;
+  kbps: number;
+}
+
+/**
+ * The offer text the engine applies: every audio line gets the voice profile (mono, DTX, the channel bitrate) and
+ * the music line (when there is one) is rewritten to list only [`STEREO_OPUS_PT`] with the music profile
+ * (`stereo=1; sprop-stereo=1`, no DTX, the music bitrate), so the mic line never carries a stereo fmtp and the
+ * music line always does. If 112 is already taken by something else in the offer the music line is left as a plain
+ * voice line (mono music) instead of risking a clash.
+ */
+export function tuneOpusOffer(
+  sdp: string,
+  voiceBitrate: number | undefined,
+  music: MusicLine | null,
+): string {
+  const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+  const sections = sdp.split(new RegExp(`${eol}(?=m=)`));
+  const taken = new RegExp(`a=rtpmap:${STEREO_OPUS_PT} `).test(sdp);
+  const isMusic = (s: string) =>
+    music !== null &&
+    (s.includes(`a=msid:${music.streamId} `) ||
+      (music.mid != null && s.includes(`a=mid:${music.mid}${eol}`)));
+  const out = sections.map((s) => {
+    if (!s.startsWith('m=audio')) return s;
+    if (!isMusic(s) || taken) return tuneOpus(s, voiceBitrate);
+    const m = /a=rtpmap:(\d+) opus\/48000/i.exec(s);
+    if (!m) return s;
+    const from = m[1]!;
+    const pt = String(STEREO_OPUS_PT);
+    const lines = s
+      .split(eol)
+      // Drop every payload type's attributes but Opus' own, then give Opus the stereo type.
+      .filter((l) => {
+        const a = /^a=(?:rtpmap|fmtp|rtcp-fb):(\d+) /.exec(l);
+        return !a || a[1] === from;
+      })
+      .map((l) => {
+        if (l.startsWith('m=audio ')) return l.replace(/^(m=audio \S+ \S+).*$/, `$1 ${pt}`);
+        return l.replace(new RegExp(`^(a=(?:rtpmap|fmtp|rtcp-fb)):${from} `), `$1:${pt} `);
+      });
+    return tuneOpus(lines.join(eol), music!.kbps * 1000, 'music');
+  });
+  return out.join(eol);
+}
+
+/**
+ * The answer to an SFU offer: Chrome drops `stereo` from the fmtp of the payload type it answers, and the decoder
+ * only outputs two channels when the local description says so, so put it back on the stereo type (and on it alone;
+ * a mono line never lists that type).
+ */
+export function stereoAnswer(sdp: string): string {
+  const re = new RegExp(`(a=fmtp:${STEREO_OPUS_PT} )([^\\r\\n]*)`, 'g');
+  if (!sdp.includes(`a=rtpmap:${STEREO_OPUS_PT} `)) return sdp;
+  return sdp.replace(re, (_m, head: string, rest: string) => {
+    const params = rest.split(';').filter((p) => p && !/^(stereo|sprop-stereo)=/.test(p));
+    return `${head}${[...params, 'stereo=1', 'sprop-stereo=1'].join(';')}`;
+  });
+}
+
 // ---- video (op 12), crates/sr-voice-proto/src/video.rs ----
 
 /** What a published or forwarded track carries. */
