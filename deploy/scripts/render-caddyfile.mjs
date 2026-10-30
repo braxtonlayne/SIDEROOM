@@ -26,7 +26,9 @@ const { values } = parseArgs({
 const { renderCaddyfile } = await import(
   pathToFileURL(resolve(here, '../../apps/web/src/security/csp.ts')).href
 );
-const table = JSON.parse(readFileSync(resolve(here, '../../apps/web/public-surfaces.json'), 'utf8'));
+const table = JSON.parse(
+  readFileSync(resolve(here, '../../apps/web/public-surfaces.json'), 'utf8'),
+);
 const current = readFileSync(values.file, 'utf8');
 const next = renderCaddyfile(current, table);
 if (values.check) {
