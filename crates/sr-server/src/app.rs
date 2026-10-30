@@ -1284,6 +1284,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     }
     let system_poster_for_tv = system_poster.clone();
     let feed_policy = unfurl_policy_for_feeds.clone();
+    // The currency converter's rates (UTL-CALC-001): fetched by the server under the same outbound policy as the
+    // RSS feeds (deny and allow lists, address checks), read by GET /tools/fx.
+    let fx_fetcher: Arc<dyn crate::fx_jobs::FxFetch> = Arc::new(crate::fx_jobs::EcbFetcher::new(
+        crate::userfeat::feed_client(unfurl_policy_for_feeds.clone()),
+    ));
+    let fx_deps = crate::fx_jobs::deps(&pool);
     let ticker = Arc::new(sr_userfeat::tick::Ticker::new(
         user_features.clone(),
         system_poster.clone(),
@@ -1524,6 +1530,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
+        .extension(fx_deps)
         .extension(storage_scope_deps)
         .extension(mount_transcode_deps)
         .extension(upload_deps)
@@ -1643,6 +1650,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register_insights(runner, &pool);
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
+    let runner = crate::fx_jobs::register(runner, &pool, fx_fetcher);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner =
         crate::admin_jobs::register_storage_measure(runner, &pool, id_src.clone(), storage.clone());
@@ -1736,6 +1744,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::media_jobs::schedule(&pool).await?;
     crate::userset_jobs::schedule(&pool).await?;
     crate::payments_jobs::schedule(&pool).await?;
+    crate::fx_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.
