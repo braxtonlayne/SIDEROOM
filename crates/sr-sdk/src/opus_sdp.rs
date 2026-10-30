@@ -1,4 +1,5 @@
-//! Two Opus payload types, one per kind of audio line (MUS-JB-001).
+//! A private copy of `sr_voice_proto::sdp` (the SDK does not depend on the server crates): two Opus payload
+//! types, one per kind of audio line (MUS-JB-001).
 //!
 //! The microphone stays mono Opus on payload type [`MONO_OPUS_PT`] (no `stereo` in its fmtp). The music track is
 //! stereo Opus on [`STEREO_OPUS_PT`] (`stereo=1; sprop-stereo=1`). The SFU configures both payload types, and so
