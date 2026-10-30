@@ -94,8 +94,8 @@ DELETE	/library/series/{series_id}/rating	authenticated	self	allow	-	-
 DELETE	/library/series/{series_id}/review	authenticated	self	allow	-	-
 DELETE	/moderation/cases/{case_id}/assignee	authenticated	membership	deny	-	-
 DELETE	/moderation/takedowns/{notice_id}/items/{item_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
-DELETE	/music/playlists/{playlist_id}	authenticated	user?	allow	-	-
-DELETE	/music/playlists/{playlist_id}/items/{item_id}	authenticated	user?	allow	-	-
+DELETE	/music/playlists/{playlist_id}	authenticated	membership	deny	-	-
+DELETE	/music/playlists/{playlist_id}/items/{item_id}	authenticated	membership	deny	-	-
 DELETE	/oauth2/tokens/{grant_id}	authenticated	self	deny	-	-
 DELETE	/packages/{package_id}	authenticated	author	deny	-	-
 DELETE	/requests/{request_id}/claim	authenticated	author_or_staff	allow	-	REVIEW_READING
@@ -119,8 +119,8 @@ DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-	-
 DELETE	/users/@me/connections/{provider}/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-	-
 DELETE	/users/@me/ignores/{user_id}	authenticated	self	deny	-	-
-DELETE	/users/@me/music/favorites/{track_id}	authenticated	self?	allow	-	-
-DELETE	/users/@me/music/recent	authenticated	self?	allow	-	-
+DELETE	/users/@me/music/favorites/{track_id}	authenticated	self	deny	-	-
+DELETE	/users/@me/music/recent	authenticated	self	deny	-	-
 DELETE	/users/@me/packages/{package_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/profile-media/{media_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-	-
@@ -355,7 +355,7 @@ GET	/guilds/{guild_id}/members/search	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/messages/search	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/modules	authenticated	membership	allow	-	-
-GET	/guilds/{guild_id}/music/playlists	authenticated	membership?	allow	-	-
+GET	/guilds/{guild_id}/music/playlists	authenticated	membership	deny	-	-
 GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/packages	authenticated	membership	deny	-	-
 GET	/guilds/{guild_id}/poll-templates	authenticated	membership	allow	-	-
@@ -440,7 +440,7 @@ GET	/moderation/reports/mine	authenticated	self	deny	-	-
 GET	/moderation/takedowns	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/export	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
-GET	/music/playlists/{playlist_id}	authenticated	user?	allow	-	-
+GET	/music/playlists/{playlist_id}	authenticated	membership	deny	-	-
 GET	/oauth2/@me	authenticated	self	allow	any	-
 GET	/oauth2/authorize	authenticated	self	deny	-	-
 GET	/oauth2/tokens	authenticated	self	deny	-	-
@@ -525,9 +525,9 @@ GET	/users/@me/guilds/{guild_id}/member	authenticated	membership	allow	-	-
 GET	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-	-
 GET	/users/@me/ignores	authenticated	self	deny	-	-
 GET	/users/@me/mentions	authenticated	self	deny	-	-
-GET	/users/@me/music/favorites	authenticated	self?	allow	-	-
-GET	/users/@me/music/playlists	authenticated	self?	allow	-	-
-GET	/users/@me/music/recent	authenticated	self?	allow	-	-
+GET	/users/@me/music/favorites	authenticated	self	deny	-	-
+GET	/users/@me/music/playlists	authenticated	self	deny	-	-
+GET	/users/@me/music/recent	authenticated	self	deny	-	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-	-
 GET	/users/@me/notification-keywords	authenticated	self	deny	-	-
@@ -603,8 +603,8 @@ PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-	-
 PATCH	/library/comments/{comment_id}	authenticated	author	allow	-	-
 PATCH	/library/lists/{list_id}	authenticated	author	allow	-	-
-PATCH	/music/playlists/{playlist_id}	authenticated	user?	allow	-	-
-PATCH	/music/playlists/{playlist_id}/items/{item_id}	authenticated	user?	allow	-	-
+PATCH	/music/playlists/{playlist_id}	authenticated	membership	deny	-	-
+PATCH	/music/playlists/{playlist_id}/items/{item_id}	authenticated	membership	deny	-	-
 PATCH	/shelves/{section}/{shelf_item_id}	authenticated	mount_owner	deny	-	-
 PATCH	/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}	authenticated	mount_owner	deny	-	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
@@ -790,7 +790,7 @@ POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/mfa	authenticated	owner	allow	-	-
-POST	/guilds/{guild_id}/music/playlists	authenticated	membership?	allow	-	-
+POST	/guilds/{guild_id}/music/playlists	authenticated	membership	deny	-	-
 POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/packages/{package_id}/apply	authenticated	membership	deny	-	-
 POST	/guilds/{guild_id}/packages/{package_id}/import	authenticated	membership	deny	-	-
@@ -855,7 +855,7 @@ POST	/moderation/takedowns/{notice_id}/reject	authenticated	staff	deny	-	MANAGE_
 POST	/moderation/takedowns/{notice_id}/restore	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 POST	/moderation/takedowns/{notice_id}/uphold	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 POST	/moderation/takedowns/{notice_id}/withdraw	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
-POST	/music/playlists/{playlist_id}/items	authenticated	user?	allow	-	-
+POST	/music/playlists/{playlist_id}/items	authenticated	membership	deny	-	-
 POST	/oauth2/authorize	authenticated	self	deny	-	-
 POST	/oauth2/introspect	public	none	allow	-	-
 POST	/oauth2/token	public	none	allow	-	-
@@ -908,8 +908,8 @@ POST	/users/@me/channels	authenticated	self	allow	-	-
 POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-	-
 POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-	-
 POST	/users/@me/data-export	authenticated	self	deny	-	-
-POST	/users/@me/music/playlists	authenticated	self?	allow	-	-
-POST	/users/@me/music/recent	authenticated	self?	allow	-	-
+POST	/users/@me/music/playlists	authenticated	self	deny	-	-
+POST	/users/@me/music/recent	authenticated	self	deny	-	-
 POST	/users/@me/profile-doc/layout	authenticated	self	deny	-	-
 POST	/users/@me/profile-media	authenticated	self	deny	-	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-	-
@@ -1028,7 +1028,7 @@ PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-	-
 PUT	/users/@me/connections/link	authenticated	self	deny	-	-
 PUT	/users/@me/guilds/{guild_id}/leveling	authenticated	membership	allow	-	-
 PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-	-
-PUT	/users/@me/music/favorites/{track_id}	authenticated	self?	allow	-	-
+PUT	/users/@me/music/favorites/{track_id}	authenticated	self	deny	-	-
 PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-	-
 PUT	/users/@me/notification-keywords	authenticated	self	deny	-	-
 PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-	-

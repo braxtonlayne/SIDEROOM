@@ -75,7 +75,7 @@ function useListProps(p: SectionProps) {
   const toggle = useToggleFavorite();
   const pls = useEditablePlaylists(p.guildId);
   const add = useAddToPlaylist();
-  return {
+  const props = {
     favorites: fav.ids,
     playlists: pls.all.map((x) => ({ id: x.id, name: x.name })),
     onEnqueue: (tr: LibraryTrack, next: boolean) => act.enqueue([tr], next),
@@ -83,8 +83,8 @@ function useListProps(p: SectionProps) {
       void act.playSmart(k, tr),
     onToggleFavorite: (tr: LibraryTrack) => toggle.mutate({ track: tr, on: !fav.ids.has(tr.id) }),
     onAddToPlaylist: (playlistId: string, track: LibraryTrack) => add.mutate({ playlistId, track }),
-    act,
   };
+  return { act, props };
 }
 
 // ------------------------------------------------------------------------------------------- search
@@ -135,7 +135,7 @@ export function SearchSection(p: SectionProps) {
             label={t('music.lib.search.results')}
             tracks={tracks}
             onPlay={(i) => lp.act.play(tracks, i)}
-            {...lp}
+            {...lp.props}
           />
         </>
       )}
@@ -170,7 +170,7 @@ export function FavoritesSection(p: SectionProps) {
             label={t('music.lib.favorites.list')}
             tracks={tracks}
             onPlay={(i) => lp.act.play(tracks, i)}
-            {...lp}
+            {...lp.props}
           />
         </>
       )}
@@ -210,7 +210,7 @@ export function RecentSection(p: SectionProps) {
             label={t('music.lib.recent.list')}
             tracks={tracks}
             onPlay={(i) => lp.act.play(tracks, i)}
-            {...lp}
+            {...lp.props}
           />
         </>
       )}
@@ -419,7 +419,7 @@ function PlaylistDetailView(p: {
               label={detail.playlist.name}
               tracks={tracks}
               onPlay={(i) => lp.act.play(tracks, i)}
-              {...lp}
+              {...lp.props}
               rowExtra={
                 can
                   ? (tr, i) => {

@@ -79,6 +79,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         // BYOS mounts hold the member's or the server's own bucket credentials: people only (BYOS-MNT-001).
         || p.starts_with("/users/@me/storage")
         || (p.starts_with("/guilds/") && p.contains("/storage/"))
+        // The music library (playlists, favorites, recently played) is a person's: a bot has no library (MUS-LIB-001).
+        || p.starts_with("/users/@me/music")
+        || p.starts_with("/music/playlists")
+        || (p.starts_with("/guilds/") && p.contains("/music/"))
     {
         return true;
     }
