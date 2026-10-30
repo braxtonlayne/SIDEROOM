@@ -43,6 +43,7 @@ use sr_storage::scopes::{ScopeFacts, Viewer};
 use sr_storage::scrapbook::{
     ArchiveError, ArchiveRequest, Archiver, DeleteScope, Refusal, ScrapbookBuckets, Target, Via,
 };
+use sr_storage::storage::{MultipartSession, ObjectInfo, ObjectStream, PresignMethod};
 use sr_storage::{ObjectStorage, scrapbook::StoreError};
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
@@ -126,6 +127,7 @@ impl ScrapbookBuckets for PgScrapbookBuckets {
         self.storages
             .for_mount(mount.id)
             .await
+            .map(Deadlines::wrap)
             .map_err(|e| Refusal::Unavailable(e.to_string()))
     }
 
@@ -133,7 +135,107 @@ impl ScrapbookBuckets for PgScrapbookBuckets {
         self.storages
             .for_mount(mount_id)
             .await
+            .map(Deadlines::wrap)
             .map_err(|e| e.to_string())
+    }
+}
+
+/// Longest wait for a bucket call that moves no bulk data (open, head, delete, list, sign).
+const QUICK: Duration = Duration::from_secs(10);
+/// Longest wait for a call that moves data (a whole object or one part of a multipart upload).
+const BULK: Duration = Duration::from_secs(120);
+
+/// A member's or operator's bucket is a third party: `object_store` retries a dead endpoint for minutes, and a
+/// scrapbook request (an archive, a delete, a retry button) must not hang that long. Every call gets a deadline;
+/// a call that runs out is an ordinary bucket failure, which the archive reports and the cascade lists for the
+/// managers like any other.
+struct Deadlines {
+    inner: Arc<dyn ObjectStorage>,
+}
+
+impl Deadlines {
+    fn wrap(inner: Arc<dyn ObjectStorage>) -> Arc<dyn ObjectStorage> {
+        Arc::new(Self { inner })
+    }
+}
+
+async fn within<T>(
+    wait: Duration,
+    what: &str,
+    f: impl std::future::Future<Output = sr_storage::Result<T>>,
+) -> sr_storage::Result<T> {
+    match tokio::time::timeout(wait, f).await {
+        Ok(r) => r,
+        Err(_) => Err(sr_storage::StorageError::Backend(format!(
+            "{what} timed out after {} s",
+            wait.as_secs()
+        ))),
+    }
+}
+
+struct DeadlineSession(Box<dyn MultipartSession>);
+
+#[async_trait]
+impl MultipartSession for DeadlineSession {
+    async fn put_part(&mut self, data: bytes::Bytes) -> sr_storage::Result<()> {
+        within(BULK, "uploading a part", self.0.put_part(data)).await
+    }
+    async fn complete(&mut self) -> sr_storage::Result<()> {
+        within(BULK, "completing the upload", self.0.complete()).await
+    }
+    async fn abort(&mut self) -> sr_storage::Result<()> {
+        within(QUICK, "aborting the upload", self.0.abort()).await
+    }
+}
+
+#[async_trait]
+impl ObjectStorage for Deadlines {
+    async fn put(&self, key: &str, data: bytes::Bytes) -> sr_storage::Result<()> {
+        within(BULK, "writing the object", self.inner.put(key, data)).await
+    }
+    async fn get(&self, key: &str) -> sr_storage::Result<bytes::Bytes> {
+        within(BULK, "reading the object", self.inner.get(key)).await
+    }
+    async fn get_range(&self, key: &str, s: u64, e: u64) -> sr_storage::Result<bytes::Bytes> {
+        within(BULK, "reading the object", self.inner.get_range(key, s, e)).await
+    }
+    async fn get_stream(
+        &self,
+        key: &str,
+        range: Option<std::ops::Range<u64>>,
+    ) -> sr_storage::Result<ObjectStream> {
+        within(
+            QUICK,
+            "opening the object",
+            self.inner.get_stream(key, range),
+        )
+        .await
+    }
+    async fn head(&self, key: &str) -> sr_storage::Result<ObjectInfo> {
+        within(QUICK, "asking for the object", self.inner.head(key)).await
+    }
+    async fn delete(&self, key: &str) -> sr_storage::Result<()> {
+        within(QUICK, "deleting the object", self.inner.delete(key)).await
+    }
+    async fn list(&self, prefix: &str) -> sr_storage::Result<Vec<ObjectInfo>> {
+        within(QUICK, "listing the bucket", self.inner.list(prefix)).await
+    }
+    async fn presign(
+        &self,
+        method: PresignMethod,
+        key: &str,
+        ttl: Duration,
+    ) -> sr_storage::Result<String> {
+        within(QUICK, "signing", self.inner.presign(method, key, ttl)).await
+    }
+    async fn multipart_create(&self, key: &str) -> sr_storage::Result<Box<dyn MultipartSession>> {
+        let s = within(
+            QUICK,
+            "starting the upload",
+            self.inner.multipart_create(key),
+        )
+        .await?;
+        Ok(Box::new(DeadlineSession(s)))
     }
 }
 
