@@ -5484,6 +5484,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/tool-rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live tool rooms of a channel, newest first. */
+        get: operations["list"];
+        put?: never;
+        /** Create a tool room in a channel or DM. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/tool-rooms/{room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One tool room. */
+        get: operations["get_room"];
+        put?: never;
+        post?: never;
+        /** Delete a tool room: its creator, or a member with `MANAGE_MESSAGES`. */
+        delete: operations["delete_room"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a tool room: set or remove whole keys against the version the client last saw. A stale version is
+         *     409 with the current room; the client re-applies its own keys on top and retries.
+         */
+        patch: operations["patch_room"];
+        trace?: never;
+    };
     "/channels/{channel_id}/typing": {
         parameters: {
             query?: never;
@@ -17207,6 +17247,13 @@ export interface components {
             permissions?: string | null;
             unicode_emoji?: string | null;
         };
+        CreateRoomBody: {
+            /** @description `tierlist` or `poll`. */
+            kind: string;
+            /** @description The starting keys. */
+            state?: Record<string, never> | null;
+            title?: string | null;
+        };
         CreateSoundBody: {
             /** @description A custom emoji of this server. */
             emoji_id?: string | null;
@@ -21441,6 +21488,16 @@ export interface components {
                 [key: string]: boolean | null;
             } | null;
         };
+        PatchRoomBody: {
+            /**
+             * Format: int64
+             * @description The version the client last saw.
+             */
+            base_version: number;
+            /** @description Keys to set; `null` removes a key. */
+            set?: Record<string, never>;
+            title?: string | null;
+        };
         /** @description Partial `sensitive_media`. */
         PatchSensitiveMedia: {
             friends?: string | null;
@@ -23654,6 +23711,14 @@ export interface components {
             privacy_level: number;
             topic: string;
         };
+        /** @description The 409 body of a stale edit. */
+        StaleRoomBody: {
+            /** Format: int32 */
+            code: number;
+            /** @description The room as it is now: re-apply your keys on top of it and retry with its `version`. */
+            current: components["schemas"]["ToolRoomObject"];
+            message: string;
+        };
         /** @description The tracks of a stamped list the viewer can reach, and how many were left out. */
         StampedListView: {
             /**
@@ -24515,6 +24580,33 @@ export interface components {
             /** @description Space-separated scopes. */
             scope: string;
             token_type: string;
+        };
+        /** @description A tool room as the API shows it. */
+        ToolRoomObject: {
+            channel_id: string;
+            /**
+             * Format: int64
+             * @description Unix milliseconds.
+             */
+            created_at: number;
+            created_by?: string | null;
+            /**
+             * Format: int64
+             * @description Unix milliseconds; a room lives 7 days from creation.
+             */
+            expires_at: number;
+            guild_id?: string | null;
+            id: string;
+            /** @description `tierlist` or `poll`. */
+            kind: string;
+            /** @description A flat object of keys; images are references (`{"img": {"k": "mount", "mount", "key"}}`), never URLs. */
+            state: Record<string, never>;
+            title: string;
+            /**
+             * Format: int64
+             * @description Bumps by one on every accepted edit.
+             */
+            version: number;
         };
         /** @description A page of tracks and the sources behind them. */
         TrackListView: {
@@ -44072,6 +44164,242 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoomBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The channel has too many rooms */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Room snowflake */
+                room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Room snowflake */
+                room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_room: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Room snowflake */
+                room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchRoomBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolRoomObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Stale version; `current` is the room now */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaleRoomBody"];
                 };
             };
         };

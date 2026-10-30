@@ -2476,3 +2476,35 @@ async fn the_author_never_receives_the_likely_spam_flag() {
         flagged | 4
     );
 }
+
+/// UTL-COL-001: `TOOL_ROOM_UPDATE` reaches members who can view the channel, and no one else.
+#[tokio::test]
+async fn tool_room_update_reaches_only_members_who_can_view_the_channel() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILD_MESSAGES, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", intents::GUILD_MESSAGES, 1).await;
+    let mut no_intent = connect(&e);
+    no_intent.identify("bot:1", intents::GUILDS, 1).await;
+    settle().await;
+    let payload = json!({
+        "id": "70", "channel_id": "11", "guild_id": "1", "kind": "tierlist",
+        "version": 2, "title": "t", "actor_id": "1", "set": { "item.a": { "tier": "" } },
+    });
+    // User 2 cannot view SECRET: nothing for them, and the bot without the messages intent hears nothing.
+    emit(
+        &e.bus,
+        DomainEvent::ToolRoomUpdated {
+            guild: Some(G1),
+            channel: SECRET,
+            payload: payload.clone(),
+        },
+    )
+    .await;
+    let d = a.expect_event("TOOL_ROOM_UPDATE").await;
+    assert_eq!(d["d"]["version"], 2);
+    assert_eq!(d["d"]["set"]["item.a"]["tier"], "");
+    b.silent().await;
+    no_intent.silent().await;
+}

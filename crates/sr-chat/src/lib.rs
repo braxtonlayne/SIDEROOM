@@ -29,6 +29,7 @@ pub mod service;
 pub mod settings;
 pub mod social;
 pub mod threads;
+pub mod tool_rooms;
 pub mod voice_meta;
 
 #[cfg(test)]

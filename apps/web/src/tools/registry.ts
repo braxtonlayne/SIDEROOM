@@ -82,7 +82,30 @@ const guide: ToolEntry = {
 };
 
 /** Append new entries after the last one. */
-export const TOOLS: ToolEntry[] = [guide];
+export const TOOLS: ToolEntry[] = [
+  guide,
+  // UTL-COL-001 (utl-collab): the collaborative tier list and poll builder.
+  {
+    id: 'tierlist',
+    nameKey: 'tools.tierlist.name',
+    descriptionKey: 'tools.tierlist.description',
+    icon: 'list',
+    group: 'collab',
+    aliases: ['tier', 'tiers', 'rank', 'ranking', 'tier maker'],
+    size: { width: 520, height: 560, minWidth: 320, minHeight: 280 },
+    load: () => import('./tierlist/TierListTool'),
+  },
+  {
+    id: 'poll',
+    nameKey: 'tools.poll.name',
+    descriptionKey: 'tools.poll.description',
+    icon: 'grid',
+    group: 'collab',
+    aliases: ['poll', 'vote', 'survey', 'polls'],
+    size: { width: 420, height: 520, minWidth: 300, minHeight: 280 },
+    load: () => import('./poll/PollBuilderTool'),
+  },
+];
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

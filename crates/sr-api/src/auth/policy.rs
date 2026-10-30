@@ -91,6 +91,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
         return true;
     }
+    // Tool rooms (the tier list and poll builder, UTL-COL-001) are shared documents of people.
+    if p.starts_with("/channels/") && p.contains("/tool-rooms") {
+        return true;
+    }
     // Packages, profile pages and guestbooks (EXT-PKG, EXT-PRF) are for people: themes, layouts, recipes
     // and a page of one's own. A bot has no profile to customise and no server to manage by session.
     if p.starts_with("/packages")
