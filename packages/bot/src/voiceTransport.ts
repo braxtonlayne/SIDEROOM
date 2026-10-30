@@ -15,6 +15,11 @@
 // `FrameTransform` is installed (`E2eeMedia` of ./voice is one), so audio is never sent in the clear into an
 // encrypted call, and incoming frames are dropped rather than played when they cannot be decrypted.
 //
+// A bot DJ (MUS-JB-001): `VoiceSession.connect` with `music: true` adds a second send-only audio line, announced to
+// the SFU as the `music` source; `sendMusicOpus` publishes one 20 ms stereo Opus frame on it through the same
+// frame transform as speech (D-249), so the music is end-to-end encrypted exactly like the microphone. Encode with
+// ./audio (a stereo encoder, `setBitrate` up to 320000). Other people's music arrives as `music` events.
+//
 // A bare `VoiceSession` does not reconnect; `VoiceLink` does what a client does: when the signalling WebSocket
 // drops while the media connection is up it re-attaches with the SFU's RESUME (`resumed`), when the SFU no
 // longer knows the session it joins again with the same token and keeps the transform (`reconnected`), and it
@@ -28,6 +33,7 @@ import {
   useOPUS,
   type MediaStreamTrack,
   type RTCRtpSender,
+  type RTCRtpTransceiver,
 } from 'werift';
 
 /** SFU WebSocket opcodes (docs/specs/lounge-voice-video.md section 4). */
@@ -42,6 +48,7 @@ const OP = {
   RESUMED: 9,
   CLIENT_CONNECT: 10,
   CLIENT_DISCONNECT: 11,
+  VIDEO: 12,
 } as const;
 
 const SESSION_INVALID = 4006;
@@ -62,6 +69,7 @@ export type TransportErrorKind =
   | 'rtc'
   | 'not-connected'
   | 'encryption-required'
+  | 'no-music-line'
   | 'transform';
 
 /** What went wrong in the transport. */
@@ -148,6 +156,8 @@ export type VoiceEvent =
   | { kind: 'connected' }
   /** One Opus frame (already decrypted when a transform is installed). */
   | { kind: 'audio'; user: string; frame: Uint8Array }
+  /** One frame of someone's stereo music track (MUS-JB-001), already decrypted when a transform is installed. */
+  | { kind: 'music'; user: string; frame: Uint8Array }
   /** A frame that could not be decrypted was dropped. */
   | { kind: 'undecryptable'; user: string }
   | { kind: 'joined'; user: string }
@@ -164,6 +174,8 @@ export type VoiceEvent =
 export interface ConnectOptions {
   /** The local address media is sent from (the ICE host candidate); use the interface the SFU can reach. */
   bindIp: string;
+  /** Offer a second send-only audio line for a stereo music track (MUS-JB-001). */
+  music?: boolean;
 }
 
 interface Waiter {
@@ -249,6 +261,12 @@ export class VoiceSession {
   private ws: WebSocket;
   private readonly pc: RTCPeerConnection;
   private readonly sender: RTCRtpSender;
+  /** The music line, when joined with `music: true`. */
+  private readonly musicLine: RTCRtpTransceiver | null;
+  private musicLive = false;
+  private musicSeq = 0;
+  /** Mids of the SFU's lines that carry someone's music (msid `<user>-music`). */
+  private readonly musicMids = new Set<string>();
   private events: VoiceEvent[] = [];
   private waiters: Waiter[] = [];
   private transform: FrameTransform | null = null;
@@ -273,6 +291,7 @@ export class VoiceSession {
     ws: WebSocket,
     pc: RTCPeerConnection,
     sender: RTCRtpSender,
+    musicLine: RTCRtpTransceiver | null,
     private readonly e2ee: boolean,
     private readonly heartbeatMs: number,
     ready: Record<string, unknown>,
@@ -280,6 +299,7 @@ export class VoiceSession {
     this.ws = ws;
     this.pc = pc;
     this.sender = sender;
+    this.musicLine = musicLine;
     this.sessionId = typeof ready.session_id === 'string' ? ready.session_id : '';
     this.resumeToken = typeof ready.resume_token === 'string' ? ready.resume_token : '';
     this.initialParticipants = participantsOf(ready);
@@ -302,6 +322,7 @@ export class VoiceSession {
         iceUseTcp: false,
       });
       const transceiver = pc.addTransceiver('audio', { direction: 'sendonly' });
+      const musicLine = opts.music ? pc.addTransceiver('audio', { direction: 'sendonly' }) : null;
       const heartbeatMs = Math.max(
         1000,
         Math.min(
@@ -314,6 +335,7 @@ export class VoiceSession {
         ws,
         pc,
         transceiver.sender,
+        musicLine,
         update.e2ee,
         (heartbeatMs * 4) / 5,
         ready,
@@ -375,14 +397,18 @@ export class VoiceSession {
     // id from the offer we saw.
     const line = this.pc.getTransceivers().find((t) => t.sender.trackId === track.id);
     const mid = line?.mid ?? null;
-    const user = (mid !== null ? this.userByMid.get(mid) : undefined) ?? track.streamId ?? '';
+    const music = mid !== null && this.musicMids.has(mid);
+    const streamId = (track.streamId ?? '').replace(/-music$/, '');
+    const user = (mid !== null ? this.userByMid.get(mid) : undefined) ?? streamId;
     if (!/^\d+$/.test(user)) return;
     track.onReceiveRtp.subscribe((rtp: RtpPacket) => {
       const data = new Uint8Array(rtp.payload);
       const t = this.transform;
+      const make = (frame: Uint8Array): VoiceEvent =>
+        music ? { kind: 'music', user, frame } : { kind: 'audio', user, frame };
       if (t) {
         try {
-          this.push({ kind: 'audio', user, frame: t.decrypt(user, data) });
+          this.push(make(t.decrypt(user, data)));
         } catch {
           this.push({ kind: 'undecryptable', user });
         }
@@ -390,7 +416,7 @@ export class VoiceSession {
         // An encrypted call without a transform: never hand ciphertext to the application as audio.
         this.push({ kind: 'undecryptable', user });
       } else {
-        this.push({ kind: 'audio', user, frame: data });
+        this.push(make(data));
       }
     });
   }
@@ -455,8 +481,13 @@ export class VoiceSession {
   private noteLines(sdp: string): void {
     for (const section of sdp.split(/\r?\nm=/).slice(1)) {
       const mid = /a=mid:(\S+)/.exec(section)?.[1];
-      const user = /a=msid:(\d+)\s/.exec(section)?.[1];
-      if (mid !== undefined && user !== undefined) this.userByMid.set(mid, user);
+      const msid = /a=msid:(\d+)(-music)?\s/.exec(section);
+      const user = msid?.[1];
+      if (mid !== undefined && user !== undefined) {
+        this.userByMid.set(mid, user);
+        if (msid?.[2]) this.musicMids.add(mid);
+        else this.musicMids.delete(mid);
+      }
     }
   }
 
@@ -537,6 +568,65 @@ export class VoiceSession {
       ssrc: 0,
     });
     await this.sender.sendRtp(new RtpPacket(header, Buffer.from(payload)));
+  }
+
+  /**
+   * Publish one 20 ms stereo Opus frame on the music line (MUS-JB-001), encrypted by the same transform as speech.
+   * Throws `no-music-line` when the session was joined without `music: true`. The first frame announces the line
+   * to the SFU. Music does not set the speaking indicator.
+   */
+  async sendMusicOpus(frame: Uint8Array): Promise<void> {
+    const line = this.musicLine;
+    if (!line)
+      throw new TransportError('no-music-line', 'this session was joined without a music line');
+    if (!this.isConnected())
+      throw new TransportError('not-connected', 'the connection is not up yet');
+    let payload: Uint8Array;
+    if (this.transform) {
+      try {
+        payload = this.transform.encrypt(frame);
+      } catch (e) {
+        throw new TransportError('transform', e instanceof Error ? e.message : String(e));
+      }
+    } else if (this.e2ee) {
+      throw new TransportError(
+        'encryption-required',
+        'this call is end-to-end encrypted: install a frame transform before sending audio',
+      );
+    } else {
+      payload = frame;
+    }
+    if (!this.musicLive) this.startMusic();
+    this.musicSeq = (this.musicSeq + 1) & 0xffff;
+    const timestamp = Math.floor(((Date.now() - this.started) * 48) % 0x1_0000_0000);
+    const header = new RtpHeader({
+      payloadType: 111,
+      sequenceNumber: this.musicSeq,
+      timestamp,
+      ssrc: 0,
+    });
+    await line.sender.sendRtp(new RtpPacket(header, Buffer.from(payload)));
+  }
+
+  /** Tell the SFU the music line carries music now (the first `sendMusicOpus` does this by itself). */
+  startMusic(): void {
+    this.musicLive = true;
+    this.announceMusic(true);
+  }
+
+  /** Tell the SFU the music line carries nothing now (the line stays for the next track). */
+  stopMusic(): void {
+    this.musicLive = false;
+    this.announceMusic(false);
+  }
+
+  private announceMusic(active: boolean): void {
+    const mid = this.musicLine?.mid;
+    if (mid === undefined || mid === null) return;
+    this.sendWs({
+      op: OP.VIDEO,
+      d: { t: 'publish', mid: String(mid), source: 'music', active, width: 0, height: 0, fps: 0 },
+    });
   }
 
   /** Tell the SFU (and through it the channel) that the bot starts or stops speaking. */

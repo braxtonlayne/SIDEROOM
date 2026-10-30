@@ -317,6 +317,10 @@ export class RtcVoiceEngine implements VoiceEngine {
   ) {
     this.mic = new MicPipeline(deps.audio);
     this.playback = new RemoteAudio(deps.audio);
+    // e2e builds only (VITE_SR_E2E=1, like `__srE2ee`): a browser test plays a generated stereo tone as the music
+    // track through this handle (MUS-JB-001).
+    if ((import.meta.env as { VITE_SR_E2E?: string }).VITE_SR_E2E === '1')
+      (globalThis as unknown as { __srVoiceEngine?: VoiceEngine }).__srVoiceEngine = this;
   }
 
   private setStatus(s: EngineStatus): void {
