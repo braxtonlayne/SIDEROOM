@@ -153,7 +153,10 @@ describe('join at the cursor', () => {
     await followRoom(room(), d);
     expect(calls[0]).toEqual(['seek', 15]);
     calls.length = 0;
-    await followRoom(room({ seq: 5, now_playing: track(2, 30_000), position_ms: 0, at_ms: 1_005_000 }), d);
+    await followRoom(
+      room({ seq: 5, now_playing: track(2, 30_000), position_ms: 0, at_ms: 1_005_000 }),
+      d,
+    );
     expect(calls[0]![0]).toBe('play');
     calls.length = 0;
     await followRoom(room({ seq: 6, mode: 'stream' }), d);
@@ -195,16 +198,20 @@ describe('the channel card', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Listen along' }));
     expect(join).toHaveBeenCalledTimes(1);
-    rerender(
-      <RoomCardView room={room()} listening failed={false} onJoin={join} onLeave={leave} />,
-    );
+    rerender(<RoomCardView room={room()} listening failed={false} onJoin={join} onLeave={leave} />);
     await act(async () => userEvent.click(screen.getByRole('button', { name: 'Stop listening' })));
     expect(leave).toHaveBeenCalledTimes(1);
   });
 
   it('says so when a DJ streams, when nothing plays and how many tracks were left out', () => {
     const { rerender } = render(
-      <RoomCardView room={room({ mode: 'stream' })} listening={false} failed={false} onJoin={noop} onLeave={noop} />,
+      <RoomCardView
+        room={room({ mode: 'stream' })}
+        listening={false}
+        failed={false}
+        onJoin={noop}
+        onLeave={noop}
+      />,
     );
     expect(screen.getByText(/DJ is playing live/)).toBeInTheDocument();
     rerender(

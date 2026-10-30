@@ -131,9 +131,7 @@ export const DRIFT_TOLERANCE_SEC = 2.5;
 
 /** For a listener already playing: what the next update asks of the player. */
 export type FollowAction =
-  | { kind: 'none' }
-  | { kind: 'rejoin'; plan: JoinPlan }
-  | { kind: 'seek'; seekSec: number };
+  { kind: 'none' } | { kind: 'rejoin'; plan: JoinPlan } | { kind: 'seek'; seekSec: number };
 
 /**
  * Follow an update. `playingTrackId` and `playerPositionSec` describe the player now. A different track means

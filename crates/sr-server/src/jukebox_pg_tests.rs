@@ -94,12 +94,14 @@ async fn fx() -> Fx {
         .unwrap();
     let guild = bp.guild.id.get() as i64;
     let channel = ids.generate().get() as i64;
-    sqlx::query("INSERT INTO channels (id, guild_id, type, name, position) VALUES ($1, $2, 2, 'radio', 9)")
-        .bind(channel)
-        .bind(guild)
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO channels (id, guild_id, type, name, position) VALUES ($1, $2, 2, 'radio', 9)",
+    )
+    .bind(channel)
+    .bind(guild)
+    .execute(&pool)
+    .await
+    .unwrap();
     let playlist = ids.generate().get() as i64;
     sqlx::query("INSERT INTO music_playlists (id, owner_guild_id, name) VALUES ($1, $2, 'Loop')")
         .bind(playlist)
@@ -118,7 +120,13 @@ async fn fx() -> Fx {
 }
 
 /// Put a room on the playlist with its cursor `ago_ms` in the past, on `item` at `position_ms`.
-async fn room(fx: &Fx, item: Option<i64>, position_ms: i64, ago_ms: i64, published_ago_ms: Option<i64>) {
+async fn room(
+    fx: &Fx,
+    item: Option<i64>,
+    position_ms: i64,
+    ago_ms: i64,
+    published_ago_ms: Option<i64>,
+) {
     sqlx::query(
         "INSERT INTO listening_rooms (channel_id, guild_id, playlist_id, item_id, position_ms, cursor_at, next_due_at, last_published_at) \
          VALUES ($1, $2, $3, $4, $5, now() - make_interval(secs => $6), now() - interval '1 second', \
@@ -172,10 +180,12 @@ async fn the_cursor_crosses_a_track_boundary_and_a_loop() {
     assert_eq!(p["next"][0]["title"], "Song 1", "the lap wraps");
 
     // Another 40 s: B has 20 s left, then A again 20 s in.
-    sqlx::query("UPDATE listening_rooms SET cursor_at = now() - interval '40 seconds', next_due_at = now()")
-        .execute(&f.pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE listening_rooms SET cursor_at = now() - interval '40 seconds', next_due_at = now()",
+    )
+    .execute(&f.pool)
+    .await
+    .unwrap();
     let events = tick(&f.pool).await.unwrap();
     let (it, pos, seq) = cursor(&f).await;
     assert_eq!(it, Some(a));
@@ -205,7 +215,10 @@ async fn a_quiet_room_publishes_every_fifteen_seconds_not_on_every_tick() {
     let f = fx().await;
     let a = item(&f, 1, 5001, Some(600_000), 0).await;
     room(&f, Some(a), 1_000, 1_000, Some(3_000)).await;
-    assert!(tick(&f.pool).await.unwrap().is_empty(), "published 3 s ago, same track");
+    assert!(
+        tick(&f.pool).await.unwrap().is_empty(),
+        "published 3 s ago, same track"
+    );
     let (_, _, seq) = cursor(&f).await;
     assert_eq!(seq, 0);
     sqlx::query("UPDATE listening_rooms SET last_published_at = now() - interval '16 seconds', next_due_at = now()")
@@ -232,9 +245,19 @@ async fn only_the_servers_own_shelf_and_the_instance_bucket_are_played() {
     let events = tick(&f.pool).await.unwrap();
     let p = payload(&events[0]);
     let titles: Vec<_> = std::iter::once(p["now_playing"]["title"].clone())
-        .chain(p["next"].as_array().unwrap().iter().map(|t| t["title"].clone()))
+        .chain(
+            p["next"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t["title"].clone()),
+        )
         .collect();
-    assert_eq!(titles, vec!["Song 1", "Song 4", "Song 1"], "a member's or another server's bucket is not played");
+    assert_eq!(
+        titles,
+        vec!["Song 1", "Song 4", "Song 1"],
+        "a member's or another server's bucket is not played"
+    );
 }
 
 #[tokio::test]
@@ -278,7 +301,10 @@ async fn a_second_tick_inside_the_first_skips_the_locked_room() {
         .fetch_all(&mut *tx)
         .await
         .unwrap();
-    assert!(tick(&f.pool).await.unwrap().is_empty(), "the locked room is another node's");
+    assert!(
+        tick(&f.pool).await.unwrap().is_empty(),
+        "the locked room is another node's"
+    );
     tx.rollback().await.unwrap();
     assert_eq!(tick(&f.pool).await.unwrap().len(), 1);
 }

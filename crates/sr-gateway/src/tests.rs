@@ -1371,11 +1371,15 @@ async fn storage_mount_updates_are_dispatched_to_members() {
 async fn listening_room_updates_follow_the_channel_and_the_voice_intent() {
     let e = env();
     let mut listener = connect(&e);
-    listener.identify("bot:1", intents::GUILD_VOICE_STATES, 1).await;
+    listener
+        .identify("bot:1", intents::GUILD_VOICE_STATES, 1)
+        .await;
     let mut no_intent = connect(&e);
     no_intent.identify("bot:1", intents::GUILDS, 1).await;
     let mut outsider = connect(&e);
-    outsider.identify("bot:2", intents::GUILD_VOICE_STATES, 1).await;
+    outsider
+        .identify("bot:2", intents::GUILD_VOICE_STATES, 1)
+        .await;
     emit(
         &e.bus,
         DomainEvent::ListeningRoomUpdated {

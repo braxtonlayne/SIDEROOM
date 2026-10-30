@@ -19,7 +19,13 @@ export async function realPlayer(): Promise<RoomPlayer> {
   return {
     playTracks: (tracks, startSec) => {
       p.play(
-        tracks.map((t) => ({ id: t.id, title: t.title, artist: t.artist, src: t.src, durationSec: t.durationSec })),
+        tracks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          artist: t.artist,
+          src: t.src,
+          durationSec: t.durationSec,
+        })),
         0,
       );
       if (startSec > 0) p.seek(startSec);
