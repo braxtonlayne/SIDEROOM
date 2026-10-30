@@ -706,6 +706,29 @@ mod tests {
     }
 
     #[test]
+    fn tool_room_updates_route_like_messages() {
+        let guild = DomainEvent::ToolRoomUpdated {
+            guild: Some(GuildId::new(1)),
+            channel: ChannelId::new(2),
+            payload: serde_json::Value::Null,
+        };
+        assert_eq!(
+            guild.topics(),
+            vec![
+                Topic::Channel(ChannelId::new(2)),
+                Topic::Guild(GuildId::new(1))
+            ]
+        );
+        assert_eq!(guild.dm_channel(), None);
+        let dm = DomainEvent::ToolRoomUpdated {
+            guild: None,
+            channel: ChannelId::new(2),
+            payload: serde_json::Value::Null,
+        };
+        assert_eq!(dm.dm_channel(), Some(ChannelId::new(2)));
+    }
+
+    #[test]
     fn message_family_routes_to_channel_and_guild() {
         let e = DomainEvent::ReactionAdded {
             guild: Some(GuildId::new(1)),

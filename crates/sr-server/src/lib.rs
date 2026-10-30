@@ -96,6 +96,8 @@ mod storage_measure_pg_tests;
 #[cfg(test)]
 mod tv_wiring_pg_tests;
 #[cfg(test)]
+mod tool_rooms_pg_tests;
+#[cfg(test)]
 mod userfeat_pg_tests;
 #[cfg(test)]
 mod userset_pg_tests;
