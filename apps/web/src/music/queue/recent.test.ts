@@ -9,6 +9,7 @@ function rig() {
     eq: [],
     eqEnabled: true,
     crossfadeSec: 0,
+    shuffle: false,
   };
   const listeners = new Set<() => void>();
   const port: PlayerPort = {
@@ -17,6 +18,7 @@ function rig() {
     setEq: () => undefined,
     setEqEnabled: () => undefined,
     setCrossfade: () => undefined,
+    setShuffle: () => undefined,
     getState: () => state,
     subscribe: (l) => {
       listeners.add(l);

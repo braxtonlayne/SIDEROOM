@@ -45,6 +45,12 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
   },
   {
     section: 'profile',
+    card: 'us-profile-privacy',
+    label: 'Who can see my profile',
+    keywords: 'privacy audience public friends members guestbook view as links',
+  },
+  {
+    section: 'profile',
     card: 'us-media',
     label: 'Avatar and banner',
     keywords: 'picture photo crop upload',

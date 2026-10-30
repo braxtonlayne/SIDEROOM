@@ -11,6 +11,7 @@
 
 pub mod error;
 pub mod profile_doc;
+pub mod profile_privacy;
 pub mod service;
 pub mod validate;
 pub mod zipfiles;

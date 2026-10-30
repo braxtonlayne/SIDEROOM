@@ -79,6 +79,9 @@ DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/scrapbook/removals/{removal_id}	authenticated	membership	deny	-	-
+DELETE	/guilds/{guild_id}/scrapbook/target	authenticated	membership	deny	-	-
+DELETE	/guilds/{guild_id}/scrapbook/{entry_id}	authenticated	membership	deny	-	-
 DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
@@ -134,6 +137,7 @@ DELETE	/users/@me/profile-media/{media_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-	-
+DELETE	/users/@me/rings/{ring_id}	authenticated	self	allow	-	-
 DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/storage/mounts/{mount_id}	authenticated	mount_owner	deny	-	-
@@ -382,6 +386,9 @@ GET	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/scheduled-events/{event_id}/users	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/scrapbook	authenticated	membership	deny	-	-
+GET	/guilds/{guild_id}/scrapbook/removals	authenticated	membership	deny	-	-
+GET	/guilds/{guild_id}/scrapbook/status	authenticated	membership	deny	-	-
 GET	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio	authenticated	membership	allow	-	-
@@ -454,6 +461,7 @@ GET	/moderation/holds	authenticated	staff	deny	-	MANAGE_CASES
 GET	/moderation/item-status	authenticated	user	deny	-	-
 GET	/moderation/persons/{person_id}/suspicion	authenticated	staff	deny	-	MANAGE_INVITES
 GET	/moderation/reports/mine	authenticated	self	deny	-	-
+GET	/moderation/rings/{ring_id}/media	authenticated	staff	deny	-	MANAGE_CASES
 GET	/moderation/takedowns	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/export	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
@@ -468,8 +476,12 @@ GET	/packages/mine	authenticated	self	deny	-	-
 GET	/packages/versions/{version_id}/files/{path}	authenticated	user	deny	-	-
 GET	/packages/{package_id}	authenticated	user	deny	-	-
 GET	/profile-pages/{username}	authenticated	visibility	deny	-	-
+GET	/public/profiles/{handle}	public	none	allow	-	-
 GET	/push/vapid-key	authenticated	self	deny	-	-
 GET	/requests	authenticated	user	allow	-	-
+GET	/rings	authenticated	visibility	allow	-	-
+GET	/rings/{ring_id}	authenticated	visibility	allow	-	-
+GET	/rings/{ring_id}/media	authenticated	visibility	allow	-	-
 GET	/shelves/{section}	authenticated	self	deny	-	-
 GET	/shelves/{section}/{shelf_item_id}	authenticated	storage_scope	deny	-	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-	-
@@ -558,10 +570,14 @@ GET	/users/@me/privacy	authenticated	self	deny	-	-
 GET	/users/@me/profile	authenticated	self	allow	-	-
 GET	/users/@me/profile-doc	authenticated	self	deny	-	-
 GET	/users/@me/profile-media	authenticated	self	deny	-	-
+GET	/users/@me/profile-page/preview	authenticated	self	allow	-	-
+GET	/users/@me/profile-privacy	authenticated	self	allow	-	-
 GET	/users/@me/read-states	authenticated	self	allow	-	-
 GET	/users/@me/relationships	authenticated	self	deny	-	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 GET	/users/@me/reminders	authenticated	self	deny	-	-
+GET	/users/@me/rings	authenticated	self	allow	-	-
+GET	/users/@me/rings/{ring_id}/viewers	authenticated	self	allow	-	-
 GET	/users/@me/scheduled-messages	authenticated	self	deny	-	-
 GET	/users/@me/settings	authenticated	self	deny	-	-
 GET	/users/@me/shelves/summary	authenticated	self	deny	-	-
@@ -611,6 +627,7 @@ PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/scrapbook/{entry_id}	authenticated	membership	deny	-	-
 PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
@@ -833,6 +850,8 @@ POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/scrapbook/removals/{removal_id}/retry	authenticated	membership	deny	-	-
+POST	/guilds/{guild_id}/scrapbook/{entry_id}/objects/{object_id}/presign	authenticated	storage_scope	deny	-	-
 POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/sr/applications	authenticated	user	allow	-	-
 POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-	-
@@ -900,9 +919,11 @@ POST	/oauth2/token/revoke	public	none	allow	-	-
 POST	/packages	authenticated	user	deny	-	-
 POST	/packages/versions/{version_id}/withdraw	authenticated	author	deny	-	-
 POST	/packages/{package_id}/create-guild	authenticated	user	deny	-	-
+POST	/public/profiles/{handle}/guestbook	public	none	allow	-	-
 POST	/read-states/ack-bulk	authenticated	membership	allow	-	-
 POST	/requests	authenticated	user	allow	-	-
 POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-	REVIEW_READING
+POST	/rings/{ring_id}/view	authenticated	visibility	allow	-	-
 POST	/sr/auth/account/delete	authenticated	self	deny	-	-
 POST	/sr/auth/discord/link	authenticated	self	deny	-	-
 POST	/sr/auth/discord/unlink	authenticated	self	deny	-	-
@@ -945,6 +966,7 @@ POST	/users/@me/channels	authenticated	self	allow	-	-
 POST	/users/@me/connections/{provider}/authorize	authenticated	self	deny	-	-
 POST	/users/@me/connections/{provider}/{id}/refresh	authenticated	self	deny	-	-
 POST	/users/@me/data-export	authenticated	self	deny	-	-
+POST	/users/@me/guestbook/{entry_id}/approve	authenticated	self	deny	-	-
 POST	/users/@me/music/playlists	authenticated	self	deny	-	-
 POST	/users/@me/music/recent	authenticated	self	deny	-	-
 POST	/users/@me/profile-doc/layout	authenticated	self	deny	-	-
@@ -952,6 +974,8 @@ POST	/users/@me/profile-media	authenticated	self	deny	-	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-	-
 POST	/users/@me/relationships	authenticated	self	deny	-	-
 POST	/users/@me/reminders	authenticated	self	deny	-	-
+POST	/users/@me/rings	authenticated	self	allow	-	-
+POST	/users/@me/rings/media	authenticated	self	allow	-	-
 POST	/users/@me/storage/mounts	authenticated	self	deny	-	-
 POST	/users/@me/storage/mounts/{mount_id}/cors/apply	authenticated	mount_owner	deny	-	-
 POST	/users/@me/storage/mounts/{mount_id}/cors/check	authenticated	mount_owner	deny	-	-
@@ -1013,6 +1037,7 @@ PUT	/channels/{channel_id}/jukebox/playback	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/listening-room	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/messages/{message_id}/bookmark	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/messages/{message_id}/scrapbook	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-	-
@@ -1040,6 +1065,7 @@ PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/scrapbook/target	authenticated	membership	deny	-	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/storage/grants	authenticated	membership	deny	-	-
@@ -1078,6 +1104,7 @@ PUT	/users/@me/notification-keywords	authenticated	self	deny	-	-
 PUT	/users/@me/packages/{package_id}	authenticated	self	deny	-	-
 PUT	/users/@me/primary-guild	authenticated	self	deny	-	-
 PUT	/users/@me/profile-doc	authenticated	self	deny	-	-
+PUT	/users/@me/profile-privacy	authenticated	self	allow	-	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 PUT	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount_owner	deny	-	-
 PUT	/users/@me/tools/notes/{note_id}	authenticated	self	deny	-	-

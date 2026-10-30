@@ -43,6 +43,8 @@ pub mod push_pg;
 pub mod ready;
 pub mod review_jobs;
 pub mod rich_jobs;
+pub mod rings_jobs;
+pub mod scrapbook_jobs;
 pub mod search_jobs;
 pub mod settings_pg;
 pub mod staff_feed;
@@ -96,6 +98,8 @@ mod jukebox_pg_tests;
 #[cfg(test)]
 mod party_cards_pg_tests;
 #[cfg(test)]
+mod rings_pg_tests;
+#[cfg(test)]
 mod staff_feed_pg_tests;
 #[cfg(test)]
 mod storage_index_pg_tests;
@@ -120,3 +124,6 @@ mod fx_pg_tests;
 
 #[cfg(test)]
 mod moderation_index_pg_tests;
+
+#[cfg(test)]
+mod scrapbook_pg_tests;

@@ -1,5 +1,6 @@
 //! Turning a URL into a preview embed: fetch, parse, build, cache, rate limit.
 
+use crate::embed::{self, Play};
 use crate::fetch::{BodyClass, FetchError, Fetched, SafeFetcher};
 use crate::parse::{self, OEmbed, PageMeta, clean_text};
 use moka::future::Cache;
@@ -40,6 +41,9 @@ pub struct UnfurledEmbed {
     pub image: Option<Media>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video: Option<Media>,
+    /// "Play here" (PRF-UNF-001): the privacy-enhanced embed or the direct file, loaded only after a click.
+    #[serde(rename = "sr_play", skip_serializing_if = "Option::is_none")]
+    pub play: Option<Play>,
 }
 
 fn is_zero(v: &u32) -> bool {
@@ -121,6 +125,8 @@ pub struct Unfurler {
     limiter: HostLimiter,
     ok: Cache<String, Option<UnfurledEmbed>>,
     failed: Cache<String, ()>,
+    /// Configured PeerTube instances (`SR_PEERTUBE_HOSTS`).
+    peertube: Vec<String>,
 }
 
 impl Unfurler {
@@ -137,7 +143,15 @@ impl Unfurler {
                 .max_capacity(20_000)
                 .time_to_live(FAILURE_TTL)
                 .build(),
+            peertube: embed::peertube_hosts_from_env(),
         }
+    }
+
+    /// The PeerTube instances whose links get a "Play here" offer (default: `SR_PEERTUBE_HOSTS`).
+    #[must_use]
+    pub fn with_peertube_hosts(mut self, hosts: Vec<String>) -> Self {
+        self.peertube = hosts;
+        self
     }
 
     /// Change the per-host request budget while running (D-300).
@@ -186,21 +200,42 @@ impl Unfurler {
     }
 
     async fn build(&self, url: &Url) -> Result<Option<UnfurledEmbed>, FetchError> {
-        let page = self.fetcher.fetch(url, ACCEPT_PAGE).await?;
+        // A provider link is recognised from the address alone, so the card still offers "Play here"
+        // when the provider's page cannot be read (consent walls, bot checks).
+        let provider = embed::detect_embed(url, &self.peertube);
+        let page = match self.fetcher.fetch(url, ACCEPT_PAGE).await {
+            Ok(page) => page,
+            Err(_) if provider.is_some() => return Ok(provider.map(|p| provider_card(url, p))),
+            Err(e) => return Err(e),
+        };
         match page.class {
             BodyClass::Image => Ok(Some(image_embed(&page))),
             BodyClass::Video => Ok(Some(video_embed(&page))),
+            BodyClass::Audio => Ok(Some(audio_embed(&page))),
             BodyClass::Json => Ok(None),
             BodyClass::Html => {
                 let html = parse::decode_html(&page.body, page.content_type.as_deref());
                 let meta = parse::parse_html(&html, &page.final_url);
                 let oembed = self.oembed_for(&meta, &page.final_url).await;
-                Ok(page_embed(
+                let card = page_embed(
                     &meta,
                     oembed.as_ref(),
                     &page.final_url,
                     self.fetcher.policy(),
-                ))
+                );
+                // A redirect may have landed on another address; the offer follows the final one.
+                let provider = embed::detect_embed(&page.final_url, &self.peertube).or(provider);
+                Ok(match (card, provider) {
+                    (Some(mut card), Some(play)) => {
+                        // The provider's own player replaces the page's `og:video` iframe address.
+                        card.video = None;
+                        card.kind = "link".into();
+                        card.play = Some(play);
+                        Some(card)
+                    }
+                    (None, Some(play)) => Some(provider_card(url, play)),
+                    (card, None) => card,
+                })
             }
         }
     }
@@ -269,6 +304,41 @@ pub fn video_embed(page: &Fetched) -> UnfurledEmbed {
             url: page.final_url.to_string(),
             ..Media::default()
         }),
+        play: embed::direct_play(&page.final_url, page.content_type.as_deref()),
+        ..UnfurledEmbed::default()
+    }
+}
+
+/// A direct link to an audio file or an HLS playlist (the content type decides which).
+pub fn audio_embed(page: &Fetched) -> UnfurledEmbed {
+    let play = embed::direct_play(&page.final_url, page.content_type.as_deref());
+    let hls = play
+        .as_ref()
+        .is_some_and(|p| p.media == Some(embed::DirectMedia::Hls));
+    UnfurledEmbed {
+        kind: if hls { "video" } else { "audio" }.into(),
+        url: page.final_url.to_string(),
+        provider: provider_for(&page.final_url, None),
+        play,
+        ..UnfurledEmbed::default()
+    }
+}
+
+/// The card of a provider link whose page gave nothing to show: the host and the play offer.
+fn provider_card(url: &Url, play: Play) -> UnfurledEmbed {
+    let name = match play.provider.as_str() {
+        "youtube" => "YouTube".to_owned(),
+        "vimeo" => "Vimeo".to_owned(),
+        _ => host_of(url),
+    };
+    UnfurledEmbed {
+        kind: "link".into(),
+        url: url.to_string(),
+        provider: Provider {
+            name,
+            url: origin_of(url),
+        },
+        play: Some(play),
         ..UnfurledEmbed::default()
     }
 }
@@ -359,6 +429,7 @@ pub fn page_embed(
         } else {
             None
         },
+        play: None,
     })
 }
 
@@ -382,6 +453,9 @@ mod tests {
         let mut r = TableResolver::default();
         r.0.insert("site.test".into(), vec![ip("93.184.216.34")]);
         r.0.insert("img.test".into(), vec![ip("93.184.216.35")]);
+        r.0.insert("www.youtube.com".into(), vec![ip("93.184.216.40")]);
+        r.0.insert("vimeo.com".into(), vec![ip("93.184.216.41")]);
+        r.0.insert("media.test".into(), vec![ip("93.184.216.42")]);
         let t = Arc::new(ScriptedTransport {
             routes: routes.into_iter().map(|(u, r)| (u.to_owned(), r)).collect(),
             ..ScriptedTransport::default()
@@ -541,6 +615,137 @@ mod tests {
         assert_eq!(e.title.as_deref(), Some("From oEmbed"));
         assert_eq!(e.provider.name, "Prov");
         assert_eq!(e.author.unwrap().name, "Au");
+    }
+
+    fn media(ct: &str) -> HopResponse {
+        HopResponse {
+            status: 200,
+            content_type: Some(ct.into()),
+            ..HopResponse::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn youtube_card_offers_play_here_and_drops_the_og_video_frame() {
+        let page = html(
+            r#"<head><meta property="og:title" content="A song">
+            <meta property="og:type" content="video.other">
+            <meta property="og:video" content="https://www.youtube.com/embed/dQw4w9WgXcQ">
+            <meta property="og:image" content="https://img.test/t.jpg"></head>"#,
+        );
+        let (u, _) = unfurler(
+            vec![("https://www.youtube.com/watch?v=dQw4w9WgXcQ", page)],
+            10,
+        );
+        let e = u
+            .unfurl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            .await
+            .unwrap()
+            .unwrap();
+        let play = e.play.clone().unwrap();
+        assert_eq!(play.provider, "youtube");
+        assert_eq!(
+            play.src,
+            "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"
+        );
+        assert!(
+            e.video.is_none(),
+            "the page's own iframe address is not kept"
+        );
+        assert_eq!(e.title.as_deref(), Some("A song"));
+        let j = serde_json::to_value(&e).unwrap();
+        assert_eq!(j["sr_play"]["mode"], "embed");
+        assert_eq!(j["sr_play"]["sync"], true);
+    }
+
+    #[tokio::test]
+    async fn a_provider_link_still_gets_a_card_when_its_page_cannot_be_read() {
+        let (u, _) = unfurler(vec![], 10);
+        let e = u
+            .unfurl("https://vimeo.com/76979871")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(e.provider.name, "Vimeo");
+        assert_eq!(
+            e.play.unwrap().src,
+            "https://player.vimeo.com/video/76979871?dnt=1"
+        );
+        // A plain failing page without a provider is still an error.
+        assert!(u.unfurl("https://media.test/gone").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn peertube_hosts_come_from_the_configuration() {
+        let page = html(r#"<head><title>PT</title></head>"#);
+        let (u, _) = unfurler(vec![("https://media.test/w/9c9de5e8-0a1e", page)], 10);
+        let plain = u
+            .unfurl("https://media.test/w/9c9de5e8-0a1e")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(plain.play.is_none());
+        let (u, _) = unfurler(
+            vec![(
+                "https://media.test/w/9c9de5e8-0a1e",
+                html(r#"<head><title>PT</title></head>"#),
+            )],
+            10,
+        );
+        let u = u.with_peertube_hosts(vec!["media.test".into()]);
+        let e = u
+            .unfurl("https://media.test/w/9c9de5e8-0a1e")
+            .await
+            .unwrap()
+            .unwrap();
+        let p = e.play.unwrap();
+        assert_eq!(p.provider, "peertube");
+        assert!(!p.sync);
+    }
+
+    #[tokio::test]
+    async fn direct_media_is_offered_by_content_type_from_the_headers() {
+        let (u, t) = unfurler(
+            vec![
+                ("https://media.test/clip", media("video/mp4")),
+                ("https://media.test/song", media("audio/mpeg")),
+                (
+                    "https://media.test/live",
+                    media("application/vnd.apple.mpegurl"),
+                ),
+                (
+                    "https://media.test/page",
+                    html("<head><title>x</title></head>"),
+                ),
+                ("http://media.test/plain.mp3", media("audio/mpeg")),
+            ],
+            20,
+        );
+        let v = u.unfurl("https://media.test/clip").await.unwrap().unwrap();
+        assert_eq!(v.kind, "video");
+        let p = v.play.unwrap();
+        assert_eq!(
+            (p.mode, p.media),
+            (embed::PlayMode::Direct, Some(embed::DirectMedia::Video))
+        );
+        assert_eq!(p.src, "https://media.test/clip");
+        let a = u.unfurl("https://media.test/song").await.unwrap().unwrap();
+        assert_eq!(a.kind, "audio");
+        assert_eq!(a.play.unwrap().media, Some(embed::DirectMedia::Audio));
+        let h = u.unfurl("https://media.test/live").await.unwrap().unwrap();
+        assert_eq!(h.kind, "video");
+        assert_eq!(h.play.unwrap().media, Some(embed::DirectMedia::Hls));
+        // No body is read for media: the transport saw one request each, and the page has no offer.
+        assert_eq!(t.seen.lock().unwrap().len(), 3);
+        let page = u.unfurl("https://media.test/page").await.unwrap().unwrap();
+        assert!(page.play.is_none());
+        // Plain http is previewed but not offered for playback.
+        let plain = u
+            .unfurl("http://media.test/plain.mp3")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(plain.play.is_none());
     }
 
     #[test]

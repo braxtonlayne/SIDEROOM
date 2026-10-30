@@ -217,6 +217,18 @@ export interface RawEmbed {
   fields?: { name: string; value: string; inline?: boolean }[];
   /** Set by the server on a preview of a link the author wrote inside a spoiler (LNG-MSG-015). */
   sr_spoiler?: boolean;
+  /**
+   * Set by the server on a link preview with a "Play here" offer (PRF-UNF-001): the provider's privacy-enhanced
+   * embed (`mode: 'embed'`) or a direct media file (`mode: 'direct'`). The client loads `src` only after a click.
+   */
+  sr_play?: {
+    mode: 'embed' | 'direct';
+    provider: string;
+    src: string;
+    media?: 'video' | 'audio' | 'hls';
+    /** Watch Together can drive this player. */
+    sync?: boolean;
+  };
 }
 
 export interface RawPoll {

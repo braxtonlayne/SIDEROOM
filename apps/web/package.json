@@ -17,6 +17,7 @@
     "@ffmpeg/util": "0.12.2",
     "@sideroom/embedded-app-sdk": "workspace:*",
     "@sideroom/markdown-react": "workspace:*",
+    "@sideroom/profile-blocks": "workspace:*",
     "@sideroom/ui": "workspace:*",
     "@sideroom/wasm": "workspace:*",
     "@tanstack/react-query": "^5.59.0",

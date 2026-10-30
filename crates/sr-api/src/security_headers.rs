@@ -69,3 +69,63 @@ pub async fn security_headers(
     }
     res
 }
+
+#[cfg(test)]
+mod tests {
+    use super::API_CSP;
+
+    /// The app policy is built by `apps/web/src/security/csp.ts` and sent by `sr-server` from `dist/app/csp.txt`
+    /// (wave 30b). PRF-UNF-001 adds exactly two framed origins and `media-src https:` there, nowhere else: this pins
+    /// the hosts to the ones `sr-unfurl` produces embeds for, so the offer and the policy cannot drift apart.
+    const CSP_TS: &str = include_str!("../../../apps/web/src/security/csp.ts");
+    const WEB_RS: &str = include_str!("../../sr-server/src/web.rs");
+
+    fn const_list(src: &str, name: &str) -> Vec<String> {
+        let start = src.find(&format!("export const {name} = [")).expect(name);
+        let rest = &src[start..];
+        let body = &rest[rest.find('[').unwrap() + 1..rest.find(']').unwrap()];
+        body.split(',')
+            .map(|s| s.trim().trim_matches('\''))
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[test]
+    fn the_app_policy_frames_exactly_the_hosts_unfurl_makes_embeds_for() {
+        let origins = const_list(CSP_TS, "EMBED_FRAME_ORIGINS");
+        assert_eq!(
+            origins,
+            vec![
+                format!("https://{}", sr_unfurl::embed::YOUTUBE_EMBED_HOST),
+                format!("https://{}", sr_unfurl::embed::VIMEO_EMBED_HOST),
+            ]
+        );
+        assert_eq!(origins[0], "https://www.youtube-nocookie.com");
+        assert_eq!(origins[1], "https://player.vimeo.com");
+        // The directive is built from that list, in front of the optional extras.
+        assert!(CSP_TS.contains(
+            "['frame-src', join([\"'self'\", ...EMBED_FRAME_ORIGINS], opts.extraFrame)]"
+        ));
+        assert!(
+            CSP_TS
+                .contains("['media-src', join([\"'self'\", 'blob:', 'https:'], opts.extraMedia)]")
+        );
+    }
+
+    #[test]
+    fn no_other_policy_frames_or_loads_media() {
+        // The API answers data, not documents.
+        assert!(!API_CSP.contains("frame-src") && !API_CSP.contains("media-src"));
+        // The public and no-script policies (the Rust copies pinned to csp.ts by csp.test.ts) carry neither.
+        for name in ["PUBLIC_CSP", "NO_SCRIPT_CSP"] {
+            let at = WEB_RS
+                .find(&format!("pub const {name}: &str = \""))
+                .expect(name);
+            let line = WEB_RS[at..].lines().next().unwrap();
+            for banned in ["frame-src", "media-src", "youtube", "vimeo", "https:"] {
+                assert!(!line.contains(banned), "{name} contains {banned}");
+            }
+        }
+    }
+}

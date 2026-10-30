@@ -17,6 +17,7 @@
 mod bookmarks;
 mod community;
 mod reminders;
+mod rings;
 mod scheduled;
 #[cfg(test)]
 mod tests;
@@ -30,12 +31,15 @@ use crate::{
 };
 use axum::{
     Router,
+    extract::DefaultBodyLimit,
     routing::{delete, get, patch, post, put},
 };
 use sr_core::{ApiError, ErrorCode, UserId};
 use sr_userfeat::{Poster, UfError, UserFeatures};
 use std::sync::Arc;
 use utoipa::OpenApi;
+
+pub use rings::RingDeps;
 
 /// Collaborators of the feature-module endpoints.
 pub struct UserFeatDeps {
@@ -130,6 +134,19 @@ pub fn router() -> Router<AppState> {
             "/users/@me/bookmarks/{message_id}",
             patch(bookmarks::edit).delete(bookmarks::remove),
         )
+        // Status rings (PRF-RNG-001).
+        .route("/rings", get(rings::feed))
+        .route("/rings/{ring_id}", get(rings::get_one))
+        .route("/rings/{ring_id}/media", get(rings::media_file))
+        .route("/rings/{ring_id}/view", post(rings::view))
+        .route("/users/@me/rings", get(rings::mine).post(rings::create))
+        .route(
+            "/users/@me/rings/media",
+            post(rings::upload).layer(DefaultBodyLimit::max(rings::UPLOAD_LIMIT)),
+        )
+        .route("/users/@me/rings/{ring_id}", delete(rings::remove))
+        .route("/users/@me/rings/{ring_id}/viewers", get(rings::viewers))
+        .route("/moderation/rings/{ring_id}/media", get(rings::held_media))
         // Which modules a server runs.
         .route("/guilds/{guild_id}/modules", get(community::modules))
         // Birthdays.
@@ -205,6 +222,16 @@ pub fn router() -> Router<AppState> {
         bookmarks::list,
         bookmarks::edit,
         bookmarks::remove,
+        rings::feed,
+        rings::get_one,
+        rings::media_file,
+        rings::view,
+        rings::mine,
+        rings::create,
+        rings::upload,
+        rings::remove,
+        rings::viewers,
+        rings::held_media,
         community::modules,
         community::get_birthday,
         community::set_birthday,
@@ -244,6 +271,13 @@ pub fn router() -> Router<AppState> {
         sr_userfeat::birthdays::UpcomingBirthday,
         sr_userfeat::leveling::RankCard,
         sr_userfeat::leveling::LeaderboardEntry,
+        sr_userfeat::rings::Ring,
+        sr_userfeat::rings::RingFeedEntry,
+        sr_userfeat::rings::RingViewer,
+        sr_userfeat::rings::RingTrack,
+        sr_userfeat::rings::RingKind,
+        sr_userfeat::rings::RingAudienceKind,
+        rings::CreateRingBody,
         community::ModuleFlags,
         community::ModuleCapabilities,
         sr_userfeat::leveling::LevelRoleEntry,

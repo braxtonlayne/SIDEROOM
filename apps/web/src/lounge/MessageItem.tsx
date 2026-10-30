@@ -36,6 +36,7 @@ import { isSystemMessage, SystemMessage } from './msg/SystemMessage';
 import { PartyMessageCard, SYSTEM_WATCH_PARTY } from '../watchparty/PartyMessageCard';
 import { formatClock, formatFullTime, formatMessageTime } from './time';
 import { ServerTagChip } from './components/ServerTagChip';
+import { useScrapbookMenuEntry } from './scrapbook/useSendToScrapbook';
 
 /** Name styling taken from the author's roles (LNG-MSGUI-002). */
 export interface NameDecor {
@@ -182,7 +183,9 @@ function MessageBody({
         <PartyMessageCard message={m} />
       ) : (
         embeds.length > 0 &&
-        !m.suppressEmbeds && <EmbedList embeds={embeds} resolvers={resolvers} />
+        !m.suppressEmbeds && (
+          <EmbedList embeds={embeds} resolvers={resolvers} channelId={m.channelId} />
+        )
       )}
       {showCards && inviteCode && <InviteCard code={inviteCode} />}
       {showCards && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}
@@ -277,6 +280,7 @@ function MessageItemImpl(props: MessageItemProps) {
   const copy = (text: string) => void navigator.clipboard?.writeText(text);
 
   const developerMode = useDeveloperMode();
+  const scrapbookEntry = useScrapbookMenuEntry(guildId, m.channelId, m.id, !!m.pending);
   const menu = useMemo<MenuEntry[]>(() => {
     const entries: MenuEntry[] = [
       {
@@ -345,6 +349,7 @@ function MessageItemImpl(props: MessageItemProps) {
           onSelect: () => onRemind(m, c.ms),
         })),
       });
+    if (scrapbookEntry) entries.push(scrapbookEntry);
     if (canPinHere)
       entries.push({
         label: m.pinned ? t('lounge.messageItem.unpinMessage') : t('lounge.messageItem.pinMessage'),
@@ -397,6 +402,7 @@ function MessageItemImpl(props: MessageItemProps) {
     onCreateThread,
     onOpenThread,
     reportEntry,
+    scrapbookEntry,
   ]);
 
   if (isSystemMessage(m)) {

@@ -37,6 +37,7 @@ import { ServerTagChip } from '../../../lounge/components/ServerTagChip';
 import { profileTheme } from '../../../lounge/profile/theme';
 import { ProfileBio } from '../../../lounge/profile/profileMarkdown';
 import { ServerTagCard } from './ServerTagCard';
+import { PrivacyPanel } from '../profile/PrivacyPanel';
 
 /**
  * The profile effects or avatar decorations the server approves (`GET /sr/profile-catalog`); hidden while the
@@ -685,6 +686,7 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                     {t('settings.profile.pageEdit')}
                   </Link>
                 </Card>
+                <PrivacyPanel />
                 <Card
                   id="us-profile-extras"
                   title={t('settings.profile.extrasTitle')}

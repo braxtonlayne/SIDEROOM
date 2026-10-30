@@ -14,9 +14,11 @@ use sqlx::{PgConnection, PgPool};
 use sr_core::Clock;
 
 use crate::error::{PartyError, PartyResult};
+use crate::external;
 use crate::model::{
     AuditEntry, Binding, ControlMode, CreateInput, HeartbeatInput, HeartbeatResult, JoinInput,
-    MessageInput, PartyView, PlaybackView, ReactionInput, SettingsInput, TimeView, Viewer, YouView,
+    MediaKind, MessageInput, PartyView, PlaybackView, ReactionInput, SettingsInput, TimeView,
+    Viewer, YouView,
 };
 use crate::ports::{
     AgeLookup, Announcement, AnnouncementKind, ChannelAccess, ChannelKind, ChannelPerms, ChatHook,
@@ -518,7 +520,22 @@ impl PartyService {
                 "Only a server channel party can be persistent.".to_owned(),
             ));
         }
-        let media: Option<Resolved> = if input.empty {
+        let ext = input.external.as_ref().map(external::resolve).transpose()?;
+        if ext.is_some()
+            && (input.empty
+                || input.title_id > 0
+                || input.tv_channel_id.is_some()
+                || input.episode_id.is_some()
+                || input.variant_id.is_some())
+        {
+            return Err(PartyError::Invalid(
+                "Give a Cinema title, a Live TV channel or an external link, not several."
+                    .to_owned(),
+            ));
+        }
+        let media: Option<Resolved> = if ext.is_some() {
+            None
+        } else if input.empty {
             if settings.persistent != Some(true)
                 || binding != Binding::Channel
                 || input.title_id > 0
@@ -592,8 +609,9 @@ impl PartyService {
             "INSERT INTO watch_parties (id, host_id, binding, guild_id, channel_id, invite_code, title_id, \
              episode_id, variant_id, asset_id, title_name, episode_label, duration_ms, age_restricted, live, \
              playing, position_ms, rate_milli, at_ms, version, shared_control, queue_policy, \
-             auto_pause_buffering, max_wait_ms, persistent, max_participants, created_at_ms, updated_at_ms) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$27)",
+             auto_pause_buffering, max_wait_ms, persistent, max_participants, created_at_ms, updated_at_ms, \
+             media_kind, media_url, media_provider) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$27,$28,$29,$30)",
         )
         .bind(id)
         .bind(v.user_id)
@@ -605,7 +623,7 @@ impl PartyService {
         .bind(media.as_ref().map_or(0, |m| m.episode_id))
         .bind(media.as_ref().and_then(|m| m.variant_id))
         .bind(media.as_ref().map(|m| m.asset_id))
-        .bind(media.as_ref().map_or("", |m| m.title.as_str()))
+        .bind(ext.as_ref().map_or_else(|| media.as_ref().map_or("", |m| m.title.as_str()), |e| e.title.as_str()))
         .bind(media.as_ref().and_then(|m| m.episode_label.clone()))
         .bind(duration)
         .bind(media.as_ref().is_some_and(|m| m.age_restricted))
@@ -622,6 +640,9 @@ impl PartyService {
         .bind(settings.persistent.unwrap_or(false))
         .bind(max_participants)
         .bind(now)
+        .bind(ext.as_ref().map_or(MediaKind::Cinema, |e| e.kind).as_str())
+        .bind(ext.as_ref().map(|e| e.url.as_str()))
+        .bind(ext.as_ref().map(|e| e.provider.as_str()))
         .execute(&mut *tx)
         .await;
         if let Err(e) = inserted {
@@ -662,7 +683,10 @@ impl PartyService {
                 party_id: id,
                 channel_id: ch,
                 host_id: v.user_id,
-                title: media.as_ref().map_or_else(String::new, |m| m.title.clone()),
+                title: ext.as_ref().map_or_else(
+                    || media.as_ref().map_or_else(String::new, |m| m.title.clone()),
+                    |e| e.title.clone(),
+                ),
                 episode_label: media.as_ref().and_then(|m| m.episode_label.clone()),
                 viewers: 1,
                 age_restricted: media.as_ref().is_some_and(|m| m.age_restricted),

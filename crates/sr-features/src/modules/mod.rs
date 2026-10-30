@@ -15,6 +15,7 @@ pub mod join_to_create;
 pub mod message_quotes;
 pub mod mod_log;
 pub mod reaction_roles;
+pub mod scrapbook;
 pub mod slowmode_plus;
 pub mod starboard;
 pub mod stat_channels;
@@ -39,6 +40,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         stat_channels::StatChannels,
         message_quotes::MessageQuotes,
         join_to_create::JoinToCreate,
+        scrapbook::Scrapbook,
         // new-feature:register
     )
 }

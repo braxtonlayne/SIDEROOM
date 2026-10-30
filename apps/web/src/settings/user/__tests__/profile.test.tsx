@@ -27,6 +27,29 @@ function profileEndpoints(patch?: (body: unknown) => Response | undefined) {
         custom_status: { text: 'brb', emoji_name: null, emoji_id: null, expires_at: null },
       }),
     ),
+    // PRF-PRO-001: the "Who can see my profile" card loads next to the profile form.
+    http.get('*/api/v1/users/@me/profile-privacy', () =>
+      HttpResponse.json({
+        preset: 'private',
+        stored: {
+          page_tier: 'only_me',
+          links_tier: 'only_me',
+          top8_tier: 'only_me',
+          now_playing_tier: 'only_me',
+          bio_tier: 'only_me',
+          guestbook_tier: 'only_me',
+          media_tier: 'only_me',
+          ring_tier: 'only_me',
+          guestbook_accepts_public: false,
+        },
+        effective: {},
+        public_possible: false,
+      }),
+    ),
+    http.get(
+      '*/api/v1/users/@me/profile-page/preview',
+      () => new HttpResponse(null, { status: 404 }),
+    ),
     http.patch('*/api/v1/users/@me', async ({ request }) => {
       const body = await request.json();
       return patch?.(body) ?? HttpResponse.json({});

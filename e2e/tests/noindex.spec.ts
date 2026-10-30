@@ -22,6 +22,7 @@ const SAMPLE = [
   '/help',
   '/u/x',
   '/~x',
+  '/public/profiles/x',
   '/cinema',
   '/library',
   '/app',

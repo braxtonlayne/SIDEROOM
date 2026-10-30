@@ -30,6 +30,7 @@ const TITLE_KEYS: Record<ReportKind, MessageKey> = {
   guild: 'moderation.reportDialog.title.guild',
   library: 'moderation.reportDialog.title.library',
   cinema: 'moderation.reportDialog.title.cinema',
+  status_ring: 'moderation.reportDialog.title.statusRing',
 };
 
 /** Which server moderators could get this report, so "may see my name" is worth offering. */

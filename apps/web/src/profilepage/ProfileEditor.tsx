@@ -5,6 +5,7 @@ import { Button, Notice, SegmentedControl, Select, ThemeProvider } from '@sidero
 import { Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../i18n';
+import { useGuilds } from '../lounge/data';
 import { listRelationships, REL } from '../lounge/shell/api';
 import { listPackages, problemLines, type PackageView } from '../packages/api';
 import { useLoad } from '../packages/useLoad';
@@ -118,6 +119,7 @@ export function ProfileEditor() {
     deleteMedia(id).catch(() => setProblems([t('lounge.profileEditor.uploadFailed')]));
   };
 
+  const myGuilds = useGuilds().map((g) => ({ id: g.id, name: g.name }));
   const dirty = !same(doc, saved);
   const block = doc.blocks.find((b) => b.id === selected) ?? null;
   const present = new Set(doc.blocks.map((b) => b.type));
@@ -304,6 +306,7 @@ export function ProfileEditor() {
                 <Inspector
                   block={block}
                   friends={friendsRes.data ?? []}
+                  guilds={myGuilds}
                   media={media}
                   uploading={uploading}
                   onUploadGallery={(f) => upload('gallery', f)}

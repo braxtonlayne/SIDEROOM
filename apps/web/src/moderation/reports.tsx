@@ -11,7 +11,8 @@ import { onDispatch } from '../store/events';
 /** The feature id registered in sr-features (`ModerationReportsFeature`). */
 export const REPORTS_FLAG = 'moderation.reports';
 
-export type ReportKind = 'message' | 'user' | 'channel' | 'guild' | 'library' | 'cinema';
+export type ReportKind =
+  'message' | 'user' | 'channel' | 'guild' | 'library' | 'cinema' | 'status_ring';
 
 export interface ReportTarget {
   kind: ReportKind;

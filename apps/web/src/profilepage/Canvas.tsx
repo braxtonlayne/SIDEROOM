@@ -19,6 +19,9 @@ export const KIND_LABEL: Record<BlockKind, MessageKey> = {
   guestbook: 'lounge.profileEditor.kindGuestbook',
   song: 'lounge.profileEditor.kindSong',
   custom: 'lounge.profileEditor.kindCustom',
+  linktree: 'profile.editor.kindLinks',
+  featured_guilds: 'profile.editor.kindServers',
+  now_playing: 'profile.editor.kindPlaying',
 };
 
 interface Drag {

@@ -5435,6 +5435,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/messages/{message_id}/scrapbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** "Send to Scrapbook": archive one message by hand. */
+        put: operations["send"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/messages/{message_id}/threads": {
         parameters: {
             query?: never;
@@ -8331,6 +8348,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/scrapbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The gallery. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/removals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The copies that could not be removed from a bucket (managers). */
+        get: operations["removals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget a failed removal because the copy was deleted another way (managers). */
+        delete: operations["dismiss_removal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Try a failed removal again now (managers). */
+        post: operations["retry_removal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The module in this server, for the viewer. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose the shelf the module writes to. The caller delegates `upload` to the module's service account, so
+         *     they must hold it on that mount; the mount must be this server's own.
+         */
+        put: operations["set_target"];
+        post?: never;
+        /** Drop the shelf. Existing entries keep their copies; nothing new is archived until a shelf is chosen. */
+        delete: operations["clear_target"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an entry and its copies. */
+        delete: operations["remove_entry"];
+        options?: never;
+        head?: never;
+        /** Change an entry's tags. */
+        patch: operations["edit_entry"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/{entry_id}/objects/{object_id}/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A presigned `GET` of one copy, for the viewer only. */
+        post: operations["presign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/soundboard-sounds": {
         parameters: {
             query?: never;
@@ -10690,6 +10848,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/rings/{ring_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff read of a held ring's file (platform staff with `MANAGE_CASES`). A reason is required and the read is
+         *     written to the access log before the file leaves. Only a ring a report froze can be read this way.
+         */
+        get: operations["held_media"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/takedowns": {
         parameters: {
             query?: never;
@@ -11289,6 +11467,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/profiles/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The public page of a handle: rank 0, built only from the blocks the member made public. 404 for every
+         *     handle unless the operator and the member both allow a public page. No session is read.
+         */
+        get: operations["public_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/profiles/{handle}/guestbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave a guestbook post without an account. Accepted only when the page and its guestbook are public and the
+         *     member opted in; held as pending until the owner approves it; five per address per hour.
+         */
+        post: operations["public_sign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/push/vapid-key": {
         parameters: {
             query?: never;
@@ -11396,6 +11614,77 @@ export interface paths {
         post?: never;
         /** Take back my upvote. */
         delete: operations["requests_unvote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every ring the caller may see, grouped by author: mutual friends' rings and rings shared with a server they
+         *     are in. Their own come first.
+         */
+        get: operations["feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings/{ring_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One ring. 404 when it does not exist, has expired, or the caller is not in its audience (the same answer). */
+        get: operations["get_one"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings/{ring_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The photo or clip of a ring. 404 as for `GET /rings/{ring_id}`. Supports one `Range: bytes=a-b`. */
+        get: operations["media_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings/{ring_id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Note that the caller opened a ring (the author's viewer list). 404 as for `GET /rings/{ring_id}`. */
+        post: operations["view"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -13600,6 +13889,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/guestbook/{entry_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release a held public guestbook post on my page. */
+        post: operations["approve_entry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/guild-settings": {
         parameters: {
             query?: never;
@@ -14102,6 +14408,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/profile-page/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My page as another kind of viewer would see it (the "view as" strip). 404 when that viewer would get a 404. */
+        get: operations["preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/profile-privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My profile privacy: the stored choices, what is in force, and whether `public` can be in force here. */
+        get: operations["get_privacy"];
+        /**
+         * Change my profile privacy: `{ preset }` fills every field by the preset's table; explicit fields start from
+         *     what is stored, are clamped (no block looser than the page) and are stored as `custom`.
+         */
+        put: operations["put_privacy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/push-subscriptions": {
         parameters: {
             query?: never;
@@ -14215,6 +14559,75 @@ export interface paths {
         post?: never;
         /** Cancel a reminder. */
         delete: operations["cancel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own live rings. */
+        get: operations["mine"];
+        put?: never;
+        /** Post a text or track ring. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post a photo or clip: the file is the request body (`Content-Type` is ignored; the bytes are sniffed). */
+        post: operations["upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings/{ring_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one of the caller's rings now. A ring under a moderation hold is hidden and stays until the hold ends. */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings/{ring_id}/viewers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The people who opened the caller's ring. Only the author can read this; everybody else gets 404. */
+        get: operations["viewers"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -17758,6 +18171,18 @@ export interface components {
             /** Format: int32 */
             year?: number | null;
         };
+        /** @description Body of `POST /users/@me/rings` (a text or track ring). */
+        CreateRingBody: {
+            /** @description `friends` or `guilds`. */
+            audience: components["schemas"]["RingAudienceKind"];
+            /** @description The chosen servers (`guilds` only; 1 to 10, ones the caller is in). */
+            guild_ids?: string[];
+            /** @description `text` or `track`. Photos and clips use `POST /users/@me/rings/media`. */
+            kind: components["schemas"]["RingKind"];
+            /** @description The text of a text ring (up to 280 characters). */
+            text?: string;
+            track?: null | components["schemas"]["RingTrack"];
+        };
         CreateRoleBody: {
             /** Format: int32 */
             color?: number | null;
@@ -18967,10 +19392,42 @@ export interface components {
             id: string;
             name: string;
         };
+        /** @description A member choice. */
+        FacetAuthor: {
+            /**
+             * Format: int64
+             * @description Entries.
+             */
+            count: number;
+            /** @description Member snowflake. */
+            id: string;
+            /** @description Name when archived. */
+            name: string;
+        };
+        /** @description A channel choice. */
+        FacetChannel: {
+            /**
+             * Format: int64
+             * @description Entries.
+             */
+            count: number;
+            /** @description Channel snowflake. */
+            id: string;
+        };
         FacetCount: {
             /** Format: int64 */
             count: number;
             name: string;
+        };
+        /** @description A tag choice. */
+        FacetTag: {
+            /**
+             * Format: int64
+             * @description Entries carrying it.
+             */
+            count: number;
+            /** @description The tag. */
+            tag: string;
         };
         Facets: {
             genres: components["schemas"]["FacetCount"][];
@@ -19261,13 +19718,15 @@ export interface components {
             role_id: string;
         };
         GuestbookEntry: {
-            author: components["schemas"]["ProfilePageUser"];
+            author?: null | components["schemas"]["ProfilePageUser"];
             body: string;
             /** @description The viewer may remove it: they own the page or wrote the entry. */
             can_remove: boolean;
             /** Format: int64 */
             created_at_ms: number;
             id: string;
+            /** @description Waiting for the owner's approval; only the owner is ever shown a pending post. */
+            pending: boolean;
         };
         GuideObject: {
             /** @description Whether members see the guide (the community setting). */
@@ -19547,7 +20006,7 @@ export interface components {
         HoldBody: {
             /** @description The message, attachment or submission; for `user_messages` the account. */
             id: string;
-            /** @description `message` (with its attachments), `attachment`, `submission` or `user_messages`. */
+            /** @description `message` (with its attachments), `attachment`, `submission`, `status_ring` or `user_messages`. */
             kind: string;
             /** @description Why. Required. */
             reason?: string | null;
@@ -22727,7 +23186,7 @@ export interface components {
             y: number;
         };
         /** @enum {string} */
-        ProfileBlockKind: "header" | "about" | "top_friends" | "now_watching" | "favorites" | "gallery" | "guestbook" | "song" | "custom";
+        ProfileBlockKind: "header" | "about" | "top_friends" | "now_watching" | "favorites" | "gallery" | "guestbook" | "song" | "custom" | "linktree" | "featured_guilds" | "now_playing";
         /** @description What a profile may use (G-48). */
         ProfileCatalogObject: {
             /** @description Avatar decorations; empty until artwork is approved. */
@@ -22745,6 +23204,12 @@ export interface components {
              * @description Always 1.
              */
             version?: number;
+        };
+        /** @description A server on a profile's Featured servers block. */
+        ProfileFeaturedGuild: {
+            icon?: string | null;
+            id: string;
+            name: string;
         };
         /** @description One uploaded picture. */
         ProfileMedia: {
@@ -22796,6 +23261,11 @@ export interface components {
             /** @description The document has any block (otherwise the page shows the standard profile). */
             customised: boolean;
             doc: components["schemas"]["ProfileDoc"];
+            /**
+             * @description The servers a `featured_guilds` block shows to this viewer (members' servers and directory servers
+             *     only, D-232). Empty when the block is absent or hidden.
+             */
+            featured_guilds?: components["schemas"]["ProfileFeaturedGuild"][];
             /** @description The people named in the Top friends block who are still friends. */
             friends: components["schemas"]["ProfilePageUser"][];
             /**
@@ -22834,6 +23304,50 @@ export interface components {
             /** @description Text colour. */
             text: string;
         };
+        /**
+         * @description The named bundles of the settings panel.
+         * @enum {string}
+         */
+        ProfilePreset: "public" | "members" | "friends" | "private" | "custom";
+        /** @description The audience of the page and of each kind of block. */
+        ProfilePrivacyFields: {
+            bio_tier: components["schemas"]["ProfileTier"];
+            /** @description Anonymous visitors may leave a (held) guestbook post when the page and the guestbook are public. */
+            guestbook_accepts_public: boolean;
+            guestbook_tier: components["schemas"]["ProfileTier"];
+            links_tier: components["schemas"]["ProfileTier"];
+            media_tier: components["schemas"]["ProfileTier"];
+            now_playing_tier: components["schemas"]["ProfileTier"];
+            page_tier: components["schemas"]["ProfileTier"];
+            ring_tier: components["schemas"]["ProfileTier"];
+            top8_tier: components["schemas"]["ProfileTier"];
+        };
+        /** @description `PUT /users/@me/profile-privacy`: a preset name, or explicit fields (stored as `custom`). */
+        ProfilePrivacyUpdate: {
+            bio_tier?: null | components["schemas"]["ProfileTier"];
+            guestbook_accepts_public?: boolean | null;
+            guestbook_tier?: null | components["schemas"]["ProfileTier"];
+            links_tier?: null | components["schemas"]["ProfileTier"];
+            media_tier?: null | components["schemas"]["ProfileTier"];
+            now_playing_tier?: null | components["schemas"]["ProfileTier"];
+            page_tier?: null | components["schemas"]["ProfileTier"];
+            preset?: null | components["schemas"]["ProfilePreset"];
+            ring_tier?: null | components["schemas"]["ProfileTier"];
+            top8_tier?: null | components["schemas"]["ProfileTier"];
+        };
+        /**
+         * @description `GET /users/@me/profile-privacy`: what is stored, what is in force on this instance, and whether `public`
+         *     can be in force at all.
+         */
+        ProfilePrivacyView: {
+            /** @description What is in force now: `public` raised to `members` while the operator's switch is off. */
+            effective: components["schemas"]["ProfilePrivacyFields"];
+            preset: components["schemas"]["ProfilePreset"];
+            /** @description The operator allows public profile pages (`platform.public_profiles`). */
+            public_possible: boolean;
+            /** @description The member's choices after the clamp (no block looser than the page). */
+            stored: components["schemas"]["ProfilePrivacyFields"];
+        };
         ProfileStyle: {
             background?: null | components["schemas"]["ProfileBackground"];
             /** @description Use my profile banner as the page background (the older form). */
@@ -22850,6 +23364,16 @@ export interface components {
             /** @description One of [`PATTERNS`] (the older form; see [`Style::background`]). */
             pattern?: string;
         };
+        /**
+         * @description One audience level. The derived order is the rank order.
+         * @enum {string}
+         */
+        ProfileTier: "public" | "members" | "mutual_servers" | "friends" | "only_me";
+        /**
+         * @description A viewer for the "view as" strip.
+         * @enum {string}
+         */
+        ProfileViewAs: "public" | "member" | "shares_server" | "friend";
         /** @description A member's progress in one chapter. */
         Progress: {
             cfi?: string | null;
@@ -22969,6 +23493,19 @@ export interface components {
             operator_contact?: string | null;
             /** @description The operator's country (ISO 3166-1 alpha-2), when set. */
             operator_country?: string | null;
+        };
+        /** @description Body of `POST /public/profiles/{handle}/guestbook`. */
+        PublicGuestbookBody: {
+            /** @description Plain text, 1 to 500 characters, no links. */
+            body: string;
+        };
+        /** @description `GET /public/profiles/{handle}`: the page at rank 0, with the approved guestbook when the guestbook is public. */
+        PublicProfile: {
+            /** @description Anonymous visitors may leave a held post. */
+            accepts_guestbook: boolean;
+            /** @description Present only when the guestbook block is visible to everyone. */
+            guestbook?: components["schemas"]["GuestbookEntry"][] | null;
+            page: components["schemas"]["ProfilePage"];
         };
         /** @description The `keys` of a browser `PushSubscription`. */
         PushKeys: {
@@ -23375,6 +23912,52 @@ export interface components {
             /** @description ISO 8601 time, 5 seconds to a year from now. Give this or `in_seconds`. */
             remind_at?: string | null;
         };
+        /** @description The copies that could not be removed. */
+        RemovalList: {
+            /** @description Oldest first. */
+            removals: components["schemas"]["RemovalView"][];
+        };
+        /** @description A copy that could not be removed from a bucket. */
+        RemovalView: {
+            /**
+             * Format: int32
+             * @description Tries so far.
+             */
+            attempts: number;
+            /** @description Snowflake. */
+            id: string;
+            /** @description The copy's key in the shelf. */
+            key: string;
+            /** @description Why the last try failed. */
+            last_error: string;
+            /** @description The message it was made from. */
+            message_id?: string | null;
+            /** @description The shelf. */
+            mount_id: string;
+            /**
+             * Format: int64
+             * @description When the next try is due, unix ms.
+             */
+            next_attempt_at: number;
+            /**
+             * Format: int64
+             * @description When it was first queued, unix ms.
+             */
+            queued_at: number;
+        };
+        /** @description What removing an entry did. */
+        RemovedView: {
+            /**
+             * Format: int64
+             * @description Copies the bucket refused to delete; they are listed for the server's managers and retried.
+             */
+            copies_failed: number;
+            /**
+             * Format: int64
+             * @description Copies taken out of the bucket.
+             */
+            copies_removed: number;
+        };
         RenameAppEmojiBody: {
             name: string;
         };
@@ -23535,6 +24118,11 @@ export interface components {
             asset_id: string;
             reason: string;
         };
+        /** @description Outcome of "retry now". */
+        RetryView: {
+            /** @description The copy is gone now. */
+            removed: boolean;
+        };
         /**
          * @description Where an application's Activity is in review.
          * @enum {string}
@@ -23551,6 +24139,56 @@ export interface components {
         RevokedCredits: {
             /** Format: int64 */
             revoked: number;
+        };
+        /** @description A ring as a viewer sees it. */
+        Ring: {
+            audience: string;
+            author_id: string;
+            body: string;
+            content_type?: string | null;
+            created_at: string;
+            /** Format: int32 */
+            duration_ms?: number | null;
+            expires_at: string;
+            /** @description The chosen servers. Filled for the author only; everybody else gets an empty list. */
+            guild_ids: string[];
+            /** @description Photo or clip: the file is at `GET /rings/{id}/media`. */
+            has_media: boolean;
+            id: string;
+            kind: string;
+            /** @description It is the viewer's own ring. */
+            mine: boolean;
+            /** @description The viewer has opened it already. */
+            seen: boolean;
+            track?: null | components["schemas"]["RingTrack"];
+        };
+        /**
+         * @description Who may see a ring.
+         * @enum {string}
+         */
+        RingAudienceKind: "friends" | "guilds";
+        /** @description One person's live rings, for the avatar ring and the tray. */
+        RingFeedEntry: {
+            /** @description Every ring is `seen`. */
+            all_seen: boolean;
+            author_id: string;
+            /** @description Oldest first, the order they are played in. */
+            rings: components["schemas"]["Ring"][];
+        };
+        /**
+         * @description What a ring shows.
+         * @enum {string}
+         */
+        RingKind: "photo" | "clip" | "text" | "track";
+        /** @description The text of a track ring. */
+        RingTrack: {
+            artist?: string;
+            title: string;
+        };
+        /** @description One person who opened the author's ring. */
+        RingViewer: {
+            user_id: string;
+            viewed_at: string;
         };
         /**
          * @description What the file is for.
@@ -23809,6 +24447,118 @@ export interface components {
              */
             score: number;
         };
+        /** @description One archived message. */
+        ScrapbookEntryView: {
+            /** @description Who sent it by hand; absent for a reaction. */
+            archived_by?: string | null;
+            /** @description Its author. */
+            author_id: string;
+            /** @description The author's name when it was archived. */
+            author_name: string;
+            /** @description The viewer may change tags and remove the entry. */
+            can_edit: boolean;
+            /** @description The channel the message was sent in. */
+            channel_id: string;
+            /** @description The message text. */
+            content: string;
+            /** @description Snowflake. */
+            id: string;
+            /** @description The message. */
+            message_id: string;
+            /** @description The copied files. */
+            objects: components["schemas"]["ScrapbookObjectView"][];
+            /**
+             * Format: int64
+             * @description When the message was sent, unix ms.
+             */
+            sent_at: number;
+            /**
+             * Format: int32
+             * @description Attachments that were not copied (too large or past the limit).
+             */
+            skipped: number;
+            /** @description Tags. */
+            tags: string[];
+            /** @description `reaction` or `manual`. */
+            via: string;
+        };
+        /** @description Filter choices. */
+        ScrapbookFacets: {
+            /** @description Members with the number of entries. */
+            authors: components["schemas"]["FacetAuthor"][];
+            /** @description Channels with the number of entries. */
+            channels: components["schemas"]["FacetChannel"][];
+            /** @description Tags with the number of entries. */
+            tags: components["schemas"]["FacetTag"][];
+        };
+        /** @description One copied file of an entry. */
+        ScrapbookObjectView: {
+            /** @description Content type, when known. */
+            content_type: string;
+            /** @description The file name the author gave it. */
+            filename: string;
+            /** @description Snowflake. */
+            id: string;
+            /** @description `image`, `video`, `audio` or `file`. */
+            kind: string;
+            /**
+             * @description The viewer's storage scopes reach this file now. `false` shows "not shared with you"; the text of the
+             *     entry is unaffected.
+             */
+            playable: boolean;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
+        };
+        /** @description A gallery page and the filter choices. */
+        ScrapbookPage: {
+            /** @description Entries, newest first. */
+            entries: components["schemas"]["ScrapbookEntryView"][];
+            facets?: null | components["schemas"]["ScrapbookFacets"];
+            /** @description Pass as `before` for the next page; absent on the last page. */
+            next_before?: string | null;
+        };
+        /** @description The module in this server, for this viewer. */
+        ScrapbookStatus: {
+            /** @description The viewer may choose the shelf and read the removal list. */
+            can_manage: boolean;
+            /** @description The viewer sees "Send to Scrapbook". */
+            can_send: boolean;
+            /** @description Trigger emoji. */
+            emojis: string[];
+            /** @description This server has it on. */
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description Copies that could not be removed from a bucket (managers; 0 for others).
+             */
+            failed_removals: number;
+            /** @description Channels where reactions do not archive (so the banner is not shown there). */
+            ignored_channels: string[];
+            /** @description The operator has made the module available (platform scope). When `false` everything else is empty. */
+            offered: boolean;
+            target?: null | components["schemas"]["ScrapbookTargetView"];
+            /**
+             * Format: int32
+             * @description Reactions needed.
+             */
+            threshold: number;
+        };
+        /** @description The shelf the module writes to. */
+        ScrapbookTargetView: {
+            /** @description The member who delegated `upload` to the module. */
+            granted_by: string;
+            /** @description Its label. */
+            label: string;
+            /** @description The mount. */
+            mount_id: string;
+            /** @description The module can write to it now. */
+            ok: boolean;
+            /** @description Why not, when `ok` is false. */
+            problem?: string | null;
+        };
         /** @description One stored note. */
         ScratchNoteObject: {
             /** @description The encrypted note, standard Base64. Opaque to the server. */
@@ -23874,6 +24624,11 @@ export interface components {
             pronouns?: string | null;
             theme_colors?: number[] | null;
             user: components["schemas"]["UserObject"];
+        };
+        /** @description Body of `PUT /channels/{id}/messages/{id}/scrapbook`. */
+        SendBody: {
+            /** @description Tags to start with. */
+            tags?: string[];
         };
         SendSoundBody: {
             /** @description A default sound (`1` to `8`) or a server sound. */
@@ -25011,6 +25766,11 @@ export interface components {
             moderated?: boolean;
             name: string;
         };
+        /** @description Body of `PATCH /guilds/{id}/scrapbook/{entry}`. */
+        TagsBody: {
+            /** @description The new tags (replaces the old ones). */
+            tags: string[];
+        };
         /** @description One content item of a notice. */
         TakedownItem: {
             /** Format: int64 */
@@ -25045,11 +25805,16 @@ export interface components {
             /** @description Why. Required. */
             reason?: string | null;
         };
+        /** @description Body of `PUT /guilds/{id}/scrapbook/target`. */
+        TargetBody: {
+            /** @description A mount of this server. */
+            mount_id: string;
+        };
         /**
          * @description What a report or a case is about.
          * @enum {string}
          */
-        TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "other";
+        TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "status_ring" | "other";
         TempRoleObject: {
             /**
              * Format: int64
@@ -26469,6 +27234,7 @@ export interface components {
         /** @description Body of `PUT /watch-parties/{id}/media`. */
         WatchPartyChangeMedia: {
             episode_id?: string | null;
+            external?: null | components["schemas"]["WatchPartyExternalMedia"];
             /** Format: int64 */
             start_ms?: number | null;
             /** @description The Cinema title, or "0" with `tv_channel_id`. */
@@ -26517,6 +27283,7 @@ export interface components {
              */
             empty?: boolean;
             episode_id?: string | null;
+            external?: null | components["schemas"]["WatchPartyExternalMedia"];
             settings?: null | components["schemas"]["WatchPartySettingsInput"];
             /**
              * Format: int64
@@ -26528,6 +27295,16 @@ export interface components {
             /** @description A Live TV channel to watch together (no seeking; everyone follows the live edge). */
             tv_channel_id?: string | null;
             variant_id?: string | null;
+        };
+        /**
+         * @description Media outside the Cinema catalog: a link to YouTube or Vimeo (played in the provider's privacy-enhanced
+         *     iframe) or to a media file (played natively). Give it instead of `title_id` / `tv_channel_id`.
+         */
+        WatchPartyExternalMedia: {
+            /** @description What to call it in the party card (default: the provider or the host). */
+            title?: string | null;
+            /** @description An https link. The server does not fetch it; members' browsers load it after a click. */
+            url: string;
         };
         /** @description Body of `POST /watch-parties/{id}/heartbeat`: the member's liveness, clock estimate and player state. */
         WatchPartyHeartbeat: {
@@ -26566,11 +27343,25 @@ export interface components {
             /** @description `"0"` for a movie. */
             episode_id: string;
             episode_label?: string | null;
+            /**
+             * @description `cinema` (the ids above), `embed` (a provider's privacy-enhanced iframe) or `direct` (a media file in
+             *     the browser's own player). The last two carry `url` and no catalog ids (they read "0").
+             */
+            kind?: components["schemas"]["WatchPartyMediaKind"];
             live: boolean;
+            /** @description `youtube`, `vimeo` or `direct`. */
+            provider?: string | null;
             title: string;
             title_id: string;
+            /** @description The embed address or the file, for `embed` and `direct`. */
+            url?: string | null;
             variant_id?: string | null;
         };
+        /**
+         * @description Where a party's media comes from (migration 1700).
+         * @enum {string}
+         */
+        WatchPartyMediaKind: "cinema" | "embed" | "direct";
         /** @description Body of `POST /watch-parties/{id}/messages` (private parties' own chat; ephemeral). */
         WatchPartyMessageInput: {
             content: string;
@@ -44717,6 +45508,67 @@ export interface operations {
             };
         };
     };
+    send: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookEntryView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description SCRAPBOOK_NO_SHELF, SCRAPBOOK_SHELF_REFUSED or SCRAPBOOK_COPY_FAILED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     start_from_message: {
         parameters: {
             query?: never;
@@ -54376,6 +55228,436 @@ export interface operations {
             };
         };
     };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Entries older than this entry id */
+                before?: string;
+                /** @description 1 to 50, default 24 */
+                limit?: number;
+                /** @description Only this channel */
+                channel_id?: string;
+                /** @description Only messages by this member */
+                author_id?: string;
+                /** @description Only this tag */
+                tag?: string;
+                /** @description Sent on or after this day, YYYY-MM-DD (UTC) */
+                from?: string;
+                /** @description Sent on or before this day, YYYY-MM-DD (UTC) */
+                to?: string;
+                /** @description Include the filter choices */
+                facets?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookPage"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    removals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss_removal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Removal snowflake */
+                removal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    retry_removal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Removal snowflake */
+                removal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookStatus"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_target: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TargetBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookTargetView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_target: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovedView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookEntryView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    presign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Entry snowflake */
+                entry_id: string;
+                /** @description Object snowflake */
+                object_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_sounds: {
         parameters: {
             query?: never;
@@ -62411,6 +63693,64 @@ export interface operations {
             };
         };
     };
+    held_media: {
+        parameters: {
+            query: {
+                /** @description Why the file is read */
+                reason: string;
+            };
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: {
@@ -64226,6 +65566,85 @@ export interface operations {
             };
         };
     };
+    public_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Username, with or without the leading ~ */
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProfile"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    public_sign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Username */
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicGuestbookBody"];
+            };
+        };
+        responses: {
+            /** @description Held for the owner's approval */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     vapid_key: {
         parameters: {
             query?: never;
@@ -64636,6 +66055,122 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RingFeedEntry"][];
+                };
+            };
+        };
+    };
+    get_one: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    media_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description A part of the file */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Noted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -70763,6 +72298,34 @@ export interface operations {
             };
         };
     };
+    approve_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_settings: {
         parameters: {
             query?: never;
@@ -71968,6 +73531,86 @@ export interface operations {
             };
         };
     };
+    preview: {
+        parameters: {
+            query: {
+                /** @description The viewer to render for */
+                as: components["schemas"]["ProfileViewAs"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePage"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePrivacyView"];
+                };
+            };
+        };
+    };
+    put_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfilePrivacyUpdate"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfilePrivacyView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     subscribe: {
         parameters: {
             query?: never;
@@ -72374,6 +74017,200 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"][];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRingBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description A chosen server the caller is not in */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Daily limit reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload: {
+        parameters: {
+            query: {
+                /** @description photo or clip */
+                kind: string;
+                /** @description friends or guilds */
+                audience: string;
+                /** @description Comma-separated server ids (guilds only) */
+                guild_ids?: string;
+                /** @description Caption, up to 280 characters */
+                text?: string;
+                /** @description A clip's length, 1 to 60000 */
+                duration_ms?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Daily limit reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    viewers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RingViewer"][];
+                };
             };
             404: {
                 headers: {

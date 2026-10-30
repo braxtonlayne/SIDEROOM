@@ -17,6 +17,7 @@ import {
   setCrossfade,
   setEq,
   setEqEnabled,
+  setShuffle,
   usePlayerStore,
   type PlayerState,
 } from './store';
@@ -27,8 +28,10 @@ const LibraryPanel: ComponentType = lazy(() =>
 
 /** The port over the store. `getState` returns the same object while nothing it shows changed. */
 export function createStorePort(): PlayerPort {
-  let seen: Pick<PlayerState, 'queue' | 'index' | 'eq' | 'eqEnabled' | 'crossfadeSec'> | null =
-    null;
+  let seen: Pick<
+    PlayerState,
+    'queue' | 'index' | 'eq' | 'eqEnabled' | 'crossfadeSec' | 'shuffle'
+  > | null = null;
   let snap: PortState | null = null;
   const read = (): PortState => {
     const s = usePlayerStore.getState();
@@ -39,7 +42,8 @@ export function createStorePort(): PlayerPort {
       seen.index !== s.index ||
       seen.eq !== s.eq ||
       seen.eqEnabled !== s.eqEnabled ||
-      seen.crossfadeSec !== s.crossfadeSec
+      seen.crossfadeSec !== s.crossfadeSec ||
+      seen.shuffle !== s.shuffle
     ) {
       seen = {
         queue: s.queue,
@@ -47,6 +51,7 @@ export function createStorePort(): PlayerPort {
         eq: s.eq,
         eqEnabled: s.eqEnabled,
         crossfadeSec: s.crossfadeSec,
+        shuffle: s.shuffle,
       };
       snap = {
         queueIds: s.queue.map((t) => t.id),
@@ -54,6 +59,7 @@ export function createStorePort(): PlayerPort {
         eq: s.eq,
         eqEnabled: s.eqEnabled,
         crossfadeSec: s.crossfadeSec,
+        shuffle: s.shuffle,
       };
     }
     return snap;
@@ -65,6 +71,7 @@ export function createStorePort(): PlayerPort {
     setEq,
     setEqEnabled,
     setCrossfade,
+    setShuffle: (on) => setShuffle(on),
     getState: read,
     subscribe: (fn) => usePlayerStore.subscribe(() => fn()),
   };

@@ -28,7 +28,7 @@ use utoipa::{IntoParams, ToSchema};
 /// Body of a hold.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct HoldBody {
-    /// `message` (with its attachments), `attachment`, `submission` or `user_messages`.
+    /// `message` (with its attachments), `attachment`, `submission`, `status_ring` or `user_messages`.
     pub kind: String,
     /// The message, attachment or submission; for `user_messages` the account.
     pub id: String,
@@ -72,6 +72,7 @@ pub async fn place(
         "message" => HoldScope::Message(target),
         "attachment" => HoldScope::Attachment(target),
         "submission" => HoldScope::Submission(target),
+        "status_ring" => HoldScope::StatusRing(target),
         "user_messages" => HoldScope::UserMessages {
             account_id: target,
             since_ms: b.since_ms.ok_or_else(|| {
@@ -87,7 +88,7 @@ pub async fn place(
         },
         _ => {
             return Err(map_err(ModError::Invalid(
-                "kind must be message, attachment, submission or user_messages".into(),
+                "kind must be message, attachment, submission, status_ring or user_messages".into(),
             )));
         }
     };

@@ -33,6 +33,8 @@ pub enum HoldScope {
     LibrarySeries(i64),
     /// One library chapter and its pages.
     LibraryChapter(i64),
+    /// A 24-hour status ring (PRF-RNG-001): row and object stay while the hold lasts.
+    StatusRing(i64),
     /// A cinema title and all its episodes.
     CinemaTitle(i64),
     /// One cinema episode.
@@ -54,6 +56,7 @@ impl HoldScope {
             HoldScope::Submission(id) => ("submission", id),
             HoldScope::LibrarySeries(id) => ("library_series", id),
             HoldScope::LibraryChapter(id) => ("library_chapter", id),
+            HoldScope::StatusRing(id) => ("status_ring", id),
             HoldScope::CinemaTitle(id) => ("cinema_title", id),
             HoldScope::CinemaEpisode(id) => ("cinema_episode", id),
             HoldScope::UserMessages { account_id, .. } => ("user_messages", account_id),
@@ -214,6 +217,13 @@ pub async fn place_hold_in(
             }
             out.catalog_rows += n;
         }
+        HoldScope::StatusRing(id) => {
+            let n = freeze(conn, "status_rings", "id", id, hold_id).await?;
+            if n == 0 {
+                catalog_missing_or_held(conn, "status_rings", id, "ring", &mut out).await?;
+            }
+            out.catalog_rows += n;
+        }
         HoldScope::CinemaTitle(id) => {
             let n = freeze(conn, "video_titles", "id", id, hold_id).await?;
             if n == 0 {
@@ -303,11 +313,12 @@ pub async fn place_hold_in(
 }
 
 /// The catalogue tables a hold can freeze (library and cinema rows).
-const CATALOG_TABLES: [&str; 4] = [
+const CATALOG_TABLES: [&str; 5] = [
     "reading_series",
     "reading_chapters",
     "video_titles",
     "video_episodes",
+    "status_rings",
 ];
 
 /// Set `hold_id` on the rows of `table` whose `col` is `value` and that no hold freezes yet. Both names are
@@ -476,7 +487,8 @@ const HOLD_SELECT: &str = "SELECT h.id, h.case_id, h.scope_kind, h.scope_id, h.r
     ((SELECT count(*) FROM reading_series x WHERE x.hold_id = h.id) \
      + (SELECT count(*) FROM reading_chapters x WHERE x.hold_id = h.id) \
      + (SELECT count(*) FROM video_titles x WHERE x.hold_id = h.id) \
-     + (SELECT count(*) FROM video_episodes x WHERE x.hold_id = h.id)) AS catalog_rows, \
+     + (SELECT count(*) FROM video_episodes x WHERE x.hold_id = h.id) \
+     + (SELECT count(*) FROM status_rings x WHERE x.hold_id = h.id)) AS catalog_rows, \
     (h.released_at IS NULL AND coalesce(h.reviewed_at, h.created_at) < now() - make_interval(days => $1)) AS review_due, \
     (h.erasure_flagged_at IS NOT NULL AND h.erasure_decision IS NULL AND h.released_at IS NULL) AS erasure_flagged, \
     h.erasure_request_id, h.erasure_basis \

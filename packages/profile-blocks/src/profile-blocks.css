@@ -1,0 +1,363 @@
+/* Customised profile pages (EXT-PRF). Everything is scoped to .pp-root and driven by the custom properties and
+   data attributes the renderer sets; a document can reach nothing else. Logical properties only. */
+.pp-root {
+  --pp-bg: #1e1f22;
+  --pp-panel: #2b2d31;
+  --pp-text: #f2f3f5;
+  --pp-accent: #5865f2;
+  --pp-font: 'Inter', system-ui, sans-serif;
+  position: relative;
+  isolation: isolate;
+  min-block-size: 100%;
+  padding: 16px;
+  color: var(--pp-text);
+  background-color: var(--pp-bg);
+  font-family: var(--pp-font);
+  overflow: hidden;
+}
+/* The banner or an uploaded picture sits behind the pattern layer (K-17). */
+.pp-bgimg,
+.pp-patlayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pp-bgimg {
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+}
+.pp-patlayer {
+  z-index: -1;
+}
+.pp-root[data-pattern='dots'],
+.pp-patlayer[data-pattern='dots'] {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--pp-text) 18%, transparent) 1.5px,
+    transparent 1.5px
+  );
+  background-size: 18px 18px;
+}
+.pp-root[data-pattern='grid'],
+.pp-patlayer[data-pattern='grid'] {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--pp-text) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--pp-text) 12%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.pp-root[data-pattern='stripes'],
+.pp-patlayer[data-pattern='stripes'] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--pp-text) 10%, transparent) 0 8px,
+    transparent 8px 16px
+  );
+}
+.pp-root[data-pattern='checks'],
+.pp-patlayer[data-pattern='checks'] {
+  background-image: conic-gradient(
+    color-mix(in srgb, var(--pp-text) 12%, transparent) 25%,
+    transparent 0 50%,
+    color-mix(in srgb, var(--pp-text) 12%, transparent) 0 75%,
+    transparent 0
+  );
+  background-size: 28px 28px;
+}
+.pp-root[data-pattern='waves'],
+.pp-patlayer[data-pattern='waves'] {
+  background-image: repeating-radial-gradient(
+    circle at 0 100%,
+    transparent 0 12px,
+    color-mix(in srgb, var(--pp-text) 12%, transparent) 12px 14px
+  );
+}
+.pp-root[data-cursor='pointer'] {
+  cursor: pointer;
+}
+.pp-root[data-cursor='crosshair'] {
+  cursor: crosshair;
+}
+.pp-root[data-cursor='cell'] {
+  cursor: cell;
+}
+.pp-root[data-cursor='help'] {
+  cursor: help;
+}
+.pp-grid {
+  display: grid;
+  grid-auto-rows: minmax(40px, auto);
+  gap: 12px;
+}
+.pp-root[data-compact] {
+  padding: 8px;
+}
+.pp-root[data-compact] .pp-grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.pp-block {
+  min-inline-size: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--pp-panel);
+  color: var(--pp-text);
+  overflow-wrap: anywhere;
+}
+.pp-block[data-type='header'] {
+  padding: 0;
+  overflow: hidden;
+}
+.pp-root[data-border='solid'] .pp-block {
+  border: 2px solid var(--pp-accent);
+}
+.pp-root[data-border='dashed'] .pp-block {
+  border: 2px dashed var(--pp-accent);
+}
+.pp-root[data-border='dotted'] .pp-block {
+  border: 3px dotted var(--pp-accent);
+}
+.pp-root[data-border='double'] .pp-block {
+  border: 5px double var(--pp-accent);
+}
+.pp-root[data-border='groove'] .pp-block {
+  border: 4px groove var(--pp-accent);
+}
+.pp-title {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pp-accent);
+}
+.pp-text,
+.pp-muted {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+.pp-muted {
+  opacity: 0.75;
+  font-size: 0.875rem;
+}
+.pp-error {
+  color: inherit;
+  font-weight: 600;
+}
+.pp-link {
+  color: var(--pp-accent);
+  text-decoration: underline;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.pp-header-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+.pp-banner {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 140px;
+  object-fit: cover;
+}
+.pp-name {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.pp-tagline {
+  margin: 4px 0 0;
+  font-style: italic;
+}
+.pp-friends,
+.pp-list,
+.pp-gallery,
+.pp-entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pp-friends {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.pp-friends li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pp-rank {
+  inline-size: 1.25rem;
+  font-weight: 700;
+  color: var(--pp-accent);
+}
+.pp-list {
+  list-style: decimal inside;
+}
+.pp-list li {
+  margin-block-end: 2px;
+}
+.pp-entries li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding-block: 6px;
+  border-block-start: 1px solid color-mix(in srgb, var(--pp-text) 18%, transparent);
+}
+.pp-entries li > div {
+  flex: 1;
+  min-inline-size: 0;
+}
+.pp-sign {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block-end: 8px;
+}
+/* Overlays are decoration only: they never take pointer input and stand still for reduced motion. */
+.pp-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-repeat: repeat;
+}
+.pp-root[data-overlay='sparkle'] .pp-overlay {
+  background-image:
+    radial-gradient(circle, #fff 1px, transparent 2px),
+    radial-gradient(circle, #fff 1px, transparent 2px);
+  background-size:
+    60px 60px,
+    90px 90px;
+  background-position:
+    0 0,
+    30px 40px;
+  animation: pp-twinkle 3s ease-in-out infinite alternate;
+}
+.pp-root[data-overlay='stars'] .pp-overlay {
+  background-image: radial-gradient(circle, var(--pp-accent) 2px, transparent 3px);
+  background-size: 70px 70px;
+  animation: pp-twinkle 4s ease-in-out infinite alternate;
+}
+.pp-root[data-overlay='hearts'] .pp-overlay {
+  background-image:
+    radial-gradient(circle at 30% 30%, #ff6b9a 3px, transparent 4px),
+    radial-gradient(circle at 70% 30%, #ff6b9a 3px, transparent 4px);
+  background-size: 64px 64px;
+  animation: pp-twinkle 3.5s ease-in-out infinite alternate;
+}
+.pp-root[data-overlay='snow'] .pp-overlay {
+  background-image: radial-gradient(circle, #fff 2px, transparent 3px);
+  background-size: 50px 50px;
+  animation: pp-fall 12s linear infinite;
+}
+@keyframes pp-twinkle {
+  from {
+    opacity: 0.2;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+@keyframes pp-fall {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 20px 50px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-overlay {
+    animation: none !important;
+  }
+}
+[data-reduced-motion='true'] .pp-overlay {
+  animation: none !important;
+}
+
+/* Gallery pictures (K-16, K-17): a tile per entry, the picture first, then its caption and address. */
+.pp-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.pp-gallery figure {
+  margin: 0;
+}
+.pp-pic {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--pp-text) 10%, transparent);
+}
+.pp-pic-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, var(--pp-text) 70%, transparent);
+}
+.pp-gallery figcaption {
+  margin-block-start: 2px;
+  font-size: 0.85rem;
+}
+/* PRF-PRO-001 blocks. */
+.pp-linktree {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pp-linktree a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--pp-text);
+  border: 1px solid var(--pp-accent);
+}
+.pp-linktree a:hover,
+.pp-linktree a:focus-visible {
+  background: color-mix(in srgb, var(--pp-accent) 25%, transparent);
+}
+.pp-servers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pp-servers li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pp-initial {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 50%;
+  background: var(--pp-accent);
+  color: var(--pp-bg);
+  font-weight: 700;
+  overflow: hidden;
+}
+.pp-initial img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.pp-entries li[data-pending] {
+  opacity: 0.7;
+}

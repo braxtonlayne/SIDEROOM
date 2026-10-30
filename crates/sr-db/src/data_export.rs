@@ -338,6 +338,8 @@ This archive holds the data tied to your account, as JSON files.\n\
   storage.json        your connected storage buckets (label, bucket, status, who you shared them with; never keys or secrets)\n\
   tools.json          your utility drawer data: scratchpad notes (still encrypted: only your browser's key or\n\
                       your recovery file opens them), your own loot tables and the invite card seats you claimed\n\
+  scrapbook.json      scrapbook entries made from your messages, and ones you sent (text, tags, file names and sizes; never keys or links)\n\
+  rings.json          your status rings that are still live (their audience and who opened them) and the rings you opened\n\
   messages/          the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
 \n\
@@ -447,7 +449,10 @@ pub async fn build_package<W: Write + Seek>(
         "profile_page": rows(pool, "SELECT profile_doc FROM accounts WHERE id = $1", user).await?,
         "profile_media": rows(pool, "SELECT id::text AS id, kind, object_key, content_type, width, height, bytes, created_at FROM profile_media WHERE account_id = $1 ORDER BY id", user).await?,
         "guestbook_written": rows(pool, "SELECT id::text AS id, profile_id::text AS profile_id, body, created_at FROM profile_guestbook WHERE author_id = $1 ORDER BY id", user).await?,
-        "guestbook_received": rows(pool, "SELECT id::text AS id, author_id::text AS author_id, body, created_at FROM profile_guestbook WHERE profile_id = $1 ORDER BY id", user).await?,
+        // Includes the notes still held for approval, and the notes visitors without an account left (no author).
+        "guestbook_received": rows(pool, "SELECT id::text AS id, author_id::text AS author_id, body, status, anonymous, created_at FROM profile_guestbook WHERE profile_id = $1 ORDER BY id", user).await?,
+        // PRF-PRO-001 (D-382): who may see the profile and each part of it; its own section, apart from the layout.
+        "profile_privacy": rows(pool, "SELECT preset, page_tier, links_tier, top8_tier, now_playing_tier, bio_tier, guestbook_tier, media_tier, ring_tier, guestbook_accepts_public, updated_at FROM profile_privacy WHERE user_id = $1", user).await?,
         "packages": rows(pool, "SELECT p.id::text AS id, p.kind, p.slug, p.name, v.version, v.review_state, v.created_at FROM packages p JOIN package_versions v ON v.package_id = p.id WHERE p.author_id = $1 ORDER BY p.id, v.id", user).await?,
         "enabled_packages": rows(pool, "SELECT package_id::text AS package_id, version_id::text AS version_id, section, enabled_at FROM package_enablements WHERE scope = 'user' AND scope_id = $1", user).await?,
     });
@@ -476,6 +481,12 @@ pub async fn build_package<W: Write + Seek>(
         "storage.json",
         &crate::storage_legal::export_for(pool, user).await?,
     )?;
+    // PRF-SCR-001 (Art. 15): scrapbook entries about the member's messages and the ones they sent.
+    put(
+        &mut zip,
+        "scrapbook.json",
+        &crate::scrapbook_legal::export_for(pool, user).await?,
+    )?;
 
     // UTL-DEV-001, UTL-CRD-001 (wave 32): the utility drawer's personal data. Scratchpad notes are the ciphertext
     // the server holds (base64): the server cannot decrypt them, the member's key or recovery file can. Loot tables
@@ -489,6 +500,13 @@ pub async fn build_package<W: Write + Seek>(
             "loot_tables": rows(pool, "SELECT id::text AS id, name, rows, created_at, updated_at FROM loot_tables WHERE owner_user_id = $1 ORDER BY id", user).await?,
             "invite_card_seats": rows(pool, "SELECT c.id::text AS card_id, c.channel_id::text AS channel_id, c.kind, c.title, c.starts_at, c.canceled_at, cl.remind, cl.claimed_at FROM invite_card_claims cl JOIN invite_cards c ON c.id = cl.card_id WHERE cl.user_id = $1 ORDER BY cl.claimed_at, c.id", user).await?,
         }),
+    )?;
+
+    // PRF-RNG-001 (Art. 15): active status rings, their audience and viewer list.
+    put(
+        &mut zip,
+        "rings.json",
+        &crate::rings_dsr::export_for(pool, user).await?,
     )?;
 
     // N-15 (Art. 15): the member's own reactions and poll votes. They name the message and channel but

@@ -177,8 +177,13 @@ pub async fn delete_account(
     .rows_affected();
     report.invites_revoked = i32::try_from(revoked).unwrap_or(i32::MAX);
 
+    // PRF-RNG-001: status rings (and their viewer lists) go before the mounts they may live on are erased.
+    crate::rings_dsr::erase_for(&mut tx, id).await?;
+
     // BYOS-LEG-001: the member's bucket connections go with the account; the bucket and its objects are theirs.
     report.mounts_erased = crate::storage_legal::erase_for(&mut tx, id).await?.mounts;
+    // PRF-SCR-001: scrapbook entries about the member go, and their bucket copies are queued for removal.
+    crate::scrapbook_legal::erase_for(&mut tx, id).await?;
 
     // Credentials and sessions.
     sqlx::query("UPDATE sessions SET revoked_at = now(), updated_at = now() WHERE account_id = $1 AND revoked_at IS NULL")
@@ -232,6 +237,11 @@ pub async fn delete_account(
     // Customised profile and packages (EXT-PRF, EXT-PKG): the guestbook entries this person wrote or
     // received, the themes they turned on, and versions of theirs still waiting for review.
     sqlx::query("DELETE FROM profile_guestbook WHERE profile_id = $1 OR author_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    // PRF-PRO-001: the privacy policy (the pending and anonymous notes on this page went with the line above).
+    sqlx::query("DELETE FROM profile_privacy WHERE user_id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;

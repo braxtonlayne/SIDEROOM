@@ -2,6 +2,7 @@
 
 use super::{PackagesDeps, pkg};
 use crate::{
+    AppState,
     auth::{SessionOnly, UserOnly},
     openapi::ErrorBody,
     routes::{
@@ -16,7 +17,7 @@ use crate::{
 use axum::{
     Json,
     body::Bytes,
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -769,13 +770,19 @@ pub async fn use_layout(
 )]
 pub async fn page_by_name(
     UserOnly(p): UserOnly,
+    State(state): State<AppState>,
     Ext(deps): Ext<PackagesDeps>,
     MaybeExt(proxy): MaybeExt<ExternalImageDeps>,
     Path(name): Path<String>,
 ) -> MsgResult<Json<ProfilePage>> {
     let mut page = deps
         .service
-        .page(p.user_id, Some(&name), None)
+        .page(
+            p.user_id,
+            Some(name.trim_start_matches('~')),
+            None,
+            super::profiles::public_possible(&state).await,
+        )
         .await
         .map_err(pkg)?;
     proxy_gallery(&mut page, proxy.as_deref());
@@ -791,6 +798,7 @@ pub async fn page_by_name(
 )]
 pub async fn page_by_id(
     UserOnly(p): UserOnly,
+    State(state): State<AppState>,
     Ext(deps): Ext<PackagesDeps>,
     MaybeExt(proxy): MaybeExt<ExternalImageDeps>,
     Path(user): Path<String>,
@@ -798,7 +806,12 @@ pub async fn page_by_id(
     let target = if user == "@me" { p.user_id } else { id(&user)? };
     let mut page = deps
         .service
-        .page(p.user_id, None, Some(target))
+        .page(
+            p.user_id,
+            None,
+            Some(target),
+            super::profiles::public_possible(&state).await,
+        )
         .await
         .map_err(pkg)?;
     proxy_gallery(&mut page, proxy.as_deref());
@@ -856,6 +869,7 @@ pub struct GuestbookQuery {
 )]
 pub async fn guestbook(
     UserOnly(p): UserOnly,
+    State(state): State<AppState>,
     Ext(deps): Ext<PackagesDeps>,
     Path(user): Path<String>,
     Query(q): Query<GuestbookQuery>,
@@ -863,7 +877,12 @@ pub async fn guestbook(
     let before = q.before.as_deref().map(id).transpose()?;
     Ok(Json(
         deps.service
-            .guestbook(p.user_id, id(&user)?, before)
+            .guestbook(
+                p.user_id,
+                id(&user)?,
+                before,
+                super::profiles::public_possible(&state).await,
+            )
             .await
             .map_err(pkg)?,
     ))
@@ -886,6 +905,7 @@ pub struct SignBody {
 )]
 pub async fn sign(
     SessionOnly(p): SessionOnly,
+    State(state): State<AppState>,
     Ext(deps): Ext<PackagesDeps>,
     Path(user): Path<String>,
     ApiJson(body): ApiJson<SignBody>,
@@ -894,7 +914,12 @@ pub async fn sign(
         StatusCode::CREATED,
         Json(
             deps.service
-                .sign(p.user_id, id(&user)?, &body.body)
+                .sign(
+                    p.user_id,
+                    id(&user)?,
+                    &body.body,
+                    super::profiles::public_possible(&state).await,
+                )
                 .await
                 .map_err(pkg)?,
         ),
@@ -1144,6 +1169,7 @@ mod tests {
             guestbook_count: None,
             guestbook_limit: 500,
             media: Vec::new(),
+            featured_guilds: Vec::new(),
         }
     }
 

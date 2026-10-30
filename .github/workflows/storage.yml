@@ -13,6 +13,7 @@ on:
       - "crates/sr-api/src/routes/messages/**"
       - "crates/sr-api/src/routes/cdn/**"
       - "crates/sr-api/src/routes/settings/**"
+      - "crates/sr-api/src/routes/guilds/scrapbook*.rs"
       - "crates/sr-server/**"
       - "crates/sr-core/**"
       - "crates/sr-db/**"
@@ -74,6 +75,11 @@ jobs:
       # BYOS-MNT-002 / BYOS-MNT-003: the mount connection test and the CORS apply, check and preflight against Garage.
       - name: Rust live tests (storage mounts, connection test and CORS)
         run: cargo test -p sr-storage --test s3_mounts_live -- --ignored --test-threads=1
+
+      # PRF-SCR-001: the scrapbook archive copy into a guild-owned Garage mount (one object streamed from the
+      # instance bucket, a multipart copy above 8 MiB, a presigned read of the copy) and the delete cascade.
+      - name: Rust live tests (scrapbook archive into a Garage guild mount)
+        run: cargo test -p sr-storage --test s3_scrapbook_live -- --ignored --test-threads=1
 
       - name: Build sr-server and sr-cli
         run: cargo build -p sr-server -p sr-cli

@@ -22,6 +22,8 @@ export interface PortState {
   eqEnabled: boolean;
   /** Seconds of crossfade, 0 to 12. */
   crossfadeSec: number;
+  /** The player's shuffle mode (MUS-SKN-001): the one switch the panel and the skins share. */
+  shuffle: boolean;
 }
 
 export interface PlayerPort {
@@ -32,6 +34,7 @@ export interface PlayerPort {
   setEq(bands: readonly number[]): void;
   setEqEnabled(on: boolean): void;
   setCrossfade(seconds: number): void;
+  setShuffle(on: boolean): void;
   /** A snapshot; must return the same object while nothing changed (it feeds `useSyncExternalStore`). */
   getState(): PortState;
   subscribe(listener: () => void): () => void;
@@ -43,6 +46,7 @@ const IDLE: PortState = {
   eq: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   eqEnabled: true,
   crossfadeSec: 0,
+  shuffle: false,
 };
 
 const inertPort: PlayerPort = {
@@ -51,6 +55,7 @@ const inertPort: PlayerPort = {
   setEq: () => undefined,
   setEqEnabled: () => undefined,
   setCrossfade: () => undefined,
+  setShuffle: () => undefined,
   getState: () => IDLE,
   subscribe: () => () => undefined,
 };

@@ -27388,6 +27388,100 @@
         ]
       }
     },
+    "/channels/{channel_id}/messages/{message_id}/scrapbook": {
+      "put": {
+        "tags": [],
+        "summary": "\"Send to Scrapbook\": archive one message by hand.",
+        "operationId": "send",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookEntryView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SCRAPBOOK_NO_SHELF, SCRAPBOOK_SHELF_REFUSED or SCRAPBOOK_COPY_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/messages/{message_id}/threads": {
       "post": {
         "tags": [
@@ -42905,6 +42999,705 @@
         ]
       }
     },
+    "/guilds/{guild_id}/scrapbook": {
+      "get": {
+        "tags": [],
+        "summary": "The gallery.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Entries older than this entry id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 50, default 24",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "query",
+            "description": "Only this channel",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "author_id",
+            "in": "query",
+            "description": "Only messages by this member",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Only this tag",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Sent on or after this day, YYYY-MM-DD (UTC)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Sent on or before this day, YYYY-MM-DD (UTC)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "facets",
+            "in": "query",
+            "description": "Include the filter choices",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/removals": {
+      "get": {
+        "tags": [],
+        "summary": "The copies that could not be removed from a bucket (managers).",
+        "operationId": "removals",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Forget a failed removal because the copy was deleted another way (managers).",
+        "operationId": "dismiss_removal",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "removal_id",
+            "in": "path",
+            "description": "Removal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}/retry": {
+      "post": {
+        "tags": [],
+        "summary": "Try a failed removal again now (managers).",
+        "operationId": "retry_removal",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "removal_id",
+            "in": "path",
+            "description": "Removal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/status": {
+      "get": {
+        "tags": [],
+        "summary": "The module in this server, for the viewer.",
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/target": {
+      "put": {
+        "tags": [],
+        "summary": "Choose the shelf the module writes to. The caller delegates `upload` to the module's service account, so\nthey must hold it on that mount; the mount must be this server's own.",
+        "operationId": "set_target",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookTargetView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Drop the shelf. Existing entries keep their copies; nothing new is archived until a shelf is chosen.",
+        "operationId": "clear_target",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/{entry_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Remove an entry and its copies.",
+        "operationId": "remove_entry",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovedView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Change an entry's tags.",
+        "operationId": "edit_entry",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookEntryView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/{entry_id}/objects/{object_id}/presign": {
+      "post": {
+        "tags": [],
+        "summary": "A presigned `GET` of one copy, for the viewer only.",
+        "operationId": "presign",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object_id",
+            "in": "path",
+            "description": "Object snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/soundboard-sounds": {
       "get": {
         "tags": [
@@ -55598,6 +56391,88 @@
         ]
       }
     },
+    "/moderation/rings/{ring_id}/media": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Staff read of a held ring's file (platform staff with `MANAGE_CASES`). A reason is required and the read is\nwritten to the access log before the file leaves. Only a ring a report froze can be read this way.",
+        "operationId": "held_media",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "Why the file is read",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/takedowns": {
       "get": {
         "tags": [
@@ -58382,6 +59257,113 @@
         ]
       }
     },
+    "/public/profiles/{handle}": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "The public page of a handle: rank 0, built only from the blocks the member made public. 404 for every\nhandle unless the operator and the member both allow a public page. No session is read.",
+        "operationId": "public_profile",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "description": "Username, with or without the leading ~",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProfile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/profiles/{handle}/guestbook": {
+      "post": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Leave a guestbook post without an account. Accepted only when the page and its guestbook are public and the\nmember opted in; held as pending until the owner approves it; five per address per hour.",
+        "operationId": "public_sign",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "description": "Username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicGuestbookBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Held for the owner's approval"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/push/vapid-key": {
       "get": {
         "tags": [],
@@ -58995,6 +59977,168 @@
             }
           },
           "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Every ring the caller may see, grouped by author: mutual friends' rings and rings shared with a server they\nare in. Their own come first.",
+        "operationId": "feed",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RingFeedEntry"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings/{ring_id}": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "One ring. 404 when it does not exist, has expired, or the caller is not in its audience (the same answer).",
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ring"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings/{ring_id}/media": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "The photo or clip of a ring. 404 as for `GET /rings/{ring_id}`. Supports one `Range: bytes=a-b`.",
+        "operationId": "media_file",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "206": {
+            "description": "A part of the file"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings/{ring_id}/view": {
+      "post": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Note that the caller opened a ring (the author's viewer list). 404 as for `GET /rings/{ring_id}`.",
+        "operationId": "view",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Noted"
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -68102,6 +69246,46 @@
         ]
       }
     },
+    "/users/@me/guestbook/{entry_id}/approve": {
+      "post": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Release a held public guestbook post on my page.",
+        "operationId": "approve_entry",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/guild-settings": {
       "get": {
         "tags": [
@@ -69935,6 +71119,123 @@
         ]
       }
     },
+    "/users/@me/profile-page/preview": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "My page as another kind of viewer would see it (the \"view as\" strip). 404 when that viewer would get a 404.",
+        "operationId": "preview",
+        "parameters": [
+          {
+            "name": "as",
+            "in": "query",
+            "description": "The viewer to render for",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ProfileViewAs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/profile-privacy": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "My profile privacy: the stored choices, what is in force, and whether `public` can be in force here.",
+        "operationId": "get_privacy",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePrivacyView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "Change my profile privacy: `{ preset }` fills every field by the preset's table; explicit fields start from\nwhat is stored, are clamped (no block looser than the page) and are stored as `custom`.",
+        "operationId": "put_privacy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfilePrivacyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePrivacyView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/push-subscriptions": {
       "post": {
         "tags": [],
@@ -70541,6 +71842,318 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "The caller's own live rings.",
+        "operationId": "mine",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ring"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Post a text or track ring.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ring"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A chosen server the caller is not in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Daily limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings/media": {
+      "post": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Post a photo or clip: the file is the request body (`Content-Type` is ignored; the bytes are sniffed).",
+        "operationId": "upload",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "photo or clip",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "audience",
+            "in": "query",
+            "description": "friends or guilds",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_ids",
+            "in": "query",
+            "description": "Comma-separated server ids (guilds only)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "description": "Caption, up to 280 characters",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "duration_ms",
+            "in": "query",
+            "description": "A clip's length, 1 to 60000",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ring"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Daily limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings/{ring_id}": {
+      "delete": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Delete one of the caller's rings now. A ring under a moderation hold is hidden and stays until the hold ends.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings/{ring_id}/viewers": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "The people who opened the caller's ring. Only the author can read this; everybody else gets 404.",
+        "operationId": "viewers",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RingViewer"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -82884,6 +84497,46 @@
           }
         }
       },
+      "CreateRingBody": {
+        "type": "object",
+        "description": "Body of `POST /users/@me/rings` (a text or track ring).",
+        "required": [
+          "kind",
+          "audience"
+        ],
+        "properties": {
+          "audience": {
+            "$ref": "#/components/schemas/RingAudienceKind",
+            "description": "`friends` or `guilds`."
+          },
+          "guild_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The chosen servers (`guilds` only; 1 to 10, ones the caller is in)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RingKind",
+            "description": "`text` or `track`. Photos and clips use `POST /users/@me/rings/media`."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text of a text ring (up to 280 characters)."
+          },
+          "track": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RingTrack",
+                "description": "The track of a track ring."
+              }
+            ]
+          }
+        }
+      },
       "CreateRoleBody": {
         "type": "object",
         "properties": {
@@ -86362,6 +88015,49 @@
           }
         }
       },
+      "FacetAuthor": {
+        "type": "object",
+        "description": "A member choice.",
+        "required": [
+          "id",
+          "name",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries."
+          },
+          "id": {
+            "type": "string",
+            "description": "Member snowflake."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name when archived."
+          }
+        }
+      },
+      "FacetChannel": {
+        "type": "object",
+        "description": "A channel choice.",
+        "required": [
+          "id",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries."
+          },
+          "id": {
+            "type": "string",
+            "description": "Channel snowflake."
+          }
+        }
+      },
       "FacetCount": {
         "type": "object",
         "required": [
@@ -86375,6 +88071,25 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "FacetTag": {
+        "type": "object",
+        "description": "A tag choice.",
+        "required": [
+          "tag",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries carrying it."
+          },
+          "tag": {
+            "type": "string",
+            "description": "The tag."
           }
         }
       },
@@ -87278,14 +88993,22 @@
         "type": "object",
         "required": [
           "id",
-          "author",
+          "pending",
           "body",
           "created_at_ms",
           "can_remove"
         ],
         "properties": {
           "author": {
-            "$ref": "#/components/schemas/ProfilePageUser"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfilePageUser",
+                "description": "`None` for a post left by a visitor without an account (always pending until the owner approves it)."
+              }
+            ]
           },
           "body": {
             "type": "string"
@@ -87300,6 +89023,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "Waiting for the owner's approval; only the owner is ever shown a pending post."
           }
         }
       },
@@ -88166,7 +89893,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`message` (with its attachments), `attachment`, `submission` or `user_messages`."
+            "description": "`message` (with its attachments), `attachment`, `submission`, `status_ring` or `user_messages`."
           },
           "reason": {
             "type": [
@@ -97990,7 +99717,10 @@
           "gallery",
           "guestbook",
           "song",
-          "custom"
+          "custom",
+          "linktree",
+          "featured_guilds",
+          "now_playing"
         ]
       },
       "ProfileCatalogObject": {
@@ -98044,6 +99774,28 @@
           }
         },
         "additionalProperties": false
+      },
+      "ProfileFeaturedGuild": {
+        "type": "object",
+        "description": "A server on a profile's Featured servers block.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
       },
       "ProfileMedia": {
         "type": "object",
@@ -98195,6 +99947,13 @@
           "doc": {
             "$ref": "#/components/schemas/ProfileDoc"
           },
+          "featured_guilds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileFeaturedGuild"
+            },
+            "description": "The servers a `featured_guilds` block shows to this viewer (members' servers and directory servers\nonly, D-232). Empty when the block is absent or hidden."
+          },
           "friends": {
             "type": "array",
             "items": {
@@ -98300,6 +100059,193 @@
         },
         "additionalProperties": false
       },
+      "ProfilePreset": {
+        "type": "string",
+        "description": "The named bundles of the settings panel.",
+        "enum": [
+          "public",
+          "members",
+          "friends",
+          "private",
+          "custom"
+        ]
+      },
+      "ProfilePrivacyFields": {
+        "type": "object",
+        "description": "The audience of the page and of each kind of block.",
+        "required": [
+          "page_tier",
+          "links_tier",
+          "top8_tier",
+          "now_playing_tier",
+          "bio_tier",
+          "guestbook_tier",
+          "media_tier",
+          "ring_tier",
+          "guestbook_accepts_public"
+        ],
+        "properties": {
+          "bio_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "guestbook_accepts_public": {
+            "type": "boolean",
+            "description": "Anonymous visitors may leave a (held) guestbook post when the page and the guestbook are public."
+          },
+          "guestbook_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "links_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "media_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "now_playing_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "page_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "ring_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          },
+          "top8_tier": {
+            "$ref": "#/components/schemas/ProfileTier"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfilePrivacyUpdate": {
+        "type": "object",
+        "description": "`PUT /users/@me/profile-privacy`: a preset name, or explicit fields (stored as `custom`).",
+        "properties": {
+          "bio_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "guestbook_accepts_public": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "guestbook_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "links_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "media_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "now_playing_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "page_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfilePreset"
+              }
+            ]
+          },
+          "ring_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          },
+          "top8_tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProfileTier"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProfilePrivacyView": {
+        "type": "object",
+        "description": "`GET /users/@me/profile-privacy`: what is stored, what is in force on this instance, and whether `public`\ncan be in force at all.",
+        "required": [
+          "preset",
+          "stored",
+          "effective",
+          "public_possible"
+        ],
+        "properties": {
+          "effective": {
+            "$ref": "#/components/schemas/ProfilePrivacyFields",
+            "description": "What is in force now: `public` raised to `members` while the operator's switch is off."
+          },
+          "preset": {
+            "$ref": "#/components/schemas/ProfilePreset"
+          },
+          "public_possible": {
+            "type": "boolean",
+            "description": "The operator allows public profile pages (`platform.public_profiles`)."
+          },
+          "stored": {
+            "$ref": "#/components/schemas/ProfilePrivacyFields",
+            "description": "The member's choices after the clamp (no block looser than the page)."
+          }
+        }
+      },
       "ProfileStyle": {
         "type": "object",
         "properties": {
@@ -98343,6 +100289,27 @@
           }
         },
         "additionalProperties": false
+      },
+      "ProfileTier": {
+        "type": "string",
+        "description": "One audience level. The derived order is the rank order.",
+        "enum": [
+          "public",
+          "members",
+          "mutual_servers",
+          "friends",
+          "only_me"
+        ]
+      },
+      "ProfileViewAs": {
+        "type": "string",
+        "description": "A viewer for the \"view as\" strip.",
+        "enum": [
+          "public",
+          "member",
+          "shares_server",
+          "friend"
+        ]
       },
       "Progress": {
         "type": "object",
@@ -98633,6 +100600,46 @@
               "null"
             ],
             "description": "The operator's country (ISO 3166-1 alpha-2), when set."
+          }
+        }
+      },
+      "PublicGuestbookBody": {
+        "type": "object",
+        "description": "Body of `POST /public/profiles/{handle}/guestbook`.",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Plain text, 1 to 500 characters, no links."
+          }
+        }
+      },
+      "PublicProfile": {
+        "type": "object",
+        "description": "`GET /public/profiles/{handle}`: the page at rank 0, with the approved guestbook when the guestbook is public.",
+        "required": [
+          "page",
+          "accepts_guestbook"
+        ],
+        "properties": {
+          "accepts_guestbook": {
+            "type": "boolean",
+            "description": "Anonymous visitors may leave a held post."
+          },
+          "guestbook": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GuestbookEntry"
+            },
+            "description": "Present only when the guestbook block is visible to everyone."
+          },
+          "page": {
+            "$ref": "#/components/schemas/ProfilePage"
           }
         }
       },
@@ -99777,6 +101784,97 @@
           }
         }
       },
+      "RemovalList": {
+        "type": "object",
+        "description": "The copies that could not be removed.",
+        "required": [
+          "removals"
+        ],
+        "properties": {
+          "removals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemovalView"
+            },
+            "description": "Oldest first."
+          }
+        }
+      },
+      "RemovalView": {
+        "type": "object",
+        "description": "A copy that could not be removed from a bucket.",
+        "required": [
+          "id",
+          "mount_id",
+          "key",
+          "attempts",
+          "last_error",
+          "next_attempt_at",
+          "queued_at"
+        ],
+        "properties": {
+          "attempts": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tries so far."
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake."
+          },
+          "key": {
+            "type": "string",
+            "description": "The copy's key in the shelf."
+          },
+          "last_error": {
+            "type": "string",
+            "description": "Why the last try failed."
+          },
+          "message_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The message it was made from."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The shelf."
+          },
+          "next_attempt_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the next try is due, unix ms."
+          },
+          "queued_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When it was first queued, unix ms."
+          }
+        }
+      },
+      "RemovedView": {
+        "type": "object",
+        "description": "What removing an entry did.",
+        "required": [
+          "copies_removed",
+          "copies_failed"
+        ],
+        "properties": {
+          "copies_failed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Copies the bucket refused to delete; they are listed for the server's managers and retried.",
+            "minimum": 0
+          },
+          "copies_removed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Copies taken out of the bucket.",
+            "minimum": 0
+          }
+        }
+      },
       "RenameAppEmojiBody": {
         "type": "object",
         "required": [
@@ -100278,6 +102376,19 @@
           }
         }
       },
+      "RetryView": {
+        "type": "object",
+        "description": "Outcome of \"retry now\".",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "The copy is gone now."
+          }
+        }
+      },
       "ReviewState": {
         "type": "string",
         "description": "Where an application's Activity is in review.",
@@ -100322,6 +102433,162 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "Ring": {
+        "type": "object",
+        "description": "A ring as a viewer sees it.",
+        "required": [
+          "id",
+          "author_id",
+          "kind",
+          "body",
+          "has_media",
+          "audience",
+          "guild_ids",
+          "created_at",
+          "expires_at",
+          "seen",
+          "mine"
+        ],
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "guild_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The chosen servers. Filled for the author only; everybody else gets an empty list."
+          },
+          "has_media": {
+            "type": "boolean",
+            "description": "Photo or clip: the file is at `GET /rings/{id}/media`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "It is the viewer's own ring."
+          },
+          "seen": {
+            "type": "boolean",
+            "description": "The viewer has opened it already."
+          },
+          "track": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RingTrack"
+              }
+            ]
+          }
+        }
+      },
+      "RingAudienceKind": {
+        "type": "string",
+        "description": "Who may see a ring.",
+        "enum": [
+          "friends",
+          "guilds"
+        ]
+      },
+      "RingFeedEntry": {
+        "type": "object",
+        "description": "One person's live rings, for the avatar ring and the tray.",
+        "required": [
+          "author_id",
+          "all_seen",
+          "rings"
+        ],
+        "properties": {
+          "all_seen": {
+            "type": "boolean",
+            "description": "Every ring is `seen`."
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "rings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Ring"
+            },
+            "description": "Oldest first, the order they are played in."
+          }
+        }
+      },
+      "RingKind": {
+        "type": "string",
+        "description": "What a ring shows.",
+        "enum": [
+          "photo",
+          "clip",
+          "text",
+          "track"
+        ]
+      },
+      "RingTrack": {
+        "type": "object",
+        "description": "The text of a track ring.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "artist": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "RingViewer": {
+        "type": "object",
+        "description": "One person who opened the author's ring.",
+        "required": [
+          "user_id",
+          "viewed_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "viewed_at": {
+            "type": "string"
           }
         }
       },
@@ -101169,6 +103436,297 @@
           }
         }
       },
+      "ScrapbookEntryView": {
+        "type": "object",
+        "description": "One archived message.",
+        "required": [
+          "id",
+          "channel_id",
+          "message_id",
+          "author_id",
+          "author_name",
+          "content",
+          "sent_at",
+          "tags",
+          "via",
+          "skipped",
+          "objects",
+          "can_edit"
+        ],
+        "properties": {
+          "archived_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who sent it by hand; absent for a reaction."
+          },
+          "author_id": {
+            "type": "string",
+            "description": "Its author."
+          },
+          "author_name": {
+            "type": "string",
+            "description": "The author's name when it was archived."
+          },
+          "can_edit": {
+            "type": "boolean",
+            "description": "The viewer may change tags and remove the entry."
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "The channel the message was sent in."
+          },
+          "content": {
+            "type": "string",
+            "description": "The message text."
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake."
+          },
+          "message_id": {
+            "type": "string",
+            "description": "The message."
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScrapbookObjectView"
+            },
+            "description": "The copied files."
+          },
+          "sent_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the message was sent, unix ms."
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Attachments that were not copied (too large or past the limit)."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags."
+          },
+          "via": {
+            "type": "string",
+            "description": "`reaction` or `manual`."
+          }
+        }
+      },
+      "ScrapbookFacets": {
+        "type": "object",
+        "description": "Filter choices.",
+        "required": [
+          "tags",
+          "authors",
+          "channels"
+        ],
+        "properties": {
+          "authors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetAuthor"
+            },
+            "description": "Members with the number of entries."
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetChannel"
+            },
+            "description": "Channels with the number of entries."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetTag"
+            },
+            "description": "Tags with the number of entries."
+          }
+        }
+      },
+      "ScrapbookObjectView": {
+        "type": "object",
+        "description": "One copied file of an entry.",
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "size",
+          "kind",
+          "playable"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "description": "Content type, when known."
+          },
+          "filename": {
+            "type": "string",
+            "description": "The file name the author gave it."
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`image`, `video`, `audio` or `file`."
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "The viewer's storage scopes reach this file now. `false` shows \"not shared with you\"; the text of the\nentry is unaffected."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          }
+        }
+      },
+      "ScrapbookPage": {
+        "type": "object",
+        "description": "A gallery page and the filter choices.",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScrapbookEntryView"
+            },
+            "description": "Entries, newest first."
+          },
+          "facets": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScrapbookFacets",
+                "description": "Filter choices over what the viewer may see; present when `facets=true`."
+              }
+            ]
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `before` for the next page; absent on the last page."
+          }
+        }
+      },
+      "ScrapbookStatus": {
+        "type": "object",
+        "description": "The module in this server, for this viewer.",
+        "required": [
+          "offered",
+          "enabled",
+          "emojis",
+          "threshold",
+          "can_send",
+          "can_manage",
+          "failed_removals",
+          "ignored_channels"
+        ],
+        "properties": {
+          "can_manage": {
+            "type": "boolean",
+            "description": "The viewer may choose the shelf and read the removal list."
+          },
+          "can_send": {
+            "type": "boolean",
+            "description": "The viewer sees \"Send to Scrapbook\"."
+          },
+          "emojis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Trigger emoji."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "This server has it on."
+          },
+          "failed_removals": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Copies that could not be removed from a bucket (managers; 0 for others)."
+          },
+          "ignored_channels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Channels where reactions do not archive (so the banner is not shown there)."
+          },
+          "offered": {
+            "type": "boolean",
+            "description": "The operator has made the module available (platform scope). When `false` everything else is empty."
+          },
+          "target": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScrapbookTargetView",
+                "description": "The shelf, for managers."
+              }
+            ]
+          },
+          "threshold": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Reactions needed.",
+            "minimum": 0
+          }
+        }
+      },
+      "ScrapbookTargetView": {
+        "type": "object",
+        "description": "The shelf the module writes to.",
+        "required": [
+          "mount_id",
+          "label",
+          "granted_by",
+          "ok"
+        ],
+        "properties": {
+          "granted_by": {
+            "type": "string",
+            "description": "The member who delegated `upload` to the module."
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The mount."
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "The module can write to it now."
+          },
+          "problem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why not, when `ok` is false."
+          }
+        }
+      },
       "ScratchNoteObject": {
         "type": "object",
         "description": "One stored note.",
@@ -101396,6 +103954,19 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserObject"
+          }
+        }
+      },
+      "SendBody": {
+        "type": "object",
+        "description": "Body of `PUT /channels/{id}/messages/{id}/scrapbook`.",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags to start with."
           }
         }
       },
@@ -104793,6 +107364,22 @@
           }
         }
       },
+      "TagsBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/scrapbook/{entry}`.",
+        "required": [
+          "tags"
+        ],
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The new tags (replaces the old ones)."
+          }
+        }
+      },
       "TakedownItem": {
         "type": "object",
         "description": "One content item of a notice.",
@@ -104888,6 +107475,19 @@
           }
         }
       },
+      "TargetBody": {
+        "type": "object",
+        "description": "Body of `PUT /guilds/{id}/scrapbook/target`.",
+        "required": [
+          "mount_id"
+        ],
+        "properties": {
+          "mount_id": {
+            "type": "string",
+            "description": "A mount of this server."
+          }
+        }
+      },
       "TargetKind": {
         "type": "string",
         "description": "What a report or a case is about.",
@@ -104899,6 +107499,7 @@
           "library",
           "cinema",
           "person",
+          "status_ring",
           "other"
         ]
       },
@@ -109394,6 +111995,17 @@
               "null"
             ]
           },
+          "external": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyExternalMedia",
+                "description": "A YouTube or Vimeo link, or a media file, instead of a Cinema title (PRF-UNF-001)."
+              }
+            ]
+          },
           "start_ms": {
             "type": [
               "integer",
@@ -109498,6 +112110,17 @@
               "null"
             ]
           },
+          "external": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyExternalMedia",
+                "description": "A YouTube or Vimeo link, or a media file, instead of a Cinema title (PRF-UNF-001)."
+              }
+            ]
+          },
           "settings": {
             "oneOf": [
               {
@@ -109532,6 +112155,26 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "WatchPartyExternalMedia": {
+        "type": "object",
+        "description": "Media outside the Cinema catalog: a link to YouTube or Vimeo (played in the provider's privacy-enhanced\niframe) or to a media file (played natively). Give it instead of `title_id` / `tv_channel_id`.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to call it in the party card (default: the provider or the host)."
+          },
+          "url": {
+            "type": "string",
+            "description": "An https link. The server does not fetch it; members' browsers load it after a click."
           }
         }
       },
@@ -109633,14 +112276,32 @@
               "null"
             ]
           },
+          "kind": {
+            "$ref": "#/components/schemas/WatchPartyMediaKind",
+            "description": "`cinema` (the ids above), `embed` (a provider's privacy-enhanced iframe) or `direct` (a media file in\nthe browser's own player). The last two carry `url` and no catalog ids (they read \"0\")."
+          },
           "live": {
             "type": "boolean"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`youtube`, `vimeo` or `direct`."
           },
           "title": {
             "type": "string"
           },
           "title_id": {
             "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The embed address or the file, for `embed` and `direct`."
           },
           "variant_id": {
             "type": [
@@ -109649,6 +112310,15 @@
             ]
           }
         }
+      },
+      "WatchPartyMediaKind": {
+        "type": "string",
+        "description": "Where a party's media comes from (migration 1700).",
+        "enum": [
+          "cinema",
+          "embed",
+          "direct"
+        ]
       },
       "WatchPartyMessageInput": {
         "type": "object",

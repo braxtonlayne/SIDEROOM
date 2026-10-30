@@ -1,0 +1,1682 @@
+/*
+ * MUS-SKN-002 "Tidepool Glass". Drawn on the Lounge Light tokens (the frame sets them): pearl and chrome from
+ * the light surfaces and the muted text, aqua glass from --ui-info mixed with --ui-success, lime gel from
+ * --ui-success, the night-black screen from --interactive-active. One light source, high and to the start side:
+ * every gloss sits on the upper part of its shape, every shadow falls down and to the end side.
+ * Tokens and logical properties only.
+ */
+.sr-ply.sr-ply-tidepool {
+  --tp-white: var(--ui-bg);
+  --tp-ink: var(--ui-text);
+  --tp-shade: color-mix(in oklab, var(--ui-text) 45%, transparent);
+  --tp-night: color-mix(in oklab, var(--interactive-active, var(--ui-text)) 90%, var(--ui-info));
+  --tp-night-hi: color-mix(in oklab, var(--interactive-active, var(--ui-text)) 78%, var(--ui-info));
+  --tp-pearl: color-mix(in oklab, var(--ui-bg) 94%, var(--ui-info));
+  --tp-silver: color-mix(in oklab, var(--ui-bg-hover) 78%, var(--ui-text-muted));
+  --tp-silver-lo: color-mix(in oklab, var(--ui-text-muted) 55%, var(--ui-bg));
+  --tp-steel: color-mix(in oklab, var(--ui-text-muted) 85%, var(--ui-text));
+  --tp-teal: color-mix(in oklch, var(--ui-info) 58%, var(--ui-success));
+  --tp-teal-deep: color-mix(in oklch, var(--tp-teal) 70%, var(--ui-text));
+  --tp-cyan: color-mix(in oklch, var(--tp-teal) 60%, var(--ui-bg));
+  --tp-cyan-hi: color-mix(in oklch, var(--tp-teal) 32%, var(--ui-bg));
+  --tp-blue: var(--ui-info);
+  --tp-blue-hi: color-mix(in oklab, var(--ui-info) 55%, var(--ui-bg));
+  --tp-blue-deep: color-mix(
+    in oklab,
+    var(--ui-info) 55%,
+    var(--interactive-active, var(--ui-text))
+  );
+  --tp-lime-base: color-mix(in oklch, var(--ui-success) 72%, var(--ui-warning));
+  --tp-lime: color-mix(in oklch, var(--tp-lime-base) 62%, var(--ui-bg));
+  --tp-lime-hi: color-mix(in oklch, var(--tp-lime-base) 32%, var(--ui-bg));
+  --tp-green: var(--ui-success);
+  --tp-green-deep: color-mix(in oklab, var(--ui-success) 66%, var(--ui-text));
+  --tp-gloss: color-mix(in oklab, var(--ui-bg) 85%, transparent);
+  --tp-chrome: linear-gradient(
+    175deg,
+    var(--tp-white) 0%,
+    var(--tp-silver) 28%,
+    var(--tp-steel) 52%,
+    var(--tp-silver) 64%,
+    var(--tp-white) 82%,
+    var(--tp-silver-lo) 100%
+  );
+  --bd-led-cool: var(--tp-cyan);
+  --bd-led-warm: var(--tp-lime);
+  --bd-led-hot: var(--ui-danger);
+
+  container-type: inline-size;
+  inline-size: min(50rem, calc(100vw - 1rem));
+  padding-block: 0.5rem 0.875rem;
+  padding-inline: 0.25rem;
+  color: var(--tp-ink);
+  background: transparent;
+  border: 0;
+  border-radius: 3rem;
+  box-shadow: none;
+  font-family: 'Hanken Grotesk', var(--ui-font-body);
+}
+
+/* Where relative colours work, push the gel colours to the saturated aqua and lime of the era. */
+@supports (color: oklch(from var(--ui-bg) l c h)) {
+  .sr-ply.sr-ply-tidepool {
+    --tp-teal: oklch(
+      from color-mix(in oklch, var(--ui-info) 58%, var(--ui-success)) calc(l - 0.03) calc(c * 1.25)
+        h
+    );
+    --tp-cyan: oklch(from var(--tp-teal) calc(l + 0.25) calc(c * 0.95) h);
+    --tp-cyan-hi: oklch(from var(--tp-teal) calc(l + 0.39) calc(c * 0.6) h);
+    --tp-lime: oklch(from var(--tp-lime-base) calc(l + 0.26) calc(c * 1.25) h);
+    --tp-lime-hi: oklch(from var(--tp-lime-base) calc(l + 0.38) calc(c * 0.9) h);
+    --tp-green: oklch(from var(--ui-success) l calc(c * 1.2) calc(h - 6));
+  }
+}
+
+/* ---- Sparkles and droplets (painted) ---- */
+.tp-sparkle {
+  position: absolute;
+  inline-size: 14px;
+  block-size: 14px;
+  background:
+    linear-gradient(90deg, transparent 44%, var(--tp-white) 50%, transparent 56%),
+    linear-gradient(0deg, transparent 44%, var(--tp-white) 50%, transparent 56%);
+  border-radius: 50%;
+  filter: drop-shadow(0 0 3px var(--tp-cyan-hi));
+}
+.tp-sparkle-1 {
+  inset-block-start: 6%;
+  inset-inline-start: 22%;
+}
+.tp-sparkle-2 {
+  inset-block-start: 2%;
+  inset-inline-end: 21%;
+  scale: 0.7;
+}
+.tp-sparkle-3 {
+  inset-block-end: 4%;
+  inset-inline-start: 14%;
+  scale: 0.6;
+}
+.sr-ply-tidepool[data-motion='on'] .tp-sparkle {
+  animation: tp-twinkle 3.2s ease-in-out infinite;
+}
+.sr-ply-tidepool[data-motion='on'] .tp-sparkle-2 {
+  animation-delay: -1.1s;
+}
+.sr-ply-tidepool[data-motion='on'] .tp-sparkle-3 {
+  animation-delay: -2.2s;
+}
+@keyframes tp-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    rotate: 0deg;
+  }
+  50% {
+    opacity: 1;
+    rotate: 45deg;
+  }
+}
+.tp-drop {
+  position: absolute;
+  inline-size: 11px;
+  block-size: 12px;
+  border: 1px solid color-mix(in oklab, var(--tp-steel) 30%, transparent);
+  border-radius: 50% 50% 50% 50% / 55% 55% 45% 45%;
+  background:
+    radial-gradient(circle at 34% 30%, var(--tp-white) 0 18%, transparent 30%),
+    radial-gradient(
+      circle at 60% 72%,
+      color-mix(in oklab, var(--tp-white) 80%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle,
+      color-mix(in oklab, var(--tp-teal) 22%, transparent) 40%,
+      transparent 72%
+    );
+  box-shadow:
+    0 1px 1px color-mix(in oklab, var(--ui-text) 22%, transparent),
+    inset 0 -1px 1px color-mix(in oklab, var(--ui-text) 12%, transparent);
+}
+.tp-drop-1 {
+  inset-block-start: 14%;
+  inset-inline-start: 26%;
+}
+.tp-drop-2 {
+  inset-block-end: 12%;
+  inset-inline-start: 40%;
+  scale: 0.7;
+}
+.tp-drop-3 {
+  inset-block-start: 4.5%;
+  inset-inline-start: 13%;
+}
+.tp-drop-4 {
+  inset-block-start: 7%;
+  inset-inline-start: 16%;
+  scale: 0.55;
+}
+.tp-drop-5 {
+  inset-block-end: 22%;
+  inset-inline-end: 5%;
+  scale: 1.2;
+}
+.tp-drop-6 {
+  inset-block-end: 6%;
+  inset-inline-start: 7%;
+  scale: 0.8;
+}
+.tp-drop-7 {
+  inset-block-start: 9%;
+  inset-inline-end: 22%;
+}
+.tp-drop-8 {
+  inset-block-end: 10%;
+  inset-inline-end: 30%;
+  scale: 0.75;
+}
+
+/* ---- The shell: wing, molded body, wing ---- */
+.tp-shell {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 12.5rem;
+  align-items: center;
+  min-inline-size: 0;
+}
+
+/* ---- The molded pearl body ---- */
+.tp-body {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  z-index: 1;
+  min-inline-size: 0;
+  padding-block: 0.375rem 0.75rem;
+  padding-inline: 1.125rem;
+  border-radius: 3.25rem 3.25rem 3.5rem 3.5rem / 2.75rem 2.75rem 4rem 4rem;
+  background:
+    radial-gradient(
+      ellipse 70% 40% at 50% 100%,
+      color-mix(in oklab, var(--tp-silver-lo) 55%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      var(--tp-white) 0%,
+      var(--tp-pearl) 18%,
+      var(--tp-silver) 58%,
+      color-mix(in oklab, var(--tp-silver) 70%, var(--tp-silver-lo)) 82%,
+      var(--tp-silver) 100%
+    );
+  border: 1px solid var(--tp-silver-lo);
+  box-shadow:
+    inset 0 3px 1px var(--tp-white),
+    inset 0 10px 14px -6px var(--tp-white),
+    inset 4px 0 10px -4px var(--tp-white),
+    inset -6px 0 12px -6px color-mix(in oklab, var(--tp-steel) 50%, transparent),
+    inset 0 -8px 14px -4px color-mix(in oklab, var(--tp-steel) 55%, transparent),
+    0 1px 0 1px color-mix(in oklab, var(--tp-steel) 40%, transparent),
+    0 18px 28px -12px var(--tp-shade),
+    0 4px 8px -2px color-mix(in oklab, var(--ui-text) 25%, transparent);
+}
+.tp-body > :not(.tp-body-art) {
+  position: relative;
+  z-index: 1;
+}
+.tp-body-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.tp-grain {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  opacity: 0.09;
+  mix-blend-mode: multiply;
+}
+/* Mother-of-pearl: a faint rainbow across the shell. */
+.tp-body-sheen {
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  mix-blend-mode: soft-light;
+  background: conic-gradient(
+    from 210deg at 28% 30%,
+    var(--tp-cyan),
+    color-mix(in oklab, var(--ui-danger) 30%, var(--ui-bg)),
+    var(--tp-lime),
+    var(--tp-blue-hi),
+    color-mix(in oklab, var(--ui-warning) 30%, var(--ui-bg)),
+    var(--tp-cyan)
+  );
+}
+.tp-body-glare {
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline: 7%;
+  block-size: 2.25rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--tp-gloss), transparent);
+}
+
+/* Bright reflections running down the rounded sides of the molding. */
+.tp-body-rim {
+  position: absolute;
+  inset-block: 14% 18%;
+  inline-size: 0.625rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in oklab, var(--tp-white) 85%, transparent) 30%,
+    color-mix(in oklab, var(--tp-white) 40%, transparent) 70%,
+    transparent
+  );
+  filter: blur(1px);
+}
+.tp-body-rim-start {
+  inset-inline-start: 0.3125rem;
+}
+.tp-body-rim-end {
+  inset-inline-end: 0.3125rem;
+  opacity: 0.55;
+}
+
+/* ---- Crown: the title capsule and the window gems ---- */
+.tp-crown {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-block-size: 2.25rem;
+}
+.tp-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-inline-size: calc(100% - 5.5rem);
+  padding-block: 0.25rem;
+  padding-inline: 0.625rem 0.875rem;
+  border-radius: 999px;
+  color: var(--tp-white);
+  font-weight: 800;
+  font-size: 0.9375rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px var(--tp-teal-deep);
+  background:
+    linear-gradient(180deg, var(--tp-gloss) 0%, transparent 48%),
+    linear-gradient(180deg, var(--tp-teal) 0%, var(--tp-teal-deep) 100%);
+  border: 2px solid var(--tp-white);
+  box-shadow:
+    0 0 0 1px var(--tp-silver-lo),
+    0 2px 4px color-mix(in oklab, var(--ui-text) 30%, transparent),
+    inset 0 -3px 6px color-mix(in oklab, var(--tp-cyan-hi) 45%, transparent),
+    0 0 12px color-mix(in oklab, var(--tp-cyan) 55%, transparent);
+}
+.tp-capsule-drop {
+  flex: none;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 0 50% 50% 50%;
+  rotate: 45deg;
+  background: radial-gradient(circle at 60% 60%, var(--tp-white) 0 22%, var(--tp-cyan) 70%);
+  box-shadow: 0 0 6px var(--tp-cyan-hi);
+}
+.tp-capsule-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tp-capsule-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  padding-inline-start: 0.5rem;
+  border-inline-start: 1px solid color-mix(in oklab, var(--tp-white) 50%, transparent);
+}
+.tp-gems {
+  position: absolute;
+  inset-inline-end: 0.875rem;
+  inset-block-start: 50%;
+  translate: 0 -50%;
+  display: inline-flex;
+  gap: 0.5rem;
+}
+.sr-ply-tidepool .tp-gem {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.625rem;
+  block-size: 1.625rem;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--tp-white) !important;
+  font-size: 0.8125rem;
+  border: 0;
+  box-shadow:
+    0 0 0 2px var(--tp-white),
+    0 0 0 3px var(--tp-silver-lo),
+    0 2px 4px 2px color-mix(in oklab, var(--ui-text) 25%, transparent),
+    inset 0 -3px 5px color-mix(in oklab, var(--tp-white) 45%, transparent);
+}
+.tp-gem svg {
+  filter: drop-shadow(0 1px 0 color-mix(in oklab, var(--ui-text) 60%, transparent));
+}
+.tp-gem::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline: 22%;
+  block-size: 40%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--tp-gloss), transparent);
+  pointer-events: none;
+}
+.tp-gem-aqua {
+  background: radial-gradient(
+    circle at 50% 75%,
+    var(--tp-cyan),
+    var(--tp-teal) 55%,
+    var(--tp-teal-deep)
+  );
+}
+.tp-gem-red {
+  background: radial-gradient(
+    circle at 50% 75%,
+    color-mix(in oklab, var(--ui-danger) 55%, var(--ui-bg)),
+    var(--ui-danger) 55%,
+    color-mix(in oklab, var(--ui-danger) 70%, var(--ui-text))
+  );
+}
+
+/* ---- The black glass screen in its chrome bezel ---- */
+.tp-screen {
+  position: relative;
+  margin-block-start: 0.375rem;
+  padding-block: 0.75rem 0.625rem;
+  padding-inline: 0.875rem;
+  color: var(--tp-white);
+  border: 6px solid transparent;
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(
+        ellipse 55% 70% at 72% 55%,
+        color-mix(in oklab, var(--tp-teal) 22%, transparent),
+        transparent 70%
+      )
+      padding-box,
+    linear-gradient(180deg, var(--tp-night-hi), var(--tp-night) 40%) padding-box,
+    var(--tp-chrome) border-box;
+  box-shadow:
+    0 0 0 1px var(--tp-silver-lo),
+    0 -1px 0 1px color-mix(in oklab, var(--tp-steel) 35%, transparent),
+    0 2px 0 1px var(--tp-white),
+    inset 0 0 0 1px var(--tp-night),
+    inset 0 8px 16px var(--tp-night);
+}
+.tp-screen-glare {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: calc(1.75rem - 6px);
+  background: linear-gradient(
+    163deg,
+    color-mix(in oklab, var(--tp-white) 15%, transparent) 0%,
+    color-mix(in oklab, var(--tp-white) 6%, transparent) 34%,
+    transparent 34.4%
+  );
+}
+.tp-screen-grid {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-areas:
+    'cover title'
+    'cover info'
+    'cover wave'
+    'time wave';
+  column-gap: 1rem;
+  row-gap: 0.125rem;
+  min-inline-size: 0;
+}
+.tp-cover {
+  grid-area: cover;
+  position: relative;
+  align-self: start;
+  aspect-ratio: 1;
+  inline-size: 100%;
+  overflow: hidden;
+  border-radius: 0.875rem;
+  border: 2px solid color-mix(in oklab, var(--tp-white) 75%, transparent);
+  box-shadow:
+    0 0 0 1px var(--tp-night),
+    0 0 14px color-mix(in oklab, var(--tp-cyan) 45%, transparent);
+}
+.tp-cover svg,
+.tp-cover img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.tp-cover-glare {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--tp-white) 45%, transparent) 0%,
+    color-mix(in oklab, var(--tp-white) 10%, transparent) 40%,
+    transparent 40.5%
+  );
+}
+.tp-c-sky-hi {
+  stop-color: var(--tp-cyan-hi);
+}
+.tp-c-sky {
+  stop-color: var(--tp-blue-hi);
+}
+.tp-c-sea-hi {
+  stop-color: var(--tp-cyan);
+}
+.tp-c-sea {
+  stop-color: var(--tp-teal-deep);
+}
+.tp-c-sun {
+  fill: var(--tp-white);
+  filter: drop-shadow(0 0 4px var(--tp-white));
+}
+.tp-c-cloud {
+  fill: color-mix(in oklab, var(--tp-white) 90%, transparent);
+}
+.tp-c-sand {
+  fill: color-mix(in oklab, var(--ui-warning) 30%, var(--ui-bg));
+}
+.tp-c-trunk {
+  fill: none;
+  stroke: color-mix(in oklab, var(--ui-warning) 45%, var(--ui-text));
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.tp-c-frond {
+  fill: var(--tp-green);
+  stroke: var(--tp-green-deep);
+  stroke-width: 0.5;
+}
+.tp-c-nut {
+  fill: color-mix(in oklab, var(--ui-warning) 40%, var(--ui-text));
+}
+.tp-c-foam,
+.tp-c-glint {
+  fill: none;
+  stroke: var(--tp-white);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.tp-c-glint {
+  stroke-width: 1;
+  opacity: 0.7;
+}
+.tp-c-spray {
+  fill: var(--tp-white);
+}
+
+.tp-title {
+  grid-area: title;
+  min-inline-size: 0;
+  padding-block-start: 0.125rem;
+}
+.tp-title .sr-ply-ticker {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--tp-cyan-hi);
+  text-shadow:
+    0 0 10px color-mix(in oklab, var(--tp-cyan) 70%, transparent),
+    0 0 2px var(--tp-cyan);
+}
+.tp-info {
+  grid-area: info;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: color-mix(in oklab, var(--tp-white) 88%, var(--tp-cyan));
+}
+.tp-info > span + span::before {
+  content: '//' / '';
+  margin-inline-end: 0.25rem;
+  color: color-mix(in oklab, var(--tp-white) 55%, var(--tp-night));
+}
+.tp-info-hi {
+  color: var(--tp-lime-hi);
+  text-shadow: 0 0 6px color-mix(in oklab, var(--tp-lime) 60%, transparent);
+}
+.tp-time {
+  grid-area: time;
+  align-self: end;
+  padding-block-start: 0.375rem;
+  min-inline-size: 0;
+}
+.tp-time .sr-ply-time {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--tp-cyan-hi);
+  text-shadow:
+    0 0 10px var(--tp-cyan),
+    0 0 2px var(--tp-cyan);
+}
+
+/* ---- The waveform: glowing strands that flow and swell with the level ---- */
+.tp-wave {
+  grid-area: wave;
+  position: relative;
+  min-block-size: 4.75rem;
+  min-inline-size: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    var(--ui-text) 10%,
+    var(--ui-text) 90%,
+    transparent
+  );
+}
+.tp-aurora {
+  position: absolute;
+  inset-block: 10%;
+  inset-inline: 5%;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      ellipse 40% 60% at 30% 50%,
+      color-mix(in oklab, var(--tp-lime) 55%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 45% 70% at 72% 45%,
+      color-mix(in oklab, var(--tp-cyan) 55%, transparent),
+      transparent 70%
+    );
+  filter: blur(12px);
+  opacity: calc(0.5 + var(--bd-level, 0) * 0.5);
+  transition: opacity 120ms linear;
+}
+/* Faint curtains of light behind the strands, brighter with the level. */
+.tp-rays {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 9px,
+    color-mix(in oklab, var(--tp-cyan) 22%, transparent) 9px 10px,
+    transparent 10px 17px,
+    color-mix(in oklab, var(--tp-lime) 16%, transparent) 17px 18px
+  );
+  mask-image: radial-gradient(ellipse 50% 55% at 50% 50%, var(--ui-text), transparent 75%);
+  opacity: calc(0.45 + var(--bd-level, 0) * 0.55);
+}
+.tp-wave-amp {
+  position: absolute;
+  inset: 0;
+  transform: scaleY(calc(0.6 + var(--bd-level, 0) * 0.7));
+  transition: transform 110ms linear;
+}
+.tp-wave-svg {
+  inline-size: 200%;
+  block-size: 100%;
+  overflow: visible;
+}
+.sr-ply-tidepool[data-motion='on'] .tp-wave-svg {
+  animation: tp-flow 7s linear infinite;
+}
+@keyframes tp-flow {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.tp-strand {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.tp-strand-a {
+  stroke-width: 3.4;
+}
+.tp-strand-core {
+  stroke: var(--tp-white);
+  stroke-width: 1;
+  opacity: 0.85;
+}
+.tp-strand-b {
+  opacity: 0.75;
+}
+.tp-strand-c {
+  stroke-width: 2.8;
+  opacity: 0.9;
+}
+.tp-strand-d {
+  opacity: 0.55;
+}
+.tp-strand-e {
+  opacity: 0.4;
+}
+.tp-stop-green {
+  stop-color: var(--tp-lime);
+}
+.tp-stop-aqua {
+  stop-color: var(--tp-cyan);
+}
+
+/* ---- The liquid seek tube ---- */
+.tp-seek-tube {
+  margin-block-start: 0.5rem;
+  padding: 0.1875rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--tp-night), var(--tp-night-hi));
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tp-white) 40%, transparent),
+    inset 0 2px 4px var(--tp-night);
+}
+.tp-seek,
+.sr-ply-tidepool .sr-ply-volume input {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.tp-seek {
+  block-size: 1.125rem;
+}
+.tp-seek::-webkit-slider-runnable-track {
+  block-size: 1.125rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, var(--tp-gloss) 0 22%, transparent 48%) 0 0 / var(--tp-pct, 0%) 100%
+      no-repeat,
+    linear-gradient(90deg, var(--tp-green), var(--tp-lime) 55%, var(--tp-cyan)) 0 0 /
+      var(--tp-pct, 0%) 100% no-repeat,
+    color-mix(in oklab, var(--tp-white) 8%, transparent);
+  box-shadow: inset 0 -2px 3px color-mix(in oklab, var(--tp-green-deep) 70%, transparent);
+}
+.tp-seek::-moz-range-track {
+  block-size: 1.125rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tp-white) 8%, transparent);
+}
+.tp-seek::-moz-range-progress {
+  block-size: 1.125rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, var(--tp-gloss) 0 22%, transparent 48%),
+    linear-gradient(90deg, var(--tp-green), var(--tp-lime) 55%, var(--tp-cyan));
+}
+.tp-seek::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: 1.625rem;
+  block-size: 1.625rem;
+  margin-block-start: -0.25rem;
+  border-radius: 50%;
+  border: 2px solid var(--tp-silver);
+  background:
+    radial-gradient(circle at 36% 28%, var(--tp-white) 0 16%, transparent 34%),
+    radial-gradient(
+      circle at 50% 80%,
+      var(--tp-cyan-hi),
+      var(--tp-cyan) 40%,
+      var(--tp-teal) 72%,
+      var(--tp-teal-deep)
+    );
+  box-shadow:
+    0 0 10px var(--tp-cyan),
+    0 2px 3px var(--tp-night);
+}
+.tp-seek::-moz-range-thumb {
+  inline-size: 1.375rem;
+  block-size: 1.375rem;
+  border-radius: 50%;
+  border: 2px solid var(--tp-silver);
+  background:
+    radial-gradient(circle at 36% 28%, var(--tp-white) 0 16%, transparent 34%),
+    radial-gradient(
+      circle at 50% 80%,
+      var(--tp-cyan-hi),
+      var(--tp-cyan) 40%,
+      var(--tp-teal) 72%,
+      var(--tp-teal-deep)
+    );
+  box-shadow: 0 0 10px var(--tp-cyan);
+}
+
+/* ---- The deck: shuffle orb, gel capsules, the play orb, the volume ball ---- */
+.tp-deck {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.875rem;
+  margin-block: 0.625rem 0.375rem;
+}
+/* The molded groove the prev, play and next buttons sit in. */
+.tp-deck::before {
+  content: '';
+  position: absolute;
+  inset-inline: calc(50% - 9.75rem);
+  inset-block-end: 1.6rem;
+  block-size: 4.25rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--tp-silver-lo) 70%, transparent),
+    color-mix(in oklab, var(--tp-silver) 60%, transparent) 55%,
+    color-mix(in oklab, var(--tp-white) 70%, transparent)
+  );
+  box-shadow:
+    inset 0 3px 6px color-mix(in oklab, var(--tp-steel) 60%, transparent),
+    inset 0 -2px 2px var(--tp-white),
+    0 1px 0 var(--tp-white);
+  pointer-events: none;
+}
+.tp-slot {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: end;
+  gap: 0.3125rem;
+  min-inline-size: 0;
+}
+.tp-etch {
+  display: grid;
+  justify-items: center;
+  gap: 0.1875rem;
+}
+.tp-etch-text {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--tp-ink);
+  text-shadow: 0 1px 0 var(--tp-white);
+}
+.tp-led,
+.tp-pill-led,
+.tp-chip-led {
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 40% 35%,
+    color-mix(in oklab, var(--tp-lime) 50%, var(--ui-bg)),
+    color-mix(in oklab, var(--tp-green-deep) 70%, var(--tp-silver-lo))
+  );
+  box-shadow: inset 0 1px 1px color-mix(in oklab, var(--ui-text) 35%, transparent);
+}
+.tp-led[data-on='true'],
+.tp-pill-led,
+.tp-chip[aria-pressed='true'] .tp-chip-led {
+  background: radial-gradient(
+    circle at 40% 35%,
+    var(--tp-white),
+    var(--tp-lime-hi) 30%,
+    var(--tp-lime)
+  );
+  box-shadow:
+    0 0 6px var(--tp-lime),
+    0 0 1px var(--tp-green-deep);
+}
+
+/* Gloss shared by every gel button: a soft highlight across the top, a glow welling up from the bottom. */
+.tp-shuffle,
+.tp-cap,
+.tp-orb,
+.tp-ball,
+.sr-ply-tidepool .tp-pill {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+}
+.tp-shuffle::before,
+.tp-cap::before,
+.tp-orb::before,
+.tp-ball::before,
+.tp-pill::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 6%;
+  inset-inline: 14%;
+  block-size: 44%;
+  border-radius: 999px 999px 50% 50%;
+  background: linear-gradient(
+    180deg,
+    var(--tp-gloss),
+    color-mix(in oklab, var(--ui-bg) 8%, transparent)
+  );
+  pointer-events: none;
+}
+.tp-shuffle svg,
+.tp-cap svg,
+.tp-orb svg {
+  filter: drop-shadow(0 1px 1px color-mix(in oklab, var(--ui-text) 70%, transparent));
+}
+.tp-shuffle {
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  border-radius: 50%;
+  color: var(--tp-white) !important;
+  font-size: 1.75rem;
+  background:
+    radial-gradient(circle at 50% 85%, var(--tp-lime-hi), transparent 45%),
+    radial-gradient(
+      circle at 50% 40%,
+      var(--tp-lime) 0%,
+      var(--tp-green) 55%,
+      var(--tp-green-deep) 100%
+    );
+  box-shadow:
+    0 0 0 3px var(--tp-silver),
+    0 0 0 4px var(--tp-silver-lo),
+    0 0 0 5px var(--tp-white),
+    0 6px 10px -2px var(--tp-shade),
+    inset 0 -4px 8px color-mix(in oklab, var(--tp-lime-hi) 55%, transparent);
+}
+.tp-shuffle[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 3px var(--tp-silver),
+    0 0 0 4px var(--tp-silver-lo),
+    0 0 0 5px var(--tp-white),
+    0 0 18px 4px color-mix(in oklab, var(--tp-lime) 80%, transparent),
+    inset 0 -4px 8px var(--tp-lime-hi);
+}
+.tp-cap {
+  inline-size: 4.75rem;
+  block-size: 3.25rem;
+  color: var(--tp-white) !important;
+  font-size: 2rem;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 92%, var(--tp-cyan-hi), transparent 70%),
+    linear-gradient(180deg, var(--tp-cyan) 0%, var(--tp-teal) 52%, var(--tp-teal-deep) 100%);
+  box-shadow:
+    0 0 0 3px var(--tp-silver),
+    0 0 0 4px var(--tp-silver-lo),
+    0 0 0 5px var(--tp-white),
+    0 6px 10px -2px var(--tp-shade),
+    inset 0 -3px 6px color-mix(in oklab, var(--tp-cyan-hi) 50%, transparent);
+}
+.tp-cap-prev {
+  border-radius: 2.25rem 1.25rem 1.25rem 2.25rem / 1.75rem 1.5rem 1.5rem 1.75rem;
+}
+.tp-cap-next {
+  border-radius: 1.25rem 2.25rem 2.25rem 1.25rem / 1.5rem 1.75rem 1.75rem 1.5rem;
+}
+.tp-orb-well {
+  display: inline-grid;
+  padding: 0.4375rem;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 200deg,
+    var(--tp-white),
+    var(--tp-silver) 18%,
+    var(--tp-steel) 32%,
+    var(--tp-white) 48%,
+    var(--tp-silver-lo) 66%,
+    var(--tp-white) 82%,
+    var(--tp-white)
+  );
+  box-shadow:
+    0 0 0 1px var(--tp-silver-lo),
+    0 10px 16px -4px var(--tp-shade),
+    inset 0 2px 1px var(--tp-white),
+    inset 0 -2px 3px color-mix(in oklab, var(--tp-steel) 50%, transparent);
+}
+.tp-orb {
+  inline-size: 5.25rem;
+  block-size: 5.25rem;
+  border-radius: 50%;
+  color: var(--tp-cyan-hi) !important;
+  font-size: 3.5rem;
+  background:
+    radial-gradient(
+      circle at 50% 88%,
+      color-mix(in oklab, var(--tp-cyan) 85%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 46% 40%,
+      var(--tp-blue-hi) 0%,
+      var(--tp-blue) 42%,
+      var(--tp-blue-deep) 78%,
+      var(--tp-night) 100%
+    );
+  box-shadow:
+    inset 0 0 0 1px var(--tp-blue-deep),
+    inset 0 -6px 12px color-mix(in oklab, var(--tp-cyan) 55%, transparent),
+    0 0 calc(4px + var(--bd-level, 0) * 26px) color-mix(in oklab, var(--tp-cyan) 85%, transparent);
+  transition: box-shadow 110ms linear;
+}
+.tp-orb svg {
+  filter: drop-shadow(0 0 6px var(--tp-cyan)) drop-shadow(0 1px 1px var(--tp-night));
+}
+.tp-orb::before {
+  inset-block-start: 5%;
+  inset-inline: 17%;
+  block-size: 42%;
+}
+
+/* Volume: the chrome ball mutes, the gel tube below it sets the level. */
+.tp-slot-vol .sr-ply-volume {
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+}
+.tp-ball {
+  inline-size: 2.375rem;
+  block-size: 2.375rem;
+  border-radius: 50%;
+  color: var(--tp-ink) !important;
+  font-size: 1.25rem;
+  background: radial-gradient(
+    circle at 50% 70%,
+    var(--tp-white) 0%,
+    var(--tp-silver) 35%,
+    var(--tp-steel) 75%,
+    var(--tp-silver-lo) 100%
+  );
+  box-shadow:
+    0 0 0 1px var(--tp-steel),
+    0 4px 6px -1px var(--tp-shade),
+    inset 0 -2px 3px var(--tp-white);
+}
+.tp-ball[aria-pressed='true'] {
+  color: var(--ui-danger) !important;
+}
+.sr-ply-tidepool .sr-ply-volume input {
+  inline-size: 5rem;
+  block-size: 1rem;
+  padding: 0.125rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--tp-teal-deep), var(--tp-teal));
+  box-shadow:
+    0 0 0 2px var(--tp-silver),
+    0 0 0 3px var(--tp-silver-lo),
+    inset 0 2px 3px var(--tp-night);
+}
+.sr-ply-tidepool .sr-ply-volume input::-webkit-slider-runnable-track {
+  block-size: 0.75rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, var(--tp-gloss) 0 25%, transparent 50%) 0 0 / var(--tp-vol, 0%) 100%
+      no-repeat,
+    linear-gradient(90deg, var(--tp-cyan), var(--tp-cyan-hi)) 0 0 / var(--tp-vol, 0%) 100% no-repeat;
+}
+.sr-ply-tidepool .sr-ply-volume input::-moz-range-progress {
+  block-size: 0.75rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--tp-cyan), var(--tp-cyan-hi));
+}
+.sr-ply-tidepool .sr-ply-volume input::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin-block-start: -0.125rem;
+  border-radius: 50%;
+  border: 1px solid var(--tp-steel);
+  background: radial-gradient(
+    circle at 40% 30%,
+    var(--tp-white),
+    var(--tp-silver) 55%,
+    var(--tp-steel)
+  );
+  box-shadow: 0 1px 2px var(--tp-night);
+}
+.sr-ply-tidepool .sr-ply-volume input::-moz-range-thumb {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border-radius: 50%;
+  border: 1px solid var(--tp-steel);
+  background: radial-gradient(
+    circle at 40% 30%,
+    var(--tp-white),
+    var(--tp-silver) 55%,
+    var(--tp-steel)
+  );
+}
+
+/* ---- The lime status strip ---- */
+.tp-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin-inline: auto;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, var(--tp-gloss) 0%, transparent 45%),
+    linear-gradient(
+      180deg,
+      var(--tp-lime-hi) 0%,
+      var(--tp-lime) 60%,
+      color-mix(in oklab, var(--tp-lime) 70%, var(--tp-green)) 100%
+    );
+  box-shadow:
+    0 0 0 2px var(--tp-silver),
+    0 0 0 3px var(--tp-silver-lo),
+    0 0 0 4px var(--tp-white),
+    0 0 14px color-mix(in oklab, var(--tp-lime) 60%, transparent),
+    inset 0 -2px 4px color-mix(in oklab, var(--tp-green) 40%, transparent);
+}
+.sr-ply-tidepool .tp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding-block: 0.125rem;
+  padding-inline: 0.25rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tp-ink) !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tp-chip::before {
+  content: '[' / '';
+}
+.tp-chip::after {
+  content: ']' / '';
+}
+button.tp-chip:hover {
+  background: color-mix(in oklab, var(--tp-white) 35%, transparent);
+}
+.tp-chip svg {
+  font-size: 0.75rem;
+}
+.tp-chip-meter {
+  gap: 0.375rem;
+}
+.tp-meter {
+  inline-size: 4.5rem;
+  block-size: 0.5rem;
+  padding: 1px;
+  border-radius: 2px;
+  background: var(--tp-teal-deep);
+}
+
+/* ---- The gel wings ---- */
+.tp-wing {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.625rem;
+  min-inline-size: 0;
+}
+.tp-wing > :not(.tp-wing-art) {
+  position: relative;
+  z-index: 1;
+}
+.tp-wing-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+/* Liquid sloshing in the bottom of each wing, and bubbles rising through it. */
+.tp-water {
+  position: absolute;
+  inset-inline: -10%;
+  inset-block-end: 0;
+  block-size: 26%;
+}
+.tp-water svg {
+  inline-size: 200%;
+  block-size: 100%;
+}
+.tp-water-back {
+  fill: color-mix(in oklab, var(--tp-cyan) 35%, transparent);
+}
+.tp-water-front {
+  fill: color-mix(in oklab, var(--tp-lime) 40%, transparent);
+}
+.tp-wing-start .tp-water-back {
+  fill: color-mix(in oklab, var(--tp-lime-hi) 30%, transparent);
+}
+.tp-wing-start .tp-water-front {
+  fill: color-mix(in oklab, var(--tp-lime) 35%, transparent);
+}
+.sr-ply-tidepool[data-motion='on'] .tp-water svg {
+  animation: tp-flow 9s linear infinite;
+}
+.tp-bub {
+  position: absolute;
+  inset-block-end: 6%;
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in oklab, var(--tp-white) 75%, transparent);
+  background: radial-gradient(circle at 35% 30%, var(--tp-white) 0 20%, transparent 45%);
+  opacity: 0.8;
+}
+.tp-bub-1 {
+  inset-inline-start: 38%;
+}
+.tp-bub-2 {
+  inset-inline-start: 55%;
+  scale: 0.65;
+  inset-block-end: 14%;
+}
+.tp-bub-3 {
+  inset-inline-start: 68%;
+  scale: 1.3;
+  inset-block-end: 3%;
+}
+.sr-ply-tidepool[data-motion='on'] .tp-bub {
+  animation: tp-rise 4.5s ease-in infinite;
+}
+.sr-ply-tidepool[data-motion='on'] .tp-bub-2 {
+  animation-delay: -1.5s;
+}
+.sr-ply-tidepool[data-motion='on'] .tp-bub-3 {
+  animation-delay: -3s;
+}
+@keyframes tp-rise {
+  0% {
+    translate: 0 0;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  100% {
+    translate: 4px -5.5rem;
+    opacity: 0;
+  }
+}
+/* The specular reflection across the top of each gel lobe. */
+.tp-wing-gloss {
+  position: absolute;
+  inset-block-start: 3%;
+  inset-inline: 10%;
+  block-size: 30%;
+  border-radius: 50% 50% 45% 45% / 70% 70% 30% 30%;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--tp-white) 55%, transparent),
+    color-mix(in oklab, var(--tp-white) 6%, transparent) 85%,
+    transparent
+  );
+}
+.tp-wing-streak {
+  position: absolute;
+  inset-block: 9% 14%;
+  inline-size: 0.875rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--tp-white) 80%, transparent),
+    color-mix(in oklab, var(--tp-white) 15%, transparent) 70%,
+    transparent
+  );
+}
+.tp-wing-start {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  block-size: 80%;
+  gap: 0.875rem;
+  margin-inline-end: -2.5rem;
+  padding-block: 1rem;
+  padding-inline: 1.25rem 3rem;
+  border-radius: 4.5rem 2rem 2rem 4.5rem / 50% 18% 18% 50%;
+  background:
+    radial-gradient(
+      ellipse 60% 30% at 35% 12%,
+      color-mix(in oklab, var(--tp-lime-hi) 70%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 70% 40% at 40% 100%,
+      color-mix(in oklab, var(--tp-lime) 60%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(165deg, var(--tp-lime) 0%, var(--tp-green) 42%, var(--tp-green-deep) 100%);
+  border: 1px solid var(--tp-green-deep);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--tp-lime-hi) 35%, transparent),
+    inset 0 2px 1px color-mix(in oklab, var(--tp-white) 70%, transparent),
+    inset 6px 0 12px -4px color-mix(in oklab, var(--tp-lime-hi) 70%, transparent),
+    inset 0 -10px 18px -6px var(--tp-green-deep),
+    0 14px 22px -10px var(--tp-shade);
+}
+.tp-wing-start .tp-wing-streak {
+  inset-inline-start: 0.4375rem;
+}
+.tp-wing-end {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  block-size: 90%;
+  margin-inline-start: -2.5rem;
+  padding-block: 1rem;
+  padding-block-start: 1.375rem;
+  padding-inline: 3.125rem 1.5rem;
+  justify-content: flex-start;
+  border-radius: 2rem 4.5rem 4.5rem 2rem / 16% 46% 46% 16%;
+  color: var(--tp-white);
+  background:
+    radial-gradient(
+      ellipse 80% 35% at 60% 100%,
+      color-mix(in oklab, var(--tp-lime) 75%, transparent),
+      transparent 75%
+    ),
+    linear-gradient(
+      180deg,
+      var(--tp-teal-deep) 0%,
+      var(--tp-teal) 22%,
+      var(--tp-teal-deep) 70%,
+      color-mix(in oklab, var(--tp-teal-deep) 70%, var(--tp-green)) 100%
+    );
+  border: 1px solid var(--tp-teal-deep);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklab, var(--tp-cyan-hi) 35%, transparent),
+    inset 0 2px 1px color-mix(in oklab, var(--tp-white) 70%, transparent),
+    inset -6px 0 12px -4px color-mix(in oklab, var(--tp-cyan-hi) 70%, transparent),
+    inset 0 -10px 18px -6px var(--tp-teal-deep),
+    0 14px 22px -10px var(--tp-shade);
+}
+.tp-wing-end .tp-wing-streak {
+  inset-inline-end: 0.5rem;
+}
+.tp-wing-end .tp-wing-gloss {
+  inset-block-start: 3px;
+  inset-inline: 2.5rem 1.25rem;
+  block-size: 0.875rem;
+}
+
+/* Gel pills on the start wing, set on a gentle arc. */
+.sr-ply-tidepool .tp-pill {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.4375rem;
+  inline-size: 100%;
+  min-block-size: 2.875rem;
+  padding-inline: 0.625rem 0.75rem;
+  border-radius: 999px;
+  color: var(--tp-white) !important;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-shadow: 0 1px 1px var(--tp-green-deep);
+  background:
+    radial-gradient(
+      ellipse 70% 50% at 50% 100%,
+      color-mix(in oklab, var(--tp-lime) 55%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(180deg, var(--tp-green) 0%, var(--tp-green-deep) 100%);
+  box-shadow:
+    0 0 0 1px var(--tp-green-deep),
+    0 0 0 3px color-mix(in oklab, var(--tp-lime-hi) 55%, transparent),
+    0 4px 6px -2px var(--tp-shade),
+    inset 0 -2px 4px color-mix(in oklab, var(--tp-lime) 60%, transparent);
+  rotate: -6deg;
+}
+.sr-ply-tidepool .tp-pill:nth-of-type(2) {
+  rotate: 0deg;
+  translate: -0.375rem 0;
+}
+.sr-ply-tidepool .tp-pill:nth-of-type(3) {
+  rotate: 6deg;
+}
+.tp-pill::before {
+  inset-inline: 10%;
+  block-size: 46%;
+}
+.tp-pill[aria-pressed='false'] .tp-pill-led {
+  background: radial-gradient(
+    circle at 40% 35%,
+    color-mix(in oklab, var(--tp-lime) 50%, var(--ui-bg)),
+    color-mix(in oklab, var(--tp-green-deep) 70%, var(--tp-silver-lo))
+  );
+  box-shadow: inset 0 1px 1px color-mix(in oklab, var(--ui-text) 35%, transparent);
+}
+.tp-pill svg {
+  flex: none;
+  font-size: 0.875rem;
+}
+.tp-pill-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-pill:hover,
+.tp-cap:hover,
+.tp-shuffle:hover,
+.tp-orb:hover,
+.tp-gem:hover,
+.tp-ball:hover {
+  filter: brightness(1.08) saturate(1.1);
+}
+.tp-pill:active,
+.tp-cap:active,
+.tp-shuffle:active,
+.tp-orb:active,
+.tp-gem:active,
+.tp-ball:active {
+  filter: brightness(0.94);
+}
+
+/* The playlist wing: the real queue. */
+.tp-wing-h {
+  margin: 0;
+  padding-block-end: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tp-white);
+  border-block-end: 1px solid color-mix(in oklab, var(--tp-white) 40%, transparent);
+  text-shadow: 0 1px 1px var(--tp-teal-deep);
+}
+.tp-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.125rem;
+  max-block-size: 12rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tp-cyan) transparent;
+}
+.tp-queue li {
+  min-inline-size: 0;
+}
+.sr-ply-tidepool .tp-queue button {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  inline-size: 100%;
+  min-inline-size: 0;
+  overflow: hidden;
+  padding-block: 0.3125rem;
+  padding-inline: 0.375rem;
+  text-align: start;
+  color: var(--tp-white) !important;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  text-shadow: 0 1px 1px var(--tp-teal-deep);
+}
+.tp-queue button:hover {
+  background: color-mix(in oklab, var(--tp-night) 25%, transparent);
+}
+.tp-queue li[data-current='true'] button {
+  font-weight: 700;
+  background: color-mix(in oklab, var(--tp-night) 32%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tp-cyan-hi) 60%, transparent);
+}
+.tp-queue .sr-ply-q-n {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.tp-queue .sr-ply-q-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+.tp-queue .sr-ply-q-len {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.tp-total {
+  margin: 0;
+  margin-block-start: auto;
+  align-self: flex-start;
+  padding-block: 0.1875rem;
+  padding-inline: 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--tp-white);
+  background: color-mix(in oklab, var(--tp-night) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tp-cyan-hi) 45%, transparent);
+}
+.tp-wing-end .sr-ply-empty {
+  color: var(--tp-white);
+}
+
+/* The shared button rule resets the font (and so 1em icons); size the glyphs here. */
+.tp-shuffle svg {
+  inline-size: 1.625rem;
+  block-size: 1.625rem;
+}
+.tp-cap svg {
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
+}
+.tp-orb svg {
+  inline-size: 3rem;
+  block-size: 3rem;
+}
+.tp-ball svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+/* ---- Narrow: the wings fold above and below the body, like gel lips ---- */
+@container (max-width: 38rem) {
+  .tp-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tp-wing-start {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: row;
+    block-size: auto;
+    margin-block-end: -1.75rem;
+    margin-inline: 1.25rem;
+    padding-block: 0.5rem 2.25rem;
+    padding-inline: 0.625rem;
+    gap: 0.375rem;
+    border-radius: 2rem 2rem 1rem 1rem / 1.75rem 1.75rem 1rem 1rem;
+  }
+  .tp-wing-start .tp-wing-streak {
+    inset-block: 0.3125rem auto;
+    inset-inline: 12%;
+    inline-size: auto;
+    block-size: 0.5rem;
+  }
+  .sr-ply-tidepool .tp-pill,
+  .sr-ply-tidepool .tp-pill:nth-of-type(2),
+  .sr-ply-tidepool .tp-pill:nth-of-type(3) {
+    flex: 1 1 0;
+    rotate: 0deg;
+    translate: none;
+    min-block-size: 2.25rem;
+    padding-inline: 0.5rem;
+    gap: 0.3125rem;
+    font-size: 0.75rem;
+  }
+  .tp-body {
+    grid-column: 1;
+    grid-row: 2;
+    padding-inline: 0.625rem;
+    border-radius: 2.25rem 2.25rem 2.5rem 2.5rem / 2rem 2rem 2.75rem 2.75rem;
+  }
+  .tp-wing-end {
+    grid-column: 1;
+    grid-row: 3;
+    block-size: auto;
+    margin-block-start: -1.75rem;
+    margin-inline: 1.25rem;
+    padding-block: 2.375rem 0.75rem;
+    padding-inline: 1rem;
+    border-radius: 1rem 1rem 2rem 2rem / 1rem 1rem 1.75rem 1.75rem;
+  }
+  .tp-wing-end .tp-wing-streak,
+  .tp-wing-end .tp-water {
+    display: none;
+  }
+  .tp-deck::before {
+    inset-inline: calc(50% - 6.75rem);
+    inset-block-end: 1.35rem;
+    block-size: 3.25rem;
+  }
+  .tp-queue {
+    max-block-size: 6.25rem;
+  }
+  .tp-total {
+    margin-block-start: 0.25rem;
+  }
+  .tp-capsule {
+    font-size: 0.8125rem;
+    margin-inline-end: 3.5rem;
+  }
+  .tp-gems {
+    inset-inline-end: 0.25rem;
+  }
+  .sr-ply-tidepool .tp-gem {
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+  }
+  .tp-screen {
+    padding-block: 0.5rem;
+    padding-inline: 0.625rem;
+    border-width: 5px;
+    border-radius: 1.375rem;
+  }
+  .tp-screen-glare {
+    border-radius: calc(1.375rem - 5px);
+  }
+  .tp-screen-grid {
+    grid-template-columns: 4.25rem minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    grid-template-areas:
+      'cover title'
+      'cover info'
+      'cover time'
+      'wave wave';
+    column-gap: 0.625rem;
+  }
+  .tp-cover {
+    border-radius: 0.625rem;
+  }
+  .tp-title .sr-ply-ticker {
+    font-size: 1.0625rem;
+  }
+  .tp-info {
+    font-size: 0.6875rem;
+  }
+  .tp-time {
+    align-self: center;
+    padding-block-start: 0.125rem;
+  }
+  .tp-time .sr-ply-time {
+    font-size: 1.125rem;
+  }
+  .tp-wave {
+    min-block-size: 3rem;
+    margin-block-start: 0.25rem;
+  }
+  .tp-deck {
+    gap: 0.4375rem;
+  }
+  .tp-etch-text {
+    font-size: 0.5625rem;
+    letter-spacing: 0.04em;
+  }
+  .tp-shuffle {
+    inline-size: 2.625rem;
+    block-size: 2.625rem;
+    font-size: 1.375rem;
+  }
+  .tp-cap {
+    inline-size: 3.25rem;
+    block-size: 2.5rem;
+    font-size: 1.5rem;
+  }
+  .tp-orb-well {
+    padding: 0.3125rem;
+  }
+  .tp-orb {
+    inline-size: 3.875rem;
+    block-size: 3.875rem;
+    font-size: 2.5rem;
+  }
+  .tp-shuffle svg {
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+  }
+  .tp-cap svg {
+    inline-size: 1.375rem;
+    block-size: 1.375rem;
+  }
+  .tp-orb svg {
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+  }
+  .tp-ball svg {
+    inline-size: 1rem;
+    block-size: 1rem;
+  }
+  .tp-ball {
+    inline-size: 1.875rem;
+    block-size: 1.875rem;
+    font-size: 0.875rem;
+  }
+  .sr-ply-tidepool .sr-ply-volume input {
+    inline-size: 3.5rem;
+  }
+  .tp-strip {
+    gap: 0.125rem 0.375rem;
+    padding-inline: 0.5rem;
+  }
+  .sr-ply-tidepool .tp-chip {
+    font-size: 0.6875rem;
+  }
+  .tp-meter {
+    inline-size: 2.75rem;
+  }
+  .tp-chip-label {
+    display: none;
+  }
+  .tp-wing-gloss {
+    block-size: 22%;
+  }
+}

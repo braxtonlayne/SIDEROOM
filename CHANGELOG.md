@@ -8,6 +8,43 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 34 - 2026-10-30
+
+- **Profiles at `/~handle`.** New Links, Featured servers and Now playing blocks, and "Who can see my profile": pick a
+  preset or set an audience per part (anyone on the web, members, people who share a server, friends, only me), and
+  check it with the "view as" strip. **Profiles start private**: until you pick a preset, your page and its pop-out
+  card are visible only to you. Public pages exist only if the operator turns on `platform.public_profiles` (off by
+  default); they are never indexed by search engines and load only the code the page needs.
+- **Public guestbook.** When you opt in, visitors without an account can leave a plain-text note; notes wait for your
+  approval.
+- **Play links here.** Links to YouTube, Vimeo (and PeerTube instances the operator names) get a "Play here" button.
+  The privacy-enhanced player (`youtube-nocookie.com`, Vimeo with Do Not Track) loads only after you press it, or
+  always if you choose "Load embeds" in Settings > Text & Images. Direct audio and video links play in the browser's
+  own player with no download item.
+- **Watch Together with a link.** Start a party from a pasted YouTube or Vimeo link or a media file: everyone presses
+  Load, then play, pause and seek are shared. The server fetches nothing.
+- **Status rings.** Share a photo, a short clip, a line of text or a track on your avatar for 24 hours with your
+  mutual friends or the servers you choose (up to 20 in any 24 hours). Rings are deleted for good when the day is
+  over, and only you can see who opened yours. A ring can be reported; a reported ring is kept for moderators until
+  the case is decided.
+- **Scrapbook.** A server can keep its best moments: when enough people react, or a permitted member sends it, a
+  message and its files are copied into the server's own storage and shown in a gallery with filters. Deleting the
+  message deletes the entry and its copies; a copy the bucket refuses to delete is shown to the server's managers
+  and retried. Operators: the module (`lounge.scrapbook`) stays hidden until offered at platform scope.
+- **Five new player skins.** Valve & Walnut, Tidepool Glass, Night Circuit, Pastel Study Deck and Steel Stack: painted
+  artwork where only the real controls are live, with VU and LED meters, a spectrum, cue pads, an A-B loop, an
+  equalizer and a playlist window. Motion follows the music and stops under reduced motion. The Study Deck's focus
+  timer is the drawer's pomodoro and its notes pad writes to your encrypted notes.
+- **Shuffle in the floating player.** One switch, shared by the library and every skin: it reorders what is still to
+  come and restores the order when turned off. The player also shows a track's file format where a skin has a readout.
+- **Your data.** "Request my data" now lists your profile privacy settings and held guestbook notes, your active
+  rings (`rings.json`) and scrapbook entries about your messages (`scrapbook.json`); deleting your account deletes
+  them.
+- **Operators.** New platform feature `platform.public_profiles` (off), `lounge.rings` (on, the kill switch for
+  rings) and `lounge.scrapbook` (hidden until offered). The app's security policy now allows framing
+  `youtube-nocookie.com` and `player.vimeo.com` and https media; public and no-script pages are unchanged. Set the
+  same `SR_PEERTUBE_HOSTS` for `sr-server` and the web build to offer PeerTube.
+
 ## Phase 32 - 2026-10-30
 
 - **The utility drawer.** Ctrl+K (Command+K on a Mac) now opens a drawer: its first tab, Go to, is the quick

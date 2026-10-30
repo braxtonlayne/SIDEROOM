@@ -19,6 +19,8 @@ const fromConfig = cspOptionsFromConfig({
   publicUrl: process.env.VITE_PUBLIC_URL,
   activitiesEnabled: process.env.VITE_ACTIVITIES_ENABLED === 'true',
   voicePublicUrl: process.env.VITE_VOICE_PUBLIC_URL,
+  // PRF-UNF-001: the same list the server reads at run time to offer Play here for PeerTube links.
+  peertubeHosts: process.env.SR_PEERTUBE_HOSTS,
 });
 const extra = {
   extraConnect: [...(fromConfig.extraConnect ?? []), ...list(process.env.SR_CSP_CONNECT)],

@@ -1,44 +1,27 @@
-// The profile page renderer (EXT-PRF-002, EXT-PRF-006). A person's document becomes a scoped container: every
-// colour and choice is set as a custom property or data attribute on the container itself and nothing leaks
-// to the rest of the app. The document is data (D-063); this component maps it to markup and never renders
-// anything the document supplies as HTML.
-import type { CSSProperties } from 'react';
-import { BlockView } from './blocks';
+// The profile page renderer in the app (EXT-PRF-002, EXT-PRF-006). The renderer itself is the shared package
+// @sideroom/profile-blocks (the public profile surface uses the same one, D-385); this wrapper gives it the app's
+// translator, image addresses and the stateful blocks (guestbook form, presence).
 import {
-  GRID_COLUMNS,
-  effectiveBackground,
-  type Block,
-  type ProfileDoc,
-  type ProfileMedia,
-  type ProfilePage,
-} from './types';
-import './profilepage.css';
+  BlocksEnv,
+  ProfileRenderer as Renderer,
+  pageVars,
+  reading,
+} from '@sideroom/profile-blocks';
+import { useT } from '../i18n';
+import { cdnUrl } from '../store/cdn';
+import { appSlots } from './blocks';
+import type { ProfileDoc, ProfileMedia, ProfilePage } from './types';
 
-const FONT_STACK: Record<string, string> = {
-  inter: "'Inter', system-ui, sans-serif",
-  newsreader: "'Newsreader', Georgia, serif",
-  'hanken-grotesk': "'Hanken Grotesk', system-ui, sans-serif",
-  'plex-mono': "'IBM Plex Mono', ui-monospace, monospace",
-};
+export { pageVars, reading };
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
-const safeHex = (v: string, fallback: string) => (HEX.test(v) ? v : fallback);
+const cdn = (
+  kind: 'avatars' | 'icons',
+  owner: string,
+  hash: string | null | undefined,
+  size: number,
+) => cdnUrl(kind, owner, hash, { size });
 
-/** The custom properties of a document's style. Exported for the editor's live preview. */
-export function pageVars(doc: ProfileDoc): CSSProperties {
-  const p = doc.style.palette;
-  return {
-    '--pp-bg': safeHex(p.background, '#1e1f22'),
-    '--pp-panel': safeHex(p.panel, '#2b2d31'),
-    '--pp-text': safeHex(p.text, '#f2f3f5'),
-    '--pp-accent': safeHex(p.accent, '#5865f2'),
-    '--pp-font': FONT_STACK[doc.style.font] ?? FONT_STACK.inter,
-  } as CSSProperties;
-}
-
-/** Block order for the compact (single column) layouts: top to bottom, then left to right. */
-export const reading = (blocks: readonly Block[]): Block[] =>
-  [...blocks].sort((a, b) => a.y - b.y || a.x - b.x);
+const profileHref = (username: string) => `/u/${encodeURIComponent(username)}`;
 
 export function ProfileRenderer({
   page,
@@ -57,59 +40,18 @@ export function ProfileRenderer({
   /** The owner's uploaded pictures, for a picture background (the editor passes its own list). */
   media?: ProfileMedia[];
 }) {
-  const bg = effectiveBackground(doc.style);
-  const pattern = bg.pattern ?? 'none';
-  // The picture behind the pattern: the banner, or one of the owner's uploads (K-17).
-  const image =
-    bg.kind === 'banner'
-      ? bannerUrl
-      : bg.kind === 'image'
-        ? (media.find((m) => m.id === bg.image_id)?.url ?? null)
-        : null;
-  const blocks = reading(doc.blocks).filter((b) => !compact || b.type !== 'guestbook');
-  const shown = compact ? blocks.slice(0, 5) : blocks;
+  const t = useT();
   return (
-    <div
-      className="pp-root"
-      data-compact={compact || undefined}
-      data-font={doc.style.font}
-      data-cursor={doc.style.cursor}
-      data-overlay={doc.style.overlay}
-      data-border={doc.style.border}
-      data-pattern={image ? 'none' : pattern}
-      data-bg-image={image ? 'true' : undefined}
-      style={pageVars(doc)}
-    >
-      {image && (
-        <>
-          <span
-            className="pp-bgimg"
-            aria-hidden="true"
-            style={{ backgroundImage: `url("${image}")` }}
-          />
-          <span className="pp-patlayer" aria-hidden="true" data-pattern={pattern} />
-        </>
-      )}
-      {doc.style.overlay !== 'none' && <span className="pp-overlay" aria-hidden="true" />}
-      <div
-        className="pp-grid"
-        style={compact ? undefined : { gridTemplateColumns: `repeat(${GRID_COLUMNS}, 1fr)` }}
-      >
-        {shown.map((b) => (
-          <section
-            key={b.id}
-            className="pp-block"
-            data-type={b.type}
-            style={
-              compact
-                ? undefined
-                : { gridColumn: `${b.x + 1} / span ${b.w}`, gridRow: `${b.y + 1} / span ${b.h}` }
-            }
-          >
-            <BlockView block={b} page={page} compact={compact} />
-          </section>
-        ))}
-      </div>
-    </div>
+    <BlocksEnv t={t} cdn={cdn}>
+      <Renderer
+        page={page}
+        doc={doc}
+        compact={compact}
+        bannerUrl={bannerUrl}
+        media={media}
+        slots={appSlots}
+        profileHref={profileHref}
+      />
+    </BlocksEnv>
   );
 }

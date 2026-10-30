@@ -52,7 +52,6 @@ const PRESET_LABELS: Record<(typeof EQ_PRESET_IDS)[number], MessageKey> = {
 };
 
 interface SectionProps {
-  shuffle: boolean;
   /** The server whose playlists are offered for "add to playlist" (null for none). */
   guildId: string | null;
 }
@@ -71,7 +70,7 @@ function Status({ loading, error }: { loading: boolean; error: unknown }) {
 
 /** Shared wiring of a track list: favorites, queue actions and the playlist picker. */
 function useListProps(p: SectionProps) {
-  const act = useMusicActions(p.shuffle);
+  const act = useMusicActions();
   const fav = useFavorites();
   const toggle = useToggleFavorite();
   const pls = useEditablePlaylists(p.guildId);
@@ -247,14 +246,7 @@ export function PlaylistsSection(p: SectionProps & { onGuild(id: string | null):
   const lists = p.guildId ? (guild.data ?? []) : (own.data ?? []);
 
   if (openId) {
-    return (
-      <PlaylistDetailView
-        id={openId}
-        shuffle={p.shuffle}
-        guildId={p.guildId}
-        onBack={() => setOpenId(null)}
-      />
-    );
+    return <PlaylistDetailView id={openId} guildId={p.guildId} onBack={() => setOpenId(null)} />;
   }
   return (
     <div className="sr-mlib-sect">
@@ -319,16 +311,11 @@ export function PlaylistsSection(p: SectionProps & { onGuild(id: string | null):
   );
 }
 
-function PlaylistDetailView(p: {
-  id: string;
-  shuffle: boolean;
-  guildId: string | null;
-  onBack(): void;
-}) {
+function PlaylistDetailView(p: { id: string; guildId: string | null; onBack(): void }) {
   const t = useT();
   const qc = useQueryClient();
   const d = useQuery({ queryKey: KEYS.playlist(p.id), queryFn: () => getPlaylist(p.id) });
-  const lp = useListProps({ shuffle: p.shuffle, guildId: p.guildId });
+  const lp = useListProps({ guildId: p.guildId });
   const [renaming, setRenaming] = useState<string | null>(null);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: KEYS.playlist(p.id) });

@@ -48,6 +48,25 @@ pub struct Embed {
     /// the preview hidden until it is revealed (LNG-MSG-015). Never kept from client embeds.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub sr_spoiler: bool,
+    /// Server-set "Play here" offer of a link preview (PRF-UNF-001): the provider's privacy-enhanced
+    /// embed, or a direct media file. The client loads it only after a click. Never kept from client embeds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sr_play: Option<EmbedPlay>,
+}
+
+/// See [`Embed::sr_play`]; mirrors `sr_unfurl::embed::Play`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmbedPlay {
+    /// `embed` or `direct`.
+    pub mode: String,
+    /// `youtube`, `vimeo`, `peertube` or `direct`.
+    pub provider: String,
+    pub src: String,
+    /// `video`, `audio` or `hls` (direct only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media: Option<String>,
+    #[serde(default)]
+    pub sync: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

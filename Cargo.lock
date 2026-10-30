@@ -6826,9 +6826,11 @@ dependencies = [
  "sr-core",
  "sr-db",
  "sr-events",
+ "sr-unfurl",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "url",
  "utoipa",
 ]
 

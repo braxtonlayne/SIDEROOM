@@ -392,6 +392,7 @@ async fn start_room(room: &RoomRequest, channel: ChannelId) -> Result<(), HttpEr
         .create(
             viewer,
             CreateInput {
+                external: None,
                 empty: room.title_id.is_none(),
                 title_id: room.title_id.unwrap_or(0),
                 tv_channel_id: None,

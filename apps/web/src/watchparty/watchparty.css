@@ -501,3 +501,59 @@
     block-size: 56px;
   }
 }
+
+/* Media outside the Cinema catalog (PRF-UNF-001): the provider frame or the file, in place of the Cinema stage. */
+.wp-stage-off {
+  display: none;
+}
+.wp-ext {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+}
+.wp-ext-frame {
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+  background: #000;
+  object-fit: contain;
+}
+.wp-ext-audio {
+  inline-size: 0;
+  block-size: 0;
+}
+.wp-ext-title {
+  margin: 0;
+  padding: 16px;
+  color: var(--sr-text, #f1ede4);
+  font-size: 1.1rem;
+  text-align: center;
+}
+.wp-ext-error {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--sr-danger, #ff8a80);
+}
+.wp-ext-gate {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  max-inline-size: 460px;
+  padding: 24px;
+  text-align: center;
+  color: var(--sr-text, #f1ede4);
+}
+.wp-ext-gate-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.wp-ext-gate p {
+  margin: 0;
+}
+.wp-ext-remember {
+  font-size: 0.875rem;
+  color: var(--sr-muted, #b9b2a3);
+}
