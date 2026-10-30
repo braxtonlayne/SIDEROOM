@@ -194,7 +194,8 @@ describe('the version the build embeds', () => {
   it('is the newest heading of CHANGELOG.md without its date', () => {
     const heading = /^## (.+?)\s*$/m.exec(changelog)![1]!;
     expect(APP_VERSION).toBe(heading.replace(/\s+-\s+\d{4}-\d{2}-\d{2}$/, ''));
-    expect(APP_VERSION).toMatch(/^Phase \d+$/);
+    // A wave split in two keeps its number with a letter ("Phase 30b").
+    expect(APP_VERSION).toMatch(/^Phase \d+[a-z]?$/);
   });
 
   it('the badge shows once per version: never to a new install, once after a change', () => {
