@@ -474,6 +474,13 @@ pub async fn build_package<W: Write + Seek>(
         &crate::storage_legal::export_for(pool, user).await?,
     )?;
 
+    // PRF-RNG-001 (Art. 15): active status rings, their audience and viewer list.
+    put(
+        &mut zip,
+        "rings.json",
+        &crate::rings_dsr::export_for(pool, user).await?,
+    )?;
+
     // N-15 (Art. 15): the member's own reactions and poll votes. They name the message and channel but
     // not its text, which belongs to the author.
     put(

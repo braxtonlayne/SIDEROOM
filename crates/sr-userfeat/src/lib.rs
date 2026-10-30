@@ -11,6 +11,7 @@
 //! * [`leveling`] FTR-LVL-001: opt-in XP, ranks and a leaderboard.
 //! * [`rss`] FTR-RSS-001: RSS/Atom feeds fetched through `sr_net::SafeClient`.
 //! * [`announcers`] FTR-LIBF-001 and FTR-WPA-001: library feed and watch party announcements.
+//! * [`rings`] PRF-RNG-001: 24-hour status rings.
 //! * [`poll_templates`] FTR-POLLT-001: saved poll setups.
 //! * [`suggestions`] FTR-SUGG-001 and [`tickets`] FTR-TICK-001.
 //!
@@ -39,6 +40,7 @@ pub mod leveling;
 pub mod poll_templates;
 pub mod poster;
 pub mod reminders;
+pub mod rings;
 pub mod rss;
 pub mod scheduled;
 pub mod suggestions;
