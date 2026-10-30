@@ -64,6 +64,12 @@ wave-30 integration ticked the five rows on that run. Decisions: P29-CNV-1 and P
 ### BYOS-NAV — Navigation
 - [x] **BYOS-NAV-001** [FE] Auto nav and empty shelves: `STORAGE_MOUNT_UPDATE` (gateway), the summary refetch on READY and on the event, `ShelfEmpty` in Cinema and Library _Proven by PR #58's green CI (merged 2026-10-30 01:51 UTC as 6f7e48ef; 30 checks green and the manual `visual-baselines` skipped, which ran every Postgres suite, the authz matrix, `immutable_rules`, the three-engine E2E and the real-ffmpeg media pipeline) on top of the merged-tree proofs of integration-phase29.md._
 
+## Wave 30b — Entrance isolation (D-385)
+- [ ] **SEC-ENT-001** [FE][BUILD] The public build with one entry per surface (landing, auth, invite), the app build, `enterApp`, the CSP files, the legal renderer, the notices split, per-surface budgets (design: `docs/dev/entrance-isolation.md`)
+- [ ] **SEC-ENT-002** [FE][PWA] The service worker with `sr-static` and `sr-app` caches, the purge, the two manifests, the plain error pages, `PublicUpdateToast`
+- [ ] **SEC-ENT-003** [BE][OPS] The gate in `sr-server` (`[web] root`), the legal renderer, `Clear-Site-Data` on logout, the API oracle fixes, the Caddyfile and deployment files
+- [ ] **SEC-ENT-004** [TEST][CI][DOCS] The per-surface checks (`scripts/check-entrance-isolation.mjs`, `e2e/tests/entrance-isolation.spec.ts`, `SR_E2E_WEB=server`, the dev and preview gates, the workflows, the docs)
+
 ## Wave 30 — The floating player and the music library
 
 Integration: [dev/handoff/integration-phase30.md](../dev/handoff/integration-phase30.md). The Postgres password file was

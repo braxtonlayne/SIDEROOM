@@ -4,6 +4,8 @@ Phase 0 · Theme `sideroom` · Mockups: `assets/mockups/entrance-landing.jpg`, `
 
 ## 1. Routes
 
+The public routes below are served as separate small bundles, one per surface (D-385): `landing` (`/`, `/join/:code`), `auth` (login, second factor, login link, register, forgot, reset, verify-email, email-change cancel, the Discord callback), `invite` (`/invite/:code`, `/template/:code`, `/no-invitation`), and plain HTML with no script for `/house-notes`. `apps/web/public-surfaces.json` is the one list; this table is its prose. Every other path, `/help` and the handbook included, is the app and answers `302 /login?next=` to a visitor. The landing names no section of the app (O-7). See [dev/entrance-isolation.md](../dev/entrance-isolation.md).
+
 | Route | Auth | Purpose |
 |---|---|---|
 | `/` | public | Landing ("The internet, with the door closed.") |
@@ -15,8 +17,8 @@ Phase 0 · Theme `sideroom` · Mockups: `assets/mockups/entrance-landing.jpg`, `
 | `/verify-email/:token` | any | Email verification |
 | `/oauth/discord/callback` | public | Discord OAuth return |
 | `/invite/:code` | public shell; join requires login | Server invite (see §6) |
-| `/house-notes` | public | Short static page: what SIDE ROOM is and its house rules (operator-editable markdown) |
-| `/help` | public | Static: the self-service help answers (cannot sign in, lost second factor, no invitation, rules); `/support` is the donation page (D-270) |
+| `/house-notes` | public, plain HTML (no script) | Short static page: what SIDE ROOM is and its house rules (operator-editable markdown) |
+| `/help` | signed in (D-385; was public) | The handbook, its legal pages and What's new. A visitor's help is the collapsible "Can't sign in?" section on `/login` and the house notes; `/support` is the donation page (D-270) |
 | `/no-invitation` | public | Static: "SIDE ROOM is invitation-only. Ask someone you know who's a member." No form, no waitlist |
 
 Logged-in users who visit `/` or `/login` are redirected to their last section (default: the Lounge).
