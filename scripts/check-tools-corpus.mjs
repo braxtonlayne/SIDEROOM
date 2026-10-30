@@ -47,7 +47,8 @@ export function corpusProblems(doc) {
         continue;
       }
       const owner = names.get(n);
-      if (owner && owner !== t.id) problems.push(`${where}: "${label}" is also a name or alias of ${owner}`);
+      if (owner && owner !== t.id)
+        problems.push(`${where}: "${label}" is also a name or alias of ${owner}`);
       names.set(n, t.id);
     }
     const list = t.phrases;
@@ -80,7 +81,9 @@ export function corpusProblems(doc) {
 
 const here = dirname(fileURLToPath(import.meta.url));
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const file = resolve(process.argv[2] ?? join(here, '..', 'apps', 'web', 'src', 'tools', 'corpus.json'));
+  const file = resolve(
+    process.argv[2] ?? join(here, '..', 'apps', 'web', 'src', 'tools', 'corpus.json'),
+  );
   let doc;
   try {
     doc = JSON.parse(readFileSync(file, 'utf8'));

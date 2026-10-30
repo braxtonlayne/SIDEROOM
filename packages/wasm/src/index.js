@@ -143,10 +143,22 @@ export const loadMusic = once(async (wasmUrl) => {
   };
 });
 
-// UTL-SRC-001: the utility drawer's logic (sr-tools-wasm). Each module's bindings are added by its
-// owner (search, calc, units, percent, dice, diff, hash, gif, palette); the loader hands back the raw module.
+// UTL-SRC-001: the utility drawer's logic (sr-tools-wasm). One module per tool group; each owner adds
+// its own key to the object loadTools returns (search is utl-search's); raw is the wasm-bindgen module.
+const toolsSearch = (m) => ({
+  /** A search index over the embedded tool corpus; the client sets the channels and people. */
+  create() {
+    const s = new m.ToolSearch();
+    return {
+      setEntities: (entities) => s.setEntities(JSON.stringify(entities)),
+      search: (query, limit = 20) => JSON.parse(s.search(String(query), limit)),
+      free: () => s.free(),
+    };
+  },
+});
+
 export const loadTools = once(async (wasmUrl) => {
   const m = await import('../dist/tools/tools.js');
   await m.default({ module_or_path: wasmUrl });
-  return m;
+  return { raw: m, search: toolsSearch(m) };
 });
