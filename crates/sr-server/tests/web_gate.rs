@@ -241,7 +241,12 @@ async fn anonymous_navigation_is_a_302_to_login_whether_or_not_the_path_exists()
 #[tokio::test]
 async fn unsafe_next_values_are_dropped() {
     let f = fixture(false).await;
-    for path in ["//evil.example/x", "//evil"] {
+    for path in [
+        "//evil.example/x",
+        "//evil",
+        "/%2F%2Fevil.example",
+        "/%5Cevil.example",
+    ] {
         let r = send(&f, empty(nav(path))).await;
         assert_eq!(r.status, StatusCode::FOUND, "{path}");
         assert_eq!(r.h("location"), "/login", "{path}");

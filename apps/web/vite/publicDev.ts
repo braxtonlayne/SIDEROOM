@@ -53,13 +53,31 @@ export function isPublicFile(table: SurfaceTable, pathname: string): boolean {
 }
 
 /**
- * The server's `next` rule (docs/dev/entrance-isolation.md section 3): one leading `/`, no `//`, no backslash, no
- * control character, under 2 KB. The same cases are unit-tested on the Rust side and in `enterApp.ts`.
+ * The server's `next` rule (docs/dev/entrance-isolation.md section 3): one leading `/`, no `//`, no `/@`, no
+ * backslash, no control character, under 2 KB, for the value as written and once percent-decoded (so
+ * `/%2F%2Fevil.example` is refused). The same cases are unit-tested on the Rust side and in `enterApp.ts`.
  */
 export function safeNext(path: string): string | null {
-  if (!path.startsWith('/') || path.startsWith('//') || path.length > 2048) return null;
-  // eslint-disable-next-line no-control-regex
-  if (/[\\\u0000-\u001f\u007f]/.test(path)) return null;
+  const shapeOk = (p: string) =>
+    p.startsWith('/') &&
+    !p.startsWith('//') &&
+    !p.startsWith('/@') &&
+    p.length <= 2048 &&
+    // eslint-disable-next-line no-control-regex
+    !/[\\\u0000-\u001f\u007f-\u009f]/.test(p);
+  if (!shapeOk(path)) return null;
+  if (path.includes('%')) {
+    let decoded: string;
+    try {
+      decoded = Buffer.from(
+        path.replace(/%([0-9a-fA-F]{2})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16))),
+        'latin1',
+      ).toString('utf8');
+    } catch {
+      return null;
+    }
+    if (!shapeOk(decoded)) return null;
+  }
   return path;
 }
 

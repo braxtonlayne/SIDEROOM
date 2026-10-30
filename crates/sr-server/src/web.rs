@@ -598,23 +598,59 @@ pub fn is_navigation(headers: &HeaderMap) -> bool {
 
 /// The server's `next` rule (docs/dev/entrance-isolation.md section 3; `apps/web/src/lib/enterApp.ts` has the same
 /// rule in TypeScript and the same test cases): one leading `/`, no `//`, no backslash, no control character, no
-/// scheme, at most [`MAX_NEXT_LEN`] bytes. Anything else is `None` and the redirect carries no `next`.
+/// scheme, at most [`MAX_NEXT_LEN`] bytes. The rule holds for the value as written and once percent-decoded, so an
+/// encoded `//`, backslash or control character (`/%2F%2Fevil.example`, `/%5Cevil`, `/%0D%0A`) is refused too:
+/// whatever later decodes the path (a browser, a proxy, the app's router) never sees a host in it. Anything else is
+/// `None` and the redirect carries no `next`.
 pub fn safe_next(next: &str) -> Option<&str> {
-    let bytes = next.as_bytes();
-    if bytes.is_empty() || bytes.len() > MAX_NEXT_LEN || bytes[0] != b'/' {
+    if !next_shape_ok(next) {
         return None;
     }
-    if bytes.get(1) == Some(&b'/') || next.contains('\\') {
-        return None;
-    }
-    if next.chars().any(|c| c.is_control()) {
-        return None;
-    }
-    // A scheme can only start after the first `/`, but a `/` followed by `:` host tricks (`/\`, `/@`) are out.
-    if bytes.get(1) == Some(&b'@') {
+    if next.contains('%') && !next_shape_ok(&percent_decode_once(next)) {
         return None;
     }
     Some(next)
+}
+
+/// One pass of [`safe_next`]'s rule over a value, raw or decoded.
+fn next_shape_ok(next: &str) -> bool {
+    let bytes = next.as_bytes();
+    if bytes.is_empty() || bytes.len() > MAX_NEXT_LEN || bytes[0] != b'/' {
+        return false;
+    }
+    if bytes.get(1) == Some(&b'/') || next.contains('\\') {
+        return false;
+    }
+    if next.chars().any(|c| c.is_control()) {
+        return false;
+    }
+    // A scheme can only start after the first `/`, but a `/` followed by `:` host tricks (`/\`, `/@`) are out.
+    bytes.get(1) != Some(&b'@')
+}
+
+/// Decode `%XX` escapes once; a `%` without two hex digits stays as it is. Invalid UTF-8 becomes U+FFFD.
+fn percent_decode_once(s: &str) -> String {
+    let hex = |b: u8| (b as char).to_digit(16).map(|d| d as u8);
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let escape = match (bytes[i], bytes.get(i + 1), bytes.get(i + 2)) {
+            (b'%', Some(&h), Some(&l)) => hex(h).zip(hex(l)),
+            _ => None,
+        };
+        match escape {
+            Some((hi, lo)) => {
+                out.push((hi << 4) | lo);
+                i += 3;
+            }
+            None => {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Percent-encode `next` for use as the value of a query parameter; `/` stays readable.
@@ -834,7 +870,16 @@ mod tests {
 
     #[test]
     fn next_rule() {
-        for ok in ["/", "/channels", "/a/b?x=1&y=2", "/app"] {
+        for ok in [
+            "/",
+            "/channels",
+            "/a/b?x=1&y=2",
+            "/app",
+            "/invite/abc?x=%2F",
+            "/a%20b",
+            "/100%",
+            "/a%zz",
+        ] {
             assert_eq!(safe_next(ok), Some(ok), "{ok}");
         }
         for bad in [
@@ -848,6 +893,12 @@ mod tests {
             "/a\nb",
             "/a\u{7f}b",
             "/@evil",
+            "/%2F%2Fevil.example",
+            "/%2f%2fevil",
+            "/%5Cevil",
+            "/a%5cb",
+            "/%0D%0Aset-cookie:x",
+            "/%40evil",
         ] {
             assert_eq!(safe_next(bad), None, "{bad:?}");
         }

@@ -69,6 +69,10 @@ describe('publicDev: next and navigation', () => {
     expect(safeNext('/a\nb')).toBeNull();
     expect(safeNext('/' + 'a'.repeat(3000))).toBeNull();
     expect(safeNext('channels')).toBeNull();
+    expect(safeNext('/%2F%2Fevil.example')).toBeNull();
+    expect(safeNext('/%5Cevil')).toBeNull();
+    expect(safeNext('/@evil')).toBeNull();
+    expect(safeNext('/invite/abc?x=%2F')).toBe('/invite/abc?x=%2F');
   });
 
   it('builds the login redirect', () => {
