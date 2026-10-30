@@ -125,7 +125,10 @@ interface Rig {
 
 function rig(lengths: Record<string, number> = { 'a.mp3': 10, 'b.mp3': 8, 'c.mp3': 6 }): Rig {
   const clock = new Clock();
-  const decks: [FakeAudio, FakeAudio] = [new FakeAudio(clock, lengths), new FakeAudio(clock, lengths)];
+  const decks: [FakeAudio, FakeAudio] = [
+    new FakeAudio(clock, lengths),
+    new FakeAudio(clock, lengths),
+  ];
   const gains: [FakeParam, FakeParam] = [new FakeParam(), new FakeParam()];
   const fade = { sec: 0 };
   const r = {

@@ -6,7 +6,16 @@
  * The scan for genre and "more like this" reads at most `SCAN_LIMIT` tracks. A bigger library gets a
  * representative start, not the whole set; the client-side search of wave 32 replaces the scan.
  */
-import { byAlbum, byArtist, byGenre, dedupe, moreLikeThis, seededRng, shuffled, type Rng } from './queue';
+import {
+  byAlbum,
+  byArtist,
+  byGenre,
+  dedupe,
+  moreLikeThis,
+  seededRng,
+  shuffled,
+  type Rng,
+} from './queue';
 import type { LibraryTrack } from './types';
 
 export const PAGE = 200;

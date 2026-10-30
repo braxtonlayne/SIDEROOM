@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createEqChain, EQ_Q, type EqContext, type EqFilter, type EqGain, type EqNode } from './eqGraph';
+import {
+  createEqChain,
+  EQ_Q,
+  type EqContext,
+  type EqFilter,
+  type EqGain,
+  type EqNode,
+} from './eqGraph';
 import {
   EQ_FREQS,
   EQ_MAX_DB,
@@ -78,9 +85,10 @@ describe('the EQ chain', () => {
     expect(chain.input).toBe(chain.preamp);
     expect(chain.output).toBe(chain.bands[9]);
     // input -> band 0 -> band 1 ... -> band 9, and the last is left open for the caller.
-    expect((chain.input as FakeNode).to).toEqual([chain.bands[0]]);
-    for (let i = 0; i < 9; i++) expect((chain.bands[i] as FakeNode).to).toEqual([chain.bands[i + 1]]);
-    expect((chain.output as FakeNode).to).toEqual([]);
+    expect((chain.input as unknown as FakeNode).to).toEqual([chain.bands[0]]);
+    for (let i = 0; i < 9; i++)
+      expect((chain.bands[i] as unknown as FakeNode).to).toEqual([chain.bands[i + 1]]);
+    expect((chain.output as unknown as FakeNode).to).toEqual([]);
   });
 
   it('applies gains through a short glide and clamps every band to the range', () => {

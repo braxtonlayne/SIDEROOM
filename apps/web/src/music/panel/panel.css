@@ -1,0 +1,176 @@
+/*
+ * MUS-LIB-001: the library panel inside the player's "Full Library Manager" skin. Semantic tokens only
+ * (var(--ui-*)), logical properties only; the frame (.sr-ply-*) belongs to the player.
+ */
+.sr-mlib {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  color: var(--ui-text);
+  font-family: var(--ui-font-body);
+  font-size: 0.875rem;
+}
+.sr-mlib-head,
+.sr-mlib-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sr-mlib-head {
+  justify-content: space-between;
+}
+.sr-mlib-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.sr-mlib-tabs [role='tab'] {
+  font: inherit;
+  color: var(--ui-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  padding-block: 0.25rem;
+  padding-inline: 0.625rem;
+  cursor: pointer;
+}
+.sr-mlib-tabs [role='tab'][aria-selected='true'] {
+  color: var(--ui-text);
+  border-color: var(--ui-border);
+  background: var(--ui-bg-hover);
+}
+.sr-mlib-sect {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.sr-mlib-btn,
+.sr-mlib-select,
+.sr-mlib-input {
+  font: inherit;
+  color: inherit;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+}
+.sr-mlib-btn {
+  cursor: pointer;
+}
+.sr-mlib-btn:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+}
+.sr-mlib-btn[aria-pressed='true'] {
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+  border-color: var(--ui-accent);
+}
+.sr-mlib-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sr-mlib-input {
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+}
+.sr-mlib button:focus-visible,
+.sr-mlib select:focus-visible,
+.sr-mlib input:focus-visible,
+.sr-mlib [role='tab']:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.sr-mlib-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ui-text-muted);
+}
+.sr-mlib-note {
+  margin: 0;
+  color: var(--ui-text-muted);
+}
+.sr-mlib-h {
+  margin: 0;
+  font-size: 1rem;
+}
+.sr-mlib-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sr-mlib-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding-block: 0.25rem;
+  border-block-end: 1px solid var(--ui-border);
+}
+.sr-mlib-main {
+  flex: 1 1 8rem;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0.125rem;
+}
+.sr-mlib-title {
+  font-weight: 600;
+}
+.sr-mlib-sub,
+.sr-mlib-dur {
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}
+.sr-mlib-dur {
+  font-variant-numeric: tabular-nums;
+}
+.sr-mlib-more {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-block-end: 0.25rem;
+}
+.sr-mlib-eq {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.sr-mlib-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  color: var(--ui-text-muted);
+}
+.sr-mlib-band input[type='range'],
+.sr-mlib-xfade input[type='range'] {
+  accent-color: var(--ui-accent);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.sr-mlib-banddb {
+  font-variant-numeric: tabular-nums;
+}
+.sr-mlib-xfade {
+  display: flex;
+  flex-wrap: wrap;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sr-mlib-btn {
+    transition: background-color 0.12s ease;
+  }
+}

@@ -41,7 +41,9 @@ describe('smart queue builders', () => {
     const r = await buildSmartQueue('album', LIB[0]!, s.fetch);
     expect(r.tracks.map((t) => t.id)).toEqual(['2', '1']);
     expect(r.startAt).toBe(1);
-    expect(s.calls).toEqual([{ album: 'Alpha', artist: 'Ann', mount: 'm1', limit: PAGE, offset: 0 }]);
+    expect(s.calls).toEqual([
+      { album: 'Alpha', artist: 'Ann', mount: 'm1', limit: PAGE, offset: 0 },
+    ]);
   });
 
   it('artist: everything by them, oldest album first, starting at the seed', async () => {
