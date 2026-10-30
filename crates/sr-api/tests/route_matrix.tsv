@@ -130,6 +130,7 @@ DELETE	/users/@me/profile-media/{media_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/push-subscriptions	authenticated	self	deny	-	-
 DELETE	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/reminders/{id}	authenticated	self	deny	-	-
+DELETE	/users/@me/rings/{ring_id}	authenticated	self	allow	-	-
 DELETE	/users/@me/scheduled-messages/{id}	authenticated	self	deny	-	-
 DELETE	/users/@me/sr/features/{feature_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/storage/mounts/{mount_id}	authenticated	mount_owner	deny	-	-
@@ -443,6 +444,7 @@ GET	/moderation/holds	authenticated	staff	deny	-	MANAGE_CASES
 GET	/moderation/item-status	authenticated	user	deny	-	-
 GET	/moderation/persons/{person_id}/suspicion	authenticated	staff	deny	-	MANAGE_INVITES
 GET	/moderation/reports/mine	authenticated	self	deny	-	-
+GET	/moderation/rings/{ring_id}/media	authenticated	staff	deny	-	MANAGE_CASES
 GET	/moderation/takedowns	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/export	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
@@ -459,6 +461,9 @@ GET	/packages/{package_id}	authenticated	user	deny	-	-
 GET	/profile-pages/{username}	authenticated	visibility	deny	-	-
 GET	/push/vapid-key	authenticated	self	deny	-	-
 GET	/requests	authenticated	user	allow	-	-
+GET	/rings	authenticated	visibility	allow	-	-
+GET	/rings/{ring_id}	authenticated	visibility	allow	-	-
+GET	/rings/{ring_id}/media	authenticated	visibility	allow	-	-
 GET	/shelves/{section}	authenticated	self	deny	-	-
 GET	/shelves/{section}/{shelf_item_id}	authenticated	storage_scope	deny	-	-
 GET	/soundboard-default-sounds	authenticated	user	allow	-	-
@@ -550,6 +555,8 @@ GET	/users/@me/read-states	authenticated	self	allow	-	-
 GET	/users/@me/relationships	authenticated	self	deny	-	-
 GET	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 GET	/users/@me/reminders	authenticated	self	deny	-	-
+GET	/users/@me/rings	authenticated	self	allow	-	-
+GET	/users/@me/rings/{ring_id}/viewers	authenticated	self	allow	-	-
 GET	/users/@me/scheduled-messages	authenticated	self	deny	-	-
 GET	/users/@me/settings	authenticated	self	deny	-	-
 GET	/users/@me/shelves/summary	authenticated	self	deny	-	-
@@ -882,6 +889,7 @@ POST	/packages/{package_id}/create-guild	authenticated	user	deny	-	-
 POST	/read-states/ack-bulk	authenticated	membership	allow	-	-
 POST	/requests	authenticated	user	allow	-	-
 POST	/requests/{request_id}/fulfil	authenticated	author_or_staff	allow	-	REVIEW_READING
+POST	/rings/{ring_id}/view	authenticated	visibility	allow	-	-
 POST	/sr/auth/account/delete	authenticated	self	deny	-	-
 POST	/sr/auth/discord/link	authenticated	self	deny	-	-
 POST	/sr/auth/discord/unlink	authenticated	self	deny	-	-
@@ -931,6 +939,8 @@ POST	/users/@me/profile-media	authenticated	self	deny	-	-
 POST	/users/@me/push-subscriptions	authenticated	self	deny	-	-
 POST	/users/@me/relationships	authenticated	self	deny	-	-
 POST	/users/@me/reminders	authenticated	self	deny	-	-
+POST	/users/@me/rings	authenticated	self	allow	-	-
+POST	/users/@me/rings/media	authenticated	self	allow	-	-
 POST	/users/@me/storage/mounts	authenticated	self	deny	-	-
 POST	/users/@me/storage/mounts/{mount_id}/cors/apply	authenticated	mount_owner	deny	-	-
 POST	/users/@me/storage/mounts/{mount_id}/cors/check	authenticated	mount_owner	deny	-	-
