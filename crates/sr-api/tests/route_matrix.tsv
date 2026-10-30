@@ -435,6 +435,8 @@ GET	/moderation/reports/mine	authenticated	self	deny	-	-
 GET	/moderation/takedowns	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/export	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/music/library	authenticated	self	deny	-	-
+GET	/music/tracks/{track_id}	authenticated	storage_scope	deny	-	-
 GET	/oauth2/@me	authenticated	self	allow	any	-
 GET	/oauth2/authorize	authenticated	self	deny	-	-
 GET	/oauth2/tokens	authenticated	self	deny	-	-
@@ -594,6 +596,7 @@ PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/widget	authenticated	membership	allow	-	-
 PATCH	/library/comments/{comment_id}	authenticated	author	allow	-	-
 PATCH	/library/lists/{list_id}	authenticated	author	allow	-	-
+PATCH	/music/tracks/{track_id}	authenticated	mount_owner	deny	-	-
 PATCH	/shelves/{section}/{shelf_item_id}	authenticated	mount_owner	deny	-	-
 PATCH	/shelves/{section}/{shelf_item_id}/parts/{shelf_part_id}	authenticated	mount_owner	deny	-	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-	-
@@ -843,6 +846,8 @@ POST	/moderation/takedowns/{notice_id}/reject	authenticated	staff	deny	-	MANAGE_
 POST	/moderation/takedowns/{notice_id}/restore	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 POST	/moderation/takedowns/{notice_id}/uphold	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 POST	/moderation/takedowns/{notice_id}/withdraw	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+POST	/music/library/rescan	authenticated	mount_owner	deny	-	-
+POST	/music/tracks/{track_id}/presign	authenticated	storage_scope	deny	-	-
 POST	/oauth2/authorize	authenticated	self	deny	-	-
 POST	/oauth2/introspect	public	none	allow	-	-
 POST	/oauth2/token	public	none	allow	-	-
