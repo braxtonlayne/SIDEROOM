@@ -81,8 +81,88 @@ const guide: ToolEntry = {
   load: () => import('./drawer/GuideTool'),
 };
 
+/*
+ * UTL-CALC-001 (wave 32): the calculator family. Appended by utl-calc; the components live in ./calc and ./timezone.
+ * Catalog keys use the id as the segment (no hyphens in these ids).
+ */
+const calcSize: ToolSize = { width: 360, height: 520, minWidth: 280, minHeight: 320 };
+
+const calculator: ToolEntry = {
+  id: 'calculator',
+  nameKey: 'tools.calculator.name',
+  descriptionKey: 'tools.calculator.description',
+  icon: 'grid',
+  group: 'math',
+  aliases: ['calc', 'math', 'scientific', 'sum', 'arithmetic'],
+  size: calcSize,
+  load: () => import('./calc/CalculatorTool'),
+};
+
+const programmer: ToolEntry = {
+  id: 'programmer',
+  nameKey: 'tools.programmer.name',
+  descriptionKey: 'tools.programmer.description',
+  icon: 'hash',
+  group: 'math',
+  aliases: ['hex', 'binary', 'bitwise', 'base', 'bits', 'twos complement'],
+  size: { width: 380, height: 540, minWidth: 300, minHeight: 340 },
+  load: () => import('./calc/ProgrammerTool'),
+};
+
+const units: ToolEntry = {
+  id: 'units',
+  nameKey: 'tools.units.name',
+  descriptionKey: 'tools.units.description',
+  icon: 'maximize',
+  group: 'math',
+  aliases: ['convert', 'conversion', 'metric', 'imperial', 'length', 'weight', 'temperature'],
+  size: { width: 380, height: 440, minWidth: 280, minHeight: 300 },
+  load: () => import('./calc/UnitsTool'),
+};
+
+const currency: ToolEntry = {
+  id: 'currency',
+  nameKey: 'tools.currency.name',
+  descriptionKey: 'tools.currency.description',
+  icon: 'star',
+  group: 'math',
+  aliases: ['money', 'exchange', 'forex', 'fx', 'euro', 'dollar', 'rates'],
+  size: { width: 360, height: 360, minWidth: 280, minHeight: 280 },
+  load: () => import('./calc/CurrencyTool'),
+};
+
+const percent: ToolEntry = {
+  id: 'percent',
+  nameKey: 'tools.percent.name',
+  descriptionKey: 'tools.percent.description',
+  icon: 'filter',
+  group: 'math',
+  aliases: ['percentage', 'discount', 'tip', 'tax', 'markup', 'change'],
+  size: { width: 380, height: 440, minWidth: 280, minHeight: 300 },
+  load: () => import('./calc/PercentTool'),
+};
+
+const timezone: ToolEntry = {
+  id: 'timezone',
+  nameKey: 'tools.timezone.name',
+  descriptionKey: 'tools.timezone.description',
+  icon: 'clock',
+  group: 'time',
+  aliases: ['time zone', 'timezones', 'meeting', 'world clock', 'overlap', 'utc', 'timestamp'],
+  size: { width: 560, height: 560, minWidth: 360, minHeight: 360 },
+  load: () => import('./timezone/TimezoneTool'),
+};
+
 /** Append new entries after the last one. */
-export const TOOLS: ToolEntry[] = [guide];
+export const TOOLS: ToolEntry[] = [
+  guide,
+  calculator,
+  programmer,
+  units,
+  currency,
+  percent,
+  timezone,
+];
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
