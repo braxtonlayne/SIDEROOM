@@ -20,6 +20,7 @@ import { streamKey } from '../voice/streams';
 import { useJoinVoice } from './voice/actions';
 import { ChannelStatusLine } from './voice/VoiceStatusBar';
 import { ListeningRoomCard } from './rooms/ListeningRoomCard';
+import { ScrapbookRow } from './scrapbook/ScrapbookRow';
 import './voice/voice-p10.css';
 import { useVoicePerms } from './voice/perms';
 import { useStreamPreview } from './voice/useStreamPreview';
@@ -578,6 +579,7 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
       <InvitesPausedRow guildId={guild.id} />
       <ChannelsAndRolesRow guildId={guild.id} />
       <EventsRow guildId={guild.id} />
+      <ScrapbookRow guildId={guild.id} />
       {error && (
         <Notice variant="danger" onDismiss={() => setError(null)}>
           {error}

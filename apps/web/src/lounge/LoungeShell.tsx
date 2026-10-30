@@ -1,6 +1,6 @@
 import { ThemeProvider, ToastProvider, Icon } from '@sideroom/ui';
 import { SkipLink } from '../components/SkipLink';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
 import { useT } from '../i18n';
@@ -55,6 +55,7 @@ import { isPlayerShortcut, matchCustomShortcut } from './shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
 import { UserPanel } from './UserPanel';
+import { ScrapbookGallery } from './scrapbook/Gallery';
 import { EventAlerts } from './events/EventAlerts';
 import './lounge.css';
 
@@ -181,6 +182,8 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
   const channelId = route.channelId ? resolved.parentId : undefined;
   const threadId = resolved.threadId;
   const navigate = useNavigate();
+  // /channels/:guild/scrapbook is the server's scrapbook gallery, not a channel (PRF-SCR-001).
+  const onScrapbook = useRouterState({ select: (s) => s.location.pathname.endsWith('/scrapbook') });
   const remembered = useLoungeUi((s) => (guildId ? s.lastChannelByGuild[guildId] : undefined));
   // A thread of an age-restricted channel stays closed until the channel's question is answered.
   const gate = useAgeGate(channels.find((c) => c.id === channelId)?.nsfw);
@@ -189,7 +192,7 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
 
   // /channels/:guild without a channel -> remembered or first text channel (desktop; mobile keeps the list visible).
   useEffect(() => {
-    if (!guildId || guildId === HOME || channelId || isMobile) return;
+    if (!guildId || guildId === HOME || channelId || isMobile || onScrapbook) return;
     // Landing never picks an age-restricted channel the viewer has not been cleared for.
     const open = channels.filter((c) => !c.nsfw || ageCleared);
     const target = open.find((c) => c.id === remembered) ?? firstTextChannel(open);
@@ -199,9 +202,10 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
         params: { guildId, channelId: target.id },
         replace: true,
       });
-  }, [guildId, channelId, channels, remembered, navigate, isMobile, ageCleared]);
+  }, [guildId, channelId, channels, remembered, navigate, isMobile, ageCleared, onScrapbook]);
 
   if (!guildId) return null;
+  if (onScrapbook && guildId !== HOME) return <ScrapbookGallery guildId={guildId} />;
   if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel guildId={guildId} />;
   if (resolved.pending) return null;
   return (

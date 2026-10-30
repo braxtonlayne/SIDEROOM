@@ -26956,6 +26956,100 @@
         ]
       }
     },
+    "/channels/{channel_id}/messages/{message_id}/scrapbook": {
+      "put": {
+        "tags": [],
+        "summary": "\"Send to Scrapbook\": archive one message by hand.",
+        "operationId": "send",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookEntryView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SCRAPBOOK_NO_SHELF, SCRAPBOOK_SHELF_REFUSED or SCRAPBOOK_COPY_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/messages/{message_id}/threads": {
       "post": {
         "tags": [
@@ -42027,6 +42121,705 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook": {
+      "get": {
+        "tags": [],
+        "summary": "The gallery.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Entries older than this entry id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 50, default 24",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "query",
+            "description": "Only this channel",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "author_id",
+            "in": "query",
+            "description": "Only messages by this member",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Only this tag",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Sent on or after this day, YYYY-MM-DD (UTC)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Sent on or before this day, YYYY-MM-DD (UTC)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "facets",
+            "in": "query",
+            "description": "Include the filter choices",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/removals": {
+      "get": {
+        "tags": [],
+        "summary": "The copies that could not be removed from a bucket (managers).",
+        "operationId": "removals",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Forget a failed removal because the copy was deleted another way (managers).",
+        "operationId": "dismiss_removal",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "removal_id",
+            "in": "path",
+            "description": "Removal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}/retry": {
+      "post": {
+        "tags": [],
+        "summary": "Try a failed removal again now (managers).",
+        "operationId": "retry_removal",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "removal_id",
+            "in": "path",
+            "description": "Removal snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/status": {
+      "get": {
+        "tags": [],
+        "summary": "The module in this server, for the viewer.",
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/target": {
+      "put": {
+        "tags": [],
+        "summary": "Choose the shelf the module writes to. The caller delegates `upload` to the module's service account, so\nthey must hold it on that mount; the mount must be this server's own.",
+        "operationId": "set_target",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TargetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookTargetView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Drop the shelf. Existing entries keep their copies; nothing new is archived until a shelf is chosen.",
+        "operationId": "clear_target",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/{entry_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Remove an entry and its copies.",
+        "operationId": "remove_entry",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovedView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Change an entry's tags.",
+        "operationId": "edit_entry",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapbookEntryView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/scrapbook/{entry_id}/objects/{object_id}/presign": {
+      "post": {
+        "tags": [],
+        "summary": "A presigned `GET` of one copy, for the viewer only.",
+        "operationId": "presign",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object_id",
+            "in": "path",
+            "description": "Object snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -84500,6 +85293,49 @@
           }
         }
       },
+      "FacetAuthor": {
+        "type": "object",
+        "description": "A member choice.",
+        "required": [
+          "id",
+          "name",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries."
+          },
+          "id": {
+            "type": "string",
+            "description": "Member snowflake."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name when archived."
+          }
+        }
+      },
+      "FacetChannel": {
+        "type": "object",
+        "description": "A channel choice.",
+        "required": [
+          "id",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries."
+          },
+          "id": {
+            "type": "string",
+            "description": "Channel snowflake."
+          }
+        }
+      },
       "FacetCount": {
         "type": "object",
         "required": [
@@ -84513,6 +85349,25 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "FacetTag": {
+        "type": "object",
+        "description": "A tag choice.",
+        "required": [
+          "tag",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Entries carrying it."
+          },
+          "tag": {
+            "type": "string",
+            "description": "The tag."
           }
         }
       },
@@ -97736,6 +98591,97 @@
           }
         }
       },
+      "RemovalList": {
+        "type": "object",
+        "description": "The copies that could not be removed.",
+        "required": [
+          "removals"
+        ],
+        "properties": {
+          "removals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemovalView"
+            },
+            "description": "Oldest first."
+          }
+        }
+      },
+      "RemovalView": {
+        "type": "object",
+        "description": "A copy that could not be removed from a bucket.",
+        "required": [
+          "id",
+          "mount_id",
+          "key",
+          "attempts",
+          "last_error",
+          "next_attempt_at",
+          "queued_at"
+        ],
+        "properties": {
+          "attempts": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tries so far."
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake."
+          },
+          "key": {
+            "type": "string",
+            "description": "The copy's key in the shelf."
+          },
+          "last_error": {
+            "type": "string",
+            "description": "Why the last try failed."
+          },
+          "message_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The message it was made from."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The shelf."
+          },
+          "next_attempt_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the next try is due, unix ms."
+          },
+          "queued_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When it was first queued, unix ms."
+          }
+        }
+      },
+      "RemovedView": {
+        "type": "object",
+        "description": "What removing an entry did.",
+        "required": [
+          "copies_removed",
+          "copies_failed"
+        ],
+        "properties": {
+          "copies_failed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Copies the bucket refused to delete; they are listed for the server's managers and retried.",
+            "minimum": 0
+          },
+          "copies_removed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Copies taken out of the bucket.",
+            "minimum": 0
+          }
+        }
+      },
       "RenameAppEmojiBody": {
         "type": "object",
         "required": [
@@ -98234,6 +99180,19 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "RetryView": {
+        "type": "object",
+        "description": "Outcome of \"retry now\".",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "The copy is gone now."
           }
         }
       },
@@ -99128,6 +100087,297 @@
           }
         }
       },
+      "ScrapbookEntryView": {
+        "type": "object",
+        "description": "One archived message.",
+        "required": [
+          "id",
+          "channel_id",
+          "message_id",
+          "author_id",
+          "author_name",
+          "content",
+          "sent_at",
+          "tags",
+          "via",
+          "skipped",
+          "objects",
+          "can_edit"
+        ],
+        "properties": {
+          "archived_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who sent it by hand; absent for a reaction."
+          },
+          "author_id": {
+            "type": "string",
+            "description": "Its author."
+          },
+          "author_name": {
+            "type": "string",
+            "description": "The author's name when it was archived."
+          },
+          "can_edit": {
+            "type": "boolean",
+            "description": "The viewer may change tags and remove the entry."
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "The channel the message was sent in."
+          },
+          "content": {
+            "type": "string",
+            "description": "The message text."
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake."
+          },
+          "message_id": {
+            "type": "string",
+            "description": "The message."
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScrapbookObjectView"
+            },
+            "description": "The copied files."
+          },
+          "sent_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When the message was sent, unix ms."
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Attachments that were not copied (too large or past the limit)."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags."
+          },
+          "via": {
+            "type": "string",
+            "description": "`reaction` or `manual`."
+          }
+        }
+      },
+      "ScrapbookFacets": {
+        "type": "object",
+        "description": "Filter choices.",
+        "required": [
+          "tags",
+          "authors",
+          "channels"
+        ],
+        "properties": {
+          "authors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetAuthor"
+            },
+            "description": "Members with the number of entries."
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetChannel"
+            },
+            "description": "Channels with the number of entries."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetTag"
+            },
+            "description": "Tags with the number of entries."
+          }
+        }
+      },
+      "ScrapbookObjectView": {
+        "type": "object",
+        "description": "One copied file of an entry.",
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "size",
+          "kind",
+          "playable"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "description": "Content type, when known."
+          },
+          "filename": {
+            "type": "string",
+            "description": "The file name the author gave it."
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`image`, `video`, `audio` or `file`."
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "The viewer's storage scopes reach this file now. `false` shows \"not shared with you\"; the text of the\nentry is unaffected."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          }
+        }
+      },
+      "ScrapbookPage": {
+        "type": "object",
+        "description": "A gallery page and the filter choices.",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScrapbookEntryView"
+            },
+            "description": "Entries, newest first."
+          },
+          "facets": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScrapbookFacets",
+                "description": "Filter choices over what the viewer may see; present when `facets=true`."
+              }
+            ]
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `before` for the next page; absent on the last page."
+          }
+        }
+      },
+      "ScrapbookStatus": {
+        "type": "object",
+        "description": "The module in this server, for this viewer.",
+        "required": [
+          "offered",
+          "enabled",
+          "emojis",
+          "threshold",
+          "can_send",
+          "can_manage",
+          "failed_removals",
+          "ignored_channels"
+        ],
+        "properties": {
+          "can_manage": {
+            "type": "boolean",
+            "description": "The viewer may choose the shelf and read the removal list."
+          },
+          "can_send": {
+            "type": "boolean",
+            "description": "The viewer sees \"Send to Scrapbook\"."
+          },
+          "emojis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Trigger emoji."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "This server has it on."
+          },
+          "failed_removals": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Copies that could not be removed from a bucket (managers; 0 for others)."
+          },
+          "ignored_channels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Channels where reactions do not archive (so the banner is not shown there)."
+          },
+          "offered": {
+            "type": "boolean",
+            "description": "The operator has made the module available (platform scope). When `false` everything else is empty."
+          },
+          "target": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ScrapbookTargetView",
+                "description": "The shelf, for managers."
+              }
+            ]
+          },
+          "threshold": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Reactions needed.",
+            "minimum": 0
+          }
+        }
+      },
+      "ScrapbookTargetView": {
+        "type": "object",
+        "description": "The shelf the module writes to.",
+        "required": [
+          "mount_id",
+          "label",
+          "granted_by",
+          "ok"
+        ],
+        "properties": {
+          "granted_by": {
+            "type": "string",
+            "description": "The member who delegated `upload` to the module."
+          },
+          "label": {
+            "type": "string",
+            "description": "Its label."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The mount."
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "The module can write to it now."
+          },
+          "problem": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why not, when `ok` is false."
+          }
+        }
+      },
       "SearchResponse": {
         "type": "object",
         "description": "Discord search response: each result is a one-message group (no context\nlines), flagged with `hit: true`.",
@@ -99327,6 +100577,19 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserObject"
+          }
+        }
+      },
+      "SendBody": {
+        "type": "object",
+        "description": "Body of `PUT /channels/{id}/messages/{id}/scrapbook`.",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags to start with."
           }
         }
       },
@@ -102701,6 +103964,22 @@
           }
         }
       },
+      "TagsBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/scrapbook/{entry}`.",
+        "required": [
+          "tags"
+        ],
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The new tags (replaces the old ones)."
+          }
+        }
+      },
       "TakedownItem": {
         "type": "object",
         "description": "One content item of a notice.",
@@ -102793,6 +104072,19 @@
               "null"
             ],
             "description": "Why. Required."
+          }
+        }
+      },
+      "TargetBody": {
+        "type": "object",
+        "description": "Body of `PUT /guilds/{id}/scrapbook/target`.",
+        "required": [
+          "mount_id"
+        ],
+        "properties": {
+          "mount_id": {
+            "type": "string",
+            "description": "A mount of this server."
           }
         }
       },
