@@ -42,7 +42,8 @@ fn err_d(code: &'static str, pos: usize, detail: impl Into<String>) -> CalcError
 }
 
 pub(crate) fn error_json(e: &CalcError) -> String {
-    json!({ "ok": false, "error": { "code": e.code, "pos": e.pos, "detail": e.detail } }).to_string()
+    json!({ "ok": false, "error": { "code": e.code, "pos": e.pos, "detail": e.detail } })
+        .to_string()
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -139,7 +140,9 @@ fn lex(input: &str) -> Result<Vec<(Tok, usize)>, CalcError> {
         let start = i;
         if c.is_whitespace() {
             i += 1;
-        } else if c.is_ascii_digit() || (c == '.' && chars.get(i + 1).is_some_and(char::is_ascii_digit)) {
+        } else if c.is_ascii_digit()
+            || (c == '.' && chars.get(i + 1).is_some_and(char::is_ascii_digit))
+        {
             let mut s = String::new();
             let mut seen_dot = false;
             while i < chars.len() {
@@ -195,7 +198,9 @@ fn lex(input: &str) -> Result<Vec<(Tok, usize)>, CalcError> {
                 }
                 _ => {
                     let mut s = String::new();
-                    while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') && !is_symbol_ident(chars[i])
+                    while i < chars.len()
+                        && (chars[i].is_alphanumeric() || chars[i] == '_')
+                        && !is_symbol_ident(chars[i])
                     {
                         s.extend(chars[i].to_lowercase());
                         i += 1;
@@ -415,7 +420,9 @@ impl Parser<'_> {
                 }
                 if is_function(&name) {
                     // `sin 30`, `\u{221a}9`: a function applied to the operand that follows it.
-                    if !Self::starts_operand(self.peek()) && !matches!(self.peek(), Some(Tok::Minus | Tok::Plus)) {
+                    if !Self::starts_operand(self.peek())
+                        && !matches!(self.peek(), Some(Tok::Minus | Tok::Plus))
+                    {
                         return Err(err("missing_argument", at));
                     }
                     self.enter()?;
@@ -481,6 +488,7 @@ fn factorial(v: f64, pos: usize) -> Result<f64, CalcError> {
     Ok(r)
 }
 
+#[allow(clippy::approx_constant)] // the golden ratio constant is not stable yet
 fn constant(name: &str) -> Option<f64> {
     Some(match name {
         "pi" => std::f64::consts::PI,
@@ -492,9 +500,10 @@ fn constant(name: &str) -> Option<f64> {
 }
 
 const FUNCTIONS: &[&str] = &[
-    "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
-    "sqrt", "cbrt", "ln", "log", "log2", "log10", "exp", "abs", "floor", "ceil", "round", "trunc", "sign", "min",
-    "max", "pow", "hypot", "fact", "root", "deg", "rad", "gcd", "lcm", "sum", "avg",
+    "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh", "asinh", "acosh",
+    "atanh", "sqrt", "cbrt", "ln", "log", "log2", "log10", "exp", "abs", "floor", "ceil", "round",
+    "trunc", "sign", "min", "max", "pow", "hypot", "fact", "root", "deg", "rad", "gcd", "lcm",
+    "sum", "avg",
 ];
 
 fn is_function(name: &str) -> bool {
@@ -518,7 +527,11 @@ fn snap(x: f64) -> f64 {
 
 fn call(name: &str, a: &[f64], o: &Options, pos: usize) -> Result<f64, CalcError> {
     let arity = |n: usize| -> Result<(), CalcError> {
-        if a.len() == n { Ok(()) } else { Err(err_d("arity", pos, name)) }
+        if a.len() == n {
+            Ok(())
+        } else {
+            Err(err_d("arity", pos, name))
+        }
     };
     let to_rad = |x: f64| if o.degrees { x.to_radians() } else { x };
     let from_rad = |x: f64| if o.degrees { x.to_degrees() } else { x };
@@ -548,7 +561,14 @@ fn call(name: &str, a: &[f64], o: &Options, pos: usize) -> Result<f64, CalcError
             if !(-1.0..=1.0).contains(&a[0]) {
                 return Err(err("domain", pos));
             }
-            check(from_rad(if name == "asin" { a[0].asin() } else { a[0].acos() }), pos)
+            check(
+                from_rad(if name == "asin" {
+                    a[0].asin()
+                } else {
+                    a[0].acos()
+                }),
+                pos,
+            )
         }
         "atan" => {
             arity(1)?;
@@ -743,10 +763,18 @@ impl IntMode {
     }
     fn signed_of(self, v: u128) -> i128 {
         let sign = 1u128 << (self.bits - 1);
-        if v & sign != 0 { (v | !self.mask()) as i128 } else { v as i128 }
+        if v & sign != 0 {
+            (v | !self.mask()) as i128
+        } else {
+            v as i128
+        }
     }
     fn wide(self, v: u128) -> i128 {
-        if self.signed { self.signed_of(v) } else { v as i128 }
+        if self.signed {
+            self.signed_of(v)
+        } else {
+            v as i128
+        }
     }
 }
 
@@ -1115,7 +1143,7 @@ fn grouped(s: &str, size: usize) -> String {
     let chars: Vec<char> = s.chars().collect();
     let mut out = String::new();
     for (k, c) in chars.iter().enumerate() {
-        if k > 0 && (chars.len() - k) % size == 0 {
+        if k > 0 && (chars.len() - k).is_multiple_of(size) {
             out.push(' ');
         }
         out.push(*c);
@@ -1159,8 +1187,18 @@ pub fn programmer_eval(expr: &str, bits: u32, signed: bool, base: u32) -> String
 }
 
 /// Re-reads `text` written in `from` and writes it in `to` (2, 8, 10 or 16), at `bits` wide.
-pub fn convert_base(text: &str, from: u32, to: u32, bits: u32, signed: bool) -> Result<String, CalcError> {
-    let mode = IntMode { bits, signed, base: from };
+pub fn convert_base(
+    text: &str,
+    from: u32,
+    to: u32,
+    bits: u32,
+    signed: bool,
+) -> Result<String, CalcError> {
+    let mode = IntMode {
+        bits,
+        signed,
+        base: from,
+    };
     let r = eval_int(text, mode)?;
     Ok(match to {
         2 => format!("{:b}", r.bits),
@@ -1414,7 +1452,13 @@ mod tests {
                 bad.push(format!("{expr:?}: got {got:?}, want {want:?}"));
             }
         }
-        assert!(bad.is_empty(), "{} of {} failed:\n{}", bad.len(), cases.len(), bad.join("\n"));
+        assert!(
+            bad.is_empty(),
+            "{} of {} failed:\n{}",
+            bad.len(),
+            cases.len(),
+            bad.join("\n")
+        );
         assert!(cases.len() >= 130, "{}", cases.len());
     }
 
@@ -1452,7 +1496,10 @@ mod tests {
         let e = eval("2 * (3 + 4", &Options::default()).unwrap_err();
         assert_eq!((e.code, e.pos), ("unbalanced", 4));
         let e = eval("1 + foo", &Options::default()).unwrap_err();
-        assert_eq!((e.code, e.pos, e.detail.as_str()), ("unknown_name", 4, "foo"));
+        assert_eq!(
+            (e.code, e.pos, e.detail.as_str()),
+            ("unknown_name", 4, "foo")
+        );
         let e = eval("8 / 0", &Options::default()).unwrap_err();
         assert_eq!((e.code, e.pos), ("divide_by_zero", 2));
     }
@@ -1478,7 +1525,7 @@ mod tests {
         assert_eq!(format_number(1.0), "1");
         assert_eq!(format_number(-1.5), "-1.5");
         assert_eq!(format_number(1.0 / 3.0), "0.333333333333");
-        assert_eq!(format_number(123_456_789.123_456_789), "123456789.123");
+        assert_eq!(format_number(123_456_789.123_456_79), "123456789.123");
         assert_eq!(format_number(1e20), "1e20");
         assert_eq!(format_number(1.5e-9), "1.5e-9");
         assert_eq!(format_number(-2.5e30), "-2.5e30");
@@ -1534,7 +1581,13 @@ mod tests {
             ("0xFFFFFFFFFFFFFFFF", 64, true, 10, "-1"),
             ("0xFFFFFFFFFFFFFFFF", 64, false, 10, "18446744073709551615"),
             ("0x1FFFFFFFFFFFFFFFF", 64, false, 10, "!literal_too_large"),
-            ("9223372036854775807 + 1", 64, true, 10, "-9223372036854775808"),
+            (
+                "9223372036854775807 + 1",
+                64,
+                true,
+                10,
+                "-9223372036854775808",
+            ),
             ("-9223372036854775808", 64, true, 10, "-9223372036854775808"),
             ("9223372036854775808", 64, true, 10, "!literal_too_large"),
             ("18446744073709551616", 64, false, 10, "!literal_too_large"),
@@ -1604,10 +1657,18 @@ mod tests {
         for (e, bits, signed, base, want) in cases {
             let got = int(e, *bits, *signed, *base);
             if got != *want {
-                bad.push(format!("{e:?} ({bits},{signed},{base}): got {got:?}, want {want:?}"));
+                bad.push(format!(
+                    "{e:?} ({bits},{signed},{base}): got {got:?}, want {want:?}"
+                ));
             }
         }
-        assert!(bad.is_empty(), "{} of {} failed:\n{}", bad.len(), cases.len(), bad.join("\n"));
+        assert!(
+            bad.is_empty(),
+            "{} of {} failed:\n{}",
+            bad.len(),
+            cases.len(),
+            bad.join("\n")
+        );
         assert!(cases.len() >= 90, "{}", cases.len());
     }
 
@@ -1653,7 +1714,13 @@ mod tests {
         assert_eq!(convert_base("11111111", 2, 10, 8, false).unwrap(), "255");
         assert_eq!(convert_base("11111111", 2, 10, 8, true).unwrap(), "-1");
         assert_eq!(convert_base("377", 8, 16, 16, false).unwrap(), "FF");
-        assert_eq!(convert_base("12", 10, 3, 8, false).unwrap_err().code, "bad_base");
-        assert_eq!(convert_base("2", 2, 10, 8, false).unwrap_err().code, "bad_digit");
+        assert_eq!(
+            convert_base("12", 10, 3, 8, false).unwrap_err().code,
+            "bad_base"
+        );
+        assert_eq!(
+            convert_base("2", 2, 10, 8, false).unwrap_err().code,
+            "bad_digit"
+        );
     }
 }
