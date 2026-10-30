@@ -8,6 +8,32 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 32 - 2026-10-30
+
+- **The utility drawer.** Ctrl+K (Command+K on a Mac) now opens a drawer: its first tab, Go to, is the quick
+  switcher you know and works as before; type `>` for tools. The search finds a tool by name, by a typo ("Did you
+  mean ...?") or by what you want to do ("convert miles to km"), right in your browser. A tool can pop out into a
+  floating window (up to six, draggable and resizable, remembered for your account) or be pinned to a side rail,
+  and it stays open while you move around the app.
+- **Calculators and time.** A calculator, a programmer calculator, unit and percentage converters, a currency
+  converter and a time zone meeting finder that copies a `<t:...>` timestamp. Currency rates are the European
+  Central Bank's daily reference rates, fetched by the server; your browser never calls a third party. Operators:
+  `tools.currency_rates` switches the converter off, and an outbound allow list must include `www.ecb.europa.eu`.
+- **Developer tools, dice and timers.** JSON, regex, Base64, URL, JWT (decode only), Markdown tables, counters,
+  hashes and diff; dice in RPG notation, a coin, a wheel and loot tables for you or your server, plus `/roll` in
+  chat. Pomodoro, stopwatch and countdown timers can be shared with your voice channel.
+- **Private notes.** A scratchpad encrypted in your browser: the server keeps only ciphertext. Keep the recovery
+  file and passphrase safe; nobody, not the operator either, can recover a lost key.
+- **Media tools.** An image and meme studio (crop, resize, captions, redact and pixelate, palette, export), video
+  to GIF and an audio trimmer and normalizer, all on your device. "Edit image" in the attachment tray, "Open in
+  studio" on a copy from the media viewer, and voice messages can be trimmed before sending.
+- **Together.** Tier lists and poll builders that several people edit live in a channel or DM, posted as a message
+  or as an image; and invite cards for a Cinema title, a Live TV slot or a game night, with seats to claim, an
+  "Add to calendar" file and optional reminders by direct message an hour and ten minutes before (they follow your
+  direct message settings). A Cinema card offers a watch party when it starts.
+- **Your data.** "Request my data" now includes `tools.json`: your notes (still encrypted), your own loot tables and
+  the invite card seats you claimed.
+
 ## Phase 31 - 2026-10-30
 
 - **A jukebox in every voice channel.** Anyone who can speak queues tracks from their own music library; the
