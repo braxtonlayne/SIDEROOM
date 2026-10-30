@@ -113,8 +113,13 @@ impl Gateway {
                     Some(s) => {
                         self.voice_status_set(actor, channel, Some(&s.text)).await?;
                     }
-                    // Nothing shared, nothing to stop.
-                    None => return Ok(()),
+                    // Nothing shared, nothing to stop, but only for someone who may: the status line's checks
+                    // run (clearing an empty status changes nothing and dispatches nothing), so a stranger is
+                    // refused instead of told 204 (found by the authorization matrix, wave-32 integration).
+                    None => {
+                        self.voice_status_set(actor, channel, None).await?;
+                        return Ok(());
+                    }
                 }
                 None
             }
