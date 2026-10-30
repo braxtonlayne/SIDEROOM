@@ -20,7 +20,7 @@ use sr_api::{AuthKind, Principal};
 use sr_chat::{ChatLimits, ChatService};
 use sr_core::{ChannelId, Clock, ErrorCode, SnowflakeGenerator, SystemClock, UserId};
 use sr_db::{chat_repo::PgChatRepo, testing::TestDb};
-use sr_events::{DomainEvent, InProcessBus, Topic};
+use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use sr_storage::ObjectStoreStorage;
 
 type Ids = SnowflakeGenerator<Arc<dyn Clock>>;
@@ -141,7 +141,13 @@ fn code<T>(r: Result<T, RoomFail>) -> ErrorCode {
 }
 
 impl Fx {
-    async fn create(&self, who_id: i64, channel: i64, kind: &str, state: Value) -> Result<ToolRoomObject, RoomFail> {
+    async fn create(
+        &self,
+        who_id: i64,
+        channel: i64,
+        kind: &str,
+        state: Value,
+    ) -> Result<ToolRoomObject, RoomFail> {
         create(
             who(who_id),
             Ext(self.d.clone()),
@@ -247,9 +253,16 @@ impl Fx {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn members_create_read_and_edit_and_the_event_carries_the_patch() {
     let f = fx().await;
-    let mut events = f.bus.subscribe(Topic::Channel(ChannelId::new(f.channel as u64)));
+    let mut events = f
+        .bus
+        .subscribe(Topic::Channel(ChannelId::new(f.channel as u64)));
     let room = f
-        .create(f.owner, f.channel, "tierlist", json!({"tier.a": {"name": "S", "pos": 1}}))
+        .create(
+            f.owner,
+            f.channel,
+            "tierlist",
+            json!({"tier.a": {"name": "S", "pos": 1}}),
+        )
         .await
         .unwrap_or_else(|_| panic!("create"));
     assert_eq!((room.version, room.kind.as_str()), (1, "tierlist"));
@@ -269,7 +282,13 @@ async fn members_create_read_and_edit_and_the_event_carries_the_patch() {
     let read = f.get(f.member, f.channel, &room.id).await.ok().unwrap();
     assert_eq!(read.version, 1);
     let edited = f
-        .patch(f.member, f.channel, &room.id, 1, json!({"item.x": {"text": "pizza", "tier": "", "pos": 1}}))
+        .patch(
+            f.member,
+            f.channel,
+            &room.id,
+            1,
+            json!({"item.x": {"text": "pizza", "tier": "", "pos": 1}}),
+        )
         .await
         .ok()
         .unwrap();
@@ -291,9 +310,19 @@ async fn members_create_read_and_edit_and_the_event_carries_the_patch() {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_stale_edit_is_a_409_with_the_current_room() {
     let f = fx().await;
-    let room = f.create(f.owner, f.channel, "poll", json!({})).await.ok().unwrap();
-    f.patch(f.owner, f.channel, &room.id, 1, json!({"a": 1})).await.ok().unwrap();
-    match f.patch(f.member, f.channel, &room.id, 1, json!({"b": 2})).await {
+    let room = f
+        .create(f.owner, f.channel, "poll", json!({}))
+        .await
+        .ok()
+        .unwrap();
+    f.patch(f.owner, f.channel, &room.id, 1, json!({"a": 1}))
+        .await
+        .ok()
+        .unwrap();
+    match f
+        .patch(f.member, f.channel, &room.id, 1, json!({"b": 2}))
+        .await
+    {
         Err(RoomFail::Stale(cur)) => {
             assert_eq!(cur.version, 2);
             assert!(cur.state.contains_key("a"));
@@ -309,14 +338,21 @@ async fn a_stale_edit_is_a_409_with_the_current_room() {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn view_channel_reads_and_send_messages_edits() {
     let f = fx().await;
-    let room = f.create(f.owner, f.channel, "tierlist", json!({})).await.ok().unwrap();
+    let room = f
+        .create(f.owner, f.channel, "tierlist", json!({}))
+        .await
+        .ok()
+        .unwrap();
     f.mute_everyone(f.channel).await;
     // The member can still read ...
     assert!(f.get(f.member, f.channel, &room.id).await.is_ok());
     assert_eq!(f.list(f.member, f.channel).await.ok().unwrap().len(), 1);
     // ... but not edit, start or delete a room.
     assert_eq!(
-        code(f.patch(f.member, f.channel, &room.id, 1, json!({"a": 1})).await),
+        code(
+            f.patch(f.member, f.channel, &room.id, 1, json!({"a": 1}))
+                .await
+        ),
         ErrorCode::MissingPermissions
     );
     assert_eq!(
@@ -328,27 +364,53 @@ async fn view_channel_reads_and_send_messages_edits() {
         ErrorCode::MissingPermissions
     );
     // The owner (all permissions) still edits.
-    assert!(f.patch(f.owner, f.channel, &room.id, 1, json!({"a": 1})).await.is_ok());
+    assert!(
+        f.patch(f.owner, f.channel, &room.id, 1, json!({"a": 1}))
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn without_view_channel_nothing_is_readable_or_editable() {
     let f = fx().await;
-    let room = f.create(f.owner, f.channel, "tierlist", json!({})).await.ok().unwrap();
+    let room = f
+        .create(f.owner, f.channel, "tierlist", json!({}))
+        .await
+        .ok()
+        .unwrap();
     // Not a member of the server at all.
-    assert_eq!(code(f.get(f.outsider, f.channel, &room.id).await), ErrorCode::MissingAccess);
-    assert_eq!(code(f.list(f.outsider, f.channel).await), ErrorCode::MissingAccess);
     assert_eq!(
-        code(f.patch(f.outsider, f.channel, &room.id, 1, json!({"a": 1})).await),
+        code(f.get(f.outsider, f.channel, &room.id).await),
+        ErrorCode::MissingAccess
+    );
+    assert_eq!(
+        code(f.list(f.outsider, f.channel).await),
+        ErrorCode::MissingAccess
+    );
+    assert_eq!(
+        code(
+            f.patch(f.outsider, f.channel, &room.id, 1, json!({"a": 1}))
+                .await
+        ),
         ErrorCode::MissingAccess
     );
     // A member who lost VIEW_CHANNEL on the channel.
     f.hide_from_everyone(f.channel).await;
-    assert_eq!(code(f.get(f.member, f.channel, &room.id).await), ErrorCode::MissingAccess);
-    assert_eq!(code(f.list(f.member, f.channel).await), ErrorCode::MissingAccess);
     assert_eq!(
-        code(f.patch(f.member, f.channel, &room.id, 1, json!({"a": 1})).await),
+        code(f.get(f.member, f.channel, &room.id).await),
+        ErrorCode::MissingAccess
+    );
+    assert_eq!(
+        code(f.list(f.member, f.channel).await),
+        ErrorCode::MissingAccess
+    );
+    assert_eq!(
+        code(
+            f.patch(f.member, f.channel, &room.id, 1, json!({"a": 1}))
+                .await
+        ),
         ErrorCode::MissingAccess
     );
 }
@@ -357,7 +419,11 @@ async fn without_view_channel_nothing_is_readable_or_editable() {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_room_is_only_reachable_through_its_own_channel() {
     let f = fx().await;
-    let room = f.create(f.owner, f.channel, "tierlist", json!({})).await.ok().unwrap();
+    let room = f
+        .create(f.owner, f.channel, "tierlist", json!({}))
+        .await
+        .ok()
+        .unwrap();
     // A second channel the member can see does not serve the first channel's room.
     let other: i64 = 4_000_000_000_000_001;
     sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES ($1, $2, 0, 'other')")
@@ -366,7 +432,10 @@ async fn a_room_is_only_reachable_through_its_own_channel() {
         .execute(&f.pool)
         .await
         .unwrap();
-    assert_eq!(code(f.get(f.member, other, &room.id).await), ErrorCode::SrNotFound);
+    assert_eq!(
+        code(f.get(f.member, other, &room.id).await),
+        ErrorCode::SrNotFound
+    );
     assert_eq!(
         code(f.patch(f.member, other, &room.id, 1, json!({"a": 1})).await),
         ErrorCode::SrNotFound
@@ -377,8 +446,16 @@ async fn a_room_is_only_reachable_through_its_own_channel() {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn only_the_creator_or_a_moderator_deletes() {
     let f = fx().await;
-    let mine = f.create(f.member, f.channel, "poll", json!({})).await.ok().unwrap();
-    let theirs = f.create(f.owner, f.channel, "poll", json!({})).await.ok().unwrap();
+    let mine = f
+        .create(f.member, f.channel, "poll", json!({}))
+        .await
+        .ok()
+        .unwrap();
+    let theirs = f
+        .create(f.owner, f.channel, "poll", json!({}))
+        .await
+        .ok()
+        .unwrap();
     assert_eq!(
         code(f.delete(f.member, f.channel, &theirs.id).await),
         ErrorCode::MissingPermissions
@@ -387,7 +464,10 @@ async fn only_the_creator_or_a_moderator_deletes() {
     // The owner holds MANAGE_MESSAGES and may delete anyone's.
     assert!(f.delete(f.owner, f.channel, &theirs.id).await.is_ok());
     assert!(f.list(f.owner, f.channel).await.ok().unwrap().is_empty());
-    assert_eq!(code(f.get(f.owner, f.channel, &mine.id).await), ErrorCode::SrNotFound);
+    assert_eq!(
+        code(f.get(f.owner, f.channel, &mine.id).await),
+        ErrorCode::SrNotFound
+    );
 }
 
 #[tokio::test]
@@ -409,16 +489,30 @@ async fn dm_rooms_belong_to_the_two_people_only() {
             .unwrap();
     }
     let mut events = f.bus.subscribe(Topic::User(UserId::new(f.member as u64)));
-    let room = f.create(f.owner, dm, "tierlist", json!({})).await.ok().unwrap();
+    let room = f
+        .create(f.owner, dm, "tierlist", json!({}))
+        .await
+        .ok()
+        .unwrap();
     assert!(room.guild_id.is_none());
     // The other person is told on their own topic, the outsider has no access.
     let ev = tokio::time::timeout(Duration::from_secs(2), events.next())
         .await
         .unwrap()
         .unwrap();
-    assert!(matches!(ev, DomainEvent::ToolRoomUpdated { guild: None, .. }));
-    assert!(f.patch(f.member, dm, &room.id, 1, json!({"a": 1})).await.is_ok());
-    assert_eq!(code(f.get(f.outsider, dm, &room.id).await), ErrorCode::MissingAccess);
+    assert!(matches!(
+        ev,
+        DomainEvent::ToolRoomUpdated { guild: None, .. }
+    ));
+    assert!(
+        f.patch(f.member, dm, &room.id, 1, json!({"a": 1}))
+            .await
+            .is_ok()
+    );
+    assert_eq!(
+        code(f.get(f.outsider, dm, &room.id).await),
+        ErrorCode::MissingAccess
+    );
 }
 
 #[tokio::test]
@@ -441,9 +535,16 @@ async fn bad_input_is_refused_and_expired_rooms_are_gone() {
         ),
         ErrorCode::InvalidFormBody
     );
-    let room = f.create(f.owner, f.channel, "tierlist", json!({})).await.ok().unwrap();
+    let room = f
+        .create(f.owner, f.channel, "tierlist", json!({}))
+        .await
+        .ok()
+        .unwrap();
     assert_eq!(
-        code(f.patch(f.owner, f.channel, &room.id, 1, json!({"bad key": 1})).await),
+        code(
+            f.patch(f.owner, f.channel, &room.id, 1, json!({"bad key": 1}))
+                .await
+        ),
         ErrorCode::InvalidFormBody
     );
     // A room past its seven days is gone for reads and edits before any sweep ran.
@@ -452,10 +553,16 @@ async fn bad_input_is_refused_and_expired_rooms_are_gone() {
         .execute(&f.pool)
         .await
         .unwrap();
-    assert_eq!(code(f.get(f.owner, f.channel, &room.id).await), ErrorCode::SrNotFound);
+    assert_eq!(
+        code(f.get(f.owner, f.channel, &room.id).await),
+        ErrorCode::SrNotFound
+    );
     assert!(f.list(f.owner, f.channel).await.ok().unwrap().is_empty());
     assert_eq!(
-        code(f.patch(f.owner, f.channel, &room.id, 1, json!({"a": 1})).await),
+        code(
+            f.patch(f.owner, f.channel, &room.id, 1, json!({"a": 1}))
+                .await
+        ),
         ErrorCode::SrNotFound
     );
 }
