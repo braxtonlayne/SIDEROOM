@@ -1,19 +1,7 @@
 # feat/p31-jb-queue: MUS-JB-002 collaborative queue, vote-skip, synced local playback
 
 ## Resume here
-Backend is done and committed (model, Postgres store, routes, wiring, matrix rows, OpenAPI fragment). Left:
-1. Run the web gates: `pnpm install --offline --frozen-lockfile`, `pnpm --filter @sideroom/wasm build`, then typecheck, lint,
-   prettier, `vitest src/voice/jukebox src/i18n src/lounge/voice --maxWorkers=2`, build + bundle budget. NOT RUN (C: was
-   at 16 GB free; the node_modules install and wasm build were not started).
-2. Write the Vitest for `voice/jukebox/controller.ts` (fake audio, fake api, fake clock; assert the seek on load, the
-   nudge, silence on 404, `blocked`, `streamed`, and the overrun `ended` call) and `JukeboxStrip` (render states).
-3. Regenerate OpenAPI: `cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json`, then the api-client
-   generate script. NOT RUN. (The web client uses its own typed fetchers, `voice/jukebox/api.ts`.)
-4. `e2e/tests/jukebox.spec.ts` (two contexts, synced mode, positions within 250 ms after 5 s) on ports 8081/5174. NOT WRITTEN.
-5. Run the Postgres suite `cargo test -p sr-db --test jukebox_repo -- --include-ignored --test-threads=1` (the password
-   file `%TEMP%\sr_pg_pw.txt` was missing, so it was written but never run or compiled) and the `route_matrix` /
-   `openapi_names` tests (started, result not seen when this was written).
-6. CHANGELOG line under "## Phase 31 - 2026-10-30" and docs/05 gateway line for `JUKEBOX_UPDATE`.
+Nothing blocks. Remaining for CI or the integrator: the Postgres suites (`cargo test -p sr-db --test jukebox_repo` and `-p sr-server --lib jukebox_pg_tests`, `--include-ignored --test-threads=1`) and `e2e/tests/jukebox.spec.ts` (written, not run; it seeds a user mount with psql and replaces the presign answer with the player specs tone, one member in two contexts). Stream-mode capture into jb-sfu's music sender is integration work.
 
 ## Done
 - Migration `1570_jukebox.sql`: `jukebox_sessions`, `jukebox_queue`, `jukebox_votes`, plus `jukebox_listeners` (a fourth
@@ -58,3 +46,15 @@ Backend is done and committed (model, Postgres store, routes, wiring, matrix row
 ## Owner questions
 - Keep `vote_skip_percent` (integer) or add a decimal setting kind?
 - Should a listener's duration of a private track be visible ("not shared with you" rows show length, not title)?
+
+## Finished after the disk was freed
+- Merged `feat/p31-jb-rooms` (migration 1580; one `lib.rs` conflict, both `mod` lines kept).
+- Listening-room REST (`routes/voice/rooms.rs`): `PUT|DELETE|GET /channels/{id}/listening-room` (PUT/DELETE need
+  MANAGE_CHANNELS and a playlist owned by that server; GET needs CONNECT and returns the `LISTENING_ROOM_UPDATE` payload
+  computed now via `jukebox_jobs::read_room`). Port `ListeningRooms` in sr-chat, `PgListeningRooms` in sr-server.
+  Disabling a room sends no event yet (the card disappears on the next channel refresh). Bots denied; matrix rows added.
+- Vitest: controller (clock offset, drift nudge/seek, 404 silence, unplayable, autoplay block, stream mode, overrun end)
+  and strip (axe clean, vote). Gates: tsc, eslint, prettier clean; vitest src/voice src/lounge src/i18n 114 files / 1011
+  passed; src/developers 122 passed; vite build + bundle budget ok (entrance 248.4 KB, no player code in it).
+- OpenAPI, api-client schema and MSW handlers regenerated; `mocks:check` up to date (1059 operations).
+- route_matrix and openapi_names pass after the final rows. CHANGELOG and docs/05 lines added, gatewayDocs regenerated.
