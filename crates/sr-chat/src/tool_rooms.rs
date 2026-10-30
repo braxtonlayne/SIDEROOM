@@ -163,10 +163,10 @@ pub fn validate_value(key: &str, v: &Value) -> Result<(), RoomError> {
             "set: value of `{key}` is over {MAX_VALUE_BYTES} bytes"
         )));
     }
-    if let Some(img) = v.as_object().and_then(|o| o.get("img")) {
-        if !img.is_null() {
-            validate_image(img)?;
-        }
+    if let Some(img) = v.as_object().and_then(|o| o.get("img"))
+        && !img.is_null()
+    {
+        validate_image(img)?;
     }
     Ok(())
 }

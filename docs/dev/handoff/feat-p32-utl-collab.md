@@ -55,7 +55,20 @@ Web (`apps/web/src/tools/{tierlist,poll}/`)
 - `pnpm exec vitest run src/tools src/i18n`: 97 passed (includes 15 tests for the models and `RoomSync` against a fake
   server with the real version rule, two clients, and 4 for per-viewer presign).
 - `tsc --noEmit`, eslint, prettier on the files I touched: clean.
-- STATUS-PLACEHOLDER
+- `cargo test -p sr-gateway tool_room`: 1 passed (reaches a member who can view the channel, not one who cannot, not a
+  session without the messages intent).
+- `cargo test -p sr-server --lib tool_rooms_pg_tests -- --include-ignored --test-threads=1` (scratch DB): 9 passed
+  (create/read/edit with the bus event, the 409 with the current room, `SEND_MESSAGES` removed = read only,
+  `VIEW_CHANNEL` removed or not a member = no access, a room only through its own channel, delete rights, DM rooms,
+  bad input and an expired room, OAuth bearer refused).
+- `cargo test -p sr-api --test route_matrix` (6 passed, with the five new rows), `--test openapi_names` (2 passed),
+  `--lib tools::` and `auth::policy` (passed).
+- OpenAPI, `schema.d.ts` and the MSW handlers regenerated (additions only).
+- `cargo fmt --check` and `cargo clippy --all-targets -D warnings` on sr-chat, sr-db, sr-events, sr-gateway, sr-api, sr-server: clean.
+- `node scripts/build-web.mjs`, `check-entrance-isolation.mjs` (every public surface clean), `check-bundle-budget.mjs`
+  (all within budget), `check-css-tokens.mjs` on `rooms.css`: ok. The tools load lazily, so no entrance chunk changed.
+- Not run: the full web vitest suite (only `src/tools` and `src/i18n`), the Playwright spec, the authz_matrix Postgres
+  suite (prf-profiles owns it this wave).
 
 ## Not done / open
 

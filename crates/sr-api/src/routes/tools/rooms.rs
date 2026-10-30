@@ -241,8 +241,7 @@ pub async fn create(
     ApiJson(body): ApiJson<CreateRoomBody>,
 ) -> Res<Json<ToolRoomObject>> {
     let user = user_of(&p)?;
-    let channel: ChannelId =
-        parse_id(&channel, ErrorCode::UnknownChannel).map_err(MsgError::from)?;
+    let channel: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     let acc = m.access(user, channel).await?;
     acc.require(send_perm(&acc))?;
     validate_kind(&body.kind).map_err(room_err)?;
@@ -294,8 +293,7 @@ pub async fn list(
     Path(channel): Path<String>,
 ) -> Res<Json<Vec<ToolRoomObject>>> {
     let user = user_of(&p)?;
-    let channel: ChannelId =
-        parse_id(&channel, ErrorCode::UnknownChannel).map_err(MsgError::from)?;
+    let channel: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     m.access(user, channel).await?.require_view()?;
     let rooms = d
         .store
@@ -327,8 +325,7 @@ pub async fn get_room(
     Path((channel, room)): Path<(String, String)>,
 ) -> Res<Json<ToolRoomObject>> {
     let user = user_of(&p)?;
-    let channel: ChannelId =
-        parse_id(&channel, ErrorCode::UnknownChannel).map_err(MsgError::from)?;
+    let channel: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     m.access(user, channel).await?.require_view()?;
     let room = d
         .store
@@ -366,8 +363,7 @@ pub async fn patch_room(
     ApiJson(body): ApiJson<PatchRoomBody>,
 ) -> Res<Json<ToolRoomObject>> {
     let user = user_of(&p)?;
-    let channel: ChannelId =
-        parse_id(&channel, ErrorCode::UnknownChannel).map_err(MsgError::from)?;
+    let channel: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     let acc = m.access(user, channel).await?;
     acc.require(send_perm(&acc))?;
     let patch = Patch {
@@ -413,8 +409,7 @@ pub async fn delete_room(
     Path((channel, room)): Path<(String, String)>,
 ) -> Res<StatusCode> {
     let user = user_of(&p)?;
-    let channel: ChannelId =
-        parse_id(&channel, ErrorCode::UnknownChannel).map_err(MsgError::from)?;
+    let channel: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     let acc = m.access(user, channel).await?;
     acc.require_view()?;
     let id = room_id(&room)?;
