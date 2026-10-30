@@ -1,6 +1,8 @@
 //! HTTP layer of the utility drawer's server-backed tools (wave 32, roadmap-p27 sections 10 and 11).
 //! Every tool owns one submodule; this file merges their routers and OpenAPI fragments.
 //!
+//! * `fx` (UTL-CALC-001): `GET /tools/fx`, the cached European Central Bank reference rates for the currency
+//!   converter. The browser never calls a third party; the server fetches the feed once a day.
 //! * `rooms` (UTL-COL-001): `/channels/{id}/tool-rooms*`: tier lists and poll builders edited together.
 //! * `notes`: `/users/@me/tools/notes*`: the encrypted scratchpad. The server holds ciphertext it cannot read;
 //!   only the signed-in owner can list, write or delete (no path names another account, so there is nothing
@@ -11,6 +13,7 @@
 //!
 //! Rows and limits live in `sr_userfeat::tools`; these handlers check who may do what.
 
+pub mod fx;
 pub mod loot;
 pub mod notes;
 pub mod rooms;
@@ -26,6 +29,7 @@ use utoipa::OpenApi;
 /// All routes of this module (relative to the API version prefix).
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/tools/fx", get(fx::rates))
         .route("/users/@me/tools/notes", get(notes::list))
         .route(
             "/users/@me/tools/notes/{note_id}",
@@ -54,6 +58,7 @@ pub fn router() -> Router<AppState> {
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        fx::rates,
         notes::list,
         notes::put,
         notes::remove,
@@ -68,6 +73,7 @@ pub fn router() -> Router<AppState> {
         timer::set,
     ),
     components(schemas(
+        fx::FxRatesObject,
         notes::ScratchNoteObject,
         notes::PutNoteBody,
         sr_userfeat::tools::LootTable,

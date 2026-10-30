@@ -12745,6 +12745,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tools/fx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The cached ECB reference rates (EUR base). Any signed-in account or bot may read them. */
+        get: operations["rates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tv/channels": {
         parameters: {
             query?: never;
@@ -18722,6 +18739,28 @@ export interface components {
         FulfilBody: {
             /** @description A published submission of the request's section. */
             submission_id: string;
+        };
+        FxRatesObject: {
+            /** @description The ECB reference date, `YYYY-MM-DD`; absent until the first fetch succeeded. */
+            as_of?: string | null;
+            /** @description The currency every rate is quoted against; always `EUR`. */
+            base: string;
+            /** @description False when the instance switched the converter off (`tools.currency_rates`); nothing else is set then. */
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description When the server stored the rates, unix seconds; absent until the first fetch succeeded.
+             */
+            fetched_at?: number | null;
+            /** @description Units of the currency per one euro, for example `{"USD": 1.0845}`. */
+            rates: {
+                [key: string]: number;
+            };
+            /**
+             * @description True when there are no rates yet or the newest fetch is older than `tools.currency_stale_hours`. The
+             *     client still converts with the old rates and says so.
+             */
+            stale: boolean;
         };
         GatewayBotInfo: {
             session_start_limit: components["schemas"]["SessionStartLimit"];
@@ -67791,6 +67830,33 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FxRatesObject"];
+                };
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

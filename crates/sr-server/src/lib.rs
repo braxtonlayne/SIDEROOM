@@ -16,6 +16,7 @@ pub mod events_jobs;
 pub mod external_jobs;
 pub mod feature_actions;
 pub mod features_store;
+pub mod fx_jobs;
 pub mod gateway_pg;
 pub mod healthcheck;
 pub mod inbox_pg;
@@ -106,6 +107,9 @@ mod watchparty_pg_tests;
 
 #[cfg(test)]
 mod feature_actions_pg_tests;
+
+#[cfg(test)]
+mod fx_pg_tests;
 
 #[cfg(test)]
 mod moderation_index_pg_tests;

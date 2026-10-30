@@ -196,6 +196,12 @@ pub const OPS_STORAGE_MEASURE_MAX_OBJECTS: &str = "ops.storage_measure_max_objec
 /// `SR_TV_SLATE_ASSET` environment fallback and follows a change without a restart.
 pub const TV_SLATE_ASSET: &str = "tv.slate_asset";
 
+/// The utility drawer's currency tool (UTL-CALC-001). `tools.currency_rates` switches the daily fetch of the
+/// European Central Bank reference rates, and with it the conversion in the drawer, on or off.
+pub const TOOLS_CURRENCY_RATES: &str = "tools.currency_rates";
+/// Hours after which the cached rates are flagged stale (the ECB publishes on TARGET working days only).
+pub const TOOLS_CURRENCY_STALE_HOURS: &str = "tools.currency_stale_hours";
+
 pub const CATALOG: &[SettingDef] = &[
     int(
         ACCOUNT_CAP,
@@ -673,6 +679,23 @@ pub const CATALOG: &[SettingDef] = &[
         default_int: 0,
         description: "Asset id of the Live TV slate loop played while a channel is off air (made by sr-cli tv slate; empty: none). To remove it, prefer `sr-cli tv slate --remove`, which also retires the asset.",
     },
+    SettingDef {
+        key: TOOLS_CURRENCY_RATES,
+        group: "tools",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 1,
+        description: "Fetch the European Central Bank reference exchange rates once a day for the drawer's currency converter. Off: the server makes no request and the converter is hidden.",
+    },
+    int(
+        TOOLS_CURRENCY_STALE_HOURS,
+        "tools",
+        24,
+        720,
+        96,
+        "Hours after the last successful fetch at which the currency converter says its rates are out of date.",
+    ),
 ];
 
 /// Definition of `key`, if it is an editable setting.
@@ -813,6 +836,20 @@ mod tests {
             .collect::<Vec<_>>()
             .join(",");
         assert!(d.validate(&json!(many)).is_err());
+    }
+
+    #[test]
+    fn tools_currency_settings() {
+        let on = find(TOOLS_CURRENCY_RATES).unwrap();
+        assert_eq!(on.group, "tools");
+        assert_eq!(on.default_value(), json!(true));
+        assert!(on.validate(&json!(false)).is_ok());
+        assert!(on.validate(&json!("off")).is_err());
+        let stale = find(TOOLS_CURRENCY_STALE_HOURS).unwrap();
+        assert_eq!(stale.default_value(), json!(96));
+        assert!(stale.validate(&json!(23)).is_err());
+        assert!(stale.validate(&json!(721)).is_err());
+        assert!(stale.validate(&json!(48)).is_ok());
     }
 
     #[test]
