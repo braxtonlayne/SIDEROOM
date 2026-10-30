@@ -29,6 +29,32 @@
       "file": "manifest.webmanifest",
       "token": "/share",
       "reason": "The Web Share Target contract (section 5): share_target.action is /share; an anonymous share lands on /login?next=/share?..."
+    },
+    {
+      "surface": "profile",
+      "token": "profile.",
+      "reason": "PRF-PRO-001: the public profile page renders the member's own profile; its block renderer and page strings are the profile.blocks.* and profile.public.* keys (p34-prf-profiles-core), registered by this surface alone. No other surface carries them (the check still fails them there)."
+    },
+    {
+      "surface": "profile",
+      "token": "/public/profiles",
+      "reason": "PRF-PRO-001: the one call of the profile surface, GET /public/profiles/{handle} and its guestbook post. The route answers 404 for every handle unless the operator and the member both allow a public page (D-382)."
+    },
+    {
+      "surface": "profile",
+      "token": "Now playing",
+      "reason": "PRF-PRO-001: the title of the Now playing block a member chose to show publicly (blocks are dropped by the server before they are sent)."
+    },
+    {
+      "surface": "profile",
+      "token": "/cdn/",
+      "reason": "PRF-PRO-001: avatars, banners and server icons are content-hash addressed public kinds under /cdn (store/cdn builds the address), and a gallery picture loads only from the signed /cdn/external/ image-proxy path on our own origin (D-259)."
+    },
+    {
+      "surface": "static",
+      "file": "sw.js",
+      "token": "profile.",
+      "reason": "PRF-PRO-001: the worker precaches the public shells, profile.html among them (entrance-isolation.md section 5); the shell name is the surface table row."
     }
   ]
 }

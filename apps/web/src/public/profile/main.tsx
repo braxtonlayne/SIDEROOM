@@ -1,3 +1,4 @@
+import './messages';
 import { createProfileRouter } from './router';
 import { mountSurface } from '../surface';
 

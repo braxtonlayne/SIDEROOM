@@ -6,7 +6,7 @@ import { markRestLoaded, registerFragments } from './store';
  * `test/setup.ts`. Adding a fragment needs no edit here.
  */
 const rest = import.meta.glob<Record<string, string>>(
-  ['./en/*.ts', '!./en/entrance.ts', '!./en/a11y.ts', '!./en/pwa.ts', '!./en/p34-prf-profiles-core.ts'],
+  ['./en/*.ts', '!./en/entrance.ts', '!./en/a11y.ts', '!./en/pwa.ts'],
   { eager: true, import: 'default' },
 );
 registerFragments(rest);

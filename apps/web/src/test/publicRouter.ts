@@ -3,6 +3,7 @@ import surfaces from '../../public-surfaces.json';
 import { createAuthRouter } from '../public/auth/router';
 import { createInviteRouter } from '../public/invite/router';
 import { createLandingRouter } from '../public/landing/router';
+import { createProfileRouter } from '../public/profile/router';
 
 const toRe = (p: string) =>
   new RegExp(`^${p.replace(/[.+?^${}()|[\]]/g, '[$&]').replace(/\*/g, '.*')}$`);
@@ -10,6 +11,7 @@ const makers: Record<string, (h?: RouterHistory) => ReturnType<typeof createLand
   landing: createLandingRouter,
   auth: createAuthRouter,
   invite: createInviteRouter,
+  profile: createProfileRouter,
 };
 
 /** The router of the public surface that serves `path` (the table of public-surfaces.json decides). */

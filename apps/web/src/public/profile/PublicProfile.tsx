@@ -7,8 +7,8 @@ import {
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { EntranceShell } from '../../components/EntranceShell';
-import { useT } from '../../i18n';
-import { cdnUrl } from '../../store/cdn';
+import { useT } from '../../i18n/react';
+import { cdnAddress } from './cdn';
 
 /**
  * The public profile page (PRF-PRO-001, D-382, D-385). It renders exactly what `GET /public/profiles/{handle}`
@@ -29,12 +29,6 @@ interface PublicProfileData {
   accepts_guestbook: boolean;
 }
 
-const cdn = (
-  kind: 'avatars' | 'icons',
-  owner: string,
-  hash: string | null | undefined,
-  size: number,
-) => cdnUrl(kind, owner, hash, { size });
 
 function PublicGuestbook({ handle, data }: { handle: string; data: PublicProfileData }) {
   const t = useT();
@@ -153,11 +147,11 @@ export function PublicProfile({ handle }: { handle: string }) {
     guestbook: () => <PublicGuestbook handle={handle} data={data} />,
   };
   return (
-    <BlocksEnv t={t} cdn={cdn}>
+    <BlocksEnv t={t} cdn={cdnAddress}>
       <main id="main">
         <ProfileRenderer
           page={data.page}
-          bannerUrl={cdnUrl('avatars', data.page.user.id, data.page.user.banner, { size: 1024 })}
+          bannerUrl={cdnAddress('avatars', data.page.user.id, data.page.user.banner, 1024)}
           slots={slots}
         />
       </main>

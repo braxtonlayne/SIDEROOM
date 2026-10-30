@@ -5,6 +5,7 @@ import { isAllowed } from './allowed';
 import { ALLOWED as AUTH } from './auth/ALLOWED';
 import { ALLOWED as INVITE } from './invite/ALLOWED';
 import { ALLOWED as LANDING } from './landing/ALLOWED';
+import { ALLOWED as PROFILE } from './profile/ALLOWED';
 
 /**
  * D-385: each public surface imports only from its ALLOWED.ts. The Vite public build enforces it on the real module
@@ -59,6 +60,7 @@ describe.each([
   ['landing', 'public/landing/main.tsx', LANDING],
   ['auth', 'public/auth/main.tsx', AUTH],
   ['invite', 'public/invite/main.tsx', INVITE],
+  ['profile', 'public/profile/main.tsx', PROFILE],
 ])('the %s surface', (_name, entry, list) => {
   it('imports only modules of its ALLOWED.ts', () => {
     const outside = closure(entry).filter((f) => !STUBBED.includes(f) && !isAllowed(list, f));

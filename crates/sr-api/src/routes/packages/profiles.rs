@@ -184,7 +184,7 @@ pub struct PublicGuestbookBody {
     post, path = "/public/profiles/{handle}/guestbook", tag = "profile-pages",
     params(("handle" = String, Path, description = "Username")),
     request_body = PublicGuestbookBody,
-    responses((status = 202, description = "Held for the owner's approval"), (status = 400, body = ErrorBody),
+    responses((status = 204, description = "Held for the owner's approval"), (status = 400, body = ErrorBody),
               (status = 404, body = ErrorBody), (status = 429, body = ErrorBody))
 )]
 pub async fn public_sign(
@@ -209,5 +209,5 @@ pub async fn public_sign(
         )
         .await
         .map_err(pkg)?;
-    Ok(no_store(StatusCode::ACCEPTED.into_response()))
+    Ok(no_store(StatusCode::NO_CONTENT.into_response()))
 }
