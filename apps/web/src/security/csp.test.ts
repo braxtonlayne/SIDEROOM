@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
+  NO_SCRIPT_CSP,
+  PUBLIC_CSP,
+  renderSurfacesBlock,
   buildCsp,
   cspOptionsFromConfig,
   PERMISSIONS_POLICY,
@@ -13,6 +16,11 @@ const caddy = readFileSync(
   resolve(__dirname, '../../../../deploy/compose/caddy/Caddyfile.prod'),
   'utf8',
 );
+
+const table = JSON.parse(readFileSync(resolve(__dirname, '../../public-surfaces.json'), 'utf8'));
+const webRs = readFileSync(resolve(__dirname, '../../../../crates/sr-server/src/web.rs'), 'utf8');
+const rustConst = (name: string) =>
+  new RegExp('pub const ' + name + ': &str = "([^"]*)";').exec(webRs)?.[1];
 
 const snippet = readFileSync(
   resolve(__dirname, '../../../../deploy/compose/caddy/activities.snippet'),
@@ -31,9 +39,31 @@ describe('CSP', () => {
     expect(robotsTxt).not.toMatch(/sitemap/i);
   });
 
-  it('matches the policy shipped in the production Caddyfile', () => {
-    expect(caddy).toContain(`header Content-Security-Policy "${buildCsp()}"`);
+  it('pins the public-surface block of the production Caddyfile (D-385)', () => {
+    expect(caddy).toContain(renderSurfacesBlock(table));
+    // One public policy on every bundle surface's shell; the app policy is not in the Caddyfile.
+    const shells = table.surfaces.filter(
+      (s: { kind: string; reserved?: boolean }) => s.kind === 'bundle' && !s.reserved,
+    );
+    expect(caddy.split(`header Content-Security-Policy "${PUBLIC_CSP}"`)).toHaveLength(
+      shells.length + 1,
+    );
+    expect(caddy).not.toContain('wasm-unsafe-eval');
     expect(caddy).toContain(`Permissions-Policy "${PERMISSIONS_POLICY}"`);
+  });
+
+  it('keeps the public policy equal to the one sr-server sends (web.rs)', () => {
+    expect(rustConst('PUBLIC_CSP')).toBe(PUBLIC_CSP);
+    expect(rustConst('NO_SCRIPT_CSP')).toBe(NO_SCRIPT_CSP);
+  });
+
+  it('gives public shells no wasm, blob, frame or media allowance', () => {
+    for (const csp of [PUBLIC_CSP, NO_SCRIPT_CSP]) {
+      expect(csp).not.toMatch(/wasm-unsafe-eval|blob:|frame-src|media-src/);
+      expect(csp).toContain("frame-ancestors 'none'");
+    }
+    expect(NO_SCRIPT_CSP).not.toContain('script-src');
+    expect(NO_SCRIPT_CSP).not.toContain('connect-src');
   });
 
   it('names the report endpoint in report-uri and report-to, in the Caddyfile and the dev headers (RDY-SEC-009)', () => {
@@ -120,19 +150,15 @@ describe('CSP', () => {
       ).toEqual([]);
     });
 
-    it('renders the Caddyfile line from the same settings, and the committed file is the default', () => {
-      expect(renderCaddyfile(caddy)).toBe(caddy);
-      const on = renderCaddyfile(
-        caddy,
-        cspOptionsFromConfig({
-          publicUrl: site,
-          activitiesEnabled: true,
-          voicePublicUrl: 'wss://voice.example.org',
-        }),
-      );
-      expect(on).toContain("frame-src 'self' https://*.activities.chat.example.org;");
-      expect(on).toContain("connect-src 'self' https://voice.example.org wss://voice.example.org;");
-      expect(renderCaddyfile(on)).toBe(caddy);
+    it('renders the Caddyfile block from the surface table, and the committed file is its output', () => {
+      expect(renderCaddyfile(caddy, table)).toBe(caddy);
+      const moved = { ...table, publicFiles: [...table.publicFiles, '/extra.txt'] };
+      expect(renderCaddyfile(caddy, moved)).toContain('/extra.txt');
+      expect(renderCaddyfile(renderCaddyfile(caddy, moved), table)).toBe(caddy);
+    });
+
+    it('refuses a Caddyfile without the markers', () => {
+      expect(() => renderCaddyfile('handle { }', table)).toThrow(/surfaces:begin/);
     });
 
     it('the deploy script --check agrees with the committed Caddyfile', () => {
@@ -142,11 +168,6 @@ describe('CSP', () => {
           stdio: 'pipe',
         }),
       ).not.toThrow();
-      expect(() =>
-        execFileSync(process.execPath, [script, '--public-url', site, '--activities', '--check'], {
-          stdio: 'pipe',
-        }),
-      ).toThrow();
     });
   });
 });
