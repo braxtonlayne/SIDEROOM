@@ -7,6 +7,8 @@
 //!
 //! Wire details: docs/05-api-and-gateway.md section 6.5.
 
+pub mod jukebox;
+
 use crate::routes::Ext;
 use crate::routes::guilds::dto::nullable;
 use crate::routes::guilds::util::{actor, id};
@@ -271,6 +273,7 @@ pub fn router() -> Router<AppState> {
             patch(modify_voice_state),
         )
         .merge(super::voice_live::router())
+        .merge(jukebox::router())
 }
 
 impl From<VoiceError> for HttpError {
@@ -494,6 +497,7 @@ pub struct VoiceApiDoc;
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = VoiceApiDoc::openapi();
     doc.merge(super::voice_live::openapi());
+    doc.merge(jukebox::openapi());
     doc
 }
 

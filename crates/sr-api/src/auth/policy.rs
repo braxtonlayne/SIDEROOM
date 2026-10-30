@@ -87,6 +87,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     {
         return true;
     }
+    // The voice jukebox queues from a person's own library and counts people listening: a bot has none.
+    if p.starts_with("/channels/") && p.contains("/jukebox") {
+        return true;
+    }
     // Scheduling a message is a user feature (D-189); a bot posts directly.
     if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
         return true;

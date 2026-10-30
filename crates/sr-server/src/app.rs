@@ -519,6 +519,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }),
         id_src.clone(),
     ));
+    // The voice jukebox (MUS-JB-002): queue, vote-skip and synced playback per voice channel.
+    let jukebox_deps = Arc::new(routes::voice::jukebox::JukeboxDeps {
+        service: sr_chat::jukebox::JukeboxService::new(
+            Arc::new(sr_db::jukebox_repo::PgJukebox::new(pool.clone())),
+            clock.clone(),
+            id_src.clone(),
+        ),
+        access: Arc::new(crate::jukebox::ChatJukeboxAccess::new(
+            PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
+            clock.clone(),
+        )),
+        events: Arc::new(crate::jukebox::BusJukeboxEvents::new(bus.clone())),
+    });
     // Browser uploads and object changes in a mount (BYOS-BRW-001): the ledger, the signed bucket calls, ids.
     let upload_io: Arc<dyn sr_storage::uploads::MountIo> = Arc::new(
         sr_storage::uploads::S3MountIo::new(mount_sealer.clone()).with_guard(mount_guard.clone()),
@@ -1532,6 +1545,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             store: Arc::new(sr_db::music_repo::PgMusicStore::new(pool.clone())),
         }))
         .extension(music_lib_deps)
+        .extension(jukebox_deps)
         // The browser's delete and move update the index at once (wave-28 integration).
         .extension(Arc::new(routes::storage::IndexHooks {
             changes: index_store.clone(),

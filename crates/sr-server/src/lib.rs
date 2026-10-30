@@ -22,6 +22,7 @@ pub mod inbox_pg;
 pub mod instance_mount;
 pub mod integration_policy;
 pub mod jobs;
+pub mod jukebox;
 pub mod lag_bus;
 pub mod library_jobs;
 pub mod lookup_wiring;

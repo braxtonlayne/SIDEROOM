@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useRef, useState, type ReactNode } from 'react';
 import { Button, EmptyState } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useVoiceSession } from '../../voice/session';
@@ -18,6 +18,11 @@ import { VoiceStatusBar } from './VoiceStatusBar';
 import { WatchPartyStrip } from '../../watchparty/WatchPartyStrip';
 import { ActivityPanel } from '../../activities/ActivityPanel';
 import './voice-p10.css';
+
+// The jukebox (MUS-JB-002) is its own chunk: it loads when a voice channel opens, never with the entrance.
+const JukeboxStrip = lazy(() =>
+  import('../../voice/jukebox/JukeboxStrip').then((m) => ({ default: m.JukeboxStrip })),
+);
 
 interface TileItem {
   key: string;
@@ -149,6 +154,9 @@ export function VoiceChannelView({
       />
       <VoiceStatusBar channel={channel} here={here} />
       <WatchPartyStrip channelId={channel.id} />
+      <Suspense fallback={null}>
+        <JukeboxStrip channelId={channel.id} meId={me.id} />
+      </Suspense>
       <ActivityPanel channelId={channel.id} here={here} />
       <div className="vc-body" data-chat={layout.chatOpen && here ? 'open' : undefined}>
         <div className="vc-main">

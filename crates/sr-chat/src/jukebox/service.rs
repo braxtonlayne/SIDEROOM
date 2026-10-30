@@ -94,6 +94,11 @@ impl JukeboxService {
         Ok(Some((Self::snapshot(doc, now, percent), false)))
     }
 
+    /// The clock the service reads, unix ms.
+    pub fn now_ms(&self) -> i64 {
+        self.clock.now_unix_ms()
+    }
+
     /// Run `f` on the settled doc under the channel lock and save the result.
     async fn mutate<R>(
         &self,
