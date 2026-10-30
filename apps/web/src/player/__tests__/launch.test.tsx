@@ -97,7 +97,8 @@ describe('MUS-PLY-002 music button opens the library with an empty queue', () =>
     act(() => openPlayerLibrary());
     await screen.findByRole('region', { name: 'Music player' });
     await act(async () => {
-      await router.navigate({ to: '/login' });
+      // /login is a separate document now (D-385); a page the gate also treats as public is in the app router.
+      await router.navigate({ to: '/help/whats-new' });
     });
     expect(screen.queryByRole('region', { name: 'Music player' })).toBeNull();
     expect(isPlayerLibraryOpen()).toBe(false);

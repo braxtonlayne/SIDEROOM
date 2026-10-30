@@ -6,7 +6,7 @@ import { buildCsp, cspOptionsFromConfig, securityHeaders } from './src/security/
 import { activityHostProxy } from './vite/activityHosts';
 import { pseudoLocalePlugin } from './vite/pseudoLocale';
 import { appContractPlugin } from './vite/appContract';
-import { devShells } from './vite/devShells';
+import { publicDev } from './vite/publicDev';
 
 /** Optional comma-separated extra CSP origins for self-hosters (a separate voice host, activities). */
 const list = (v: string | undefined) =>
@@ -69,7 +69,8 @@ export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     appContractPlugin({ csp: buildCsp(extra) }),
-    devShells(fileURLToPath(new URL('.', import.meta.url))),
+    // SEC-ENT-004: the dev counterpart of sr-server's gate (shells by path, 302 to /login without a session).
+    publicDev(),
     pseudoLocalePlugin(),
     ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy()] : []),
   ],
