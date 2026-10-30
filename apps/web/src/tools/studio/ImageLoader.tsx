@@ -4,7 +4,15 @@
  * attachment, a message image) start the studio with a file already chosen.
  */
 import { Button, Icon } from '@sideroom/ui';
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type ReactNode,
+} from 'react';
 import { useT } from '../../i18n';
 import type { Bitmap } from './bitmap';
 import { decodeImage } from './canvasIo';

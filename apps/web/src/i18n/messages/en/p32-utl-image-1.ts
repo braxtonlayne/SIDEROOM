@@ -1,6 +1,6 @@
 export default {
-  'tools.image-studio.name': 'Image Studio',
-  'tools.image-studio.description':
+  'tools.imageStudio.name': 'Image Studio',
+  'tools.imageStudio.description':
     'Crop, resize, pad and caption an image, cover or pixelate private parts, and save it as PNG, JPEG or WebP.',
   'tools.redact.name': 'Redact and Pixelate',
   'tools.redact.description':
@@ -101,7 +101,8 @@ export default {
   'studio.gif.limits': 'Up to 15 seconds and 20 MB.',
   'studio.gif.preview': 'GIF preview',
   'studio.gif.errorLong': 'The clip is longer than 15 seconds.',
-  'studio.gif.errorBig': 'The GIF is larger than 20 MB. Try a smaller width, fewer frames per second or a shorter clip.',
+  'studio.gif.errorBig':
+    'The GIF is larger than 20 MB. Try a smaller width, fewer frames per second or a shorter clip.',
   'studio.gif.errorMemory': 'That much video does not fit in memory. Try a smaller width.',
   'studio.gif.errorOther': 'The GIF could not be made.',
   'studio.gif.cancelled': 'Cancelled.',

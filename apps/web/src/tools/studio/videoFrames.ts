@@ -18,7 +18,12 @@ export interface FramePlan {
  * Which moments of the video become frames. The clip is `length` seconds from `start`, never past the end of
  * the video and never longer than 15 s; the rate is capped so the delay is at least 2 cs (50 fps).
  */
-export function planFrames(duration: number, start: number, length: number, fps: number): FramePlan {
+export function planFrames(
+  duration: number,
+  start: number,
+  length: number,
+  fps: number,
+): FramePlan {
   const s = Math.max(0, Math.min(start, Math.max(0, duration - 0.1)));
   const len = Math.max(0.1, Math.min(length, MAX_SECONDS, duration - s));
   const delayCs = Math.max(2, Math.round(100 / Math.max(1, Math.min(50, fps))));

@@ -52,7 +52,11 @@ export const DEFAULT_CAPTION: CaptionOptions = {
 };
 
 /** Greedy word wrap; a word wider than the line is broken by characters. */
-export function wrapLines(text: string, maxWidth: number, measure: (s: string) => number): string[] {
+export function wrapLines(
+  text: string,
+  maxWidth: number,
+  measure: (s: string) => number,
+): string[] {
   const lines: string[] = [];
   for (const para of text.split(/\r?\n/)) {
     let line = '';

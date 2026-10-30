@@ -13,7 +13,13 @@ interface Store {
   data: Uint8ClampedArray;
 }
 const stores = new WeakMap<HTMLCanvasElement, Store>();
-export const textCalls: { kind: 'fill' | 'stroke'; text: string; x: number; y: number; font: string }[] = [];
+export const textCalls: {
+  kind: 'fill' | 'stroke';
+  text: string;
+  x: number;
+  y: number;
+  font: string;
+}[] = [];
 
 function storeOf(c: HTMLCanvasElement): Store {
   let s = stores.get(c);

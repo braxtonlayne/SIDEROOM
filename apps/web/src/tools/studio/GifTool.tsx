@@ -7,22 +7,26 @@ import { Button, Icon, ProgressBar } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import { announce } from '../../a11y/announcer';
 import { useT } from '../../i18n';
-import type { ToolProps } from '../registry';
 import { captureFrames, planFrames, MAX_SECONDS } from './videoFrames';
 import { loadStudioWasm } from './wasm';
 import './studio.css';
 
-type Phase = { kind: 'idle' } | { kind: 'reading'; done: number; total: number } | { kind: 'encoding' };
+type Phase =
+  { kind: 'idle' } | { kind: 'reading'; done: number; total: number } | { kind: 'encoding' };
 
 function fmtBytes(n: number): string {
-  return n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return n < 1024 * 1024
+    ? `${Math.max(1, Math.round(n / 1024))} KB`
+    : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default function GifTool(_props: ToolProps) {
+export default function GifTool() {
   const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [name, setName] = useState('clip');
-  const [meta, setMeta] = useState<{ duration: number; width: number; height: number } | null>(null);
+  const [meta, setMeta] = useState<{ duration: number; width: number; height: number } | null>(
+    null,
+  );
   const [invalid, setInvalid] = useState(false);
   const [start, setStart] = useState(0);
   const [length, setLength] = useState(5);
@@ -109,7 +113,9 @@ export default function GifTool(_props: ToolProps) {
   };
 
   const busy = phase.kind !== 'idle';
-  const maxLength = meta ? Math.max(0.1, Math.min(MAX_SECONDS, meta.duration - start)) : MAX_SECONDS;
+  const maxLength = meta
+    ? Math.max(0.1, Math.min(MAX_SECONDS, meta.duration - start))
+    : MAX_SECONDS;
 
   return (
     <div className="sr-st">
@@ -127,7 +133,12 @@ export default function GifTool(_props: ToolProps) {
         }}
       />
       <div className="sr-st-row">
-        <Button size="sm" leadingIcon={<Icon name="film" size={16} />} onClick={() => input.current?.click()} disabled={busy}>
+        <Button
+          size="sm"
+          leadingIcon={<Icon name="film" size={16} />}
+          onClick={() => input.current?.click()}
+          disabled={busy}
+        >
           {t('studio.gif.pick')}
         </Button>
         <span className="sr-tl-muted">{t('studio.gif.limits')}</span>
@@ -143,7 +154,11 @@ export default function GifTool(_props: ToolProps) {
           preload="auto"
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
-            setMeta({ duration: v.duration, width: v.videoWidth || 480, height: v.videoHeight || 270 });
+            setMeta({
+              duration: v.duration,
+              width: v.videoWidth || 480,
+              height: v.videoHeight || 270,
+            });
             setStart(0);
             setLength(Math.min(5, v.duration || 5));
             setWidth(Math.min(480, v.videoWidth || 480));
@@ -160,19 +175,45 @@ export default function GifTool(_props: ToolProps) {
         <div className="sr-st-panel">
           <label className="sr-st-field">
             <span>{t('studio.gif.start')}</span>
-            <input type="number" min={0} max={Math.max(0, meta.duration - 0.1)} step={0.1} value={start} onChange={(e) => setStart(Math.max(0, Number(e.target.value) || 0))} />
+            <input
+              type="number"
+              min={0}
+              max={Math.max(0, meta.duration - 0.1)}
+              step={0.1}
+              value={start}
+              onChange={(e) => setStart(Math.max(0, Number(e.target.value) || 0))}
+            />
           </label>
           <label className="sr-st-field">
             <span>{t('studio.gif.length')}</span>
-            <input type="number" min={0.1} max={maxLength} step={0.1} value={Math.min(length, maxLength)} onChange={(e) => setLength(Math.max(0.1, Number(e.target.value) || 1))} />
+            <input
+              type="number"
+              min={0.1}
+              max={maxLength}
+              step={0.1}
+              value={Math.min(length, maxLength)}
+              onChange={(e) => setLength(Math.max(0.1, Number(e.target.value) || 1))}
+            />
           </label>
           <label className="sr-st-field">
             <span>{t('studio.gif.width')}</span>
-            <input type="number" min={16} max={Math.min(1024, meta.width)} value={width} onChange={(e) => setWidth(Number(e.target.value) || 320)} />
+            <input
+              type="number"
+              min={16}
+              max={Math.min(1024, meta.width)}
+              value={width}
+              onChange={(e) => setWidth(Number(e.target.value) || 320)}
+            />
           </label>
           <label className="sr-st-field">
             <span>{t('studio.gif.fps')}</span>
-            <input type="number" min={2} max={25} value={fps} onChange={(e) => setFps(Math.min(25, Math.max(2, Number(e.target.value) || 10)))} />
+            <input
+              type="number"
+              min={2}
+              max={25}
+              value={fps}
+              onChange={(e) => setFps(Math.min(25, Math.max(2, Number(e.target.value) || 10)))}
+            />
           </label>
           <Button size="sm" onClick={() => void make()} disabled={busy}>
             {t('studio.gif.make')}

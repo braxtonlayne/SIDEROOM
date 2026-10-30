@@ -164,7 +164,12 @@ export function padToAspect(b: Bitmap, ratio: number, color: Rgba = [255, 255, 2
   return pad(b, { left: 0, right: 0, top, bottom: extra - top }, color);
 }
 
-function remap(b: Bitmap, outW: number, outH: number, to: (x: number, y: number) => [number, number]) {
+function remap(
+  b: Bitmap,
+  outW: number,
+  outH: number,
+  to: (x: number, y: number) => [number, number],
+) {
   const out = createBitmap(outW, outH);
   for (let y = 0; y < b.height; y++) {
     for (let x = 0; x < b.width; x++) {

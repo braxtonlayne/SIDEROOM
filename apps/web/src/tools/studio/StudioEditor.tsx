@@ -15,7 +15,15 @@ import { loadStudioWasm } from './wasm';
 import './studio.css';
 
 export type StudioMode = 'crop' | 'resize' | 'pad' | 'caption' | 'redact' | 'palette' | 'export';
-const MODES: readonly StudioMode[] = ['crop', 'resize', 'pad', 'caption', 'redact', 'palette', 'export'];
+const MODES: readonly StudioMode[] = [
+  'crop',
+  'resize',
+  'pad',
+  'caption',
+  'redact',
+  'palette',
+  'export',
+];
 
 export interface StudioEditorProps {
   bitmap: Bitmap;
@@ -33,7 +41,6 @@ interface Swatch {
   hex: string;
   share: number;
 }
-
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -53,7 +60,9 @@ export function StudioEditor({
   const session = useMemo(() => new StudioSession(bitmap), [bitmap]);
   const [version, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((v) => v + 1), []);
-  const [mode, setMode] = useState<StudioMode>(modes.includes(initialMode) ? initialMode : modes[0]!);
+  const [mode, setMode] = useState<StudioMode>(
+    modes.includes(initialMode) ? initialMode : modes[0]!,
+  );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cur = session.current;
 
@@ -183,7 +192,10 @@ export function StudioEditor({
 
   const extract = async () => {
     const tools = await loadStudioWasm();
-    const list = tools.palette.extract(new Uint8Array(cur.data.buffer, cur.data.byteOffset, cur.data.byteLength), count);
+    const list = tools.palette.extract(
+      new Uint8Array(cur.data.buffer, cur.data.byteOffset, cur.data.byteLength),
+      count,
+    );
     setSwatches(list.map((c) => ({ hex: c.hex, share: c.share })));
     if (list.length === 0) announce(t('studio.palette.empty'));
   };
@@ -224,15 +236,35 @@ export function StudioEditor({
 
       <div className="sr-st-bar" role="toolbar" aria-label={t('studio.modes')}>
         {modes.map((m) => (
-          <Button key={m} size="sm" variant={m === mode ? 'primary' : 'ghost'} aria-pressed={m === mode} onClick={() => setMode(m)}>
+          <Button
+            key={m}
+            size="sm"
+            variant={m === mode ? 'primary' : 'ghost'}
+            aria-pressed={m === mode}
+            onClick={() => setMode(m)}
+          >
             {modeLabel[m]}
           </Button>
         ))}
         <span className="sr-st-spacer" />
-        <Button size="sm" variant="ghost" iconOnly aria-label={t('studio.undo')} disabled={!session.canUndo} onClick={() => edit(() => session.undo())}>
+        <Button
+          size="sm"
+          variant="ghost"
+          iconOnly
+          aria-label={t('studio.undo')}
+          disabled={!session.canUndo}
+          onClick={() => edit(() => session.undo())}
+        >
           <Icon name="arrow-left" size={16} />
         </Button>
-        <Button size="sm" variant="ghost" iconOnly aria-label={t('studio.redo')} disabled={!session.canRedo} onClick={() => edit(() => session.redo())}>
+        <Button
+          size="sm"
+          variant="ghost"
+          iconOnly
+          aria-label={t('studio.redo')}
+          disabled={!session.canRedo}
+          onClick={() => edit(() => session.redo())}
+        >
           <Icon name="arrow-right" size={16} />
         </Button>
       </div>
@@ -286,17 +318,32 @@ export function StudioEditor({
           <>
             <label className="sr-st-field">
               <span>{t('studio.resize.width')}</span>
-              <input type="number" min={1} max={4096} value={w} onChange={(e) => setWidth(Number(e.target.value) || 1)} />
+              <input
+                type="number"
+                min={1}
+                max={4096}
+                value={w}
+                onChange={(e) => setWidth(Number(e.target.value) || 1)}
+              />
             </label>
             <label className="sr-st-field">
               <span>{t('studio.resize.height')}</span>
-              <input type="number" min={1} max={4096} value={h} onChange={(e) => setHeight(Number(e.target.value) || 1)} />
+              <input
+                type="number"
+                min={1}
+                max={4096}
+                value={h}
+                onChange={(e) => setHeight(Number(e.target.value) || 1)}
+              />
             </label>
             <label className="sr-st-check">
               <input type="checkbox" checked={lock} onChange={(e) => setLock(e.target.checked)} />
               <span>{t('studio.resize.lock')}</span>
             </label>
-            <Button size="sm" onClick={() => edit(() => session.resize(Math.min(4096, w), Math.min(4096, h)))}>
+            <Button
+              size="sm"
+              onClick={() => edit(() => session.resize(Math.min(4096, w), Math.min(4096, h)))}
+            >
               {t('studio.resize.apply')}
             </Button>
             <div className="sr-st-row" role="group" aria-label={t('studio.resize.presets')}>
@@ -322,16 +369,40 @@ export function StudioEditor({
           <>
             <label className="sr-st-field">
               <span>{t('studio.pad.amount')}</span>
-              <input type="number" min={0} max={2048} value={border} onChange={(e) => setBorder(Math.max(0, Number(e.target.value) || 0))} />
+              <input
+                type="number"
+                min={0}
+                max={2048}
+                value={border}
+                onChange={(e) => setBorder(Math.max(0, Number(e.target.value) || 0))}
+              />
             </label>
             <label className="sr-st-field">
               <span>{t('studio.pad.colour')}</span>
-              <input type="color" value={borderColour} onChange={(e) => setBorderColour(e.target.value)} />
+              <input
+                type="color"
+                value={borderColour}
+                onChange={(e) => setBorderColour(e.target.value)}
+              />
             </label>
-            <Button size="sm" onClick={() => edit(() => session.pad({ top: border, right: border, bottom: border, left: border }, hexToRgba(borderColour)))}>
+            <Button
+              size="sm"
+              onClick={() =>
+                edit(() =>
+                  session.pad(
+                    { top: border, right: border, bottom: border, left: border },
+                    hexToRgba(borderColour),
+                  ),
+                )
+              }
+            >
               {t('studio.pad.apply')}
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => edit(() => session.padToAspect(1, hexToRgba(borderColour)))}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => edit(() => session.padToAspect(1, hexToRgba(borderColour)))}
+            >
               {t('studio.pad.square')}
             </Button>
           </>
@@ -341,15 +412,26 @@ export function StudioEditor({
           <>
             <label className="sr-st-field sr-st-wide">
               <span>{t('studio.caption.top')}</span>
-              <input type="text" value={caption.top} onChange={(e) => setCaption({ ...caption, top: e.target.value })} />
+              <input
+                type="text"
+                value={caption.top}
+                onChange={(e) => setCaption({ ...caption, top: e.target.value })}
+              />
             </label>
             <label className="sr-st-field sr-st-wide">
               <span>{t('studio.caption.bottom')}</span>
-              <input type="text" value={caption.bottom} onChange={(e) => setCaption({ ...caption, bottom: e.target.value })} />
+              <input
+                type="text"
+                value={caption.bottom}
+                onChange={(e) => setCaption({ ...caption, bottom: e.target.value })}
+              />
             </label>
             <label className="sr-st-field">
               <span>{t('studio.caption.font')}</span>
-              <select value={caption.font} onChange={(e) => setCaption({ ...caption, font: e.target.value as CaptionFont })}>
+              <select
+                value={caption.font}
+                onChange={(e) => setCaption({ ...caption, font: e.target.value as CaptionFont })}
+              >
                 {(Object.keys(fontLabel) as CaptionFont[]).map((f) => (
                   <option key={f} value={f}>
                     {fontLabel[f]}
@@ -359,10 +441,21 @@ export function StudioEditor({
             </label>
             <label className="sr-st-field">
               <span>{t('studio.caption.size')}</span>
-              <input type="range" min={0.5} max={2} step={0.1} value={caption.size} onChange={(e) => setCaption({ ...caption, size: Number(e.target.value) })} />
+              <input
+                type="range"
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={caption.size}
+                onChange={(e) => setCaption({ ...caption, size: Number(e.target.value) })}
+              />
             </label>
             <label className="sr-st-check">
-              <input type="checkbox" checked={caption.uppercase} onChange={(e) => setCaption({ ...caption, uppercase: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={caption.uppercase}
+                onChange={(e) => setCaption({ ...caption, uppercase: e.target.checked })}
+              />
               <span>{t('studio.caption.uppercase')}</span>
             </label>
             <Button
@@ -380,15 +473,32 @@ export function StudioEditor({
 
         {mode === 'redact' && (
           <>
-            <Button size="sm" disabled={!sel} onClick={() => sel && edit(() => session.redact(sel), t('studio.redact.done'))}>
+            <Button
+              size="sm"
+              disabled={!sel}
+              onClick={() => sel && edit(() => session.redact(sel), t('studio.redact.done'))}
+            >
               {t('studio.redact.cover')}
             </Button>
-            <Button size="sm" variant="secondary" disabled={!sel} onClick={() => sel && edit(() => session.pixelate(sel, block), t('studio.redact.donePixelated'))}>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!sel}
+              onClick={() =>
+                sel && edit(() => session.pixelate(sel, block), t('studio.redact.donePixelated'))
+              }
+            >
               {t('studio.redact.pixelate')}
             </Button>
             <label className="sr-st-field">
               <span>{t('studio.redact.block')}</span>
-              <input type="range" min={4} max={64} value={block} onChange={(e) => setBlock(Number(e.target.value))} />
+              <input
+                type="range"
+                min={4}
+                max={64}
+                value={block}
+                onChange={(e) => setBlock(Number(e.target.value))}
+              />
             </label>
             <Button
               size="sm"
@@ -411,7 +521,13 @@ export function StudioEditor({
           <>
             <label className="sr-st-field">
               <span>{t('studio.palette.count')}</span>
-              <input type="number" min={2} max={16} value={count} onChange={(e) => setCount(Math.min(16, Math.max(2, Number(e.target.value) || 6)))} />
+              <input
+                type="number"
+                min={2}
+                max={16}
+                value={count}
+                onChange={(e) => setCount(Math.min(16, Math.max(2, Number(e.target.value) || 6)))}
+              />
             </label>
             <Button size="sm" onClick={() => void extract()}>
               {t('studio.palette.extract')}
@@ -425,15 +541,22 @@ export function StudioEditor({
                       className="sr-st-swatch"
                       style={{ background: s.hex }}
                       aria-label={t('studio.palette.copy', { hex: s.hex })}
-                      title={t('studio.palette.share', { hex: s.hex, percent: Math.round(s.share * 100) })}
+                      title={t('studio.palette.share', {
+                        hex: s.hex,
+                        percent: Math.round(s.share * 100),
+                      })}
                       onClick={() => copy(s.hex)}
                     />
-                    <code>{copied === s.hex ? t('studio.palette.copied', { hex: s.hex }) : s.hex}</code>
+                    <code>
+                      {copied === s.hex ? t('studio.palette.copied', { hex: s.hex }) : s.hex}
+                    </code>
                   </li>
                 ))}
               </ul>
             )}
-            {swatches && swatches.length === 0 && <p className="sr-tl-muted">{t('studio.palette.empty')}</p>}
+            {swatches && swatches.length === 0 && (
+              <p className="sr-tl-muted">{t('studio.palette.empty')}</p>
+            )}
           </>
         )}
 
@@ -450,14 +573,25 @@ export function StudioEditor({
             {format !== 'png' && (
               <label className="sr-st-field">
                 <span>{t('studio.export.quality')}</span>
-                <input type="range" min={0.3} max={1} step={0.01} value={quality} onChange={(e) => setQuality(Number(e.target.value))} />
+                <input
+                  type="range"
+                  min={0.3}
+                  max={1}
+                  step={0.01}
+                  value={quality}
+                  onChange={(e) => setQuality(Number(e.target.value))}
+                />
               </label>
             )}
             <label className="sr-st-field">
               <span>{t('studio.export.name')}</span>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
             </label>
-            {size !== null && <p className="sr-tl-muted sr-st-wide">{t('studio.export.size', { size: fmtBytes(size) })}</p>}
+            {size !== null && (
+              <p className="sr-tl-muted sr-st-wide">
+                {t('studio.export.size', { size: fmtBytes(size) })}
+              </p>
+            )}
             <Button size="sm" variant="secondary" onClick={() => void download()}>
               {t('studio.export.download')}
             </Button>

@@ -24,7 +24,14 @@ export interface StudioModalProps {
   mode?: 'edit' | 'copy';
 }
 
-export default function StudioModal({ onClose, source, sourceUrl, name, onUse, mode = 'edit' }: StudioModalProps) {
+export default function StudioModal({
+  onClose,
+  source,
+  sourceUrl,
+  name,
+  onUse,
+  mode = 'edit',
+}: StudioModalProps) {
   const t = useT();
   const [blob, setBlob] = useState<Blob | undefined>(source);
   const [failed, setFailed] = useState(false);

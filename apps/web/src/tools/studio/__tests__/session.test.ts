@@ -10,7 +10,8 @@ const SECRET = [201, 17, 93, 255, 210, 30, 100, 255];
 function withSecret(): Bitmap {
   const b = createBitmap(40, 40, [128, 128, 128, 255]);
   for (let y = 10; y < 20; y++)
-    for (let x = 10; x < 20; x++) b.data.set(SECRET.slice((x % 2) * 4, (x % 2) * 4 + 4), (y * 40 + x) * 4);
+    for (let x = 10; x < 20; x++)
+      b.data.set(SECRET.slice((x % 2) * 4, (x % 2) * 4 + 4), (y * 40 + x) * 4);
   return b;
 }
 const secretPair = SECRET; // pixel pairs sit side by side in a row
@@ -42,7 +43,10 @@ describe('studio session', () => {
   it('burns captions into the pixels', () => {
     const s = new StudioSession(createBitmap(200, 100, [10, 10, 10, 255]));
     s.caption({ ...DEFAULT_CAPTION, top: 'top text', bottom: 'bottom text' });
-    expect(textCalls.filter((c) => c.kind === 'fill').map((c) => c.text)).toEqual(['TOP TEXT', 'BOTTOM TEXT']);
+    expect(textCalls.filter((c) => c.kind === 'fill').map((c) => c.text)).toEqual([
+      'TOP TEXT',
+      'BOTTOM TEXT',
+    ]);
     expect([s.current.width, s.current.height]).toEqual([200, 100]);
   });
 
@@ -65,7 +69,9 @@ describe('studio session', () => {
       const bytes = await bytesOf(await s.exportAs('png'));
       expect(containsBytes(bytes, secretPair)).toBe(false);
       expect(containsBytes(bytes, SECRET.slice(0, 4))).toBe(false);
-      expect(Array.from(s.current.data.subarray((12 * 40 + 12) * 4, (12 * 40 + 12) * 4 + 4))).toEqual([0, 0, 0, 255]);
+      expect(
+        Array.from(s.current.data.subarray((12 * 40 + 12) * 4, (12 * 40 + 12) * 4 + 4)),
+      ).toEqual([0, 0, 0, 255]);
     });
 
     it('a pixelated region exports without any of its original pixels', async () => {
@@ -110,7 +116,9 @@ describe('studio session', () => {
       s.redact({ x: 8, y: 8, width: 14, height: 14 });
       s.forgetHistory();
       s.undo();
-      expect(Array.from(s.current.data.subarray((12 * 40 + 12) * 4, (12 * 40 + 12) * 4 + 4))).toEqual([0, 0, 0, 255]);
+      expect(
+        Array.from(s.current.data.subarray((12 * 40 + 12) * 4, (12 * 40 + 12) * 4 + 4)),
+      ).toEqual([0, 0, 0, 255]);
       expect(s.canUndo).toBe(false);
     });
 
@@ -119,7 +127,9 @@ describe('studio session', () => {
       const s = new StudioSession(original);
       s.redact({ x: 8, y: 8, width: 14, height: 14 });
       expect(s.current).not.toBe(original);
-      expect(Array.from(original.data.subarray((12 * 40 + 12) * 4, (12 * 40 + 12) * 4 + 4))).not.toEqual([0, 0, 0, 255]);
+      expect(
+        Array.from(original.data.subarray((12 * 40 + 12) * 4, (12 * 40 + 12) * 4 + 4)),
+      ).not.toEqual([0, 0, 0, 255]);
     });
   });
 });

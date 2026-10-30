@@ -29,10 +29,10 @@ function makeCanvas(width: number, height: number): Canvas2D {
 }
 
 function context(c: Canvas2D) {
-  const ctx = c.getContext('2d', { willReadFrequently: true } as CanvasRenderingContext2DSettings) as
-    | CanvasRenderingContext2D
-    | OffscreenCanvasRenderingContext2D
-    | null;
+  const ctx = c.getContext('2d', {
+    willReadFrequently: true,
+  } as CanvasRenderingContext2DSettings) as
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
   if (!ctx) throw new Error('canvas-unavailable');
   return ctx;
 }
@@ -99,7 +99,8 @@ export function applyCaptions(b: Bitmap, options: CaptionOptions): Bitmap {
 }
 
 function toBlob(c: Canvas2D, type: string, quality?: number): Promise<Blob> {
-  if ('convertToBlob' in c) return c.convertToBlob({ type, ...(quality === undefined ? {} : { quality }) });
+  if ('convertToBlob' in c)
+    return c.convertToBlob({ type, ...(quality === undefined ? {} : { quality }) });
   return new Promise((resolve, reject) =>
     c.toBlob((b) => (b ? resolve(b) : reject(new Error('encode-failed'))), type, quality),
   );

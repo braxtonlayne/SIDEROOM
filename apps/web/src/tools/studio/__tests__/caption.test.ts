@@ -45,7 +45,13 @@ describe('captions', () => {
   it('draws the stroke before the fill, top near the top and bottom near the bottom', () => {
     const calls: { kind: string; text: string; y: number }[] = [];
     const ctx = fakeContext(calls);
-    const out = drawCaptions(ctx, 300, 200, { ...DEFAULT_CAPTION, top: 'hello', bottom: 'world' }, 'Test');
+    const out = drawCaptions(
+      ctx,
+      300,
+      200,
+      { ...DEFAULT_CAPTION, top: 'hello', bottom: 'world' },
+      'Test',
+    );
     expect(out).toEqual({ top: ['HELLO'], bottom: ['WORLD'] });
     expect(calls.map((c) => c.kind)).toEqual(['stroke', 'fill', 'stroke', 'fill']);
     expect(calls[0]!.y).toBeLessThan(20);

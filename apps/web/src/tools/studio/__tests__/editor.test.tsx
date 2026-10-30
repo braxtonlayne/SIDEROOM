@@ -40,7 +40,9 @@ describe('the image studio editor (UTL-IMG-001)', () => {
     const width = screen.getByLabelText('Width in pixels');
     fireEvent.change(width, { target: { value: '40' } });
     expect(screen.getByLabelText('Height in pixels')).toHaveValue(20);
-    const apply = screen.getAllByRole('button', { name: 'Resize' }).find((b) => !b.hasAttribute('aria-pressed'))!;
+    const apply = screen
+      .getAllByRole('button', { name: 'Resize' })
+      .find((b) => !b.hasAttribute('aria-pressed'))!;
     await userEvent.click(apply);
     expect(await screen.findByRole('img', { name: label(40, 20) })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
@@ -71,7 +73,8 @@ describe('the image studio editor (UTL-IMG-001)', () => {
   it('covers a selection so the exported file no longer holds its pixels', async () => {
     const secret = [201, 17, 93, 255];
     const b = createBitmap(100, 50, [128, 128, 128, 255]);
-    for (let y = 10; y < 30; y++) for (let x = 10; x < 40; x++) b.data.set(secret, (y * 100 + x) * 4);
+    for (let y = 10; y < 30; y++)
+      for (let x = 10; x < 40; x++) b.data.set(secret, (y * 100 + x) * 4);
     const onUse = vi.fn();
     const { container } = render(<StudioEditor bitmap={b} initialMode="redact" onUse={onUse} />);
     const stage = container.querySelector('.sr-st-stage')!;
@@ -119,7 +122,11 @@ describe('the Edit image button in the attachment tray (UTL-IMG-001)', () => {
   it('is offered for still images only, and not while sending', () => {
     const { rerender } = render(
       <UploadTray
-        files={[pending('a.png', 'image/png'), pending('b.gif', 'image/gif'), pending('c.mp4', 'video/mp4')]}
+        files={[
+          pending('a.png', 'image/png'),
+          pending('b.gif', 'image/gif'),
+          pending('c.mp4', 'video/mp4'),
+        ]}
         busy={false}
         onChange={() => undefined}
         onRemove={() => undefined}
@@ -128,7 +135,12 @@ describe('the Edit image button in the attachment tray (UTL-IMG-001)', () => {
     expect(screen.getAllByTestId('tray-edit-image')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Edit a.png in the image studio' })).toBeEnabled();
     rerender(
-      <UploadTray files={[pending('a.png', 'image/png')]} busy onChange={() => undefined} onRemove={() => undefined} />,
+      <UploadTray
+        files={[pending('a.png', 'image/png')]}
+        busy
+        onChange={() => undefined}
+        onRemove={() => undefined}
+      />,
     );
     expect(screen.getByTestId('tray-edit-image')).toBeDisabled();
   });

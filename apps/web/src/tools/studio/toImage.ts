@@ -107,7 +107,8 @@ async function renderNode(node: Element, options: ToPngOptions): Promise<Blob> {
 
 /** A PNG of a canvas (as it is now) or of a DOM node. */
 export function toPngBlob(source: Source, options: ToPngOptions = {}): Promise<Blob> {
-  if (typeof OffscreenCanvas !== 'undefined' && source instanceof OffscreenCanvas) return blobOf(source);
+  if (typeof OffscreenCanvas !== 'undefined' && source instanceof OffscreenCanvas)
+    return blobOf(source);
   if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement)
     return blobOf(source);
   return renderNode(source as Element, options);
