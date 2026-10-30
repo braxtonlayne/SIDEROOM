@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, Page, Request } from '@playwright/test';
 import { apiPost, expect, loginApi, test, type SeededUser } from '../support/fixtures';
 import { PUBLIC_URL } from '../support/cli';
 
@@ -59,8 +59,49 @@ function smokeWords(): string[] {
   return tokens.slice(0, 12);
 }
 
+interface AllowEntry {
+  surface: string;
+  token: string;
+  file?: string;
+}
+
+/**
+ * The tolerated matches of `scripts/entrance-allow.json`, as the isolation script reads them: an entry excuses a
+ * word only inside an occurrence of its own string, on its surface (or '*') and, when it names one, in its file.
+ * The ban appeal's `/moderation/appeals` call on the auth surface is the case this exists for.
+ */
+function loadAllow(): AllowEntry[] {
+  const j = JSON.parse(readFileSync(resolve(repo, 'scripts/entrance-allow.json'), 'utf8')) as {
+    allow?: AllowEntry[];
+  };
+  return (j.allow ?? []).filter((e) => typeof e.token === 'string' && e.token.length > 0);
+}
+
+/** The text with every allowed string for this surface and file blanked out, so a word inside one is excused. */
+function withoutAllowed(text: string, surface: string, path: string): string {
+  let out = text;
+  for (const e of ALLOW) {
+    if (e.surface !== surface && e.surface !== '*') continue;
+    if (e.file && !path.includes(e.file)) continue;
+    const re = new RegExp(e.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    out = out.replace(re, (m) => ' '.repeat(m.length));
+  }
+  return out;
+}
+
 const SURFACES = loadSurfaces().filter((s) => !s.reserved);
 const WORDS = smokeWords();
+const ALLOW = loadAllow();
+
+/** The public surface a path belongs to, by the table's patterns (a trailing `*` is a prefix, as in web.rs). */
+function surfaceOf(pathname: string): string | null {
+  for (const s of SURFACES) {
+    for (const p of s.paths) {
+      if (p.endsWith('*') ? pathname.startsWith(p.slice(0, -1)) : pathname === p) return s.surface;
+    }
+  }
+  return null;
+}
 const NAV = { Accept: 'text/html,application/xhtml+xml', 'Sec-Fetch-Mode': 'navigate' };
 const noRedirect = { maxRedirects: 0 };
 
@@ -91,18 +132,33 @@ for (const s of SURFACES) {
   test.describe(`anonymous: ${s.surface}`, () => {
     for (const path of samples.filter((p) => !/\.(md|txt)$/.test(p))) {
       test(`${path} loads only its own files`, async ({ page, request }) => {
-        const seen: { url: URL; type: string }[] = [];
-        const texts: { path: string; text: string }[] = [];
-        page.on('request', (r) => seen.push({ url: new URL(r.url()), type: r.resourceType() }));
+        // Some pages leave on their own with a document load (/register without an invitation goes back to the
+        // landing page; the Discord callback hands over to the API's callback, which answers with the sign-in
+        // page). Every request of the visit is held to the public rules below. The "not another surface's entry"
+        // rule and the allow entries apply per document: a file belongs to the surface of the page that asked
+        // for it, read from the frame's URL when the request was made.
+        const seen: { url: URL; type: string; from: string | null }[] = [];
+        const texts: { path: string; text: string; from: string | null }[] = [];
+        const fromOf = (r: Request) => {
+          const f = r.frame().url();
+          return f.startsWith('http') ? surfaceOf(new URL(f).pathname) : null;
+        };
+        page.on('request', (r) =>
+          seen.push({ url: new URL(r.url()), type: r.resourceType(), from: fromOf(r) }),
+        );
         page.on('response', async (r) => {
           const u = new URL(r.url());
           if (u.origin !== new URL(PUBLIC_URL).origin) return;
           if (!/\.(js|mjs|css)$/.test(u.pathname)) return;
-          texts.push({ path: u.pathname, text: await r.text().catch(() => '') });
+          const from = fromOf(r.request());
+          texts.push({ path: u.pathname, text: await r.text().catch(() => ''), from });
         });
+        // The document as served, read on its own: the browser drops a response body once the page has left.
+        const doc = await request.get(path, { headers: NAV, ...noRedirect });
+        expect(doc.status(), `${path} is served`).toBe(200);
+        const html = await doc.text();
         const res = await page.goto(path, { waitUntil: 'networkidle' });
         expect(res?.status(), `${path} is served`).toBe(200);
-        const html = (await res?.text()) ?? '';
         const mine = new URL(page.url()).pathname;
         expect(mine, 'an anonymous visitor stays on a public page').not.toMatch(/^\/app(\/|$)/);
 
@@ -129,7 +185,10 @@ for (const s of SURFACES) {
           expect(html).not.toMatch(/<[a-z][^>]*\son[a-z]+\s*=/i);
         } else {
           // The scripts it loaded are its own: not another surface's entry.
-          const loaded = paths.filter((p) => p.endsWith('.js') && p.startsWith('/entrance/'));
+          const loaded = seen
+            .filter((x) => x.from === s.surface)
+            .map((x) => x.url.pathname)
+            .filter((p) => p.endsWith('.js') && p.startsWith('/entrance/'));
           for (const other of SURFACES.filter(
             (o) => o.kind === 'bundle' && o.shell && o.surface !== s.surface,
           )) {
@@ -139,8 +198,15 @@ for (const s of SURFACES) {
           }
         }
 
-        // A smoke copy of the denylist over the document and what it loaded.
-        const bodies = [{ path: mine, text: html }, ...texts];
+        // A smoke copy of the denylist over the document and what it loaded, with the tolerated matches of
+        // scripts/entrance-allow.json excused exactly where check-entrance-isolation.mjs excuses them.
+        // A file the page loaded after it left is excused by the entries of the surface it went to.
+        const bodies = [{ path, text: html, from: s.surface as string | null }, ...texts].map(
+          (b) => ({
+            path: b.path,
+            text: withoutAllowed(b.text, b.from ?? '*', b.path),
+          }),
+        );
         for (const word of WORDS) {
           for (const b of bodies) {
             expect(containsWord(b.text, word), `"${word}" in ${b.path}`).toBe(false);
@@ -322,8 +388,12 @@ test.describe.serial('signed in', () => {
       .getByRole('button', { name: 'Log Out' })
       .click();
     const lr = await logout;
-    expect(lr.headers()['clear-site-data'] ?? '').toMatch(/"cache"/);
-    expect(lr.headers()['clear-site-data'] ?? '').toMatch(/"storage"/);
+    // `headers()` leaves out the headers the browser treats as security headers (Clear-Site-Data among them in
+    // Chromium); `headerValue` reads the raw response headers.
+    const csd = (await lr.headerValue('clear-site-data')) ?? '';
+    expect(lr.status(), 'logout').toBe(204);
+    expect(csd).toMatch(/"cache"/);
+    expect(csd).toMatch(/"storage"/);
     await expect(page).toHaveURL(/\/login|\/$/, { timeout: 30_000 });
     const left = await page.evaluate(async () =>
       (await caches.keys()).filter((k) => k.startsWith('sr-app-')),
