@@ -10,7 +10,8 @@
 //! * A **room** is a voice channel; it exists while it has participants.
 //! * A **participant** owns one `str0m::Rtc` (ICE-lite, DTLS-SRTP) and publishes up to four
 //!   **tracks**, each on its own inbound m-line ([`TrackSource`]): the microphone, the
-//!   camera (simulcast, layers `q`/`h`/`f`), the screen and the screen audio. The client
+//!   camera (simulcast, layers `q`/`h`/`f`), the screen, the screen audio and a stereo
+//!   music track (MUS-JB-001). The client
 //!   names which m-line is which with a `VIDEO` publish message ([`SfuCore::handle_video`]).
 //! * Every other participant in the room is a **subscriber**. It receives each source it
 //!   wants through its own `sendonly` m-line ([`OutTrack`]); the SFU offers those lines
@@ -23,6 +24,12 @@
 //!     as a viewer of that stream ([`SfuCore::set_stream_viewers`]), so the viewer cap cannot
 //!     be bypassed from the client side. The two lines share a msid stream id
 //!     (`<user>-screen`), which makes the browser play them as one synchronized stream group.
+//! * The music track goes to every other member (msid stream id `<user>-music`) unless the
+//!   subscriber turned it off with a hint, and only while the room allows music
+//!   ([`SfuCore::set_music`]) and the publisher has SPEAK. It is forwarded opaque like all
+//!   audio (D-201) and only after the publisher's E2EE handshake, the same gate as the
+//!   microphone (D-249); its bytes feed the governor's egress like everything else and are
+//!   also counted separately ([`Snapshot::music_egress_bps`]).
 //! * A publisher may only send what the gateway allows (`Flags::camera`, `Flags::screen`,
 //!   set from the sender allowance, VOX-SIG-009). Anything else it sends is dropped.
 //!
@@ -49,11 +56,14 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use sr_core::{ChannelId, GuildId, UserId};
-use sr_voice_proto::video::{Layer, Source, SubscriptionHint, Video};
+use sr_voice_proto::video::{
+    Layer, MUSIC_DEFAULT_KBPS, Source, SubscriptionHint, Video, clamp_music_kbps,
+};
 use sr_voice_proto::wire::{self, Message, ParticipantInfo, Speaking, UserRef, op, speaking};
 use str0m::bwe::Bitrate;
 use str0m::change::{SdpAnswer, SdpOffer, SdpPendingOffer};
-use str0m::media::{Direction, KeyframeRequestKind, MediaData, MediaKind, Mid, Rid};
+use str0m::format::{Codec, FormatParams};
+use str0m::media::{Direction, Frequency, KeyframeRequestKind, MediaData, MediaKind, Mid, Pt, Rid};
 use str0m::net::{Protocol, Receive};
 use str0m::{Candidate, Event, IceConnectionState, Input, Output, Rtc};
 use thiserror::Error;
@@ -204,6 +214,29 @@ pub struct Snapshot {
     pub keyframe_requests: u64,
     /// Frames dropped because their sender had not completed the E2EE handshake (OPS-IMM-001).
     pub unkeyed_frames: u64,
+    /// Music packets forwarded to subscribers (MUS-JB-001).
+    pub music_packets: u64,
+    /// The part of `egress_bps` that is music (a one-second window; it is already inside
+    /// `egress_bps`, so the governor counts it once).
+    pub music_egress_bps: f64,
+}
+
+/// A channel's music settings (MUS-JB-001), set by the gateway through [`SfuCore::set_music`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MusicRoom {
+    /// `music_allowed`: when false the room's music lines are neither accepted nor forwarded.
+    pub allowed: bool,
+    /// `voice.music_bitrate_kbps` (32..=320). The SFU never decodes; this is informational.
+    pub bitrate_kbps: u16,
+}
+
+impl Default for MusicRoom {
+    fn default() -> Self {
+        Self {
+            allowed: true,
+            bitrate_kbps: MUSIC_DEFAULT_KBPS,
+        }
+    }
 }
 
 /// What a remote m-line carries.
@@ -213,15 +246,23 @@ pub enum TrackSource {
     Camera,
     Screen,
     ScreenAudio,
+    /// A stereo music track (MUS-JB-001), a second audio line.
+    Music,
 }
 
 impl TrackSource {
-    pub const ALL: [TrackSource; 4] = [Self::Mic, Self::Camera, Self::Screen, Self::ScreenAudio];
+    pub const ALL: [TrackSource; 5] = [
+        Self::Mic,
+        Self::Camera,
+        Self::Screen,
+        Self::ScreenAudio,
+        Self::Music,
+    ];
 
     pub const fn kind(self) -> MediaKind {
         match self {
             Self::Camera | Self::Screen => MediaKind::Video,
-            Self::Mic | Self::ScreenAudio => MediaKind::Audio,
+            Self::Mic | Self::ScreenAudio | Self::Music => MediaKind::Audio,
         }
     }
 
@@ -230,6 +271,7 @@ impl TrackSource {
             Source::Camera => Self::Camera,
             Source::Screen => Self::Screen,
             Source::ScreenAudio => Self::ScreenAudio,
+            Source::Music => Self::Music,
         }
     }
 
@@ -239,6 +281,7 @@ impl TrackSource {
             Self::Camera => Some(Source::Camera),
             Self::Screen => Some(Source::Screen),
             Self::ScreenAudio => Some(Source::ScreenAudio),
+            Self::Music => Some(Source::Music),
         }
     }
 
@@ -249,6 +292,7 @@ impl TrackSource {
             Self::Mic => user.to_string(),
             Self::Camera => format!("{user}-camera"),
             Self::Screen | Self::ScreenAudio => format!("{user}-screen"),
+            Self::Music => format!("{user}-music"),
         }
     }
 }
@@ -361,6 +405,8 @@ struct Participant {
     flags: Flags,
     /// Passed the E2EE handshake (OPS-IMM-001): nothing the participant sends is forwarded before.
     e2ee_keyed: bool,
+    /// The channel allows music (`music_allowed`, MUS-JB-001); mirrors [`SfuCore::music_rooms`].
+    music_allowed: bool,
     rtc: Rtc,
     /// Inbound m-lines by the client's mid.
     tracks: HashMap<Mid, Inbound>,
@@ -432,6 +478,9 @@ impl Participant {
             TrackSource::Mic => true,
             TrackSource::Camera => self.flags.camera,
             TrackSource::Screen | TrackSource::ScreenAudio => self.flags.screen,
+            // SPEAK is required (a server-muted member cannot play music either) and the
+            // channel must allow it.
+            TrackSource::Music => self.flags.speak && self.music_allowed,
         }
     }
 
@@ -480,6 +529,11 @@ pub struct SfuCore {
     forwarded_frames: u64,
     keyframe_requests: u64,
     unkeyed_frames: u64,
+    /// Per-channel music settings that differ from the defaults (allowed, 256 kbps).
+    music_rooms: HashMap<ChannelId, MusicRoom>,
+    /// Bytes of music written to subscribers, for [`Snapshot::music_egress_bps`].
+    music_tx: LayerStat,
+    music_packets: u64,
     /// Who may receive each screen share: `(channel, owner) -> viewers`.
     acl: HashMap<(ChannelId, UserId), HashSet<UserId>>,
     /// Participants whose subscriptions must be re-derived before the next negotiation.
@@ -511,6 +565,9 @@ impl SfuCore {
             forwarded_frames: 0,
             keyframe_requests: 0,
             unkeyed_frames: 0,
+            music_rooms: HashMap::new(),
+            music_tx: LayerStat::default(),
+            music_packets: 0,
             acl: HashMap::new(),
             dirty: HashSet::new(),
             selector_cfg: SelectorConfig::default(),
@@ -650,6 +707,11 @@ impl SfuCore {
             governor_severity: self.governor.severity(),
             keyframe_requests: self.keyframe_requests,
             unkeyed_frames: self.unkeyed_frames,
+            music_packets: self.music_packets,
+            music_egress_bps: self
+                .last_maintain
+                .and_then(|now| self.music_tx.live_bps(now))
+                .unwrap_or(0.0),
             ..Snapshot::default()
         };
         let (mut loss, mut n) = (0.0f64, 0u32);
@@ -715,11 +777,28 @@ impl SfuCore {
             // Opus for voice; VP8 and H.264 (with RTX, so NACKs are answered from the send
             // buffer) for camera and screen.
             .clear_codecs()
-            .enable_opus(true, false)
             .enable_vp8(true)
             .enable_h264(true)
             .set_send_buffer_video(1_000)
             .set_stats_interval(Some(Duration::from_secs(1)));
+        // Opus on payload type 111 with `stereo=1; sprop-stereo=1` (MUS-JB-001): the music track is
+        // stereo and the receiving browser decodes stereo only when its fmtp says so. A microphone
+        // line shares the payload type; it stays a mono source and its rate is capped per sender
+        // by the client, so the only cost is a dual-mono Opus packet.
+        builder.codec_config().add_config(
+            Pt::new_with_value(111),
+            None,
+            Codec::Opus,
+            Frequency::FORTY_EIGHT_KHZ,
+            Some(2),
+            FormatParams {
+                min_p_time: Some(10),
+                use_inband_fec: Some(true),
+                stereo: Some(true),
+                sprop_stereo: Some(true),
+                ..Default::default()
+            },
+        );
         if self.bwe {
             // TWCC bandwidth estimation per subscriber drives layer selection.
             builder = builder.enable_bwe(Some(INITIAL_BWE));
@@ -743,6 +822,7 @@ impl SfuCore {
                 channel: p.channel,
                 flags: p.flags,
                 e2ee_keyed: p.e2ee_keyed,
+                music_allowed: self.music_rooms.get(&p.channel).is_none_or(|m| m.allowed),
                 rtc,
                 tracks: HashMap::new(),
                 declared: HashMap::new(),
@@ -797,6 +877,45 @@ impl SfuCore {
             self.remove(pid, CloseReason::RoomClosed);
         }
         self.acl.retain(|(c, _), _| *c != channel);
+        self.music_rooms.remove(&channel);
+    }
+
+    /// Apply a channel's music settings (MUS-JB-001). Takes effect at once for the members
+    /// in the room; a room that opens later starts with them. Turning music off stops the
+    /// forwarding and withdraws the lines on the next negotiation. Returns whether the
+    /// settings differ from the defaults (and so are kept).
+    pub fn set_music(
+        &mut self,
+        now: Instant,
+        channel: ChannelId,
+        allowed: bool,
+        kbps: u16,
+    ) -> bool {
+        let room = MusicRoom {
+            allowed,
+            bitrate_kbps: clamp_music_kbps(kbps),
+        };
+        let kept = room != MusicRoom::default();
+        if kept {
+            self.music_rooms.insert(channel, room);
+        } else {
+            self.music_rooms.remove(&channel);
+        }
+        let members = self.rooms.get(&channel).cloned().unwrap_or_default();
+        for pid in &members {
+            if let Some(p) = self.parts.get_mut(pid) {
+                p.music_allowed = allowed;
+            }
+            self.refresh_published(*pid);
+        }
+        self.mark_room_dirty(channel);
+        self.pump(now);
+        kept
+    }
+
+    /// The music settings of a channel (the defaults when none were set).
+    pub fn music_of(&self, channel: ChannelId) -> MusicRoom {
+        self.music_rooms.get(&channel).copied().unwrap_or_default()
     }
 
     pub fn close_all(&mut self) {
@@ -841,7 +960,12 @@ impl SfuCore {
                     },
                 );
             }
-            for source in [Source::Camera, Source::Screen, Source::ScreenAudio] {
+            for source in [
+                Source::Camera,
+                Source::Screen,
+                Source::ScreenAudio,
+                Source::Music,
+            ] {
                 if p.announced.contains(&TrackSource::from_proto(source)) {
                     self.signal(
                         m,
@@ -1311,6 +1435,7 @@ impl SfuCore {
             TrackSource::Camera,
             TrackSource::Screen,
             TrackSource::ScreenAudio,
+            TrackSource::Music,
         ]
         .into_iter()
         .filter_map(|s| {
@@ -1337,6 +1462,7 @@ impl SfuCore {
             TrackSource::Camera,
             TrackSource::Screen,
             TrackSource::ScreenAudio,
+            TrackSource::Music,
         ] {
             let live = p.live_track(s).map(|(_, t)| (t.width, t.height, t.fps));
             let known = p.announced.contains(&s);
@@ -1404,11 +1530,11 @@ impl SfuCore {
 
     /// Recompute each video subscription's hint cap from the client's hints.
     fn apply_hints(&mut self, id: ParticipantId) {
-        let users: HashMap<ParticipantId, (UserId, [Option<u32>; 4])> = self
+        let users: HashMap<ParticipantId, (UserId, [Option<u32>; 5])> = self
             .parts
             .iter()
             .map(|(k, v)| {
-                let mut heights = [None; 4];
+                let mut heights = [None; 5];
                 for s in TrackSource::ALL {
                     heights[s as usize] = v.live_track(s).map(|(_, t)| t.height);
                 }
@@ -1450,6 +1576,10 @@ impl SfuCore {
             }
             if p.live_track(TrackSource::Camera).is_some() && enabled(Source::Camera, true) {
                 want.insert((o, TrackSource::Camera));
+            }
+            // Music: everyone gets it unless they muted it (a hint with `enabled: false`).
+            if p.live_track(TrackSource::Music).is_some() && enabled(Source::Music, true) {
+                want.insert((o, TrackSource::Music));
             }
             let may_watch = self
                 .acl
@@ -1750,6 +1880,7 @@ impl SfuCore {
                     Some(TrackSource::ScreenAudio) => {
                         self.forward_audio(id, TrackSource::ScreenAudio, d, now);
                     }
+                    Some(TrackSource::Music) => self.forward_audio(id, TrackSource::Music, d, now),
                     Some(s @ (TrackSource::Camera | TrackSource::Screen)) => {
                         self.forward_video(id, s, &d, now);
                     }
@@ -1818,7 +1949,7 @@ impl SfuCore {
         }
     }
 
-    /// Forward one audio frame (microphone or screen audio) to the room.
+    /// Forward one audio frame (microphone, screen audio or music) to the room.
     fn forward_audio(
         &mut self,
         src: ParticipantId,
@@ -1887,6 +2018,10 @@ impl SfuCore {
             };
             if w.write(pt, d.network_time, d.time, d.data.clone()).is_ok() {
                 self.forwarded += 1;
+                if source == TrackSource::Music {
+                    self.music_packets += 1;
+                    self.music_tx.note(now, d.data.len());
+                }
             }
         }
     }
