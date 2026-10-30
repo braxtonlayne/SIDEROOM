@@ -19,6 +19,9 @@ what the operator now has to know. Keep each wave to a handful of lines.
 - **Your music, as a library.** Audio in your buckets is listed by artist and album, and the app reads the real
   titles, artists and covers from the files in the background. Your own edits to a track's details are kept, even
   when you rescan the tags.
+- **A music button in the left rail.** A music-note button beside the Discover button opens the player on its
+  Library tab, so you can start music from the library even when nothing is queued. It is part of the signed-in app
+  only.
 - **Playlists, favorites and more.** In the library manager: search, your playlists and a server's (people with
   the upload right edit those), favorites, recently played, a smart queue (by album, artist, genre or "more like
   this", shuffle without repeats), a 10-band equalizer with presets, and gapless playback or a crossfade of up to

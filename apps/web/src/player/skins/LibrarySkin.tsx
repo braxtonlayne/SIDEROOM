@@ -1,4 +1,4 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import {
   CloseButton,
@@ -16,6 +16,7 @@ import {
   playIndex,
   useNowPlayingText,
 } from '../controls';
+import { isPlayerLibraryOpen, usePlayerLibraryNonce } from '../presence';
 import { removeAt, usePlayerStore } from '../store';
 
 type Tab = 'library' | 'queue';
@@ -62,6 +63,11 @@ export function LibrarySkin() {
   const text = useNowPlayingText();
   const Panel = usePlayerStore((s) => s.libraryPanel);
   const [tab, setTab] = useState<Tab>('library');
+  const nonce = usePlayerLibraryNonce();
+  // The rail's music button (MUS-PLY-002) always lands on the Library tab.
+  useEffect(() => {
+    if (nonce > 0 && isPlayerLibraryOpen()) setTab('library');
+  }, [nonce]);
   const tabs: Tab[] = ['library', 'queue'];
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;

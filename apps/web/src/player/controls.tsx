@@ -20,6 +20,7 @@ import {
   toggleMute,
   usePlayerStore,
 } from './store';
+import { closePlayerLibrary } from './presence';
 import { PLAYER_DOCKS, PLAYER_SKINS } from './types';
 
 export function formatTime(sec: number): string {
@@ -181,7 +182,15 @@ export function RepeatButton({ className }: { className?: string }) {
 export function CloseButton({ className }: { className?: string }) {
   const t = useT();
   return (
-    <button type="button" className={className} aria-label={t('player.close')} onClick={clear}>
+    <button
+      type="button"
+      className={className}
+      aria-label={t('player.close')}
+      onClick={() => {
+        closePlayerLibrary();
+        clear();
+      }}
+    >
       <IconClose />
     </button>
   );
