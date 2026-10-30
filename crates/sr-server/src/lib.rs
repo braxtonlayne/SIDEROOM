@@ -24,6 +24,7 @@ pub mod integration_policy;
 pub mod jobs;
 pub mod jukebox;
 pub mod jukebox_jobs;
+pub mod scrapbook_jobs;
 pub mod lag_bus;
 pub mod library_jobs;
 pub mod lookup_wiring;
