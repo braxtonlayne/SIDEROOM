@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { relative, resolve, sep } from 'node:path';
+import { resolve, sep } from 'node:path';
 import type { Plugin } from 'vite';
 import { isAllowed, type AllowList } from '../src/public/allowed';
 
@@ -27,11 +27,15 @@ export function readSurfaces(root: string): Surface[] {
  *   `ALLOWED.ts`. Packages outside `src/` (React, the router, `@sideroom/ui`) are not app code and are not listed.
  */
 export function surfaceGuard(root: string, lists: Record<string, AllowList>): Plugin {
-  const src = resolve(root, 'src') + sep;
-  const stub = resolve(root, 'src/public/stubs/enRest.ts');
+  // Rollup module ids use forward slashes on every platform (Vite normalises them, `C:/...` on Windows), so the
+  // paths compared against them must too; with `sep` the guard matched nothing on Windows.
+  const slash = (p: string) => p.split(sep).join('/');
+  const src = slash(resolve(root, 'src')) + '/';
+  const stub = slash(resolve(root, 'src/public/stubs/enRest.ts'));
   const union: AllowList = Object.values(lists).flat();
-  const rel = (id: string) => relative(src, id.split('?')[0]!).split(sep).join('/');
-  const inSrc = (id: string) => !id.startsWith('\0') && id.split('?')[0]!.startsWith(src);
+  const file = (id: string) => slash(id.split('?')[0]!);
+  const inSrc = (id: string) => !id.startsWith('\0') && file(id).startsWith(src);
+  const rel = (id: string) => file(id).slice(src.length);
   return {
     name: 'sideroom-surface-guard',
     enforce: 'pre',
@@ -53,7 +57,7 @@ export function surfaceGuard(root: string, lists: Record<string, AllowList>): Pl
         const list = lists[s.surface];
         if (!list)
           this.error(`public build: surface "${s.surface}" has no ALLOWED.ts in the guard`);
-        const start = resolve(root, s.shell);
+        const start = slash(resolve(root, s.shell));
         const seen = new Set<string>();
         const stack: [string, string][] = [[start, '(shell)']];
         while (stack.length) {
