@@ -125,7 +125,13 @@ test('"Open in studio" in the media viewer works on a copy and leaves the messag
   await expect(
     studio.getByText('The studio works on a copy. The original message is not changed.'),
   ).toBeVisible();
+  // Escape closes the studio, then the media viewer it was opened from.
   await page.keyboard.press('Escape');
-  // The message still has exactly the one attachment, unchanged.
-  await expect(log.getByText('original.png').first()).toBeVisible();
+  await expect(studio).toBeHidden();
+  await page.keyboard.press('Escape');
+  // The message still has exactly the one attachment, unchanged. An image shows its name as its accessible
+  // name (alt text), not as visible text, so the check uses the same button the viewer was opened from.
+  const attachment = log.getByRole('button', { name: /original\.png/ });
+  await expect(attachment).toHaveCount(1);
+  await expect(attachment).toBeVisible();
 });
