@@ -344,3 +344,42 @@ export interface MusicApi {
 }
 
 export function loadMusic(wasmUrl?: string | URL | BufferSource): Promise<MusicApi>;
+
+// UTL-SRC-001: the utility drawer's logic (sr-tools-wasm). Each module's owner adds its key to ToolsApi.
+export interface ToolSearchEntity {
+  kind: 'channel' | 'person';
+  id: string;
+  name: string;
+  aliases?: string[];
+}
+
+export interface ToolSearchHit {
+  kind: 'tool' | 'channel' | 'person';
+  id: string;
+  label: string;
+  /** 1 prefix, 2 fuzzy, 3 BM25 over the tool's task phrases. */
+  stage: 1 | 2 | 3;
+  score: number;
+}
+
+export interface ToolSearchResults {
+  /** Set when nothing matched by prefix and the best fuzzy hit is close: "Did you mean ...?". */
+  didYouMean: string | null;
+  hits: ToolSearchHit[];
+}
+
+export interface ToolSearchIndex {
+  /** Replace the channels and people (names and aliases only); returns how many were indexed. */
+  setEntities(entities: ToolSearchEntity[]): number;
+  /** Search tools, channels and people. A leading ">", "#" or "@" limits it to tools, channels or people. */
+  search(query: string, limit?: number): ToolSearchResults;
+  free(): void;
+}
+
+export interface ToolsApi {
+  /** The raw wasm-bindgen module of sr-tools-wasm. */
+  raw: Record<string, unknown>;
+  search: { create(): ToolSearchIndex };
+}
+
+export function loadTools(wasmUrl?: string | URL | BufferSource): Promise<ToolsApi>;

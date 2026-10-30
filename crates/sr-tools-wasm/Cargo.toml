@@ -1,0 +1,19 @@
+[package]
+name = "sr-tools-wasm"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "The utility drawer's pure logic (wave 32): three-stage search, calculator, units, percent, dice, diff, hash, GIF and palette. One module per tool, each owned by one agent."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde_json.workspace = true
+# Already in the lock (UTL-SRC-001): fuzzy matching and diacritic folding for the search.
+strsim = "0.11.1"
+unicode-normalization = "0.1"
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true
