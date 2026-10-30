@@ -6,6 +6,7 @@
  */
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { registerPlayerForget, setPlayerQueued } from './presence';
 import {
   CROSSFADE_MAX_SEC,
   EQ_BANDS,
@@ -344,6 +345,11 @@ export const engineReport = {
 };
 
 export const currentTrack = (s: PlayerState = get()): PlayerTrack | undefined => s.queue[s.index];
+
+// The entrance-side gate (PlayerGate) reads only the presence flag, never this module (D-385).
+setPlayerQueued(get().queue.length > 0);
+usePlayerStore.subscribe((st) => setPlayerQueued(st.queue.length > 0));
+registerPlayerForget(stopAndForget);
 
 /** Test hook: back to the initial state. */
 export function __resetPlayerStore(): void {

@@ -3,7 +3,7 @@
 // openapi.rs). Thin wrappers over apiFetch; mutations pass retries: 0 so lockouts surface.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearUploadsOnSignOut } from '../../lib/uploadLedger';
-import { stopAndForget } from '../../player/store';
+import { forgetPlayer } from '../../player/presence';
 import { ApiError, apiFetch, apiPost, clearCsrf, type ApiErrorBody } from '../../api/client';
 
 // ---- account ----
@@ -38,14 +38,14 @@ export const logout = async () => {
   await clearUploadsOnSignOut(); // aborts the open chat upload slots while the session still works
   await apiPost<void>('/sr/auth/logout');
   clearCsrf();
-  stopAndForget(); // the music player ends with the session (MUS-PLY-001)
+  forgetPlayer(); // the music player ends with the session (MUS-PLY-001)
 };
 /** Revokes every session, this one included. */
 export const logoutAll = async () => {
   await clearUploadsOnSignOut();
   await apiPost<void>('/sr/auth/logout-all');
   clearCsrf();
-  stopAndForget();
+  forgetPlayer();
 };
 
 export interface TrustedDevice {

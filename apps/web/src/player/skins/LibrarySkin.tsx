@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useT } from '../../i18n';
 import {
   CloseButton,
@@ -114,7 +114,9 @@ export function LibrarySkin() {
         {tab === 'queue' ? (
           <QueueList />
         ) : Panel ? (
-          <Panel />
+          <Suspense fallback={<p className="sr-ply-empty">{t('player.library.loading')}</p>}>
+            <Panel />
+          </Suspense>
         ) : (
           <p className="sr-ply-empty">{t('player.library.unavailable')}</p>
         )}
