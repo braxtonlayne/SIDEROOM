@@ -482,6 +482,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::EmojisUpdated { payload, .. } => {
             passthrough("GUILD_EMOJIS_UPDATE", payload, None)
         }
+        DomainEvent::ListeningRoomUpdated {
+            channel, payload, ..
+        } => passthrough("LISTENING_ROOM_UPDATE", payload, Some(*channel)),
         DomainEvent::StorageMountUpdated { payload, .. } => {
             passthrough("STORAGE_MOUNT_UPDATE", payload, None)
         }
