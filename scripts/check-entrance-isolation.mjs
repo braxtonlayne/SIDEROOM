@@ -382,15 +382,32 @@ function excusedBy(entries, text, lower, i, tok) {
   return null;
 }
 
-/** Reads ALLOWED.ts: every quoted string that looks like a repo path or package. */
-export function readAllowedModules(allowedTs) {
-  const text = readFileSync(allowedTs, 'utf8')
+/**
+ * Reads ALLOWED.ts: every quoted string that looks like a repo path or package. A list may spread another surface's
+ * list (`import { ALLOWED as LANDING } from '../landing/ALLOWED'` then `...LANDING`, as auth and invite do); the
+ * spread list's entries are followed. Import specifiers themselves are not entries.
+ */
+export function readAllowedModules(allowedTs, seen = new Set()) {
+  const file = resolve(allowedTs);
+  if (seen.has(file)) return [];
+  seen.add(file);
+  const text = readFileSync(file, 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
-  return [...text.matchAll(/(["'`])([^"'`\n]+)\1/g)]
+  const spread = [];
+  for (const m of text.matchAll(
+    /\bimport\s*\{\s*ALLOWED\s+as\s+(\w+)\s*\}\s*from\s*(["'])([^"']+)\2/g,
+  )) {
+    if (new RegExp(`\\.\\.\\.${m[1]}\\b`).test(text)) {
+      const target = resolve(dirname(file), m[3].replace(/\.ts$/, '') + '.ts');
+      if (existsSync(target)) spread.push(...readAllowedModules(target, seen));
+    }
+  }
+  const own = [...text.replace(/^\s*import\b[^;]*;/gm, '').matchAll(/(["'`])([^"'`\n]+)\1/g)]
     .map((m) => m[2].trim())
     .filter((s) => s && !/\s/.test(s))
     .flatMap(expandBraces);
+  return [...spread, ...own];
 }
 
 /** `a/{B,C}` -> `a/B`, `a/C` (the design writes its lists that way). */

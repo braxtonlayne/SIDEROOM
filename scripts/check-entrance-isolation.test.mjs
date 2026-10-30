@@ -412,6 +412,20 @@ test('helpers: chunk names, prefixes, dynamic imports, tokens, modules', () => {
     'routes/entrance/Door',
     'lib/inviteCode',
   ]);
+  // A list that spreads another surface's list (auth and invite spread the landing's) includes its entries; the
+  // import specifiers are not entries.
+  put(dir, 'landing/ALLOWED.ts', "export const ALLOWED = ['public/surface', 'lib/nav'];\n");
+  put(
+    dir,
+    'auth/ALLOWED.ts',
+    "import type { AllowList } from '../allowed';\nimport { ALLOWED as LANDING } from '../landing/ALLOWED';\n" +
+      "export const ALLOWED: AllowList = [...LANDING, 'routes/entrance/Login'];\n",
+  );
+  assert.deepEqual(readAllowedModules(join(dir, 'auth', 'ALLOWED.ts')), [
+    'public/surface',
+    'lib/nav',
+    'routes/entrance/Login',
+  ]);
   put(dir, 'm/entrance.ts', "export default {\n  'entrance.a.b': 'x',\n};\n");
   put(
     dir,

@@ -6,9 +6,9 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tableFile = join(repo, 'apps', 'web', 'public-surfaces.json');
@@ -121,7 +121,11 @@ test(
     if (!existsSync(distSw)) return t.skip('no apps/web/dist/sw.js (run the web build first)');
     const text = readFileSync(distSw, 'utf8');
     if (text.includes('__SR_BUILD__')) return t.skip('dist/sw.js is the unfinished template');
-    const sw = createRequire(import.meta.url)(distSw);
+    // apps/web is `"type": "module"`, so require() would load sw.js as ESM and its CommonJS export would be lost.
+    // Evaluate it as the classic script it is, with only a `module` to export through (no `self`: no listeners).
+    const sandbox = { module: { exports: {} }, URL };
+    runInNewContext(text, sandbox, { filename: distSw });
+    const sw = sandbox.module.exports;
     assert.equal(typeof sw.surfaceFor, 'function', 'sw.js exports surfaceFor for tests');
     for (const s of bundles) {
       for (const path of s.samples ?? []) {

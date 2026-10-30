@@ -93,6 +93,13 @@ describe('service worker policy', () => {
     expect(sw.pathMatches('/login', '/login/')).toBe(true);
   });
 
+  it('reads the Caddy matcher syntax of public-surfaces.json (a trailing * is a prefix, as in sr-server)', () => {
+    expect(sw.pathMatches('/join/*', '/join/abcd1234')).toBe(true);
+    expect(sw.pathMatches('/reset/*', '/reset/tok/en')).toBe(true);
+    expect(sw.pathMatches('/invite/*', '/invite')).toBe(false);
+    expect(sw.pathMatches('/join/*', '/channels')).toBe(false);
+  });
+
   it('takes a public page and any other page as two different navigations', () => {
     for (const p of ['/', '/join/abc', '/login', '/reset/t0k', '/~ada', '/house-notes']) {
       expect(sw.classify(req(p, { mode: 'navigate' }), ORIGIN), p).toBe('navigate-public');

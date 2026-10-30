@@ -30,9 +30,14 @@ const SHELL_MARK = 'id="root"';
 const STATIC_PREFIXES = ['/assets/', '/fonts/', '/icons/', '/entrance/'];
 const STATIC_FILES = ['/manifest.webmanifest', '/offline.css', ...PLAIN_PAGES];
 
-/** Does the surface path pattern ('$x' marks one variable segment, '~$x' a prefixed one) match this path? */
+/**
+ * Does the surface path pattern match this path? public-surfaces.json uses Caddy matcher syntax: a trailing '*' is
+ * a plain prefix ('/join/*'), as in Caddy and sr-server's gate. The design's form ('$x' marks one variable segment,
+ * '~$x' a prefixed one) is still understood for the built-in default table.
+ */
 function pathMatches(pattern, path) {
   const clean = pattern.split('#')[0];
+  if (clean.endsWith('*')) return path.startsWith(clean.slice(0, -1));
   if (clean === '/') return path === '/';
   const ps = clean.split('/').slice(1);
   const xs = path.split('/').slice(1);
