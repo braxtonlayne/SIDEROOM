@@ -85,14 +85,14 @@ export function paintBitmap(canvas: HTMLCanvasElement, b: Bitmap): void {
   canvas.width = b.width;
   canvas.height = b.height;
   const ctx = context(canvas);
-  ctx.putImageData(new ImageData(b.data as Uint8ClampedArray<ArrayBuffer>, b.width, b.height), 0, 0);
+  ctx.putImageData(new ImageData(b.data, b.width, b.height), 0, 0);
 }
 
 /** A bitmap with the captions burned in (the original is untouched; the editor keeps the result). */
 export function applyCaptions(b: Bitmap, options: CaptionOptions): Bitmap {
   const c = makeCanvas(b.width, b.height);
   const ctx = context(c);
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(b.data) as Uint8ClampedArray<ArrayBuffer>, b.width, b.height), 0, 0);
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(b.data), b.width, b.height), 0, 0);
   drawCaptions(ctx, b.width, b.height, options);
   const id = ctx.getImageData(0, 0, b.width, b.height);
   return { width: b.width, height: b.height, data: id.data };
@@ -113,7 +113,7 @@ export async function exportBitmap(b: Bitmap, format: ExportFormat, quality = 0.
   const src = format === 'jpeg' ? flatten(b) : b;
   const c = makeCanvas(src.width, src.height);
   context(c).putImageData(
-    new ImageData(new Uint8ClampedArray(src.data) as Uint8ClampedArray<ArrayBuffer>, src.width, src.height),
+    new ImageData(new Uint8ClampedArray(src.data), src.width, src.height),
     0,
     0,
   );

@@ -81,8 +81,52 @@ const guide: ToolEntry = {
   load: () => import('./drawer/GuideTool'),
 };
 
+/** UTL-IMG-001 (utl-image): the image and meme studio, redaction, palette extraction and video to GIF. */
+const imageTools: ToolEntry[] = [
+  {
+    id: 'image-studio',
+    nameKey: 'tools.image-studio.name',
+    descriptionKey: 'tools.image-studio.description',
+    icon: 'image',
+    group: 'media',
+    aliases: ['meme', 'meme maker', 'image editor', 'photo editor', 'crop', 'resize image', 'caption'],
+    size: { width: 520, height: 600, minWidth: 320, minHeight: 320 },
+    load: () => import('./studio/StudioTool'),
+  },
+  {
+    id: 'redact',
+    nameKey: 'tools.redact.name',
+    descriptionKey: 'tools.redact.description',
+    icon: 'eye-off',
+    group: 'media',
+    aliases: ['pixelate', 'blur image', 'censor', 'hide details', 'blackout'],
+    size: { width: 480, height: 560, minWidth: 320, minHeight: 320 },
+    load: () => import('./studio/RedactTool'),
+  },
+  {
+    id: 'palette',
+    nameKey: 'tools.palette.name',
+    descriptionKey: 'tools.palette.description',
+    icon: 'palette',
+    group: 'media',
+    aliases: ['colour palette', 'color palette', 'dominant colours', 'eyedropper', 'hex codes'],
+    size: { width: 420, height: 460, minWidth: 300, minHeight: 280 },
+    load: () => import('./studio/PaletteTool'),
+  },
+  {
+    id: 'gif',
+    nameKey: 'tools.gif.name',
+    descriptionKey: 'tools.gif.description',
+    icon: 'film',
+    group: 'media',
+    aliases: ['gif maker', 'make a gif', 'video to gif'],
+    size: { width: 480, height: 560, minWidth: 320, minHeight: 320 },
+    load: () => import('./studio/GifTool'),
+  },
+];
+
 /** Append new entries after the last one. */
-export const TOOLS: ToolEntry[] = [guide];
+export const TOOLS: ToolEntry[] = [guide, ...imageTools];
 
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
