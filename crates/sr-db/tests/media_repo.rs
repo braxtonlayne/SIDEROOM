@@ -115,7 +115,16 @@ async fn world(ffprobe: FakeRunner) -> World {
         queue.clone(),
         ids(),
         Arc::new(|| 1_700_000_000),
-        Arc::new(|| Some([7u8; 32])),
+        // Fresh bytes per call (the first call is still all sevens): two worker tokens made in one test must
+        // not share a secret, or the second insert hits the unique token hash.
+        {
+            let calls = std::sync::atomic::AtomicU8::new(0);
+            Arc::new(move || {
+                let mut b = [7u8; 32];
+                b[0] = 7u8.wrapping_add(calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
+                Some(b)
+            })
+        },
     )
     .with_part_size(u64::MAX / 4);
     World {
