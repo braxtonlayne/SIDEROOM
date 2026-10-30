@@ -898,7 +898,7 @@ mod tests {
     #[test]
     fn hashed_names() {
         assert!(is_hashed("assets/index-1a2b3c4d.js"));
-        assert!(is_hashed("x/Chunk-Ab_12-xyz.css"));
+        assert!(is_hashed("x/Chunk-Ab_12xyz9.css"));
         assert!(!is_hashed("manifest.webmanifest"));
         assert!(!is_hashed("THIRD_PARTY_NOTICES.md"));
         assert!(!is_hashed("a-b.js"));

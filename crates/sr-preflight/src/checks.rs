@@ -98,7 +98,7 @@ pub struct Ctx<'a> {
 
 /// Run every check (concurrently) and collect the table.
 pub async fn run(ctx: &Ctx<'_>) -> Report {
-    let (db, mig, clock, storage, smtp, url, turn, vapid, disk, secrets, esplora, voice) = tokio::join!(
+    let (db, mig, clock, storage, smtp, url, turn, vapid, disk, secrets, esplora, voice, web) = tokio::join!(
         database(ctx.db),
         migrations(ctx.db),
         clock_skew(ctx.db, ctx.host),
@@ -111,10 +111,11 @@ pub async fn run(ctx: &Ctx<'_>) -> Report {
         async { secret_files(ctx.host, ctx.settings) },
         esplora(ctx.net, ctx.settings),
         voice(ctx.net, ctx.settings),
+        async { web_root(ctx.host, ctx.settings) },
     );
     Report::new(
         vec![
-            db, mig, clock, storage, smtp, url, turn, vapid, disk, secrets, esplora, voice,
+            db, mig, clock, storage, smtp, url, turn, vapid, disk, secrets, esplora, voice, web,
         ],
         ctx.host.now_ms(),
     )
@@ -691,6 +692,43 @@ pub(crate) async fn voice(net: &dyn NetProbe, s: &Settings) -> Check {
     }
 }
 
+/// SEC-ENT-003 (D-385): the web root the server serves the app from. Unset is a warning (the server then serves
+/// no documents); a root without `app.html` or `app/csp.txt` is a failure, the server would refuse to start.
+pub(crate) fn web_root(host: &dyn HostProbe, s: &Settings) -> Check {
+    let t = "Web root";
+    let Some(root) = s.web_root.as_deref() else {
+        return Check::new(
+            "web",
+            t,
+            Status::Warn,
+            "web.root is not set: the server serves no web app. Set SR_WEB__ROOT to the built apps/web/dist (INSTALL.md step 6).",
+        );
+    };
+    let root = root.trim_end_matches(['/', '\\']);
+    let missing: Vec<&str> = ["app.html", "app/csp.txt"]
+        .into_iter()
+        .filter(|f| host.mode(&format!("{root}/{f}")) == ModeResult::Missing)
+        .collect();
+    if missing.is_empty() {
+        Check::new(
+            "web",
+            t,
+            Status::Pass,
+            format!("{root} holds app.html and app/csp.txt"),
+        )
+    } else {
+        Check::new(
+            "web",
+            t,
+            Status::Fail,
+            format!(
+                "{root} has no {}: unpack the release's web build there completely, or the server refuses to start.",
+                missing.join(" and ")
+            ),
+        )
+    }
+}
+
 impl Status {
     /// The worse of two statuses.
     pub(crate) fn max_with(self, other: Status) -> Status {
@@ -811,6 +849,7 @@ mod tests {
             disk_paths: vec!["/data".into()],
             secret_files: vec![],
             config_file: None,
+            web_root: None,
         }
     }
 
@@ -1231,6 +1270,37 @@ mod tests {
     }
 
     #[test]
+    fn web_root_states() {
+        let mut s = settings();
+        let none = FakeHost::default();
+        let c = web_root(&none, &s);
+        assert_eq!((c.id.as_str(), c.status), ("web", Status::Warn));
+        s.web_root = Some("/srv/web/".into());
+        let c = web_root(&none, &s);
+        assert_eq!(c.status, Status::Fail);
+        assert!(
+            c.detail.contains("app.html and app/csp.txt"),
+            "{}",
+            c.detail
+        );
+        let partial = FakeHost {
+            modes: vec![("/srv/web/app.html".into(), ModeResult::Mode(0o644))],
+            ..Default::default()
+        };
+        let c = web_root(&partial, &s);
+        assert_eq!(c.status, Status::Fail);
+        assert!(c.detail.contains("no app/csp.txt"), "{}", c.detail);
+        let full = FakeHost {
+            modes: vec![
+                ("/srv/web/app.html".into(), ModeResult::Mode(0o644)),
+                ("/srv/web/app/csp.txt".into(), ModeResult::Unsupported),
+            ],
+            ..Default::default()
+        };
+        assert_eq!(web_root(&full, &s).status, Status::Pass);
+    }
+
+    #[test]
     fn url_helpers() {
         assert_eq!(host_of("https://a.b:8443/x"), "a.b");
         assert_eq!(host_of("http://[::1]:80"), "::1");
@@ -1273,6 +1343,7 @@ mod tests {
                 "secrets",
                 "esplora",
                 "voice",
+                "web",
             ]
         );
         assert_eq!(
@@ -1323,11 +1394,12 @@ mod tests {
                 "disk",
                 "secrets",
                 "esplora",
-                "voice"
+                "voice",
+                "web"
             ]
         );
-        // smtp and turn are warnings, the rest passes.
+        // smtp, turn and the unset web root are warnings, the rest passes.
         assert!(r.ok);
-        assert_eq!((r.warned, r.failed), (2, 0));
+        assert_eq!((r.warned, r.failed), (3, 0));
     }
 }

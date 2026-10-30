@@ -241,11 +241,7 @@ async fn anonymous_navigation_is_a_302_to_login_whether_or_not_the_path_exists()
 #[tokio::test]
 async fn unsafe_next_values_are_dropped() {
     let f = fixture(false).await;
-    for path in ["//evil.example/x", "/%5Cevil".replace("%5C", "\\").as_str()] {
-        // `//evil` is a valid request target; a backslash is not, so only the first can be sent as is.
-        if path.contains('\\') {
-            continue;
-        }
+    for path in ["//evil.example/x", "//evil"] {
         let r = send(&f, empty(nav(path))).await;
         assert_eq!(r.status, StatusCode::FOUND, "{path}");
         assert_eq!(r.h("location"), "/login", "{path}");
