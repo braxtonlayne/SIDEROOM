@@ -8,6 +8,15 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 31 - 2026-10-30
+
+- **A jukebox in every voice channel.** Anyone who can speak queues tracks from their own music library; the
+  queue is shared, listeners vote to skip (half of them skips), and a member can take the decks as DJ. In synced
+  mode everyone plays the same track at the same moment from a bucket they can read; a track from a bucket you
+  cannot read shows as "not shared with you" and stays silent for you. Server managers can turn a voice channel
+  into a 24/7 listening room on a server playlist. Operators: the skip share is the setting
+  `jukebox.vote_skip_percent`.
+
 ## Phase 30 - 2026-10-29
 
 - **A music player that follows you.** Music plays in a small floating player that keeps going while you move

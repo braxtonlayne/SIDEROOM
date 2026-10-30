@@ -24464,6 +24464,1034 @@
         ]
       }
     },
+    "/channels/{channel_id}/jukebox": {
+      "get": {
+        "tags": [],
+        "summary": "The jukebox of a voice channel. Needs `VIEW_CHANNEL` and `CONNECT`. A track in a bucket the caller cannot\nread is listed without a title and with `playable: false`.",
+        "operationId": "state",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [],
+        "summary": "Switch between `stream` and `synced`. Needs `SPEAK`; while a DJ holds the decks only the DJ or a moderator\nmay.",
+        "operationId": "set_mode",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/dj": {
+      "put": {
+        "tags": [],
+        "summary": "Claim the decks (while nobody holds them), hand them to a listening member, or let go (`null`). The DJ and\nmoderators may hand over at any time.",
+        "operationId": "set_dj",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DjBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NOT_LISTENING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/ended": {
+      "post": {
+        "tags": [],
+        "summary": "A listener reports that the playing track reached its end. Ignored unless it is the playing track and its\nknown end is near; the server clock decides, so a liar cannot skip.",
+        "operationId": "ended",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndedBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/listening": {
+      "put": {
+        "tags": [],
+        "summary": "Say you are listening (on joining the call, then every 30 s). Listeners are who a skip vote is counted\nagainst; a listener not heard from for a minute stops counting.",
+        "operationId": "listen",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Stop listening: your skip vote and the decks (if you held them) go.",
+        "operationId": "leave",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/next": {
+      "post": {
+        "tags": [],
+        "summary": "Skip the playing track outright: the DJ, a moderator, or the member who queued it.",
+        "operationId": "skip_now",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NOTHING_PLAYING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/playback": {
+      "put": {
+        "tags": [],
+        "summary": "Pause or resume the playing track: the DJ or a moderator.",
+        "operationId": "set_playback",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NOTHING_PLAYING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/presign": {
+      "post": {
+        "tags": [],
+        "summary": "A presigned `GET` for the playing track (or the next waiting one, to prefetch), made for the caller alone.\nThe stored mount and key are checked against the caller's own storage scopes: a track in a bucket the\ncaller cannot read is a 404 (\"not shared with you\") and nothing is signed.",
+        "operationId": "presign",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JukeboxPresignBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/queue": {
+      "post": {
+        "tags": [],
+        "summary": "Queue tracks from the caller's reachable library. Needs `SPEAK`. A track the caller cannot read is a 404,\nthe same answer as for one that does not exist.",
+        "operationId": "enqueue",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnqueueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "QUEUE_FULL or MEMBER_QUEUE_FULL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/queue/{item_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Remove a queue entry: whoever queued it, the DJ or a moderator. Removing the playing track skips it.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Queue entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/jukebox/skip": {
+      "post": {
+        "tags": [],
+        "summary": "Vote to skip the playing track. The vote counts against `jukebox.vote_skip_percent` of the members who are\nlistening; reaching it skips.",
+        "operationId": "vote_skip",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NOTHING_PLAYING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Take a skip vote back.",
+        "operationId": "withdraw_vote",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JukeboxStateView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/listening-room": {
+      "get": {
+        "tags": [],
+        "summary": "The room's cursor now, in the shape of the `LISTENING_ROOM_UPDATE` event.",
+        "operationId": "cursor",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cursor: mode, seq, at_ms, position_ms, now_playing, next, skipped"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a listening room",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [],
+        "summary": "Make the voice channel a listening room on a server playlist.",
+        "operationId": "enable",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnableRoomBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "The channel is a listening room"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Stop the channel being a listening room.",
+        "operationId": "disable",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The channel is an ordinary voice channel"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/messages": {
       "get": {
         "tags": [
@@ -82167,6 +83195,19 @@
           }
         }
       },
+      "DjBody": {
+        "type": "object",
+        "description": "Body of `PUT /channels/{id}/jukebox/dj`.",
+        "properties": {
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The new DJ, a member who is listening; `null` lets go of the decks."
+          }
+        }
+      },
       "DmChannelObject": {
         "type": "object",
         "required": [
@@ -82971,6 +84012,32 @@
           }
         }
       },
+      "EnableRoomBody": {
+        "type": "object",
+        "description": "Body of `PUT /channels/{id}/listening-room`.",
+        "required": [
+          "playlist_id"
+        ],
+        "properties": {
+          "playlist_id": {
+            "type": "string",
+            "description": "A playlist of this server (`GET /guilds/{id}/music/playlists`)."
+          }
+        }
+      },
+      "EndedBody": {
+        "type": "object",
+        "description": "Body of `POST /channels/{id}/jukebox/ended`.",
+        "required": [
+          "item_id"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "description": "The queue row that reached its end."
+          }
+        }
+      },
       "EndpointStatusObject": {
         "type": "object",
         "description": "State of an application's HTTP interactions endpoint (D-186).",
@@ -82993,6 +84060,22 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "EnqueueBody": {
+        "type": "object",
+        "description": "Body of `POST /channels/{id}/jukebox/queue`.",
+        "required": [
+          "track_ids"
+        ],
+        "properties": {
+          "track_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Index track snowflakes (`GET /music/library`), at most 50."
           }
         }
       },
@@ -87047,6 +88130,196 @@
           }
         }
       },
+      "JukeboxItemView": {
+        "type": "object",
+        "description": "One queue row as the viewer may see it.",
+        "required": [
+          "id",
+          "state",
+          "playable"
+        ],
+        "properties": {
+          "added_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who queued it."
+          },
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist; absent when the viewer cannot read the bucket."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Length in milliseconds, when known."
+          },
+          "id": {
+            "type": "string",
+            "description": "Queue row snowflake."
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "The viewer can read the track's bucket now. `false` means \"not shared with you\": silence for them."
+          },
+          "state": {
+            "type": "string",
+            "description": "`playing`, `queued`, `played` or `skipped`."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title; absent when the viewer cannot read the bucket."
+          }
+        }
+      },
+      "JukeboxPresignBody": {
+        "type": "object",
+        "description": "Body of `POST /channels/{id}/jukebox/presign`.",
+        "required": [
+          "item_id"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "description": "The queue row: the playing one, or the next waiting one (prefetch)."
+          },
+          "range": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A request range the client will send, `bytes=a-b`."
+          }
+        }
+      },
+      "JukeboxStateView": {
+        "type": "object",
+        "description": "The jukebox of a voice channel, for one viewer.",
+        "required": [
+          "channel_id",
+          "active",
+          "mode",
+          "version",
+          "server_now_ms",
+          "position_ms",
+          "paused",
+          "queue",
+          "votes",
+          "votes_needed",
+          "my_vote",
+          "listeners",
+          "i_am_dj",
+          "can_queue",
+          "can_control"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "`false` while nobody has queued anything in this channel."
+          },
+          "can_control": {
+            "type": "boolean",
+            "description": "The viewer may pause, skip outright, remove any track and hand the decks over."
+          },
+          "can_queue": {
+            "type": "boolean",
+            "description": "The viewer may queue tracks and pick the mode."
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "The voice channel."
+          },
+          "current": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JukeboxItemView",
+                "description": "The playing track."
+              }
+            ]
+          },
+          "dj_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The DJ."
+          },
+          "i_am_dj": {
+            "type": "boolean",
+            "description": "The viewer holds the decks."
+          },
+          "listeners": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Members listening now."
+          },
+          "mode": {
+            "type": "string",
+            "description": "`stream` (a DJ sends the audio into the call) or `synced` (everyone plays from a bucket they read)."
+          },
+          "my_vote": {
+            "type": "boolean",
+            "description": "The viewer has voted."
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "The DJ paused the track."
+          },
+          "position_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Position in the current track at `server_now_ms`."
+          },
+          "queue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JukeboxItemView"
+            },
+            "description": "Waiting tracks in play order."
+          },
+          "server_now_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The server clock when this was read, unix ms. Compare with the local clock once and keep the offset."
+          },
+          "started_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The server clock at which the current track was at position 0 (`server_now_ms - position_ms`) while it\nplays; absent while paused or idle. Listeners align their `currentTime` to `now - started_at_ms`."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Changes with every change; clients refetch when it moves."
+          },
+          "votes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Skip votes standing for the current track."
+          },
+          "votes_needed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Skip votes needed."
+          }
+        }
+      },
       "KindInfo": {
         "type": "object",
         "description": "A kind available for creation.",
@@ -89476,6 +90749,19 @@
             "type": "integer",
             "format": "int64",
             "description": "Length of the window in seconds."
+          }
+        }
+      },
+      "ModeBody": {
+        "type": "object",
+        "description": "Body of `PUT /channels/{id}/jukebox`.",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "`stream` or `synced`."
           }
         }
       },
@@ -93578,6 +94864,19 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "PlaybackBody": {
+        "type": "object",
+        "description": "Body of `PUT /channels/{id}/jukebox/playback`.",
+        "required": [
+          "paused"
+        ],
+        "properties": {
+          "paused": {
+            "type": "boolean",
+            "description": "`true` pauses, `false` resumes."
           }
         }
       },

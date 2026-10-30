@@ -227,6 +227,16 @@ pub(crate) fn write_from(b: TrackPatchBody) -> MsgResult<(TagWrite, TagSource)> 
     Ok((w, source))
 }
 
+/// The track `id` when `user` reaches its mount and it is not delisted (the voice jukebox queues through this).
+pub(crate) async fn find_track(
+    d: &ScopeDeps,
+    m: &MusicDeps,
+    user: i64,
+    id: i64,
+) -> MsgResult<Track> {
+    find(d, m, user, id).await.map(|(_, t)| t)
+}
+
 async fn find(d: &ScopeDeps, m: &MusicDeps, user: i64, id: i64) -> MsgResult<(Vec<Reach>, Track)> {
     let reach = reaches(d, m, user).await?;
     let ids: Vec<i64> = reach.iter().map(|r| r.mount.id).collect();
