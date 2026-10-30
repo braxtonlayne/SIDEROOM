@@ -4,7 +4,7 @@ import { GoldButton, TextArea } from '@sideroom/ui';
 import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n/react';
-import { fileAppeal } from '../../moderation/api';
+import { fileAppeal } from '../../api/entrance';
 import { minutesFromSeconds } from '../../lib/validation';
 
 /** The sign-in answer for a banned account (`SrPlatformBanned`, 900008). */

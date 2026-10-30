@@ -2,10 +2,11 @@ import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
-import { cspOptionsFromConfig, securityHeaders } from './src/security/csp';
+import { buildCsp, cspOptionsFromConfig, securityHeaders } from './src/security/csp';
 import { activityHostProxy } from './vite/activityHosts';
 import { pseudoLocalePlugin } from './vite/pseudoLocale';
-import { pwaPlugin } from './vite/pwa';
+import { appContractPlugin } from './vite/appContract';
+import { devShells } from './vite/devShells';
 
 /** Optional comma-separated extra CSP origins for self-hosters (a separate voice host, activities). */
 const list = (v: string | undefined) =>
@@ -42,7 +43,22 @@ function changelogVersion(): string {
   }
 }
 
-export default defineConfig({
+/**
+ * The gated APP build (D-385, docs/dev/entrance-isolation.md section 2): `app.html` and its assets, base `/app/`,
+ * written to `dist/app/` (the shell is moved to `dist/app.html` by `appContractPlugin`). The public surfaces are a
+ * separate build, `vite.public.config.ts`; `scripts/build-web.mjs` runs both. `vite dev` and `vitest` use this
+ * file, with the base at `/`.
+ */
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/app/' : '/',
+  // The public files (fonts, icons, the service worker) belong to the public build; the app only links them.
+  publicDir: command === 'build' ? false : 'public',
+  build: {
+    outDir: 'dist/app',
+    emptyOutDir: true,
+    assetsDir: '',
+    rollupOptions: { input: { app: fileURLToPath(new URL('./app.html', import.meta.url)) } },
+  },
   define: {
     __SR_VERSION__: JSON.stringify(changelogVersion()),
     // RDY-I18N-002: the pseudo-locales ship only in a build made with SR_PSEUDO_LOCALE=1 (src/i18n/runtime.ts).
@@ -52,7 +68,8 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    pwaPlugin(),
+    appContractPlugin({ csp: buildCsp(extra) }),
+    devShells(fileURLToPath(new URL('.', import.meta.url))),
     pseudoLocalePlugin(),
     ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy()] : []),
   ],
@@ -95,4 +112,4 @@ export default defineConfig({
     css: false,
     testTimeout: 30000,
   },
-});
+}));

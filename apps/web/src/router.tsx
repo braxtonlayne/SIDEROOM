@@ -26,20 +26,12 @@ import { createProfilePageRoutes } from './profilepage/routes';
 import { createPwaRoutes } from './pwa/routes';
 import { createStorageRoutes } from './storage/routes';
 import { isPublicPath } from './player/scope';
-import { Landing } from './routes/entrance/Landing';
-import { Login } from './routes/entrance/Login';
-import { LoginLink } from './routes/entrance/LoginLink';
-import { Forgot, Reset } from './routes/entrance/PasswordReset';
-import { Register } from './routes/entrance/Register';
-import { ServerInvite } from './routes/entrance/ServerInvite';
+import { parseSearchValue, stringifySearchValue } from './lib/searchCodec';
 import { Help } from './help/HelpPage';
 import { HelpSkeleton } from './help/HelpSkeleton';
-import { HouseNotes, NoInvitation } from './routes/entrance/Static';
-import { TwoFactor } from './routes/entrance/TwoFactor';
-import { DiscordCallback } from './routes/entrance/DiscordCallback';
-import { VerifyEmail } from './routes/entrance/VerifyEmail';
-import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
-import { ServerTemplate } from './routes/entrance/ServerTemplate';
+import { AppServerInvite } from './app/AppServerInvite';
+import { AppServerTemplate } from './app/AppServerTemplate';
+import { AppDoor } from './app/AppDoor';
 
 // /help/whats-new carries the whole changelog text, so it is its own chunk (RDY-ONB-003).
 const WhatsNewPage = lazy(() => import('./help/WhatsNew').then((m) => ({ default: m.WhatsNew })));
@@ -94,64 +86,22 @@ const root = createRootRoute({ component: RootLayout });
 const r = <P extends string>(path: P, component: () => React.JSX.Element | null) =>
   createRoute({ getParentRoute: () => root, path, component });
 
-const validateLoginSearch = (s: Record<string, unknown>): { next?: string; error?: string } => ({
-  ...(typeof s.next === 'string' ? { next: s.next } : {}),
-  ...(typeof s.error === 'string' ? { error: s.error } : {}),
-});
-
-const loginRoute = createRoute({
+/** The neutral door (D-385): `/app` sends the member to where they last were, or to `?goto=` a path of the app. */
+const appDoorRoute = createRoute({
   getParentRoute: () => root,
-  path: '/login',
-  component: Login,
-  validateSearch: validateLoginSearch,
-});
-const twoFactorRoute = createRoute({
-  getParentRoute: () => root,
-  path: '/login/2fa',
-  component: TwoFactor,
-  validateSearch: validateLoginSearch,
-});
-const loginLinkRoute = createRoute({
-  getParentRoute: () => root,
-  path: '/login/link',
-  component: LoginLink,
-  validateSearch: (s: Record<string, unknown>): { token?: string } =>
-    typeof s.token === 'string' ? { token: s.token } : {},
-});
-const emailChangeCancelRoute = createRoute({
-  getParentRoute: () => root,
-  path: '/email-change/cancel',
-  component: EmailChangeCancel,
-  validateSearch: (s: Record<string, unknown>): { token?: string } =>
-    typeof s.token === 'string' ? { token: s.token } : {},
-});
-const joinRoute = createRoute({
-  getParentRoute: () => root,
-  path: '/join/$code',
-  component: function Join() {
-    const { code } = joinRoute.useParams();
-    return <Landing initialCode={code} />;
-  },
+  path: '/app',
+  component: AppDoor,
+  validateSearch: (s: Record<string, unknown>): { goto?: string } =>
+    typeof s.goto === 'string' ? { goto: s.goto } : {},
 });
 
 const routeTree = root.addChildren([
-  r('/', () => <Landing />),
-  loginRoute,
-  twoFactorRoute,
-  loginLinkRoute,
-  emailChangeCancelRoute,
-  joinRoute,
-  r('/register', Register),
-  r('/forgot', Forgot),
-  r('/reset/$token', Reset),
-  r('/verify-email/$token', VerifyEmail),
-  r('/oauth/discord/callback', DiscordCallback),
-  r('/no-invitation', NoInvitation),
-  r('/house-notes', HouseNotes),
+  appDoorRoute,
+  r('/', AppDoor),
   r('/help', Help),
   r('/help/whats-new', WhatsNew),
-  r('/invite/$code', ServerInvite),
-  r('/template/$code', ServerTemplate),
+  r('/invite/$code', AppServerInvite),
+  r('/template/$code', AppServerTemplate),
   createLoungeRoutes(root),
   ...createUserSettingsRoutes(root),
   ...createServerSettingsRoutes(root),
@@ -170,22 +120,11 @@ function NotFoundPage() {
   return <p>{t('app.router.notFound')}</p>;
 }
 
-/**
- * Search values are JSON-parsed like the router's default, except integers a JS number cannot hold exactly:
- * a snowflake such as `?submission=107586859906891776` stays a string. The default turned it into a number and
- * rounded it (…891780), so staff card links (G-68) opened a submission that does not exist.
- */
-const isUnsafeInteger = (raw: string) => /^-?\d+$/.test(raw) && !Number.isSafeInteger(Number(raw));
+export { parseSearchValue, stringifySearchValue };
 
-export function parseSearchValue(raw: string): unknown {
-  if (isUnsafeInteger(raw)) return raw;
-  return JSON.parse(raw);
-}
-
-/** The inverse: such an id is written back as bare digits, not as a quoted JSON string. */
-export function stringifySearchValue(value: unknown): string {
-  if (typeof value === 'string' && isUnsafeInteger(value)) return value;
-  return JSON.stringify(value);
+/** The app's route paths (`/`, `/app` and the sections), written to `dist/app/routes.json` by the app build. */
+export function routePaths(): string[] {
+  return Object.keys(createAppRouter().routesByPath).sort();
 }
 
 export const createAppRouter = (history?: RouterHistory) =>

@@ -1,9 +1,10 @@
-import { Link, useRouter, useSearch } from '@tanstack/react-router';
+import { useSearch } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { loginWithLink } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { useT } from '../../i18n/react';
+import { enterApp } from '../../lib/enterApp';
 import { minutesFromSeconds } from '../../lib/validation';
 
 type State =
@@ -19,7 +20,6 @@ type State =
  */
 export function LoginLink() {
   const t = useT();
-  const router = useRouter();
   const { token } = useSearch({ strict: false }) as { token?: string };
   const [state, setState] = useState<State>(() =>
     token ? { kind: 'signing-in' } : { kind: 'missing' },
@@ -30,14 +30,14 @@ export function LoginLink() {
     if (!token || sent.current) return;
     sent.current = true;
     loginWithLink(token)
-      .then(() => router.navigate({ to: '/channels', replace: true }))
+      .then(() => enterApp())
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 429)
           setState({ kind: 'throttled', retryAfter: e.retryAfter });
         else if (e instanceof ApiError && e.status < 500) setState({ kind: 'expired' });
         else setState({ kind: 'error' });
       });
-  }, [token, router]);
+  }, [token]);
 
   return (
     <AuthSplit
@@ -77,7 +77,7 @@ export function LoginLink() {
         </p>
       )}
       <p className="ent-footnote">
-        <Link to="/login">{t('entrance.loginLink.usePassword')}</Link>
+        <a href="/login">{t('entrance.loginLink.usePassword')}</a>
       </p>
     </AuthSplit>
   );

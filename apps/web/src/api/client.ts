@@ -82,6 +82,15 @@ export function clearCsrf(): void {
 
 const isCsrfRejection = (e: ApiError) => e.status === 403 && /csrf/i.test(e.body?.message ?? '');
 
+/**
+ * D-385: the app registers one handler that leaves for the sign-in surface when the session is gone. Public
+ * surfaces register none: a 401 there is an ordinary answer (wrong password, nothing to see).
+ */
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 export async function apiFetch<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const { json, raw, retries = 2, headers, csrfRetried = false, ...init } = opts;
   const method = (init.method ?? 'GET').toUpperCase();
@@ -116,6 +125,8 @@ export async function apiFetch<T>(path: string, opts: ApiOptions = {}): Promise<
         body.retry_after = header;
     }
     const error = new ApiError(res.status, body?.message ?? res.statusText, body);
+    if (res.status === 401 && !path.startsWith('/sr/auth/') && !path.startsWith('/sr/register'))
+      onUnauthorized?.();
     // A stale token (session rotated elsewhere): refetch once and retry the mutation.
     if (mutating && !csrfRetried && isCsrfRejection(error)) {
       await refreshCsrf();

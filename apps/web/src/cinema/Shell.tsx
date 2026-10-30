@@ -1,5 +1,6 @@
 // Cinema section chrome (CIN-UI-001/002/004/005): section top bar, cinema header with nav, search and avatar
 // menu, footer, and the phone layout (hamburger drawer).
+import { exitToLogin } from '../lib/enterApp';
 import { SkipLink } from '../components/SkipLink';
 import {
   Avatar,
@@ -147,7 +148,7 @@ export function useRequireSession() {
   useEffect(() => {
     if (!unauthorized || sent.current) return;
     sent.current = true;
-    void navigate({ to: '/login', search: { next: here } });
+    exitToLogin(here);
   }, [unauthorized, navigate, here]);
   return unauthorized;
 }

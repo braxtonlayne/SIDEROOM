@@ -1,5 +1,5 @@
 import { Checkbox, GoldButton, TextInput } from '@sideroom/ui';
-import { Link, useRouter, useSearch } from '@tanstack/react-router';
+import { useSearch } from '@tanstack/react-router';
 import { useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { submitTwoFactor } from '../../api/entrance';
@@ -9,7 +9,7 @@ import { PasskeyButton } from '../../components/PasskeyButton';
 import { clearMfaMethods, readMfaMethods } from '../../lib/mfaMethods';
 import { useT } from '../../i18n/react';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
-import { useUiStore } from '../../state/session';
+import { enterApp } from '../../lib/enterApp';
 
 /** Local primitive: segmented 6-digit input with auto-advance, backspace-back and paste. */
 export function OtpInput({
@@ -74,7 +74,6 @@ export function OtpInput({
 
 export function TwoFactor() {
   const t = useT();
-  const router = useRouter();
   const search = useSearch({ strict: false }) as { next?: string };
   const next = safeNext(search.next);
   // Q83: only the methods the server offered at the password step are shown.
@@ -92,7 +91,7 @@ export function TwoFactor() {
 
   const finish = () => {
     clearMfaMethods();
-    router.history.push(next ?? useUiStore.getState().lastSection);
+    enterApp(next);
   };
 
   const submit = async (method: 'totp' | 'recovery', value: string) => {
@@ -209,9 +208,9 @@ export function TwoFactor() {
               {m === 'totp' ? t('entrance.twoFactor.useTotp') : t('entrance.twoFactor.useRecovery')}
             </button>
           ))}
-        <Link to="/login" className="ent-linkbtn">
+        <a href="/login" className="ent-linkbtn">
           {t('entrance.common.backToSignIn')}
-        </Link>
+        </a>
       </form>
     </AuthSplit>
   );

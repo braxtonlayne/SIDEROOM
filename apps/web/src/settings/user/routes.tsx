@@ -26,7 +26,7 @@ function UserSettingsPage() {
   const onClose = useCallback(() => router.history.push(takeSettingsReturn()), [router]);
   const onSignedOut = useCallback(() => {
     resetStore();
-    void router.navigate({ to: '/login' });
+    window.location.assign('/login');
   }, [router]);
   if (!isUserSettingsSection(section)) return null;
   return (

@@ -3,6 +3,7 @@
  * Only sections the staff member's platform permissions allow are listed; the API enforces the same rules,
  * so a hidden section is a courtesy, never the security boundary.
  */
+import { exitToLogin } from '../lib/enterApp';
 import { SkipLink } from '../components/SkipLink';
 import {
   Button,
@@ -377,7 +378,7 @@ export function AdminShell({ section }: { section: string | undefined }) {
         title={t('admin.adminApp.signIn.title')}
         description={t('admin.adminApp.signIn.description')}
         action={
-          <Button onClick={() => void navigate({ to: '/login', search: { next: '/admin' } })}>
+          <Button onClick={() => exitToLogin('/admin')}>
             {t('admin.adminApp.signIn.button')}
           </Button>
         }

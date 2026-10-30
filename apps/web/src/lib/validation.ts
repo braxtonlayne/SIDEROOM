@@ -14,12 +14,7 @@ export function validatePassword(v: string): string | null {
   return null;
 }
 
-/** Only same-origin relative paths may be used as a post-login destination. */
-export function safeNext(next: string | undefined): string | null {
-  return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')
-    ? next
-    : null;
-}
+export { safeNext } from './enterApp';
 
 export function minutesFromSeconds(s: number | null): number {
   return Math.max(1, Math.ceil((s ?? 60) / 60));

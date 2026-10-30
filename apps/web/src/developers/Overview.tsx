@@ -84,9 +84,9 @@ function Status() {
   if (q.error instanceof ApiError && q.error.status === 401)
     return (
       <Notice variant="info" title={t('developers.overview.signInTitle')}>
-        <Link to="/login" search={{ next: '/developers' }} className="dev-link">
+        <a href="/login?next=%2Fdevelopers" className="dev-link">
           {t('developers.overview.logIn')}
-        </Link>{' '}
+        </a>{' '}
         {t('developers.overview.signInRest')}
       </Notice>
     );

@@ -1,4 +1,4 @@
-import { Link, useParams } from '@tanstack/react-router';
+import { useParams } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { verifyEmail } from '../../api/entrance';
@@ -57,7 +57,7 @@ export function VerifyEmail() {
         </p>
       )}
       <p className="ent-footnote">
-        <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
+        <a href="/login">{t('entrance.common.backToSignIn')}</a>
       </p>
     </AuthSplit>
   );

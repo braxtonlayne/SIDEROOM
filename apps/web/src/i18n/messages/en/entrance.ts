@@ -32,16 +32,6 @@ export default {
   'entrance.landing.invOnly': 'By invitation only',
   'entrance.landing.vertical': 'Some doors are worth finding.',
   'entrance.landing.footLine': 'The outside is quiet. The inside is yours.',
-  'entrance.landing.glimpse': 'A glimpse inside',
-  'entrance.landing.stripTitle': 'One door.',
-  'entrance.landing.stripAccent': 'A few different worlds.',
-  'entrance.landing.stripSub': 'For members, together.',
-  'entrance.landing.world.lounge.title': 'The lounge',
-  'entrance.landing.world.lounge.copy': 'Good company. Open conversations.',
-  'entrance.landing.world.cinema.title': 'The cinema',
-  'entrance.landing.world.cinema.copy': 'Something worth staying up for.',
-  'entrance.landing.world.library.title': 'The library',
-  'entrance.landing.world.library.copy': 'One more chapter. Then another.',
 
   // Shared auth layout
   'entrance.auth.welcome': 'Welcome',
@@ -184,6 +174,9 @@ export default {
   'entrance.support.rules.body':
     'Report it to a server moderator, or read the house notes for what is and is not allowed.',
   'entrance.support.rules.link': 'House notes',
+  'entrance.support.signinHelp.summary': 'Trouble signing in?',
+  'entrance.notFound.title': 'Nothing here',
+  'entrance.notFound.body': 'There is nothing at this address.',
   // Shared by the link and reset pages (G-86)
   'entrance.common.oneMoment': 'One moment…',
   'entrance.common.unreachable': "We couldn't reach the door. Check your connection and try again.",

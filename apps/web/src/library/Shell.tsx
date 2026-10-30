@@ -1,5 +1,6 @@
 // Library section chrome (LIB-UI-001..005): section bar, sidebar, top search row with the bell and avatar menu,
 // and the mobile layout (sidebar becomes a drawer, bottom navigation).
+import { exitToLogin } from '../lib/enterApp';
 import { SkipLink } from '../components/SkipLink';
 import {
   Avatar,
@@ -329,7 +330,7 @@ export function useRequireSession() {
   useEffect(() => {
     if (!unauthorized || sent.current) return;
     sent.current = true; // the href changes once we leave; never chain redirects
-    void navigate({ to: '/login', search: { next: here } });
+    exitToLogin(here);
   }, [unauthorized, navigate, here]);
   return unauthorized;
 }

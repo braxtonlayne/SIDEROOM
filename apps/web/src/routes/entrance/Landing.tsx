@@ -1,12 +1,11 @@
-import { DisplayHeading, Eyebrow, GoldButton, useMediaQuery } from '@sideroom/ui';
+import { DisplayHeading, Eyebrow, GoldButton } from '@sideroom/ui';
 import { EntranceMarkdown, useEntranceCopy, useEntranceHero } from './entranceCopy';
-import { Link, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { checkInvite } from '../../api/entrance';
 import { Door } from '../../components/Door';
 import { EntranceShell } from '../../components/EntranceShell';
-import { BookIcon, ChatIcon, DoorIcon, FilmIcon, KeyIcon, LockIcon } from '../../components/icons';
+import { DoorIcon, KeyIcon, LockIcon } from '../../components/icons';
 import { useT } from '../../i18n/react';
 import type { MessageKey } from '../../i18n/messages/en';
 import { useCompliancePublic } from '../../lib/compliancePublic';
@@ -23,27 +22,6 @@ const MESSAGES: Partial<Record<CheckState, { tone: 'good' | 'bad'; key: MessageK
   error: { tone: 'bad', key: 'entrance.landing.error' },
 };
 
-const WORLDS: { n: string; Icon: typeof ChatIcon; title: MessageKey; copy: MessageKey }[] = [
-  {
-    n: '01',
-    Icon: ChatIcon,
-    title: 'entrance.landing.world.lounge.title',
-    copy: 'entrance.landing.world.lounge.copy',
-  },
-  {
-    n: '02',
-    Icon: FilmIcon,
-    title: 'entrance.landing.world.cinema.title',
-    copy: 'entrance.landing.world.cinema.copy',
-  },
-  {
-    n: '03',
-    Icon: BookIcon,
-    title: 'entrance.landing.world.library.title',
-    copy: 'entrance.landing.world.library.copy',
-  },
-];
-
 export function Landing({ initialCode = '' }: { initialCode?: string }) {
   const copy = useEntranceCopy();
   const note = copy['landing-note'];
@@ -51,13 +29,10 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
   useRedirectIfLoggedIn();
   const t = useT();
   const compliance = useCompliancePublic();
-  const router = useRouter();
   const [code, setCode] = useState(() => formatInviteCode(initialCode));
   const [state, setState] = useState<CheckState>('idle');
   const [shakes, setShakes] = useState(0);
-  const strip = useRef<HTMLElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const complete = isCompleteInviteCode(code);
 
@@ -70,7 +45,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
         if (res.valid) {
           holdInviteCode(value);
           setState('valid');
-          timer.current = setTimeout(() => void router.navigate({ to: '/register' }), 600);
+          timer.current = setTimeout(() => window.location.assign('/register'), 600);
         } else if (res.reason === 'closed') {
           setState('closed');
         } else {
@@ -81,7 +56,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
         setState(e instanceof ApiError && e.status === 429 ? 'limited' : 'error');
       }
     },
-    [router],
+    [],
   );
 
   // /join/:code auto-checks once on arrival.
@@ -175,7 +150,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
               <span>
                 <LockIcon width={14} height={14} /> {t('entrance.landing.required')}
               </span>
-              <Link to="/no-invitation">{t('entrance.landing.noInvitation')}</Link>
+              <a href="/no-invitation">{t('entrance.landing.noInvitation')}</a>
             </div>
             <p className="ent-footnote">
               {t('entrance.landing.ageNotice', { age: compliance.minimum_age })}
@@ -205,36 +180,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
               <span className="ent-bullet" aria-hidden="true" />
               {t('entrance.landing.footLine')}
             </p>
-            <button
-              type="button"
-              className="ent-glimpse"
-              onClick={() =>
-                strip.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' })
-              }
-            >
-              {t('entrance.landing.glimpse')} <span aria-hidden="true">↓</span>
-            </button>
           </div>
-        </section>
-        <section className="ent-strip" ref={strip} aria-labelledby="strip-title">
-          <div className="ent-strip-head">
-            <h2 id="strip-title">
-              {t('entrance.landing.stripTitle')} <em>{t('entrance.landing.stripAccent')}</em>
-            </h2>
-            <p>{t('entrance.landing.stripSub')}</p>
-          </div>
-          <ul className="ent-worlds">
-            {WORLDS.map(({ n, Icon, title, copy }) => (
-              <li key={n}>
-                <div className="ent-world-num">
-                  <span>{n} /</span>
-                  <Icon />
-                </div>
-                <h3>{t(title)}</h3>
-                <p>{t(copy)}</p>
-              </li>
-            ))}
-          </ul>
         </section>
       </main>
     </EntranceShell>

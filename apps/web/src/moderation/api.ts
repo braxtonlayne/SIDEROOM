@@ -303,8 +303,7 @@ export const listAppeals = (p: { open_only?: boolean; limit?: number } = {}) =>
 export const decideAppeal = (id: string, decision: 'upheld' | 'overturned', reason: string) =>
   send<AppealView>(`/moderation/appeals/${id}/decision`, 'POST', { decision, reason });
 /** The ban screen: the credentials prove the (session-less) banned account. */
-export const fileAppeal = (body: { login: string; password: string; message: string }) =>
-  send<void>('/moderation/appeals', 'POST', body);
+export { fileAppeal } from '../api/entrance';
 
 export interface OpenCaseBody {
   category: ReportCategory;
