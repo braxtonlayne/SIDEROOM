@@ -2054,6 +2054,76 @@ async fn seed(
         .await;
     }
 
+    // MUS-JB-002/MUS-JB-003 (wave 31): the jukebox and listening-room routes need a voice channel
+    // (`jukebox_channel_id`, mapped onto `{channel_id}` by `ctx_for`) with a session whose playing queue row
+    // is the tenant's own track on its user mount. The write phase runs POST `ended` (a no-op this early),
+    // `next` (plays the second row, `jukebox_item_id`, which `presign` then signs for the member), `skip`, and
+    // later DELETE `queue/{item_id}` on the last row (`jukebox_queued_item_id`), still waiting by then.
+    for (ids_map, guild, owner) in [(&mut a, ga, &oa), (&mut b, gb, &ob)] {
+        let Some(v) = create(
+            &srv,
+            owner,
+            "POST",
+            "/guilds/{guild_id}/channels",
+            &format!("/guilds/{guild}/channels"),
+            infos,
+            Some(json!({"name": "jukebox", "type": 2})),
+        )
+        .await
+        else {
+            continue;
+        };
+        let Some(vc) = v["id"].as_str().and_then(|s| s.parse::<i64>().ok()) else {
+            continue;
+        };
+        let (track, mount): (i64, i64) = (
+            ids_map["track_id"].parse().unwrap(),
+            ids_map["mount_id"].parse().unwrap(),
+        );
+        let rows: Vec<i64> = (0..4).map(|_| ids.generate().get() as i64).collect();
+        sqlx::query(
+            "INSERT INTO jukebox_sessions (channel_id, guild_id, current_item_id, started_at) \
+             VALUES ($1, $2, $3, now())",
+        )
+        .bind(vc)
+        .bind(guild)
+        .bind(rows[0])
+        .execute(&pool)
+        .await
+        .unwrap();
+        for (seq, row) in rows.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO jukebox_queue (id, channel_id, seq, track_id, mount_id, key, title, duration_ms, state) \
+                 VALUES ($1, $2, $3, $4, $5, 'Music/Authz/01 Authz.mp3', 'Authz', 600000, $6)",
+            )
+            .bind(row)
+            .bind(vc)
+            .bind(seq as i64 + 1)
+            .bind(track)
+            .bind(mount)
+            .bind(if seq == 0 { "playing" } else { "queued" })
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        // The same channel is a listening room on the tenant's playlist (GET reads its cursor; PUT and
+        // DELETE in the write phase change and end it).
+        let playlist: i64 = ids_map["playlist_id"].parse().unwrap();
+        sqlx::query(
+            "INSERT INTO listening_rooms (channel_id, guild_id, playlist_id) VALUES ($1, $2, $3)",
+        )
+        .bind(vc)
+        .bind(guild)
+        .bind(playlist)
+        .execute(&pool)
+        .await
+        .unwrap();
+        ids_map.insert("jukebox_channel_id", vc.to_string());
+        ids_map.insert("jukebox_playing_item_id", rows[0].to_string());
+        ids_map.insert("jukebox_item_id", rows[1].to_string());
+        ids_map.insert("jukebox_queued_item_id", rows[3].to_string());
+    }
+
     // R-03: more ids, from the world's own API. Each is stored under the placeholder the routes use.
     let appowner_cred = Cred::Session(sess["app_owner"].clone());
     let friend2 = u("friendtwo").to_string();
@@ -3618,6 +3688,16 @@ const STAMPS: [&str; 7] = [
     "seeded",
 ];
 
+/// The columns of `listening_rooms` the cursor job writes (MUS-JB-003).
+const LISTENING_ROOM_CURSOR: [&str; 6] = [
+    "item_id",
+    "position_ms",
+    "cursor_at",
+    "seq",
+    "next_due_at",
+    "last_published_at",
+];
+
 async fn fingerprint(pool: &sqlx::PgPool) -> BTreeMap<String, String> {
     let tables: Vec<String> = sqlx::query_scalar(
         "SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' ORDER BY 1",
@@ -3630,7 +3710,14 @@ async fn fingerprint(pool: &sqlx::PgPool) -> BTreeMap<String, String> {
         if NOISY.contains(&t.as_str()) || t.starts_with("job") || t.contains("access_log") {
             continue;
         }
-        let strip: String = STAMPS.iter().map(|c| format!(" - '{c}'")).collect();
+        let mut strip: String = STAMPS.iter().map(|c| format!(" - '{c}'")).collect();
+        // MUS-JB-003: the `jukebox.rooms` job moves a listening room's cursor every tick, at times of its
+        // choosing; the room itself (channel, playlist, mode, DJ) is still fingerprinted.
+        if t == "listening_rooms" {
+            for c in LISTENING_ROOM_CURSOR {
+                strip.push_str(&format!(" - '{c}'"));
+            }
+        }
         // The system user's direct messages (a staff offer, a tester invite) are written and updated by the
         // server's own tasks at times of their choosing; no refused call is theirs.
         let own = if t == "messages" || t.starts_with("messages_") {
@@ -4045,6 +4132,16 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("PATCH", "/music/tracks/{track_id}") => r#"{"title":"Authz edit"}"#,
         ("POST", "/users/@me/music/recent") => r#"{"track_id":"{track_id}"}"#,
         ("POST", "/music/playlists/{playlist_id}/items") => r#"{"track_ids":["{guild_track_id}"]}"#,
+        // MUS-JB-002/003 (wave 31): the guild's shelf track, the seeded playing row, the guild's playlist.
+        ("POST", "/channels/{channel_id}/jukebox/queue") => r#"{"track_ids":["{guild_track_id}"]}"#,
+        ("POST", "/channels/{channel_id}/jukebox/ended") => {
+            r#"{"item_id":"{jukebox_playing_item_id}"}"#
+        }
+        ("POST", "/channels/{channel_id}/jukebox/presign") => r#"{"item_id":"{jukebox_item_id}"}"#,
+        ("PUT", "/channels/{channel_id}/jukebox") => r#"{"mode":"synced"}"#,
+        ("PUT", "/channels/{channel_id}/jukebox/dj") => r#"{"user_id":null}"#,
+        ("PUT", "/channels/{channel_id}/jukebox/playback") => r#"{"paused":false}"#,
+        ("PUT", "/channels/{channel_id}/listening-room") => r#"{"playlist_id":"{playlist_id}"}"#,
         ("PATCH", "/music/playlists/{playlist_id}/items/{item_id}") => r#"{"position":0}"#,
         // The host hands the party to itself: allowed, and the member keeps the control the rest needs.
         ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
@@ -4668,6 +4765,9 @@ fn ctx_for(
         "tv_channel_id"
     } else if r.path.starts_with("/tv/reminders/") {
         "block_id"
+    } else if r.path.contains("/jukebox") || r.path.ends_with("/listening-room") {
+        // MUS-JB-002/003: a voice channel with a jukebox session.
+        "jukebox_channel_id"
     } else {
         return (overlay(r, base.clone()), false);
     };
@@ -4765,6 +4865,12 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     ),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
     (&["/music/playlists/"], "item_id", "playlist_item_id"),
+    // Matched inside the path (no leading slash): the route is /channels/{channel_id}/jukebox/queue/{item_id}.
+    (
+        &["jukebox/queue/{item_id}"],
+        "item_id",
+        "jukebox_queued_item_id",
+    ),
     (
         &["submissions/{submission_id}/publish-now"],
         "submission_id",

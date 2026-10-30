@@ -14,6 +14,8 @@ interface Voice {
   gain: GainNode | null;
   volume: number;
   muted: boolean;
+  /** A music track (MUS-JB-001), keyed `music:<user>`: the music volume and mute apply to it. */
+  music?: boolean;
 }
 
 type SinkElement = HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
@@ -33,11 +35,14 @@ export class RemoteAudio {
   private sinkId = 'default';
   /** People speaking with the priority bit: everyone else is ducked while any of them talks. */
   private priority = new Set<string>();
+  /** The listener's own music volume (percent) and mute, applied to every music track (MUS-JB-001). */
+  private musicVolume = 100;
+  private musicMuted = false;
 
   constructor(private readonly deps: AudioDeps) {}
 
   get users(): string[] {
-    return [...this.voices.keys()];
+    return [...this.voices.entries()].filter(([, v]) => !v.music).map(([k]) => k);
   }
 
   private context(): AudioContext | null {
@@ -54,13 +59,50 @@ export class RemoteAudio {
 
   private sink = () => (this.sinkId === 'default' ? '' : this.sinkId);
 
-  add(userId: string, stream: MediaStream, volume = 100, muted = false): void {
+  /**
+   * Play someone's stereo music track. It goes through the same graph as a voice (so deafen, the output device
+   * and the priority-speaker duck apply: a priority speaker ducks music) with its own volume and mute, and
+   * is stereo because the source is not downmixed. Replaces a running one of the same person.
+   */
+  addMusic(userId: string, stream: MediaStream): void {
+    this.add(`music:${userId}`, stream, this.musicVolume, this.musicMuted, true);
+  }
+
+  removeMusic(userId: string): void {
+    this.remove(`music:${userId}`);
+  }
+
+  hasMusic(userId: string): boolean {
+    return this.voices.has(`music:${userId}`);
+  }
+
+  /** The listener's music volume, 0..200 percent. */
+  setMusicVolume(percent: number): void {
+    this.musicVolume = percent;
+    for (const [id, v] of this.voices) {
+      if (!v.music) continue;
+      v.volume = percent;
+      this.apply(id, v);
+    }
+  }
+
+  /** Mute (or unmute) all music for this listener without touching anyone's voice. */
+  setMusicMuted(muted: boolean): void {
+    this.musicMuted = muted;
+    for (const [id, v] of this.voices) {
+      if (!v.music) continue;
+      v.muted = muted;
+      this.apply(id, v);
+    }
+  }
+
+  add(userId: string, stream: MediaStream, volume = 100, muted = false, music = false): void {
     this.remove(userId);
     const el = this.deps.createAudioElement();
     el.srcObject = stream;
     el.autoplay = true;
     const ctx = this.context();
-    const v: Voice = { el, source: null, gain: null, volume, muted };
+    const v: Voice = { el, source: null, gain: null, volume, muted, ...(music ? { music } : {}) };
     if (ctx && this.master) {
       el.muted = true;
       v.source = ctx.createMediaStreamSource(stream);
@@ -180,4 +222,38 @@ export class RemoteAudio {
     void this.ctx?.close?.().catch(() => undefined);
     this.ctx = this.master = null;
   }
+}
+
+/** The player's tap for the voice engine (MUS-JB-001): see {@link tapMusicForVoice}. */
+export interface MusicTap {
+  /** Hand this to `VoiceEngine.publishMusic`. One stereo audio track. */
+  stream: MediaStream;
+  /** Disconnect the tap from the player's graph (call after `unpublishMusic`). */
+  detach(): void;
+}
+
+/**
+ * Tap a node of the player's Web Audio graph (after the EQ and the crossfade, before or after the master gain as
+ * the player prefers) into a `MediaStreamAudioDestinationNode` and return its stream, so the voice engine can send
+ * it as the music track. The destination is forced to two explicit channels so a mono node does not collapse the
+ * track; the engine then encrypts and sends it like any other audio line (D-249). Returns null when the context
+ * cannot make a destination (no Web Audio).
+ */
+export function tapMusicForVoice(ctx: AudioContext, node: AudioNode): MusicTap | null {
+  const dest = ctx.createMediaStreamDestination?.();
+  if (!dest) return null;
+  dest.channelCount = 2;
+  dest.channelCountMode = 'explicit';
+  dest.channelInterpretation = 'speakers';
+  node.connect(dest);
+  return {
+    stream: dest.stream,
+    detach: () => {
+      try {
+        node.disconnect(dest);
+      } catch {
+        /* already disconnected */
+      }
+    },
+  };
 }

@@ -525,6 +525,8 @@ pub async fn modify_channel(
         bitrate: body.bitrate,
         user_limit: body.user_limit,
         video_quality_mode: body.video_quality_mode,
+        music_allowed: body.sr_music_allowed,
+        music_bitrate_kbps: body.sr_music_bitrate_kbps,
         forum: forum_patch(&body.forum, body.flags)?,
     };
     let mv = ChannelMove {

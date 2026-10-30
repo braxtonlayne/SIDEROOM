@@ -63,6 +63,10 @@ export interface VoiceSettings {
   userVolumes: Record<string, number>;
   /** People muted on this device only. */
   localMuted: Record<string, true>;
+  /** Music played into the call (MUS-JB-001): its own volume, percent 0..200, apart from the voices. */
+  musicVolume: number;
+  /** Do not play (or receive) the music track of anyone in the call; the voices are untouched. */
+  musicMuted: boolean;
 }
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
@@ -92,6 +96,8 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   keybinds: { ptt: null, toggleMute: null, toggleDeafen: null, disconnect: null },
   userVolumes: {},
   localMuted: {},
+  musicVolume: 100,
+  musicMuted: false,
 };
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
@@ -154,6 +160,8 @@ export function sanitizeVoiceSettings(raw: unknown): VoiceSettings {
     },
     userVolumes: volumes,
     localMuted: muted,
+    musicVolume: clamp(r.musicVolume, VOLUME_RANGE[0], VOLUME_RANGE[1], d.musicVolume),
+    musicMuted: bool(r.musicMuted, d.musicMuted),
   };
 }
 

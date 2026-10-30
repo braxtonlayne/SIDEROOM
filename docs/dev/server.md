@@ -41,7 +41,7 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 | `voice.session_grace_secs` | `20` | How long someone stays in a voice channel after their gateway socket drops. |
 | `voice.turn.urls`, `voice.turn.secret`, `voice.turn.ttl_secs` | empty, empty, `3600` | `stun:`/`turn:` URLs and the coturn `static-auth-secret` (dev stack: `dev-turn-shared-secret`). |
 
-Voice metrics on `/internal/metrics`: `sr_voice_rooms`, `sr_voice_participants`, `sr_voice_egress_bits_per_second`, `sr_voice_ingress_bits_per_second`, `sr_voice_packet_loss_ratio`, `sr_voice_forwarded_packets_total`. Voice state is held in memory on the node; see `docs/specs/lounge-voice-video.md` section 4.
+Voice metrics on `/internal/metrics`: `sr_voice_rooms`, `sr_voice_participants`, `sr_voice_egress_bits_per_second`, `sr_voice_ingress_bits_per_second`, `sr_voice_music_egress_bits_per_second` (the music tracks' share of the egress, MUS-JB-001), `sr_voice_packet_loss_ratio`, `sr_voice_forwarded_packets_total`. Voice state is held in memory on the node; see `docs/specs/lounge-voice-video.md` section 4.
 
 ## Graceful shutdown
 

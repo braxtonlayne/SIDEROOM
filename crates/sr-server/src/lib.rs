@@ -22,6 +22,8 @@ pub mod inbox_pg;
 pub mod instance_mount;
 pub mod integration_policy;
 pub mod jobs;
+pub mod jukebox;
+pub mod jukebox_jobs;
 pub mod lag_bus;
 pub mod library_jobs;
 pub mod lookup_wiring;
@@ -84,6 +86,8 @@ mod bot_pg_tests;
 mod instance_mount_pg_tests;
 #[cfg(test)]
 mod jobs_scale_pg_tests;
+#[cfg(test)]
+mod jukebox_pg_tests;
 #[cfg(test)]
 mod party_cards_pg_tests;
 #[cfg(test)]

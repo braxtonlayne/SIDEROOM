@@ -90,7 +90,10 @@ groups:
           runbook: deploy/RUNBOOK.md#csp-reports-spike
       - alert: VoiceEgress
         # 1e9 bit/s is a placeholder: set it to the uplink you pay for, the same figure as the setting
-        # voice.egress_budget_mbps (Mbit/s; 1000 Mbit/s = 1e9).
+        # voice.egress_budget_mbps (Mbit/s; 1000 Mbit/s = 1e9). Music tracks (MUS-JB-001) are inside this
+        # figure: a DJ at the 320 kbit/s maximum costs 320 kbit/s per listener, 32 Mbit/s in a 100-member
+        # room, and the governor cannot lower it (audio has no layers), only the video it shares the
+        # uplink with.
         expr: sr_voice_egress_bits_per_second > 1e9
         for: 10m
         labels: { severity: ticket }

@@ -15,6 +15,11 @@
 //! them as one synchronized stream group. The microphone is stream id `"<user>"` and the
 //! camera `"<user>:camera"`.
 //!
+//! The **music** track (MUS-JB-001) is a fourth source: a stereo Opus line on its own `sendonly`
+//! m-line, forwarded on the msid stream id `"<user>-music"` to every member unless that member
+//! sent a [`SubscriptionHint`] with `source: "music"` and `enabled: false` (a listener mutes music
+//! separately; the mix is client-side).
+//!
 //! # What a subscriber receives
 //!
 //! * Cameras are on by default, at the smallest layer until the client says otherwise.
@@ -35,6 +40,10 @@ pub enum Source {
     Camera,
     Screen,
     ScreenAudio,
+    /// A stereo music track (MUS-JB-001): a second audio line per member, from the player's
+    /// Web Audio graph. Opaque like every other track (D-201), encrypted by the same
+    /// per-sender frame encryptor (D-249).
+    Music,
 }
 
 impl Source {
@@ -43,6 +52,7 @@ impl Source {
         match self {
             Self::Camera => "camera",
             Self::Screen | Self::ScreenAudio => "screen",
+            Self::Music => "music",
         }
     }
 
@@ -214,10 +224,58 @@ pub enum QualityReason {
     Normal,
 }
 
+/// Lowest music bitrate the channel setting `voice.music_bitrate_kbps` accepts.
+pub const MUSIC_MIN_KBPS: u16 = 32;
+/// The default music bitrate (kbit/s).
+pub const MUSIC_DEFAULT_KBPS: u16 = 256;
+/// The highest music bitrate (kbit/s). Patron-independent (MUS-JB-001).
+pub const MUSIC_MAX_KBPS: u16 = 320;
+
+/// Clamp a configured music bitrate into the accepted range.
+pub const fn clamp_music_kbps(kbps: u16) -> u16 {
+    if kbps < MUSIC_MIN_KBPS {
+        MUSIC_MIN_KBPS
+    } else if kbps > MUSIC_MAX_KBPS {
+        MUSIC_MAX_KBPS
+    } else {
+        kbps
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn music_is_its_own_audio_source() {
+        assert!(!Source::Music.is_video());
+        assert_eq!(Source::Music.group(), "music");
+        assert_ne!(Source::Music.group(), Source::Screen.group());
+        let m: Video =
+            serde_json::from_value(json!({"t": "publish", "mid": "4", "source": "music"})).unwrap();
+        assert!(matches!(
+            m,
+            Video::Publish {
+                source: Source::Music,
+                active: true,
+                ..
+            }
+        ));
+        let h: SubscriptionHint =
+            serde_json::from_value(json!({"user_id": "7", "source": "music", "enabled": false}))
+                .unwrap();
+        assert!(!h.enabled && h.source == Source::Music);
+    }
+
+    #[test]
+    fn music_bitrate_is_clamped_to_the_accepted_range() {
+        assert_eq!(clamp_music_kbps(0), MUSIC_MIN_KBPS);
+        assert_eq!(clamp_music_kbps(256), 256);
+        assert_eq!(clamp_music_kbps(9999), MUSIC_MAX_KBPS);
+        assert_eq!(MUSIC_DEFAULT_KBPS, 256);
+        assert_eq!(MUSIC_MAX_KBPS, 320);
+    }
 
     #[test]
     fn layers_map_to_rids_and_order_by_size() {

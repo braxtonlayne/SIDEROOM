@@ -1,0 +1,91 @@
+/* The voice jukebox strip. Tokens only (Side Room theme): --sr-*, --ui-*. Class prefix jb-. Logical properties. */
+.jb-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-block: 0 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--sr-line, rgb(255 255 255 / 12%));
+  border-radius: 8px;
+  background: var(--sr-bg-1, rgb(0 0 0 / 20%));
+  color: var(--sr-text, #ece6d6);
+}
+:where(.jb-strip) :focus-visible {
+  outline: 2px solid var(--ui-focus, var(--sr-gold));
+  outline-offset: 2px;
+}
+.jb-audio {
+  display: none;
+}
+.jb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.jb-head .jb-muted {
+  flex: 1;
+}
+.jb-music {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-inline-size: 320px;
+}
+.jb-music > :last-child {
+  flex: 1;
+}
+.jb-muted {
+  color: var(--sr-text-2, #a39d8e);
+}
+.jb-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jb-now {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.jb-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.jb-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.jb-queue,
+.jb-results {
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-block-size: 220px;
+  overflow-y: auto;
+}
+.jb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.jb-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jb-picker input {
+  inline-size: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--sr-line, rgb(255 255 255 / 12%));
+  border-radius: 6px;
+  background: var(--sr-bg-0, #0d0c0a);
+  color: inherit;
+}

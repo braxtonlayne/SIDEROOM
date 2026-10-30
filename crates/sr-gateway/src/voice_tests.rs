@@ -135,6 +135,8 @@ impl GuildDirectory for Dir {
             bitrate: Some(64_000),
             age_restricted: ch == ADULT,
             video_quality: 1,
+            music_allowed: ch != STAFF_VOICE,
+            music_bitrate_kbps: if ch == ROOM_B { 320 } else { 256 },
         })
     }
 
@@ -594,13 +596,21 @@ async fn moving_between_channels_is_one_update_and_a_new_token() {
     let srv = a.event("VOICE_SERVER_UPDATE").await;
     assert_eq!(srv["channel_id"], "21");
     assert_eq!(names(&b.drain().await), ["VOICE_STATE_UPDATE"]);
-    // The SFU is told to drop the user from the old room.
+    // The SFU is told to drop the user from the old room, and learns the new room's music
+    // settings (MUS-JB-001: ROOM_B plays music at 320 kbit/s in the test directory).
     assert_eq!(
         e.relay.take(),
-        vec![VoiceCommand::Disconnect {
-            channel: LOBBY,
-            user: u(MEMBER)
-        }]
+        vec![
+            VoiceCommand::Disconnect {
+                channel: LOBBY,
+                user: u(MEMBER)
+            },
+            VoiceCommand::SetMusic {
+                channel: ROOM_B,
+                music_allowed: true,
+                bitrate_kbps: 320,
+            },
+        ]
     );
     assert!(e.gw.voice_occupants(LOBBY).is_empty());
     assert_eq!(e.gw.voice_occupants(ROOM_B).len(), 1);
@@ -988,6 +998,51 @@ async fn emit(bus: &InProcessBus, ev: DomainEvent) {
 
 async fn settle() {
     tokio::time::sleep(Duration::from_millis(80)).await;
+}
+
+#[tokio::test]
+async fn the_sfu_learns_the_music_settings_at_join_and_after_a_channel_edit() {
+    let e = env();
+    let mut a = client(&e, MEMBER).await;
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    a.event("VOICE_SERVER_UPDATE").await;
+    assert!(e.relay.take().contains(&VoiceCommand::SetMusic {
+        channel: LOBBY,
+        music_allowed: true,
+        bitrate_kbps: 256,
+    }));
+    emit(
+        &e.bus,
+        DomainEvent::ChannelUpdated {
+            guild: G,
+            channel: LOBBY,
+            payload: json!({"id": "20"}),
+        },
+    )
+    .await;
+    settle().await;
+    assert!(e.relay.take().contains(&VoiceCommand::SetMusic {
+        channel: LOBBY,
+        music_allowed: true,
+        bitrate_kbps: 256,
+    }));
+    // An empty channel is not told anything (the next join carries the settings).
+    emit(
+        &e.bus,
+        DomainEvent::ChannelUpdated {
+            guild: G,
+            channel: ROOM_B,
+            payload: json!({"id": "21"}),
+        },
+    )
+    .await;
+    settle().await;
+    assert!(
+        !e.relay
+            .take()
+            .iter()
+            .any(|c| matches!(c, VoiceCommand::SetMusic { channel, .. } if *channel == ROOM_B))
+    );
 }
 
 #[tokio::test]

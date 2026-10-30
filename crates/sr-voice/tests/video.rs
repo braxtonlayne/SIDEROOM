@@ -182,6 +182,7 @@ impl World {
             Source::Camera => c.camera,
             Source::Screen => c.screen,
             Source::ScreenAudio => c.screen_audio,
+            Source::Music => unreachable!("music is covered by tests/music.rs"),
         }
         .unwrap();
         let (width, height, fps) = if source == Source::ScreenAudio {
@@ -392,6 +393,7 @@ impl World {
                         )
                         .unwrap();
                 }
+                Source::Music => unreachable!("music is covered by tests/music.rs"),
             }
         }
         for _ in 0..6 {
