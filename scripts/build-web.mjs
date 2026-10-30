@@ -9,14 +9,13 @@
 // the line between public and private is a directory, never a chunking decision inside one Rollup run.
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, rmSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const web = join(root, 'apps/web');
 const dist = join(web, 'dist');
-const vite = createRequire(join(web, 'package.json')).resolve('vite/bin/vite.js');
+const vite = join(web, 'node_modules/vite/bin/vite.js');
 
 function run(label, args, cwd = web) {
   console.log(`\n[build-web] ${label}`);

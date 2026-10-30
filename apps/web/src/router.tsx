@@ -11,7 +11,6 @@ import {
 import { lazy, Suspense } from 'react';
 import { useT } from './i18n';
 import { CatalogGate } from './i18n/CatalogGate';
-import { isCorePath } from './i18n/corePaths';
 import { RouteFallback } from './lib/lazyRoute';
 import { useNoindex } from './lib/useNoindex';
 import { createCinemaRoutes } from './cinema/routes';
@@ -61,11 +60,8 @@ function RootLayout() {
   useNoindex(pathname);
   return (
     <>
-      {/* Entrance routes paint from the core catalog; every other route waits for the full one. */}
-      <CatalogGate
-        bypass={isCorePath(pathname)}
-        fallback={isHelpPath(pathname) ? <HelpSkeleton /> : <RouteFallback />}
-      >
+      {/* Every app route waits for the full catalog (the public surfaces paint from the core fragments alone). */}
+      <CatalogGate fallback={isHelpPath(pathname) ? <HelpSkeleton /> : <RouteFallback />}>
         <Outlet />
       </CatalogGate>
       <CatalogGate>
