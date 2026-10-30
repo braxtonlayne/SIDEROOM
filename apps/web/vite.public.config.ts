@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import { pseudoLocalePlugin } from './vite/pseudoLocale';
+import { neutralTheme } from './vite/neutralTheme';
 import { pwaPlugin } from './vite/pwa';
 import { readSurfaces, surfaceGuard } from './vite/surfaceGuard';
 import { ALLOWED as AUTH } from './src/public/auth/ALLOWED';
@@ -28,6 +29,7 @@ export default defineConfig({
     ),
   },
   plugins: [
+    neutralTheme(),
     react(),
     surfaceGuard(root, { landing: LANDING, auth: AUTH, invite: INVITE }),
     pwaPlugin(),

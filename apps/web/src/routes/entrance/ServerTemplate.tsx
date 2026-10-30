@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { getMe } from '../../api/entrance';
 import { useT } from '../../i18n/react';
 import { enterApp } from '../../lib/enterApp';
-import { useEntranceThemes } from '../../lib/entranceTheme';
 import '../../components/entrance.css';
 
 /**
@@ -12,7 +11,6 @@ import '../../components/entrance.css';
  */
 export function ServerTemplate({ code }: { code: string }) {
   const t = useT();
-  const themes = useEntranceThemes();
   const [state, setState] = useState<'loading' | 'login'>('loading');
 
   useEffect(() => {
@@ -32,7 +30,6 @@ export function ServerTemplate({ code }: { code: string }) {
     <ThemeProvider
       section="entrance"
       platformDefault="sideroom"
-      perSection={themes}
       className="ent-invite-page"
     >
       <main className="ent-invite-card" aria-busy={state === 'loading'}>

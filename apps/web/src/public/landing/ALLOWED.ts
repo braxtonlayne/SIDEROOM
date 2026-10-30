@@ -21,7 +21,6 @@ export const ALLOWED: AllowList = [
   'lib/compliancePublic',
   'lib/useNoindex',
   'lib/enterApp',
-  'lib/entranceTheme',
   'lib/searchCodec',
   'lib/useRedirectIfLoggedIn',
   // Core catalog only: entrance, a11y and pwa. The rest of the catalog never reaches a public surface.
@@ -38,6 +37,8 @@ export const ALLOWED: AllowList = [
   'i18n/messages/en/pwa',
   'a11y/announcer',
   'pwa/register',
+  'pwa/PublicUpdateToast',
+  'pwa/pwa.css',
   'pwa/state',
   'styles/',
 ];

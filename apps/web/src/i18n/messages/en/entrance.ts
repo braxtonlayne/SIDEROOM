@@ -129,7 +129,7 @@ export default {
   'entrance.support.signin.link': 'Reset my password',
   'entrance.support.twofa.title': 'I lost my second factor',
   'entrance.support.twofa.body':
-    'Use one of your recovery codes on the second step of signing in. Without one, a staff member can reset it for you after confirming who you are.',
+    'Use one of your recovery codes on the second step of signing in. Without one, someone on the team can reset it for you after confirming who you are.',
   'entrance.support.invite.title': 'I do not have an invitation',
   'entrance.support.invite.body':
     'SIDE ROOM is invitation-only. Ask someone you know who is a member.',
@@ -276,16 +276,16 @@ export default {
   // Operator details on the privacy summary and /help (M-06, D-293, D-295)
   'entrance.support.copyright.title': 'Copyright notices',
   'entrance.support.copyright.body':
-    'If something here infringes your copyright, send the notice to this address. A person on the staff reads every one:',
+    'If something here infringes your copyright, send the notice to this address. A person on the team reads every one:',
   // The ban screen's appeal form (MOD-APL-004, D-215). Entrance strings live in this core fragment because the sign-in
   // page paints before the rest of the catalog loads.
   'entrance.appeal.banned': 'This account is banned from SIDE ROOM.',
   'entrance.appeal.intro':
-    'You can appeal the decision. A staff member who did not make it will read what you write. There is no second appeal.',
+    'You can appeal the decision. Someone on the team who did not make it will read what you write. There is no second appeal.',
   'entrance.appeal.label': 'Why should this be looked at again?',
   'entrance.appeal.send': 'Send appeal',
   'entrance.appeal.sent':
-    'Your appeal was sent. A staff member who did not make the decision will read it.',
+    'Your appeal was sent. Someone on the team who did not make the decision will read it.',
   'entrance.appeal.already': 'This decision was already appealed.',
   'entrance.appeal.failed': 'The appeal could not be sent. Try again.',
 } satisfies Record<string, string>;

@@ -101,7 +101,3 @@ export const getServerInvite = (code: string) =>
   apiFetch<ServerInvitePreview>(`/invites/${encodeURIComponent(code)}?with_counts=true`, {
     retries: 0,
   });
-
-/** The ban screen: the credentials prove the (session-less) banned account. `POST /moderation/appeals`. */
-export const fileAppeal = (body: { login: string; password: string; message: string }) =>
-  apiPost<void>('/moderation/appeals', body);

@@ -20,6 +20,7 @@ export const ALLOWED: AllowList = [
   'components/SignInHelp',
   'components/VerifyEmailBanner',
   'api/passkeys',
+  'api/appeal',
   'lib/validation',
   'lib/mfaMethods',
   'lib/webauthn',

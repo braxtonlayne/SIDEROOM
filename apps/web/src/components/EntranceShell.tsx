@@ -1,5 +1,4 @@
 import { ThemeProvider } from '@sideroom/ui';
-import { useEntranceThemes } from '../lib/entranceTheme';
 import type { ReactNode } from 'react';
 import { useT } from '../i18n/react';
 import { DoorIcon } from './icons';
@@ -30,13 +29,10 @@ export interface EntranceShellProps {
 export function EntranceShell({ nav, footerRight, children }: EntranceShellProps) {
   const t = useT();
   const houseNotes = footerRight === 'House notes';
-  // Signed-out pages only know this browser's saved choice of Entrance theme (lib/entranceTheme.ts).
-  const perSection = useEntranceThemes();
   return (
     <ThemeProvider
       section="entrance"
       platformDefault="sideroom"
-      perSection={perSection}
       className="ent-root"
     >
       <SkipLink />

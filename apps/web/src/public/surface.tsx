@@ -17,6 +17,7 @@ import { EntranceShell } from '../components/EntranceShell';
 import { initLocale, useT } from '../i18n';
 import { parseSearchValue, stringifySearchValue } from '../lib/searchCodec';
 import { useNoindex } from '../lib/useNoindex';
+import { PublicUpdateToast } from '../pwa/PublicUpdateToast';
 import { registerServiceWorker } from '../pwa/register';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
@@ -73,6 +74,7 @@ export function mountSurface(router: ReturnType<typeof createSurfaceRouter>): vo
       <StrictMode>
         <RouterProvider router={router} />
         <LiveRegions />
+        <PublicUpdateToast />
       </StrictMode>,
     );
     registerServiceWorker();
