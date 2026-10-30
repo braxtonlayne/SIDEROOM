@@ -92,6 +92,10 @@ export default defineConfig(({ command }) => ({
       '/gateway': { target: 'ws://localhost:8080', ws: true },
       // The SFU's signalling WebSocket (`GET /voice/ws`, docs/specs/lounge-voice-video.md section 4); media is UDP.
       '/voice': { target: 'ws://localhost:8080', ws: true },
+      // Signed media delivery (attachments, avatars, HLS), as in `preview` below and Caddyfile's `handle /cdn/*`.
+      // publicDev() passes `/cdn/` on (DEV_PASS); without this entry it fell to the SPA fallback and every
+      // attachment URL answered index.html as text/html, so images never decoded in the dev e2e leg.
+      '/cdn': 'http://localhost:8080',
     },
   },
   preview: {
