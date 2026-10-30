@@ -362,6 +362,10 @@ pub async fn list_features(
         if !f.scopes().contains(&Scope::Guild) {
             continue;
         }
+        // An operator-gated module (the scrapbook) is hidden until the platform opted in.
+        if !gf.ctx.settings.offered(f.id()).await.map_err(feature_err)? {
+            continue;
+        }
         out.push(view(&gf.ctx, f, gid).await.map_err(feature_err)?);
     }
     Ok(Json(out))
@@ -407,6 +411,18 @@ pub async fn patch_feature(
             feature: feature_id,
             scope: Scope::Guild,
         }));
+    }
+    // Hidden means unknown: a module the operator has not offered cannot be configured either.
+    if !gf
+        .ctx
+        .settings
+        .offered(feature.id())
+        .await
+        .map_err(feature_err)?
+    {
+        return Err(feature_err(FeatureError::UnknownFeature(
+            feature.id().to_owned(),
+        )));
     }
     let scope = ScopeRef::Guild { guild: gid };
 

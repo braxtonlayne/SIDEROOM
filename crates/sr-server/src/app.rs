@@ -1435,6 +1435,37 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         state: Arc::new(crate::features_store::PgFeatureState::new(pool.clone())),
     };
     let feature_runtime = sr_features::FeatureRuntime::new(feature_ctx.clone());
+    // The scrapbook vault (PRF-SCR-001): the archiver over the server's own shelf, the jobs that perform
+    // reaction requests and retry failed bucket removals, and the delete hook (cascade).
+    let scrapbook_archiver = Arc::new(sr_storage::scrapbook::Archiver::new(
+        Arc::new(sr_db::scrapbook_repo::PgScrapbook::new(pool.clone())),
+        Arc::new(crate::scrapbook_jobs::PgScrapbookBuckets::new(
+            mount_repo.clone(),
+            scope_facts.clone(),
+            mount_storages.clone(),
+        )),
+        storage.clone(),
+        id_src.clone(),
+    ));
+    let scrapbook_messages: Arc<dyn sr_chat::repo::MessageStore> =
+        Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone()));
+    let scrapbook_worker = Arc::new(crate::scrapbook_jobs::Worker {
+        archiver: scrapbook_archiver.clone(),
+        chat: Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
+        messages: scrapbook_messages.clone(),
+        ctx: feature_ctx.clone(),
+        pool: pool.clone(),
+        clock: clock.clone(),
+    });
+    let scrapbook_deps = Arc::new(routes::guilds::scrapbook::ScrapbookDeps {
+        archiver: scrapbook_archiver.clone(),
+        messages: scrapbook_messages,
+    });
+    let scrapbook_consumer = crate::scrapbook_jobs::spawn_cascade_consumer(
+        lag_bus.tap(),
+        scrapbook_archiver,
+        clock.clone(),
+    );
     let feature_tasks = feature_runtime.spawn(bus.clone(), sr_features::runtime::TICK_INTERVAL);
     // Sensitive admin actions (private content, account email and password, staff changes,
     // announcements) need a second factor checked in the last 15 minutes (ADM-STF-009).
@@ -1578,6 +1609,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }))
         .extension(music_lib_deps)
         .extension(jukebox_deps)
+        .extension(scrapbook_deps)
         // The browser's delete and move update the index at once (wave-28 integration).
         .extension(Arc::new(routes::storage::IndexHooks {
             changes: index_store.clone(),
@@ -1735,6 +1767,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         user_features.clone(),
         Arc::new(mount_storages.clone()),
     );
+    let runner = crate::scrapbook_jobs::register(runner, scrapbook_worker.clone());
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::suspicion_jobs::register(runner, &pool, moderation.clone());
@@ -1790,6 +1823,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::cinema_jobs::schedule(&pool).await?;
     crate::jukebox_jobs::schedule(&pool).await?;
     crate::rings_jobs::schedule(&pool).await?;
+    crate::scrapbook_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
     crate::takedown_jobs::schedule(&pool).await?;
     crate::suspicion_jobs::schedule(&pool).await?;
@@ -1898,6 +1932,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     events_voice_listener.abort();
     metrics_task.abort();
     search_consumer.abort();
+    scrapbook_consumer.abort();
     push_consumer.abort();
     if let Some(h) = features_listener {
         h.abort();

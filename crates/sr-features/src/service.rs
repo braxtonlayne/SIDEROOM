@@ -74,20 +74,50 @@ impl FeatureService {
         let feature = self.feature(id)?;
         let mut explicit = None;
         let mut killed = false;
+        let mut platform_on = false;
         for s in scope.chain() {
             let rec = self.inner.store.get(id, &s).await?;
             if let Some(enabled) = rec.and_then(|r| r.enabled) {
+                if s == ScopeRef::Platform {
+                    platform_on = enabled;
+                }
                 if s == ScopeRef::Platform && !enabled {
                     killed = true;
                 }
-                explicit = explicit.or(Some(enabled));
+                // For an operator-gated module the platform's `true` only offers the module; it does not
+                // switch it on in servers that never chose to.
+                let offer_only = s == ScopeRef::Platform
+                    && *scope != ScopeRef::Platform
+                    && feature.operator_gated();
+                if !offer_only {
+                    explicit = explicit.or(Some(enabled));
+                }
             }
         }
-        let value = !killed && explicit.unwrap_or(feature.meta().default_enabled);
+        // An operator-gated module (PRF-SCR-001) is off everywhere until the platform opted in.
+        let opted_in = !feature.operator_gated() || platform_on;
+        let value = !killed && opted_in && explicit.unwrap_or(feature.meta().default_enabled);
         if self.inner.generation.load(Ordering::SeqCst) == gen_before {
             self.inner.cache.insert(key, value).await;
         }
         Ok(value)
+    }
+
+    /// Whether `id` may be offered to servers at all: always, unless the module is
+    /// [operator-gated](Feature::operator_gated), in which case only once the platform scope holds an
+    /// explicit `enabled: true`. Guild Settings > Modules lists and accepts only offered modules.
+    pub async fn offered(&self, id: &str) -> Result<bool, FeatureError> {
+        let feature = self.feature(id)?;
+        if !feature.operator_gated() {
+            return Ok(true);
+        }
+        Ok(self
+            .inner
+            .store
+            .get(id, &ScopeRef::Platform)
+            .await?
+            .and_then(|r| r.enabled)
+            == Some(true))
     }
 
     /// Whether the platform has switched `id` off for every server (the kill switch).

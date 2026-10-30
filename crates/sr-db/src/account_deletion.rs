@@ -182,6 +182,8 @@ pub async fn delete_account(
 
     // BYOS-LEG-001: the member's bucket connections go with the account; the bucket and its objects are theirs.
     report.mounts_erased = crate::storage_legal::erase_for(&mut tx, id).await?.mounts;
+    // PRF-SCR-001: scrapbook entries about the member go, and their bucket copies are queued for removal.
+    crate::scrapbook_legal::erase_for(&mut tx, id).await?;
 
     // Credentials and sessions.
     sqlx::query("UPDATE sessions SET revoked_at = now(), updated_at = now() WHERE account_id = $1 AND revoked_at IS NULL")

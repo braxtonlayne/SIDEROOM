@@ -79,6 +79,9 @@ DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/scrapbook/removals/{removal_id}	authenticated	membership	deny	-	-
+DELETE	/guilds/{guild_id}/scrapbook/target	authenticated	membership	deny	-	-
+DELETE	/guilds/{guild_id}/scrapbook/{entry_id}	authenticated	membership	deny	-	-
 DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/sr/temp-roles/{user_id}/{role_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-	-
@@ -383,6 +386,9 @@ GET	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/scheduled-events/{event_id}/users	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/scrapbook	authenticated	membership	deny	-	-
+GET	/guilds/{guild_id}/scrapbook/removals	authenticated	membership	deny	-	-
+GET	/guilds/{guild_id}/scrapbook/status	authenticated	membership	deny	-	-
 GET	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio	authenticated	membership	allow	-	-
@@ -621,6 +627,7 @@ PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/rss-feeds/{feed_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/scheduled-events/{event_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/scrapbook/{entry_id}	authenticated	membership	deny	-	-
 PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/sr/features/{feature_id}	authenticated	membership	allow	-	-
@@ -843,6 +850,8 @@ POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/rss-feeds	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/scheduled-events	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/scrapbook/removals/{removal_id}/retry	authenticated	membership	deny	-	-
+POST	/guilds/{guild_id}/scrapbook/{entry_id}/objects/{object_id}/presign	authenticated	storage_scope	deny	-	-
 POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/sr/applications	authenticated	user	allow	-	-
 POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-	-
@@ -1028,6 +1037,7 @@ PUT	/channels/{channel_id}/jukebox/playback	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/listening-room	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/messages/{message_id}/bookmark	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-	-
+PUT	/channels/{channel_id}/messages/{message_id}/scrapbook	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/pins/{message_id}	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me	authenticated	membership	allow	-	-
@@ -1055,6 +1065,7 @@ PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/packages/{package_id}	authenticated	membership	deny	-	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/scheduled-events/{event_id}/users/@me	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/scrapbook/target	authenticated	membership	deny	-	-
 PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/storage/grants	authenticated	membership	deny	-	-

@@ -56,10 +56,16 @@ export function createLoungeRoutes(root: AnyRoute) {
     path: '$guildId/$channelId/$messageId',
     component: nothing,
   });
+  // The scrapbook gallery of a server (PRF-SCR-001): a static sibling of `$guildId/$channelId`, so it wins.
+  const scrapbook = createRoute({
+    getParentRoute: () => layout,
+    path: '$guildId/scrapbook',
+    component: nothing,
+  });
   const thread = createRoute({
     getParentRoute: () => layout,
     path: '$guildId/$channelId/threads/$threadId',
     component: nothing,
   });
-  return layout.addChildren([index, guild, channel, message, thread]);
+  return layout.addChildren([index, guild, scrapbook, channel, message, thread]);
 }

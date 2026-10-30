@@ -671,3 +671,22 @@ async fn the_server_form_does_not_show_or_accept_personal_fields() {
         .await;
     assert_eq!(r.0, StatusCode::BAD_REQUEST, "{}", r.1);
 }
+
+/// PRF-SCR-001: the scrapbook is hidden until the operator enables it at platform scope. Until then the
+/// server's module list does not show it and a server cannot configure or switch it on.
+#[tokio::test]
+async fn the_scrapbook_is_hidden_from_servers_until_the_operator_offers_it() {
+    let e = env_features().await;
+    let (s, v) = e.get(&e.g("/sr/features"), "owner").await;
+    assert_eq!(s, StatusCode::OK);
+    let list = v.as_array().unwrap();
+    assert!(list.iter().any(|f| f["id"] == "lounge.starboard"));
+    assert!(list.iter().all(|f| f["id"] != "lounge.scrapbook"));
+    let path = e.g("/sr/features/lounge.scrapbook");
+    let (s, _) = e.patch(&path, "owner", json!({"enabled": true})).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .patch(&path, "owner", json!({"settings": {"threshold": 2}}))
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}

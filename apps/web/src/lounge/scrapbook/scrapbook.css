@@ -1,0 +1,133 @@
+/* PRF-SCR-001: the scrapbook gallery. Semantic custom properties only; logical properties only. */
+.lng-scr-page {
+  display: grid;
+  gap: var(--space-3, 12px);
+  align-content: start;
+  padding: var(--space-4, 16px);
+  overflow-y: auto;
+  min-block-size: 0;
+}
+.lng-scr-head h2,
+.lng-scr-page h2,
+.lng-scr-shelf h3 {
+  margin: 0;
+}
+.lng-scr-note {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}
+.lng-scr-loading {
+  margin: 0;
+  color: var(--ui-text-muted);
+}
+.lng-scr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+.lng-scr-filters label {
+  display: grid;
+  gap: var(--space-1, 4px);
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.lng-scr-input {
+  min-inline-size: 8rem;
+  padding-block: var(--space-1, 4px);
+  padding-inline: var(--space-2, 8px);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-raised);
+  color: inherit;
+  font: inherit;
+}
+/* Masonry: columns flow top to bottom, tiles never split. */
+.lng-scr-grid {
+  column-width: 16rem;
+  column-gap: var(--space-3, 12px);
+}
+.lng-scr-tile {
+  display: grid;
+  gap: var(--space-2, 8px);
+  margin-block-end: var(--space-3, 12px);
+  padding: var(--space-2, 8px);
+  break-inside: avoid;
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-bg-raised);
+}
+.lng-scr-media {
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--ui-radius);
+}
+.lng-scr-audio {
+  inline-size: 100%;
+}
+.lng-scr-locked {
+  margin: 0;
+  padding: var(--space-3, 12px);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+  background: var(--ui-bg-hover);
+}
+.lng-scr-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.lng-scr-meta {
+  display: grid;
+  margin: 0;
+  font-size: 0.75rem;
+}
+.lng-scr-meta span {
+  color: var(--ui-text-muted);
+}
+.lng-scr-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1, 4px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.lng-scr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  align-items: center;
+}
+.lng-scr-shelf {
+  display: grid;
+  gap: var(--space-2, 8px);
+  padding: var(--space-3, 12px);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-bg-raised);
+}
+.lng-scr-removals {
+  display: grid;
+  gap: var(--space-2, 8px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-scr-removal-key {
+  margin: 0;
+  font-family: var(--ui-font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.lng-scr-banner {
+  margin-block: 0;
+  margin-inline: var(--space-3, 12px);
+  padding-block: var(--space-1, 4px);
+  padding-inline: var(--space-2, 8px);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-raised);
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+}

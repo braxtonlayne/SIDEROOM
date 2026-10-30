@@ -1648,6 +1648,66 @@ async fn seed(
         let ids_map = if tenant_b { &mut b } else { &mut a };
         ids_map.insert(slot, id.to_string());
     }
+    // PRF-SCR-001 (own block): per tenant a scrapbook shelf (the server's own mount, set by its owner), an entry made
+    // from the tenant's message with one copy (`scrapbook_entry_id`, `scrapbook_object_id`), and a bucket removal that
+    // failed once (`scrapbook_removal_id`), so that the `{entry_id}`, `{object_id}` and `{removal_id}` routes name
+    // the tenant's own rows (OVERLAYS).
+    for (slot_map, guild, chan, author, granter) in [
+        (&mut a, ga, chan_a, u("member"), u("ownera")),
+        (&mut b, gb, chan_b, u("ownerb"), u("ownerb")),
+    ] {
+        let mount: i64 = slot_map["guild_mount_id"].parse().unwrap();
+        let message: i64 = slot_map["message_id"].parse().unwrap();
+        let (entry, object, removal) = (
+            ids.generate().get() as i64,
+            ids.generate().get() as i64,
+            ids.generate().get() as i64,
+        );
+        sqlx::query(
+            "INSERT INTO scrapbook_targets (guild_id, mount_id, granted_by) VALUES ($1, $2, $3)",
+        )
+        .bind(guild)
+        .bind(mount)
+        .bind(granter)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO scrapbook_entries (id, guild_id, channel_id, message_id, author_id, author_name, content, \n             sent_at, archived_by, via, mount_id) VALUES ($1, $2, $3, $4, $5, 'authz', 'authz entry', now(), $6, 'manual', $7)",
+        )
+        .bind(entry)
+        .bind(guild)
+        .bind(chan)
+        .bind(message)
+        .bind(author)
+        .bind(granter)
+        .bind(mount)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO scrapbook_objects (id, entry_id, position, mount_id, key, filename, content_type, size_bytes, kind) \n             VALUES ($1, $2, 0, $3, 'scrapbook/2026/01/authz/0-a.png', 'a.png', 'image/png', 3, 'image')",
+        )
+        .bind(object)
+        .bind(entry)
+        .bind(mount)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO scrapbook_removals (id, guild_id, mount_id, key, message_id, state, attempts, last_error) \n             VALUES ($1, $2, $3, 'scrapbook/2026/01/gone/0-b.png', $4, 'failed', 1, 'authz seed')",
+        )
+        .bind(removal)
+        .bind(guild)
+        .bind(mount)
+        .bind(message)
+        .execute(&pool)
+        .await
+        .unwrap();
+        slot_map.insert("scrapbook_entry_id", entry.to_string());
+        slot_map.insert("scrapbook_object_id", object.to_string());
+        slot_map.insert("scrapbook_removal_id", removal.to_string());
+    }
     // BYOS-LEG-001 (own block): a mount per tenant for `/admin/storage/mounts/{mount_id}/delist|relist` (OVERLAYS maps
     // `{mount_id}` there), so that a staff sweep that delists it cannot take the storage-scope routes' mount away.
     for (owner, tenant_b) in [(u("member"), false), (u("ownerb"), true)] {
@@ -1920,6 +1980,15 @@ async fn seed(
     {
         a.insert("grant_id", g.to_string());
     }
+    // PRF-SCR-001: the scrapbook is hidden from servers until the operator offers it at platform scope; offer it,
+    // and the loop below finds it in both servers' module lists.
+    srv.call_reason(
+        &staff,
+        "PATCH",
+        "/admin/features/lounge.scrapbook",
+        Some(&json!({"enabled": true})),
+    )
+    .await;
     // Every optional module on, in both servers, so that their routes are reached past the feature gate.
     for (who, g) in [(&oa, ga), (&ob, gb)] {
         let list = srv
@@ -3368,6 +3437,9 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         }
         ("POST", "/storage/mounts/{mount_id}/worker-tokens") => r#"{"name":"Matrix"}"#,
         ("POST", "/storage/mounts/{mount_id}/move") => r#"{"from":"a.mp3","to":"b.mp3"}"#,
+        // PRF-SCR-001: choose the server's own shelf; retag the seeded entry.
+        ("PUT", "/guilds/{guild_id}/scrapbook/target") => r#"{"mount_id":"{guild_mount_id}"}"#,
+        ("PATCH", "/guilds/{guild_id}/scrapbook/{entry_id}") => r#"{"tags":["authz"]}"#,
         ("PUT", "/guilds/{guild_id}/storage/grants") => {
             r#"{"role_id":"{role_id}","grants":["view_music"]}"#
         }
@@ -4133,6 +4205,10 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/users/@me/guestbook/{entry_id}/approve") => Some("victim"),
         // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
         ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
+        // PRF-SCR-001: the copy is signed for the server's owner, who holds every storage grant on its shelf.
+        ("POST", "/guilds/{guild_id}/scrapbook/{entry_id}/objects/{object_id}/presign") => {
+            Some("owner_a")
+        }
         // `author_or_staff`: the submitter of the published submission or a REVIEW_READING holder; the seeded
         // submission is not the member's, so the Owner fulfils.
         ("POST", "/requests/{request_id}/fulfil") => Some("staff_owner"),
@@ -5071,6 +5147,22 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         &["/guilds/{guild_id}/storage/mounts"],
         "mount_id",
         "guild_mount_id",
+    ),
+    // PRF-SCR-001: the scrapbook routes act on the tenant's own entry, copy and failed removal.
+    (
+        &["/guilds/{guild_id}/scrapbook/"],
+        "entry_id",
+        "scrapbook_entry_id",
+    ),
+    (
+        &["/guilds/{guild_id}/scrapbook/"],
+        "object_id",
+        "scrapbook_object_id",
+    ),
+    (
+        &["/guilds/{guild_id}/scrapbook/"],
+        "removal_id",
+        "scrapbook_removal_id",
     ),
     // Episodes and seasons belong to the series title, not to the film.
     (

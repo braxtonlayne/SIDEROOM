@@ -183,6 +183,13 @@ pub trait Feature: Send + Sync + 'static {
     fn client_visible(&self) -> bool {
         false
     }
+    /// Hidden until the operator switches it on at platform scope (PRF-SCR-001). Such a module is off in
+    /// every server, and absent from Guild Settings > Modules, until the platform scope holds an explicit
+    /// `enabled: true`; after that servers enable it like any other module. The platform kill switch
+    /// (`enabled: false`) works as for every module. Off unless the module says so.
+    fn operator_gated(&self) -> bool {
+        false
+    }
     fn settings_schema(&self) -> SettingsSchema;
     fn scopes(&self) -> &[Scope];
     fn on_event<'a>(
