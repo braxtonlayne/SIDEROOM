@@ -145,3 +145,6 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(scrapbook::openapi());
     doc
 }
+
+#[cfg(test)]
+mod scrapbook_tests;
