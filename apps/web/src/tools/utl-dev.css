@@ -1,0 +1,309 @@
+/* The developer tools, dice, notes and timers of the utility drawer (UTL-DEV-001). Logical properties only. */
+.ud-root,
+.ud-timer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--sr-text, #e8e2d4);
+  font-family: var(--sr-font-body, system-ui, sans-serif);
+  font-size: 14px;
+  min-inline-size: 0;
+}
+.ud-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ud-muted {
+  color: var(--sr-text-muted, #a79f8f);
+  font-size: 13px;
+}
+.ud-error {
+  margin: 0;
+  color: var(--sr-danger, #e5484d);
+  font-size: 13px;
+}
+.ud-warn {
+  margin: 0;
+  padding: 6px 10px;
+  border-inline-start: 3px solid var(--sr-gold, #c9a24d);
+  background: var(--sr-bg-2, #1c1914);
+  font-size: 13px;
+}
+.ud-sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ud-btn {
+  min-block-size: 32px;
+  padding-inline: 12px;
+  border: 1px solid var(--sr-line, #3a3428);
+  border-radius: var(--sr-radius, 4px);
+  background: var(--sr-bg-2, #1c1914);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ud-btn:hover:not(:disabled) {
+  border-color: var(--sr-gold, #c9a24d);
+}
+.ud-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ud-btn-primary {
+  border-color: var(--sr-gold, #c9a24d);
+  color: var(--sr-gold, #c9a24d);
+}
+.ud-btn[aria-pressed='true'] {
+  background: var(--sr-gold, #c9a24d);
+  color: var(--sr-bg-0, #0f0d0a);
+}
+.ud-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 140px;
+  min-inline-size: 0;
+}
+.ud-field-narrow {
+  flex: 0 1 80px;
+}
+.ud-field > span {
+  font-size: 12px;
+  color: var(--sr-text-muted, #a79f8f);
+}
+.ud-root input,
+.ud-root textarea,
+.ud-root select,
+.ud-timer input {
+  inline-size: 100%;
+  min-block-size: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--sr-line, #3a3428);
+  border-radius: var(--sr-radius, 4px);
+  background: var(--sr-bg-1, #14120f);
+  color: inherit;
+  font: inherit;
+  box-sizing: border-box;
+}
+.ud-root textarea {
+  min-block-size: 120px;
+  resize: vertical;
+}
+.ud-mono,
+.ud-root textarea.ud-mono,
+.ud-out {
+  font-family: var(--sr-font-mono, ui-monospace, Consolas, monospace);
+  font-size: 13px;
+}
+.ud-out {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--sr-line, #3a3428);
+  border-radius: var(--sr-radius, 4px);
+  background: var(--sr-bg-1, #14120f);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-block-size: 260px;
+  overflow: auto;
+}
+:where(.ud-root, .ud-timer) :focus-visible {
+  outline: 2px solid var(--sr-focus, #c9a24d);
+  outline-offset: 2px;
+}
+
+/* timers */
+.ud-clock {
+  font-family: var(--sr-font-mono, ui-monospace, Consolas, monospace);
+  font-size: 44px;
+  line-height: 1.1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ud-clock[data-phase='done'] {
+  color: var(--sr-gold, #c9a24d);
+}
+.ud-segment {
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+}
+.ud-progress {
+  inline-size: 100%;
+  block-size: 6px;
+  accent-color: var(--sr-gold, #c9a24d);
+}
+.ud-laps {
+  margin: 0;
+  padding-inline-start: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.ud-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.ud-voice p {
+  margin: 0;
+}
+
+/* dice */
+.ud-dice-total {
+  font-size: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ud-dice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ud-die {
+  min-inline-size: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--sr-line, #3a3428);
+  border-radius: var(--sr-radius, 4px);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ud-die[data-dropped='true'] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.ud-die[data-exploded='true'] {
+  border-color: var(--sr-gold, #c9a24d);
+}
+.ud-die[data-success='true'] {
+  background: var(--sr-bg-2, #1c1914);
+  border-color: var(--sr-gold, #c9a24d);
+}
+.ud-history {
+  margin: 0;
+  padding-inline-start: 18px;
+  max-block-size: 140px;
+  overflow: auto;
+}
+.ud-coin {
+  inline-size: 96px;
+  block-size: 96px;
+  margin-inline: auto;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--sr-gold, #c9a24d);
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: 700;
+}
+.ud-wheel {
+  position: relative;
+  inline-size: 220px;
+  block-size: 220px;
+  margin-inline: auto;
+  border: 3px solid var(--sr-gold, #c9a24d);
+  border-radius: 50%;
+  overflow: hidden;
+}
+.ud-wheel-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transition: transform 3s cubic-bezier(0.1, 0.7, 0.1, 1);
+}
+.ud-wheel-pointer {
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  inline-size: 0;
+  block-size: 0;
+  border-inline: 8px solid transparent;
+  border-block-start: 16px solid var(--sr-text, #e8e2d4);
+  z-index: 1;
+}
+.ud-winner {
+  margin: 0;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ud-wheel-face {
+    transition: none;
+  }
+}
+:root[data-reduced-motion='true'] .ud-wheel-face {
+  transition: none;
+}
+
+/* loot */
+.ud-loot-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ud-loot-row {
+  display: grid;
+  grid-template-columns: 1fr 80px auto;
+  gap: 6px;
+  align-items: center;
+}
+
+/* diff */
+.ud-diff-add {
+  background: color-mix(in srgb, var(--sr-success, #3fb950) 25%, transparent);
+}
+.ud-diff-del {
+  background: color-mix(in srgb, var(--sr-danger, #e5484d) 25%, transparent);
+  text-decoration: line-through;
+}
+
+/* notes */
+.ud-notes-layout {
+  display: grid;
+  grid-template-columns: minmax(96px, 30%) 1fr;
+  gap: 10px;
+  min-block-size: 0;
+}
+.ud-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-block-size: 300px;
+  overflow: auto;
+}
+.ud-notes-item {
+  inline-size: 100%;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ud-notes-item[aria-current='true'] {
+  border-color: var(--sr-gold, #c9a24d);
+}
+@media (max-width: 480px) {
+  .ud-notes-layout {
+    grid-template-columns: 1fr;
+  }
+}

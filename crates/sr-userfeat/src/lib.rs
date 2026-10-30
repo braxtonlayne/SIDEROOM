@@ -44,6 +44,7 @@ pub mod scheduled;
 pub mod suggestions;
 pub mod tick;
 pub mod tickets;
+pub mod tools;
 
 mod service;
 pub use error::{UfError, UfResult};
