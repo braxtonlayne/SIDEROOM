@@ -40,6 +40,7 @@ pub mod push_notify;
 pub mod push_pg;
 pub mod ready;
 pub mod review_jobs;
+pub mod rings_jobs;
 pub mod rich_jobs;
 pub mod search_jobs;
 pub mod settings_pg;

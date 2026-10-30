@@ -366,8 +366,19 @@ impl UserFeatures {
         Ok(())
     }
 
+    /// A fresh ring id, for a route that must name the stored object after the ring before the row exists.
+    pub fn new_ring_id(&self) -> i64 {
+        self.next_id()
+    }
+
     /// Post a ring as `author`.
     pub async fn create_ring(&self, author: i64, new: NewRing) -> UfResult<Ring> {
+        let id = self.next_id();
+        self.create_ring_with_id(author, id, new).await
+    }
+
+    /// [`Self::create_ring`] with the id chosen by the caller (from [`Self::new_ring_id`]).
+    pub async fn create_ring_with_id(&self, author: i64, id: i64, new: NewRing) -> UfResult<Ring> {
         self.ring_precheck(author).await?;
         let (_, max_clip_ms, max_bytes) = self.ring_limits().await?;
         let body = check_text("text", &new.body, MAX_BODY_CHARS)?;
@@ -428,7 +439,6 @@ impl UserFeatures {
             _ => {}
         }
 
-        let id = self.next_id();
         let mut tx = self.pool.begin().await?;
         // Serialise one author's posts so the daily limit holds under a double click.
         sqlx::query("SELECT id FROM accounts WHERE id = $1 FOR UPDATE")

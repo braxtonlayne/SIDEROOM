@@ -1559,6 +1559,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(review_deps.clone())
         .extension(Arc::new(cinema_submit_deps))
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
+        .extension(Arc::new(routes::userfeat::RingDeps {
+            storages: Arc::new(mount_storages.clone()),
+            mounts: mount_resolver.clone(),
+        }))
         .extension(Arc::new(
             routes::cdn::CdnDeps::new(storage.clone(), cdn_signer)
                 .with_playlists(playback_deps)
@@ -1691,6 +1695,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::jukebox_jobs::register(runner, &pool, bus.clone());
+    let runner = crate::rings_jobs::register(
+        runner,
+        &pool,
+        user_features.clone(),
+        Arc::new(mount_storages.clone()),
+    );
     let runner = crate::review_jobs::register(runner, &pool, review_deps.service.clone());
     let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::suspicion_jobs::register(runner, &pool, moderation.clone());
@@ -1743,6 +1753,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
     crate::jukebox_jobs::schedule(&pool).await?;
+    crate::rings_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
     crate::takedown_jobs::schedule(&pool).await?;
     crate::suspicion_jobs::schedule(&pool).await?;
