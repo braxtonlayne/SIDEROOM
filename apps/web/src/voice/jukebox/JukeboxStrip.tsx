@@ -49,7 +49,11 @@ export function JukeboxStrip({
   const s = snapshot.state;
   const expected = controller?.expectedMs() ?? s?.position_ms ?? 0;
   return (
-    <aside className="jb-strip" aria-label={t('lounge.jukebox.label')} data-status={snapshot.status}>
+    <aside
+      className="jb-strip"
+      aria-label={t('lounge.jukebox.label')}
+      data-status={snapshot.status}
+    >
       <audio ref={audioRef} className="jb-audio" data-testid="jukebox-audio" preload="auto" />
       <div className="jb-head">
         <Icon name="headphones" size={20} />
@@ -58,7 +62,11 @@ export function JukeboxStrip({
           {t(STATUS_KEY[snapshot.status])}
         </span>
         {!listening ? (
-          <Button size="sm" onClick={() => void controller?.start(channelId)} disabled={!controller}>
+          <Button
+            size="sm"
+            onClick={() => void controller?.start(channelId)}
+            disabled={!controller}
+          >
             {t('lounge.jukebox.listen')}
           </Button>
         ) : (
@@ -147,25 +155,38 @@ function Body({
               <Icon name={s.paused ? 'play' : 'pause'} size={16} />{' '}
               {s.paused ? t('lounge.jukebox.resume') : t('lounge.jukebox.pause')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => void controller.act((a, c) => a.skipNow(c))}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void controller.act((a, c) => a.skipNow(c))}
+            >
               {t('lounge.jukebox.skipNow')}
             </Button>
           </>
         ) : null}
         {s.can_queue ? (
           <>
-            <Button size="sm" variant="ghost" onClick={() => setAdding(!adding)} aria-expanded={adding}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setAdding(!adding)}
+              aria-expanded={adding}
+            >
               <Icon name="plus" size={16} /> {t('lounge.jukebox.add')}
             </Button>
             <Button
               size="sm"
               variant="ghost"
               onClick={() =>
-                void controller.act((a, c) => a.setMode(c, s.mode === 'synced' ? 'stream' : 'synced'))
+                void controller.act((a, c) =>
+                  a.setMode(c, s.mode === 'synced' ? 'stream' : 'synced'),
+                )
               }
               title={t('lounge.jukebox.modeHint')}
             >
-              {s.mode === 'synced' ? t('lounge.jukebox.modeSynced') : t('lounge.jukebox.modeStream')}
+              {s.mode === 'synced'
+                ? t('lounge.jukebox.modeSynced')
+                : t('lounge.jukebox.modeStream')}
             </Button>
             <Button
               size="sm"
@@ -194,7 +215,7 @@ function Body({
                 })}
                 onClick={() => void controller.act((a, c) => a.remove(c, it.id))}
               >
-                <Icon name="close" size={14} />
+                <Icon name="close" size={16} />
               </Button>
             </li>
           ))}
@@ -234,7 +255,9 @@ function Picker({ api, controller }: { api: JukeboxApi; controller: JukeboxContr
         placeholder={t('lounge.jukebox.search')}
         aria-label={t('lounge.jukebox.search')}
       />
-      {rows && rows.length === 0 ? <p className="jb-muted">{t('lounge.jukebox.noTracks')}</p> : null}
+      {rows && rows.length === 0 ? (
+        <p className="jb-muted">{t('lounge.jukebox.noTracks')}</p>
+      ) : null}
       <ul className="jb-results">
         {(rows ?? []).map((r) => (
           <li key={r.id} className="jb-row">
@@ -245,7 +268,7 @@ function Picker({ api, controller }: { api: JukeboxApi; controller: JukeboxContr
               aria-label={t('lounge.jukebox.addTrack', { title: r.title })}
               onClick={() => void controller.act((a, c) => a.enqueue(c, [r.id]))}
             >
-              <Icon name="plus" size={14} />
+              <Icon name="plus" size={16} />
             </Button>
           </li>
         ))}

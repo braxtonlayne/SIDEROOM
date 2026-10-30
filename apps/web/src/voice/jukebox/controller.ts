@@ -7,12 +7,7 @@
 // bucket the member cannot read, and then the controller stays silent and says "not shared with you".
 import { ApiError } from '../../api/client';
 import { onDispatch } from '../../store/events';
-import {
-  ClockEstimator,
-  planCorrection,
-  SETTLE_MS,
-  type Correction,
-} from '../../watchparty/sync';
+import { ClockEstimator, planCorrection, SETTLE_MS, type Correction } from '../../watchparty/sync';
 import type { JukeboxApi, JukeboxState, JukeboxUpdateEvent } from './types';
 
 /** What the controller reports to the UI. */
@@ -93,7 +88,8 @@ export class JukeboxController {
     this.audio = deps.audio;
     this.now = deps.now ?? (() => Date.now());
     this.setTimer = deps.setInterval ?? ((fn, ms) => setInterval(fn, ms));
-    this.clearTimer = deps.clearInterval ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
+    this.clearTimer =
+      deps.clearInterval ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>));
     this.subscribeEvents = deps.subscribe ?? onDispatch;
   }
 
