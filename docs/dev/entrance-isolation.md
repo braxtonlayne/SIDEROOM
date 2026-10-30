@@ -187,5 +187,5 @@ Not a leak and left alone: the landing page's own copy (the owner's words from `
 - **`openapi.json` and the Scalar page require a principal** (section 6). Bot developers are members; the CLI prints the document for anyone building from source.
 - **`Clear-Site-Data: "cache", "storage"` on logout** (section 4), accepting the loss of the saved language and the upload ledger on that browser.
 - **The OAuth2 consent screen is an app route** (section 2): it is shown to signed-in members only. If the owner meant another consent screen, it becomes a surface of the table.
-- **The landing copy's section teasers are the owner's words, not code.** The default `entrance` fragment names the three sections today (the landing's three icons); whether the default landing keeps naming them is the owner's decision (roadmap-p27 wave 30b, "Needs the owner"). If kept, the check treats them as data through `entrance-allow.json` with that reason.
+- **The landing copy names no section (owner, O-7, 2026-10-29).** The default `entrance` fragment loses the three section teasers and icons ("Lounge", "Cinema", "Library"); no allow entry exists for them, so the isolation check fails if any reaches a public surface. Copy an operator writes in Admin (D-239) is their data, not the build.
 - **No migration.** Nothing touches the database; wave 30b has no range and wave 31 keeps 1560.
