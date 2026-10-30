@@ -194,6 +194,25 @@ async fn resolve(conn: &mut PgConnection, reporter: i64, req: &NewReport) -> Mod
                     .await?;
             Ok(item(title.ok_or(ModError::NotFound("title"))?))
         }
+        TargetKind::StatusRing => {
+            // A ring the reporter cannot see answers like one that does not exist.
+            let author = crate::rings::visible_author(conn, req.target_id, reporter)
+                .await?
+                .ok_or(ModError::NotFound("ring"))?;
+            if author == reporter {
+                return Err(invalid("You cannot report your own ring"));
+            }
+            let person = account_of(conn, author).await?.map(|(p, _)| p);
+            Ok(Resolved {
+                guild_id: None,
+                channel_id: None,
+                subject_account_id: Some(author),
+                subject_person_id: person,
+                // The audience was friends or a few servers: only platform staff read it.
+                private: true,
+                label: "status ring".to_owned(),
+            })
+        }
         TargetKind::Person | TargetKind::Other => Err(invalid("That cannot be reported")),
     }
 }
@@ -365,6 +384,11 @@ impl Moderation {
                 "message_snapshot",
                 message_snapshot(&mut tx, channel, req.target_id).await?,
             )
+        } else if req.target_kind == TargetKind::StatusRing {
+            (
+                "target_summary",
+                crate::rings::ring_snapshot(&mut tx, req.target_id).await?,
+            )
         } else {
             (
                 "target_summary",
@@ -413,6 +437,20 @@ impl Moderation {
                 &HoldRequest {
                     case_id,
                     scope: HoldScope::Message(req.target_id),
+                    reason: "Reported by a member".to_owned(),
+                    actor: None,
+                },
+            )
+            .await?;
+        }
+        // A reported ring is frozen the same way: the expiry job keeps row and object while the hold lasts.
+        if req.target_kind == TargetKind::StatusRing {
+            place_hold_in(
+                &mut tx,
+                &self.ids,
+                &HoldRequest {
+                    case_id,
+                    scope: HoldScope::StatusRing(req.target_id),
                     reason: "Reported by a member".to_owned(),
                     actor: None,
                 },
