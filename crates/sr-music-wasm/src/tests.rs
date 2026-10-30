@@ -112,7 +112,7 @@ fn id3v23_whole_tag_unsynchronisation_and_multiple_artists() {
     let mut body = Vec::new();
     let all: Vec<u8> = [
         frame(3, "TIT2", &text_body(0, "Song"), 0),
-        frame(3, "TPE1", &[3, b'A', 0, b'B'].to_vec(), 0),
+        frame(3, "TPE1", &[3, b'A', 0, b'B'], 0),
         plain,
     ]
     .concat();
@@ -134,8 +134,6 @@ fn id3v23_whole_tag_unsynchronisation_and_multiple_artists() {
 
 #[test]
 fn id3v24_frame_unsync_flag_and_data_length_indicator() {
-    let data = [3, 0xff, 0x00, 0xe0, b'x']; // utf-8 text "\xff?" is invalid; use latin1 enc 0
-    let _ = data;
     let raw = text_body(0, "A\u{ff}\u{e0}"); // bytes 00 41 FF E0
     let mut enc = Vec::new();
     for (i, b) in raw.iter().enumerate() {
