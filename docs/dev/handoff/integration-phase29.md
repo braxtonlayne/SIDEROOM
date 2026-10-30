@@ -7,9 +7,8 @@ No Postgres (the password file `%TEMP%\sr_pg_pw.txt` is missing). Nothing pushed
 
 ## Resume here
 
-Done: the four merges, the webcodecs bridge, Fable's P29 decisions (two commits), `playable_key`, the licence check,
-the ffmpeg.wasm notice, the inventory (wave-28 ticks, wave-29 section) and the CHANGELOG. In progress: OpenAPI, api-client
-and MSW regeneration, then the gates (see "Gates"; a row without a result has not run yet).
+Everything that needs no database is done and committed (see Gates). What remains is CI: the Postgres suites and the
+browser specs listed under "Left for CI". Nothing is half-finished; the follow-ups below are new work.
 
 ## Merges
 
@@ -70,8 +69,38 @@ and MSW regeneration, then the gates (see "Gates"; a row without a result has no
 - The Chromium H.265 case of `convert.spec.ts` (conv-webcodecs' plan in its handoff) is not written.
 - No member UI for mount worker tokens yet (the routes exist).
 
-## Gates (no database)
+## Gates (no database), all run on the merged tree, one at a time, `-j 2`
 
-(Filled in as they run.)
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | ok |
+| `cargo clippy --workspace --all-targets -- -D warnings` | ok |
+| `cargo test --lib`: sr-media 122, sr-transcoder 61, sr-tv 101, sr-gateway 186, sr-storage 139, sr-admin 66, sr-api 724 (16 ignored: Postgres) | all pass |
+| `cargo test -p sr-api --test route_matrix --test openapi_names` | 6 and 2 pass |
+| `cargo deny --offline check` | advisories, bans, licenses, sources ok |
+| Web `tsc --noEmit`, `eslint .`, `prettier --check .` (repo) | ok |
+| `i18n-audit` | 0 |
+| `check-css-tokens` | 33 files clean |
+| vitest `src/convert src/storage src/cinema src/library src/admin src/i18n --maxWorkers=2` | 93 files, 841 tests pass |
+| `vite build` + `check-bundle-budget.mjs` | ok (entrance 247.9 KB); the new ffmpeg row: core lazy and separate |
+| ffmpeg core in the build | `ffmpeg-core-*.js` and `.wasm` are byte-identical to `node_modules/@ffmpeg/core/dist/esm`, referenced only by the lazy `ConvertStep` chunk; the muxers are their own chunks |
+| `pnpm licenses list --json --prod \| check-licenses.mjs` | ok |
+| `check-notices-copy`, `check-ops-files`, `check-doc-links`, `check-pr-title` | ok |
+| `node --test "scripts/*.test.mjs"` (58) and `deploy/scripts/*.test.mjs` (7) | pass |
+| Every workflow parses with js-yaml | 18 of 18 |
+| OpenAPI, api-client, MSW regenerated; `mocks:check` | green, 1022 operations (diff: `ConvertPolicyView` only) |
+| Uniqueness | setting keys (no duplicate), threat-model rows T1-T31 (no duplicate, none added this wave), job ids (no scheduled job added; worker job kind `mount_transcode` unique) |
 
 ## Left for CI (Postgres and browsers)
+
+- `sr-server --test authz_matrix -- --include-ignored --test-threads=1` (every group, `storage_scopes_hold_over_http` with
+  the new guild-manager 403 and non-member 404 on a guild mount transcode, `every_route_enforces_its_authz_row` with
+  conv-worker's seeds, `shelves_hold_over_http`).
+- `sr-server --test immutable_rules -- --include-ignored --test-threads=1`.
+- `sr-db --test shelf_repo` (new `shelves_play_coalesce_playable_key_key`), `--test index_repo`, `--test media_repo`
+  (conv-worker's two mount tests).
+- `sr-tv --test pg` (`pool_sources_round_trip_and_numbers_are_unique_per_source`; migration 1510's catalog-lookup drop).
+- The full `cargo test --workspace -- --include-ignored --test-threads=1`.
+- `media.yml` `mount` stage; `e2e/tests/convert.spec.ts` (Chromium and Firefox, ffmpeg from apt); axe on the empty shelves.
+
+Suggested PR title: `BYOS-CNV-001, BYOS-CNV-002, BYOS-CNV-003, BYOS-TV-001, BYOS-NAV-001: wave 29, the client media pipeline and Live TV over shelves` (passes `check-pr-title.mjs`).
