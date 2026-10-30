@@ -92,6 +92,9 @@ export default function PlayerHost() {
     const audio = audioRef.current;
     if (!audio) return;
     wireMusicLibrary();
+    // The skins' focus timer and notes pad become wave 32's shared timer and encrypted scratchpad. Loaded on
+    // its own so the notes store and its crypto stay out of the player's first chunk.
+    void import('./toolsWiring').then((m) => m.wireSkinTools());
     restoreResume();
     const engine = createPlayerEngine(audio, nextRef.current ? { nextAudio: nextRef.current } : {});
     // Browser tests (and only they) drive the player through this handle; `audio` is the deck playing now.

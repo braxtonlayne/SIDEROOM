@@ -257,7 +257,7 @@ describe('study skin', () => {
     const { unmount } = render(<StudySkin />);
     const pad = screen.getByRole('textbox', { name: 'Notes' });
     await user.type(pad, 'Finish chapter 4');
-    expect(screen.getByText('Kept in this tab only, not saved.')).toBeTruthy();
+    expect(screen.getByText(/^Kept in this tab only./)).toBeTruthy();
     unmount();
     render(<StudySkin />);
     expect((screen.getByRole('textbox', { name: 'Notes' }) as HTMLTextAreaElement).value).toBe(

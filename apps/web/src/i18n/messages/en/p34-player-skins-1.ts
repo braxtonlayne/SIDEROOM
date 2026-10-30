@@ -39,7 +39,8 @@ export default {
   'player.skinx.study.notes': 'Notes',
   'player.skinx.study.notesHint': 'Today’s goal, a reminder…',
   'player.skinx.study.saved': 'Saved to your encrypted notes.',
-  'player.skinx.study.tabOnly': 'Kept in this tab only, not saved.',
+  'player.skinx.study.tabOnly':
+    'Kept in this tab only. Set up Notes in the Drawer to save it, encrypted.',
   'player.skinx.stack.kbps': 'kbps',
   'player.skinx.stack.khz': 'kHz',
   'player.skinx.stack.format': 'Format:',
