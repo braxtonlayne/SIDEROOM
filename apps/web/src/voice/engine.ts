@@ -16,6 +16,7 @@ import {
   REJOIN_VOICE_CLOSES,
   SPEAKING_PRIORITY,
   SPEAKING_VOICE,
+  clampMusicKbps,
   parseStreamId,
   tuneOpus,
   VoiceClose,
@@ -70,6 +71,8 @@ export interface ConnectParams {
   highPriority?: boolean;
   /** VOX-E2E-003: end-to-end encrypt every track through the call's media worker. */
   e2ee?: EngineE2ee;
+  /** The channel's music bitrate in kbit/s (`voice.music_bitrate_kbps`, 32..320, default 256; MUS-JB-001). */
+  musicKbps?: number;
 }
 
 /** How the engine hooks the E2EE frame transform into its senders and receivers. */
@@ -107,6 +110,8 @@ export interface EngineEvents {
   governor?(reduced: boolean): void;
   /** Someone's camera or screen stream arrived (`stream`) or went away (`null`). */
   remoteVideo?(userId: string, kind: 'camera' | 'screen', stream: MediaStream | null): void;
+  /** Someone's music track arrived (`stream`) or went away (`null`); the engine already plays it (MUS-JB-001). */
+  remoteMusic?(userId: string, stream: MediaStream | null): void;
   /** Someone started or stopped publishing a source (op 12 `published`), with its size and frame rate. */
   videoPublished?(
     userId: string,
@@ -152,6 +157,19 @@ export interface VoiceEngine {
   unpublishVideo?(source: 'camera' | 'screen'): void;
   /** Tell the SFU which sources of which participants to forward, and how big (op 12 `subscribe`). */
   setVideoSubscriptions?(hints: readonly VideoHint[]): void;
+  /**
+   * Send a stereo music track as a second audio line (MUS-JB-001): `stream` is the player's Web Audio graph
+   * through a `MediaStreamAudioDestinationNode`. It rides the same per-sender frame encryptor as the
+   * microphone (D-249), is announced to the SFU as `music` and is capped at `kbps` (default: the channel's).
+   * Replaces a running one.
+   */
+  publishMusic?(stream: MediaStream, kbps?: number): void;
+  /** Stop sending the music track. */
+  unpublishMusic?(): void;
+  /** Stop playing everyone's music here and ask the SFU not to send it (a listener mutes music separately). */
+  setMusicMuted?(muted: boolean): void;
+  /** The listener's music volume, 0..200 percent. */
+  setMusicVolume?(percent: number): void;
   /** Mix a soundboard file into the outgoing audio (VOX-SB-003); false when it could not be played. */
   playSound?(data: ArrayBuffer, volume: number): Promise<boolean>;
 }
@@ -282,6 +300,14 @@ export class RtcVoiceEngine implements VoiceEngine {
   private outgoing = new Map<VideoSource, Outgoing>();
   /** The last subscription hints, sent again after a reconnect. */
   private hints: readonly VideoHint[] | null = null;
+  /** The listener turned music off: playback is muted and the SFU is told not to send it (MUS-JB-001). */
+  private musicMuted = false;
+  /** People who published a music track, so the mute can name them. */
+  private musicUsers = new Set<string>();
+  /** The bitrate of our own music track, kbit/s. */
+  private musicKbps = 256;
+  /** Remote music streams by user id. */
+  private remoteMusic = new Map<string, MediaStream>();
   /** Remote camera / screen streams by `<user>:<kind>`. */
   private remoteVideo = new Map<string, MediaStream>();
 
@@ -541,7 +567,9 @@ export class RtcVoiceEngine implements VoiceEngine {
       const id = parseStreamId(stream.id);
       if (e2ee)
         e2ee.attachReceiver(ev.receiver, ev.track.kind === 'video' ? 'video' : 'audio', id.userId);
-      if (id.kind !== 'mic') {
+      if (id.kind === 'music') {
+        this.addRemoteMusic(id.userId, stream);
+      } else if (id.kind !== 'mic') {
         this.addRemoteVideo(id.userId, id.kind, stream);
       } else if (ev.track.kind === 'audio') {
         const r = ev.receiver as Partial<StatsReceiver> | undefined;
@@ -581,9 +609,13 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.offerPending = true;
     const offer = await pc.createOffer(restart ? { iceRestart: true } : undefined);
     // Opus DTX / FEC / mono go into the local description too, so what we sent is what we run.
+    // While a music line is attached the Opus payload type is stereo with the music ceiling (MUS-JB-001).
+    const music = this.outgoing.has('music');
     await pc.setLocalDescription({
       type: 'offer',
-      sdp: tuneOpus(offer.sdp ?? '', this.params.maxBitrate),
+      sdp: music
+        ? tuneOpus(offer.sdp ?? '', this.musicKbps * 1000, 'music')
+        : tuneOpus(offer.sdp ?? '', this.params.maxBitrate),
     });
     await this.gathered(pc);
     const sdp = pc.localDescription?.sdp ?? offer.sdp ?? '';
@@ -672,11 +704,13 @@ export class RtcVoiceEngine implements VoiceEngine {
     const max = this.params?.maxBitrate;
     const pc = this.pc as (PeerLike & { getSenders?: () => RTCRtpSender[] }) | null;
     if (!max || !pc?.getSenders) return;
+    const musicSender = this.outgoing.get('music')?.tx?.sender;
     for (const sender of pc.getSenders()) {
       if (sender.track?.kind !== 'audio') continue;
       const p = sender.getParameters();
       p.encodings = p.encodings?.length ? p.encodings : [{}];
-      p.encodings[0]!.maxBitrate = max;
+      // The microphone stays at the channel bitrate; the music line has its own ceiling.
+      p.encodings[0]!.maxBitrate = sender === musicSender ? this.musicKbps * 1000 : max;
       void sender.setParameters(p).catch(() => undefined);
     }
   }
@@ -728,6 +762,8 @@ export class RtcVoiceEngine implements VoiceEngine {
   }
 
   private dropPeer(userId: string): void {
+    this.dropRemoteMusic(userId);
+    this.musicUsers.delete(userId);
     this.remoteStreams.delete(userId);
     this.playback.remove(userId);
     this.events.peer(userId, false);
@@ -767,7 +803,12 @@ export class RtcVoiceEngine implements VoiceEngine {
         height: m.height ?? 0,
         fps: m.fps ?? 0,
       });
-      if (!m.active && m.source !== 'screen_audio') {
+      if (m.source === 'music') {
+        if (m.active) this.musicUsers.add(m.user_id);
+        else this.dropRemoteMusic(m.user_id);
+        // A listener who muted music asks the SFU for none of the new publisher's either.
+        if (m.active && this.musicMuted) this.sendHints(this.hints ?? []);
+      } else if (!m.active && m.source !== 'screen_audio') {
         this.dropRemoteVideo(`${m.user_id}:${m.source}`);
       }
     } else if (m.t === 'layer') {
@@ -827,7 +868,91 @@ export class RtcVoiceEngine implements VoiceEngine {
   }
 
   private sendHints(hints: readonly VideoHint[]): void {
-    this.send(VoiceOp.VIDEO, { t: 'subscribe', subscriptions: hints });
+    // The music mute rides along with the caller's hints (the SFU replaces the whole list on each message).
+    const mutes: VideoHint[] = this.musicMuted
+      ? [...this.musicUsers].map((user_id) => ({ user_id, source: 'music', enabled: false }))
+      : [];
+    this.send(VoiceOp.VIDEO, { t: 'subscribe', subscriptions: [...hints, ...mutes] });
+  }
+
+  // ---- music (MUS-JB-001) ----
+
+  publishMusic(stream: MediaStream, kbps?: number): void {
+    const track = stream.getAudioTracks()[0];
+    if (!track) return;
+    this.unpublishMusic(false);
+    this.musicKbps = clampMusicKbps(kbps ?? this.params?.musicKbps);
+    const o: Outgoing = {
+      source: 'music',
+      track,
+      stream,
+      info: { width: 0, height: 0, fps: 0 },
+      tx: null,
+      announced: null,
+    };
+    this.outgoing.set('music', o);
+    if (this.pc) {
+      this.attach(this.pc, o);
+      this.enqueue(() => this.negotiate(false));
+    }
+  }
+
+  unpublishMusic(renegotiate = true): void {
+    const o = this.outgoing.get('music');
+    if (!o) return;
+    this.outgoing.delete('music');
+    if (o.announced !== null) {
+      this.sendVideo({
+        t: 'publish',
+        mid: o.announced,
+        source: 'music',
+        active: false,
+        width: 0,
+        height: 0,
+        fps: 0,
+      });
+    }
+    let changed = false;
+    if (o.tx) {
+      try {
+        o.tx.stop?.();
+      } catch {
+        /* already stopped */
+      }
+      changed = true;
+    }
+    if (changed && renegotiate && this.pc) this.enqueue(() => this.negotiate(false));
+  }
+
+  setMusicMuted(muted: boolean): void {
+    this.musicMuted = muted;
+    this.playback.setMusicMuted(muted);
+    this.sendHints(this.hints ?? []);
+  }
+
+  setMusicVolume(percent: number): void {
+    this.playback.setMusicVolume(percent);
+  }
+
+  private addRemoteMusic(userId: string, stream: MediaStream): void {
+    if (this.remoteMusic.get(userId) === stream) return;
+    this.remoteMusic.set(userId, stream);
+    this.musicUsers.add(userId);
+    this.playback.addMusic(userId, stream);
+    this.playback.setDeafened(this.deafened);
+    this.events.remoteMusic?.(userId, stream);
+    // The line is removed (the DJ stopped) when the stream loses its last track.
+    stream.addEventListener?.('removetrack', () => {
+      if (stream.getTracks().length === 0 && this.remoteMusic.get(userId) === stream) {
+        this.dropRemoteMusic(userId);
+      }
+    });
+  }
+
+  private dropRemoteMusic(userId: string): void {
+    if (!this.remoteMusic.delete(userId)) return;
+    this.playback.removeMusic(userId);
+    this.events.remoteMusic?.(userId, null);
   }
 
   private sendVideo(m: VideoPublishOut): void {
@@ -843,7 +968,9 @@ export class RtcVoiceEngine implements VoiceEngine {
         ? simulcastEncodings({ height: info.height, fps: info.fps })
         : o.source === 'screen'
           ? [{ maxFramerate: info.fps, maxBitrate: screenBitrate(info) }]
-          : undefined;
+          : o.source === 'music'
+            ? [{ maxBitrate: this.musicKbps * 1000, priority: 'high' } as RTCRtpEncodingParameters]
+            : undefined;
     o.tx =
       pc.addTransceiver(o.track, {
         direction: 'sendonly',
@@ -921,7 +1048,13 @@ export class RtcVoiceEngine implements VoiceEngine {
     await this.mic.start(opts);
     this.mic.setGate(this.transmitting);
     const track = this.mic.track;
-    const sender = pc?.getSenders?.().find((s) => s.track?.kind === 'audio' || s.track === null);
+    // The microphone is the first audio sender; the music and screen-audio lines are not.
+    const others = new Set<unknown>(
+      [this.outgoing.get('music'), this.outgoing.get('screen_audio')].map((o) => o?.tx?.sender),
+    );
+    const sender = pc
+      ?.getSenders?.()
+      .find((s) => (s.track?.kind === 'audio' || s.track === null) && !others.has(s));
     if (sender && track) await sender.replaceTrack(track);
     this.offLevel?.();
     this.offLost?.();
@@ -964,6 +1097,8 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.mic.stop();
     for (const id of [...this.remoteStreams.keys()]) this.dropPeer(id);
     for (const key of [...this.remoteVideo.keys()]) this.dropRemoteVideo(key);
+    for (const id of [...this.remoteMusic.keys()]) this.dropRemoteMusic(id);
+    this.musicUsers.clear();
     this.outgoing.clear();
     this.hints = null;
     this.playback.dispose();
