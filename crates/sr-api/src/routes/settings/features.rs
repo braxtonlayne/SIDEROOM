@@ -363,13 +363,7 @@ pub async fn list_features(
             continue;
         }
         // An operator-gated module (the scrapbook) is hidden until the platform opted in.
-        if !gf
-            .ctx
-            .settings
-            .offered(f.id())
-            .await
-            .map_err(feature_err)?
-        {
+        if !gf.ctx.settings.offered(f.id()).await.map_err(feature_err)? {
             continue;
         }
         out.push(view(&gf.ctx, f, gid).await.map_err(feature_err)?);

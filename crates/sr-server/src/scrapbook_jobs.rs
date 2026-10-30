@@ -343,18 +343,28 @@ pub fn spawn_cascade_consumer(
                 Ok(_) => continue,
                 Err(BroadcastStreamRecvError::Lagged(missed)) => {
                     // The sweep (`scrapbook.removals`) reconciles whatever was missed.
-                    tracing::warn!(missed, "scrapbook cascade consumer lagged; the sweep will catch up");
+                    tracing::warn!(
+                        missed,
+                        "scrapbook cascade consumer lagged; the sweep will catch up"
+                    );
                     continue;
                 }
             };
             for scope in scopes {
                 match archiver.cascade(scope, clock.now_unix_ms()).await {
                     Ok(r) if r.entries > 0 => {
-                        tracing::info!(entries = r.entries, removed = r.removed, failed = r.failed, "scrapbook cascade");
+                        tracing::info!(
+                            entries = r.entries,
+                            removed = r.removed,
+                            failed = r.failed,
+                            "scrapbook cascade"
+                        );
                     }
                     Ok(_) => {}
                     // The sweep finds the entry again; say so loudly meanwhile.
-                    Err(e) => tracing::error!(error = %e, "scrapbook cascade failed; the sweep will retry"),
+                    Err(e) => {
+                        tracing::error!(error = %e, "scrapbook cascade failed; the sweep will retry")
+                    }
                 }
             }
         }
@@ -375,7 +385,10 @@ async fn removals_handler(w: Arc<Worker>, job: Job) -> Result<(), HandlerError> 
     match w.sweep().await {
         Ok((_, failing, reconciled)) => {
             if failing > 0 {
-                tracing::warn!(failing, "scrapbook copies still cannot be removed from their bucket");
+                tracing::warn!(
+                    failing,
+                    "scrapbook copies still cannot be removed from their bucket"
+                );
             }
             if reconciled > 0 {
                 tracing::info!(reconciled, "scrapbook entries of gone messages removed");
@@ -402,10 +415,22 @@ pub fn register(runner: JobRunner, worker: Arc<Worker>) -> JobRunner {
 
 /// Create or re-arm the singletons. Call only when [`register`] is on the runner.
 pub async fn schedule(pool: &PgPool) -> DbResult<()> {
-    jobs::schedule_singleton(pool, REQUESTS_JOB_ID, REQUESTS_KIND, &json!({}), REQUESTS_EVERY)
-        .await?;
-    jobs::schedule_singleton(pool, REMOVALS_JOB_ID, REMOVALS_KIND, &json!({}), REMOVALS_EVERY)
-        .await?;
+    jobs::schedule_singleton(
+        pool,
+        REQUESTS_JOB_ID,
+        REQUESTS_KIND,
+        &json!({}),
+        REQUESTS_EVERY,
+    )
+    .await?;
+    jobs::schedule_singleton(
+        pool,
+        REMOVALS_JOB_ID,
+        REMOVALS_KIND,
+        &json!({}),
+        REMOVALS_EVERY,
+    )
+    .await?;
     Ok(())
 }
 

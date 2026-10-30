@@ -115,7 +115,8 @@ impl ObjectKind {
             .rsplit_once('.')
             .map(|(_, e)| e.to_ascii_lowercase())
             .unwrap_or_default();
-        if ct.starts_with("image/") || matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp")
+        if ct.starts_with("image/")
+            || matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp")
         {
             Self::Image
         } else if ct.starts_with("video/") || matches!(ext.as_str(), "mp4" | "webm" | "mov" | "m4v")
@@ -441,11 +442,7 @@ pub fn safe_name(filename: &str) -> String {
             format!("{stem}.{ext}")
         };
     }
-    if out.is_empty() {
-        "file".into()
-    } else {
-        out
-    }
+    if out.is_empty() { "file".into() } else { out }
 }
 
 /// `(year, month)` of a unix-ms timestamp, UTC.
@@ -780,15 +777,7 @@ impl Archiver {
                 skipped += 1;
                 continue;
             }
-            match copy_object(
-                &*self.source,
-                &a.key,
-                &*writer,
-                &key,
-                req.max_object_bytes,
-            )
-            .await
-            {
+            match copy_object(&*self.source, &a.key, &*writer, &key, req.max_object_bytes).await {
                 Ok(size) => objects.push(Object {
                     id: (self.ids)(),
                     entry_id,
@@ -833,7 +822,10 @@ impl Archiver {
             created_at_ms: req.now_ms,
         };
         match self.store.insert(&entry, &objects).await {
-            Ok(true) => Ok(ArchiveOutcome::Archived(EntryWithObjects { entry, objects })),
+            Ok(true) => Ok(ArchiveOutcome::Archived(EntryWithObjects {
+                entry,
+                objects,
+            })),
             Ok(false) => {
                 // Someone else archived the same message a moment ago. The keys are the same ones, so the
                 // copies belong to their entry; leave them.
@@ -1074,9 +1066,11 @@ impl ScrapbookStore for MemoryScrapbook {
         let mut tags: BTreeMap<String, i64> = BTreeMap::new();
         let mut authors: BTreeMap<i64, (String, i64)> = BTreeMap::new();
         let mut channels: BTreeMap<i64, i64> = BTreeMap::new();
-        for x in s.entries.values().filter(|x| {
-            x.entry.guild_id == guild && viewable.contains(&x.entry.channel_id)
-        }) {
+        for x in s
+            .entries
+            .values()
+            .filter(|x| x.entry.guild_id == guild && viewable.contains(&x.entry.channel_id))
+        {
             for t in &x.entry.tags {
                 *tags.entry(t.clone()).or_default() += 1;
             }

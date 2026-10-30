@@ -9,8 +9,8 @@ use crate::auth::{
     memory::{MemoryBots, MemorySessions},
 };
 use crate::routes::messages::{FixedEntitlements, MessagesDeps};
-use crate::routes::settings::features::{GuildFeatures, RoleAssigner};
 use crate::routes::settings::SettingsDeps;
+use crate::routes::settings::features::{GuildFeatures, RoleAssigner};
 use crate::routes::storage::ScopeDeps;
 use crate::{ApiSettings, AppState, build_router};
 use async_trait::async_trait;
@@ -28,9 +28,7 @@ use sr_auth::{
 };
 use sr_chat::guild_rules::plan_new_guild;
 use sr_chat::memory::MemoryBackend;
-use sr_chat::repo::{
-    Attachment, GuildRepository, MessageRepository, MessageStore, UploadState,
-};
+use sr_chat::repo::{Attachment, GuildRepository, MessageRepository, MessageStore, UploadState};
 use sr_chat::settings::memory::MemorySettingsRepo;
 use sr_chat::{
     Channel, ChannelType, ChatError, ChatResult, Member, Message, MessageType, Role, Visibility,
@@ -160,14 +158,7 @@ impl ScopeStore for FactsStore {
 struct NoRoles;
 #[async_trait]
 impl RoleAssigner for NoRoles {
-    async fn assign(
-        &self,
-        _: UserId,
-        _: GuildId,
-        _: UserId,
-        _: RoleId,
-        _: bool,
-    ) -> ChatResult<()> {
+    async fn assign(&self, _: UserId, _: GuildId, _: UserId, _: RoleId, _: bool) -> ChatResult<()> {
         Err(ChatError::MissingPermissions)
     }
 }
@@ -338,10 +329,10 @@ async fn env() -> Env {
     }
     // A second channel that @everyone cannot see.
     let secret = ChannelId::new(ids.generate().get());
-    backend.data().channels.insert(
-        secret,
-        Channel::new(secret, Some(guild), ChannelType::Text),
-    );
+    backend
+        .data()
+        .channels
+        .insert(secret, Channel::new(secret, Some(guild), ChannelType::Text));
     backend.data().overwrites.insert(
         secret,
         vec![Overwrite {
@@ -592,7 +583,12 @@ impl Env {
     }
 
     /// A message by `AUTHOR` in `channel`, with one image attachment held in the instance bucket.
-    async fn message(&self, channel: ChannelId, text: &str, file: Option<(&str, &str)>) -> MessageId {
+    async fn message(
+        &self,
+        channel: ChannelId,
+        text: &str,
+        file: Option<(&str, &str)>,
+    ) -> MessageId {
         let n = self.next.fetch_add(2, Ordering::SeqCst);
         let id = MessageId::new(n);
         let m = Message {
@@ -673,7 +669,10 @@ async fn the_module_is_hidden_until_the_operator_offers_it() {
     // Offered and on: a member sees the status.
     let (s, v) = e.get(PLAIN, &e.g("/status")).await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert_eq!((v["offered"].as_bool(), v["enabled"].as_bool()), (Some(true), Some(true)));
+    assert_eq!(
+        (v["offered"].as_bool(), v["enabled"].as_bool()),
+        (Some(true), Some(true))
+    );
     // The operator withdraws it (clears the platform flag): hidden, the gallery is a 404.
     e.features
         .set_enabled(id, &ScopeRef::Platform, None)
@@ -696,7 +695,10 @@ async fn the_module_is_hidden_until_the_operator_offers_it() {
     assert_eq!(s, StatusCode::FORBIDDEN);
     assert_eq!(v["code"], 900001);
     let (_, v) = e.get(PLAIN, &e.g("/status")).await;
-    assert_eq!((v["offered"].as_bool(), v["enabled"].as_bool()), (Some(true), Some(false)));
+    assert_eq!(
+        (v["offered"].as_bool(), v["enabled"].as_bool()),
+        (Some(true), Some(false))
+    );
 }
 
 #[tokio::test]
@@ -727,7 +729,9 @@ async fn only_members_use_it_and_bots_are_refused() {
 #[tokio::test]
 async fn who_may_send_by_hand_is_a_role_or_manage_messages() {
     let e = env().await;
-    let m = e.message(e.general, "frame me", Some(("cat.png", "image/png"))).await;
+    let m = e
+        .message(e.general, "frame me", Some(("cat.png", "image/png")))
+        .await;
     // The status tells each viewer whether the menu entry is theirs.
     for (who, can) in [(PLAIN, false), (AUTHOR, false), (MOD, true), (OWNER, true)] {
         let (_, v) = e.get(who, &e.g("/status")).await;
@@ -749,7 +753,10 @@ async fn who_may_send_by_hand_is_a_role_or_manage_messages() {
     assert_eq!(e.shelf.list("").await.unwrap().len(), 1);
     // Someone who cannot see the channel cannot send its messages either (the channel is unknown to them).
     let hidden = e.message(e.secret, "secret thing", None).await;
-    assert_eq!(e.send(PLAIN, e.secret, hidden).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        e.send(PLAIN, e.secret, hidden).await.0,
+        StatusCode::FORBIDDEN
+    );
     // A role named in the module settings lets a member send.
     let viewers = e
         .backend
@@ -830,9 +837,13 @@ async fn the_gallery_filters_by_member_tag_and_date() {
         assert_eq!(e.send(MOD, e.general, m).await.0, StatusCode::OK);
     }
     let count = |v: &Value| v["entries"].as_array().unwrap().len();
-    let (_, v) = e.get(PLAIN, &format!("{}?author_id={AUTHOR}", e.g(""))).await;
+    let (_, v) = e
+        .get(PLAIN, &format!("{}?author_id={AUTHOR}", e.g("")))
+        .await;
     assert_eq!(count(&v), 2);
-    let (_, v) = e.get(PLAIN, &format!("{}?author_id={PLAIN}", e.g(""))).await;
+    let (_, v) = e
+        .get(PLAIN, &format!("{}?author_id={PLAIN}", e.g("")))
+        .await;
     assert_eq!(count(&v), 0);
     let (_, v) = e.get(PLAIN, &format!("{}?tag=funny", e.g(""))).await;
     assert_eq!(count(&v), 2);
@@ -842,7 +853,9 @@ async fn the_gallery_filters_by_member_tag_and_date() {
     let (s, v) = e.get(PLAIN, &format!("{}?from=2026-02-01", e.g(""))).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(count(&v), 0);
-    let (_, v) = e.get(PLAIN, &format!("{}?from=2025-12-31&to=2026-01-01", e.g(""))).await;
+    let (_, v) = e
+        .get(PLAIN, &format!("{}?from=2025-12-31&to=2026-01-01", e.g("")))
+        .await;
     assert_eq!(count(&v), 2);
     assert_eq!(
         e.get(PLAIN, &format!("{}?from=yesterday", e.g(""))).await.0,
@@ -852,7 +865,9 @@ async fn the_gallery_filters_by_member_tag_and_date() {
     let (_, v) = e.get(PLAIN, &format!("{}?limit=1", e.g(""))).await;
     assert_eq!(count(&v), 1);
     let next = v["next_before"].as_str().unwrap().to_owned();
-    let (_, v2) = e.get(PLAIN, &format!("{}?limit=1&before={next}", e.g(""))).await;
+    let (_, v2) = e
+        .get(PLAIN, &format!("{}?limit=1&before={next}", e.g("")))
+        .await;
     assert_eq!(count(&v2), 1);
     assert!(v2.get("next_before").is_none() || v2["next_before"].is_null());
 }
@@ -860,7 +875,9 @@ async fn the_gallery_filters_by_member_tag_and_date() {
 #[tokio::test]
 async fn a_file_is_signed_only_for_a_viewer_whose_storage_scopes_reach_the_shelf() {
     let e = env().await;
-    let m = e.message(e.general, "pic", Some(("cat.png", "image/png"))).await;
+    let m = e
+        .message(e.general, "pic", Some(("cat.png", "image/png")))
+        .await;
     let (s, v) = e.send(MOD, e.general, m).await;
     assert_eq!(s, StatusCode::OK, "{v}");
     let (entry, object) = (
@@ -873,17 +890,26 @@ async fn a_file_is_signed_only_for_a_viewer_whose_storage_scopes_reach_the_shelf
     assert_eq!(v["entries"][0]["content"], "pic");
     assert_eq!(v["entries"][0]["objects"][0]["playable"], false);
     assert_eq!(
-        e.call(Some(PLAIN), Method::POST, &path, Some(json!({}))).await.0,
+        e.call(Some(PLAIN), Method::POST, &path, Some(json!({})))
+            .await
+            .0,
         StatusCode::FORBIDDEN
     );
     // ... and one whose role holds the view grants gets a signature.
     let (_, v) = e.get(VIEWER, &e.g("")).await;
     assert_eq!(v["entries"][0]["objects"][0]["playable"], true);
-    let (s, v) = e.call(Some(VIEWER), Method::POST, &path, Some(json!({}))).await;
+    let (s, v) = e
+        .call(Some(VIEWER), Method::POST, &path, Some(json!({})))
+        .await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert!(v["url"].as_str().unwrap().contains("X-Amz-Signature"), "{v}");
+    assert!(
+        v["url"].as_str().unwrap().contains("X-Amz-Signature"),
+        "{v}"
+    );
     // A signature for an entry in a channel the viewer cannot see is refused as unknown.
-    let hidden = e.message(e.secret, "secret", Some(("s.png", "image/png"))).await;
+    let hidden = e
+        .message(e.secret, "secret", Some(("s.png", "image/png")))
+        .await;
     let (_, v) = e.send(OWNER, e.secret, hidden).await;
     let hpath = e.g(&format!(
         "/{}/objects/{}/presign",
@@ -891,13 +917,17 @@ async fn a_file_is_signed_only_for_a_viewer_whose_storage_scopes_reach_the_shelf
         v["objects"][0]["id"].as_str().unwrap()
     ));
     assert_eq!(
-        e.call(Some(VIEWER), Method::POST, &hpath, Some(json!({}))).await.0,
+        e.call(Some(VIEWER), Method::POST, &hpath, Some(json!({})))
+            .await
+            .0,
         StatusCode::NOT_FOUND
     );
     // An object id that is not the entry's is unknown.
     let wrong = e.g(&format!("/{entry}/objects/12345/presign"));
     assert_eq!(
-        e.call(Some(VIEWER), Method::POST, &wrong, Some(json!({}))).await.0,
+        e.call(Some(VIEWER), Method::POST, &wrong, Some(json!({})))
+            .await
+            .0,
         StatusCode::NOT_FOUND
     );
 }
@@ -905,13 +935,22 @@ async fn a_file_is_signed_only_for_a_viewer_whose_storage_scopes_reach_the_shelf
 #[tokio::test]
 async fn tags_and_removal_belong_to_the_author_the_sender_and_message_managers() {
     let e = env().await;
-    let m = e.message(e.general, "mine", Some(("a.png", "image/png"))).await;
+    let m = e
+        .message(e.general, "mine", Some(("a.png", "image/png")))
+        .await;
     let (_, v) = e.send(MOD, e.general, m).await;
     let entry = v["id"].as_str().unwrap().to_owned();
     let path = e.g(&format!("/{entry}"));
     // A plain member neither retags nor removes.
     assert_eq!(
-        e.call(Some(PLAIN), Method::PATCH, &path, Some(json!({"tags": ["x"]}))).await.0,
+        e.call(
+            Some(PLAIN),
+            Method::PATCH,
+            &path,
+            Some(json!({"tags": ["x"]}))
+        )
+        .await
+        .0,
         StatusCode::FORBIDDEN
     );
     assert_eq!(
@@ -920,7 +959,12 @@ async fn tags_and_removal_belong_to_the_author_the_sender_and_message_managers()
     );
     // The author does.
     let (s, v) = e
-        .call(Some(AUTHOR), Method::PATCH, &path, Some(json!({"tags": ["#Cats", "cats", " "]})))
+        .call(
+            Some(AUTHOR),
+            Method::PATCH,
+            &path,
+            Some(json!({"tags": ["#Cats", "cats", " "]})),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["tags"], json!(["cats"]));
@@ -932,7 +976,10 @@ async fn tags_and_removal_belong_to_the_author_the_sender_and_message_managers()
     assert_eq!(e.shelf.list("").await.unwrap().len(), 1);
     let (s, v) = e.call(Some(AUTHOR), Method::DELETE, &path, None).await;
     assert_eq!(s, StatusCode::OK, "{v}");
-    assert_eq!((v["copies_removed"].as_u64(), v["copies_failed"].as_u64()), (Some(1), Some(0)));
+    assert_eq!(
+        (v["copies_removed"].as_u64(), v["copies_failed"].as_u64()),
+        (Some(1), Some(0))
+    );
     assert!(e.shelf.list("").await.unwrap().is_empty());
     assert_eq!(
         e.call(Some(AUTHOR), Method::DELETE, &path, None).await.0,
@@ -961,16 +1008,26 @@ async fn tags_and_removal_belong_to_the_author_the_sender_and_message_managers()
 #[tokio::test]
 async fn a_failed_bucket_removal_is_visible_to_managers_only_and_can_be_retried_or_dismissed() {
     let e = env().await;
-    let m = e.message(e.general, "doomed", Some(("d.png", "image/png"))).await;
+    let m = e
+        .message(e.general, "doomed", Some(("d.png", "image/png")))
+        .await;
     let (_, v) = e.send(MOD, e.general, m).await;
     let entry = v["id"].as_str().unwrap().to_owned();
     e.shelf.refuse_delete.store(true, Ordering::SeqCst);
     let (s, v) = e
-        .call(Some(AUTHOR), Method::DELETE, &e.g(&format!("/{entry}")), None)
+        .call(
+            Some(AUTHOR),
+            Method::DELETE,
+            &e.g(&format!("/{entry}")),
+            None,
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{v}");
     // The member who removed it is told the copy is still there.
-    assert_eq!((v["copies_removed"].as_u64(), v["copies_failed"].as_u64()), (Some(0), Some(1)));
+    assert_eq!(
+        (v["copies_removed"].as_u64(), v["copies_failed"].as_u64()),
+        (Some(0), Some(1))
+    );
     assert_eq!(e.shelf.list("").await.unwrap().len(), 1);
 
     // Managers read the list; members (and message managers who do not manage the server) cannot.
@@ -985,7 +1042,12 @@ async fn a_failed_bucket_removal_is_visible_to_managers_only_and_can_be_retried_
     assert_eq!(s, StatusCode::OK, "{v}");
     let list = v["removals"].as_array().unwrap();
     assert_eq!(list.len(), 1);
-    assert!(list[0]["last_error"].as_str().unwrap().contains("AccessDenied"));
+    assert!(
+        list[0]["last_error"]
+            .as_str()
+            .unwrap()
+            .contains("AccessDenied")
+    );
     assert_eq!(list[0]["attempts"], 1);
     assert!(list[0]["key"].as_str().unwrap().contains("d.png"));
     // The status counts them for managers.
@@ -996,19 +1058,33 @@ async fn a_failed_bucket_removal_is_visible_to_managers_only_and_can_be_retried_
     let retry = e.g(&format!("/removals/{id}/retry"));
     let dismiss = e.g(&format!("/removals/{id}"));
     assert_eq!(
-        e.call(Some(PLAIN), Method::POST, &retry, Some(json!({}))).await.0,
+        e.call(Some(PLAIN), Method::POST, &retry, Some(json!({})))
+            .await
+            .0,
         StatusCode::FORBIDDEN
     );
     // Still down: the retry reports it and the row stays with one more attempt.
-    let (s, v) = e.call(Some(ADMIN), Method::POST, &retry, Some(json!({}))).await;
+    let (s, v) = e
+        .call(Some(ADMIN), Method::POST, &retry, Some(json!({})))
+        .await;
     assert_eq!((s, v["removed"].as_bool()), (StatusCode::OK, Some(false)));
-    assert_eq!(e.get(ADMIN, &e.g("/removals")).await.1["removals"][0]["attempts"], 2);
+    assert_eq!(
+        e.get(ADMIN, &e.g("/removals")).await.1["removals"][0]["attempts"],
+        2
+    );
     // The key works again: the retry removes the copy and the row.
     e.shelf.refuse_delete.store(false, Ordering::SeqCst);
-    let (_, v) = e.call(Some(ADMIN), Method::POST, &retry, Some(json!({}))).await;
+    let (_, v) = e
+        .call(Some(ADMIN), Method::POST, &retry, Some(json!({})))
+        .await;
     assert_eq!(v["removed"], true);
     assert!(e.shelf.list("").await.unwrap().is_empty());
-    assert!(e.get(ADMIN, &e.g("/removals")).await.1["removals"].as_array().unwrap().is_empty());
+    assert!(
+        e.get(ADMIN, &e.g("/removals")).await.1["removals"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     // An unknown removal is unknown, and dismissing needs the manager too.
     assert_eq!(
         e.call(Some(ADMIN), Method::DELETE, &dismiss, None).await.0,
@@ -1049,14 +1125,24 @@ async fn only_managers_choose_the_shelf_and_it_must_be_the_servers_own() {
     assert_eq!((t.mount_id, t.granted_by), (e.mount, ADMIN as i64));
     // Dropping it needs a manager as well.
     assert_eq!(
-        e.call(Some(PLAIN), Method::DELETE, &e.g("/target"), None).await.0,
+        e.call(Some(PLAIN), Method::DELETE, &e.g("/target"), None)
+            .await
+            .0,
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        e.call(Some(ADMIN), Method::DELETE, &e.g("/target"), None).await.0,
+        e.call(Some(ADMIN), Method::DELETE, &e.g("/target"), None)
+            .await
+            .0,
         StatusCode::NO_CONTENT
     );
-    assert!(e.store.target(e.guild.get() as i64).await.unwrap().is_none());
+    assert!(
+        e.store
+            .target(e.guild.get() as i64)
+            .await
+            .unwrap()
+            .is_none()
+    );
     // The status shows managers the shelf and the problem.
     let (_, v) = e.get(ADMIN, &e.g("/status")).await;
     assert!(v.get("target").is_none() || v["target"].is_null());

@@ -24,7 +24,9 @@ use sr_features::actions::{AttachmentInfo, ChannelInfo, MessageInfo};
 use sr_features::modules::scrapbook::{SCRAPBOOK_ID, Scrapbook, request_key};
 use sr_features::state::{InMemoryState, StateEntry};
 use sr_features::testing::FakeActions;
-use sr_features::{Feature, FeatureCtx, FeatureRegistry, FeatureService, InMemorySettingsStore, ScopeRef};
+use sr_features::{
+    Feature, FeatureCtx, FeatureRegistry, FeatureService, InMemorySettingsStore, ScopeRef,
+};
 use sr_storage::mount_storage::MountStorages;
 use sr_storage::mounts::{
     INSTANCE_MOUNT_ID, MountInput, MountOwner, MountRepo, NewMount, Provider, Secret,
@@ -236,11 +238,7 @@ async fn fx() -> Fx {
     // The module registry with the operator's opt-in and the server's own switch.
     let mut reg = FeatureRegistry::new();
     reg.register(Scrapbook).unwrap();
-    let features = FeatureService::new(
-        Arc::new(reg),
-        Arc::new(InMemorySettingsStore::new()),
-        None,
-    );
+    let features = FeatureService::new(Arc::new(reg), Arc::new(InMemorySettingsStore::new()), None);
     features
         .set_enabled(SCRAPBOOK_ID, &ScopeRef::Platform, Some(true))
         .await
@@ -379,7 +377,11 @@ async fn a_reaction_request_becomes_an_entry_with_its_copy() {
     assert_eq!(x.entry.author_id, f.member);
     assert_eq!(x.entry.author_name, "ada");
     assert_eq!(x.objects.len(), 1);
-    assert!(x.objects[0].key.starts_with("scrapbook/"), "{}", x.objects[0].key);
+    assert!(
+        x.objects[0].key.starts_with("scrapbook/"),
+        "{}",
+        x.objects[0].key
+    );
     assert!(x.objects[0].key.contains(&format!("/{m}/0-cat.png")));
     assert_eq!(f.shelf.get(&x.objects[0].key).await.unwrap().len(), 20);
     // The request row is gone, and a second run changes nothing.
@@ -446,10 +448,19 @@ async fn the_module_trigger_leaves_a_request_only_at_the_threshold() {
     };
     actions.react(77, TRIGGER, 1);
     Scrapbook.on_event(&ev(1), &ctx).await.unwrap();
-    assert!(ctx.state.list(SCRAPBOOK_ID, g, "req:").await.unwrap().is_empty());
+    assert!(
+        ctx.state
+            .list(SCRAPBOOK_ID, g, "req:")
+            .await
+            .unwrap()
+            .is_empty()
+    );
     actions.react(77, TRIGGER, 2);
     Scrapbook.on_event(&ev(2), &ctx).await.unwrap();
-    assert_eq!(ctx.state.list(SCRAPBOOK_ID, g, "req:").await.unwrap().len(), 1);
+    assert_eq!(
+        ctx.state.list(SCRAPBOOK_ID, g, "req:").await.unwrap().len(),
+        1
+    );
 }
 
 #[tokio::test]
@@ -467,7 +478,15 @@ async fn a_request_is_dropped_when_the_module_is_off_the_message_is_gone_or_ther
     assert_eq!(f.worker.run_requests().await.unwrap(), 0);
     assert!(!entry_exists(&f, m).await);
     assert!(f.shelf.list("").await.unwrap().is_empty());
-    assert!(f.worker.ctx.state.list(SCRAPBOOK_ID, g, "req:").await.unwrap().is_empty());
+    assert!(
+        f.worker
+            .ctx
+            .state
+            .list(SCRAPBOOK_ID, g, "req:")
+            .await
+            .unwrap()
+            .is_empty()
+    );
     f.features
         .set_enabled(SCRAPBOOK_ID, &ScopeRef::Guild { guild: g }, Some(true))
         .await
@@ -502,7 +521,15 @@ async fn a_request_is_dropped_when_the_module_is_off_the_message_is_gone_or_ther
     request(&f, m2).await;
     assert_eq!(f.worker.run_requests().await.unwrap(), 0);
     assert!(!entry_exists(&f, m2).await);
-    assert!(f.worker.ctx.state.list(SCRAPBOOK_ID, g, "req:").await.unwrap().is_empty());
+    assert!(
+        f.worker
+            .ctx
+            .state
+            .list(SCRAPBOOK_ID, g, "req:")
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -610,7 +637,13 @@ async fn a_bucket_failure_in_the_cascade_is_visible_to_managers_and_retried_unti
     let m = message_with_file(&f, "keep me", "k.png", 9).await;
     request(&f, m).await;
     f.worker.run_requests().await.unwrap();
-    let key = f.store.by_message(f.guild, m).await.unwrap().unwrap().objects[0]
+    let key = f
+        .store
+        .by_message(f.guild, m)
+        .await
+        .unwrap()
+        .unwrap()
+        .objects[0]
         .key
         .clone();
 
@@ -622,7 +655,10 @@ async fn a_bucket_failure_in_the_cascade_is_visible_to_managers_and_retried_unti
         .unwrap();
     assert_eq!((report.entries, report.removed, report.failed), (1, 0, 1));
     assert!(!entry_exists(&f, m).await, "the gallery no longer shows it");
-    assert!(f.shelf.head(&key).await.is_ok(), "the copy is still in the bucket");
+    assert!(
+        f.shelf.head(&key).await.is_ok(),
+        "the copy is still in the bucket"
+    );
 
     // What `GET /guilds/{id}/scrapbook/removals` serves to the managers.
     let failed = f.store.failed_removals(f.guild).await.unwrap();
@@ -631,15 +667,28 @@ async fn a_bucket_failure_in_the_cascade_is_visible_to_managers_and_retried_unti
     assert_eq!(failed[0].mount_id, f.mount);
     assert_eq!(failed[0].message_id, Some(m));
     assert_eq!(failed[0].attempts, 1);
-    assert!(failed[0].last_error.contains("AccessDenied"), "{}", failed[0].last_error);
+    assert!(
+        failed[0].last_error.contains("AccessDenied"),
+        "{}",
+        failed[0].last_error
+    );
     // Another server sees nothing of it.
-    assert!(f.store.failed_removals(f.guild + 1).await.unwrap().is_empty());
+    assert!(
+        f.store
+            .failed_removals(f.guild + 1)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Not due, then due and still failing: the count grows, the row stays.
     assert_eq!(f.archiver.drain(1_000, 10).await.unwrap(), (0, 0));
     let due = failed[0].next_attempt_ms;
     assert_eq!(f.archiver.drain(due, 10).await.unwrap(), (0, 1));
-    assert_eq!(f.store.failed_removals(f.guild).await.unwrap()[0].attempts, 2);
+    assert_eq!(
+        f.store.failed_removals(f.guild).await.unwrap()[0].attempts,
+        2
+    );
 
     // The key works again: the sweep removes the copy and the row.
     f.shelf.fail_delete.store(false, Ordering::SeqCst);
@@ -665,11 +714,13 @@ async fn the_sweep_finds_entries_whose_message_is_gone_without_an_event() {
         .execute(&f.pool)
         .await
         .unwrap();
-    sqlx::query("UPDATE messages SET visibility = 'staff_removed', deleted_at = now() WHERE id = $1")
-        .bind(b)
-        .execute(&f.pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE messages SET visibility = 'staff_removed', deleted_at = now() WHERE id = $1",
+    )
+    .bind(b)
+    .execute(&f.pool)
+    .await
+    .unwrap();
     let (_, _, reconciled) = f.worker.sweep().await.unwrap();
     assert_eq!(reconciled, 2);
     assert!(!entry_exists(&f, a).await && !entry_exists(&f, b).await);
@@ -683,7 +734,13 @@ async fn erasing_a_member_deletes_their_entries_and_queues_the_copies() {
     let m = message_with_file(&f, "mine", "m.png", 6).await;
     request(&f, m).await;
     f.worker.run_requests().await.unwrap();
-    let key = f.store.by_message(f.guild, m).await.unwrap().unwrap().objects[0]
+    let key = f
+        .store
+        .by_message(f.guild, m)
+        .await
+        .unwrap()
+        .unwrap()
+        .objects[0]
         .key
         .clone();
 
@@ -695,7 +752,10 @@ async fn erasing_a_member_deletes_their_entries_and_queues_the_copies() {
     assert_eq!(about.len(), 1);
     assert_eq!(about[0]["content"], "mine");
     assert_eq!(about[0]["files"][0]["filename"], "m.png");
-    assert!(!export.to_string().contains(&key), "no bucket key in the export");
+    assert!(
+        !export.to_string().contains(&key),
+        "no bucket key in the export"
+    );
 
     let mut tx = f.pool.begin().await.unwrap();
     let erased = sr_db::scrapbook_legal::erase_for(&mut tx, f.member)
@@ -713,7 +773,12 @@ async fn erasing_a_member_deletes_their_entries_and_queues_the_copies() {
     let again = sr_db::scrapbook_legal::export_for(&f.pool, f.member)
         .await
         .unwrap();
-    assert!(again["entries_about_your_messages"].as_array().unwrap().is_empty());
+    assert!(
+        again["entries_about_your_messages"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -786,7 +851,10 @@ async fn the_service_account_writes_only_to_the_servers_own_shelf_with_the_uploa
     // The owner holds every grant: allowed.
     assert!(b.writer(&t(f.mount, f.owner)).await.is_ok());
     // A mount that does not exist.
-    assert_eq!(b.writer(&t(424_242, f.owner)).await.err(), Some(Refusal::MountGone));
+    assert_eq!(
+        b.writer(&t(424_242, f.owner)).await.err(),
+        Some(Refusal::MountGone)
+    );
     // The instance bucket is the platform's, never the module's.
     sqlx::query(
         "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, secret_key_enc) \

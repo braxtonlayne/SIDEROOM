@@ -138,7 +138,10 @@ async fn with_objects(
 
 /// Delete the entries `scope` names and queue one removal per copy, in one statement. Used inside the erasure
 /// transaction as well as by [`PgScrapbook`].
-pub async fn delete_in(conn: &mut PgConnection, scope: DeleteScope) -> Result<Deleted, sqlx::Error> {
+pub async fn delete_in(
+    conn: &mut PgConnection,
+    scope: DeleteScope,
+) -> Result<Deleted, sqlx::Error> {
     let (cond, a, b) = match scope {
         DeleteScope::Entry { guild_id, id } => ("guild_id = $1 AND id = $2", guild_id, id),
         DeleteScope::Message(m) => ("message_id = $1 AND $2::bigint IS NOT NULL", m, 0),
@@ -405,13 +408,14 @@ impl ScrapbookStore for PgScrapbook {
     }
 
     async fn set_tags(&self, guild: i64, id: i64, tags: &[String]) -> StoreResult<bool> {
-        let r = sqlx::query("UPDATE scrapbook_entries SET tags = $3 WHERE guild_id = $1 AND id = $2")
-            .bind(guild)
-            .bind(id)
-            .bind(tags)
-            .execute(&self.pool)
-            .await
-            .map_err(se)?;
+        let r =
+            sqlx::query("UPDATE scrapbook_entries SET tags = $3 WHERE guild_id = $1 AND id = $2")
+                .bind(guild)
+                .bind(id)
+                .bind(tags)
+                .execute(&self.pool)
+                .await
+                .map_err(se)?;
         Ok(r.rows_affected() > 0)
     }
 

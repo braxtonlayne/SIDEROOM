@@ -2,7 +2,9 @@
 //! idempotence, rollback, the delete cascade and the visible-failure path.
 
 use super::*;
-use crate::storage::{MultipartSession, ObjectInfo, ObjectStoreStorage, ObjectStream, PresignMethod};
+use crate::storage::{
+    MultipartSession, ObjectInfo, ObjectStoreStorage, ObjectStream, PresignMethod,
+};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::time::Duration;
 
@@ -196,12 +198,7 @@ fn keys_follow_the_layout_and_are_always_safe() {
 
 #[test]
 fn tags_are_cleaned() {
-    let t = clean_tags(&[
-        " #Funny ".into(),
-        "FUNNY".into(),
-        "".into(),
-        "x".repeat(99),
-    ]);
+    let t = clean_tags(&[" #Funny ".into(), "FUNNY".into(), "".into(), "x".repeat(99)]);
     assert_eq!(t.len(), 2);
     assert_eq!(t[0], "funny");
     assert_eq!(t[1].chars().count(), MAX_TAG_LEN);

@@ -195,10 +195,11 @@ impl Feature for Scrapbook {
     fn meta(&self) -> FeatureMeta {
         FeatureMeta {
             name: "Scrapbook".into(),
-            description: "A vault of messages worth keeping. Reactions, or a member with the right role, \
+            description:
+                "A vault of messages worth keeping. Reactions, or a member with the right role, \
                           copy a message and its files into this server's own storage, where the \
                           server can browse them as a gallery."
-                .into(),
+                    .into(),
             section: "Lounge".into(),
             phase: 34,
             default_enabled: false,

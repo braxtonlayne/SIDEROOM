@@ -392,7 +392,10 @@ fn parse_day(raw: &str) -> Option<i64> {
     let y: i64 = it.next()?.parse().ok()?;
     let m: i64 = it.next()?.parse().ok()?;
     let d: i64 = it.next()?.parse().ok()?;
-    if it.next().is_some() || !(1..=12).contains(&m) || !(1..=31).contains(&d) || !(1970..=9999).contains(&y)
+    if it.next().is_some()
+        || !(1..=12).contains(&m)
+        || !(1..=31).contains(&d)
+        || !(1970..=9999).contains(&y)
     {
         return None;
     }
@@ -533,11 +536,7 @@ pub async fn load_source(
     channel: ChannelId,
     message: MessageId,
 ) -> Result<Option<SourceMessage>, String> {
-    let Some(m) = chat
-        .get_message(channel, message)
-        .await
-        .map_err(|e| e.0)?
-    else {
+    let Some(m) = chat.get_message(channel, message).await.map_err(|e| e.0)? else {
         return Ok(None);
     };
     if !m.is_visible()
@@ -571,7 +570,10 @@ pub async fn load_source(
             .map(|a| SourceAttachment {
                 key: a.key,
                 filename: a.filename,
-                content_type: a.content_type.or(a.declared_content_type).unwrap_or_default(),
+                content_type: a
+                    .content_type
+                    .or(a.declared_content_type)
+                    .unwrap_or_default(),
                 size: a.size,
             })
             .collect(),
@@ -591,33 +593,40 @@ impl Reach {
     }
 
     async fn playable(&mut self, d: &ScopeDeps, user: i64, o: &Object) -> bool {
-        if !self.cache.contains_key(&o.mount_id) {
-            let found = match d.mounts.by_id(o.mount_id).await {
-                Ok(Some(mount)) => {
-                    let facts: &dyn ScopeFacts = &*d.store;
-                    match sr_storage::scopes::access(
-                        facts,
-                        Viewer {
-                            id: user,
-                            staff: false,
-                        },
-                        &mount,
-                    )
-                    .await
-                    {
-                        Ok(a) => Some((a, mount.cors_ok_at.is_some())),
-                        Err(_) => None,
-                    }
-                }
-                _ => None,
-            };
-            self.cache.insert(o.mount_id, found);
-        }
-        match self.cache.get(&o.mount_id) {
-            Some(Some((a, cors))) => *cors && a.permits(&o.key).is_ok(),
-            _ => false,
+        let reach = match self.cache.get(&o.mount_id) {
+            Some(r) => r.clone(),
+            None => {
+                let r = mount_reach(d, user, o.mount_id).await;
+                self.cache.insert(o.mount_id, r.clone());
+                r
+            }
+        };
+        match reach {
+            Some((a, cors)) => cors && a.permits(&o.key).is_ok(),
+            None => false,
         }
     }
+}
+
+/// How the viewer reaches one mount (`None`: not at all), and whether the mount passed its CORS check.
+async fn mount_reach(
+    d: &ScopeDeps,
+    user: i64,
+    mount_id: i64,
+) -> Option<(sr_storage::scopes::Access, bool)> {
+    let mount = d.mounts.by_id(mount_id).await.ok().flatten()?;
+    let facts: &dyn ScopeFacts = &*d.store;
+    let access = sr_storage::scopes::access(
+        facts,
+        Viewer {
+            id: user,
+            staff: false,
+        },
+        &mount,
+    )
+    .await
+    .ok()?;
+    Some((access, mount.cors_ok_at.is_some()))
 }
 
 fn object_view(o: &Object, playable: bool) -> ScrapbookObjectView {
@@ -1219,11 +1228,7 @@ pub async fn clear_target(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
-async fn require_manager(
-    settings: &SettingsDeps,
-    me: i64,
-    gid: GuildId,
-) -> MsgResult<GuildAccess> {
+async fn require_manager(settings: &SettingsDeps, me: i64, gid: GuildId) -> MsgResult<GuildAccess> {
     let acc = settings.guild_access(UserId::new(me as u64), gid).await?;
     if !acc.perms.contains(Permissions::MANAGE_GUILD) {
         return Err(ErrorCode::MissingPermissions.into());
