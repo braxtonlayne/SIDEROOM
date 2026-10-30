@@ -33,16 +33,27 @@ export interface SessionRow {
 export const listSessions = () => apiFetch<SessionRow[]>('/sr/auth/sessions', { retries: 0 });
 export const revokeSession = (id: string) =>
   apiFetch<void>(`/sr/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', retries: 0 });
+/**
+ * The music player ends with the session (MUS-PLY-001). A dynamic import keeps the player's presence module out
+ * of the entrance bundle (D-385); it is already loaded whenever a player could be playing.
+ */
+const endPlayer = () =>
+  import('../../player/presence').then(
+    (m) => m.forgetPlayer(),
+    () => undefined,
+  );
 export const logout = async () => {
   await clearUploadsOnSignOut(); // aborts the open chat upload slots while the session still works
   await apiPost<void>('/sr/auth/logout');
   clearCsrf();
+  await endPlayer();
 };
 /** Revokes every session, this one included. */
 export const logoutAll = async () => {
   await clearUploadsOnSignOut();
   await apiPost<void>('/sr/auth/logout-all');
   clearCsrf();
+  await endPlayer();
 };
 
 export interface TrustedDevice {

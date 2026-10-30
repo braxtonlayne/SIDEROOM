@@ -284,3 +284,63 @@ export function initWasm(options?: WasmInitOptions): Promise<{
   markdown: MarkdownApi;
   permissions: PermissionsApi;
 }>;
+
+// MUS-WASM-001: audio tags, cover art and lyrics (sr-music-wasm). The internals are a hand-written
+// ID3v2/ID3v1 + FLAC (+ OGG, MP4 ilst) reader that `lofty` can replace later behind this same shape.
+// Feed `readTags` the first 1 MiB of the file (and the last 128 bytes for ID3v1 via `readTagsTail`);
+// never the whole file.
+
+/** `cover` holds the picture; absent when the file has none. */
+export interface MusicCover {
+  mime: string;
+  bytes: Uint8Array;
+}
+
+export interface MusicTags {
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  albumArtist: string | null;
+  /** 1-based track number (the "/total" part of "3/12" is dropped). */
+  track: number | null;
+  disc: number | null;
+  year: number | null;
+  genre: string | null;
+  /** Duration in milliseconds when the tags or stream header give one (TLEN, FLAC STREAMINFO), else null. */
+  durationHint: number | null;
+  cover: MusicCover | null;
+}
+
+export interface LrcLine {
+  /** Start of the line in milliseconds. */
+  ms: number;
+  line: string;
+}
+
+/**
+ * Thrown by `readTags` for an MP4/M4A whose `moov` box is not in the head. `offset` is the byte
+ * offset to fetch next: the `moov` box itself when the head shows it, else the next top-level box
+ * after the last one the head shows (walk the boxes by range: read 16 bytes at `offset` for
+ * size and type, repeat until `moov`, then fetch `moov` and pass `ftyp + moov` bytes to `readTags`).
+ */
+export interface MusicNeedMoovError extends Error {
+  code: 'NEED_MOOV';
+  offset: number;
+}
+
+export interface MusicApi {
+  /**
+   * Read tags from the head of an audio file (MP3/ID3v2, FLAC, OGG, M4A). `head` is the first bytes
+   * (1 MiB is enough). Throws on unsupported, truncated or garbage input; never returns partial garbage.
+   * An M4A whose `moov` box is not in `head` throws a {@link MusicNeedMoovError} (`code: "NEED_MOOV"`).
+   */
+  readTags(head: Uint8Array): MusicTags;
+  /** Read an ID3v1 tag from the last 128 bytes of an MP3 (`tail`). Same errors as `readTags`. */
+  readTagsTail(tail: Uint8Array): MusicTags;
+  /** Parse LRC text (`[mm:ss.xx]line`, multiple stamps per line, offset tag) into lines sorted by time. */
+  parseLrc(text: string): LrcLine[];
+  /** Candidate sidecar keys for a track key, best first: `a/b.mp3` -> `["a/b.lrc", "a/b.mp3.lrc"]`. */
+  lrcSidecarNames(trackKey: string): string[];
+}
+
+export function loadMusic(wasmUrl?: string | URL | BufferSource): Promise<MusicApi>;

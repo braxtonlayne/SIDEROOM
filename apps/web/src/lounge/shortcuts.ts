@@ -12,11 +12,15 @@ export type ShortcutId =
   | 'prevGuild'
   | 'nextGuild'
   | 'markRead'
-  | 'focusComposer';
+  | 'focusComposer'
+  | 'playerToggle'
+  | 'playerPrev'
+  | 'playerNext'
+  | 'playerMute';
 
 export interface ShortcutDef {
   id: ShortcutId;
-  group: 'Navigation' | 'Messages';
+  group: 'Navigation' | 'Messages' | 'Player';
   description: string;
   /** Display keys; "Mod" renders as Ctrl (⌘ on Apple platforms). */
   keys: string[];
@@ -112,7 +116,49 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
     },
     keys: ['Any key'],
   },
+  // MUS-PLY-001: the floating player's keys work in every section, not only in the Lounge.
+  {
+    id: 'playerToggle',
+    group: 'Player',
+    get description() {
+      return t('player.shortcuts.toggle');
+    },
+    keys: ['Alt', 'Shift', 'P'],
+  },
+  {
+    id: 'playerPrev',
+    group: 'Player',
+    get description() {
+      return t('player.shortcuts.prev');
+    },
+    keys: ['Alt', 'Shift', '←'],
+  },
+  {
+    id: 'playerNext',
+    group: 'Player',
+    get description() {
+      return t('player.shortcuts.next');
+    },
+    keys: ['Alt', 'Shift', '→'],
+  },
+  {
+    id: 'playerMute',
+    group: 'Player',
+    get description() {
+      return t('player.shortcuts.mute');
+    },
+    keys: ['Alt', 'Shift', 'M'],
+  },
 ];
+
+/** The shortcuts the player host handles itself, on every route. */
+export const PLAYER_SHORTCUTS: ReadonlySet<ShortcutId> = new Set<ShortcutId>([
+  'playerToggle',
+  'playerPrev',
+  'playerNext',
+  'playerMute',
+]);
+export const isPlayerShortcut = (id: ShortcutId): boolean => PLAYER_SHORTCUTS.has(id);
 
 export function matchShortcut(
   e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>,
@@ -127,6 +173,12 @@ export function matchShortcut(
     if (mod && e.altKey && !e.shiftKey) return up ? 'prevGuild' : 'nextGuild';
     if (!mod && e.altKey && e.shiftKey) return up ? 'prevUnread' : 'nextUnread';
     if (!mod && e.altKey && !e.shiftKey) return up ? 'prevChannel' : 'nextChannel';
+  }
+  if (!mod && e.altKey && e.shiftKey) {
+    if (k === 'p') return 'playerToggle';
+    if (k === 'm') return 'playerMute';
+    if (k === 'ArrowLeft') return 'playerPrev';
+    if (k === 'ArrowRight') return 'playerNext';
   }
   if (k === 'Escape' && !mod && !e.altKey && !e.shiftKey) return 'markRead';
   // A printable character with no Ctrl/Meta/Alt (Shift allowed) starts a message.
@@ -145,7 +197,12 @@ export const displayKey = (k: string) =>
 const FIXED: ReadonlySet<ShortcutId> = new Set<ShortcutId>(['markRead', 'focusComposer']);
 export const isRebindable = (id: ShortcutId) => !FIXED.has(id);
 
-const ARROW: Record<string, string> = { '↑': 'ArrowUp', '↓': 'ArrowDown' };
+const ARROW: Record<string, string> = {
+  '↑': 'ArrowUp',
+  '↓': 'ArrowDown',
+  '←': 'ArrowLeft',
+  '→': 'ArrowRight',
+};
 const ARROW_SHOWN: Record<string, string> = {
   ArrowUp: '↑',
   ArrowDown: '↓',

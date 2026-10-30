@@ -38387,6 +38387,141 @@
         ]
       }
     },
+    "/guilds/{guild_id}/music/playlists": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "A server's playlists (for its members).",
+        "operationId": "list_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Make a playlist of a server (needs the storage `upload` grant there).",
+        "operationId": "create_guild",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PLAYLIST_LIMIT: music.max_playlists reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/onboarding": {
       "get": {
         "tags": [
@@ -54406,6 +54541,779 @@
         ]
       }
     },
+    "/music/library": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "The tracks of every mount the caller reaches (own, friends' shared music, servers' music), filtered.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "mount",
+            "in": "query",
+            "description": "Only this mount",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "album",
+            "in": "query",
+            "description": "Exact album",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artist",
+            "in": "query",
+            "description": "Exact artist or album artist",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Substring of title, artist or album",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pending",
+            "in": "query",
+            "description": "Only tracks whose tags are still to be read",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most 200",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackListView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/library/rescan": {
+      "post": {
+        "tags": [
+          "library"
+        ],
+        "summary": "Queue every track of a mount for a tag read again (\"Rescan tags\"). The browser does the reading; this only\nmarks the rows. Needs the mount's owner or the `upload` grant.",
+        "operationId": "rescan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RescanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RescanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/playlists/{playlist_id}": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "One playlist with the items the caller can reach.",
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "description": "Playlist snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistDetailView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Delete a playlist.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "description": "Playlist snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Rename or re-describe a playlist.",
+        "operationId": "edit",
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "description": "Playlist snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/playlists/{playlist_id}/items": {
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Append tracks to a playlist.",
+        "operationId": "add_items",
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "description": "Playlist snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddItemsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such playlist, or a track that does not exist or is not readable by the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PLAYLIST_FULL: music.max_items reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/playlists/{playlist_id}/items/{item_id}": {
+      "delete": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Remove an item from a playlist.",
+        "operationId": "remove_item",
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "description": "Playlist snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Move an item within a playlist.",
+        "operationId": "move_item",
+        "parameters": [
+          {
+            "name": "playlist_id",
+            "in": "path",
+            "description": "Playlist snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveItemBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Moved"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/tracks/{track_id}": {
+      "get": {
+        "tags": [
+          "tracks"
+        ],
+        "summary": "One track.",
+        "operationId": "get_track",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "tracks"
+        ],
+        "summary": "Write a track's tags. Needs the mount's owner or, on a server's shelf, the `upload` grant; a friend who can\nonly listen gets 403, a viewer who does not reach the mount (and platform staff) 404.",
+        "operationId": "patch_track",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackPatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/music/tracks/{track_id}/presign": {
+      "post": {
+        "tags": [
+          "tracks"
+        ],
+        "summary": "A presigned `GET` for the track's file: the wave-27 presign (`POST /storage/mounts/{id}/presign`) with the\nmount and key taken from the track, so the player streams by range straight from the bucket.",
+        "operationId": "presign",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackPresignBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/oauth2/@me": {
       "get": {
         "tags": [
@@ -65580,6 +66488,285 @@
         ]
       }
     },
+    "/users/@me/music/favorites": {
+      "get": {
+        "tags": [
+          "favorites"
+        ],
+        "summary": "The caller's favorites, newest first, without tracks they can no longer read.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StampedListView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/music/favorites/{track_id}": {
+      "put": {
+        "tags": [
+          "favorites"
+        ],
+        "summary": "Favorite a track (idempotent).",
+        "operationId": "add",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Favorited"
+          },
+          "404": {
+            "description": "No such track, or one the caller cannot read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "FAVORITES_FULL: music.max_items reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "favorites"
+        ],
+        "summary": "Remove a favorite (removing one that is not there is fine).",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/music/playlists": {
+      "get": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "The caller's own playlists, newest first.",
+        "operationId": "list_own",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistView"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "playlists"
+        ],
+        "summary": "Make a playlist of the caller's own.",
+        "operationId": "create_own",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PLAYLIST_LIMIT: music.max_playlists reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/music/recent": {
+      "get": {
+        "tags": [
+          "recent"
+        ],
+        "summary": "The caller's recently played tracks, newest first, without tracks they can no longer read.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StampedListView"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "recent"
+        ],
+        "summary": "Record that a track started playing: it moves to the top and the list is pruned to 200.",
+        "operationId": "record",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "404": {
+            "description": "No such track, or one the caller cannot read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "recent"
+        ],
+        "summary": "Forget the history.",
+        "operationId": "clear",
+        "responses": {
+          "204": {
+            "description": "Cleared"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/notes/{user_id}": {
       "get": {
         "tags": [
@@ -71054,6 +72241,22 @@
           "bundle_id": {
             "type": "string",
             "description": "The uploaded bundle to put in front of staff."
+          }
+        }
+      },
+      "AddItemsBody": {
+        "type": "object",
+        "description": "Body of the add-items call.",
+        "required": [
+          "track_ids"
+        ],
+        "properties": {
+          "track_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Track snowflakes, appended in this order (a track may be given twice). At most 500."
           }
         }
       },
@@ -89358,6 +90561,20 @@
           }
         }
       },
+      "MoveItemBody": {
+        "type": "object",
+        "description": "Body of the move call.",
+        "required": [
+          "position"
+        ],
+        "properties": {
+          "position": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The new zero-based position (clamped to the list)."
+          }
+        }
+      },
       "MultipartSlot": {
         "type": "object",
         "description": "The multipart part of a new upload slot.",
@@ -92364,6 +93581,253 @@
           }
         }
       },
+      "PlaylistBody": {
+        "type": "object",
+        "description": "Body of `POST` for a new playlist.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Up to 500 characters."
+          },
+          "name": {
+            "type": "string",
+            "description": "1 to 100 characters."
+          }
+        }
+      },
+      "PlaylistDetailView": {
+        "type": "object",
+        "description": "A playlist with the items the viewer can reach.",
+        "required": [
+          "playlist",
+          "items",
+          "hidden"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items left out because their bucket is not readable by the viewer."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaylistItemView"
+            },
+            "description": "The reachable items in order."
+          },
+          "playlist": {
+            "$ref": "#/components/schemas/PlaylistView",
+            "description": "The playlist."
+          }
+        }
+      },
+      "PlaylistItemView": {
+        "type": "object",
+        "description": "An item of a playlist.",
+        "required": [
+          "item_id",
+          "position",
+          "track"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "description": "The item's own snowflake (a track may be on a list twice)."
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Zero-based position among all items (hidden ones included)."
+          },
+          "track": {
+            "$ref": "#/components/schemas/PlaylistTrackView",
+            "description": "The track."
+          }
+        }
+      },
+      "PlaylistPatchBody": {
+        "type": "object",
+        "description": "Body of `PATCH` for a playlist.",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Up to 500 characters."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "1 to 100 characters."
+          }
+        }
+      },
+      "PlaylistTrackView": {
+        "type": "object",
+        "description": "A track as the lists show it.",
+        "required": [
+          "id",
+          "mount_id",
+          "title",
+          "artist",
+          "album",
+          "album_artist",
+          "genres",
+          "tags"
+        ],
+        "properties": {
+          "album": {
+            "type": "string",
+            "description": "Album (may be empty)."
+          },
+          "album_artist": {
+            "type": "string",
+            "description": "Album artist (may be empty)."
+          },
+          "artist": {
+            "type": "string",
+            "description": "Artist (may be empty)."
+          },
+          "cover_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover key in the mount."
+          },
+          "disc_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Disc number."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Duration in milliseconds."
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "id": {
+            "type": "string",
+            "description": "Track snowflake."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The mount the audio lives in."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title."
+          },
+          "track_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Track number."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year."
+          }
+        }
+      },
+      "PlaylistView": {
+        "type": "object",
+        "description": "A playlist.",
+        "required": [
+          "id",
+          "owner_type",
+          "owner_id",
+          "name",
+          "description",
+          "item_count",
+          "created_ms",
+          "updated_ms",
+          "can_edit"
+        ],
+        "properties": {
+          "can_edit": {
+            "type": "boolean",
+            "description": "Whether the viewer may edit it."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who made it, when the account still exists."
+          },
+          "created_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Creation time, unix milliseconds."
+          },
+          "description": {
+            "type": "string",
+            "description": "Up to 500 characters."
+          },
+          "id": {
+            "type": "string",
+            "description": "Playlist snowflake."
+          },
+          "item_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items on the list (some may be hidden from the viewer)."
+          },
+          "name": {
+            "type": "string",
+            "description": "1 to 100 characters."
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "The member or the server."
+          },
+          "owner_type": {
+            "type": "string",
+            "description": "`user` or `guild`."
+          },
+          "updated_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Last change, unix milliseconds."
+          }
+        }
+      },
       "PollTemplate": {
         "type": "object",
         "required": [
@@ -94696,6 +96160,19 @@
           }
         }
       },
+      "RecordBody": {
+        "type": "object",
+        "description": "Body of the record call.",
+        "required": [
+          "track_id"
+        ],
+        "properties": {
+          "track_id": {
+            "type": "string",
+            "description": "The track that started playing."
+          }
+        }
+      },
       "RedeemedBy": {
         "type": "object",
         "description": "The account that used a code.",
@@ -95143,6 +96620,34 @@
           "Fulfilled",
           "Declined"
         ]
+      },
+      "RescanBody": {
+        "type": "object",
+        "description": "Body of the rescan.",
+        "required": [
+          "mount_id"
+        ],
+        "properties": {
+          "mount_id": {
+            "type": "string",
+            "description": "The mount whose tracks are read again."
+          }
+        }
+      },
+      "RescanView": {
+        "type": "object",
+        "description": "How many tracks were queued.",
+        "required": [
+          "queued"
+        ],
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tracks whose tags will be read again.",
+            "minimum": 0
+          }
+        }
       },
       "Reset2faReport": {
         "type": "object",
@@ -98171,6 +99676,47 @@
           }
         }
       },
+      "StampedListView": {
+        "type": "object",
+        "description": "The tracks of a stamped list the viewer can reach, and how many were left out.",
+        "required": [
+          "items",
+          "hidden"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tracks left out because their bucket is not readable by the viewer any more."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StampedTrackView"
+            },
+            "description": "Newest first."
+          }
+        }
+      },
+      "StampedTrackView": {
+        "type": "object",
+        "description": "A track with the time it was favorited or last played.",
+        "required": [
+          "track",
+          "at_ms"
+        ],
+        "properties": {
+          "at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When, unix milliseconds."
+          },
+          "track": {
+            "$ref": "#/components/schemas/PlaylistTrackView",
+            "description": "The track."
+          }
+        }
+      },
       "StartBody": {
         "type": "object",
         "required": [
@@ -100849,6 +102395,269 @@
           },
           "token_type": {
             "type": "string"
+          }
+        }
+      },
+      "TrackListView": {
+        "type": "object",
+        "description": "A page of tracks and the sources behind them.",
+        "required": [
+          "items",
+          "total",
+          "sources"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrackView"
+            },
+            "description": "Tracks, by album, disc and track number."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfSourceView"
+            },
+            "description": "The mounts the caller reaches for music."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "All that match."
+          }
+        }
+      },
+      "TrackPatchBody": {
+        "type": "object",
+        "description": "Body of the tag write. Every field present is written.",
+        "properties": {
+          "album": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Album."
+          },
+          "album_artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Album artist."
+          },
+          "artist": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artist."
+          },
+          "cover_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover: exactly `covers/<hash>.jpg` on the same mount; `null` clears."
+          },
+          "disc_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Disc number (0 to 999); `null` clears."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Length in milliseconds; `null` clears."
+          },
+          "genres": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres (at most 10)."
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`file` (the lazy tagger: values read from the file, never replacing a field a member edited) or `edit`\n(default: a member's edit, which a rescan then keeps)."
+          },
+          "tags_state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`read`, `none` or `failed`: where the tag read ended (the tagger sends it). Defaults to `read` for a\n`file` write."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title (1 to 300 characters)."
+          },
+          "track_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Track number (0 to 9999); `null` clears."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year (1000 to 2200); `null` clears."
+          }
+        }
+      },
+      "TrackPresignBody": {
+        "type": "object",
+        "description": "Body of the track presign.",
+        "properties": {
+          "range": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A request range the client will send, `bytes=a-b`."
+          }
+        }
+      },
+      "TrackView": {
+        "type": "object",
+        "description": "One track.",
+        "required": [
+          "id",
+          "mount_id",
+          "key",
+          "size",
+          "container",
+          "web_native",
+          "title",
+          "artist",
+          "album",
+          "album_artist",
+          "genres",
+          "tags_state",
+          "can_edit"
+        ],
+        "properties": {
+          "album": {
+            "type": "string",
+            "description": "Album."
+          },
+          "album_artist": {
+            "type": "string",
+            "description": "Album artist."
+          },
+          "artist": {
+            "type": "string",
+            "description": "Artist."
+          },
+          "can_edit": {
+            "type": "boolean",
+            "description": "The caller may write tags (owner, or `upload` on a server's shelf)."
+          },
+          "container": {
+            "type": "string",
+            "description": "Container (`mp3`, `flac`, `ogg`, `m4a`, `wav`, ...)."
+          },
+          "cover_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover key on the same mount."
+          },
+          "cover_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived URL of the cover."
+          },
+          "disc_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Disc number."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Length in milliseconds, once a tag read saw it."
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row snowflake."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key of the audio file."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The mount it lives on (snowflake)."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          },
+          "tags_state": {
+            "type": "string",
+            "description": "`pending`, `read`, `none` or `failed`."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title."
+          },
+          "track_no": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Track number."
+          },
+          "web_native": {
+            "type": "boolean",
+            "description": "Plays in a browser as is."
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Year."
           }
         }
       },

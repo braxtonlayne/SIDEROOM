@@ -4,7 +4,15 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { precacheFromHtml } from '../../vite/pwa';
 import { PwaHost } from './PwaHost';
-import { __resetPwaState, isIosSafari, setNoticesBarMounted, setUpdateReady } from './state';
+import {
+  __resetPwaState,
+  applyPendingUpdate,
+  flushDeferredUpdate,
+  isIosSafari,
+  setNoticesBarMounted,
+  setUpdateGuard,
+  setUpdateReady,
+} from './state';
 
 const PUBLIC = resolve(__dirname, '../../public');
 
@@ -180,5 +188,35 @@ describe('PwaHost', () => {
     expect(isIosSafari(safari, 5)).toBe(true);
     expect(isIosSafari(safari.replace('Version/17.0', 'CriOS/120'), 5)).toBe(false);
     expect(isIosSafari('Mozilla/5.0 (Windows NT 10.0) Chrome/120', 0)).toBe(false);
+  });
+});
+
+describe('update while the floating player plays (MUS-PLY-001)', () => {
+  beforeEach(() => __resetPwaState());
+
+  it('waits for the track boundary instead of reloading, and says so', async () => {
+    const apply = vi.fn();
+    let playing = true;
+    setUpdateGuard(() => playing);
+    render(<PwaHost now={0} />);
+    act(() => setUpdateReady(apply));
+    await userEvent.click(screen.getByRole('button', { name: 'Reload' }));
+    expect(apply).not.toHaveBeenCalled();
+    expect(screen.getByText('The update will install when this track ends.')).toBeInTheDocument();
+    // A flush while still playing changes nothing.
+    expect(flushDeferredUpdate()).toBe(false);
+    playing = false;
+    act(() => void flushDeferredUpdate());
+    expect(apply).toHaveBeenCalledOnce();
+    expect(flushDeferredUpdate()).toBe(false);
+  });
+
+  it('reloads at once when no guard holds it back', async () => {
+    const apply = vi.fn();
+    const off = setUpdateGuard(() => false);
+    act(() => setUpdateReady(apply));
+    act(() => applyPendingUpdate());
+    expect(apply).toHaveBeenCalledOnce();
+    off();
   });
 });

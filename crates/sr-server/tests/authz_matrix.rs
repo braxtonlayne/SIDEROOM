@@ -1760,6 +1760,60 @@ async fn seed(
         ids_map.insert("shelf_item_id", title.to_string());
         ids_map.insert("shelf_part_id", ep.to_string());
     }
+    // MUS-IDX-001/MUS-LIB-001 (wave 30): a listed track on each tenant's user mount (`{track_id}`, the member's
+    // own music) and on its guild mount (`guild_track_id`, what the guild owner puts in a playlist), and a guild
+    // playlist holding the guild track (`{playlist_id}`, `playlist_item_id`), for the `/music/*` routes and
+    // their cross-tenant sweep.
+    for (ids_map, guild) in [(&mut a, ga), (&mut b, gb)] {
+        for (mount_slot, track_slot) in [
+            ("mount_id", "track_id"),
+            ("guild_mount_id", "guild_track_id"),
+        ] {
+            let mount: i64 = ids_map[mount_slot].parse().unwrap();
+            let (obj, track) = (ids.generate().get() as i64, ids.generate().get() as i64);
+            sqlx::query(
+                "INSERT INTO storage_objects (id, mount_id, key, class, container, web_native, kind) \
+                 VALUES ($1, $2, 'Music/Authz/01 Authz.mp3', 'track', 'mp3', TRUE, 'music')",
+            )
+            .bind(obj)
+            .bind(mount)
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO music_tracks (id, mount_id, mount_object_id, title, artist, album, duration_ms) \
+                 VALUES ($1, $2, $3, 'Authz', 'Matrix', 'Seeds', 1000)",
+            )
+            .bind(track)
+            .bind(mount)
+            .bind(obj)
+            .execute(&pool)
+            .await
+            .unwrap();
+            ids_map.insert(track_slot, track.to_string());
+        }
+        let (playlist, item) = (ids.generate().get() as i64, ids.generate().get() as i64);
+        sqlx::query(
+            "INSERT INTO music_playlists (id, owner_guild_id, name) VALUES ($1, $2, 'Authz playlist')",
+        )
+        .bind(playlist)
+        .bind(guild)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let track: i64 = ids_map["guild_track_id"].parse().unwrap();
+        sqlx::query(
+            "INSERT INTO music_playlist_items (id, playlist_id, track_id, position) VALUES ($1, $2, $3, 0)",
+        )
+        .bind(item)
+        .bind(playlist)
+        .bind(track)
+        .execute(&pool)
+        .await
+        .unwrap();
+        ids_map.insert("playlist_id", playlist.to_string());
+        ids_map.insert("playlist_item_id", item.to_string());
+    }
     // More objects, so that a refusal is not just "no such id": a moderation case, a takedown notice,
     // a hold, an announcement, a submission, a command, a grant and a running stage.
     let staff = Cred::Session(sess["staff_owner"].clone());
@@ -2991,7 +3045,7 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 37] = [
+const TENANT: [&str; 39] = [
     "sticker_id",
     "sound_id",
     "request_id",
@@ -3031,6 +3085,9 @@ const TENANT: [&str; 37] = [
     "shelf_part_id",
     // BYOS-CNV-003 (conv-worker): a worker token scoped to the tenant's mount
     "worker_token_id",
+    // MUS-IDX-001/MUS-LIB-001 (wave 30)
+    "track_id",
+    "playlist_id",
 ];
 
 fn scoped(path: &str) -> bool {
@@ -3982,6 +4039,13 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
             r#"{"kind":"channel","id":"{channel_id}","restricted":true,"reason":"authz matrix"}"#
         }
         ("POST", "/watch-parties") => r#"{"title_id":"{title_id}","channel_id":"{channel_id}"}"#,
+        // MUS-IDX-001/MUS-LIB-001 (wave 30): the member's own mount and track; the guild's track for its playlist.
+        ("POST", "/music/library/rescan") => r#"{"mount_id":"{mount_id}"}"#,
+        // A sampled `source` is neither `file` nor `edit`: a plain title edit by the mount's owner.
+        ("PATCH", "/music/tracks/{track_id}") => r#"{"title":"Authz edit"}"#,
+        ("POST", "/users/@me/music/recent") => r#"{"track_id":"{track_id}"}"#,
+        ("POST", "/music/playlists/{playlist_id}/items") => r#"{"track_ids":["{guild_track_id}"]}"#,
+        ("PATCH", "/music/playlists/{playlist_id}/items/{item_id}") => r#"{"position":0}"#,
         // The host hands the party to itself: allowed, and the member keeps the control the rest needs.
         ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
         ("POST", "/developers/tester-invites/{invite_id}/respond")
@@ -4700,6 +4764,7 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         "staff_offer_id",
     ),
     (&["/watch-parties/"], "item_id", "queue_item_id"),
+    (&["/music/playlists/"], "item_id", "playlist_item_id"),
     (
         &["submissions/{submission_id}/publish-now"],
         "submission_id",

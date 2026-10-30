@@ -78,7 +78,7 @@ pub struct ShelfSourceView {
     pub guild_id: Option<String>,
 }
 
-fn source_of(r: &Reach) -> ShelfSourceView {
+pub(crate) fn source_of(r: &Reach) -> ShelfSourceView {
     let (scope, guild_id) = match r.access.scope {
         Scope::Own => ("own", None),
         Scope::Friend { .. } => ("friend", None),
@@ -329,7 +329,7 @@ fn section_of(raw: &str) -> MsgResult<Section> {
     Section::parse(raw).ok_or_else(|| MsgError::from(ErrorCode::SrNotFound))
 }
 
-fn store_failed(e: impl std::fmt::Display) -> MsgError {
+pub(crate) fn store_failed(e: impl std::fmt::Display) -> MsgError {
     tracing::error!(error = %e, "shelf store failed");
     ErrorCode::SrInternal.into()
 }
@@ -473,14 +473,14 @@ fn patch_error(e: PatchError) -> MsgError {
 }
 
 /// Presigned artwork URLs for a page, one client per mount.
-struct Signer<'a> {
+pub(crate) struct Signer<'a> {
     d: &'a ScopeDeps,
     reach: &'a [Reach],
     clients: HashMap<i64, Option<sr_storage::ObjectStoreStorage>>,
 }
 
 impl<'a> Signer<'a> {
-    fn new(d: &'a ScopeDeps, reach: &'a [Reach]) -> Self {
+    pub(crate) fn new(d: &'a ScopeDeps, reach: &'a [Reach]) -> Self {
         Self {
             d,
             reach,
@@ -489,7 +489,7 @@ impl<'a> Signer<'a> {
     }
     /// A URL for `key` on `mount_id`, or `None` when the mount has not passed its CORS check yet (the same rule as
     /// the presign route) or cannot sign.
-    async fn url(&mut self, mount_id: i64, key: &str) -> Option<String> {
+    pub(crate) async fn url(&mut self, mount_id: i64, key: &str) -> Option<String> {
         let reach = self.reach;
         if !self.clients.contains_key(&mount_id) {
             let client = reach

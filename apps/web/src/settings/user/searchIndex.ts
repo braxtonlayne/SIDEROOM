@@ -137,6 +137,12 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
   },
   {
     section: 'appearance',
+    card: 'us-player',
+    label: 'Music player skin and dock',
+    keywords: 'floating player retro mp3 pill compact library music dock',
+  },
+  {
+    section: 'appearance',
     card: 'us-messages',
     label: 'Message display',
     keywords: 'cozy compact spacing',

@@ -8,6 +8,26 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 30 - 2026-10-29
+
+- **A music player that follows you.** Music plays in a small floating player that keeps going while you move
+  between the Lounge, Cinema, Library, Settings and Admin. Pick one of three looks in Settings > Appearance: a
+  retro MP3 player (the default), a compact pill, or a full library manager. It has lock-screen controls, keys
+  (Alt+Shift+P to play or pause, Alt+Shift+Left and Right to skip, Alt+Shift+M to mute) and it docks in any
+  corner. It is part of the signed-in app only: it never loads on the landing page, the login form or other
+  public pages, and it stops when you sign out.
+- **Your music, as a library.** Audio in your buckets is listed by artist and album, and the app reads the real
+  titles, artists and covers from the files in the background. Your own edits to a track's details are kept, even
+  when you rescan the tags.
+- **Playlists, favorites and more.** In the library manager: search, your playlists and a server's (people with
+  the upload right edit those), favorites, recently played, a smart queue (by album, artist, genre or "more like
+  this", shuffle without repeats), a 10-band equalizer with presets, and gapless playback or a crossfade of up to
+  12 seconds.
+- **For the operator:** new settings `music.max_playlists` (default 100) and `music.max_items` (default 5000, also
+  the favorites cap). The bucket CORS rule now also allows the `Range` request header; buckets set up earlier
+  keep working, and running `sr-cli storage ensure-cors` again (or Apply CORS on a member's bucket) adds it. The
+  tag reader uses the `lofty` library; its notice is in `THIRD_PARTY_NOTICES.md`.
+
 ## Phase 29 - 2026-10-29
 
 - **Convert to play, in your browser.** Videos a browser cannot play (MKV, AVI, MOV, TS) can be converted while

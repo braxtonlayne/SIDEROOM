@@ -55,7 +55,7 @@ export function PwaHost({ now = 20_000 }: { now?: number } = {}) {
         <div className="sr-pwa-card" role="status" aria-live="polite">
           <div>
             <strong>{t('pwa.update.title')}</strong>
-            <p>{t('pwa.update.body')}</p>
+            <p>{pwa.updateDeferred ? t('player.update.deferred') : t('pwa.update.body')}</p>
           </div>
           <div className="sr-pwa-actions">
             <GoldButton type="button" onClick={applyPendingUpdate}>

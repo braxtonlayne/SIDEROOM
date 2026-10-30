@@ -1,0 +1,131 @@
+/*
+ * MUS-PLY-001: the floating player. Semantic tokens only (var(--ui-*)), logical properties only
+ * (scripts/check-css-tokens.mjs covers this directory). The three skins differ in layout and in how they
+ * use the same tokens; the Lounge theme is never touched.
+ */
+.sr-ply-dock {
+  position: fixed;
+  min-inline-size: 0;
+  z-index: 910; /* above the full-screen Settings (900), below menus (950) and modals (1000) */
+  inline-size: max-content;
+  max-inline-size: calc(100vw - 1rem);
+}
+.sr-ply-dock[data-dock='bottom-end'] {
+  inset-block-end: 0.5rem;
+  inset-inline-end: 0.5rem;
+}
+.sr-ply-dock[data-dock='bottom-start'] {
+  inset-block-end: 0.5rem;
+  inset-inline-start: 0.5rem;
+}
+.sr-ply-dock[data-dock='top-end'] {
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+}
+.sr-ply-dock[data-dock='top-start'] {
+  inset-block-start: 0.5rem;
+  inset-inline-start: 0.5rem;
+}
+
+.sr-ply {
+  box-sizing: border-box;
+  color: var(--ui-text);
+  background: var(--ui-bg-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-overlay);
+  font-family: var(--ui-font-body);
+  font-size: 0.875rem;
+}
+.sr-ply button,
+.sr-ply select {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.sr-ply button:focus-visible,
+.sr-ply select:focus-visible,
+.sr-ply input:focus-visible,
+.sr-ply [role='tab']:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.sr-ply-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+}
+.sr-ply-range {
+  accent-color: var(--ui-accent);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.sr-ply-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.sr-ply-volume input {
+  accent-color: var(--ui-accent);
+  inline-size: 5rem;
+  block-size: 0.5rem;
+}
+.sr-ply-badge {
+  font-size: 0.625rem;
+  margin-inline-start: 0.0625rem;
+}
+.sr-ply-empty {
+  color: var(--ui-text-muted);
+  margin: 0;
+  padding: 0.75rem;
+}
+
+/* ---- The ticker: scrolls only while playing, never under reduced motion ---- */
+.sr-ply-ticker {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+.sr-ply-ticker-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sr-ply-ticker[data-motion='on'][data-overflow='true'] .sr-ply-ticker-text {
+  display: inline-block;
+  overflow: visible;
+  text-overflow: clip;
+  animation: sr-ply-pan var(--ply-dur, 10s) ease-in-out infinite alternate;
+}
+.sr-ply-ticker[data-motion='on'][data-overflow='true'] .sr-ply-ticker-text:dir(rtl) {
+  animation-name: sr-ply-pan-rtl;
+}
+@keyframes sr-ply-pan {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(calc(-1 * var(--ply-shift, 0px)));
+  }
+}
+@keyframes sr-ply-pan-rtl {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+  85%,
+  100% {
+    transform: translateX(var(--ply-shift, 0px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sr-ply-ticker[data-motion='on'][data-overflow='true'] .sr-ply-ticker-text {
+    animation: none;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
