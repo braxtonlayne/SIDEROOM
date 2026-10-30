@@ -1,15 +1,22 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 import { warmLoungeRoute } from '../../test/warmRoutes';
 import { resetCompliancePublic } from '../../lib/compliancePublic';
+import { nav } from '../../lib/enterApp';
 
 warmLoungeRoute();
 
+beforeEach(() => {
+  vi.spyOn(nav, 'assign').mockImplementation(() => {});
+  vi.spyOn(nav, 'replace').mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
 function at(path: string) {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+  const router = createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }));
   render(<RouterProvider router={router} />);
   return router;
 }
@@ -20,7 +27,7 @@ describe('invite check (landing)', () => {
       http.get('*/api/v1/sr/invites/ABCDE-FGHJK', () => HttpResponse.json({ valid: true })),
     );
     const user = userEvent.setup();
-    const router = at('/');
+    at('/');
     const input = await screen.findByLabelText('Your invitation');
     const button = screen.getByRole('button', { name: /check invitation/i });
     expect(button).toBeDisabled();
@@ -30,10 +37,9 @@ describe('invite check (landing)', () => {
     await user.keyboard('{Enter}');
     expect(await screen.findByText("You're on the list.")).toBeInTheDocument();
     expect(sessionStorage.getItem('sr.invite')).toBe('ABCDE-FGHJK');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/register'), {
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/register'), {
       timeout: 2000,
     });
-    expect(router.state.location.search).toEqual({});
   });
 
   it.each([
@@ -82,17 +88,17 @@ describe('login', () => {
   it('logs in and heads to ?next', async () => {
     server.use(http.post('*/api/v1/sr/auth/login', () => HttpResponse.json({ status: 'ok' })));
     const user = userEvent.setup();
-    const router = at('/login?next=/invite/abc');
+    at('/login?next=/invite/abc');
     await fill(user);
-    await waitFor(() => expect(router.state.location.pathname).toBe('/invite/abc'));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/invite/abc'));
   });
 
   it('ignores an off-site next', async () => {
     server.use(http.post('*/api/v1/sr/auth/login', () => HttpResponse.json({ status: 'ok' })));
     const user = userEvent.setup();
-    const router = at('/login?next=//evil.example');
+    at('/login?next=//evil.example');
     await fill(user);
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
   });
 
   it('shows the generic error on 401', async () => {
@@ -125,9 +131,9 @@ describe('login', () => {
       ),
     );
     const user = userEvent.setup();
-    const router = at('/login');
+    at('/login');
     await fill(user);
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login/2fa'));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/login/2fa'));
   });
 
   it('shows the Discord-unlinked message and has no register button', async () => {
@@ -138,8 +144,8 @@ describe('login', () => {
 
   it('redirects logged-in members to their last section', async () => {
     server.use(http.get('*/api/v1/users/@me', () => HttpResponse.json({ id: '1' })));
-    const router = at('/login');
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    at('/login');
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
   });
 });
 
@@ -153,11 +159,11 @@ describe('2FA', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = at('/login/2fa');
+    at('/login/2fa');
     await user.click(await screen.findByLabelText('Trust this device for 30 days'));
     await user.click(screen.getByLabelText('Digit 1'));
     await user.keyboard('123456');
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
     expect(body).toEqual({ method: 'totp', code: '123456', trust_device: true });
   });
 
@@ -174,10 +180,10 @@ describe('2FA', () => {
   it('accepts a pasted code', async () => {
     server.use(http.post('*/api/v1/sr/auth/2fa', () => HttpResponse.json({ status: 'ok' })));
     const user = userEvent.setup();
-    const router = at('/login/2fa');
+    at('/login/2fa');
     await user.click(await screen.findByLabelText('Digit 1'));
     await user.paste('654321');
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
   });
 
   it('switches to a recovery code', async () => {
@@ -189,11 +195,11 @@ describe('2FA', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = at('/login/2fa');
+    at('/login/2fa');
     await user.click(await screen.findByRole('button', { name: 'Use a recovery code' }));
     await user.type(screen.getByLabelText('Recovery code'), 'abcd-1234');
     await user.click(screen.getByRole('button', { name: /step inside/i }));
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
     expect(body).toEqual({ method: 'recovery', code: 'abcd-1234', trust_device: false });
   });
 });
@@ -215,7 +221,7 @@ describe('register', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = at('/register');
+    at('/register');
     expect(await screen.findByText('You must be at least 16 to join.')).toBeInTheDocument();
     expect(
       screen.getByRole('checkbox', { name: /I am at least 16 years old/ }),
@@ -227,7 +233,7 @@ describe('register', () => {
     await user.click(screen.getByRole('checkbox', { name: /house notes/ }));
     await user.click(screen.getByRole('checkbox', { name: /at least/ }));
     await user.click(screen.getByRole('button', { name: /open the door/i }));
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
     expect(body).toMatchObject({ confirmed_min_age: 16, accepted_house_notes: true });
   });
 
@@ -306,10 +312,10 @@ describe('register', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = at('/register');
+    at('/register');
     await fillValid(user);
     await user.click(screen.getByRole('button', { name: /open the door/i }));
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
     expect(body).toMatchObject({ code: 'ABCDE-FGHJK', email: 'sam@example.com', username: 'sam' });
     expect(sessionStorage.getItem('sr.invite')).toBeNull();
   });

@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearUploadsOnSignOut } from '../../lib/uploadLedger';
 import { ApiError, apiFetch, apiPost, clearCsrf, type ApiErrorBody } from '../../api/client';
+import { purgeAppCaches } from '../../pwa/purge';
 
 // ---- account ----
 
@@ -44,6 +45,7 @@ const endPlayer = () =>
   );
 export const logout = async () => {
   await clearUploadsOnSignOut(); // aborts the open chat upload slots while the session still works
+  await purgeAppCaches();
   await apiPost<void>('/sr/auth/logout');
   clearCsrf();
   await endPlayer();
@@ -51,6 +53,7 @@ export const logout = async () => {
 /** Revokes every session, this one included. */
 export const logoutAll = async () => {
   await clearUploadsOnSignOut();
+  await purgeAppCaches();
   await apiPost<void>('/sr/auth/logout-all');
   clearCsrf();
   await endPlayer();

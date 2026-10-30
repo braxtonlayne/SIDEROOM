@@ -17,6 +17,11 @@ use axum::{
 use serde_json::{Value, json};
 use sr_core::ErrorCode;
 
+/// `Clear-Site-Data` on logout (SEC-ENT-003, docs/dev/entrance-isolation.md section 4): empties the HTTP cache (the
+/// `private` app files) and the origin's storage, so nothing of the app stays in the browser after sign-out.
+const CLEAR_SITE_DATA: header::HeaderName = header::HeaderName::from_static("clear-site-data");
+const CLEAR_SITE_DATA_VALUE: &str = "\"cache\", \"storage\"";
+
 /// The calling session id; bots and bearer tokens are refused.
 pub(super) fn session_id(p: &Principal) -> Result<i64, ErrorCode> {
     match p.kind {
@@ -35,10 +40,13 @@ pub async fn logout(
     svc.store.revoke_session(p.user_id, sid).await?;
     Ok((
         StatusCode::NO_CONTENT,
-        AppendHeaders([(
-            header::SET_COOKIE,
-            clear_session_cookie(state.settings().secure_cookies),
-        )]),
+        AppendHeaders([
+            (
+                header::SET_COOKIE,
+                clear_session_cookie(state.settings().secure_cookies),
+            ),
+            (CLEAR_SITE_DATA, CLEAR_SITE_DATA_VALUE.to_owned()),
+        ]),
     ))
 }
 
@@ -53,10 +61,13 @@ pub async fn logout_all(
     svc.store.revoke_sessions_except(p.user_id, None).await?;
     Ok((
         StatusCode::NO_CONTENT,
-        AppendHeaders([(
-            header::SET_COOKIE,
-            clear_session_cookie(state.settings().secure_cookies),
-        )]),
+        AppendHeaders([
+            (
+                header::SET_COOKIE,
+                clear_session_cookie(state.settings().secure_cookies),
+            ),
+            (CLEAR_SITE_DATA, CLEAR_SITE_DATA_VALUE.to_owned()),
+        ]),
     ))
 }
 

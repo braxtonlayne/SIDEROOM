@@ -1,4 +1,5 @@
 import { Button, EmptyState, Tabs } from '@sideroom/ui';
+import { exitToLogin } from '../lib/enterApp';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
@@ -27,11 +28,7 @@ export function AppDetailPage({ appId, tab }: { appId: string; tab: AppTab }) {
       <EmptyState
         title={t('developers.appDetail.signInTitle')}
         action={
-          <Button
-            onClick={() =>
-              void navigate({ to: '/login', search: { next: `/developers/applications/${appId}` } })
-            }
-          >
+          <Button onClick={() => exitToLogin(`/developers/applications/${appId}`)}>
             {t('developers.appDetail.logIn')}
           </Button>
         }

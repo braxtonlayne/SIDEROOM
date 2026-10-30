@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Bundle budget gate (XC-PERF-002). Usage: node scripts/check-bundle-budget.mjs [distDir]
 // Fails (exit 1) when a route's first-load JavaScript exceeds the gzip budget in bundle-budget.json.
+// Layout (D-385, SEC-ENT-001): dist/app.html + dist/app/* is the gated app (budget `app` and the route rows);
+// each public surface of dist/surfaces.json has its own shell and its own row under `public`.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const dist = resolve(process.argv[2] ?? join(here, '..', 'apps', 'web', 'dist'));
 const config = JSON.parse(readFileSync(join(here, 'bundle-budget.json'), 'utf8'));
 
-if (!existsSync(join(dist, 'index.html'))) {
+if (!existsSync(join(dist, 'app.html')) || !existsSync(join(dist, 'surfaces.json'))) {
   console.error(`No build at ${dist}. Run: pnpm --filter @sideroom/web build`);
   process.exit(2);
 }
@@ -34,9 +36,12 @@ function closure(roots) {
   return seen;
 }
 
-const html = readFileSync(join(dist, 'index.html'), 'utf8');
-const entryRoots = [...html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)].map((m) => m[1]);
-const entrance = closure(entryRoots);
+const rootsOf = (shell, dir) => {
+  const re = new RegExp('(?:src|href)="/(' + dir + '/[^"]+[.]js)"', 'g');
+  return [...readFileSync(join(dist, shell), 'utf8').matchAll(re)].map((m) => m[1]);
+};
+// `entrance` below is the app's first load (what index.html used to be).
+const entrance = closure(rootsOf('app.html', 'app'));
 
 const kb = (n) => (n / 1024).toFixed(1);
 const total = (files) => [...files].reduce((n, f) => n + gzipSize(f), 0);
@@ -52,12 +57,30 @@ const check = (name, files, maxKB) => {
   );
 };
 
+// One row per public surface: its shell's own closure, never the app's.
+const surfaces = JSON.parse(readFileSync(join(dist, 'surfaces.json'), 'utf8')).surfaces;
+for (const s of surfaces) {
+  if (s.kind !== 'bundle' || s.reserved) continue;
+  if (!existsSync(join(dist, s.shell))) {
+    rows.push(`FAIL ${s.surface.padEnd(10)} shell ${s.shell} is missing from dist`);
+    failed = true;
+    continue;
+  }
+  const files = closure(rootsOf(s.shell, 'entrance'));
+  check(s.surface, files, config.public?.[s.surface]?.maxGzipKB ?? s.budgetGzipKB);
+  const wasm = [...files].filter((f) => /.wasm$/.test(f));
+  if (wasm.length) {
+    rows.push(`FAIL ${s.surface.padEnd(10)} loads WebAssembly: ${wasm.join(', ')}`);
+    failed = true;
+  }
+}
+
 for (const [name, b] of Object.entries(config.budgets)) {
   if (!b.routeChunk) {
     check(name, entrance, b.maxGzipKB);
     continue;
   }
-  const chunk = readdirSync(join(dist, 'assets')).find(
+  const chunk = readdirSync(join(dist, 'app')).find(
     (f) => f.startsWith(`${b.routeChunk}-`) && f.endsWith('.js'),
   );
   if (!chunk) {
@@ -67,12 +90,12 @@ for (const [name, b] of Object.entries(config.budgets)) {
     failed = true;
     continue;
   }
-  check(name, new Set([...entrance, ...closure([`assets/${chunk}`])]), b.maxGzipKB);
+  check(name, new Set([...entrance, ...closure([`app/${chunk}`])]), b.maxGzipKB);
 }
 
-for (const f of readdirSync(join(dist, 'assets')).filter((x) => x.endsWith('.js'))) {
-  const s = gzipSize(`assets/${f}`);
-  if (s > config.singleChunkMaxGzipKB * 1024 && entrance.has(`assets/${f}`)) {
+for (const f of readdirSync(join(dist, 'app')).filter((x) => x.endsWith('.js'))) {
+  const s = gzipSize(`app/${f}`);
+  if (s > config.singleChunkMaxGzipKB * 1024 && entrance.has(`app/${f}`)) {
     rows.push(
       `FAIL chunk ${f} is ${kb(s)} KB gzip and loads on first paint (limit ${config.singleChunkMaxGzipKB} KB)`,
     );
@@ -84,11 +107,11 @@ for (const f of readdirSync(join(dist, 'assets')).filter((x) => x.endsWith('.js'
 // (`assets/ffmpeg-core-*.js` and `.wasm`), never part of first paint: no entrance file may be the core or name it
 // (a chunk that names it is the converter, which loads only when someone converts).
 {
-  const assets = readdirSync(join(dist, 'assets'));
+  const assets = readdirSync(join(dist, 'app'));
   const core = assets.filter((f) => f.startsWith('ffmpeg-core'));
   const inEntrance = [...entrance].filter(
     (f) =>
-      f.startsWith('assets/ffmpeg-core') ||
+      f.startsWith('app/ffmpeg-core') ||
       readFileSync(join(dist, f), 'utf8').includes('ffmpeg-core'),
   );
   if (inEntrance.length) {
@@ -117,17 +140,15 @@ for (const f of readdirSync(join(dist, 'assets')).filter((x) => x.endsWith('.js'
 // fetched only when the library's tagger starts: no entrance file may be it or name it, and the .wasm stays within
 // `musicWasmMaxBrotliKB` (brotli, as a CDN serves it).
 {
-  const assets = readdirSync(join(dist, 'assets'));
+  const assets = readdirSync(join(dist, 'app'));
   const wasm = assets.filter((f) => /^music_bg-[\w-]+\.wasm$/.test(f));
-  const glue = new Set(
-    assets.filter((f) => /^music-[\w-]+\.js$/.test(f)).map((f) => `assets/${f}`),
-  );
+  const glue = new Set(assets.filter((f) => /^music-[\w-]+\.js$/.test(f)).map((f) => `app/${f}`));
   const inEntrance = [...entrance].filter(
     (f) => glue.has(f) || readFileSync(join(dist, f), 'utf8').includes('music_bg'),
   );
   const limit = config.musicWasmMaxBrotliKB ?? 600;
   if (wasm.length !== 1) {
-    rows.push(`FAIL music     expected one music_bg-*.wasm in assets, found ${wasm.length}`);
+    rows.push(`FAIL music     expected one music_bg-*.wasm in app, found ${wasm.length}`);
     failed = true;
   } else if (inEntrance.length) {
     rows.push(
@@ -135,7 +156,7 @@ for (const f of readdirSync(join(dist, 'assets')).filter((x) => x.endsWith('.js'
     );
     failed = true;
   } else {
-    const br = brotliCompressSync(readFileSync(join(dist, 'assets', wasm[0]))).length;
+    const br = brotliCompressSync(readFileSync(join(dist, 'app', wasm[0]))).length;
     const ok = br <= limit * 1024;
     if (!ok) failed = true;
     rows.push(
@@ -174,10 +195,13 @@ if (process.env.SR_PSEUDO_LOCALE === '1') {
   rows.push('skip pseudo     SR_PSEUDO_LOCALE=1 build: the pseudo-locales are expected');
 } else {
   const MARKERS = ['àƀçðéƒĝĥîĵķļɱñöþǫŕšţûṽŵẋýž', 'Pseudo (accented)', 'Pseudo (right-to-left)'];
-  const leaks = readdirSync(join(dist, 'assets'))
+  const leaks = [
+    ...readdirSync(join(dist, 'app')).map((f) => `app/${f}`),
+    ...readdirSync(join(dist, 'entrance')).map((f) => `entrance/${f}`),
+  ]
     .filter((f) => f.endsWith('.js'))
     .filter((f) => {
-      const code = readFileSync(join(dist, 'assets', f), 'utf8');
+      const code = readFileSync(join(dist, f), 'utf8');
       return MARKERS.some((m) => code.includes(m));
     });
   rows.push(

@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 
 function at(path: string) {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+  const router = createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }));
   render(<RouterProvider router={router} />);
   return router;
 }

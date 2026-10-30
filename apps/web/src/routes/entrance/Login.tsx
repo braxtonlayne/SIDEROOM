@@ -1,5 +1,5 @@
 import { GoldButton, PasswordInput, TextInput } from '@sideroom/ui';
-import { Link, useRouter, useSearch } from '@tanstack/react-router';
+import { useSearch } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { discordStartUrl, login } from '../../api/entrance';
@@ -7,13 +7,14 @@ import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
 import { BanAppeal, isBannedError } from './BanAppeal';
 import { LockIcon } from '../../components/icons';
+import { SignInHelp } from '../../components/SignInHelp';
 import { PasskeyButton } from '../../components/PasskeyButton';
 import { t as tr } from '../../i18n/runtime';
 import { useT } from '../../i18n/react';
 import { rememberMfaMethods } from '../../lib/mfaMethods';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
-import { useUiStore } from '../../state/session';
+import { enterApp, nav } from '../../lib/enterApp';
 
 export function loginErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -29,7 +30,6 @@ export function loginErrorMessage(e: unknown): string {
 export function Login() {
   useRedirectIfLoggedIn();
   const t = useT();
-  const router = useRouter();
   const search = useSearch({ strict: false }) as { next?: string; error?: string };
   const next = safeNext(search.next);
   const [id, setId] = useState('');
@@ -41,7 +41,7 @@ export function Login() {
     search.error === 'discord_unlinked' ? t('entrance.login.discordUnlinked') : null,
   );
 
-  const finish = () => router.history.push(next ?? useUiStore.getState().lastSection);
+  const finish = () => enterApp(next);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,7 +54,7 @@ export function Login() {
       const res = await login({ login: id.trim(), password: pw });
       if (res.status === 'mfa_required') {
         rememberMfaMethods(res.methods);
-        void router.navigate({ to: '/login/2fa', search: next ? { next } : {} });
+        nav.assign(`/login/2fa${next ? `?next=${encodeURIComponent(next)}` : ''}`);
       } else finish();
     } catch (err) {
       if (isBannedError(err)) {
@@ -102,7 +102,7 @@ export function Login() {
         <div>
           <div className="ent-row">
             <span />
-            <Link to="/forgot">{t('entrance.login.forgot')}</Link>
+            <a href="/forgot">{t('entrance.login.forgot')}</a>
           </div>
           <PasswordInput
             label={t('entrance.login.password')}
@@ -118,14 +118,15 @@ export function Login() {
         </GoldButton>
         <PasskeyButton onDone={finish} onError={setError} />
       </form>
-      <Link to="/" className="ent-newhere">
+      <a href="/" className="ent-newhere">
         <LockIcon />
         <span>
           {t('entrance.login.newHere')}
           <small>{t('entrance.login.newHereSub')}</small>
         </span>
         <span aria-hidden="true">↗</span>
-      </Link>
+      </a>
+      <SignInHelp />
     </AuthSplit>
   );
 }

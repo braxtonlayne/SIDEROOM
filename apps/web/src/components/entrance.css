@@ -298,86 +298,6 @@
   margin-inline-end: 10px;
   vertical-align: middle;
 }
-.ent-glimpse {
-  background: none;
-  border: 0;
-  color: var(--sr-text);
-  font: inherit;
-  cursor: pointer;
-  display: inline-flex;
-  gap: 24px;
-}
-.ent-strip {
-  padding: 48px var(--ent-pad) 60px;
-  background: var(--sr-bg-1);
-}
-.ent-strip-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.ent-strip-head h2 {
-  margin: 0;
-  font-weight: 400;
-  font-size: 22px;
-}
-.ent-strip-head h2 em {
-  font-family: var(--sr-font-display);
-  color: var(--sr-text-2);
-}
-.ent-strip-head p {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: 0.1em;
-  color: var(--sr-entrance-text-muted);
-}
-.ent-worlds {
-  list-style: none;
-  margin: 48px 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-}
-.ent-worlds li {
-  padding: 0 40px;
-  border-inline-start: 1px solid var(--sr-line);
-}
-@media (prefers-reduced-motion: no-preference) {
-  /* Micro-interaction: a world quietly lifts when you rest on it. */
-  .ent-worlds li {
-    transition:
-      transform 0.3s ease,
-      border-color 0.3s ease;
-  }
-  .ent-worlds li:hover {
-    transform: translateY(-3px);
-    border-inline-start-color: var(--sr-gold);
-  }
-}
-.ent-worlds li:first-child {
-  padding-inline-start: 0;
-  border-inline-start: 0;
-}
-.ent-world-num {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--sr-entrance-text-muted);
-}
-.ent-worlds h3 {
-  margin: 28px 0 8px;
-  font-family: var(--sr-font-display);
-  font-weight: 400;
-  font-size: 34px;
-}
-.ent-worlds p {
-  margin: 0;
-  color: var(--sr-entrance-text-muted);
-}
-
 /* Split (login/register) */
 .ent-split {
   display: grid;
@@ -696,15 +616,6 @@
   .ent-hero-foot {
     margin-top: 40px;
   }
-  .ent-worlds {
-    grid-template-columns: 1fr;
-    gap: 32px;
-  }
-  .ent-worlds li,
-  .ent-worlds li:first-child {
-    padding: 0;
-    border-inline-start: 0;
-  }
   .ent-split {
     display: block;
     min-height: 0;
@@ -841,4 +752,26 @@
   .ent-skeleton {
     animation: none;
   }
+}
+
+/* Sign-in help: the collapsible answers under the sign-in form */
+.ent-signin-help {
+  margin-top: 28px;
+  border-top: 1px solid var(--sr-line);
+  padding-top: 16px;
+  color: var(--sr-text-2);
+  font-size: 14px;
+}
+.ent-signin-help summary {
+  cursor: pointer;
+  color: var(--sr-text);
+}
+.ent-signin-help h2 {
+  margin: 16px 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--sr-text);
+}
+.ent-signin-help p {
+  margin: 0;
 }

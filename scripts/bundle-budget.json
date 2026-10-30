@@ -1,7 +1,18 @@
 {
-  "$comment": "XC-PERF-002. Sizes are gzip bytes of the JavaScript a first visit must download. 'entrance' is everything index.html loads before first paint; 'lounge' adds the Lounge route chunk and its static imports. 'musicWasmMaxBrotliKB' caps the lazily fetched sr-music-wasm module (MUS-WASM-001), brotli bytes.",
+  "$comment": "XC-PERF-002, SEC-ENT-001. Sizes are gzip bytes of the JavaScript a first visit must download. 'public' has one row per public surface (its own shell, never the app); 'budgets.app' is everything app.html loads before first paint; 'lounge' adds the Lounge route chunk and its static imports. 'musicWasmMaxBrotliKB' caps the lazily fetched sr-music-wasm module (MUS-WASM-001), brotli bytes.",
+  "public": {
+    "landing": {
+      "maxGzipKB": 120
+    },
+    "auth": {
+      "maxGzipKB": 150
+    },
+    "invite": {
+      "maxGzipKB": 120
+    }
+  },
   "budgets": {
-    "entrance": {
+    "app": {
       "maxGzipKB": 300
     },
     "lounge": {

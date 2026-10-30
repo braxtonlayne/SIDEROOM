@@ -1,15 +1,22 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 import { REQUEST_OPTIONS, stubWebAuthn, unstubWebAuthn } from '../../test/webauthnFake';
 import { warmLoungeRoute } from '../../test/warmRoutes';
+import { nav } from '../../lib/enterApp';
 
 warmLoungeRoute();
 
+beforeEach(() => {
+  vi.spyOn(nav, 'assign').mockImplementation(() => {});
+  vi.spyOn(nav, 'replace').mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
 function at(path: string) {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+  const router = createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }));
   render(<RouterProvider router={router} />);
   return router;
 }
@@ -40,9 +47,9 @@ describe('passkey sign-in', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = at('/login');
+    at('/login');
     await user.click(await screen.findByRole('button', { name: 'Use a passkey' }));
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
     expect(get).toHaveBeenCalledOnce();
     expect(finishBody).toMatchObject({
       ceremony_id: 'c1',
@@ -99,12 +106,12 @@ describe('passkey as the second step', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = at('/login/2fa');
+    at('/login/2fa');
     expect(await screen.findByText('Your passkey.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Digit 1')).toBeNull();
     await user.click(screen.getByLabelText('Trust this device for 30 days'));
     await user.click(screen.getByRole('button', { name: 'Use your passkey' }));
-    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/app'));
     expect(begin).toEqual({ second_factor: true });
     expect(twoFa?.method).toBe('passkey');
     expect(twoFa?.trust_device).toBe(true);

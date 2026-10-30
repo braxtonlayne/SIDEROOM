@@ -123,11 +123,89 @@ export function cspOptionsFromConfig(cfg: CspConfig): CspOptions {
   return { extraFrame, extraConnect };
 }
 
-/** `Content-Security-Policy` line of `Caddyfile.prod`; `deploy/scripts/render-caddyfile.mjs` rewrites it. */
-export const caddyCspLine = (opts: CspOptions = {}) =>
-  `header Content-Security-Policy "${buildCsp(opts)}"`;
+export const SURFACES_BEGIN = '# surfaces:begin';
+export const SURFACES_END = '# surfaces:end';
 
-/** Replaces the CSP line of a Caddyfile with the one built from `opts`. */
-export function renderCaddyfile(caddyfile: string, opts: CspOptions = {}): string {
-  return caddyfile.replace(/header Content-Security-Policy "[^"\n]*"/, caddyCspLine(opts));
+/** The slice of `public-surfaces.json` the block needs. */
+export interface SurfaceTable {
+  surfaces: {
+    surface: string;
+    kind: string;
+    shell?: string;
+    paths: string[];
+    reserved?: boolean;
+  }[];
+  publicFiles: string[];
+}
+
+/** Public shells: scripts from this origin only; no wasm, no blob, no frames, no voice or activity origins. */
+export const PUBLIC_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint";
+
+/** The legal and error pages: plain HTML, no script, no fetch. */
+export const NO_SCRIPT_CSP =
+  "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint";
+
+const T = '\t';
+const ROOT = '{$SR_WEB_ROOT:/srv/web}';
+const UPSTREAM = '{$SR_UPSTREAM:127.0.0.1:8080}';
+const REPORTING = 'header Reporting-Endpoints "csp-endpoint=\\"/internal/csp-report\\""';
+
+/** The text between the markers (markers included), one tab deep, without a trailing newline. */
+export function renderSurfacesBlock(table: SurfaceTable, publicCsp: string = PUBLIC_CSP): string {
+  const lines: string[] = [`${T}${SURFACES_BEGIN}`];
+  for (const s of table.surfaces) {
+    if (s.kind !== 'bundle' || s.reserved || !s.shell) continue;
+    lines.push(
+      `${T}@${s.surface} path ${s.paths.join(' ')}`,
+      `${T}handle @${s.surface} {`,
+      `${T}${T}root * ${ROOT}`,
+      `${T}${T}rewrite * /${s.shell}`,
+      `${T}${T}header Content-Security-Policy "${publicCsp}"`,
+      `${T}${T}${REPORTING}`,
+      `${T}${T}header Cache-Control "no-cache"`,
+      `${T}${T}file_server`,
+      `${T}}`,
+      '',
+    );
+  }
+  const legal = table.surfaces.find((s) => s.surface === 'legal');
+  lines.push(
+    `${T}# The legal page is plain HTML rendered by sr-server (the operator's country and contact are filled in there).`,
+    `${T}@legal path ${(legal?.paths ?? ['/house-notes']).filter((p) => p === '/house-notes').join(' ')}`,
+    `${T}handle @legal {`,
+    `${T}${T}reverse_proxy ${UPSTREAM}`,
+    `${T}}`,
+    '',
+    `${T}@publicFiles path ${table.publicFiles.join(' ')}`,
+    `${T}handle @publicFiles {`,
+    `${T}${T}root * ${ROOT}`,
+    `${T}${T}@immutable path /entrance/* /fonts/*`,
+    `${T}${T}header @immutable Cache-Control "public, max-age=31536000, immutable"`,
+    `${T}${T}@revalidate path /sw.js /manifest.webmanifest /offline.html /offline.css`,
+    `${T}${T}header @revalidate Cache-Control "no-cache"`,
+    `${T}${T}file_server`,
+    `${T}}`,
+    `${T}${SURFACES_END}`,
+  );
+  return lines.join('\n');
+}
+
+/** Replaces the marker block of a Caddyfile; throws when a marker is missing (the file is not ent-gate's). */
+export function replaceSurfacesBlock(caddyfile: string, block: string): string {
+  const begin = caddyfile.indexOf(`${T}${SURFACES_BEGIN}`);
+  const endAt = caddyfile.indexOf(SURFACES_END);
+  if (begin < 0 || endAt < begin)
+    throw new Error(`Caddyfile has no "${SURFACES_BEGIN}" … "${SURFACES_END}" block`);
+  return caddyfile.slice(0, begin) + block + caddyfile.slice(endAt + SURFACES_END.length);
+}
+
+/**
+ * Rewrites the public-surface block of `Caddyfile.prod` (between the `# surfaces:begin` and `# surfaces:end`
+ * markers) from `public-surfaces.json`. The block carries the matchers, one handle per bundle surface in table
+ * order, the legal and public-file handles and the public policy on every shell; the app policy is not in the
+ * Caddyfile any more (`sr-server` sends it from `dist/app/csp.txt`).
+ */
+export function renderCaddyfile(caddyfile: string, table: SurfaceTable): string {
+  return replaceSurfacesBlock(caddyfile, renderSurfacesBlock(table));
 }

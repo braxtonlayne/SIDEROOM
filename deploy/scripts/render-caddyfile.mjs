@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Rewrites the Content-Security-Policy line of deploy/compose/caddy/Caddyfile.prod from the same two settings
-// the web build reads (activities.enabled, voice.public_url), using apps/web/src/security/csp.ts, so the
-// Caddyfile and the built web app cannot drift (H-27, OQ-XC-3). Needs Node 22.6 or newer.
+// Rewrites the public-surface block of deploy/compose/caddy/Caddyfile.prod (between `# surfaces:begin` and
+// `# surfaces:end`) from apps/web/public-surfaces.json, using apps/web/src/security/csp.ts, so the Caddyfile, the
+// built web app and sr-server cannot drift (D-385). The app policy is no longer in the Caddyfile; the activity and
+// voice origins (H-27) reach the app through dist/app/csp.txt. Needs Node 22.6 or newer.
 //
 //   node deploy/scripts/render-caddyfile.mjs --public-url https://chat.example.org [--activities]
 //        [--voice-url wss://voice.example.org] [--file path/to/Caddyfile.prod] [--check]
@@ -22,16 +23,14 @@ const { values } = parseArgs({
     check: { type: 'boolean', default: false },
   },
 });
-const { cspOptionsFromConfig, renderCaddyfile } = await import(
+const { renderCaddyfile } = await import(
   pathToFileURL(resolve(here, '../../apps/web/src/security/csp.ts')).href
 );
-const opts = cspOptionsFromConfig({
-  publicUrl: values['public-url'],
-  activitiesEnabled: values.activities,
-  voicePublicUrl: values['voice-url'],
-});
+const table = JSON.parse(
+  readFileSync(resolve(here, '../../apps/web/public-surfaces.json'), 'utf8'),
+);
 const current = readFileSync(values.file, 'utf8');
-const next = renderCaddyfile(current, opts);
+const next = renderCaddyfile(current, table);
 if (values.check) {
   if (next !== current) {
     console.error(`${values.file} does not match the settings; run without --check to rewrite it.`);

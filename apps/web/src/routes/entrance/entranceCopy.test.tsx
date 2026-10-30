@@ -1,13 +1,15 @@
 // ENT-UI-010 / ENT-UI-025: the Entrance shows staff-edited copy when there is some and the built-in text otherwise.
 import { render, screen } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 import { EntranceMarkdown, resetEntranceHero, setEntranceCopy } from './entranceCopy';
 
 function at(path: string) {
   render(
-    <RouterProvider router={createAppRouter(createMemoryHistory({ initialEntries: [path] }))} />,
+    <RouterProvider
+      router={createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }))}
+    />,
   );
 }
 
@@ -26,17 +28,6 @@ describe('operator copy on the Entrance', () => {
     expect(screen.queryByText(/invitation-only/i)).toBeNull();
   });
 
-  it('replaces house notes and anchors its headings', async () => {
-    server.use(
-      http.get('*/api/v1/sr/entrance/copy', () =>
-        HttpResponse.json({ 'house-notes': '## Privacy\n\n- we log little\n- we sell nothing' }),
-      ),
-    );
-    at('/house-notes');
-    expect(await screen.findByText('we log little')).toBeInTheDocument();
-    expect(document.getElementById('privacy')?.tagName).toBe('H2');
-  });
-
   it('shows the landing note under the invitation box', async () => {
     server.use(
       http.get('*/api/v1/sr/entrance/copy', () =>
@@ -45,12 +36,6 @@ describe('operator copy on the Entrance', () => {
     );
     at('/');
     expect(await screen.findByText('Opening hours: evenings.')).toBeInTheDocument();
-  });
-
-  it('keeps the built-in text when the copy is empty or the request fails', async () => {
-    server.use(http.get('*/api/v1/sr/entrance/copy', () => HttpResponse.error()));
-    at('/house-notes');
-    expect(await screen.findByRole('heading', { level: 2, name: /Rules/i })).toBeVisible();
   });
 });
 

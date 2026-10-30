@@ -1,4 +1,5 @@
 import { Button, Notice, ThemeProvider, ToastProvider } from '@sideroom/ui';
+import { exitToLogin } from '../lib/enterApp';
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -79,7 +80,7 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
   useEffect(() => {
     if (!unauthorized || redirected.current) return;
     redirected.current = true;
-    void navigate({ to: '/login', search: { next: here } });
+    exitToLogin(here);
   }, [unauthorized, navigate, here]);
 
   const follow = (location: string, redirectUri: string | null): boolean => {

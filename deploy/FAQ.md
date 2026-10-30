@@ -12,7 +12,7 @@
 
 **Why does the browser show a "new version" toast?** The app is an installable web app. After a deploy the service worker downloads the new build in the background and asks before switching, so nobody loses a half-written message to a surprise reload.
 
-**I changed the web app's CSP origins (a separate voice host, activities).** For `vite preview` set `SR_CSP_CONNECT`, `SR_CSP_FRAME` or `SR_CSP_MEDIA` (comma separated). In production edit the `Content-Security-Policy` line in `deploy/compose/caddy/Caddyfile.prod`; `apps/web/src/security/csp.test.ts` fails if the file and `csp.ts` disagree, so change both.
+**I changed the web app's CSP origins (a separate voice host, activities).** For `vite preview` set `SR_CSP_CONNECT`, `SR_CSP_FRAME` or `SR_CSP_MEDIA` (comma separated). In production run `node deploy/scripts/render-caddyfile.mjs --public-url <url> [--activities] [--voice-url <url>]`: it rewrites the generated public-policy block of `deploy/compose/caddy/Caddyfile.prod`, and the app build writes the app policy to `app/csp.txt`, which `sr-server` sends. `apps/web/src/security/csp.test.ts` fails if the file and `csp.ts` disagree.
 
 **How do I restore from a backup?** BACKUP.md. Run the restore drill before you need it.
 
@@ -23,3 +23,7 @@
 **A member lost their 2FA device.** `sr-cli user reset-2fa <username or email>`; it also revokes their sessions.
 
 **Is anything sent to third parties?** No telemetry or analytics leave your server (AGENTS.md rule 5). Outbound traffic is your SMTP server, optional Discord OAuth, optional unfurls of links members post (through the SSRF-guarded fetcher), and anything you configure yourself.
+
+**Why does `https://<domain>/anything` send me to the sign-in page, and `/app/anything.js` answer 401?** Since D-385 the app is served only to a signed-in session, and the answer is the same whether or not the path exists, so a visitor cannot learn what the app contains. A page opened without a session is a `302` to `/login?next=<path>`; a file under `/app/` is an empty `401`. The landing, sign-in, invite and legal pages, the fonts, icons and the service worker stay public. `sr-server` needs `SR_WEB__ROOT` (the web build) for this; without it the server serves no documents at all.
+
+**The server will not start and says `app/csp.txt` is missing.** `SR_WEB__ROOT` points at a web build that has no `app/csp.txt` (an old build, or a half-unpacked one). The server refuses to serve the app without its policy. Unpack the release's `apps/web/dist` completely and start again.

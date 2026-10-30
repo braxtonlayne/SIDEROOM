@@ -1,4 +1,5 @@
 import { Button, Notice } from '@sideroom/ui';
+import { exitToLogin } from '../lib/enterApp';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
@@ -91,10 +92,7 @@ export function SharePage() {
       .catch((e: unknown) => {
         if (!live) return;
         if (e instanceof ApiError && e.status === 401) {
-          void navigate({
-            to: '/login',
-            search: { next: `/share${searchStr}` },
-          });
+          exitToLogin(`/share${searchStr}`);
         } else setFailed(true);
       });
     return () => {

@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+import { nav } from '../../lib/enterApp';
 import { http, HttpResponse, server } from '../../test/server';
 import { exploreHref, toTitle } from '../api';
 import { splitTitle } from '../Discover';
@@ -87,9 +88,10 @@ describe('cinema chrome', () => {
 
 describe('session', () => {
   it('sends a signed-out visitor to the login page and back', async () => {
-    const { router } = renderAt('/cinema/movies');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
-    expect(router.state.location.search).toMatchObject({ next: '/cinema/movies' });
+    vi.spyOn(nav, 'assign').mockImplementation(() => {});
+    renderAt('/cinema/movies');
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/login?next=%2Fcinema%2Fmovies'));
+    vi.restoreAllMocks();
   });
 });
 

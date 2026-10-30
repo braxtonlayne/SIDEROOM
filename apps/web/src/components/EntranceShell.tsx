@@ -1,7 +1,4 @@
-import { Link } from '@tanstack/react-router';
 import { ThemeProvider } from '@sideroom/ui';
-import { usePlatformThemeDefaults, withPlatformDefaults } from '../settings/user/platformThemes';
-import { DEFAULT_PREFS, useSavedPrefs } from '../settings/user/prefs';
 import type { ReactNode } from 'react';
 import { useT } from '../i18n/react';
 import { DoorIcon } from './icons';
@@ -11,12 +8,12 @@ import './entrance.css';
 export function Logo() {
   const t = useT();
   return (
-    <Link to="/" className="ent-logo" aria-label={t('entrance.shell.home')}>
+    <a href="/" className="ent-logo" aria-label={t('entrance.shell.home')}>
       <DoorIcon width={36} height={36} />
       <span className="ent-wordmark">
         SIDE ROOM<span className="ent-dot">.</span>
       </span>
-    </Link>
+    </a>
   );
 }
 
@@ -32,30 +29,22 @@ export interface EntranceShellProps {
 export function EntranceShell({ nav, footerRight, children }: EntranceShellProps) {
   const t = useT();
   const houseNotes = footerRight === 'House notes';
-  // Signed-out pages only know this browser's saved choice of Entrance theme.
-  const { sectionThemes, theme } = useSavedPrefs();
-  const platform = usePlatformThemeDefaults();
   return (
-    <ThemeProvider
-      section="entrance"
-      platformDefault="sideroom"
-      perSection={withPlatformDefaults(sectionThemes, theme !== DEFAULT_PREFS.theme, platform)}
-      className="ent-root"
-    >
+    <ThemeProvider section="entrance" platformDefault="sideroom" className="ent-root">
       <SkipLink />
       <header className="ent-header">
         <Logo />
         <p className="ent-tagline">{t('entrance.shell.tagline')}</p>
         <div className="ent-nav">
           {nav === 'member-access' && (
-            <Link to="/login" className="ent-navlink">
+            <a href="/login" className="ent-navlink">
               {t('entrance.shell.memberAccess')} <span aria-hidden="true">↗</span>
-            </Link>
+            </a>
           )}
           {nav === 'back-to-entrance' && (
-            <Link to="/" className="ent-navlink">
+            <a href="/" className="ent-navlink">
               <span aria-hidden="true">↖</span> {t('entrance.shell.backToEntrance')}
-            </Link>
+            </a>
           )}
         </div>
       </header>
@@ -66,7 +55,7 @@ export function EntranceShell({ nav, footerRight, children }: EntranceShellProps
         </p>
         <p className="ent-footer-meta">
           {houseNotes ? (
-            <Link to="/house-notes">{t('entrance.shell.houseNotes')}</Link>
+            <a href="/house-notes">{t('entrance.shell.houseNotes')}</a>
           ) : (
             <span>{footerRight ?? t('entrance.shell.invitationOnly')}</span>
           )}

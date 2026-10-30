@@ -3,7 +3,7 @@
   "short_name": "SIDE ROOM",
   "description": "A private corner of the internet.",
   "id": "/",
-  "start_url": "/channels",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
@@ -11,8 +11,18 @@
   "theme_color": "#111110",
   "categories": ["social", "entertainment"],
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icons/maskable-512.png",
       "sizes": "512x512",
@@ -35,25 +45,5 @@
         }
       ]
     }
-  },
-  "shortcuts": [
-    {
-      "name": "Lounge",
-      "short_name": "Lounge",
-      "url": "/channels",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "Cinema",
-      "short_name": "Cinema",
-      "url": "/cinema",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "Library",
-      "short_name": "Library",
-      "url": "/library",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    }
-  ]
+  }
 }

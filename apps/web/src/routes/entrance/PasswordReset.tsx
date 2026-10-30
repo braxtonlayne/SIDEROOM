@@ -1,5 +1,5 @@
 import { GoldButton, PasswordInput, TextInput } from '@sideroom/ui';
-import { Link, useParams } from '@tanstack/react-router';
+import { useParams } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { forgotPassword, resetPassword } from '../../api/entrance';
@@ -68,7 +68,7 @@ export function Forgot() {
         </form>
       )}
       <p className="ent-footnote">
-        <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
+        <a href="/login">{t('entrance.common.backToSignIn')}</a>
       </p>
     </AuthSplit>
   );
@@ -129,7 +129,7 @@ export function Reset() {
           <p role="status" className="ent-sub">
             {t('entrance.reset.done')}
           </p>
-          <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
+          <a href="/login">{t('entrance.common.backToSignIn')}</a>
         </>
       ) : (
         <form className="ent-form" onSubmit={onSubmit} noValidate>

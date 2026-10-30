@@ -3,6 +3,12 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../../test/server';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { fieldError, ME, openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
+import { nav } from '../../../lib/enterApp';
+
+beforeEach(() => {
+  vi.spyOn(nav, 'assign').mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
 
 const session = (id: string, current = false) => ({
   id,
@@ -438,12 +444,12 @@ describe('My Account', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = openSettings('devices');
+    openSettings('devices');
     await user.click(await screen.findByRole('button', { name: 'Log out everywhere' }));
     const dialog = await screen.findByRole('dialog', { name: 'Log out everywhere?' });
     expect(called).toBe(false);
     await user.click(within(dialog).getByRole('button', { name: 'Log out everywhere' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/login'));
     expect(called).toBe(true);
   });
 
@@ -465,8 +471,8 @@ describe('My Account', () => {
         HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
       ),
     );
-    const router = openSettings('account');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    openSettings('account');
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/login'));
   });
 });
 
@@ -583,7 +589,7 @@ describe('Delete account (LNG-USET-006, D-124, G-82)', () => {
         return new HttpResponse(null, { status: 204 });
       }),
     );
-    const router = openSettings('account');
+    openSettings('account');
     const dialog = await openDialog();
     expect(within(dialog).getByText(/These records stay: Person record/)).toBeInTheDocument();
     expect(await axeViolations(dialog)).toEqual([]);
@@ -595,7 +601,7 @@ describe('Delete account (LNG-USET-006, D-124, G-82)', () => {
     expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
     await waitFor(() => expect(body).toEqual({ password: 'hunter22', username: 'ALICE' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/login'));
   });
 
   it('asks for a code with two-factor on and tells authenticator codes from recovery codes', async () => {

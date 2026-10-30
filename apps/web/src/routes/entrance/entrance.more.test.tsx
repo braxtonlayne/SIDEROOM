@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { nav } from '../../lib/enterApp';
 import {
   createMemoryHistory,
   createRootRoute,
@@ -8,14 +9,19 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import { createAppRouter } from '../../router';
+import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
 import { clearCsrf } from '../../api/client';
 import { VerifyEmailBanner } from '../../components/VerifyEmailBanner';
 import { VerifyEmail } from './VerifyEmail';
 
+beforeEach(() => {
+  vi.spyOn(nav, 'assign').mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
 function at(path: string) {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+  const router = createPublicRouter(path, createMemoryHistory({ initialEntries: [path] }));
   render(<RouterProvider router={router} />);
   return router;
 }
@@ -45,12 +51,15 @@ describe('2FA offers only the server-listed methods (Q83)', () => {
       ),
     );
     const user = userEvent.setup();
-    const router = at('/login');
+    at('/login');
     await user.type(await screen.findByLabelText('Username or email'), 'sam');
     await user.type(screen.getByLabelText('Password'), 'hunter2hunter2');
     await user.click(screen.getByRole('button', { name: /step inside/i }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login/2fa'));
+    await waitFor(() => expect(nav.assign).toHaveBeenCalledWith('/login/2fa'));
     expect(JSON.parse(sessionStorage.getItem('sr.mfaMethods') ?? '[]')).toEqual(['recovery']);
+    // The next step is a document load; a fresh page then reads the stored methods.
+    cleanup();
+    at('/login/2fa');
     expect(await screen.findByLabelText('Recovery code')).toBeInTheDocument();
   });
 });

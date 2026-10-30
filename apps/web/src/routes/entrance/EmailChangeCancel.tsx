@@ -1,4 +1,4 @@
-import { Link, useSearch } from '@tanstack/react-router';
+import { useSearch } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { cancelEmailChange } from '../../api/entrance';
@@ -57,7 +57,7 @@ export function EmailChangeCancel() {
           </p>
           <p className="ent-sub">
             {t('entrance.emailCancel.adviceBefore')}{' '}
-            <Link to="/forgot">{t('entrance.emailCancel.adviceLink')}</Link>{' '}
+            <a href="/forgot">{t('entrance.emailCancel.adviceLink')}</a>{' '}
             {t('entrance.emailCancel.adviceAfter')}
           </p>
         </>
@@ -83,7 +83,7 @@ export function EmailChangeCancel() {
         </p>
       )}
       <p className="ent-footnote">
-        <Link to="/login">{t('entrance.common.backToSignIn')}</Link>
+        <a href="/login">{t('entrance.common.backToSignIn')}</a>
       </p>
     </AuthSplit>
   );

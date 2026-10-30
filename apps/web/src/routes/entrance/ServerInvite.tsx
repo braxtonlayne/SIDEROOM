@@ -1,140 +1,47 @@
-import { Button, ThemeProvider } from '@sideroom/ui';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { ThemeProvider } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
-import { ApiError } from '../../api/client';
-import { getMe, getServerInvite, type ServerInvitePreview } from '../../api/entrance';
-import { inviteErrorMessage } from '../../lounge/inviteFlow';
-import { useStore } from '../../store';
-import { formatNumber } from '../../i18n';
-import { t as tr } from '../../i18n/runtime';
+import { getMe } from '../../api/entrance';
 import { useT } from '../../i18n/react';
+import { enterApp } from '../../lib/enterApp';
 import '../../components/entrance.css';
 
-type State =
-  | { kind: 'loading' }
-  | { kind: 'invalid' }
-  | { kind: 'ready'; invite: ServerInvitePreview; signedIn: boolean };
-
-const initial = (name: string) => name.slice(0, 1).toUpperCase();
-
 /**
- * Server invite page (D-021). Logged out: server name, icon and counts, plus "Log in to accept" (no register
- * button, no link to the landing page). Logged in: the same card with an "Accept invite" button that joins
- * the server and opens it in the Lounge.
+ * Public side of a server invite (D-021, D-385). The preview needs a session, so a visitor without one sees
+ * only the generic card with "Log in to accept" (no register button, no link to the landing page, nothing
+ * about the server). A signed-in member is handed to the app, which shows the real card and the accept button.
  */
-export function ServerInvite() {
+export function ServerInvite({ code }: { code: string }) {
   const t = useT();
-  const { code } = useParams({ strict: false }) as { code: string };
-  const navigate = useNavigate();
-  const [state, setState] = useState<State>({ kind: 'loading' });
-  const [accepting, setAccepting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<'loading' | 'visitor'>('loading');
 
   useEffect(() => {
     let live = true;
-    const signedIn = getMe().then(
-      () => true,
-      () => false,
+    getMe().then(
+      () => {
+        if (live) enterApp(`/app?goto=${encodeURIComponent(`/invite/${code}`)}`);
+      },
+      () => live && setState('visitor'),
     );
-    Promise.all([getServerInvite(code), signedIn])
-      .then(([invite, isIn]) => live && setState({ kind: 'ready', invite, signedIn: isIn }))
-      .catch((e: unknown) => {
-        if (!live) return;
-        // Previews need a session; a 401 still means "log in to accept", just without details.
-        if (e instanceof ApiError && e.status === 401)
-          setState({
-            kind: 'ready',
-            signedIn: false,
-            invite: {
-              code,
-              type: 0,
-              guild: { id: '', name: tr('entrance.serverInvite.someServer'), icon: null },
-              approximate_member_count: 0,
-              approximate_presence_count: 0,
-            },
-          });
-        else setState({ kind: 'invalid' });
-      });
     return () => {
       live = false;
     };
   }, [code]);
 
-  const accept = async () => {
-    setAccepting(true);
-    setError(null);
-    try {
-      const joined = await useStore.getState().acceptInvite(code);
-      // A group DM invite has no server: the group opens under Direct Messages.
-      await navigate({
-        to: '/channels/$guildId/$channelId',
-        params: {
-          guildId: joined.type !== 1 ? (joined.guild?.id ?? '@me') : '@me',
-          channelId: joined.channel.id,
-        },
-      });
-    } catch (e) {
-      setError(inviteErrorMessage(e));
-      setAccepting(false);
-    }
-  };
-
-  const counts = (inv: ServerInvitePreview) =>
-    inv.type === 1 && inv.approximate_member_count ? (
-      <p>
-        {t('entrance.invite.groupMembers', { count: formatNumber(inv.approximate_member_count) })}
-      </p>
-    ) : inv.approximate_member_count || inv.approximate_presence_count ? (
-      <p>
-        {t('entrance.serverInvite.counts', {
-          online: formatNumber(inv.approximate_presence_count ?? 0),
-          members: formatNumber(inv.approximate_member_count ?? 0),
-        })}
-      </p>
-    ) : null;
-
-  const inv = state.kind === 'ready' ? state.invite : null;
-  const isGroup = inv?.type === 1;
-  const shownName = isGroup
-    ? (inv?.channel?.name ?? t('entrance.invite.groupName'))
-    : (inv?.guild?.name ?? t('entrance.invite.groupName'));
-  const iconUrl = inv?.guild?.icon
-    ? `/cdn/icons/${inv.guild.id}/${inv.guild.icon}.png`
-    : inv?.channel?.icon
-      ? `/cdn/channel-icons/${inv.channel.id}/${inv.channel.icon}.png`
-      : null;
-
   return (
-    <ThemeProvider section="lounge" className="ent-invite-page">
-      <main className="ent-invite-card" aria-busy={state.kind === 'loading'}>
-        {state.kind === 'loading' && <p role="status">{t('entrance.serverInvite.loading')}</p>}
-        {state.kind === 'invalid' && <p role="alert">{t('entrance.serverInvite.invalid')}</p>}
-        {state.kind === 'ready' && (
+    <ThemeProvider section="entrance" platformDefault="sideroom" className="ent-invite-page">
+      <main className="ent-invite-card" aria-busy={state === 'loading'}>
+        {state === 'loading' ? (
+          <p role="status">{t('entrance.serverInvite.loading')}</p>
+        ) : (
           <>
-            <div className="ent-invite-icon" aria-hidden="true">
-              {iconUrl ? <img src={iconUrl} alt="" width={72} height={72} /> : initial(shownName)}
-            </div>
-            <p>
-              {isGroup ? t('entrance.invite.groupInvited') : t('entrance.serverInvite.invited')}
-            </p>
-            <h1>{shownName}</h1>
-            {counts(state.invite)}
-            {state.signedIn ? (
-              <>
-                <Button
-                  className="ent-invite-cta"
-                  loading={accepting}
-                  onClick={() => void accept()}
-                >
-                  {t('entrance.serverInvite.accept')}
-                </Button>
-                {error && <p role="alert">{error}</p>}
-              </>
-            ) : (
-              <Link to="/login" search={{ next: `/invite/${code}` }} className="ent-invite-cta">
-                {t('entrance.serverInvite.login')}
-              </Link>
-            )}
+            <p>{t('entrance.serverInvite.invited')}</p>
+            <h1>{t('entrance.serverInvite.someServer')}</h1>
+            <a
+              href={`/login?next=${encodeURIComponent(`/invite/${code}`)}`}
+              className="ent-invite-cta"
+            >
+              {t('entrance.serverInvite.login')}
+            </a>
           </>
         )}
       </main>
