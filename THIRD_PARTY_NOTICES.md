@@ -2144,3 +2144,37 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 ```
+
+## lofty, lofty_attr, ogg_pager and paste (audio tag reading, `sr-music-wasm`)
+
+<!-- MUS-WASM-001. The lofty family manifests state `MIT OR Apache-2.0` and ship no licence file in the crate; the MIT option is reproduced below with the authors named in the manifests. -->
+
+- `lofty` 0.25.4, `lofty_attr` 0.13.0 and `ogg_pager` 0.7.2 (MIT OR Apache-2.0), authors "Serial" (Serial-ATA),
+  https://github.com/Serial-ATA/lofty-rs. Compiled to WebAssembly in `crates/sr-music-wasm` (default features,
+  which include the ID3v2 compression support that needs `flate2`, already in the lock) to read audio tags and
+  cover art in the browser.
+- `paste` 1.0.15 (MIT OR Apache-2.0), David Tolnay, https://github.com/dtolnay/paste. A proc-macro helper of lofty.
+
+```text
+MIT License
+
+Copyright (c) Serial (lofty, lofty_attr, ogg_pager); Copyright (c) David Tolnay (paste)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

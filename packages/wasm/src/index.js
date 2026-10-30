@@ -101,3 +101,44 @@ export async function initWasm(options = {}) {
   ]);
   return { theme, markdown, permissions };
 }
+
+// MUS-WASM-001: audio tags, cover art and lyrics (sr-music-wasm). The raw bindings return JSON
+// (without the picture) plus a separate cover read, so the picture bytes are never JSON-encoded.
+// A Rust `NEED_MOOV:<offset>` error becomes an Error with `code` and `offset` (see MusicNeedMoovError).
+const guard = (fn) => {
+  try {
+    return fn();
+  } catch (e) {
+    const hit = /NEED_MOOV:(\d+)/.exec(String(e?.message ?? e));
+    if (hit)
+      throw Object.assign(new Error(`NEED_MOOV:${hit[1]}`), {
+        code: 'NEED_MOOV',
+        offset: Number(hit[1]),
+      });
+    throw e;
+  }
+};
+
+export const loadMusic = once(async (wasmUrl) => {
+  const m = await import('../dist/music/music.js');
+  await m.default({ module_or_path: wasmUrl });
+  const build = (json, coverBytes) => {
+    const t = JSON.parse(json);
+    const { coverMime, ...rest } = t;
+    return { ...rest, cover: coverMime ? { mime: coverMime, bytes: coverBytes() } : null };
+  };
+  return {
+    readTags: (head) =>
+      build(
+        guard(() => m.readTags(head)),
+        () => m.readCover(head),
+      ),
+    readTagsTail: (tail) =>
+      build(
+        guard(() => m.readTagsTail(tail)),
+        () => new Uint8Array(0),
+      ),
+    parseLrc: (text) => JSON.parse(m.parseLrc(text)),
+    lrcSidecarNames: (trackKey) => m.lrcSidecarNames(trackKey),
+  };
+});

@@ -1,0 +1,22 @@
+[package]
+name = "sr-music-wasm"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "Audio tags, cover art and LRC lyrics for the music library (MUS-WASM-001): a hand-written ID3v2/ID3v1, FLAC, Ogg and MP4 reader behind a stable API that lofty can replace later."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Default features on: 0.25.4 does not compile without id3v2_compression_support (flate2 is already in the lock).
+lofty = "=0.25.4"
+serde_json.workspace = true
+thiserror.workspace = true
+wasm-bindgen.workspace = true
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.79"
+
+[lints]
+workspace = true
