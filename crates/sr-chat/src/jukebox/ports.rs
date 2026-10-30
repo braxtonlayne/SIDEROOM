@@ -58,3 +58,46 @@ pub struct NoEvents;
 impl JukeboxEvents for NoEvents {
     async fn emit(&self, _users: Vec<i64>, _name: &'static str, _payload: serde_json::Value) {}
 }
+
+/// Why a listening-room call failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RoomError {
+    /// No such server playlist in this server.
+    UnknownPlaylist,
+    /// The store failed.
+    Store(String),
+}
+
+/// The 24/7 listening-room flag of a voice channel (MUS-JB-003 owns the cursor job; these are its REST doors).
+#[async_trait]
+pub trait ListeningRooms: Send + Sync {
+    /// Make `channel` a listening room on a server playlist of `guild` (or change its playlist; the cursor
+    /// restarts at the top).
+    async fn enable(
+        &self,
+        channel: i64,
+        guild: i64,
+        playlist: i64,
+        by: i64,
+    ) -> Result<(), RoomError>;
+    /// Stop being a room. Returns whether it was one.
+    async fn disable(&self, channel: i64) -> Result<bool, RoomError>;
+    /// The room's cursor as `LISTENING_ROOM_UPDATE` carries it, read now; `None` when it is not a room.
+    async fn cursor(&self, channel: i64) -> Result<Option<serde_json::Value>, RoomError>;
+}
+
+/// No rooms (tests).
+pub struct NoRooms;
+
+#[async_trait]
+impl ListeningRooms for NoRooms {
+    async fn enable(&self, _: i64, _: i64, _: i64, _: i64) -> Result<(), RoomError> {
+        Err(RoomError::UnknownPlaylist)
+    }
+    async fn disable(&self, _: i64) -> Result<bool, RoomError> {
+        Ok(false)
+    }
+    async fn cursor(&self, _: i64) -> Result<Option<serde_json::Value>, RoomError> {
+        Ok(None)
+    }
+}

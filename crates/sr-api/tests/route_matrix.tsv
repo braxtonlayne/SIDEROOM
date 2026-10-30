@@ -37,6 +37,7 @@ DELETE	/channels/{channel_id}/attachments/{upload_id}	authenticated	membership	a
 DELETE	/channels/{channel_id}/jukebox/listening	authenticated	membership	deny	-	-
 DELETE	/channels/{channel_id}/jukebox/queue/{item_id}	authenticated	membership	deny	-	-
 DELETE	/channels/{channel_id}/jukebox/skip	authenticated	membership	deny	-	-
+DELETE	/channels/{channel_id}/listening-room	authenticated	membership	deny	-	-
 DELETE	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions	authenticated	membership	allow	-	-
 DELETE	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-	-
@@ -265,6 +266,7 @@ GET	/channels/{channel_id}/attachments/{upload_id}/parts	authenticated	membershi
 GET	/channels/{channel_id}/call	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/invites	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/jukebox	authenticated	membership	deny	-	-
+GET	/channels/{channel_id}/listening-room	authenticated	membership	deny	-	-
 GET	/channels/{channel_id}/messages	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/pins	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/search	authenticated	membership	allow	-	-
@@ -986,6 +988,7 @@ PUT	/channels/{channel_id}/jukebox	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/jukebox/dj	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/jukebox/listening	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/jukebox/playback	authenticated	membership	deny	-	-
+PUT	/channels/{channel_id}/listening-room	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/messages/{message_id}/bookmark	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me	authenticated	membership	allow	-	-
 PUT	/channels/{channel_id}/permissions/{overwrite_id}	authenticated	membership	allow	-	-

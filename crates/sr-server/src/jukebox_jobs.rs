@@ -548,6 +548,44 @@ pub async fn schedule(pool: &PgPool) -> DbResult<()> {
     Ok(())
 }
 
+/// A room's cursor as `LISTENING_ROOM_UPDATE` carries it, read now without storing anything (the page-load
+/// read of `GET /channels/{id}/listening-room`). `None` when the channel is not a room.
+pub async fn read_room(pool: &PgPool, channel: i64) -> Result<Option<Value>, sqlx::Error> {
+    let Some(r) = sqlx::query(
+        "SELECT guild_id, playlist_id, mode, item_id, position_ms, seq, \
+         (EXTRACT(EPOCH FROM (now() - cursor_at)) * 1000)::BIGINT AS elapsed_ms, \
+         (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT AS now_ms \
+         FROM listening_rooms WHERE channel_id = $1",
+    )
+    .bind(channel)
+    .fetch_optional(pool)
+    .await?
+    else {
+        return Ok(None);
+    };
+    let guild: i64 = r.try_get("guild_id")?;
+    let playlist: i64 = r.try_get("playlist_id")?;
+    let mode: String = r.try_get("mode")?;
+    let item: Option<i64> = r.try_get("item_id")?;
+    let position: i64 = r.try_get("position_ms")?;
+    let seq: i64 = r.try_get("seq")?;
+    let elapsed: i64 = r.try_get("elapsed_ms")?;
+    let now_ms: i64 = r.try_get("now_ms")?;
+    let lap = load_lap(pool, playlist, guild).await?;
+    // A stream room's cursor is frozen; a cursor room is advanced in memory by the time since it was stored.
+    let elapsed = if mode == "stream" { 0 } else { elapsed };
+    let pos = advance(&lap.slots, item, position, elapsed);
+    let seq = seq + i64::from(pos.as_ref().is_some_and(|p| p.changed));
+    Ok(Some(room_payload(
+        channel,
+        guild,
+        &mode,
+        seq,
+        now_ms,
+        pos.as_ref().map(|p| (p, &lap)),
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::cursor::Slot;

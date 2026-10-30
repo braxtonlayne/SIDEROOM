@@ -52,6 +52,8 @@ pub struct JukeboxDeps {
     pub access: Arc<dyn JukeboxAccess>,
     /// Gateway dispatch.
     pub events: Arc<dyn JukeboxEvents>,
+    /// The listening-room flag (`routes::voice::rooms`).
+    pub rooms: Arc<dyn sr_chat::jukebox::ports::ListeningRooms>,
 }
 
 /// The routes, relative to the API prefix.
@@ -254,7 +256,7 @@ fn row(raw: &str) -> MsgResult<i64> {
 }
 
 /// The caller's standing, or 404 (cannot see the channel or it has no jukebox) / 403 (may see it, not listen).
-async fn standing(j: &JukeboxDeps, user: i64, channel: i64) -> MsgResult<VoiceAccess> {
+pub(super) async fn standing(j: &JukeboxDeps, user: i64, channel: i64) -> MsgResult<VoiceAccess> {
     let a = j.access.access(user, channel).await.map_err(|e| {
         tracing::error!(error = %e, "jukebox channel access failed");
         MsgError::from(ErrorCode::SrInternal)

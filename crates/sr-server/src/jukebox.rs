@@ -189,3 +189,70 @@ impl JukeboxEvents for BusJukeboxEvents {
         }
     }
 }
+
+/// The listening-room flag over Postgres (`listening_rooms`, migration 1580). The cursor job
+/// (`jukebox_jobs`) advances the rows; this only creates, removes and reads them.
+pub struct PgListeningRooms {
+    pool: sqlx::PgPool,
+}
+
+impl PgListeningRooms {
+    /// Wrap a pool.
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+fn room_err(e: sqlx::Error) -> sr_chat::jukebox::ports::RoomError {
+    sr_chat::jukebox::ports::RoomError::Store(e.to_string())
+}
+
+#[async_trait]
+impl sr_chat::jukebox::ports::ListeningRooms for PgListeningRooms {
+    async fn enable(
+        &self,
+        channel: i64,
+        guild: i64,
+        playlist: i64,
+        by: i64,
+    ) -> Result<(), sr_chat::jukebox::ports::RoomError> {
+        // Only a playlist that belongs to this very server: a member's own list or another server's is
+        // "unknown", the same answer.
+        let r = sqlx::query(
+            "INSERT INTO listening_rooms (channel_id, guild_id, playlist_id, created_by) \
+             SELECT $1, $2, p.id, $4 FROM music_playlists p WHERE p.id = $3 AND p.owner_guild_id = $2 \
+             ON CONFLICT (channel_id) DO UPDATE SET playlist_id = EXCLUDED.playlist_id, item_id = NULL, \
+               position_ms = 0, cursor_at = now(), seq = listening_rooms.seq + 1, next_due_at = now(), \
+               last_published_at = NULL",
+        )
+        .bind(channel)
+        .bind(guild)
+        .bind(playlist)
+        .bind(by)
+        .execute(&self.pool)
+        .await
+        .map_err(room_err)?;
+        if r.rows_affected() == 0 {
+            return Err(sr_chat::jukebox::ports::RoomError::UnknownPlaylist);
+        }
+        Ok(())
+    }
+
+    async fn disable(&self, channel: i64) -> Result<bool, sr_chat::jukebox::ports::RoomError> {
+        let r = sqlx::query("DELETE FROM listening_rooms WHERE channel_id = $1")
+            .bind(channel)
+            .execute(&self.pool)
+            .await
+            .map_err(room_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn cursor(
+        &self,
+        channel: i64,
+    ) -> Result<Option<serde_json::Value>, sr_chat::jukebox::ports::RoomError> {
+        crate::jukebox_jobs::read_room(&self.pool, channel)
+            .await
+            .map_err(room_err)
+    }
+}

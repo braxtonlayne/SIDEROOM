@@ -531,6 +531,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             clock.clone(),
         )),
         events: Arc::new(crate::jukebox::BusJukeboxEvents::new(bus.clone())),
+        rooms: Arc::new(crate::jukebox::PgListeningRooms::new(pool.clone())),
     });
     // Browser uploads and object changes in a mount (BYOS-BRW-001): the ledger, the signed bucket calls, ids.
     let upload_io: Arc<dyn sr_storage::uploads::MountIo> = Arc::new(
