@@ -5435,6 +5435,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/messages/{message_id}/scrapbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** "Send to Scrapbook": archive one message by hand. */
+        put: operations["send"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/messages/{message_id}/threads": {
         parameters: {
             query?: never;
@@ -8326,6 +8343,147 @@ export interface paths {
         post?: never;
         /** Clear your interest. Emits `GUILD_SCHEDULED_EVENT_USER_REMOVE`. */
         delete: operations["clear_interested"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The gallery. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/removals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The copies that could not be removed from a bucket (managers). */
+        get: operations["removals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget a failed removal because the copy was deleted another way (managers). */
+        delete: operations["dismiss_removal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/removals/{removal_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Try a failed removal again now (managers). */
+        post: operations["retry_removal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The module in this server, for the viewer. */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose the shelf the module writes to. The caller delegates `upload` to the module's service account, so
+         *     they must hold it on that mount; the mount must be this server's own.
+         */
+        put: operations["set_target"];
+        post?: never;
+        /** Drop the shelf. Existing entries keep their copies; nothing new is archived until a shelf is chosen. */
+        delete: operations["clear_target"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an entry and its copies. */
+        delete: operations["remove_entry"];
+        options?: never;
+        head?: never;
+        /** Change an entry's tags. */
+        patch: operations["edit_entry"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/scrapbook/{entry_id}/objects/{object_id}/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A presigned `GET` of one copy, for the viewer only. */
+        post: operations["presign"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -19234,10 +19392,42 @@ export interface components {
             id: string;
             name: string;
         };
+        /** @description A member choice. */
+        FacetAuthor: {
+            /**
+             * Format: int64
+             * @description Entries.
+             */
+            count: number;
+            /** @description Member snowflake. */
+            id: string;
+            /** @description Name when archived. */
+            name: string;
+        };
+        /** @description A channel choice. */
+        FacetChannel: {
+            /**
+             * Format: int64
+             * @description Entries.
+             */
+            count: number;
+            /** @description Channel snowflake. */
+            id: string;
+        };
         FacetCount: {
             /** Format: int64 */
             count: number;
             name: string;
+        };
+        /** @description A tag choice. */
+        FacetTag: {
+            /**
+             * Format: int64
+             * @description Entries carrying it.
+             */
+            count: number;
+            /** @description The tag. */
+            tag: string;
         };
         Facets: {
             genres: components["schemas"]["FacetCount"][];
@@ -23722,6 +23912,52 @@ export interface components {
             /** @description ISO 8601 time, 5 seconds to a year from now. Give this or `in_seconds`. */
             remind_at?: string | null;
         };
+        /** @description The copies that could not be removed. */
+        RemovalList: {
+            /** @description Oldest first. */
+            removals: components["schemas"]["RemovalView"][];
+        };
+        /** @description A copy that could not be removed from a bucket. */
+        RemovalView: {
+            /**
+             * Format: int32
+             * @description Tries so far.
+             */
+            attempts: number;
+            /** @description Snowflake. */
+            id: string;
+            /** @description The copy's key in the shelf. */
+            key: string;
+            /** @description Why the last try failed. */
+            last_error: string;
+            /** @description The message it was made from. */
+            message_id?: string | null;
+            /** @description The shelf. */
+            mount_id: string;
+            /**
+             * Format: int64
+             * @description When the next try is due, unix ms.
+             */
+            next_attempt_at: number;
+            /**
+             * Format: int64
+             * @description When it was first queued, unix ms.
+             */
+            queued_at: number;
+        };
+        /** @description What removing an entry did. */
+        RemovedView: {
+            /**
+             * Format: int64
+             * @description Copies the bucket refused to delete; they are listed for the server's managers and retried.
+             */
+            copies_failed: number;
+            /**
+             * Format: int64
+             * @description Copies taken out of the bucket.
+             */
+            copies_removed: number;
+        };
         RenameAppEmojiBody: {
             name: string;
         };
@@ -23881,6 +24117,11 @@ export interface components {
         RetranscodeSkip: {
             asset_id: string;
             reason: string;
+        };
+        /** @description Outcome of "retry now". */
+        RetryView: {
+            /** @description The copy is gone now. */
+            removed: boolean;
         };
         /**
          * @description Where an application's Activity is in review.
@@ -24206,6 +24447,118 @@ export interface components {
              */
             score: number;
         };
+        /** @description One archived message. */
+        ScrapbookEntryView: {
+            /** @description Who sent it by hand; absent for a reaction. */
+            archived_by?: string | null;
+            /** @description Its author. */
+            author_id: string;
+            /** @description The author's name when it was archived. */
+            author_name: string;
+            /** @description The viewer may change tags and remove the entry. */
+            can_edit: boolean;
+            /** @description The channel the message was sent in. */
+            channel_id: string;
+            /** @description The message text. */
+            content: string;
+            /** @description Snowflake. */
+            id: string;
+            /** @description The message. */
+            message_id: string;
+            /** @description The copied files. */
+            objects: components["schemas"]["ScrapbookObjectView"][];
+            /**
+             * Format: int64
+             * @description When the message was sent, unix ms.
+             */
+            sent_at: number;
+            /**
+             * Format: int32
+             * @description Attachments that were not copied (too large or past the limit).
+             */
+            skipped: number;
+            /** @description Tags. */
+            tags: string[];
+            /** @description `reaction` or `manual`. */
+            via: string;
+        };
+        /** @description Filter choices. */
+        ScrapbookFacets: {
+            /** @description Members with the number of entries. */
+            authors: components["schemas"]["FacetAuthor"][];
+            /** @description Channels with the number of entries. */
+            channels: components["schemas"]["FacetChannel"][];
+            /** @description Tags with the number of entries. */
+            tags: components["schemas"]["FacetTag"][];
+        };
+        /** @description One copied file of an entry. */
+        ScrapbookObjectView: {
+            /** @description Content type, when known. */
+            content_type: string;
+            /** @description The file name the author gave it. */
+            filename: string;
+            /** @description Snowflake. */
+            id: string;
+            /** @description `image`, `video`, `audio` or `file`. */
+            kind: string;
+            /**
+             * @description The viewer's storage scopes reach this file now. `false` shows "not shared with you"; the text of the
+             *     entry is unaffected.
+             */
+            playable: boolean;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
+        };
+        /** @description A gallery page and the filter choices. */
+        ScrapbookPage: {
+            /** @description Entries, newest first. */
+            entries: components["schemas"]["ScrapbookEntryView"][];
+            facets?: null | components["schemas"]["ScrapbookFacets"];
+            /** @description Pass as `before` for the next page; absent on the last page. */
+            next_before?: string | null;
+        };
+        /** @description The module in this server, for this viewer. */
+        ScrapbookStatus: {
+            /** @description The viewer may choose the shelf and read the removal list. */
+            can_manage: boolean;
+            /** @description The viewer sees "Send to Scrapbook". */
+            can_send: boolean;
+            /** @description Trigger emoji. */
+            emojis: string[];
+            /** @description This server has it on. */
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description Copies that could not be removed from a bucket (managers; 0 for others).
+             */
+            failed_removals: number;
+            /** @description Channels where reactions do not archive (so the banner is not shown there). */
+            ignored_channels: string[];
+            /** @description The operator has made the module available (platform scope). When `false` everything else is empty. */
+            offered: boolean;
+            target?: null | components["schemas"]["ScrapbookTargetView"];
+            /**
+             * Format: int32
+             * @description Reactions needed.
+             */
+            threshold: number;
+        };
+        /** @description The shelf the module writes to. */
+        ScrapbookTargetView: {
+            /** @description The member who delegated `upload` to the module. */
+            granted_by: string;
+            /** @description Its label. */
+            label: string;
+            /** @description The mount. */
+            mount_id: string;
+            /** @description The module can write to it now. */
+            ok: boolean;
+            /** @description Why not, when `ok` is false. */
+            problem?: string | null;
+        };
         /** @description One stored note. */
         ScratchNoteObject: {
             /** @description The encrypted note, standard Base64. Opaque to the server. */
@@ -24271,6 +24624,11 @@ export interface components {
             pronouns?: string | null;
             theme_colors?: number[] | null;
             user: components["schemas"]["UserObject"];
+        };
+        /** @description Body of `PUT /channels/{id}/messages/{id}/scrapbook`. */
+        SendBody: {
+            /** @description Tags to start with. */
+            tags?: string[];
         };
         SendSoundBody: {
             /** @description A default sound (`1` to `8`) or a server sound. */
@@ -25408,6 +25766,11 @@ export interface components {
             moderated?: boolean;
             name: string;
         };
+        /** @description Body of `PATCH /guilds/{id}/scrapbook/{entry}`. */
+        TagsBody: {
+            /** @description The new tags (replaces the old ones). */
+            tags: string[];
+        };
         /** @description One content item of a notice. */
         TakedownItem: {
             /** Format: int64 */
@@ -25441,6 +25804,11 @@ export interface components {
         TakedownReasonBody: {
             /** @description Why. Required. */
             reason?: string | null;
+        };
+        /** @description Body of `PUT /guilds/{id}/scrapbook/target`. */
+        TargetBody: {
+            /** @description A mount of this server. */
+            mount_id: string;
         };
         /**
          * @description What a report or a case is about.
@@ -45140,6 +45508,67 @@ export interface operations {
             };
         };
     };
+    send: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookEntryView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description SCRAPBOOK_NO_SHELF, SCRAPBOOK_SHELF_REFUSED or SCRAPBOOK_COPY_FAILED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     start_from_message: {
         parameters: {
             query?: never;
@@ -54790,6 +55219,436 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Entries older than this entry id */
+                before?: string;
+                /** @description 1 to 50, default 24 */
+                limit?: number;
+                /** @description Only this channel */
+                channel_id?: string;
+                /** @description Only messages by this member */
+                author_id?: string;
+                /** @description Only this tag */
+                tag?: string;
+                /** @description Sent on or after this day, YYYY-MM-DD (UTC) */
+                from?: string;
+                /** @description Sent on or before this day, YYYY-MM-DD (UTC) */
+                to?: string;
+                /** @description Include the filter choices */
+                facets?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookPage"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    removals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss_removal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Removal snowflake */
+                removal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    retry_removal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Removal snowflake */
+                removal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookStatus"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_target: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TargetBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookTargetView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_target: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovedView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScrapbookEntryView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    presign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Entry snowflake */
+                entry_id: string;
+                /** @description Object snowflake */
+                object_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
