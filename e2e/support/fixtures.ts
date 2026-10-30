@@ -159,6 +159,9 @@ export interface Fixtures {
   scenario: { ownerAndMember: () => Promise<Scenario> };
 }
 
+/** The scenario member of this worker (see `ownerAndMember`). */
+let scenarioMember: Promise<SeededUser> | undefined;
+
 export const test = base.extend<Fixtures>({
   // eslint-disable-next-line no-empty-pattern
   owner: async ({}, use) => {
@@ -204,7 +207,13 @@ export const test = base.extend<Fixtures>({
           `/channels/${channel.id}/invites`,
           {},
         );
-        const b = await signedIn(await seedUser('member'));
+        // One member account per worker, reused by every scenario: each scenario still gets a new server, and
+        // registration allows only 20 accounts per address per day, which a full run would otherwise exhaust.
+        scenarioMember ??= seedUser('member').catch((e: unknown) => {
+          scenarioMember = undefined;
+          throw e;
+        });
+        const b = await signedIn(await scenarioMember);
         await apiPost(b.context.request, `/invites/${invite.code}`);
         return { a, b, guildId: guild.id, channelId: channel.id, guildName };
       },
