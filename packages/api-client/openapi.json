@@ -63829,6 +63829,45 @@
         ]
       }
     },
+    "/tools/fx": {
+      "get": {
+        "tags": [
+          "fx"
+        ],
+        "summary": "The cached ECB reference rates (EUR base). Any signed-in account or bot may read them.",
+        "operationId": "rates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxRatesObject"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/tv/channels": {
       "get": {
         "tags": [
@@ -83924,6 +83963,55 @@
           "submission_id": {
             "type": "string",
             "description": "A published submission of the request's section."
+          }
+        }
+      },
+      "FxRatesObject": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "base",
+          "stale",
+          "rates"
+        ],
+        "properties": {
+          "as_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ECB reference date, `YYYY-MM-DD`; absent until the first fetch succeeded."
+          },
+          "base": {
+            "type": "string",
+            "description": "The currency every rate is quoted against; always `EUR`."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "False when the instance switched the converter off (`tools.currency_rates`); nothing else is set then."
+          },
+          "fetched_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the server stored the rates, unix seconds; absent until the first fetch succeeded."
+          },
+          "rates": {
+            "type": "object",
+            "description": "Units of the currency per one euro, for example `{\"USD\": 1.0845}`.",
+            "additionalProperties": {
+              "type": "number",
+              "format": "double"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "True when there are no rates yet or the newest fetch is older than `tools.currency_stale_hours`. The\nclient still converts with the old rates and says so."
           }
         }
       },

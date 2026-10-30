@@ -904,6 +904,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"submissions_lookup_providers","method":"get","path":"/submissions/lookup/providers","status":200,"body":{"enabled":false,"providers":[{}]}},
   {"id":"submissions_naming_parse","method":"post","path":"/submissions/naming/parse","status":200,"body":{"items":[{}]}},
   {"id":"submissions_quota","method":"get","path":"/submissions/quota","status":200,"body":{"used_bytes":0}},
+  {"id":"rates","method":"get","path":"/tools/fx","status":200,"body":{"base":"string","enabled":false,"rates":{},"stale":false}},
   {"id":"tv_channels","method":"get","path":"/tv/channels","status":200,"body":{"items":[{}]}},
   {"id":"tv_channel","method":"get","path":"/tv/channels/:channel_id","status":200,"body":{"age_restricted":false,"enabled":false,"filler_policy":"bumpers","id":"1","kind":"rule_based","name":"string","number":0,"pool":{"kind":"instance"},"timezone":"string","viewers":0}},
   {"id":"tv_live_audio","method":"get","path":"/tv/channels/:channel_id/live/audio.m3u8","status":200,"body":null},
