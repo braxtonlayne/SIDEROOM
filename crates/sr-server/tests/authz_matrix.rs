@@ -4041,6 +4041,8 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/watch-parties") => r#"{"title_id":"{title_id}","channel_id":"{channel_id}"}"#,
         // MUS-IDX-001/MUS-LIB-001 (wave 30): the member's own mount and track; the guild's track for its playlist.
         ("POST", "/music/library/rescan") => r#"{"mount_id":"{mount_id}"}"#,
+        // A sampled `source` is neither `file` nor `edit`: a plain title edit by the mount's owner.
+        ("PATCH", "/music/tracks/{track_id}") => r#"{"title":"Authz edit"}"#,
         ("POST", "/users/@me/music/recent") => r#"{"track_id":"{track_id}"}"#,
         ("POST", "/music/playlists/{playlist_id}/items") => r#"{"track_ids":["{guild_track_id}"]}"#,
         ("PATCH", "/music/playlists/{playlist_id}/items/{item_id}") => r#"{"position":0}"#,
