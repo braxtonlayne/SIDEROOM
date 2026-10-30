@@ -165,13 +165,46 @@ impl<V: Clone> Pending<V> {
     }
 }
 
-/// Only same-origin relative paths may be used as a post-login destination.
+/// Only same-origin relative paths may be used as a post-login destination. The rule holds on the value as
+/// written and once percent-decoded (`/%2F%2Fevil.example` is refused), as `sr_server::web::safe_next` does.
 fn safe_next(next: &str) -> Option<String> {
-    let ok = next.starts_with('/')
-        && !next.starts_with("//")
-        && next.len() <= 512
-        && !next.contains(['\\', '\r', '\n']);
+    let ok = next_shape_ok(next.as_bytes())
+        && (!next.contains('%') || next_shape_ok(&percent_decode_once(next.as_bytes())));
     ok.then(|| next.to_owned())
+}
+
+/// One pass of [`safe_next`]'s rule over a value, raw or decoded.
+fn next_shape_ok(b: &[u8]) -> bool {
+    !b.is_empty()
+        && b.len() <= 512
+        && b[0] == b'/'
+        && !matches!(b.get(1), Some(b'/' | b'@'))
+        && !b.contains(&b'\\')
+        && !b.iter().any(|c| c.is_ascii_control())
+}
+
+/// Decode `%XX` escapes once; a `%` without two hex digits stays as it is.
+fn percent_decode_once(b: &[u8]) -> Vec<u8> {
+    let hex = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        match (
+            b[i],
+            b.get(i + 1).copied().and_then(hex),
+            b.get(i + 2).copied().and_then(hex),
+        ) {
+            (b'%', Some(hi), Some(lo)) => {
+                out.push((hi << 4) | lo);
+                i += 3;
+            }
+            (c, _, _) => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 /// `Set-Cookie` for one of the short-lived OAuth cookies (API-scoped).
@@ -604,6 +637,13 @@ mod tests {
         assert_eq!(safe_next("https://evil.example"), None);
         assert_eq!(safe_next("/\\evil"), None);
         assert_eq!(safe_next("/a\r\nSet-Cookie: x"), None);
+        // Once decoded, too (SEC-ENT-003).
+        assert_eq!(safe_next("/%2F%2Fevil.example"), None);
+        assert_eq!(safe_next("/%2f/evil.example"), None);
+        assert_eq!(safe_next("/%5Cevil"), None);
+        assert_eq!(safe_next("/%40evil"), None);
+        assert_eq!(safe_next("/a%0d%0aSet-Cookie: x"), None);
+        assert_eq!(safe_next("/search?q=%2F").as_deref(), Some("/search?q=%2F"));
     }
 
     #[test]
