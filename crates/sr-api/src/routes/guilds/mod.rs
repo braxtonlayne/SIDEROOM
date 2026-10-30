@@ -26,6 +26,7 @@ pub mod members;
 pub mod prune;
 pub mod roles;
 pub mod safety;
+pub mod scrapbook;
 pub mod util;
 pub mod vanity;
 
@@ -48,6 +49,7 @@ pub fn router() -> Router<AppState> {
         .merge(bans::routes())
         .merge(vanity::routes())
         .merge(safety::routes())
+        .merge(scrapbook::router())
 }
 
 /// OpenAPI fragment for these routes; merge it into [`crate::openapi::base`].
@@ -139,5 +141,7 @@ pub struct GuildsApiDoc;
 
 /// The OpenAPI document fragment for the guild endpoints.
 pub fn openapi() -> utoipa::openapi::OpenApi {
-    GuildsApiDoc::openapi()
+    let mut doc = GuildsApiDoc::openapi();
+    doc.merge(scrapbook::openapi());
+    doc
 }

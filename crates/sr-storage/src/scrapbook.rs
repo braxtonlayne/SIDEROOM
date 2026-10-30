@@ -733,6 +733,19 @@ impl Archiver {
         &self.store
     }
 
+    /// The server's target and whether the service account could write to it right now (nothing is written).
+    /// The refusal is `None` when the shelf is fine, or when there is no target.
+    pub async fn target_health(
+        &self,
+        guild: i64,
+    ) -> Result<(Option<Target>, Option<Refusal>), StoreError> {
+        let Some(target) = self.store.target(guild).await? else {
+            return Ok((None, None));
+        };
+        let refusal = self.buckets.writer(&target).await.err();
+        Ok((Some(target), refusal))
+    }
+
     /// Archive a message: copy its attachments into the server's shelf, then write the entry. Idempotent per
     /// message. If a copy fails, the copies already made are removed again (queued when the bucket refuses)
     /// and no entry is written.
