@@ -35,6 +35,7 @@ pub mod media_repo;
 pub mod member_invites;
 pub mod mount_uploads_repo;
 pub mod mounts_repo;
+pub mod music_repo;
 pub mod partitions;
 pub mod payments_repo;
 mod pool;
