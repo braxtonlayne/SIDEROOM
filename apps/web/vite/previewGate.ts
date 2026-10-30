@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { Plugin } from 'vite';
 import { isNavigation, isPublicFile, matchSurface, type SurfaceTable } from './publicDev';
 
@@ -10,13 +10,16 @@ import { isNavigation, isPublicFile, matchSurface, type SurfaceTable } from './p
  * a public surface's shell for its paths, the house notes template for `/house-notes`, and `app.html` for every
  * other navigation (ungated: the static suite proves the service worker, the CSP and axe on the public pages; the
  * gate itself is proven by web_gate.rs and entrance-isolation.spec.ts).
+ *
+ * It reads the build being previewed: `--outDir` on the command line wins over `distDir` (pwa-update.spec.ts previews
+ * copies of the build from a temporary folder).
  */
 export function previewGate(distDir = 'dist'): Plugin {
   return {
     name: 'sideroom-preview-gate',
     apply: 'serve',
     configurePreviewServer(server) {
-      const root = join(server.config.root, distDir);
+      const root = resolve(server.config.root, server.config.build.outDir || distDir);
       server.middlewares.use((req, _res, next) => {
         const url = req.url ?? '/';
         const pathname = url.split(/[?#]/)[0] ?? '/';

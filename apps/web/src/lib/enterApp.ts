@@ -13,15 +13,37 @@ const MAX_NEXT = 2048;
 
 /**
  * `next` is a destination the server wrote into `/login?next=`. Only a same-origin path is honoured: one
- * leading `/`, no `//`, no backslash, no control character, under 2 KB. It is the same rule the server
- * applies when it writes `next` (crates/sr-server web.rs); both are tested with the same cases.
+ * leading `/`, no `//`, no `/@`, no backslash, no control character, under 2 KB, for the value as written and
+ * once percent-decoded (so `/%2F%2Fevil.example` is refused too). It is the same rule the server applies when
+ * it writes `next` (crates/sr-server web.rs); both are tested with the same cases.
  */
 export function safeNext(next: string | undefined | null): string | null {
-  if (typeof next !== 'string' || next.length === 0 || next.length > MAX_NEXT) return null;
-  if (!next.startsWith('/') || next.startsWith('//')) return null;
-  // eslint-disable-next-line no-control-regex
-  if (/[\\\u0000-\u001f\u007f]/.test(next)) return null;
+  if (typeof next !== 'string' || !nextShapeOk(next)) return null;
+  if (next.includes('%') && !nextShapeOk(percentDecodeOnce(next))) return null;
   return next;
+}
+
+function nextShapeOk(next: string): boolean {
+  if (next.length === 0 || next.length > MAX_NEXT) return false;
+  if (!next.startsWith('/') || next.startsWith('//') || next.startsWith('/@')) return false;
+  // eslint-disable-next-line no-control-regex
+  return !/[\\\u0000-\u001f\u007f-\u009f]/.test(next);
+}
+
+/** One pass of `%XX` decoding; a `%` without two hex digits stays as it is (as in web.rs). */
+function percentDecodeOnce(s: string): string {
+  const raw = new TextEncoder().encode(s);
+  const out: number[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const hex = raw[i] === 0x25 ? String.fromCharCode(raw[i + 1] ?? 0, raw[i + 2] ?? 0) : '';
+    if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+      out.push(parseInt(hex, 16));
+      i += 2;
+    } else {
+      out.push(raw[i]!);
+    }
+  }
+  return new TextDecoder().decode(new Uint8Array(out));
 }
 
 /** Document navigations go through here so a test can observe them (jsdom cannot navigate). */

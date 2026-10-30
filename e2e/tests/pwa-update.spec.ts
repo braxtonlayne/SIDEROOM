@@ -149,6 +149,10 @@ async function serve(outDir: string): Promise<void> {
     [
       vite,
       'preview',
+      // The preview gate picks each public surface's shell (auth.html for /login, ...) the way the server does;
+      // plain `vite preview` would answer every path with index.html, the landing page.
+      '--config',
+      join(repo, 'e2e/vite.static.config.ts'),
       '--outDir',
       outDir,
       '--host',
@@ -243,11 +247,23 @@ async function readLedgerRow(
   );
 }
 
-/** The page has a worker that controls it. */
+/**
+ * The page has a worker that controls it. An app page here has no API behind it, so the app may leave for the
+ * sign-in page on its own (its 401 exit) while this runs; a check cut short by that navigation is run again on the
+ * page it landed on.
+ */
 async function controlled(page: Page): Promise<void> {
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
-  if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) await page.reload();
-  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.waitForLoadState('load');
+      await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+      if (!(await page.evaluate(() => !!navigator.serviceWorker.controller))) await page.reload();
+      await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+      return;
+    } catch (e) {
+      if (attempt >= 4 || !/context was destroyed|navigat/i.test(String(e))) throw e;
+    }
+  }
 }
 
 // Service worker timing is the risk: no retry in CI either, so a flake is seen (roadmap-p25 section 4, Risks).
@@ -373,25 +389,25 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
 
     // ---- 3. Deploy B: the new worker installs and waits; the page offers it.
     await serve(dirB);
-    const waiting = page.evaluate(
-      () =>
-        new Promise<string>((resolve) => {
-          void navigator.serviceWorker.getRegistration().then((reg) => {
-            if (!reg) return resolve('no registration');
-            const done = () => resolve(reg.waiting ? reg.waiting.state : 'none');
-            if (reg.waiting) return done();
-            reg.addEventListener('updatefound', () => {
-              const next = reg.installing;
-              next?.addEventListener('statechange', () => {
-                if (next.state === 'installed') done();
-              });
-            });
-            // The same check the app runs when the tab becomes visible again.
-            void reg.update();
-          });
-        }),
-    );
-    expect(await waiting).toBe('installed');
+    // Polled, not awaited on one event: the browser's own update check (it schedules one after a navigation) may
+    // already be installing B before a listener could be attached, and an update() racing B's server start rejects.
+    // Each poll reads the registration and, when nothing is installing yet, runs the same check the app runs when
+    // the tab becomes visible again.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (!reg) return 'no registration';
+            if (reg.waiting) return reg.waiting.state;
+            if (!reg.installing) await reg.update().catch(() => undefined);
+            // Read again: update() may have finished installing B while it was awaited.
+            const after = reg.waiting as ServiceWorker | null;
+            return after?.state ?? (reg.installing ? 'installing' : 'none');
+          }),
+        { timeout: 60_000, message: 'build B is installed and waiting' },
+      )
+      .toBe('installed');
     const banner = page.getByTestId('pwa-host');
     await expect(banner.getByText('A new version is ready')).toBeVisible();
     // The old release keeps running until the member accepts: A's caches are still there, signed-in one included.
@@ -473,6 +489,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
 
   test('sign-out: PURGE_APP deletes the signed-in caches and is answered, and the public ones stay', async ({
     page,
+    context,
   }) => {
     test.setTimeout(120_000);
     const buildA = buildId(dirA);
@@ -480,14 +497,23 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     await page.goto(`${ORIGIN}/login`);
     await controlled(page);
     await page.goto(`${ORIGIN}/channels`);
-    await expect.poll(() => appCaches(page)).toEqual([`sr-app-${buildA}`]);
+    await expect
+      .poll(() => appCaches(page).catch(() => ['(navigating)']))
+      .toEqual([`sr-app-${buildA}`]);
+    // Caches and the worker belong to the origin, not the page. With no API behind it the app page leaves for /login
+    // on its own, at a moment the drill cannot control (a goto then races it), so it is closed and the exchange runs
+    // on a fresh tab of the same context, on the public sign-in page, which stays put.
+    await page.close();
+    const tab = await context.newPage();
+    await tab.goto(`${ORIGIN}/login`);
+    await controlled(tab);
     // A cache from an older build, left behind, goes with it.
-    await page.evaluate(() =>
+    await tab.evaluate(() =>
       caches.open('sr-app-0ld').then((c) => c.put('/app/x.js', new Response('x'))),
     );
 
     // The same exchange src/pwa/purge.ts makes: a message with a reply port, then the reply.
-    const reply = await page.evaluate(
+    const reply = await tab.evaluate(
       () =>
         new Promise<string>((resolve) => {
           const ch = new MessageChannel();
@@ -496,6 +522,6 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
         }),
     );
     expect(reply).toBe('PURGED');
-    expect(await cacheNames(page)).toEqual([`sr-static-${buildA}`]);
+    expect(await cacheNames(tab)).toEqual([`sr-static-${buildA}`]);
   });
 });

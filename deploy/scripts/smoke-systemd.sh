@@ -9,6 +9,8 @@
 #   deploy/scripts/smoke-systemd.sh user-service   the static-binary install under a prefix, started as a user service
 #
 #   SMOKE_SERVER_BIN, SMOKE_CLI_BIN            the static binaries (the musl ones that ship in the server image)
+#   SMOKE_WEB_DIR                the built apps/web/dist (user-service). It goes to <prefix>/opt/sideroom/web, which the
+#                                unit names as SR_WEB__ROOT; the server refuses to start without its app/csp.txt (D-385)
 #   SMOKE_DATABASE_URL           an empty, reachable Postgres database for user-service, e.g.
 #                                postgres://sideroom:secret@127.0.0.1:5432/sideroom?sslmode=disable
 #   SMOKE_PREFIX                 where the tree is built (default $RUNNER_TEMP/sr-systemd/prefix); /etc/sideroom,
@@ -84,6 +86,8 @@ stage_user_service() {
   : "${SMOKE_SERVER_BIN:?set SMOKE_SERVER_BIN}"
   : "${SMOKE_CLI_BIN:?set SMOKE_CLI_BIN}"
   : "${SMOKE_DATABASE_URL:?set SMOKE_DATABASE_URL}"
+  : "${SMOKE_WEB_DIR:?set SMOKE_WEB_DIR (the built apps/web/dist)}"
+  [ -f "$SMOKE_WEB_DIR/app/csp.txt" ] || die "$SMOKE_WEB_DIR has no app/csp.txt: is it the built apps/web/dist?"
   need curl
   need openssl
   rm -rf "$prefix"
@@ -93,6 +97,10 @@ stage_user_service() {
   chmod 700 "$prefix/etc/sideroom" || true
   install -m 755 "$SMOKE_SERVER_BIN" "$prefix/opt/sideroom/bin/sr-server"
   install -m 755 "$SMOKE_CLI_BIN" "$prefix/opt/sideroom/bin/sr-cli"
+  log "the web build in /opt/sideroom/web (INSTALL.md, plain binary step 1): the unit sets SR_WEB__ROOT to it"
+  mkdir -p "$prefix/opt/sideroom/web"
+  cp -R "$SMOKE_WEB_DIR"/. "$prefix/opt/sideroom/web/"
+  chmod -R u+rwX,go+rX "$prefix/opt/sideroom/web"
 
   log "config.toml from the template in INSTALL.md section 4"
   config_template >"$prefix/etc/sideroom/config.toml"
@@ -185,6 +193,15 @@ stage_user_service() {
   log "healthz: $(curl --fail --silent "http://127.0.0.1:$port/healthz")"
   metrics=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$mport/internal/metrics" || true)
   echo "metrics listener on 127.0.0.1:$mport answers $metrics"
+  # The gate is on (D-385): without a session an app path is a 302 to the sign-in page and an app file an empty 401.
+  nav=$(curl --silent --output /dev/null --write-out '%{http_code} %{redirect_url}'     -H 'Accept: text/html' -H 'Sec-Fetch-Mode: navigate' "http://127.0.0.1:$port/channels" || true)
+  case $nav in
+    "302 "*"/login?next=/channels") log "gate: /channels without a session is $nav" ;;
+    *) die "gate: /channels without a session answered '$nav', expected a 302 to /login?next=/channels" ;;
+  esac
+  file=$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$port/app/assets/anything.js" || true)
+  [ "$file" = "401" ] || die "gate: /app/assets/anything.js without a session answered $file, expected 401"
+  log "gate: an app file without a session is 401"
   if [ "$proven" = "a systemd user service" ]; then
     [ "$(systemctl --user is-active sr-server.service)" = "active" ] || die "sr-server.service is not active"
     systemctl --user stop sr-server.service

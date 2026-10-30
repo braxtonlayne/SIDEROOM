@@ -584,9 +584,20 @@ fn plain(status: StatusCode) -> Response {
 }
 
 /// Whether the request is a browser navigation: `Sec-Fetch-Mode: navigate`, or an `Accept` that prefers HTML.
+///
+/// A page the service worker passes on (`fetch(event.request)`) is a navigation too, but the Fetch standard turns
+/// its mode into `same-origin`, which is what Firefox sends for it (Chromium and WebKit keep `navigate`). So
+/// `same-origin` with an HTML `Accept` counts, as does no `Sec-Fetch-Mode` at all; `cors` and `no-cors` never do.
+/// Without this, Firefox with the worker installed got the empty `401`/`404` of a non-navigation for `/board` and
+/// for signed-in app pages (`NS_ERROR_NET_EMPTY_RESPONSE` in the built-bundle e2e, wave 30b).
 pub fn is_navigation(headers: &HeaderMap) -> bool {
     if let Some(mode) = headers.get("sec-fetch-mode").and_then(|v| v.to_str().ok()) {
-        return mode.eq_ignore_ascii_case("navigate");
+        if mode.eq_ignore_ascii_case("navigate") {
+            return true;
+        }
+        if !mode.eq_ignore_ascii_case("same-origin") {
+            return false;
+        }
     }
     let accept = headers
         .get(header::ACCEPT)
@@ -598,23 +609,59 @@ pub fn is_navigation(headers: &HeaderMap) -> bool {
 
 /// The server's `next` rule (docs/dev/entrance-isolation.md section 3; `apps/web/src/lib/enterApp.ts` has the same
 /// rule in TypeScript and the same test cases): one leading `/`, no `//`, no backslash, no control character, no
-/// scheme, at most [`MAX_NEXT_LEN`] bytes. Anything else is `None` and the redirect carries no `next`.
+/// scheme, at most [`MAX_NEXT_LEN`] bytes. The rule holds for the value as written and once percent-decoded, so an
+/// encoded `//`, backslash or control character (`/%2F%2Fevil.example`, `/%5Cevil`, `/%0D%0A`) is refused too:
+/// whatever later decodes the path (a browser, a proxy, the app's router) never sees a host in it. Anything else is
+/// `None` and the redirect carries no `next`.
 pub fn safe_next(next: &str) -> Option<&str> {
-    let bytes = next.as_bytes();
-    if bytes.is_empty() || bytes.len() > MAX_NEXT_LEN || bytes[0] != b'/' {
+    if !next_shape_ok(next) {
         return None;
     }
-    if bytes.get(1) == Some(&b'/') || next.contains('\\') {
-        return None;
-    }
-    if next.chars().any(|c| c.is_control()) {
-        return None;
-    }
-    // A scheme can only start after the first `/`, but a `/` followed by `:` host tricks (`/\`, `/@`) are out.
-    if bytes.get(1) == Some(&b'@') {
+    if next.contains('%') && !next_shape_ok(&percent_decode_once(next)) {
         return None;
     }
     Some(next)
+}
+
+/// One pass of [`safe_next`]'s rule over a value, raw or decoded.
+fn next_shape_ok(next: &str) -> bool {
+    let bytes = next.as_bytes();
+    if bytes.is_empty() || bytes.len() > MAX_NEXT_LEN || bytes[0] != b'/' {
+        return false;
+    }
+    if bytes.get(1) == Some(&b'/') || next.contains('\\') {
+        return false;
+    }
+    if next.chars().any(|c| c.is_control()) {
+        return false;
+    }
+    // A scheme can only start after the first `/`, but a `/` followed by `:` host tricks (`/\`, `/@`) are out.
+    bytes.get(1) != Some(&b'@')
+}
+
+/// Decode `%XX` escapes once; a `%` without two hex digits stays as it is. Invalid UTF-8 becomes U+FFFD.
+fn percent_decode_once(s: &str) -> String {
+    let hex = |b: u8| (b as char).to_digit(16).map(|d| d as u8);
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let escape = match (bytes[i], bytes.get(i + 1), bytes.get(i + 2)) {
+            (b'%', Some(&h), Some(&l)) => hex(h).zip(hex(l)),
+            _ => None,
+        };
+        match escape {
+            Some((hi, lo)) => {
+                out.push((hi << 4) | lo);
+                i += 3;
+            }
+            None => {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Percent-encode `next` for use as the value of a query parameter; `/` stays readable.
@@ -834,7 +881,16 @@ mod tests {
 
     #[test]
     fn next_rule() {
-        for ok in ["/", "/channels", "/a/b?x=1&y=2", "/app"] {
+        for ok in [
+            "/",
+            "/channels",
+            "/a/b?x=1&y=2",
+            "/app",
+            "/invite/abc?x=%2F",
+            "/a%20b",
+            "/100%",
+            "/a%zz",
+        ] {
             assert_eq!(safe_next(ok), Some(ok), "{ok}");
         }
         for bad in [
@@ -848,6 +904,12 @@ mod tests {
             "/a\nb",
             "/a\u{7f}b",
             "/@evil",
+            "/%2F%2Fevil.example",
+            "/%2f%2fevil",
+            "/%5Cevil",
+            "/a%5cb",
+            "/%0D%0Aset-cookie:x",
+            "/%40evil",
         ] {
             assert_eq!(safe_next(bad), None, "{bad:?}");
         }
@@ -919,6 +981,13 @@ mod tests {
         assert!(is_navigation(&h));
         h.insert("sec-fetch-mode", HeaderValue::from_static("cors"));
         h.insert(header::ACCEPT, HeaderValue::from_static("text/html"));
+        assert!(!is_navigation(&h));
+        h.insert("sec-fetch-mode", HeaderValue::from_static("no-cors"));
+        assert!(!is_navigation(&h));
+        // A page the service worker passed on (Firefox): same-origin, HTML first.
+        h.insert("sec-fetch-mode", HeaderValue::from_static("same-origin"));
+        assert!(is_navigation(&h));
+        h.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
         assert!(!is_navigation(&h));
     }
 

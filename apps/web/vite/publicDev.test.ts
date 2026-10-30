@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  fillPlaceholders,
+  HOUSE_NOTES_HEADERS,
   isNavigation,
   isPublicFile,
   loginLocation,
   matchSurface,
   pathMatches,
+  renderDevHouseNotes,
   safeNext,
   type SurfaceTable,
 } from './publicDev';
+import { NO_SCRIPT_CSP } from '../src/security/csp';
 
 const table: SurfaceTable = {
   appShell: 'app.html',
@@ -69,6 +73,10 @@ describe('publicDev: next and navigation', () => {
     expect(safeNext('/a\nb')).toBeNull();
     expect(safeNext('/' + 'a'.repeat(3000))).toBeNull();
     expect(safeNext('channels')).toBeNull();
+    expect(safeNext('/%2F%2Fevil.example')).toBeNull();
+    expect(safeNext('/%5Cevil')).toBeNull();
+    expect(safeNext('/@evil')).toBeNull();
+    expect(safeNext('/invite/abc?x=%2F')).toBe('/invite/abc?x=%2F');
   });
 
   it('builds the login redirect', () => {
@@ -84,6 +92,33 @@ describe('publicDev: next and navigation', () => {
     expect(nav({ accept: 'text/html,application/xhtml+xml' })).toBe(true);
     expect(nav({ accept: '*/*' })).toBe(false);
     expect(nav({ accept: 'application/json' })).toBe(false);
+    expect(nav({ 'sec-fetch-mode': 'same-origin', accept: 'text/html' })).toBe(true);
+    expect(nav({ 'sec-fetch-mode': 'cors', accept: 'text/html' })).toBe(false);
     expect(nav({ 'sec-fetch-mode': 'navigate' }, 'POST')).toBe(false);
+  });
+});
+
+describe('publicDev: the house notes in dev (the server renders them in production, web.rs::legal)', () => {
+  it('fills the operator values in one pass, HTML-escaped, as web.rs::fill_placeholders does', () => {
+    const tpl = '<p>{{operator_country}} / {{operator_contact}} / {{other}}</p>';
+    expect(fillPlaceholders(tpl, 'DE', 'a@b.example')).toBe('<p>DE / a@b.example / {{other}}</p>');
+    expect(fillPlaceholders(tpl, '<script>', `"x" & 'y' {{operator_country}}`)).toBe(
+      '<p>&lt;script&gt; / &quot;x&quot; &amp; &#39;y&#39; {{operator_country}} / {{other}}</p>',
+    );
+  });
+
+  it('renders the plain-HTML page from the catalog, with no script, even when sr-server is unreachable', async () => {
+    const html = await renderDevHouseNotes(new URL('http://127.0.0.1:9'));
+    expect(html).toMatch(/<h1>/);
+    expect(html).toMatch(/id="notes-rules"/);
+    expect(html).not.toMatch(/<script\b/i);
+    expect(html).not.toContain('{{operator_');
+    expect(html).toMatch(/href="\/entrance\/legal-[0-9a-f]{8}\.css"/);
+  });
+
+  it("sends the no-script policy and the server's other headers", () => {
+    expect(HOUSE_NOTES_HEADERS['Content-Security-Policy']).toBe(NO_SCRIPT_CSP);
+    expect(HOUSE_NOTES_HEADERS['Content-Type']).toMatch(/^text\/html/);
+    expect(HOUSE_NOTES_HEADERS['X-Robots-Tag']).toBe('noindex, nofollow');
   });
 });

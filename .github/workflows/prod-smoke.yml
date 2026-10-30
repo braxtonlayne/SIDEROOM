@@ -169,7 +169,7 @@ jobs:
           retention-days: 3
 
   systemd:
-    needs: [image]
+    needs: [image, web]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -187,9 +187,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { name: smoke-server-image, path: "${{ runner.temp }}/in" }
-      - name: Take the static binaries out of the image
+      - uses: actions/download-artifact@v4
+        with: { name: smoke-web-dist, path: "${{ runner.temp }}/in" }
+      - name: Take the static binaries out of the image, unpack the web build
         run: |
           docker load -i "$RUNNER_TEMP/in/server-image.tar"
+          # The unit sets SR_WEB__ROOT=/opt/sideroom/web; the smoke installs this build there (D-385).
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/in/web-dist.tar.gz"
+          echo "SMOKE_WEB_DIR=$RUNNER_TEMP/dist" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/bin"
           id=$(docker create "$SMOKE_IMAGE")
           docker cp "$id:/usr/local/bin/sr-server" "$RUNNER_TEMP/bin/sr-server"
@@ -347,8 +352,15 @@ jobs:
         run: deploy/scripts/prod-smoke.sh wait
       - name: Sign-in and the seeded data after the rollback
         run: deploy/scripts/prod-smoke.sh upgrade-verify after-rollback
-      - name: Playwright entrance-smoke through Caddy (after the rollback)
-        run: pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke
+      # After the rollback the server and the Caddyfile are the previous release's, but the web bundle stays this
+      # checkout's (the drill is about the server, the database and the deploy files; see the upgrade-base comment).
+      # Since D-385 the path routing lives in that pairing (the gate's 302, one shell per surface), so neither this
+      # change's routing cases (/register, /board) nor the previous release's can hold on the mixed stack. The
+      # landing-page cases do; the routing is proven after the upgrade above and in the stack job.
+      - name: Playwright entrance-smoke through Caddy (after the rollback, the landing-page cases)
+        run: >-
+          pnpm --filter @sideroom/e2e exec playwright test --config playwright.prod-smoke.config.ts entrance-smoke
+          --grep "landing renders|unknown invite|closed door"
       - name: Container state and logs
         if: failure()
         run: deploy/scripts/prod-smoke.sh logs

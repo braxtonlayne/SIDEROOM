@@ -132,16 +132,20 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 | Path | What goes there |
 |---|---|
 | `/opt/sideroom/bin/sr-server`, `/opt/sideroom/bin/sr-cli` | the static musl binaries (take them out of the server image with `docker cp`, or build them), mode 0755 |
+| `/opt/sideroom/web` | the built `apps/web/dist` of the same release, readable by `sideroom`. The unit sets `SR_WEB__ROOT` to it and the server refuses to start when `app/csp.txt` is missing there (D-385, step 6 above); another path goes in `server.env` |
 | `/etc/sideroom/config.toml` | the template of section 4, edited for your host (folder mode 0700) |
 | `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below) |
 | `/var/lib/sideroom` | the server's state and search index (`StateDirectory=sideroom` creates it) |
 
-1. **Create the service user and copy the binaries:**
+1. **Create the service user and copy the binaries and the web build:**
 
    ```
    useradd --system --no-create-home --shell /usr/sbin/nologin sideroom
    install -d -m 755 /opt/sideroom/bin
    install -m 755 sr-server sr-cli /opt/sideroom/bin/
+   install -d -m 755 /opt/sideroom/web
+   cp -R dist/. /opt/sideroom/web/   # the release's built apps/web/dist
+   test -f /opt/sideroom/web/app/csp.txt
    install -d -m 700 /etc/sideroom
    ```
 

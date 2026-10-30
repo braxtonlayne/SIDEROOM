@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // SEC-ENT-001 (D-385, entrance-isolation.md section 7): renders the house notes as plain HTML, with no script.
 //
 //   dist/legal/house-notes.<locale>.html   one template per locale, served by sr-server (web.rs::legal)
@@ -42,10 +41,13 @@ export function loadCatalog() {
   return cat;
 }
 
-const CSS = `/* House notes (plain HTML, no script): token custom properties only. */
+export const CSS = `/* House notes (plain HTML, no script): token custom properties only. */
 :root{--bg:#111110;--bg-1:#161613;--line:#2a2b24;--text:#ece6d6;--text-2:#a9a493;--gold:#c8a96a;color-scheme:dark}
+@font-face{font-family:"Hanken Grotesk";src:url(/fonts/hanken-grotesk-variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:Newsreader;src:url(/fonts/newsreader-variable.woff2) format("woff2");font-weight:200 800;font-display:swap}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 Newsreader,Georgia,serif}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 "Hanken Grotesk",system-ui,sans-serif}
+h1,h2{font-family:Newsreader,Georgia,serif}
 main{max-width:46rem;margin:0 auto;padding:48px 24px 80px}
 h1{font-weight:400;font-size:2.4rem;margin:0 0 .6em}
 h2{font-weight:400;font-size:1.5rem;margin:2em 0 .4em;border-top:1px solid var(--line);padding-top:1em}
@@ -115,10 +117,14 @@ ${[1, 2, 3, 4, 5].map((n) => `<li>${h(`entrance.houseNotes.rules.${n}`)}</li>`).
 `;
 }
 
+/** The stylesheet's file name under /entrance/ (content-hashed). vite/publicDev.ts serves the same name in dev. */
+export function cssFileName() {
+  return `legal-${createHash('sha256').update(CSS).digest('hex').slice(0, 8)}.css`;
+}
+
 function main() {
   const cat = loadCatalog();
-  const hash = createHash('sha256').update(CSS).digest('hex').slice(0, 8);
-  const cssName = `legal-${hash}.css`;
+  const cssName = cssFileName();
   mkdirSync(join(dist, 'entrance'), { recursive: true });
   mkdirSync(join(dist, 'legal'), { recursive: true });
   writeFileSync(join(dist, 'entrance', cssName), CSS);

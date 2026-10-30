@@ -5,6 +5,10 @@ describe('safeNext (the server applies the same rule, crates/sr-server web.rs)',
     ['/channels/1/2', '/channels/1/2'],
     ['/invite/abc?x=1', '/invite/abc?x=1'],
     ['/', '/'],
+    ['/invite/abc?x=%2F', '/invite/abc?x=%2F'],
+    ['/a%20b', '/a%20b'],
+    ['/100%', '/100%'],
+    ['/a%zz', '/a%zz'],
   ])('keeps %s', (input, out) => expect(safeNext(input)).toBe(out));
 
   it.each([
@@ -18,6 +22,14 @@ describe('safeNext (the server applies the same rule, crates/sr-server web.rs)',
     ['relative/path'],
     [''],
     ['/' + 'a'.repeat(2048)],
+    ['/@evil'],
+    ['/ab'],
+    ['/%2F%2Fevil.example'],
+    ['/%2f%2fevil'],
+    ['/%5Cevil'],
+    ['/a%5cb'],
+    ['/%0D%0Aset-cookie:x'],
+    ['/%40evil'],
   ])('refuses %j', (input) => expect(safeNext(input)).toBeNull());
 
   it('refuses a missing value', () => {
