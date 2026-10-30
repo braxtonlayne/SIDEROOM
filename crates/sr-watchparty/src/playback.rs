@@ -4,9 +4,10 @@ use serde_json::json;
 use sqlx::PgConnection;
 
 use crate::error::{PartyError, PartyResult};
+use crate::external::{self, ExternalMedia};
 use crate::model::{
-    Action, ChangeMediaInput, CommandInput, PartyView, PlaybackView, QueueAddInput, QueueMoveInput,
-    Viewer,
+    Action, ChangeMediaInput, CommandInput, MediaKind, PartyView, PlaybackView, QueueAddInput,
+    QueueMoveInput, Viewer,
 };
 use crate::ports::Resolved;
 use crate::rules::{self, BufferDecision, BufferReport};
@@ -127,15 +128,41 @@ impl PartyService {
         input: ChangeMediaInput,
     ) -> PartyResult<PartyView> {
         self.limit(v.user_id, "command", 5_000, 12)?;
-        let media = self
-            .resolve_media(
-                v,
-                input.title_id,
-                input.tv_channel_id,
-                input.episode_id,
-                input.variant_id,
-            )
-            .await?;
+        let ext = input.external.as_ref().map(external::resolve).transpose()?;
+        let media = match &ext {
+            Some(_)
+                if input.title_id > 0
+                    || input.tv_channel_id.is_some()
+                    || input.episode_id.is_some()
+                    || input.variant_id.is_some() =>
+            {
+                return Err(PartyError::Invalid(
+                    "Give a Cinema title, a Live TV channel or an external link, not several."
+                        .to_owned(),
+                ));
+            }
+            Some(e) => Resolved {
+                title_id: 0,
+                episode_id: 0,
+                variant_id: None,
+                asset_id: 0,
+                title: e.title.clone(),
+                episode_label: None,
+                duration_ms: None,
+                age_restricted: false,
+                live: false,
+            },
+            None => {
+                self.resolve_media(
+                    v,
+                    input.title_id,
+                    input.tv_channel_id,
+                    input.episode_id,
+                    input.variant_id,
+                )
+                .await?
+            }
+        };
         let start = clamp_start(input.start_ms, media.duration_ms, media.live)?;
         let mut tx = self.begin().await?;
         let mut notices = Vec::new();
@@ -153,6 +180,7 @@ impl PartyService {
             &mut tx,
             &mut row,
             &media,
+            ext.as_ref(),
             start,
             false,
             Some(v.user_id),
@@ -172,6 +200,7 @@ impl PartyService {
         c: &mut PgConnection,
         row: &mut PartyRow,
         media: &Resolved,
+        ext: Option<&ExternalMedia>,
         start_ms: i64,
         autoplay: bool,
         actor: Option<i64>,
@@ -183,18 +212,23 @@ impl PartyService {
         state.playing = media.live || autoplay;
         sqlx::query(
             "UPDATE watch_parties SET title_id = $2, episode_id = $3, variant_id = $4, asset_id = $5, \
-             title_name = $6, episode_label = $7, duration_ms = $8, age_restricted = $9, live = $10 WHERE id = $1",
+             title_name = $6, episode_label = $7, duration_ms = $8, age_restricted = $9, live = $10, \
+             media_kind = $11, media_url = $12, media_provider = $13 WHERE id = $1",
         )
         .bind(row.id)
-        .bind(media.title_id)
+        // External media carries no catalog ids (the columns are NULL, the view reads 0).
+        .bind(ext.is_none().then_some(media.title_id))
         .bind(media.episode_id)
         .bind(media.variant_id)
-        .bind(media.asset_id)
+        .bind(ext.is_none().then_some(media.asset_id))
         .bind(&media.title)
         .bind(&media.episode_label)
         .bind(media.duration_ms)
         .bind(media.age_restricted)
         .bind(media.live)
+        .bind(ext.map_or(MediaKind::Cinema, |e| e.kind).as_str())
+        .bind(ext.map(|e| e.url.as_str()))
+        .bind(ext.map(|e| e.provider.as_str()))
         .execute(&mut *c)
         .await?;
         store::save_playback(c, row.id, &state, None, now).await?;
@@ -213,6 +247,9 @@ impl PartyService {
         row.duration_ms = media.duration_ms;
         row.age_restricted = media.age_restricted;
         row.live = media.live;
+        row.media_kind = ext.map_or(MediaKind::Cinema, |e| e.kind);
+        row.media_url = ext.map(|e| e.url.clone());
+        row.media_provider = ext.map(|e| e.provider.clone());
         row.set_playback(&state, None);
         self.audit(
             c,
@@ -220,7 +257,9 @@ impl PartyService {
             actor,
             "media_changed",
             None,
-            json!({"title_id": media.title_id.to_string(), "episode_id": media.episode_id.to_string()}),
+            json!({"title_id": media.title_id.to_string(), "episode_id": media.episode_id.to_string(),
+                   "kind": ext.map_or(MediaKind::Cinema, |e| e.kind).as_str(),
+                   "provider": ext.map(|e| e.provider.clone())}),
         )
         .await?;
         if media.age_restricted {
@@ -452,7 +491,7 @@ impl PartyService {
             let Ok(media) = resolved else {
                 continue;
             };
-            self.apply_media(c, row, &media, 0, autoplay, actor, notices)
+            self.apply_media(c, row, &media, None, 0, autoplay, actor, notices)
                 .await?;
             notices.push(Notice::Updated {
                 party: row.id,

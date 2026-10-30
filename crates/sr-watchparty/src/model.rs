@@ -93,6 +93,57 @@ pub struct MediaView {
     pub duration_ms: Option<i64>,
     pub age_restricted: bool,
     pub live: bool,
+    /// `cinema` (the ids above), `embed` (a provider's privacy-enhanced iframe) or `direct` (a media file in
+    /// the browser's own player). The last two carry `url` and no catalog ids (they read "0").
+    #[serde(default)]
+    pub kind: MediaKind,
+    /// The embed address or the file, for `embed` and `direct`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// `youtube`, `vimeo` or `direct`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+}
+
+/// Where a party's media comes from (migration 1700).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = WatchPartyMediaKind)]
+pub enum MediaKind {
+    #[default]
+    Cinema,
+    Embed,
+    Direct,
+}
+
+impl MediaKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Cinema => "cinema",
+            Self::Embed => "embed",
+            Self::Direct => "direct",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "cinema" => Self::Cinema,
+            "embed" => Self::Embed,
+            "direct" => Self::Direct,
+            _ => return None,
+        })
+    }
+}
+
+/// Media outside the Cinema catalog: a link to YouTube or Vimeo (played in the provider's privacy-enhanced
+/// iframe) or to a media file (played natively). Give it instead of `title_id` / `tv_channel_id`.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = WatchPartyExternalMedia)]
+pub struct ExternalInput {
+    /// An https link. The server does not fetch it; members' browsers load it after a click.
+    pub url: String,
+    /// What to call it in the party card (default: the provider or the host).
+    pub title: Option<String>,
 }
 
 /// A person in the party.
@@ -282,6 +333,9 @@ pub struct CreateInput {
     /// Where to start, in milliseconds (default 0).
     pub start_ms: Option<i64>,
     pub settings: Option<SettingsInput>,
+    /// A YouTube or Vimeo link, or a media file, instead of a Cinema title (PRF-UNF-001).
+    #[serde(default)]
+    pub external: Option<ExternalInput>,
 }
 
 /// Optional settings (on create and `PATCH`).
@@ -349,6 +403,9 @@ pub struct ChangeMediaInput {
     #[schema(value_type = Option<String>)]
     pub variant_id: Option<i64>,
     pub start_ms: Option<i64>,
+    /// A YouTube or Vimeo link, or a media file, instead of a Cinema title (PRF-UNF-001).
+    #[serde(default)]
+    pub external: Option<ExternalInput>,
 }
 
 /// Body of `POST /watch-parties/{id}/queue`.

@@ -206,6 +206,8 @@ pub fn router() -> Router<AppState> {
         sr_watchparty::model::ControlMode,
         sr_watchparty::model::SettingsView,
         sr_watchparty::model::Binding,
+        sr_watchparty::model::MediaKind,
+        sr_watchparty::model::ExternalInput,
         sr_watchparty::model::PartyView,
         sr_watchparty::model::YouView,
         sr_watchparty::model::CreateInput,

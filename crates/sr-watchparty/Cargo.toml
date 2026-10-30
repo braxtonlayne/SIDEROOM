@@ -13,9 +13,11 @@ sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio",
 sr-core = { path = "../sr-core", default-features = false }
 sr-db = { path = "../sr-db" }
 sr-events = { path = "../sr-events" }
+sr-unfurl = { path = "../sr-unfurl" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 tracing = "0.1"
+url = "2.5.8"
 utoipa = "5"
 
 [dev-dependencies]

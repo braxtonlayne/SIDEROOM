@@ -233,6 +233,7 @@ async fn parties_run_on_the_real_catalog_and_chat_data() {
             clock.clone(),
         )));
     let create = |title: i64, channel: Option<i64>| CreateInput {
+        external: None,
         empty: false,
         title_id: title,
         tv_channel_id: None,
@@ -388,6 +389,7 @@ async fn rig(n: usize, limits: Option<Arc<dyn sr_watchparty::GuildLimits>>) -> R
 
 fn create(title: i64, channel: i64, persistent: bool) -> CreateInput {
     CreateInput {
+        external: None,
         empty: false,
         title_id: title,
         tv_channel_id: None,

@@ -8,6 +8,8 @@ import {
   buildCsp,
   cspOptionsFromConfig,
   PERMISSIONS_POLICY,
+  EMBED_FRAME_ORIGINS,
+  parsePeertubeHosts,
   renderCaddyfile,
   securityHeaders,
 } from './csp';
@@ -99,10 +101,61 @@ describe('CSP', () => {
       "connect-src 'self' wss://voice.example.org",
     );
     expect(buildCsp({ extraFrame: ['https://*.activities.example.org'] })).toContain(
-      "frame-src 'self' https://*.activities.example.org",
+      "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.activities.example.org",
     );
     expect(buildCsp({ dev: true })).toContain("'unsafe-inline'");
     expect(buildCsp()).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+  });
+
+  describe('privacy-enhanced embeds and direct media (PRF-UNF-001)', () => {
+    const directive = (csp: string, name: string) =>
+      csp
+        .split('; ')
+        .find((d) => d.startsWith(`${name} `))
+        ?.split(' ')
+        .slice(1);
+
+    it('frames exactly the two provider embed hosts, and nothing else by default', () => {
+      expect(directive(buildCsp(), 'frame-src')).toEqual([
+        "'self'",
+        'https://www.youtube-nocookie.com',
+        'https://player.vimeo.com',
+      ]);
+      expect([...EMBED_FRAME_ORIGINS]).toEqual([
+        'https://www.youtube-nocookie.com',
+        'https://player.vimeo.com',
+      ]);
+      // Not the tracking-enabled hosts.
+      expect(buildCsp()).not.toMatch(/https:\/\/(www\.)?youtube\.com|https:\/\/vimeo\.com/);
+    });
+
+    it('allows https media for the native player and no other new origin', () => {
+      expect(directive(buildCsp(), 'media-src')).toEqual(["'self'", 'blob:', 'https:']);
+      expect(directive(buildCsp(), 'img-src')).toEqual(["'self'", 'data:', 'blob:']);
+      expect(directive(buildCsp(), 'connect-src')).toEqual(["'self'"]);
+      expect(directive(buildCsp(), 'script-src')).toEqual(["'self'", "'wasm-unsafe-eval'"]);
+    });
+
+    it('never reaches the public or the no-script policy (D-385)', () => {
+      for (const csp of [PUBLIC_CSP, NO_SCRIPT_CSP]) {
+        expect(csp).not.toMatch(/youtube|vimeo|media-src|frame-src/);
+      }
+    });
+
+    it('PeerTube instances are framed only when the operator names them', () => {
+      expect(parsePeertubeHosts(' Tube.Example.org , https://a.example:443/ ,bad host,localhost')).toEqual([
+        'tube.example.org',
+        'a.example',
+      ]);
+      const none = cspOptionsFromConfig({ publicUrl: 'https://chat.example.org' });
+      expect(directive(buildCsp(none), 'frame-src')).not.toContain('https://tube.example.org');
+      const some = cspOptionsFromConfig({
+        publicUrl: 'https://chat.example.org',
+        peertubeHosts: 'tube.example.org',
+      });
+      expect(directive(buildCsp(some), 'frame-src')).toContain('https://tube.example.org');
+      expect(directive(buildCsp(some), 'connect-src')).toEqual(["'self'"]);
+    });
   });
 
   it('dev headers are report-only so they can never break a flow; HSTS only on request', () => {
@@ -126,7 +179,9 @@ describe('CSP', () => {
 
     it('activities on lists the wildcard activities host in frame-src only', () => {
       const csp = buildCsp(cspOptionsFromConfig({ publicUrl: site, activitiesEnabled: true }));
-      expect(csp).toContain("frame-src 'self' https://*.activities.chat.example.org;");
+      expect(csp).toContain(
+        "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.activities.chat.example.org;",
+      );
       expect(csp).toContain("connect-src 'self';");
     });
 

@@ -100,6 +100,7 @@ pub fn validate_embeds(embeds: &mut [Embed]) -> ChatResult<usize> {
         e.kind = Some("rich".into());
         e.provider = None;
         e.sr_spoiler = false;
+        e.sr_play = None;
         e.video = None;
         for text in [&mut e.title, &mut e.description] {
             if text.as_deref().is_some_and(str::is_empty) {
@@ -240,6 +241,7 @@ mod tests {
             provider: Some(EmbedProvider::default()),
             video: Some(EmbedMedia::default()),
             sr_spoiler: true,
+            sr_play: Some(crate::message::EmbedPlay::default()),
             title: Some("hello".into()),
             description: Some(String::new()),
             timestamp: Some("2026-01-02T03:04:05.678Z".into()),
@@ -254,7 +256,7 @@ mod tests {
         assert_eq!(validate_embeds(&mut v).unwrap(), 5);
         assert_eq!(v[0].kind.as_deref(), Some("rich"));
         assert!(v[0].provider.is_none() && v[0].video.is_none());
-        assert!(!v[0].sr_spoiler);
+        assert!(!v[0].sr_spoiler && v[0].sr_play.is_none());
         assert!(v[0].description.is_none());
         assert!(!v[0].is_unfurled());
     }
