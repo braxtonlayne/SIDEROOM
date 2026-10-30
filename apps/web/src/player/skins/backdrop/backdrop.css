@@ -1,0 +1,100 @@
+/*
+ * MUS-SKN-001: what every backdrop skin shares. Tokens and logical properties only (check-css-tokens covers
+ * this directory). Each skin's own file builds its palette from the `--ui-*` tokens with color-mix.
+ */
+.sr-ply-bd {
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  max-inline-size: calc(100vw - 1rem);
+  max-block-size: calc(100vh - 1rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.sr-ply-bd *,
+.sr-ply-bd *::before,
+.sr-ply-bd *::after {
+  box-sizing: border-box;
+}
+/* Artwork is painted: no hit area, no focus, no selection. */
+.sr-ply-bd-art {
+  pointer-events: none;
+  user-select: none;
+}
+.sr-ply-bd-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.sr-ply-bd svg {
+  display: block;
+}
+.sr-ply-bd button:disabled,
+.sr-ply-bd input:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* Visually hidden, still read (headings and labels the artwork already shows in its own way). */
+.sr-ply-bd-sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Spectrum bars: each bar's height is its band (`--v`, 0..1) ---- */
+.sr-ply-bd-spectrum {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  block-size: 100%;
+  min-inline-size: 0;
+}
+.sr-ply-bd-spectrum > span {
+  flex: 1 1 0;
+  min-inline-size: 1px;
+  block-size: 100%;
+  transform-origin: 50% 100%;
+  transform: scaleY(max(0.04, var(--v, 0)));
+  background: var(--bd-bar, var(--ui-accent));
+  border-radius: 1px 1px 0 0;
+  transition: transform 90ms linear;
+}
+
+/* ---- LED meter: segment i lights when the level passes i / n ---- */
+.sr-ply-bd-leds {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.sr-ply-bd-leds > span {
+  flex: 1 1 0;
+  min-inline-size: 2px;
+  border-radius: 1px;
+  background: var(--bd-led-cool, var(--ui-success));
+  opacity: clamp(0.18, calc((var(--src, 0) * var(--n, 14) - var(--i, 0)) * 3), 1);
+  transition: opacity 80ms linear;
+}
+.sr-ply-bd-leds > span[data-zone='warm'] {
+  background: var(--bd-led-warm, var(--ui-warning));
+}
+.sr-ply-bd-leds > span[data-zone='hot'] {
+  background: var(--bd-led-hot, var(--ui-danger));
+}
+
+/* Reduced motion: whatever a skin animates stands still. The frame also drops `data-motion` to off. */
+@media (prefers-reduced-motion: reduce) {
+  .sr-ply-bd *,
+  .sr-ply-bd *::before,
+  .sr-ply-bd *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

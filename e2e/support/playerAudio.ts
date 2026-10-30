@@ -91,7 +91,20 @@ export const currentTime = (page: Page) =>
 export const isPaused = (page: Page) =>
   page.evaluate(() => (window as unknown as { __srPlayer: Handle }).__srPlayer.audio.paused);
 
-export async function setSkin(page: Page, skin: 'retro' | 'pill' | 'library'): Promise<void> {
+/** Every skin the player has (MUS-PLY-001's three, then MUS-SKN-001's backdrop skins). */
+export const ALL_SKINS = [
+  'retro',
+  'pill',
+  'library',
+  'valve',
+  'tidepool',
+  'circuit',
+  'study',
+  'stack',
+] as const;
+export type SkinId = (typeof ALL_SKINS)[number];
+
+export async function setSkin(page: Page, skin: SkinId): Promise<void> {
   await page.evaluate(
     (s) =>
       (

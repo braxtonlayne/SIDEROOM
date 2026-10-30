@@ -23,6 +23,8 @@ export interface TrackDto {
   cover_url?: string | null;
   /** `GET /music/library` only: the caller may write this track's tags (MUS-IDX-001). */
   can_edit?: boolean;
+  /** The file's container (`mp3`, `flac`, ...); `GET /music/library` sends it (MUS-SKN-001 format readouts). */
+  container?: string | null;
 }
 
 export interface LibraryTrack extends QueueTrack {
@@ -31,6 +33,8 @@ export interface LibraryTrack extends QueueTrack {
   coverUrl?: string;
   /** The caller may write tags on this track's mount (library listing only). */
   canEdit?: boolean;
+  /** The file's container, when the server said (MUS-SKN-001). */
+  container?: string;
 }
 
 export function fromDto(d: TrackDto): LibraryTrack {
@@ -49,6 +53,7 @@ export function fromDto(d: TrackDto): LibraryTrack {
     ...(d.duration_ms ? { durationMs: d.duration_ms } : {}),
     ...(d.cover_url ? { coverUrl: d.cover_url } : {}),
     ...(d.can_edit ? { canEdit: true } : {}),
+    ...(d.container ? { container: d.container } : {}),
   };
 }
 
@@ -63,6 +68,7 @@ export interface PortTrack {
   artworkUrl?: string;
   durationSec?: number;
   resolveSrc?: (track: PortTrack) => Promise<string>;
+  format?: string;
 }
 
 /**
@@ -81,6 +87,7 @@ export function toPortTrack(
     src: '',
     ...(t.coverUrl ? { artworkUrl: t.coverUrl } : {}),
     ...(t.durationMs ? { durationSec: t.durationMs / 1000 } : {}),
+    ...(t.container ? { format: t.container } : {}),
     resolveSrc: () => presign(t.id),
   };
 }

@@ -1,0 +1,451 @@
+/*
+ * MUS-SKN-001 "Pastel Study Deck". Drawn on the Lounge Light tokens: pastels are each status token mixed far
+ * into the light surface; text stays --ui-text. Tokens and logical properties only.
+ */
+.sr-ply-study {
+  --st-cream: color-mix(in oklab, var(--ui-warning) 8%, var(--ui-bg));
+  --st-cream-lo: color-mix(in oklab, var(--ui-warning) 16%, var(--ui-bg));
+  --st-pink: color-mix(in oklab, var(--ui-danger) 24%, var(--ui-bg));
+  --st-pink-lo: color-mix(in oklab, var(--ui-danger) 40%, var(--ui-bg));
+  --st-sage: color-mix(in oklab, var(--ui-success) 24%, var(--ui-bg));
+  --st-sage-lo: color-mix(in oklab, var(--ui-success) 42%, var(--ui-bg));
+  --st-lilac: color-mix(in oklab, var(--ui-accent) 26%, var(--ui-bg));
+  --st-lilac-lo: color-mix(in oklab, var(--ui-accent) 45%, var(--ui-bg));
+  --st-peach: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--ui-warning) 60%, var(--ui-danger)) 28%,
+    var(--ui-bg)
+  );
+  --st-sky: color-mix(in oklab, var(--ui-info) 22%, var(--ui-bg));
+  --st-ink: var(--ui-text);
+  --st-line: color-mix(in oklab, var(--ui-text) 22%, var(--ui-bg));
+  --bd-led-cool: var(--st-sage-lo);
+  --bd-led-warm: var(--st-lilac-lo);
+  --bd-led-hot: var(--st-pink-lo);
+
+  container-type: inline-size;
+  inline-size: min(46rem, calc(100vw - 1rem));
+  padding: 0.625rem;
+  color: var(--st-ink);
+  background: var(--st-cream);
+  border: 3px solid var(--st-pink);
+  border-radius: 22px;
+  box-shadow:
+    0 4px 0 var(--st-pink-lo),
+    var(--ui-shadow-overlay);
+  font-family: 'Hanken Grotesk', var(--ui-font-body);
+}
+.st-dots {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--st-pink) 1px, transparent 1.5px) 0 0 / 14px 14px;
+  opacity: 0.6;
+}
+.st-cloud {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 30%;
+  inline-size: 3rem;
+  block-size: 1.25rem;
+  border-radius: 999px;
+  background: var(--ui-bg);
+  box-shadow:
+    0.75rem -0.5rem 0 -0.125rem var(--ui-bg),
+    1.5rem 0 0 -0.25rem var(--ui-bg);
+}
+.sr-ply-study[data-motion='on'] .st-cloud {
+  animation: st-float 7s ease-in-out infinite alternate;
+}
+@keyframes st-float {
+  to {
+    transform: translateX(-1.5rem);
+  }
+}
+
+/* ---- Title strip ---- */
+.st-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem;
+  margin-block-end: 0.5rem;
+  background: var(--st-pink);
+  border: 2px dashed var(--st-pink-lo);
+  border-radius: 14px;
+}
+.st-leaf {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  border-radius: 0 70% 0 70%;
+  background: var(--st-sage-lo);
+}
+.st-title-text {
+  flex: 1 1 auto;
+  font-weight: 800;
+  font-size: 0.9375rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-win {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.st-dot {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 50%;
+  border: 2px solid var(--ui-bg);
+  color: var(--st-ink) !important;
+  font-size: 0.875rem;
+}
+.st-dot-a {
+  background: var(--st-lilac);
+}
+.st-dot-b {
+  background: var(--st-cream-lo);
+}
+.st-dot-c {
+  background: var(--st-pink-lo);
+}
+
+/* ---- Grid ---- */
+.st-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.95fr);
+  grid-template-areas:
+    'deck play timer'
+    'deck notes queue';
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+.st-deck {
+  grid-area: deck;
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  min-inline-size: 0;
+}
+.st-turntable svg {
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 9rem;
+}
+.st-plinth {
+  fill: var(--st-sage);
+  stroke: var(--st-sage-lo);
+  stroke-width: 2;
+}
+.st-vinyl {
+  fill: var(--st-pink-lo);
+}
+.st-groove {
+  fill: none;
+  stroke: var(--st-pink);
+  stroke-width: 1;
+}
+.st-label {
+  fill: var(--st-cream);
+}
+.st-berry {
+  fill: var(--ui-danger);
+}
+.st-spindle {
+  fill: var(--st-ink);
+}
+.st-arm {
+  fill: none;
+  stroke: var(--st-cream-lo);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.st-arm-base {
+  fill: var(--st-cream);
+  stroke: var(--st-line);
+}
+.st-record {
+  transform-box: view-box;
+  transform-origin: 54px 50px;
+}
+.sr-ply-study[data-motion='on'] .st-record {
+  animation: st-spin 4s linear infinite;
+}
+@keyframes st-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.st-screen {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  min-inline-size: 0;
+  background: var(--st-cream-lo);
+  border: 2px solid var(--st-sage-lo);
+  border-radius: 12px;
+}
+.st-screen .sr-ply-ticker {
+  font-weight: 700;
+}
+.st-screen .sr-ply-time {
+  color: var(--st-ink);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+.st-leds {
+  block-size: 0.875rem;
+}
+.st-leds > span {
+  border-radius: 3px;
+}
+
+.st-play {
+  grid-area: play;
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  min-inline-size: 0;
+}
+.st-seek {
+  accent-color: var(--st-pink-lo);
+}
+.st-keys {
+  display: flex;
+  justify-content: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.st-key {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 50%;
+  color: var(--st-ink) !important;
+  font-size: 1rem;
+  border: 2px solid var(--ui-bg);
+  box-shadow: 0 3px 0 var(--st-line);
+}
+.st-key-main {
+  inline-size: 3rem;
+  block-size: 3rem;
+  font-size: 1.25rem;
+}
+.st-key-lilac {
+  background: var(--st-lilac);
+}
+.st-key-sage {
+  background: var(--st-sage);
+}
+.st-key-peach {
+  background: var(--st-peach);
+}
+.st-mods {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+.st-mod {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 10px;
+  color: var(--st-ink) !important;
+  background: var(--ui-bg);
+  border: 2px solid var(--st-sage);
+}
+.st-mod[aria-pressed='true'] {
+  background: var(--st-sage);
+  border-color: var(--st-sage-lo);
+}
+.sr-ply-study .sr-ply-volume input {
+  accent-color: var(--st-lilac-lo);
+  inline-size: 5rem;
+}
+
+/* ---- Cards ---- */
+.st-card {
+  position: relative;
+  min-inline-size: 0;
+  padding: 0.5rem;
+  background: var(--ui-bg);
+  border: 2px solid var(--st-lilac);
+  border-radius: 14px;
+}
+.st-card-h {
+  margin: 0;
+  margin-block-end: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.st-timer {
+  grid-area: timer;
+}
+.st-timer-face {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.st-timer-clock {
+  font-size: 1.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.st-ring svg {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+}
+.st-ring-bg {
+  fill: none;
+  stroke: var(--st-pink);
+  stroke-width: 5;
+}
+.st-ring-fg {
+  fill: none;
+  stroke: var(--st-pink-lo);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.st-timer[data-segment='short'] .st-ring-fg,
+.st-timer[data-segment='long'] .st-ring-fg {
+  stroke: var(--st-sage-lo);
+}
+.st-timer-seg {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.st-timer-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-block-start: 0.25rem;
+}
+.st-chip {
+  padding-block: 0.125rem;
+  padding-inline: 0.5rem;
+  min-block-size: 1.75rem;
+  border-radius: 999px;
+  color: var(--st-ink) !important;
+  background: var(--st-pink);
+  border: 1px solid var(--st-pink-lo);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.st-notes {
+  grid-area: notes;
+  padding-block-start: 1rem;
+  border-color: var(--st-cream-lo);
+  background:
+    linear-gradient(
+        transparent 1.3rem,
+        var(--st-sky) 1.3rem,
+        var(--st-sky) calc(1.3rem + 1px),
+        transparent calc(1.3rem + 1px)
+      )
+      0 0 / 100% 1.35rem,
+    var(--ui-bg);
+}
+.st-rings {
+  position: absolute;
+  inset-block-start: -0.375rem;
+  inset-inline: 0.75rem;
+  block-size: 0.75rem;
+  background: radial-gradient(
+      circle,
+      transparent 3px,
+      var(--st-line) 3.5px,
+      var(--st-line) 4.5px,
+      transparent 5px
+    )
+    0 0 / 1.25rem 0.75rem repeat-x;
+}
+.st-notes-text {
+  inline-size: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--st-ink);
+  background: transparent;
+  border: 1px dashed var(--st-line);
+  border-radius: 8px;
+  padding: 0.25rem;
+}
+.st-notes-text::placeholder {
+  color: var(--ui-text-muted);
+}
+.st-notes-where {
+  margin: 0;
+  font-size: 0.6875rem;
+  color: var(--ui-text-muted);
+}
+.st-queue-card {
+  grid-area: queue;
+  border-color: var(--st-sage);
+}
+.st-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  max-block-size: 7.5rem;
+  overflow-y: auto;
+}
+.st-queue button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.375rem;
+  inline-size: 100%;
+  padding-block: 0.25rem;
+  padding-inline: 0.375rem;
+  text-align: start;
+  background: var(--st-cream);
+  border: 1px solid var(--st-sage);
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+.st-queue li[data-current='true'] button {
+  background: var(--st-sage);
+  font-weight: 700;
+}
+.st-queue .sr-ply-q-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 40rem) {
+  .st-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'deck play'
+      'timer notes'
+      'queue queue';
+  }
+}
+@container (max-width: 30rem) {
+  .st-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'deck' 'play' 'timer' 'notes' 'queue';
+  }
+  .st-deck {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+  }
+  .st-turntable svg {
+    max-block-size: 4.75rem;
+  }
+  .st-queue {
+    max-block-size: 6rem;
+  }
+}

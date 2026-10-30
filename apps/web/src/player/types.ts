@@ -17,14 +17,30 @@ export interface PlayerTrack {
    * The result replaces `src` for this play only.
    */
   resolveSrc?: (track: PlayerTrack) => Promise<string>;
+  /**
+   * The file's container as the library knows it (`mp3`, `flac`, ...), for the skins' format readouts
+   * (MUS-SKN-001). Absent when nobody knows; a skin then leaves that readout dark rather than guess.
+   */
+  format?: string;
 }
 
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'ended' | 'error';
-export type PlayerSkin = 'retro' | 'pill' | 'library';
+export type PlayerSkin =
+  'retro' | 'pill' | 'library' | 'valve' | 'tidepool' | 'circuit' | 'study' | 'stack';
 export type PlayerDock = 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start';
 export type RepeatMode = 'off' | 'all' | 'one';
 
-export const PLAYER_SKINS: readonly PlayerSkin[] = ['retro', 'pill', 'library'];
+export const PLAYER_SKINS: readonly PlayerSkin[] = [
+  'retro',
+  'pill',
+  'library',
+  // MUS-SKN-001: the backdrop skins (decorative artwork with only the live controls laid over it), lazy chunks.
+  'valve',
+  'tidepool',
+  'circuit',
+  'study',
+  'stack',
+];
 export const PLAYER_DOCKS: readonly PlayerDock[] = [
   'bottom-end',
   'bottom-start',

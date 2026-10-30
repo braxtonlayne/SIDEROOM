@@ -5,7 +5,7 @@
  * music library is connected to the player when it first mounts (`musicWiring.ts`).
  */
 import { ThemeProvider } from '@sideroom/ui';
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, type ComponentType } from 'react';
 import { isPlayerShortcut, matchCustomShortcut } from '../lounge/shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
@@ -19,8 +19,22 @@ import { PillSkin } from './skins/PillSkin';
 import { RetroSkin } from './skins/RetroSkin';
 import * as actions from './store';
 import { usePlayerStore } from './store';
+import type { PlayerSkin } from './types';
 
-const SKINS = { retro: RetroSkin, pill: PillSkin, library: LibrarySkin } as const;
+/**
+ * The three built-in skins load with the host; the backdrop skins (MUS-SKN-001) are each their own lazy chunk,
+ * fetched the first time a member picks one, so their artwork never weighs on the player's first load.
+ */
+const SKINS: Record<PlayerSkin, ComponentType> = {
+  retro: RetroSkin,
+  pill: PillSkin,
+  library: LibrarySkin,
+  valve: lazy(() => import('./skins/backdrop/ValveSkin')),
+  tidepool: lazy(() => import('./skins/backdrop/TidepoolSkin')),
+  circuit: lazy(() => import('./skins/backdrop/CircuitSkin')),
+  study: lazy(() => import('./skins/backdrop/StudySkin')),
+  stack: lazy(() => import('./skins/backdrop/StackSkin')),
+};
 
 /** Player keys work on every route, so they live here and not in the Lounge. */
 function usePlayerKeys() {
@@ -105,7 +119,10 @@ export default function PlayerHost() {
       {(queued || libraryOpen) && (
         <ThemedDock>
           <div className="sr-ply-dock" data-dock={dock} data-skin={skin}>
-            <Skin />
+            {/* While a skin's chunk loads, the default skin stands in so the controls never vanish. */}
+            <Suspense fallback={<RetroSkin />}>
+              <Skin />
+            </Suspense>
           </div>
         </ThemedDock>
       )}
