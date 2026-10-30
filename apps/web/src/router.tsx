@@ -25,7 +25,7 @@ import { createSupportRoutes } from './support/routes';
 import { createProfilePageRoutes } from './profilepage/routes';
 import { createPwaRoutes } from './pwa/routes';
 import { createStorageRoutes } from './storage/routes';
-import { PlayerGate } from './player/PlayerGate';
+import { isPublicPath } from './player/scope';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
 import { LoginLink } from './routes/entrance/LoginLink';
@@ -56,6 +56,11 @@ function WhatsNew() {
 const ReauthHost = lazy(() =>
   import('./admin/ReauthHost').then((m) => ({ default: m.ReauthHost })),
 );
+// The floating player (MUS-PLY-001) belongs to the signed-in app: its gate is its own chunk and is not even
+// requested on a public page (D-385: a visitor without a login loads only what that page needs).
+const PlayerGate = lazy(() =>
+  import('./player/PlayerGate').then((m) => ({ default: m.PlayerGate })),
+);
 // The handbook waits for the full catalog (it is not a first-paint path); it shows the entrance skeleton meanwhile.
 const isHelpPath = (p: string) => p === '/help' || p.startsWith('/help/');
 
@@ -76,7 +81,11 @@ function RootLayout() {
           <ReauthHost />
         </Suspense>
         {/* The floating player lives here, above every route, so playback survives navigation (MUS-PLY-001). */}
-        <PlayerGate />
+        {!isPublicPath(pathname) && (
+          <Suspense fallback={null}>
+            <PlayerGate />
+          </Suspense>
+        )}
       </CatalogGate>
     </>
   );

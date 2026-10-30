@@ -19,8 +19,8 @@ if (import.meta.env.DEV || import.meta.env.MODE === 'test')
  * login, invite, profile, handbook) it renders nothing, never loads the player chunk, and drops whatever was
  * playing: arriving there means the session ended or the member left the app.
  *
- * This component is in the entrance bundle (the root layout), so it imports only the presence flag and the path
- * rule; the store, the engine, the skins and the music library load with the host (D-385).
+ * The router renders this gate (its own small chunk) on app routes only; it imports only the presence flag and
+ * the path rule, and the store, the engine, the skins and the music library load with the host (D-385).
  */
 export function PlayerGate() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -32,6 +32,8 @@ export function PlayerGate() {
   useEffect(() => {
     if (isPublic) forgetPlayer();
   }, [isPublic]);
+  // The router stops rendering the gate on a public page (router.tsx): leaving the app ends the music too.
+  useEffect(() => () => forgetPlayer(), []);
   if (isPublic || !everQueued.current) return null;
   return (
     <Suspense fallback={null}>
