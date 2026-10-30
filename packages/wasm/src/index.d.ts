@@ -376,10 +376,47 @@ export interface ToolSearchIndex {
   free(): void;
 }
 
+// UTL-IMG-001 (utl-image)
+export interface GifLimits {
+  maxDurationMs: number;
+  maxBytes: number;
+  maxEdge: number;
+  /** Hundredths of a second. */
+  minDelayCs: number;
+}
+export type GifErrorCode =
+  | 'GIF_BAD_SIZE'
+  | 'GIF_BAD_FRAME'
+  | 'GIF_EMPTY'
+  | 'GIF_TOO_LONG'
+  | 'GIF_TOO_BIG'
+  | 'GIF_TOO_MUCH'
+  | 'GIF_ENCODE';
+export interface GifBuilder {
+  /** One RGBA frame (width x height x 4 bytes). Throws an Error whose message is a {@link GifErrorCode}. */
+  addFrame(rgba: Uint8Array | Uint8ClampedArray): number;
+  /** The GIF file. Throws like addFrame (GIF_TOO_BIG past 20 MiB, GIF_EMPTY with no frames). */
+  finish(): Uint8Array;
+  readonly frameCount: number;
+  /** How many frames fit in 15 s at this delay. */
+  readonly maxFrames: number;
+  free(): void;
+}
+export interface PaletteColour {
+  hex: string;
+  r: number;
+  g: number;
+  b: number;
+  /** 0 to 1 */
+  share: number;
+}
+
 export interface ToolsApi {
   /** The raw wasm-bindgen module of sr-tools-wasm. */
   raw: Record<string, unknown>;
   search: { create(): ToolSearchIndex };
+  gif: { limits: GifLimits; create(width: number, height: number, delayCs: number): GifBuilder };
+  palette: { extract(rgba: Uint8Array | Uint8ClampedArray, k?: number): PaletteColour[] };
 }
 
 export function loadTools(wasmUrl?: string | URL | BufferSource): Promise<ToolsApi>;

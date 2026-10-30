@@ -8,7 +8,8 @@
  * To add a tool:
  *   1. Write the component in `apps/web/src/tools/<yourdir>/`, default export, taking `ToolProps`.
  *   2. Put its strings in your own catalog fragment (`i18n/messages/en/p32-<name>-<n>.ts`), keys
- *      `tools.<id>.name` and `tools.<id>.description` at least (no underscores in key segments).
+ *      `tools.<key>.name` and `tools.<key>.description` at least, <key> being the id with hyphens camel-cased
+ *      (`image-studio` -> `imageStudio`); hyphens and underscores are not allowed in catalog key segments.
  *   3. Append an entry below. `aliases` are English search words (stage 1 of the search, wave 32); the task
  *      phrases for stage 3 live in `corpus.json`.
  */
@@ -49,7 +50,7 @@ export const TOOL_GROUPS: readonly ToolGroup[] = [
 export interface ToolEntry {
   /** Lowercase letters, digits and hyphens; stable forever (it is stored in the account's layout). */
   id: string;
-  /** i18n keys: `tools.<id>.name`, `tools.<id>.description`. */
+  /** i18n keys: `tools.<key>.name`, `tools.<key>.description`, where <key> is `toolKeySegment(id)`. */
   nameKey: MessageKey;
   descriptionKey: MessageKey;
   icon: IconName;
@@ -81,9 +82,12 @@ const guide: ToolEntry = {
   load: () => import('./drawer/GuideTool'),
 };
 
-/** The catalog segment of a tool id: catalog keys have no hyphens (`md-table` is `mdTable`). */
-export const catalogId = (id: string): string =>
-  id.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+/**
+ * The catalog key segment for a tool id: hyphens are not allowed in catalog keys (catalog.test.ts), so
+ * `image-studio` uses `tools.imageStudio.name`. Ids without a hyphen are unchanged.
+ */
+export const toolKeySegment = (id: string): string =>
+  id.replace(/-([a-z0-9])/g, (_m, c: string) => c.toUpperCase());
 
 // ---- UTL-DEV-001 (utl-dev): developer tools, dice, notes, timers. Sizes are the popped-out window. ----
 const devSize: ToolSize = { width: 420, height: 480, minWidth: 280, minHeight: 240 };
@@ -97,8 +101,8 @@ const devTool = (
   load: ToolEntry['load'],
 ): ToolEntry => ({
   id,
-  nameKey: `tools.${catalogId(id)}.name`,
-  descriptionKey: `tools.${catalogId(id)}.description`,
+  nameKey: `tools.${toolKeySegment(id)}.name`,
+  descriptionKey: `tools.${toolKeySegment(id)}.description`,
   icon,
   group,
   aliases,
@@ -317,10 +321,64 @@ const timezone: ToolEntry = {
   load: () => import('./timezone/TimezoneTool'),
 };
 
+/** UTL-IMG-001 (utl-image): the image and meme studio, redaction, palette extraction and video to GIF. */
+const imageTools: ToolEntry[] = [
+  {
+    id: 'image-studio',
+    nameKey: 'tools.imageStudio.name',
+    descriptionKey: 'tools.imageStudio.description',
+    icon: 'image',
+    group: 'media',
+    aliases: [
+      'meme',
+      'meme maker',
+      'image editor',
+      'photo editor',
+      'crop',
+      'resize image',
+      'caption',
+    ],
+    size: { width: 520, height: 600, minWidth: 320, minHeight: 320 },
+    load: () => import('./studio/StudioTool'),
+  },
+  {
+    id: 'redact',
+    nameKey: 'tools.redact.name',
+    descriptionKey: 'tools.redact.description',
+    icon: 'eye-off',
+    group: 'media',
+    aliases: ['pixelate', 'blur image', 'censor', 'hide details', 'blackout'],
+    size: { width: 480, height: 560, minWidth: 320, minHeight: 320 },
+    load: () => import('./studio/RedactTool'),
+  },
+  {
+    id: 'palette',
+    nameKey: 'tools.palette.name',
+    descriptionKey: 'tools.palette.description',
+    icon: 'palette',
+    group: 'media',
+    aliases: ['colour palette', 'color palette', 'dominant colours', 'eyedropper', 'hex codes'],
+    size: { width: 420, height: 460, minWidth: 300, minHeight: 280 },
+    load: () => import('./studio/PaletteTool'),
+  },
+  {
+    id: 'gif',
+    nameKey: 'tools.gif.name',
+    descriptionKey: 'tools.gif.description',
+    icon: 'film',
+    group: 'media',
+    aliases: ['gif maker', 'make a gif', 'video to gif'],
+    size: { width: 480, height: 560, minWidth: 320, minHeight: 320 },
+    load: () => import('./studio/GifTool'),
+  },
+];
+
+
 /** Append new entries after the last one. */
 export const TOOLS: ToolEntry[] = [
   guide,
   ...utlDev,
+  ...imageTools,
   // UTL-COL-001 (utl-collab): the collaborative tier list and poll builder.
   {
     id: 'tierlist',
@@ -360,8 +418,8 @@ export function registryProblems(list: readonly ToolEntry[] = TOOLS): string[] {
     if (!ID.test(e.id)) out.push(`bad id: ${e.id}`);
     if (seen.has(e.id)) out.push(`duplicate id: ${e.id}`);
     seen.add(e.id);
-    if (e.nameKey !== `tools.${catalogId(e.id)}.name`) out.push(`${e.id}: nameKey`);
-    if (e.descriptionKey !== `tools.${catalogId(e.id)}.description`)
+    if (e.nameKey !== `tools.${toolKeySegment(e.id)}.name`) out.push(`${e.id}: nameKey`);
+    if (e.descriptionKey !== `tools.${toolKeySegment(e.id)}.description`)
       out.push(`${e.id}: descriptionKey`);
     if (e.size.minWidth > e.size.width || e.size.minHeight > e.size.height)
       out.push(`${e.id}: size below its minimum`);

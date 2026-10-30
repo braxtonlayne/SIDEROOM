@@ -1,5 +1,5 @@
 import { Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { Attachment } from '../data';
 import { useT } from '../../i18n';
 import { isGif, useGifAutoplay } from '../../settings/user/gifAutoplay';
@@ -7,6 +7,9 @@ import { useSavedPrefs } from '../../settings/user/prefs';
 import { decodeBlurhash } from './blurhash';
 import { formatBytes, formatDuration, isHttpUrl } from './format';
 import { useAnimatedSrc } from './staticFrame';
+
+// UTL-IMG-001: "Open in studio" in the media viewer; the studio edits a copy and loads only when opened.
+const StudioModal = lazy(() => import('../../tools/studio/StudioModal'));
 
 const isImage = (a: Attachment) => a.contentType.startsWith('image/');
 const isVideo = (a: Attachment) => a.contentType.startsWith('video/');
@@ -371,6 +374,7 @@ export function Lightbox({
   const t = useT();
   const [zoom, setZoom] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [studio, setStudio] = useState(false);
   const a = items[index];
   useEffect(() => setZoom(false), [index]);
   useEffect(() => {
@@ -438,7 +442,35 @@ export function Lightbox({
         >
           {copied ? t('lounge.attachments.copied') : t('lounge.attachments.copyLink')}
         </button>
+        {isImage(a) && !/^image\/(gif|svg)/.test(a.contentType) && (
+          <button
+            type="button"
+            className="lng-link-btn"
+            data-testid="open-in-studio"
+            onClick={() => setStudio(true)}
+          >
+            {t('studio.open.button')}
+          </button>
+        )}
       </div>
+      {studio && (
+        <Suspense fallback={null}>
+          <StudioModal
+            mode="copy"
+            sourceUrl={a.url}
+            name={a.filename.replace(/\.[^.]+$/, '')}
+            onClose={() => setStudio(false)}
+            onUse={(file) => {
+              const url = URL.createObjectURL(file);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = file.name;
+              link.click();
+              setTimeout(() => URL.revokeObjectURL(url), 2000);
+            }}
+          />
+        </Suspense>
+      )}
     </Modal>
   );
 }

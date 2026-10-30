@@ -1,0 +1,149 @@
+/*
+ * UTL-IMG-001: the image studio, the redact and palette tools and the GIF maker. Semantic tokens only
+ * (var(--ui-*)), logical properties only (the repo tests guard both).
+ */
+.sr-st {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+.sr-st-privacy {
+  margin: 0;
+}
+.sr-st-bar,
+.sr-st-row,
+.sr-st-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.375rem;
+}
+.sr-st-spacer {
+  flex: 1;
+}
+.sr-st-stage {
+  position: relative;
+  align-self: flex-start;
+  max-inline-size: 100%;
+  max-block-size: 24rem;
+  overflow: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background-color: var(--ui-bg-sunken);
+  background-image: repeating-conic-gradient(var(--ui-bg-hover) 0% 25%, transparent 0% 50%);
+  background-size: 16px 16px;
+  touch-action: none;
+}
+.sr-st-stage[data-selecting] {
+  cursor: crosshair;
+}
+.sr-st-canvas {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+.sr-st-sel {
+  position: absolute;
+  border: 2px dashed var(--ui-focus);
+  background: color-mix(in srgb, var(--ui-focus) 18%, transparent);
+  pointer-events: none;
+}
+.sr-st-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.sr-st-field input[type='number'] {
+  inline-size: 6rem;
+}
+.sr-st-field input[type='text'] {
+  inline-size: 100%;
+}
+.sr-st-field input,
+.sr-st-field select {
+  min-block-size: 2rem;
+  padding-block: 0;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-sunken);
+  color: var(--ui-text);
+  box-sizing: border-box;
+}
+.sr-st-field input[type='range'] {
+  padding: 0;
+}
+.sr-st-wide {
+  flex: 1 1 100%;
+}
+.sr-st-check {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+}
+.sr-st-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sr-st-swatches li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+}
+.sr-st-swatch {
+  inline-size: 3rem;
+  block-size: 3rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  cursor: pointer;
+}
+.sr-st-swatch:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.sr-st-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border: 2px dashed var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  color: var(--ui-text-muted);
+  text-align: center;
+}
+.sr-st-pick:focus-visible {
+  outline: 2px solid var(--ui-focus);
+}
+.sr-st-error {
+  color: var(--ui-danger, var(--ui-text));
+  font-size: 0.8125rem;
+  margin: 0;
+}
+.sr-st-video {
+  max-inline-size: 100%;
+  max-block-size: 14rem;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-bg-sunken);
+}
+.sr-st-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+.sr-st-gif {
+  max-inline-size: 100%;
+  max-block-size: 16rem;
+  border-radius: var(--ui-radius-md);
+}
