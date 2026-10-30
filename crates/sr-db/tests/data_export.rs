@@ -287,6 +287,7 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         "activity.json",
         "security.json",
         "attachments.json",
+        "rings.json",
         "reactions.json",
         "poll_votes.json",
         "tools.json",

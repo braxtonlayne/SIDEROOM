@@ -20,8 +20,11 @@ pub const WATCH_PARTY_ANNOUNCER_ID: &str = "community.watch_party_announcer";
 pub const WATCH_PARTY_CARDS_ID: &str = "community.watch_party_cards";
 pub const SUGGESTIONS_ID: &str = "community.suggestions";
 pub const TICKETS_ID: &str = "community.tickets";
+pub const RINGS_ID: &str = "lounge.rings";
 
 const PLATFORM_GUILD: &[Scope] = &[Scope::Platform, Scope::Guild];
+/// Status rings belong to a person, not to a server: the platform switch is the only one.
+const PLATFORM_ONLY: &[Scope] = &[Scope::Platform];
 /// Leveling also keeps one personal preference per member (LNG-USET-036).
 const PLATFORM_GUILD_USER: &[Scope] = &[Scope::Platform, Scope::Guild, Scope::User];
 
@@ -138,6 +141,22 @@ module!(
     11,
     true,
     vec![int("max_per_user", "Bookmarks per person", 10, 2000, 500)]
+);
+
+module!(
+    RingsFeature,
+    RINGS_ID,
+    "Status rings",
+    "A photo, short clip, line of text or track on your avatar for 24 hours, shown to mutual friends or the servers you choose. Rings are deleted for good when the day is over.",
+    "Lounge",
+    34,
+    true,
+    vec![
+        int("max_per_day", "Rings per person per day", 1, 200, 20),
+        int("max_clip_seconds", "Longest clip (seconds)", 1, 60, 60),
+        int("max_mebibytes", "Biggest file (MiB)", 1, 50, 50),
+    ],
+    PLATFORM_ONLY
 );
 
 module!(
@@ -346,6 +365,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         RemindersFeature,
         BookmarksFeature,
         PollTemplatesFeature,
+        RingsFeature,
         BirthdaysFeature,
         LevelingFeature,
         RssFeature,
@@ -371,14 +391,25 @@ mod tests {
     }
 
     #[test]
-    fn all_twelve_register_with_unique_ids_and_valid_defaults() {
+    fn all_thirteen_register_with_unique_ids_and_valid_defaults() {
         let r = registry();
-        assert_eq!(r.len(), 12);
+        assert_eq!(r.len(), 13);
         for f in r.iter() {
             let schema = f.settings_schema();
             // Defaults must satisfy the schema they come from.
-            schema.validate(&schema.defaults(Scope::Guild)).unwrap();
-            assert!(f.scopes().contains(&Scope::Guild));
+            let scope = if f.id() == RINGS_ID {
+                Scope::Platform
+            } else {
+                Scope::Guild
+            };
+            schema.validate(&schema.defaults(scope)).unwrap();
+            // Status rings belong to a person: only the platform switch exists for them.
+            assert_eq!(
+                f.scopes().contains(&Scope::Guild),
+                f.id() != RINGS_ID,
+                "{}",
+                f.id()
+            );
             assert!(f.scopes().contains(&Scope::Platform));
             assert!(!f.meta().name.is_empty());
         }
@@ -393,6 +424,7 @@ mod tests {
             BOOKMARKS_ID,
             POLL_TEMPLATES_ID,
             WATCH_PARTY_CARDS_ID,
+            RINGS_ID,
         ] {
             assert!(r.get(id).unwrap().meta().default_enabled, "{id}");
         }

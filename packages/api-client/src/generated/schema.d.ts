@@ -10690,6 +10690,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/rings/{ring_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff read of a held ring's file (platform staff with `MANAGE_CASES`). A reason is required and the read is
+         *     written to the access log before the file leaves. Only a ring a report froze can be read this way.
+         */
+        get: operations["held_media"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/takedowns": {
         parameters: {
             query?: never;
@@ -11436,6 +11456,77 @@ export interface paths {
         post?: never;
         /** Take back my upvote. */
         delete: operations["requests_unvote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every ring the caller may see, grouped by author: mutual friends' rings and rings shared with a server they
+         *     are in. Their own come first.
+         */
+        get: operations["feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings/{ring_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One ring. 404 when it does not exist, has expired, or the caller is not in its audience (the same answer). */
+        get: operations["get_one"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings/{ring_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The photo or clip of a ring. 404 as for `GET /rings/{ring_id}`. Supports one `Range: bytes=a-b`. */
+        get: operations["media_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rings/{ring_id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Note that the caller opened a ring (the author's viewer list). 404 as for `GET /rings/{ring_id}`. */
+        post: operations["view"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -14310,6 +14401,75 @@ export interface paths {
         post?: never;
         /** Cancel a reminder. */
         delete: operations["cancel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own live rings. */
+        get: operations["mine"];
+        put?: never;
+        /** Post a text or track ring. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post a photo or clip: the file is the request body (`Content-Type` is ignored; the bytes are sniffed). */
+        post: operations["upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings/{ring_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one of the caller's rings now. A ring under a moderation hold is hidden and stays until the hold ends. */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/rings/{ring_id}/viewers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The people who opened the caller's ring. Only the author can read this; everybody else gets 404. */
+        get: operations["viewers"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -17853,6 +18013,18 @@ export interface components {
             /** Format: int32 */
             year?: number | null;
         };
+        /** @description Body of `POST /users/@me/rings` (a text or track ring). */
+        CreateRingBody: {
+            /** @description `friends` or `guilds`. */
+            audience: components["schemas"]["RingAudienceKind"];
+            /** @description The chosen servers (`guilds` only; 1 to 10, ones the caller is in). */
+            guild_ids?: string[];
+            /** @description `text` or `track`. Photos and clips use `POST /users/@me/rings/media`. */
+            kind: components["schemas"]["RingKind"];
+            /** @description The text of a text ring (up to 280 characters). */
+            text?: string;
+            track?: null | components["schemas"]["RingTrack"];
+        };
         CreateRoleBody: {
             /** Format: int32 */
             color?: number | null;
@@ -19644,7 +19816,7 @@ export interface components {
         HoldBody: {
             /** @description The message, attachment or submission; for `user_messages` the account. */
             id: string;
-            /** @description `message` (with its attachments), `attachment`, `submission` or `user_messages`. */
+            /** @description `message` (with its attachments), `attachment`, `submission`, `status_ring` or `user_messages`. */
             kind: string;
             /** @description Why. Required. */
             reason?: string | null;
@@ -23727,6 +23899,56 @@ export interface components {
             /** Format: int64 */
             revoked: number;
         };
+        /** @description A ring as a viewer sees it. */
+        Ring: {
+            audience: string;
+            author_id: string;
+            body: string;
+            content_type?: string | null;
+            created_at: string;
+            /** Format: int32 */
+            duration_ms?: number | null;
+            expires_at: string;
+            /** @description The chosen servers. Filled for the author only; everybody else gets an empty list. */
+            guild_ids: string[];
+            /** @description Photo or clip: the file is at `GET /rings/{id}/media`. */
+            has_media: boolean;
+            id: string;
+            kind: string;
+            /** @description It is the viewer's own ring. */
+            mine: boolean;
+            /** @description The viewer has opened it already. */
+            seen: boolean;
+            track?: null | components["schemas"]["RingTrack"];
+        };
+        /**
+         * @description Who may see a ring.
+         * @enum {string}
+         */
+        RingAudienceKind: "friends" | "guilds";
+        /** @description One person's live rings, for the avatar ring and the tray. */
+        RingFeedEntry: {
+            /** @description Every ring is `seen`. */
+            all_seen: boolean;
+            author_id: string;
+            /** @description Oldest first, the order they are played in. */
+            rings: components["schemas"]["Ring"][];
+        };
+        /**
+         * @description What a ring shows.
+         * @enum {string}
+         */
+        RingKind: "photo" | "clip" | "text" | "track";
+        /** @description The text of a track ring. */
+        RingTrack: {
+            artist?: string;
+            title: string;
+        };
+        /** @description One person who opened the author's ring. */
+        RingViewer: {
+            user_id: string;
+            viewed_at: string;
+        };
         /**
          * @description What the file is for.
          * @enum {string}
@@ -25224,7 +25446,7 @@ export interface components {
          * @description What a report or a case is about.
          * @enum {string}
          */
-        TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "other";
+        TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "status_ring" | "other";
         TempRoleObject: {
             /**
              * Format: int64
@@ -62612,6 +62834,64 @@ export interface operations {
             };
         };
     };
+    held_media: {
+        parameters: {
+            query: {
+                /** @description Why the file is read */
+                reason: string;
+            };
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: {
@@ -64916,6 +65196,122 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RingFeedEntry"][];
+                };
+            };
+        };
+    };
+    get_one: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    media_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description A part of the file */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Noted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -72762,6 +73158,200 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"][];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRingBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description A chosen server the caller is not in */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Daily limit reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload: {
+        parameters: {
+            query: {
+                /** @description photo or clip */
+                kind: string;
+                /** @description friends or guilds */
+                audience: string;
+                /** @description Comma-separated server ids (guilds only) */
+                guild_ids?: string;
+                /** @description Caption, up to 280 characters */
+                text?: string;
+                /** @description A clip's length, 1 to 60000 */
+                duration_ms?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ring"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Daily limit reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    viewers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Ring snowflake */
+                ring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RingViewer"][];
+                };
             };
             404: {
                 headers: {

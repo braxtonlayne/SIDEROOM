@@ -21,6 +21,7 @@ pub mod error;
 pub mod holds;
 pub mod model;
 mod reports;
+pub mod rings;
 pub mod rules;
 pub mod service;
 pub mod snapshot;
@@ -37,6 +38,7 @@ pub use age::{
 pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
+pub use rings::HeldRing;
 pub use service::{
     GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, PolicySource, RemovalSink,
     SubjectNotifier,

@@ -55598,6 +55598,88 @@
         ]
       }
     },
+    "/moderation/rings/{ring_id}/media": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Staff read of a held ring's file (platform staff with `MANAGE_CASES`). A reason is required and the read is\nwritten to the access log before the file leaves. Only a ring a report froze can be read this way.",
+        "operationId": "held_media",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "Why the file is read",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/takedowns": {
       "get": {
         "tags": [
@@ -59102,6 +59184,168 @@
             }
           },
           "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Every ring the caller may see, grouped by author: mutual friends' rings and rings shared with a server they\nare in. Their own come first.",
+        "operationId": "feed",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RingFeedEntry"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings/{ring_id}": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "One ring. 404 when it does not exist, has expired, or the caller is not in its audience (the same answer).",
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ring"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings/{ring_id}/media": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "The photo or clip of a ring. 404 as for `GET /rings/{ring_id}`. Supports one `Range: bytes=a-b`.",
+        "operationId": "media_file",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {}
+            }
+          },
+          "206": {
+            "description": "A part of the file"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/rings/{ring_id}/view": {
+      "post": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Note that the caller opened a ring (the author's viewer list). 404 as for `GET /rings/{ring_id}`.",
+        "operationId": "view",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Noted"
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -70805,6 +71049,318 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "The caller's own live rings.",
+        "operationId": "mine",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ring"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Post a text or track ring.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ring"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A chosen server the caller is not in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Daily limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings/media": {
+      "post": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Post a photo or clip: the file is the request body (`Content-Type` is ignored; the bytes are sniffed).",
+        "operationId": "upload",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "photo or clip",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "audience",
+            "in": "query",
+            "description": "friends or guilds",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_ids",
+            "in": "query",
+            "description": "Comma-separated server ids (guilds only)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "description": "Caption, up to 280 characters",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "duration_ms",
+            "in": "query",
+            "description": "A clip's length, 1 to 60000",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ring"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Daily limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings/{ring_id}": {
+      "delete": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "Delete one of the caller's rings now. A ring under a moderation hold is hidden and stays until the hold ends.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/rings/{ring_id}/viewers": {
+      "get": {
+        "tags": [
+          "rings"
+        ],
+        "summary": "The people who opened the caller's ring. Only the author can read this; everybody else gets 404.",
+        "operationId": "viewers",
+        "parameters": [
+          {
+            "name": "ring_id",
+            "in": "path",
+            "description": "Ring snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RingViewer"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -83148,6 +83704,46 @@
           }
         }
       },
+      "CreateRingBody": {
+        "type": "object",
+        "description": "Body of `POST /users/@me/rings` (a text or track ring).",
+        "required": [
+          "kind",
+          "audience"
+        ],
+        "properties": {
+          "audience": {
+            "$ref": "#/components/schemas/RingAudienceKind",
+            "description": "`friends` or `guilds`."
+          },
+          "guild_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The chosen servers (`guilds` only; 1 to 10, ones the caller is in)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RingKind",
+            "description": "`text` or `track`. Photos and clips use `POST /users/@me/rings/media`."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text of a text ring (up to 280 characters)."
+          },
+          "track": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RingTrack",
+                "description": "The track of a track ring."
+              }
+            ]
+          }
+        }
+      },
       "CreateRoleBody": {
         "type": "object",
         "properties": {
@@ -88442,7 +89038,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`message` (with its attachments), `attachment`, `submission` or `user_messages`."
+            "description": "`message` (with its attachments), `attachment`, `submission`, `status_ring` or `user_messages`."
           },
           "reason": {
             "type": [
@@ -100881,6 +101477,162 @@
           }
         }
       },
+      "Ring": {
+        "type": "object",
+        "description": "A ring as a viewer sees it.",
+        "required": [
+          "id",
+          "author_id",
+          "kind",
+          "body",
+          "has_media",
+          "audience",
+          "guild_ids",
+          "created_at",
+          "expires_at",
+          "seen",
+          "mine"
+        ],
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "guild_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The chosen servers. Filled for the author only; everybody else gets an empty list."
+          },
+          "has_media": {
+            "type": "boolean",
+            "description": "Photo or clip: the file is at `GET /rings/{id}/media`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "It is the viewer's own ring."
+          },
+          "seen": {
+            "type": "boolean",
+            "description": "The viewer has opened it already."
+          },
+          "track": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RingTrack"
+              }
+            ]
+          }
+        }
+      },
+      "RingAudienceKind": {
+        "type": "string",
+        "description": "Who may see a ring.",
+        "enum": [
+          "friends",
+          "guilds"
+        ]
+      },
+      "RingFeedEntry": {
+        "type": "object",
+        "description": "One person's live rings, for the avatar ring and the tray.",
+        "required": [
+          "author_id",
+          "all_seen",
+          "rings"
+        ],
+        "properties": {
+          "all_seen": {
+            "type": "boolean",
+            "description": "Every ring is `seen`."
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "rings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Ring"
+            },
+            "description": "Oldest first, the order they are played in."
+          }
+        }
+      },
+      "RingKind": {
+        "type": "string",
+        "description": "What a ring shows.",
+        "enum": [
+          "photo",
+          "clip",
+          "text",
+          "track"
+        ]
+      },
+      "RingTrack": {
+        "type": "object",
+        "description": "The text of a track ring.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "artist": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "RingViewer": {
+        "type": "object",
+        "description": "One person who opened the author's ring.",
+        "required": [
+          "user_id",
+          "viewed_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "viewed_at": {
+            "type": "string"
+          }
+        }
+      },
       "Role": {
         "type": "string",
         "description": "What the file is for.",
@@ -105455,6 +106207,7 @@
           "library",
           "cinema",
           "person",
+          "status_ring",
           "other"
         ]
       },

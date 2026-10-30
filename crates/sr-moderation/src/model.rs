@@ -53,6 +53,7 @@ text_enum! {
         Library => "library",
         Cinema => "cinema",
         Person => "person",
+        StatusRing => "status_ring",
         Other => "other",
     }
 }

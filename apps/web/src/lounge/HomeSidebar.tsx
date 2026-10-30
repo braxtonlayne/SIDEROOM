@@ -29,6 +29,8 @@ import { useSupportEnabled } from './shell/useSupportEnabled';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 import { ServerTagChip } from './components/ServerTagChip';
+import { RingAvatar } from './rings/RingAvatar';
+import { RingTray } from './rings/RingTray';
 
 function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   const t = useT();
@@ -143,7 +145,9 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
               }))}
             />
           ) : (
-            <Avatar name={title} size={32} {...(p ? { status: p.status } : {})} />
+            <RingAvatar userId={first?.id} name={title} interactive={false}>
+              <Avatar name={title} size={32} {...(p ? { status: p.status } : {})} />
+            </RingAvatar>
           )}
           <span className="lng-dm-text">
             <span className="lng-dm-name">
@@ -248,6 +252,7 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
           </button>
         )}
       </nav>
+      <RingTray />
       <div className="lng-dm-head">
         <h2>{t('lounge.homeSidebar.directMessages')}</h2>
         <button

@@ -38,7 +38,15 @@ export const BAN_API_REASONS: ReportCategory[] = [
 ];
 
 export type TargetKind =
-  'message' | 'user' | 'channel' | 'guild' | 'library' | 'cinema' | 'person' | 'other';
+  | 'message'
+  | 'user'
+  | 'channel'
+  | 'guild'
+  | 'library'
+  | 'cinema'
+  | 'person'
+  | 'status_ring'
+  | 'other';
 export type CaseState = 'open' | 'triage' | 'investigating' | 'actioned' | 'dismissed' | 'closed';
 export type Routing = 'guild' | 'platform' | 'reviewers';
 export type Severity = 'standard' | 'serious';

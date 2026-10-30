@@ -115,7 +115,8 @@ impl PgAdminRepo {
         let flagged: Vec<(i64, Option<i64>)> = sqlx::query_as(
             "WITH held AS ( \
                SELECT hold_id FROM messages WHERE author_id = $1 AND hold_id IS NOT NULL \
-               UNION SELECT hold_id FROM attachments WHERE uploader_id = $1 AND hold_id IS NOT NULL) \
+               UNION SELECT hold_id FROM attachments WHERE uploader_id = $1 AND hold_id IS NOT NULL \
+               UNION SELECT hold_id FROM status_rings WHERE author_id = $1 AND hold_id IS NOT NULL) \
              UPDATE moderation_holds h SET \
                erasure_request_id = COALESCE(h.erasure_request_id, $2), \
                erasure_flagged_at = COALESCE(h.erasure_flagged_at, now()) \
@@ -167,7 +168,8 @@ impl PgAdminRepo {
     async fn held_rows(conn: &mut PgConnection, account: i64) -> AdminResult<i64> {
         sqlx::query_scalar(
             "SELECT (SELECT count(*) FROM messages WHERE author_id = $1 AND hold_id IS NOT NULL) \
-                  + (SELECT count(*) FROM attachments WHERE uploader_id = $1 AND hold_id IS NOT NULL)",
+                  + (SELECT count(*) FROM attachments WHERE uploader_id = $1 AND hold_id IS NOT NULL) \
+                  + (SELECT count(*) FROM status_rings WHERE author_id = $1 AND hold_id IS NOT NULL)",
         )
         .bind(account)
         .fetch_one(conn)

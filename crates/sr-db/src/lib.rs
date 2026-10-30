@@ -45,6 +45,7 @@ mod pool;
 pub mod registration;
 pub mod review_repo;
 pub mod rich_repo;
+pub mod rings_dsr;
 pub mod runner;
 pub mod scopes_repo;
 pub mod sealed;
