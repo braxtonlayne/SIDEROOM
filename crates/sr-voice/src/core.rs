@@ -56,6 +56,7 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use sr_core::{ChannelId, GuildId, UserId};
+use sr_voice_proto::sdp::{MONO_OPUS_PT, STEREO_OPUS_PT, expand_opus_lines, restrict_opus_lines};
 use sr_voice_proto::video::{
     Layer, MUSIC_DEFAULT_KBPS, Source, SubscriptionHint, Video, clamp_music_kbps,
 };
@@ -407,6 +408,9 @@ struct Participant {
     e2ee_keyed: bool,
     /// The channel allows music (`music_allowed`, MUS-JB-001); mirrors [`SfuCore::music_rooms`].
     music_allowed: bool,
+    /// Mids of the client's own lines that listed the stereo Opus type (its music line): the SFU keeps
+    /// listing only that type on them when it re-offers the session.
+    stereo_mids: HashSet<String>,
     rtc: Rtc,
     /// Inbound m-lines by the client's mid.
     tracks: HashMap<Mid, Inbound>,
@@ -781,24 +785,25 @@ impl SfuCore {
             .enable_h264(true)
             .set_send_buffer_video(1_000)
             .set_stats_interval(Some(Duration::from_secs(1)));
-        // Opus on payload type 111 with `stereo=1; sprop-stereo=1` (MUS-JB-001): the music track is
-        // stereo and the receiving browser decodes stereo only when its fmtp says so. A microphone
-        // line shares the payload type; it stays a mono source and its rate is capped per sender
-        // by the client, so the only cost is a dual-mono Opus packet.
-        builder.codec_config().add_config(
-            Pt::new_with_value(111),
-            None,
-            Codec::Opus,
-            Frequency::FORTY_EIGHT_KHZ,
-            Some(2),
-            FormatParams {
-                min_p_time: Some(10),
-                use_inband_fec: Some(true),
-                stereo: Some(true),
-                sprop_stereo: Some(true),
-                ..Default::default()
-            },
-        );
+        // Two Opus payload types (MUS-JB-001): 111 is mono (the microphone and screen audio, no `stereo`
+        // in its fmtp), 112 is stereo (`stereo=1; sprop-stereo=1`, the music track). Which audio line
+        // carries which is fixed in the SDP: `restrict_opus_lines` is applied to every offer the SFU makes.
+        for (pt, stereo) in [(MONO_OPUS_PT, false), (STEREO_OPUS_PT, true)] {
+            builder.codec_config().add_config(
+                Pt::new_with_value(pt),
+                None,
+                Codec::Opus,
+                Frequency::FORTY_EIGHT_KHZ,
+                Some(2),
+                FormatParams {
+                    min_p_time: Some(10),
+                    use_inband_fec: Some(true),
+                    stereo: stereo.then_some(true),
+                    sprop_stereo: stereo.then_some(true),
+                    ..Default::default()
+                },
+            );
+        }
         if self.bwe {
             // TWCC bandwidth estimation per subscriber drives layer selection.
             builder = builder.enable_bwe(Some(INITIAL_BWE));
@@ -822,6 +827,7 @@ impl SfuCore {
                 channel: p.channel,
                 flags: p.flags,
                 e2ee_keyed: p.e2ee_keyed,
+                stereo_mids: HashSet::new(),
                 music_allowed: self.music_rooms.get(&p.channel).is_none_or(|m| m.allowed),
                 rtc,
                 tracks: HashMap::new(),
@@ -1003,11 +1009,15 @@ impl SfuCore {
         if sdp.len() > MAX_SDP_BYTES {
             return Err(SfuError::Sdp("SDP too large".into()));
         }
-        let offer = SdpOffer::from_sdp_string(sdp).map_err(|e| SfuError::Sdp(e.to_string()))?;
+        // str0m matches its two Opus entries against what each line lists, so it must see both on every audio
+        // line; the lines that listed the stereo type alone carry music, and the answer goes back narrowed.
+        let (wide, music_mids) = expand_opus_lines(sdp);
+        let offer = SdpOffer::from_sdp_string(&wide).map_err(|e| SfuError::Sdp(e.to_string()))?;
         let p = self
             .parts
             .get_mut(&pid)
             .ok_or(SfuError::UnknownParticipant)?;
+        p.stereo_mids.extend(music_mids.iter().cloned());
         // The client's offer wins a collision: the server offer is abandoned and re-made
         // after this exchange (the server is the polite peer, spec 4.4).
         if p.pending.take().is_some() {
@@ -1028,7 +1038,7 @@ impl SfuCore {
         p.negotiated = true;
         self.dirty.insert(pid);
         self.pump(now);
-        Ok(answer.to_sdp_string())
+        Ok(restrict_opus_lines(&answer.to_sdp_string(), &music_mids))
     }
 
     /// Apply the client's answer to a server offer.
@@ -1041,7 +1051,9 @@ impl SfuCore {
         if sdp.len() > MAX_SDP_BYTES {
             return Err(SfuError::Sdp("SDP too large".into()));
         }
-        let answer = SdpAnswer::from_sdp_string(sdp).map_err(|e| SfuError::Sdp(e.to_string()))?;
+        // The answer lists one Opus type per line (we offered it narrowed): widen it for str0m.
+        let (wide, _) = expand_opus_lines(sdp);
+        let answer = SdpAnswer::from_sdp_string(&wide).map_err(|e| SfuError::Sdp(e.to_string()))?;
         let p = self
             .parts
             .get_mut(&pid)
@@ -2163,8 +2175,17 @@ impl SfuCore {
         let Some((offer, pending)) = change.apply() else {
             return false;
         };
+        // The music lines list the stereo payload type only, every other audio line the mono one.
+        let mut music_mids: HashSet<String> = p
+            .out
+            .iter()
+            .filter(|((_, s), _)| *s == TrackSource::Music)
+            .filter_map(|(_, t)| t.state.mid())
+            .map(|m| m.to_string())
+            .collect();
+        music_mids.extend(p.stereo_mids.iter().cloned());
         p.pending = Some(pending);
-        let sdp = offer.to_sdp_string();
+        let sdp = restrict_opus_lines(&offer.to_sdp_string(), &music_mids);
         self.signal(id, op::SDP_OFFER, &wire::Sdp { sdp });
         true
     }

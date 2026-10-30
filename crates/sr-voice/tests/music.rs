@@ -16,11 +16,12 @@ use sr_core::{ChannelId, UserId};
 use sr_voice::core::{
     CoreEvent, CoreOutput, Flags, JoinParams, ParticipantId, SfuCore, TrackSource,
 };
+use sr_voice_proto::sdp::{MONO_OPUS_PT, STEREO_OPUS_PT, expand_opus_lines, restrict_opus_lines};
 use sr_voice_proto::video::{Source, SubscriptionHint, Video};
 use sr_voice_proto::wire::{self, Message, op};
 use str0m::change::{SdpAnswer, SdpOffer};
-use str0m::format::Codec;
-use str0m::media::{Direction, Frequency, MediaKind, MediaTime, Mid};
+use str0m::format::{Codec, FormatParams};
+use str0m::media::{Direction, Frequency, MediaKind, MediaTime, Mid, Pt};
 use str0m::net::{Protocol, Receive};
 use str0m::{Candidate, Event, Input, Output, Rtc};
 
@@ -32,6 +33,31 @@ const MUSIC_FRAME: usize = 800;
 struct Got {
     stream: String,
     data: Vec<u8>,
+    /// The fmtp of the payload type the packet arrived on had `stereo=1`.
+    stereo: bool,
+    pt: u8,
+}
+
+/// A client like the web engine and the bots: mono Opus on 111 for the microphone, stereo Opus on 112 for music.
+fn client_rtc(now: Instant) -> Rtc {
+    let mut b = Rtc::builder().clear_codecs();
+    for (pt, stereo) in [(MONO_OPUS_PT, false), (STEREO_OPUS_PT, true)] {
+        b.codec_config().add_config(
+            Pt::new_with_value(pt),
+            None,
+            Codec::Opus,
+            Frequency::FORTY_EIGHT_KHZ,
+            Some(2),
+            FormatParams {
+                min_p_time: Some(10),
+                use_inband_fec: Some(true),
+                stereo: stereo.then_some(true),
+                sprop_stereo: stereo.then_some(true),
+                ..Default::default()
+            },
+        );
+    }
+    b.build(now)
 }
 
 struct Client {
@@ -89,7 +115,7 @@ impl World {
         let user = UserId::new(user);
         let idx = self.clients.len();
         let addr: SocketAddr = format!("10.0.1.{}:4000{idx}", idx + 2).parse().unwrap();
-        let mut rtc = Rtc::builder().build(self.now);
+        let mut rtc = client_rtc(self.now);
         rtc.add_local_candidate(Candidate::host(addr, "udp").unwrap());
         let mut change = rtc.sdp_api();
         let mic = change.add_media(MediaKind::Audio, Direction::SendOnly, None, None, None);
@@ -109,12 +135,15 @@ impl World {
                 },
             )
             .unwrap();
-        let answer = self
-            .core
-            .handle_offer(self.now, pid, &offer.to_sdp_string())
-            .unwrap();
+        // Each audio line lists the payload type of what it carries (what the web engine does to its offer).
+        let music_mids = std::collections::HashSet::from([music.to_string()]);
+        let sdp = restrict_opus_lines(&offer.to_sdp_string(), &music_mids);
+        let answer = self.core.handle_offer(self.now, pid, &sdp).unwrap();
         rtc.sdp_api()
-            .accept_answer(pending, SdpAnswer::from_sdp_string(&answer).unwrap())
+            .accept_answer(
+                pending,
+                SdpAnswer::from_sdp_string(&expand_opus_lines(&answer).0).unwrap(),
+            )
             .unwrap();
         self.clients.push(Client {
             user,
@@ -183,6 +212,8 @@ impl World {
                         c.audio.push(Got {
                             stream: m.stream_id().to_owned(),
                             data: d.data.to_vec(),
+                            stereo: d.params.spec().format.stereo == Some(true),
+                            pt: *d.params.pt(),
                         });
                     }
                     Output::Event(_) => {}
@@ -218,15 +249,16 @@ impl World {
                     if msg.op == op::SDP_OFFER {
                         let sdp: wire::Sdp = msg.data().unwrap();
                         c.offers.push(sdp.sdp.clone());
+                        // What a bot does: widen for str0m, narrow the answer for the wire.
+                        let (wide, music_mids) = expand_opus_lines(&sdp.sdp);
                         let answer = c
                             .rtc
                             .sdp_api()
-                            .accept_offer(SdpOffer::from_sdp_string(&sdp.sdp).unwrap())
+                            .accept_offer(SdpOffer::from_sdp_string(&wide).unwrap())
                             .unwrap();
                         let pid = c.pid;
-                        self.core
-                            .handle_answer(now, pid, &answer.to_sdp_string())
-                            .unwrap();
+                        let narrow = restrict_opus_lines(&answer.to_sdp_string(), &music_mids);
+                        self.core.handle_answer(now, pid, &narrow).unwrap();
                     }
                     c.signals.push(msg);
                 }
@@ -262,10 +294,10 @@ impl World {
             let now = self.now;
             let c = &mut self.clients[i];
             let lines = [
-                (c.mic, 0x11u8, 60usize, mic),
-                (c.music, 0x22, MUSIC_FRAME, music),
+                (c.mic, 0x11u8, 60usize, mic, false),
+                (c.music, 0x22, MUSIC_FRAME, music, true),
             ];
-            for (mid, tag, len, on) in lines {
+            for (mid, tag, len, on, stereo) in lines {
                 if !on {
                     continue;
                 }
@@ -274,7 +306,10 @@ impl World {
                     .writer(mid)
                     .unwrap()
                     .payload_params()
-                    .find(|p| p.spec().codec == Codec::Opus)
+                    .find(|p| {
+                        p.spec().codec == Codec::Opus
+                            && (p.spec().format.stereo == Some(true)) == stereo
+                    })
                     .unwrap()
                     .pt();
                 c.rtc
@@ -461,18 +496,65 @@ fn nothing_is_forwarded_before_the_e2ee_handshake() {
 }
 
 #[test]
-fn the_sfu_advertises_stereo_opus_to_listeners() {
+fn the_mic_line_never_carries_a_stereo_fmtp_and_the_music_line_always_does() {
     let mut w = room();
     w.stream_audio(Duration::from_millis(500), &[0], true, true);
+    // What the SFU offers a listener: every audio section lists one payload type.
     let offer = w.clients[1].offers.last().expect("the SFU offered lines");
-    let fmtp = offer
-        .lines()
-        .find(|l| l.starts_with("a=fmtp:111"))
-        .expect("an opus fmtp line");
-    assert!(fmtp.contains("stereo=1"), "{fmtp}");
-    assert!(fmtp.contains("sprop-stereo=1"), "{fmtp}");
-    assert!(fmtp.contains("useinbandfec=1"), "{fmtp}");
-    assert!(offer.contains("opus/48000/2"));
+    let sections: Vec<&str> = offer
+        .split(
+            "
+m=",
+        )
+        .filter(|s| s.starts_with("audio"))
+        .collect();
+    let (mut music, mut other) = (0, 0);
+    for s in sections {
+        if s.starts_with("audio 9 UDP/TLS/RTP/SAVPF 112") {
+            music += 1;
+            assert!(s.contains("a=rtpmap:112 opus/48000/2"), "{s}");
+            let fmtp = s
+                .lines()
+                .find(|l| l.starts_with("a=fmtp:112"))
+                .expect("fmtp");
+            assert!(
+                fmtp.contains("stereo=1") && fmtp.contains("sprop-stereo=1"),
+                "{fmtp}"
+            );
+            assert!(fmtp.contains("useinbandfec=1"), "{fmtp}");
+            assert!(
+                !s.contains("a=rtpmap:111"),
+                "the music line never lists the mono type: {s}"
+            );
+        } else {
+            other += 1;
+            assert!(s.contains("a=rtpmap:111 opus/48000/2"), "{s}");
+            assert!(
+                !s.contains("stereo"),
+                "a voice line never carries a stereo fmtp: {s}"
+            );
+            assert!(!s.contains("a=rtpmap:112"), "{s}");
+        }
+    }
+    // The DJ's forwarded music line and the listener's own (unused) music line.
+    assert_eq!(music, 2, "the stereo lines");
+    assert!(
+        offer.contains("-music"),
+        "the forwarded line is the DJ's music"
+    );
+    assert!(other >= 1, "and the voice lines");
+    // And on the wire: the microphone arrives on the mono payload type, the music on the stereo one.
+    let (mic_pkts, music_pkts): (Vec<&Got>, Vec<&Got>) = w.clients[1]
+        .audio
+        .iter()
+        .partition(|g| g.stream == w.user_stream(0));
+    assert!(!mic_pkts.is_empty() && !music_pkts.is_empty());
+    assert!(mic_pkts.iter().all(|g| !g.stereo && g.pt == MONO_OPUS_PT));
+    assert!(
+        music_pkts
+            .iter()
+            .all(|g| g.stereo && g.pt == STEREO_OPUS_PT)
+    );
 }
 
 #[test]
