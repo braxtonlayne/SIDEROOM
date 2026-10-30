@@ -7,7 +7,7 @@
 //      counts as untagged and is logged once;
 //   3. an MP3 without a usable ID3v2 tag: the last 128 bytes -> `readTagsTail` (ID3v1).
 import { concat, locateMoov, parseBox, readRange, type Fetch } from './ranges';
-import type { MusicTags, TagReader } from './types';
+import type { MusicNeedMoovError, MusicTags, TagReader } from './types';
 
 export const HEAD_BYTES = 1024 * 1024;
 export const TAIL_BYTES = 128;
@@ -25,12 +25,7 @@ export interface ReadDeps {
   warnOnce: (reason: string, detail: string) => void;
 }
 
-interface NeedMoov {
-  code: 'NEED_MOOV';
-  offset: number;
-}
-
-function needsMoov(e: unknown): e is NeedMoov {
+function needsMoov(e: unknown): e is MusicNeedMoovError {
   return (
     typeof e === 'object' &&
     e !== null &&
@@ -53,7 +48,7 @@ function tryRead(fn: () => MusicTags): MusicTags | Error {
 async function readMoov(
   url: string,
   head: Uint8Array,
-  need: NeedMoov,
+  need: MusicNeedMoovError,
   size: number,
   d: ReadDeps,
 ): Promise<ReadOutcome> {

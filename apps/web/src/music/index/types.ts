@@ -1,35 +1,16 @@
 // The lazy tagger's shapes (MUS-IDX-001).
 //
-// The `Music*` types mirror the facade the music-wasm agent publishes in packages/wasm/src/index.d.ts
-// (MUS-WASM-001: `MusicApi`, `MusicTags`, `MusicNeedMoovError`). They are declared here, structurally, so this
-// folder builds and is tested before that branch merges; once it has, `MusicApi` from '@sideroom/wasm' is
-// assignable to `TagReader` as is.
+// The tag types are the `sr-music-wasm` facade's own (MUS-WASM-001, `packages/wasm/src/index.d.ts`); only
+// types are imported here, so nothing of the facade is bundled until the tagger loads it.
+import type { MusicApi } from '@sideroom/wasm';
 
-export interface MusicCover {
-  mime: string;
-  bytes: Uint8Array;
-}
+export type { MusicCover, MusicNeedMoovError, MusicTags } from '@sideroom/wasm';
 
-export interface MusicTags {
-  title: string | null;
-  artist: string | null;
-  album: string | null;
-  albumArtist: string | null;
-  track: number | null;
-  disc: number | null;
-  year: number | null;
-  genre: string | null;
-  durationHint: number | null;
-  cover: MusicCover | null;
-}
-
-/** What the tagger needs of the facade. */
-export interface TagReader {
-  /** The first bytes of the file; throws on unsupported input, `{ code: 'NEED_MOOV', offset }` for a late `moov`. */
-  readTags(head: Uint8Array): MusicTags;
-  /** The last 128 bytes of an MP3 (ID3v1). */
-  readTagsTail(tail: Uint8Array): MusicTags;
-}
+/**
+ * What the tagger needs of the facade: `readTags` (the first bytes of the file; throws a
+ * `MusicNeedMoovError` for a late `moov`) and `readTagsTail` (the last 128 bytes of an MP3, ID3v1).
+ */
+export type TagReader = Pick<MusicApi, 'readTags' | 'readTagsTail'>;
 
 /** A row of `GET /music/library` (the fields the tagger uses). */
 export interface TrackRow {

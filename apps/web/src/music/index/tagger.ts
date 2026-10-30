@@ -216,9 +216,6 @@ function realApi(): TaggerApi {
 
 /** The `sr-music-wasm` facade, loaded on first use (a dynamic import, so it stays out of the main bundle). */
 async function loadReader(): Promise<TagReader> {
-  const mod = (await import('@sideroom/wasm')) as unknown as {
-    loadMusic?: () => Promise<TagReader>;
-  };
-  if (!mod.loadMusic) throw new Error('the music tag reader is not available in this build');
-  return mod.loadMusic();
+  const { loadMusic } = await import('@sideroom/wasm');
+  return loadMusic();
 }
