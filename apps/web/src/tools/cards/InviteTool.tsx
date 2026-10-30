@@ -1,5 +1,5 @@
 import { useRouterState } from '@tanstack/react-router';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { DM_GUILD, useChannels, type Channel } from '../../store';
@@ -7,6 +7,7 @@ import type { ToolProps } from '../registry';
 import { createCard, type InviteCard } from './api';
 import './cards.css';
 import { deviceZone, zoneNames, zonedToUtcMs } from './time';
+import { localParts, pickedTime } from '../timezone/zones';
 
 const KINDS = ['game_night', 'cinema', 'live_tv'] as const;
 const KIND_KEYS = {
@@ -82,6 +83,16 @@ export default function InviteTool({ host }: ToolProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [posted, setPosted] = useState<InviteCard | null>(null);
+  // UTL-CALC-001 hand-off (wave-32 integration): the instant last picked in the time zone tool, if any.
+  const [picked, setPicked] = useState<number | null>(() => pickedTime.get());
+  useEffect(() => pickedTime.subscribe(setPicked), []);
+  const applyPicked = () => {
+    if (picked === null) return;
+    const p = localParts(zone, picked);
+    if (!p) return;
+    const two = (n: number) => String(n).padStart(2, '0');
+    setWhen(`${p.year}-${two(p.month)}-${two(p.day)}T${two(p.hour)}:${two(p.minute)}`);
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -174,6 +185,11 @@ export default function InviteTool({ host }: ToolProps) {
           <span>{t('tools.invite.when')}</span>
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
         </label>
+        {picked !== null && (
+          <button type="button" className="sr-card-btn" onClick={applyPicked}>
+            {t('tools.invite.usePicked')}
+          </button>
+        )}
         <label className="sr-card-field">
           <span>{t('tools.invite.zone')}</span>
           <select value={zone} onChange={(e) => setZone(e.target.value)}>

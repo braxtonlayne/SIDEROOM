@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { useStore } from '../../store';
 import { MountImagePicker } from './MountImagePicker';
@@ -95,6 +95,8 @@ function TierListEditor({ live, channelId }: { live: LiveRoom; channelId: string
   const [picking, setPicking] = useState(false);
   const [tierName, setTierName] = useState('');
   const [posted, setPosted] = useState(false);
+  const [imaging, setImaging] = useState<'idle' | 'busy' | 'failed'>('idle');
+  const boardRef = useRef<HTMLDivElement>(null);
 
   const move = (id: string, tier: string, index: number) => {
     const set = moveItem(view.state, id, tier, index);
@@ -147,6 +149,52 @@ function TierListEditor({ live, channelId }: { live: LiveRoom; channelId: string
     setPosted(true);
   };
 
+  // Wave-32 integration: "post as image" renders the tiers with the studio's toPngBlob (UTL-IMG-001) and sends the
+  // PNG through the composer's normal upload path. Both modules load on the first press.
+  const postImage = async () => {
+    const el = boardRef.current;
+    if (!el) return;
+    setImaging('busy');
+    try {
+      const [{ toPngBlob }, { uploadFiles }] = await Promise.all([
+        import('../studio/toImage'),
+        import('../../lounge/msg/upload'),
+      ]);
+      const bg = getComputedStyle(el).backgroundColor;
+      const blob = await toPngBlob(el, { scale: 2, ...(bg ? { background: bg } : {}) });
+      const file = new File([blob], 'tier-list.png', { type: 'image/png' });
+      const [ref] = await uploadFiles(
+        channelId,
+        [
+          {
+            id: `tier${Date.now().toString(36)}`,
+            file,
+            name: file.name,
+            spoiler: false,
+            description: view.title,
+            progress: 0,
+            status: 'queued',
+          },
+        ],
+        { onUpdate: () => undefined, signal: new AbortController().signal },
+      );
+      if (!ref) throw new Error('upload');
+      await useStore.getState().sendMessage(channelId, '', null, {
+        attachments: [
+          {
+            id: ref.id,
+            uploaded_filename: ref.uploadedFilename,
+            description: ref.description ?? null,
+          },
+        ],
+      });
+      setImaging('idle');
+      setPosted(true);
+    } catch {
+      setImaging('failed');
+    }
+  };
+
   return (
     <div className="sr-tier">
       {tiers.length === 0 && (
@@ -158,32 +206,34 @@ function TierListEditor({ live, channelId }: { live: LiveRoom; channelId: string
           {t('tools.tierlist.addDefaults')}
         </button>
       )}
-      {tiers.map((tier) => (
-        <section key={tier.id} className="sr-tier-row" data-hue={tier.hue}>
-          <div className="sr-tier-head">
-            <input
-              className="sr-tier-name"
-              aria-label={t('tools.tierlist.tierName')}
-              value={tier.name}
-              maxLength={MAX_TIER_NAME}
-              onChange={(e) =>
-                edit({
-                  [`tier.${tier.id}`]: { name: e.target.value, hue: tier.hue, pos: tier.pos },
-                })
-              }
-            />
-            <button
-              type="button"
-              className="sr-room-x"
-              aria-label={t('tools.tierlist.removeTier', { name: tier.name })}
-              onClick={() => edit(removeTier(view.state, tier.id))}
-            >
-              ×
-            </button>
-          </div>
-          {zone(tier.id, itemsIn(items, tier.id), tier.name || t('tools.tierlist.tierName'))}
-        </section>
-      ))}
+      <div ref={boardRef} className="sr-tier-board">
+        {tiers.map((tier) => (
+          <section key={tier.id} className="sr-tier-row" data-hue={tier.hue}>
+            <div className="sr-tier-head">
+              <input
+                className="sr-tier-name"
+                aria-label={t('tools.tierlist.tierName')}
+                value={tier.name}
+                maxLength={MAX_TIER_NAME}
+                onChange={(e) =>
+                  edit({
+                    [`tier.${tier.id}`]: { name: e.target.value, hue: tier.hue, pos: tier.pos },
+                  })
+                }
+              />
+              <button
+                type="button"
+                className="sr-room-x"
+                aria-label={t('tools.tierlist.removeTier', { name: tier.name })}
+                onClick={() => edit(removeTier(view.state, tier.id))}
+              >
+                ×
+              </button>
+            </div>
+            {zone(tier.id, itemsIn(items, tier.id), tier.name || t('tools.tierlist.tierName'))}
+          </section>
+        ))}
+      </div>
 
       <form
         className="sr-room-inline"
@@ -250,6 +300,19 @@ function TierListEditor({ live, channelId }: { live: LiveRoom; channelId: string
         <button type="button" className="sr-room-btn" onClick={post} disabled={tiers.length === 0}>
           {t('tools.tierlist.post')}
         </button>
+        <button
+          type="button"
+          className="sr-room-btn"
+          onClick={() => void postImage()}
+          disabled={tiers.length === 0 || imaging === 'busy'}
+        >
+          {t('tools.tierlist.postImage')}
+        </button>
+        {imaging === 'failed' && (
+          <span role="alert" className="sr-tl-muted">
+            {t('tools.tierlist.postImageFailed')}
+          </span>
+        )}
         {posted && (
           <span role="status" className="sr-tl-muted">
             {t('tools.tierlist.posted')}

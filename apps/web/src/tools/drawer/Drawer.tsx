@@ -9,7 +9,8 @@ import { MAX_GADGETS } from '../gadgets/layout';
 import { useToolsStore } from '../gadgets/store';
 import { ToolView } from '../ToolView';
 import { closeDrawer, useDrawerRequest, type DrawerTab } from './openState';
-import { searchTools } from './toolSearch';
+import { loadToolIndex, rankTools } from './wasmSearch';
+import type { ToolSearchIndex } from '@sideroom/wasm';
 
 /**
  * UTL-SHL-001: the utility drawer. Mod+K opens it on the "Go to" tab (the former quick switcher, unchanged); `>`
@@ -42,18 +43,32 @@ export function Drawer() {
     clearLimit();
   }, [req.open, req.nonce, req.tab, clearLimit]);
 
+  // UTL-SRC-001: the wasm search loads the first time the Tools tab shows (the pure filter answers until then).
+  const [index, setIndex] = useState<ToolSearchIndex | null>(null);
+  useEffect(() => {
+    if (tab !== 'tools' || index) return;
+    let live = true;
+    void loadToolIndex().then((i) => {
+      if (live) setIndex(i);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tab, index]);
+
   const goto = useGotoResults(query, closeDrawer);
-  const toolRows = useMemo(
+  const { rows: toolRows, didYouMean } = useMemo(
     () =>
-      searchTools(
+      rankTools(
         TOOLS.map((entry) => ({
           entry,
           name: t(entry.nameKey),
           description: t(entry.descriptionKey),
         })),
         query,
+        index,
       ),
-    [query, t],
+    [query, t, index],
   );
   const count = tab === 'goto' ? goto.results.length : toolRows.length;
   const clamped = Math.min(active, Math.max(0, count - 1));
@@ -209,6 +224,11 @@ export function Drawer() {
           </>
         ) : (
           <>
+            {didYouMean && (
+              <p className="sr-tl-muted sr-tl-pad" role="status">
+                {t('tools.drawer.didYouMean', { name: didYouMean.name })}
+              </p>
+            )}
             <ul
               id={listId}
               role="listbox"
