@@ -71,7 +71,9 @@ async fn playlists_belong_to_their_owner_and_the_cap_holds_per_owner() {
     let (db, lib) = world().await;
     let me = PlaylistOwner::User(ALICE);
     let a = lib.create_playlist(1, me, "A", "", ALICE, 2).await.unwrap();
-    lib.create_playlist(2, me, "B", "d", ALICE, 2).await.unwrap();
+    lib.create_playlist(2, me, "B", "d", ALICE, 2)
+        .await
+        .unwrap();
     assert_eq!(
         lib.create_playlist(3, me, "C", "", ALICE, 2).await,
         Err(LibError::Cap)
@@ -85,9 +87,25 @@ async fn playlists_belong_to_their_owner_and_the_cap_holds_per_owner() {
         .unwrap();
 
     let mine = lib.playlists_of(me).await.unwrap();
-    assert_eq!(mine.iter().map(|p| p.id).collect::<Vec<_>>(), [2, 1], "newest first");
-    assert_eq!(lib.playlists_of(PlaylistOwner::User(BOB)).await.unwrap().len(), 1);
-    assert_eq!(lib.playlists_of(PlaylistOwner::User(CARA)).await.unwrap().len(), 0);
+    assert_eq!(
+        mine.iter().map(|p| p.id).collect::<Vec<_>>(),
+        [2, 1],
+        "newest first"
+    );
+    assert_eq!(
+        lib.playlists_of(PlaylistOwner::User(BOB))
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        lib.playlists_of(PlaylistOwner::User(CARA))
+            .await
+            .unwrap()
+            .len(),
+        0
+    );
     assert_eq!(
         lib.playlists_of(PlaylistOwner::Guild(GUILD)).await.unwrap()[0].owner,
         PlaylistOwner::Guild(GUILD)
@@ -127,23 +145,43 @@ async fn the_table_refuses_a_playlist_with_two_owners_or_none() {
 async fn items_keep_a_dense_order_through_add_move_and_remove() {
     let (db, lib) = world().await;
     let me = PlaylistOwner::User(ALICE);
-    lib.create_playlist(1, me, "P", "", ALICE, 10).await.unwrap();
-    assert_eq!(lib.add_items(1, &[(11, 100), (12, 101), (13, 102)], ALICE, 10).await, Ok(3));
+    lib.create_playlist(1, me, "P", "", ALICE, 10)
+        .await
+        .unwrap();
+    assert_eq!(
+        lib.add_items(1, &[(11, 100), (12, 101), (13, 102)], ALICE, 10)
+            .await,
+        Ok(3)
+    );
     let order = |items: Vec<sr_storage::music_lib::ItemRow>| {
-        items.iter().map(|i| (i.item_id, i.position)).collect::<Vec<_>>()
+        items
+            .iter()
+            .map(|i| (i.item_id, i.position))
+            .collect::<Vec<_>>()
     };
-    assert_eq!(order(lib.items(1).await.unwrap()), [(11, 0), (12, 1), (13, 2)]);
+    assert_eq!(
+        order(lib.items(1).await.unwrap()),
+        [(11, 0), (12, 1), (13, 2)]
+    );
 
     lib.move_item(1, 13, 0).await.unwrap();
-    assert_eq!(order(lib.items(1).await.unwrap()), [(13, 0), (11, 1), (12, 2)]);
+    assert_eq!(
+        order(lib.items(1).await.unwrap()),
+        [(13, 0), (11, 1), (12, 2)]
+    );
     lib.move_item(1, 13, 99).await.unwrap(); // clamped to the end
-    assert_eq!(order(lib.items(1).await.unwrap()), [(11, 0), (12, 1), (13, 2)]);
+    assert_eq!(
+        order(lib.items(1).await.unwrap()),
+        [(11, 0), (12, 1), (13, 2)]
+    );
     lib.remove_item(1, 12).await.unwrap();
     assert_eq!(order(lib.items(1).await.unwrap()), [(11, 0), (13, 1)]);
     assert_eq!(lib.remove_item(1, 12).await, Err(LibError::NotFound));
     assert_eq!(lib.move_item(1, 12, 0).await, Err(LibError::NotFound));
     // Another list's item is not reachable through this one.
-    lib.create_playlist(2, me, "Q", "", ALICE, 10).await.unwrap();
+    lib.create_playlist(2, me, "Q", "", ALICE, 10)
+        .await
+        .unwrap();
     lib.add_items(2, &[(21, 100)], ALICE, 10).await.unwrap();
     assert_eq!(lib.remove_item(1, 21).await, Err(LibError::NotFound));
     // The same track twice is allowed.
@@ -157,8 +195,12 @@ async fn items_keep_a_dense_order_through_add_move_and_remove() {
 async fn the_item_cap_refuses_a_whole_batch_and_unknown_or_vanished_tracks() {
     let (db, lib) = world().await;
     let me = PlaylistOwner::User(ALICE);
-    lib.create_playlist(1, me, "P", "", ALICE, 10).await.unwrap();
-    lib.add_items(1, &[(11, 100), (12, 101)], ALICE, 3).await.unwrap();
+    lib.create_playlist(1, me, "P", "", ALICE, 10)
+        .await
+        .unwrap();
+    lib.add_items(1, &[(11, 100), (12, 101)], ALICE, 3)
+        .await
+        .unwrap();
     // Two more would make four: nothing of the batch lands.
     assert_eq!(
         lib.add_items(1, &[(13, 102), (14, 102)], ALICE, 3).await,
@@ -167,7 +209,9 @@ async fn the_item_cap_refuses_a_whole_batch_and_unknown_or_vanished_tracks() {
     assert_eq!(lib.items(1).await.unwrap().len(), 2);
     lib.add_items(1, &[(13, 102)], ALICE, 3).await.unwrap();
     // A vanished or missing track refuses the batch (404 on the wire).
-    lib.create_playlist(2, me, "Q", "", ALICE, 10).await.unwrap();
+    lib.create_playlist(2, me, "Q", "", ALICE, 10)
+        .await
+        .unwrap();
     assert_eq!(
         lib.add_items(2, &[(21, 100), (22, 199)], ALICE, 10).await,
         Err(LibError::NotFound)
@@ -176,7 +220,10 @@ async fn the_item_cap_refuses_a_whole_batch_and_unknown_or_vanished_tracks() {
         lib.add_items(2, &[(21, 424_242)], ALICE, 10).await,
         Err(LibError::NotFound)
     );
-    assert_eq!(lib.add_items(999, &[(31, 100)], ALICE, 10).await, Err(LibError::NotFound));
+    assert_eq!(
+        lib.add_items(999, &[(31, 100)], ALICE, 10).await,
+        Err(LibError::NotFound)
+    );
     assert_eq!(lib.items(2).await.unwrap().len(), 0);
     db.cleanup().await.unwrap();
 }
@@ -187,8 +234,12 @@ async fn tracks_that_vanish_leave_the_lists_and_deleted_ones_take_their_rows_alo
     let (db, lib) = world().await;
     let pool = db.pool();
     let me = PlaylistOwner::User(ALICE);
-    lib.create_playlist(1, me, "P", "", ALICE, 10).await.unwrap();
-    lib.add_items(1, &[(11, 100), (12, 101)], ALICE, 10).await.unwrap();
+    lib.create_playlist(1, me, "P", "", ALICE, 10)
+        .await
+        .unwrap();
+    lib.add_items(1, &[(11, 100), (12, 101)], ALICE, 10)
+        .await
+        .unwrap();
     lib.add_favorite(ALICE, 100, 10).await.unwrap();
     lib.record_recent(ALICE, 100).await.unwrap();
 
@@ -197,7 +248,15 @@ async fn tracks_that_vanish_leave_the_lists_and_deleted_ones_take_their_rows_alo
         .execute(pool)
         .await
         .unwrap();
-    assert_eq!(lib.items(1).await.unwrap().iter().map(|i| i.track.id).collect::<Vec<_>>(), [101]);
+    assert_eq!(
+        lib.items(1)
+            .await
+            .unwrap()
+            .iter()
+            .map(|i| i.track.id)
+            .collect::<Vec<_>>(),
+        [101]
+    );
     assert!(lib.favorites(ALICE).await.unwrap().is_empty());
     assert!(lib.recent(ALICE, 50).await.unwrap().is_empty());
     assert_eq!(lib.tracks(&[100, 101]).await.unwrap().len(), 1);
@@ -235,14 +294,22 @@ async fn favorites_are_per_member_idempotent_and_capped() {
     assert_eq!(lib.add_favorite(ALICE, 102, 2).await, Err(LibError::Cap));
     // Re-favoriting at the cap is still fine (nothing new is added).
     lib.add_favorite(ALICE, 101, 2).await.unwrap();
-    assert_eq!(lib.add_favorite(ALICE, 199, 5).await, Err(LibError::NotFound));
+    assert_eq!(
+        lib.add_favorite(ALICE, 199, 5).await,
+        Err(LibError::NotFound)
+    );
     assert_eq!(lib.favorites(ALICE).await.unwrap().len(), 2);
     assert_eq!(lib.favorites(BOB).await.unwrap().len(), 0);
     lib.add_favorite(BOB, 102, 2).await.unwrap();
     lib.remove_favorite(ALICE, 100).await.unwrap();
     lib.remove_favorite(ALICE, 100).await.unwrap();
     assert_eq!(
-        lib.favorites(ALICE).await.unwrap().iter().map(|f| f.track.id).collect::<Vec<_>>(),
+        lib.favorites(ALICE)
+            .await
+            .unwrap()
+            .iter()
+            .map(|f| f.track.id)
+            .collect::<Vec<_>>(),
         [101]
     );
     db.cleanup().await.unwrap();
@@ -256,7 +323,9 @@ async fn recent_moves_a_replayed_track_up_and_keeps_two_hundred() {
     lib.record_recent(ALICE, 100).await.unwrap();
     lib.record_recent(ALICE, 101).await.unwrap();
     lib.record_recent(ALICE, 100).await.unwrap();
-    let ids = |r: Vec<sr_storage::music_lib::StampedTrack>| r.iter().map(|s| s.track.id).collect::<Vec<_>>();
+    let ids = |r: Vec<sr_storage::music_lib::StampedTrack>| {
+        r.iter().map(|s| s.track.id).collect::<Vec<_>>()
+    };
     assert_eq!(ids(lib.recent(ALICE, 50).await.unwrap()), [100, 101]);
     assert_eq!(lib.record_recent(ALICE, 199).await, Err(LibError::NotFound));
 
@@ -321,16 +390,25 @@ async fn a_server_playlist_is_editable_with_the_upload_grant_and_gone_with_the_s
 
     assert_eq!(server_rights(&facts, ALICE).await, Some(true), "owner");
     assert_eq!(server_rights(&facts, BOB).await, Some(true), "upload grant");
-    assert_eq!(server_rights(&facts, CARA).await, Some(false), "member without the grant");
+    assert_eq!(
+        server_rights(&facts, CARA).await,
+        Some(false),
+        "member without the grant"
+    );
     assert_eq!(server_rights(&facts, 4).await, None, "not a member");
 
     let owner = PlaylistOwner::Guild(GUILD);
-    lib.create_playlist(1, owner, "Room", "", BOB, 100).await.unwrap();
+    lib.create_playlist(1, owner, "Room", "", BOB, 100)
+        .await
+        .unwrap();
     lib.add_items(1, &[(11, 100)], BOB, 5000).await.unwrap();
     assert_eq!(lib.items(1).await.unwrap().len(), 1);
 
     // Taking the grant away from the role takes the edit right away on the next request.
-    facts.set_role_grants(GUILD, 61, &GrantSet::default()).await.unwrap();
+    facts
+        .set_role_grants(GUILD, 61, &GrantSet::default())
+        .await
+        .unwrap();
     assert_eq!(server_rights(&facts, BOB).await, Some(false));
 
     // Deleting the server deletes its playlists and their items.
