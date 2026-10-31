@@ -350,3 +350,13 @@ pub async fn delete_role_maps(pool: &PgPool, guild: i64) -> BridgeResult<u64> {
             .rows_affected(),
     )
 }
+
+/// Delete plans a day after they expired, failed or were superseded (doc 09). Confirmed plans stay with the bridge.
+pub async fn prune_plans(pool: &PgPool) -> BridgeResult<u64> {
+    Ok(sqlx::query(
+        "DELETE FROM bridge_sync_plans WHERE status <> 'confirmed' AND expires_at < now() - interval '1 day'",
+    )
+    .execute(pool)
+    .await?
+    .rows_affected())
+}

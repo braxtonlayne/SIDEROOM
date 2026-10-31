@@ -8,6 +8,28 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 35b - 2026-10-31
+
+- **Bridge the whole server.** A server owner with the Discord bridge on can now choose between "Only bridge
+  these" (pick channels, categories and threads) and "Bridge the whole server", which makes this server and the
+  Discord server one: roles, categories, channels and active threads are created and kept in step on both sides, and
+  every channel's messages flow both ways. Direct messages, encrypted conversations and voice are never mirrored.
+- **Nothing changes until the owner says so.** A manager can prepare a plan: a checklist of what the bot needs on
+  Discord (Administrator, the top role, the two intents), then a dry run listing what will be matched, created on
+  each side, changed on Discord, imported from Discord (dangerous permissions in red) and left out. Only the owner
+  confirms it, with the second-factor step.
+- **Permissions are set here.** Role permissions, `@everyone` and channel permissions go from SIDE ROOM to Discord;
+  a change made to them on Discord is undone and shows up in a new conflict log with who did it, where a person
+  with the right to make that edit here can apply it with one click. SIDE ROOM-only permissions never leave; role
+  order is set here. A channel deleted on Discord is hidden here for a day and can be restored.
+- **Discord members fit in.** In whole-server mode they sit under the same hoisted roles in the member list, in the
+  role colour, and role and channel mentions work both ways.
+- **Switching off** still leaves Discord as it is by default; the owner can also remove what the bridge created there
+  or put Discord's permissions back. The bot never deletes anything on Discord it did not create.
+- **Operators:** three new settings, `bridge.delete_hold_hours` (24), `bridge.reconcile_minutes` (15) and
+  `bridge.struct_writes_per_sec` (2). A bridge pauses itself after 200 refused Discord calls in ten minutes, every
+  bridge after 2,000.
+
 ## Phase 35 - 2026-10-30
 
 - **Discord bridge (off until a server owner switches it on).** Under Server Settings > Modules ("Integrations,

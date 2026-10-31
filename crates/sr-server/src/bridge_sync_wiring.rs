@@ -360,6 +360,13 @@ async fn minute(engine: &SyncEngine, reconcile_minutes: i64) {
     if let Err(e) = engine.run_due_holds().await {
         tracing::warn!(error = %e, "bridge sync: hold job failed");
     }
+    // Retention (doc 09): closed conflict rows after 90 days, plans a day after they lapsed.
+    if let Err(e) = engine.svc.prune_closed_conflicts().await {
+        tracing::warn!(error = %e, "bridge sync: could not prune closed conflicts");
+    }
+    if let Err(e) = store::prune_plans(&engine.svc.pool).await {
+        tracing::warn!(error = %e, "bridge sync: could not prune lapsed plans");
+    }
     if let Err(e) = sr_bridge::sync::ops::prune_done(&engine.svc.pool).await {
         tracing::warn!(error = %e, "bridge sync: could not prune finished ops");
     }
