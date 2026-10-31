@@ -1,5 +1,5 @@
 {
-  "$comment": "XC-PERF-002, SEC-ENT-001. Sizes are gzip bytes of the JavaScript a first visit must download. 'public' has one row per public surface (its own shell, never the app); 'budgets.app' is everything app.html loads before first paint; 'lounge' adds the Lounge route chunk and its static imports. 'musicWasmMaxBrotliKB' caps the lazily fetched sr-music-wasm module (MUS-WASM-001), brotli bytes.",
+  "$comment": "XC-PERF-002, SEC-ENT-001. Sizes are gzip bytes of the JavaScript a first visit must download. 'public' has one row per public surface (its own shell, never the app); 'budgets.app' is everything app.html loads before first paint; 'lounge' adds the Lounge route chunk and its static imports. 'musicWasmMaxBrotliKB' caps the lazily fetched sr-music-wasm module (MUS-WASM-001), brotli bytes. OPS-CI-001 (2026-10-31, measured with node scripts/build-web.mjs, gzip KB of the app shell plus the chunk's static closure): music-player (PlayerHost) 262.3, drawer (DrawerHost) 257.3, converter (ConvertStep) 252.6, studio (StudioEditor) 252.1, emulator (EmuPage) 267.3, activities (ActivityLauncher) 472.0; each limit is the measurement plus about 15 percent. The app shell itself measured 244.9 (limit 300); the music wasm 188.4 KB brotli.",
   "public": {
     "landing": {
       "maxGzipKB": 120
@@ -50,6 +50,30 @@
     "developers": {
       "maxGzipKB": 400,
       "routeChunk": "DevelopersRoot"
+    },
+    "music-player": {
+      "maxGzipKB": 300,
+      "routeChunk": "PlayerHost"
+    },
+    "drawer": {
+      "maxGzipKB": 300,
+      "routeChunk": "DrawerHost"
+    },
+    "converter": {
+      "maxGzipKB": 300,
+      "routeChunk": "ConvertStep"
+    },
+    "studio": {
+      "maxGzipKB": 300,
+      "routeChunk": "StudioEditor"
+    },
+    "emulator": {
+      "maxGzipKB": 320,
+      "routeChunk": "EmuPage"
+    },
+    "activities": {
+      "maxGzipKB": 550,
+      "routeChunk": "ActivityLauncher"
     }
   },
   "singleChunkMaxGzipKB": 250,
