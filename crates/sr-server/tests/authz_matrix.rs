@@ -1979,7 +1979,7 @@ async fn seed(
             "object_hash",
             sr_storage::shelf::path_hash("Series/Authz/Authz S01E01.mp4"),
         );
-        ids_map.insert("grant_id", grant.to_string());
+        ids_map.insert("shelf_grant_id", grant.to_string());
     }
     // MUS-IDX-001/MUS-LIB-001 (wave 30): a listed track on each tenant's user mount (`{track_id}`, the member's
     // own music) and on its guild mount (`guild_track_id`, what the guild owner puts in a playlist), and a guild
@@ -3536,7 +3536,7 @@ const TENANT: [&str; 42] = [
     // STU-ZK-001 (wave 41): shelf access
     "shelf_id",
     "object_hash",
-    "grant_id",
+    "shelf_grant_id",
 ];
 
 fn scoped(path: &str) -> bool {
@@ -7384,14 +7384,14 @@ async fn shelf_access_holds_over_http() {
     // Two sessions of the same account: two devices.
     let phone = Cred::Session(session_for(&auth, &ids, victim).await);
     let laptop = Cred::Session(session_for(&auth, &ids, victim).await);
-    let stranger = Cred::Session(session_for(&auth, &ids, world.users["friendtwo"]).await);
+    let stranger = world.actor("outsider").cred.clone();
     let owner = world.actor("member").cred.clone();
     let staff = world.actor(bit_actor_name("MANAGE_TAKEDOWNS")).cred.clone();
     let srv = &world.srv;
     let pool = &world.pool;
     let m = world.a["shelf_id"].clone();
     let hash = world.a["object_hash"].clone();
-    let seeded_grant = world.a["grant_id"].clone();
+    let seeded_grant = world.a["shelf_grant_id"].clone();
     let other_shelf = world.b["shelf_id"].clone();
 
     let mut failures: Vec<String> = Vec::new();
@@ -7459,7 +7459,7 @@ async fn shelf_access_holds_over_http() {
             &owner,
             "POST",
             &format!("/shelves/{m}/grants"),
-            Some(&json!({"grantee_kind": "friend", "grantee_id": world.users["friendtwo"].to_string()}))
+            Some(&json!({"grantee_kind": "friend", "grantee_id": world.users["outsider"].to_string()}))
         )
         .await,
         400

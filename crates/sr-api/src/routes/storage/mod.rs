@@ -208,7 +208,7 @@ pub fn router() -> Router<AppState> {
             get(shelf_access::list_grants).post(shelf_access::create_grant),
         )
         .route(
-            "/shelves/{shelf_id}/grants/{grant_id}",
+            "/shelves/{shelf_id}/grants/{shelf_grant_id}",
             axum::routing::delete(shelf_access::revoke_grant),
         )
         .route("/shelves/{section}", get(shelves::list))

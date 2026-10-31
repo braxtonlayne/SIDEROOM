@@ -699,10 +699,10 @@ pub async fn create_grant(
 /// Revoke a grant. It takes effect at the next URL mint; a URL minted earlier lives out its ten minutes.
 #[utoipa::path(
     delete,
-    path = "/shelves/{shelf_id}/grants/{grant_id}",
+    path = "/shelves/{shelf_id}/grants/{shelf_grant_id}",
     params(
         ("shelf_id" = String, Path, description = "Shelf (mount) snowflake"),
-        ("grant_id" = String, Path, description = "Grant snowflake"),
+        ("shelf_grant_id" = String, Path, description = "Grant snowflake"),
     ),
     responses((status = 204), (status = 404, body = ErrorBody)),
     security(("session" = []))
