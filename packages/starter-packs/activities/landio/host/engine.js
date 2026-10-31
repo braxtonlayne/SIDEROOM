@@ -118,8 +118,18 @@ export class LandioHost {
     // Nobody seated: nothing to play for (the room is paused, as an empty server room was).
     if (!a.seats.size) return;
     a.tick(this.now());
+    this.prune();
     this.sendFrame();
     this.sendYous();
+  }
+
+  /** Forget seats the arena timed out (no message for 10 s) or removed. */
+  prune() {
+    for (const [uid, seat] of [...this.byUid])
+      if (this.arena.seats.get(seat.token) !== seat) {
+        this.byUid.delete(uid);
+        this.youSent.delete(uid);
+      }
   }
 
   /**
@@ -149,6 +159,7 @@ export class LandioHost {
     const a = this.arena;
     const now = this.now();
     if (msg.t === 'hello') return this.hello(from, cleanName(name) || cleanName(msg.name) || 'Player');
+    this.prune();
     const seat = this.byUid.get(from);
     if (!seat) {
       // A page that lost its seat (the host timed it out): tell it, so it says hello again.
