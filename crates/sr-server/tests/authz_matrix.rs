@@ -1397,7 +1397,12 @@ async fn seed(
     cfg.voice.announce_ips = vec!["127.0.0.1".into()];
     // A range of its own per world: a stopped node frees its sockets a moment after the process says so.
     static VOICE_N: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
-    let voice_base = 52_000 + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // SR_TEST_VOICE_PORT_BASE moves the range, so two matrix runs on one machine do not fight over it.
+    let first: u16 = std::env::var("SR_TEST_VOICE_PORT_BASE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(52_000);
+    let voice_base = first + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     cfg.voice.udp_port_min = voice_base;
     cfg.voice.udp_port_max = voice_base + 9;
     cfg.server.shutdown_grace_secs = 1;
@@ -6310,7 +6315,13 @@ pub mod harness {
                     if f["enabled"] != json!(true) {
                         continue;
                     }
-                    let r = srv
+                    // OPS-FLG-001: a `platform.tools.<tool>` sub-flag dies with `platform.tools` (listed first, killed
+                    // above), so it needs no call of its own; it still reads off, which the check after the loop proves.
+                    if id.starts_with("platform.tools.") {
+                        killed += 1;
+                        continue;
+                    }
+                    let mut r = srv
                         .call_reason(
                             owner,
                             "PATCH",
@@ -6318,11 +6329,39 @@ pub mod harness {
                             Some(&json!({"enabled": false})),
                         )
                         .await;
+                    // The admin routes are rate limited; the kill is not what is under test, so wait the limit out.
+                    for _ in 0..20 {
+                        if r.status != 429 {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(1500)).await;
+                        r = srv
+                            .call_reason(
+                                owner,
+                                "PATCH",
+                                &format!("/admin/features/{id}"),
+                                Some(&json!({"enabled": false})),
+                            )
+                            .await;
+                    }
                     if r.status == 200 {
                         killed += 1;
                     } else {
                         skipped.push(format!("{id} ({})", r.status));
                     }
+                }
+                // Everything reads off now, the sub-flags included (they follow their parent).
+                let after = srv.call(owner, "GET", "/admin/features", None).await;
+                let after = json_of(&after);
+                let still: Vec<&str> = after
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|f| f["enabled"] == json!(true))
+                    .filter_map(|f| f["id"].as_str())
+                    .collect();
+                if !still.is_empty() {
+                    return Err(format!("features still on after the kill: {still:?}"));
                 }
                 if killed == 0 || skipped.len() * 10 > list.len() {
                     return Err(format!(
