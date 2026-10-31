@@ -1245,7 +1245,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let lookup_deps = Arc::new(
         routes::review::LookupDeps::new(
             crate::lookup_wiring::all_providers_from(&cfg.lookup),
-            Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
+            Arc::new(crate::lookup_wiring::GatedLookupSwitch::new(
+                Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
+                features.clone(),
+            )),
             Some(cdn_signer.clone()),
         )
         .with_live_enabled(live_policy.lookup.clone()),
