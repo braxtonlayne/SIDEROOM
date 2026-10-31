@@ -390,6 +390,13 @@ impl SrStructure for SqlSr {
                     .execute(&self.pool)
                     .await?;
             }
+            if let Some(t) = &p.topic {
+                sqlx::query("UPDATE channels SET topic = $2 WHERE id = $1")
+                    .bind(channel_id)
+                    .bind(t)
+                    .execute(&self.pool)
+                    .await?;
+            }
             if let Some(pos) = p.position {
                 sqlx::query("UPDATE channels SET position = $2 WHERE id = $1")
                     .bind(channel_id)
@@ -1310,5 +1317,149 @@ async fn a_paused_bridge_does_not_reconcile() {
         s.eng.reconcile_guild(s.guild).await,
         Err(BridgeError::Conflict(_))
     ));
+    let _ = s.w.db.cleanup().await;
+}
+
+// ---- the jobs ----
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_ops_runner_reconciles_a_bridge_once_for_all_its_due_ops() {
+    use sr_bridge::sync::{ObjectKind, OpDirection, OpPriority, ops};
+    let s = seeded().await;
+    let pool = s.w.db.pool();
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    s.fake.set_channel(9101, "topic", json!("hello"));
+    for (k, o) in [
+        (ObjectKind::Channel, 1),
+        (ObjectKind::Role, 2),
+        (ObjectKind::Overwrites, 3),
+    ] {
+        s.eng
+            .enqueue_look(s.guild, k, o, OpDirection::ToSr, OpPriority::Structure)
+            .await
+            .unwrap();
+    }
+    assert_eq!(ops::counts(pool, s.guild).await.unwrap().pending, 3);
+    sqlx::query("UPDATE bridge_sync_ops SET due_at = now()")
+        .execute(pool)
+        .await
+        .unwrap();
+    let rep = s.eng.run_ops_pass(10).await.unwrap();
+    assert_eq!((rep.guilds, rep.ops_done, rep.ops_failed), (1, 3, 0));
+    let topic: Option<String> = sqlx::query_scalar("SELECT topic FROM channels WHERE id = $1")
+        .bind(s.ids["general"])
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        topic.as_deref(),
+        Some("hello"),
+        "the Discord topic was applied here"
+    );
+    assert_eq!(ops::counts(pool, s.guild).await.unwrap().pending, 0);
+
+    // A failing pass (Discord unreachable for the guild) puts the ops back with backoff.
+    store::set_sync_state(pool, s.guild, SyncState::Live)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE bridges SET bot_token_enc = $2 WHERE guild_id = $1")
+        .bind(s.guild)
+        .bind(vec![1u8, 2, 3])
+        .execute(pool)
+        .await
+        .unwrap();
+    s.eng
+        .enqueue_look(
+            s.guild,
+            ObjectKind::Reconcile,
+            s.guild,
+            OpDirection::Look,
+            OpPriority::Background,
+        )
+        .await
+        .unwrap();
+    sqlx::query("UPDATE bridge_sync_ops SET due_at = now()")
+        .execute(pool)
+        .await
+        .unwrap();
+    let rep = s.eng.run_ops_pass(10).await.unwrap();
+    assert_eq!((rep.ops_done, rep.ops_failed), (0, 1));
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn pause_resume_reconcile_now_and_the_breakers() {
+    let s = seeded().await;
+    let pool = s.w.db.pool();
+    s.eng.pause(s.guild).await.unwrap();
+    assert!(matches!(
+        s.eng.pause(s.guild).await,
+        Err(BridgeError::Conflict(_))
+    ));
+    assert!(
+        matches!(
+            s.eng.reconcile_now(s.guild).await,
+            Err(BridgeError::Conflict(_))
+        ),
+        "paused: nothing runs"
+    );
+    s.eng.resume(s.guild).await.unwrap();
+    s.eng.reconcile_now(s.guild).await.unwrap();
+    assert!(
+        matches!(
+            s.eng.reconcile_now(s.guild).await,
+            Err(BridgeError::Conflict(_))
+        ),
+        "once per five minutes"
+    );
+
+    // The invalid-request breaker pauses at 200 in ten minutes.
+    assert!(!s.eng.trip_if_invalid(s.guild, 199).await.unwrap());
+    assert!(s.eng.trip_if_invalid(s.guild, 200).await.unwrap());
+    let sync = store::get_sync(pool, s.guild).await.unwrap().unwrap();
+    assert_eq!(sync.state, SyncState::PausedInvalidRequests);
+    s.eng.resume(s.guild).await.unwrap();
+
+    // A bot that lost Administrator pauses the bridge before any write.
+    s.fake.set_role(5001, "permissions", json!("0"));
+    assert!(s.eng.check_access(s.guild).await.unwrap());
+    assert_eq!(
+        store::get_sync(pool, s.guild).await.unwrap().unwrap().state,
+        SyncState::PausedDiscordAccess
+    );
+    let writes = s.fake.writes().len();
+    assert!(matches!(
+        s.eng.reconcile_guild(s.guild).await,
+        Err(BridgeError::Conflict(_))
+    ));
+    assert_eq!(
+        s.fake.writes().len(),
+        writes,
+        "no Discord write while paused"
+    );
+
+    // The scheduled reconcile only queues live bridges that are due.
+    s.fake.set_role(5001, "permissions", json!("8"));
+    s.eng.resume(s.guild).await.unwrap();
+    sqlx::query("UPDATE bridge_sync_ops SET due_at = now()")
+        .execute(pool)
+        .await
+        .unwrap();
+    s.eng.run_ops_pass(10).await.unwrap();
+    sqlx::query(
+        "UPDATE bridges SET last_reconcile_at = now() - interval '20 minutes' WHERE guild_id = $1",
+    )
+    .bind(s.guild)
+    .execute(pool)
+    .await
+    .unwrap();
+    assert_eq!(s.eng.enqueue_scheduled_reconciles(15).await.unwrap(), 1);
+    assert_eq!(
+        s.eng.enqueue_scheduled_reconciles(15).await.unwrap(),
+        0,
+        "already queued"
+    );
     let _ = s.w.db.cleanup().await;
 }

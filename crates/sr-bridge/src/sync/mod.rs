@@ -26,6 +26,7 @@
 pub mod eligible;
 pub mod engine;
 pub mod holds;
+pub mod jobs;
 pub mod ops;
 pub mod patch;
 pub mod plan;
@@ -38,6 +39,7 @@ pub mod types;
 
 pub use eligible::{Mirrored, Refusal, bridgeable};
 pub use engine::{PlanEdit, PlanView, SeedReport, StoredPlan, SyncEngine};
+pub use jobs::PassReport;
 pub use patch::{ChannelPatch, RoleStructurePatch, SrStructuralPatch, ThreadPatch};
 pub use plan::{Action, Blocker, ItemKind, Plan, PlanItem};
 pub use port::{BridgeOrigin, NoOverwrites, OverwritePush, SrNewChannel, SrNewRole, SrStructure};
