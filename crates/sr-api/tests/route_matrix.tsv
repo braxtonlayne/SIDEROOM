@@ -361,6 +361,8 @@ GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	
 GET	/guilds/{guild_id}/bans	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/birthdays	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/bridge/conflicts	authenticated	bridge_admin	deny	-	-
+GET	/guilds/{guild_id}/bridge/conflicts/{conflict_id}	authenticated	bridge_admin	deny	-	-
 GET	/guilds/{guild_id}/bridge/discord-channels	authenticated	bridge_admin	deny	-	-
 GET	/guilds/{guild_id}/bridge/leftovers	authenticated	guild_owner	deny	-	-
 GET	/guilds/{guild_id}/bridge/maps	authenticated	bridge_admin	deny	-	-
@@ -845,6 +847,9 @@ POST	/guilds/templates/{code}	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/ack	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/alert-actions	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/bridge/conflicts/{conflict_id}/dismiss	authenticated	bridge_admin	deny	-	-
+POST	/guilds/{guild_id}/bridge/conflicts/{conflict_id}/resolve	authenticated	bridge_admin	deny	-	-
+POST	/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord	authenticated	bridge_admin	deny	-	-
 POST	/guilds/{guild_id}/bridge/maps	authenticated	bridge_admin	deny	-	-
 POST	/guilds/{guild_id}/bridge/maps/{map_id}/test	authenticated	bridge_admin	deny	-	-
 POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-	-

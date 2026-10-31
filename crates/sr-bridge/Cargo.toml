@@ -26,6 +26,7 @@ utoipa = "5"
 
 [dev-dependencies]
 sr-db = { path = "../sr-db" }
+proptest.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "net", "io-util"] }
 
 [lints]

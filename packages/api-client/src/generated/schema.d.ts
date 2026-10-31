@@ -7522,6 +7522,97 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/bridge/conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The conflicts of the bridge (`MANAGE_GUILD`). */
+        get: operations["list_conflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One conflict (`MANAGE_GUILD`). */
+        get: operations["get_conflict"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss a conflict (`MANAGE_GUILD`): it stays in the log as dismissed. Nothing on either side changes. */
+        post: operations["dismiss_conflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a conflict after "Apply on SIDE ROOM" (`MANAGE_GUILD`, and `MANAGE_ROLES` or `MANAGE_CHANNELS` for the
+         *     edit the row stands for). The edit itself was an ordinary SIDE ROOM edit by this person; this only records it.
+         */
+        post: operations["resolve_conflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Discord's value of a `structure_conflict` row here, as the person who clicks (`MANAGE_GUILD`, plus the
+         *     SIDE ROOM rule of the edit: `MANAGE_ROLES` and hierarchy for a role, `MANAGE_CHANNELS` for a channel).
+         */
+        post: operations["take_discord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bridge/discord-channels": {
         parameters: {
             query?: never;
@@ -18035,6 +18126,52 @@ export interface components {
             updated_at_ms: number;
             url_mappings: components["schemas"]["UrlMapping"][];
         };
+        /** @description A page of the conflict log, newest first. */
+        ConflictList: {
+            conflicts: components["schemas"]["ConflictObject"][];
+            /**
+             * Format: int64
+             * @description Conflicts still open (all pages).
+             */
+            open: number;
+        };
+        /** @description One row of the conflict log. */
+        ConflictObject: {
+            /**
+             * Format: int32
+             * @description How many times it happened inside the coalescing window.
+             */
+            count: number;
+            /** @description The Discord user who did it, when Discord's audit log said so. */
+            discord_actor_id?: string | null;
+            discord_actor_name?: string | null;
+            discord_object_id?: string | null;
+            /** @description What Discord has or attempted (permission words are decimal strings, shared bits only). */
+            discord_value?: unknown;
+            field: string;
+            /** Format: int64 */
+            first_at: number;
+            id: string;
+            /**
+             * @description `permission_reverted`, `overwrite_trimmed`, `structure_conflict`, `role_deletion_refused`,
+             *     `deletion_held`, `frozen`, `dead_op` or `cap`.
+             */
+            kind: string;
+            /** Format: int64 */
+            last_at: number;
+            /** @description `role`, `channel`, `category`, `thread`, `overwrite`, `op` or `guild`. */
+            object_kind: string;
+            resolution?: string | null;
+            /** Format: int64 */
+            resolved_at?: number | null;
+            resolved_by?: string | null;
+            sr_object_id?: string | null;
+            /** @description What SIDE ROOM has. */
+            sr_value?: unknown;
+            /** @description `open`, `resolved`, `dismissed` or `superseded`. */
+            status: string;
+            target_id?: string | null;
+        };
         /** @description Body of `PUT /users/@me/connections/link`. */
         ConnectionLinkBody: {
             /**
@@ -26120,6 +26257,8 @@ export interface components {
             /** @description The new tags (replaces the old ones). */
             tags: string[];
         };
+        /** @description What "Take Discord's" applies. */
+        TakeDiscordBody: Record<string, never>;
         /** @description One content item of a notice. */
         TakedownItem: {
             /** Format: int64 */
@@ -52531,6 +52670,257 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_conflicts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Filter by kind. */
+                kind: string | null;
+                /** @description `open` (default), `resolved`, `dismissed`, `superseded` or `all`. */
+                status: string | null;
+                object_kind: string | null;
+                /** @description Page: rows older than this conflict id. */
+                before: string | null;
+                /** @description 1 to 100, default 50. */
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_conflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Conflict snowflake */
+                conflict_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss_conflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Conflict snowflake */
+                conflict_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    resolve_conflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Conflict snowflake */
+                conflict_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    take_discord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Conflict snowflake */
+                conflict_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakeDiscordBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

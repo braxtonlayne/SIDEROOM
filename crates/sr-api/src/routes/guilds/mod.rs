@@ -20,6 +20,7 @@
 pub mod backend;
 pub mod bans;
 pub mod bridge;
+pub mod bridge_conflicts;
 pub mod bridge_sync;
 pub mod channels;
 pub mod dto;
@@ -54,6 +55,7 @@ pub fn router() -> Router<AppState> {
         .merge(scrapbook::router())
         .merge(bridge::router())
         .merge(bridge_sync::router())
+        .merge(bridge_conflicts::router())
 }
 
 /// OpenAPI fragment for these routes; merge it into [`crate::openapi::base`].
@@ -150,6 +152,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(scrapbook::openapi());
     doc.merge(bridge::openapi());
     doc.merge(bridge_sync::openapi());
+    doc.merge(bridge_conflicts::openapi());
     doc
 }
 
