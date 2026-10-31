@@ -4,6 +4,8 @@ export {
   DataError,
   LoopbackHub,
   HOST_KEY_PREFIX,
+  b64,
+  unb64,
   MAX_DATA_BYTES,
   MAX_TOMBSTONES,
   TOMBSTONE_TTL_MS,

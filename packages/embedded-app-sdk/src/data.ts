@@ -76,12 +76,12 @@ export class DataError extends Error {
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-function b64(bytes: Uint8Array): string {
+export function b64(bytes: Uint8Array): string {
   let s = '';
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s);
 }
-function unb64(s: string): Uint8Array {
+export function unb64(s: string): Uint8Array {
   const raw = atob(s);
   const out = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);

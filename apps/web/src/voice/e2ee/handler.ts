@@ -28,6 +28,16 @@ export function handleWorkerMessage(
         // The track ended or the peer connection closed.
       });
       return;
+    case 'dataSeal': {
+      const bytes = media.sealData(msg.bytes);
+      post({ type: 'dataDone', id: msg.id, bytes });
+      return;
+    }
+    case 'dataOpen': {
+      const bytes = media.openData(msg.sender, msg.bytes, now());
+      post({ type: 'dataDone', id: msg.id, bytes });
+      return;
+    }
     case 'close':
       media.close();
       break;
