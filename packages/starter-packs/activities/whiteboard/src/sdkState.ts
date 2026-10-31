@@ -44,27 +44,13 @@ export function adapterFromSdk(sdk: SdkLike, onError: (e: unknown) => void = () 
   };
 }
 
-const STORE_KEY = 'sideroom-whiteboard-member';
-
 /**
- * Who this participant is on the board. The SDK does not yet tell an Activity its member id (open item for
- * act-channel: `sdk.self`); until it does, use `sdk.self` when the SDK has it and otherwise an id made once per
- * browser tab, kept in sessionStorage so a reload keeps its counter and its undo history.
+ * Who this participant is on the board: the SDK's `sdk.self`, the member id the data channel carries (ACT-CH-001).
+ * The client sets it when it attaches the data channel at the handshake; without it the board cannot run, so this
+ * throws and the page says it could not connect.
  */
-export function memberId(sdk: unknown): string {
-  const self = (sdk as { self?: unknown }).self;
+export function memberId(sdk: { readonly self?: string | null }): string {
+  const self = sdk.self;
   if (typeof self === 'string' && /^[A-Za-z0-9_.-]{1,40}$/.test(self)) return self;
-  try {
-    const saved = sessionStorage.getItem(STORE_KEY);
-    if (saved) return saved;
-  } catch {
-    // storage may be blocked
-  }
-  const id = `m${Math.random().toString(36).slice(2, 10)}`;
-  try {
-    sessionStorage.setItem(STORE_KEY, id);
-  } catch {
-    // the id then lasts for this page load
-  }
-  return id;
+  throw new Error('The data channel did not report this member (sdk.self is empty).');
 }

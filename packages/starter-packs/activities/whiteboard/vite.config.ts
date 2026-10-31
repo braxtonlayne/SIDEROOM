@@ -1,13 +1,27 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
 // The Activity is a plain static bundle (index.html at the root, allow-listed file types only). `vite build`
-// writes it to ./dist; zip the contents of dist for the developer portal / the seed command.
+// writes it to ./dist with the bundle manifest sideroom.json at its root (the `datachannel` capability);
+// scripts/build-activities.mjs zips dist for the developer portal.
 export default defineConfig({
   root: here,
   base: './',
+  plugins: [
+    {
+      name: 'sideroom-manifest',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'sideroom.json',
+          source: readFileSync(new URL('./sideroom.json', import.meta.url), 'utf8'),
+        });
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@sideroom/embedded-app-sdk': fileURLToPath(

@@ -1,3 +1,9 @@
 {
-  "capabilities": ["datachannel"]
+  "id": "side-room-tabletop",
+  "name": "Tabletop",
+  "version": "1.0.0",
+  "description": "A grid or hex map with tokens, fog of war the host paints, initiative order, measuring and a dice tray whose rolls show their seed so anyone can check them.",
+  "capabilities": [
+    "datachannel"
+  ]
 }

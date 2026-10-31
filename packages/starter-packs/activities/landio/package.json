@@ -1,0 +1,17 @@
+{
+  "name": "@sideroom/activity-landio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Land.io, the territory game, as a built-in SIDE ROOM Activity (ACT-LND-001). `pnpm build` writes the bundle root to dist/; scripts/build-activities.mjs zips it.",
+  "scripts": {
+    "build": "node tools/bundle.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --maxWorkers=2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "~5.6.3",
+    "vitest": "^3.0.0"
+  }
+}

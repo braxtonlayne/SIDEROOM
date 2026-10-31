@@ -110,19 +110,17 @@ describe('Board over sdk.state', () => {
 });
 
 describe('memberId', () => {
-  it('uses sdk.self when the SDK has it, else a stable generated id', () => {
+  it('uses sdk.self and refuses to run without it', () => {
     expect(memberId({ self: 'u123' })).toBe('u123');
-    const id = memberId({});
-    expect(id).toMatch(/^m[a-z0-9]+$/);
+    expect(() => memberId({ self: null })).toThrow(/sdk\.self/);
+    expect(memberId(join(new LoopbackHub('alice'), 'bob').sdk)).toBe('bob');
   });
 });
 
 describe('late join after a big compaction', () => {
-  // KNOWN FAILURE in act-channel's slice: `ActivityData` answers a join with the whole document in one 'snap'
-  // envelope, which throws TOO_LARGE above 16 KiB, so a participant who joins after a compaction of a busy board
-  // never gets it. `it.fails` passes while that holds and fails the day the host chunks its snapshot: then make
-  // this a plain `it`.
-  it.fails('a joiner reads a snapshot that is larger than one message', () => {
+  // The host answers a join with the live keys in several 'snap' envelopes of at most 16 KiB each (act-channel
+  // fbbe151a), so a participant who joins after the compaction of a busy board gets all of it.
+  it('a joiner reads a snapshot that is larger than one message', () => {
     const hub = new LoopbackHub('alice');
     const a = join(hub, 'alice');
     for (let i = 0; i < 120; i++) {

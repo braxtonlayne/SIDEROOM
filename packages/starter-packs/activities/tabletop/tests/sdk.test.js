@@ -21,8 +21,6 @@ function table() {
   const hub = new LoopbackHub('host');
   const make = (id) => {
     const sdk = new SideRoomSDK('7', { env, transport: hub.connect(id) });
-    sdk.self = id; // what the client reports (see identity())
-    sdk.hostId = 'host';
     const { self, host } = identity(sdk);
     return sdkTransport(sdk, { me: { id: self, name: id }, hostId: host });
   };

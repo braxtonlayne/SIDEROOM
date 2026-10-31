@@ -200,12 +200,12 @@ test('the real Land.io bundle passes every rule and carries the host engine, the
   const files = collectFiles(ROOT);
   assert.deepEqual(checkBundle(files), []);
   const names = new Set(files.map((f) => f.path));
-  for (const need of ['index.html', 'main.js', 'host/engine.js', 'host/arena.js', 'sdk/index.js', 'sdk/data.js', 'activity.json', 'net/sdk-transport.js'])
+  for (const need of ['index.html', 'main.js', 'host/engine.js', 'host/arena.js', 'sdk/index.js', 'sdk/data.js', 'sideroom.json', 'net/sdk-transport.js'])
     assert.ok(names.has(need), need);
   // Nothing from the standalone game's server side or its secrets travelled.
   for (const bad of ['.env', 'auth.js', 'server/main.js', 'platform/discord-platform.js', 'platform/sign-in.js'])
     assert.ok(![...names].some((n) => n === bad || n.endsWith('/' + bad) || n.endsWith(bad)), bad);
-  const manifest = JSON.parse(files.find((f) => f.path === 'activity.json').data.toString('utf8'));
+  const manifest = JSON.parse(files.find((f) => f.path === 'sideroom.json').data.toString('utf8'));
   assert.deepEqual(manifest.capabilities, ['datachannel']);
   // The SDK is vendored transpiled: no TypeScript syntax is left, and the specifiers name .js files.
   const sdk = files.find((f) => f.path === 'sdk/sdk.js').data.toString('utf8');

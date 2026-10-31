@@ -16,14 +16,12 @@ export const isSideRoom = (win) => win.parent !== win && /^[^.]+\.activities\./.
 const person = (u) => ({ id: String(u.id), name: String(u.global_name || u.username || 'Player').slice(0, 24) });
 
 /**
- * Who I am and who launched the instance, as the SDK states it. The data transport knows both (`self`, `host`);
- * the SDK surfaces them as `selfId` / `hostId` or in the ready config. Reconcile with ACT-CH-001 if they move.
- * @param {any} sdk @param {any} config
+ * Who I am and who launched the instance: the SDK's `sdk.self` and `sdk.hostId` (ACT-CH-001), which the client
+ * sets when it attaches the data channel at the handshake.
+ * @param {{ self?: string | null, hostId?: string | null }} sdk
  */
-export function memberIds(sdk, config) {
-  const self = sdk.selfId ?? sdk.self ?? config?.user_id ?? config?.self_id;
-  const host = sdk.hostId ?? sdk.host ?? config?.host_id;
-  return { self: self ? String(self) : '', host: host ? String(host) : '' };
+export function memberIds(sdk) {
+  return { self: sdk.self ? String(sdk.self) : '', host: sdk.hostId ? String(sdk.hostId) : '' };
 }
 
 /** @param {Window} win @returns {Platform} */
@@ -56,7 +54,7 @@ export function createSideRoomPlatform(win) {
       const mod = await import('../sdk/index.js');
       sdk = new mod.SideRoomSDK(applicationId);
       config = await sdk.ready();
-      const ids = memberIds(sdk, config);
+      const ids = memberIds(sdk);
       if (!ids.self) throw new Error('This SIDE ROOM client does not tell activities who they are yet (needs the data channel).');
       people = humans(await sdk.commands.getInstanceConnectedParticipants().catch(() => ({ participants: [] })));
       me = people.find((p) => p.id === ids.self) ?? { id: ids.self, name: 'Player' };

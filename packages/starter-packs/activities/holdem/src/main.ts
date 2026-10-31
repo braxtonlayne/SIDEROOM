@@ -46,13 +46,13 @@ async function startInRoom(root: HTMLElement, params: URLSearchParams): Promise<
   const sdk = new SideRoomSDK(
     params.get('application_id') ?? location.hostname.split('.')[0] ?? '',
   );
-  const config = (await sdk.ready()) as unknown as Record<string, unknown>;
-  // act-channel adds the member id and the host to the ready config; until then the SDK's own flag is used.
-  const me = String(config.member_id ?? config.user_id ?? '');
+  await sdk.ready();
+  // Who this member is and who launched the instance: the SDK's data channel says (ACT-CH-001).
+  const me = sdk.self ?? '';
   if (!me) throw new Error('The client did not say who this member is.');
   const sdkApi = sdk as unknown as SdkLike;
-  const isHost = sdkApi.isHost || config.is_host === true;
-  const hostId = isHost ? me : String(config.host_id ?? config.host ?? '');
+  const isHost = sdk.isHost;
+  const hostId = sdk.hostId ?? '';
   const tp = sdkTransport(sdkApi, me, hostId);
 
   let name = '';

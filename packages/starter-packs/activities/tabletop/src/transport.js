@@ -90,10 +90,9 @@ export function createLoopbackRoom(hostId) {
   return room;
 }
 
-/** The member id and the host id of an SDK instance (the SDK keeps them on its data channel). */
+/** The member id and the host id of an SDK instance: `sdk.self` and `sdk.hostId` (ACT-CH-001). */
 export function identity(sdk) {
-  const d = sdk.data ?? {};
-  return { self: sdk.self ?? d.self ?? null, host: sdk.hostId ?? d.host ?? null };
+  return { self: sdk.self ?? null, host: sdk.hostId ?? null };
 }
 
 /**

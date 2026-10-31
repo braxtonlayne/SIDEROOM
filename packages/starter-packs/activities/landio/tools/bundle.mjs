@@ -1,16 +1,19 @@
 // @ts-check
-// Builds landio.zip: the static Activity bundle SIDE ROOM serves from its own origin (from tools/pack.js of the
+// Builds the static Activity bundle SIDE ROOM serves from its own origin (from tools/pack.js of the
 // standalone game, activity-landio 63c6c93d). The bundle rules are those of crates/sr-activities/src/bundle.rs, and
 // the content checks follow the CSP the proxy sends. A bundle the server would refuse fails here first, and
 // nothing is written. Differences from the standalone pack: host/ (the game engine that runs in the host's browser)
 // is bundled too, the Embedded App SDK is vendored from packages/embedded-app-sdk as sdk/*.js (transpiled, no
-// build step in the bundle), and activity.json names the activity and the `datachannel` capability it needs.
+// build step in the bundle), and sideroom.json (the bundle manifest crates/sr-activities reads, the same file every
+// built-in activity carries) names the activity and the `datachannel` capability it needs.
 //
-//   node tools/bundle.mjs            writes dist/landio.zip
-//   node tools/bundle.mjs --dir out  also writes the files, as served, into ./out (for a static server / Vite on 5177)
+//   node tools/bundle.mjs              writes the files, as served, into dist/ (the bundle root)
+//   node tools/bundle.mjs --dir out    writes them into ./out instead (for a static server / Vite on 5177)
+//   node tools/bundle.mjs --zip x.zip  also writes the zip the developer portal takes
+// scripts/build-activities.mjs builds every built-in activity this way and zips each dist/.
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { crc32, deflateRawSync } from 'node:zlib';
 import { dirname, join, resolve } from 'node:path';
@@ -55,17 +58,8 @@ const SCHEME = /^\s*(?:[a-z][a-z0-9+.-]*:|\/\/|\\)/i;
 const EVENT_HANDLER = /[\s"'/]on[a-z]+\s*=/i;
 const URL_ATTRS = ['src', 'href', 'poster', 'action', 'formaction', 'data'];
 
-/** What activity.json says: the activity's identity and the data-channel capability it needs (ACT-CH-001). */
-export const ACTIVITY_MANIFEST = {
-  id: 'landio',
-  name: 'Land.io',
-  version: '1.0.0',
-  entry: 'index.html',
-  description: 'Draw a trail out of your land, come home to claim what you enclosed, and cut other players off. Hosted in the browser of the member who starts it.',
-  capabilities: ['datachannel'],
-  min_participants: 1,
-  max_participants: 24,
-};
+/** The bundle manifest (sideroom.json at the folder root, shipped at the bundle root; ACT-CH-001). */
+export const ACTIVITY_MANIFEST = JSON.parse(readFileSync(join(ROOT, 'sideroom.json'), 'utf8'));
 
 /**
  * The Embedded App SDK as the bundle carries it: its TypeScript sources (tests excluded) transpiled to ES2020 with
@@ -105,7 +99,7 @@ export function rewriteClientImports(text, rel) {
 
 /**
  * Every file under client/ at the zip root, every *.js file under shared/ (cards, maps, modes too) under shared/,
- * the host engine under host/, the vendored SDK under sdk/, and activity.json.
+ * the host engine under host/, the vendored SDK under sdk/, and sideroom.json.
  * Sorted by path so the zip is the same on every build.
  * @param {string} root
  * @param {{ sdk?: BundleFile[] }} [opt]
@@ -126,8 +120,7 @@ export function collectFiles(root, opt = {}) {
     }
   }
   files.push(...(opt.sdk ?? vendorSdk()));
-  files.push({ path: 'activity.json', data: Buffer.from(`${JSON.stringify(ACTIVITY_MANIFEST, null, 2)}
-`, 'utf8') });
+  files.push({ path: 'sideroom.json', data: readFileSync(join(root, 'sideroom.json')) });
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return files;
 }
@@ -422,20 +415,21 @@ export function main(argv = process.argv.slice(2)) {
     process.exitCode = 1;
     return;
   }
-  const dist = join(ROOT, 'dist');
-  mkdirSync(dist, { recursive: true });
-  const out = join(dist, 'landio.zip');
-  writeFileSync(out, zip);
-  console.log(`wrote ${out}`);
   const at = argv.indexOf('--dir');
-  if (at >= 0 && argv[at + 1]) {
-    const dir = resolve(argv[at + 1]);
-    for (const f of files) {
-      const dest = join(dir, ...f.path.split('/'));
-      mkdirSync(dirname(dest), { recursive: true });
-      writeFileSync(dest, f.data);
-    }
-    console.log(`wrote ${files.length} files into ${dir}`);
+  const dir = at >= 0 && argv[at + 1] ? resolve(argv[at + 1]) : join(ROOT, 'dist');
+  rmSync(dir, { recursive: true, force: true });
+  for (const f of files) {
+    const dest = join(dir, ...f.path.split('/'));
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, f.data);
+  }
+  console.log(`wrote ${files.length} files into ${dir}`);
+  const z = argv.indexOf('--zip');
+  if (z >= 0 && argv[z + 1]) {
+    const out = resolve(argv[z + 1]);
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, zip);
+    console.log(`wrote ${out}`);
   }
 }
 

@@ -1,7 +1,7 @@
-// Build the Tabletop Activity bundle: `node packages/starter-packs/activities/tabletop/build.mjs [outdir]`.
+// Build the Tabletop Activity bundle: `node packages/starter-packs/activities/tabletop/build.mjs [outdir] [--zip x.zip]`.
 // Copies index.html, style.css and src/ (not tests/), transpiles the Embedded App SDK from
-// packages/embedded-app-sdk/src into src/sdk/ as browser modules, and writes tabletop.zip (stored entries, the
-// shape crates/sr-activities/src/bundle.rs accepts) next to the folder. No dependencies beyond the repo's own
+// packages/embedded-app-sdk/src into src/sdk/ as browser modules, and with --zip writes a zip (stored entries, the
+// shape crates/sr-activities/src/bundle.rs accepts). scripts/build-activities.mjs zips dist/ for every activity. No dependencies beyond the repo's own
 // `typescript`.
 
 import { createRequire } from 'node:module';
@@ -12,7 +12,11 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..', '..', '..', '..');
-const out = resolve(process.argv[2] ?? join(here, 'dist'));
+const args = process.argv.slice(2);
+const zipAt = args.indexOf('--zip');
+const zipPath = zipAt >= 0 ? resolve(args[zipAt + 1] ?? '') : null;
+const outArg = args.find((a, i) => !a.startsWith('--') && (zipAt < 0 || i !== zipAt + 1));
+const out = resolve(outArg ?? join(here, 'dist'));
 
 const sdkDir = join(repo, 'packages', 'embedded-app-sdk');
 const ts = createRequire(join(sdkDir, 'package.json'))('typescript');
@@ -90,6 +94,7 @@ function zip(entries) {
   return Buffer.concat([...locals, dir, end]);
 }
 
-const zipPath = `${out}.zip`;
-writeFileSync(zipPath, zip(files));
-console.log(`${Object.keys(files).length} files -> ${relative(process.cwd(), out)} and ${relative(process.cwd(), zipPath)}`);
+if (zipPath) writeFileSync(zipPath, zip(files));
+console.log(
+  `${Object.keys(files).length} files -> ${relative(process.cwd(), out)}${zipPath ? ` and ${relative(process.cwd(), zipPath)}` : ''}`,
+);
