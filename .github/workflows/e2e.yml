@@ -260,10 +260,9 @@ jobs:
           SR_E2E_WORKER_LOG: ${{ github.workspace }}/worker-cinema.log
       # BYOS-CNV-001 (OPS-CI-001): convert.spec.ts remuxes a generated MKV with ffmpeg.wasm in the page; it builds the MKV
       # with the host ffmpeg and skips itself without one, so it never ran in the `playwright` job. The apt ffmpeg of the
-      # step above is on PATH here. continue-on-error until its first green run on GitHub; then remove the line.
+      # step above is on PATH here. Required since its first green run (run 41226230526).
       - name: Converter with a real ffmpeg for the fixture (Chromium)
         if: always()
-        continue-on-error: true
         run: |
           ./deploy/compose/e2e-run.sh --project=chromium tests/convert.spec.ts --retries=0
         env:
@@ -337,10 +336,9 @@ jobs:
       # BRG-COR-001, BRG-UI-001, BRG-SYNC-001 (OPS-CI-001): the Discord bridge specs against e2e/support/fake-discord.mjs
       # (REST and gateway on 127.0.0.1:8090); real Discord is never contacted. Both specs skip themselves when the fake
       # is not up, which is how they stayed green and unrun on every earlier CI run, so the step waits for the fake
-      # and fails if it does not answer. continue-on-error until its first green run on GitHub; then remove the line.
+      # and fails if it does not answer. Required since its first green run (run 41226230526).
       - name: Discord bridge against the fake Discord (Chromium)
         if: always()
-        continue-on-error: true
         run: |
           node e2e/support/fake-discord.mjs > fake-discord.log 2>&1 &
           fake_pid=$!
