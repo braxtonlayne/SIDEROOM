@@ -5,6 +5,8 @@ export {
   LoopbackHub,
   HOST_KEY_PREFIX,
   MAX_DATA_BYTES,
+  MAX_TOMBSTONES,
+  TOMBSTONE_TTL_MS,
   type DataTransport,
   type DataEventMap,
   type DataEventName,

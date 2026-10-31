@@ -12,6 +12,10 @@
 
 /** Largest envelope the data channel carries; above this `set` and `input.send` throw. */
 export const MAX_DATA_BYTES = 16 * 1024;
+/** How long a deleted key's tombstone is kept (ms). */
+export const TOMBSTONE_TTL_MS = 5 * 60_000;
+/** Most tombstones kept at once. */
+export const MAX_TOMBSTONES = 1000;
 /** Keys only the instance's host may write. */
 export const HOST_KEY_PREFIX = 'host:';
 
@@ -105,6 +109,15 @@ export class ActivityData {
   };
   private transport: DataTransport | null = null;
   private off: (() => void) | null = null;
+  /** Highest version of any tombstone already dropped: the document version never goes below it. */
+  private floor = 0;
+  /** When each tombstone was recorded (local clock), to expire it. */
+  private readonly tombAt = new Map<string, number>();
+  private readonly now: () => number;
+
+  constructor(opts: { now?: () => number } = {}) {
+    this.now = opts.now ?? Date.now;
+  }
 
   /** Attach a transport and ask the host for the current document. */
   attach(transport: DataTransport): void {
@@ -134,7 +147,7 @@ export class ActivityData {
 
   /** The document version: the highest key version seen. 0 for an empty document. */
   get version(): number {
-    let v = 0;
+    let v = this.floor;
     for (const e of this.entries.values()) v = Math.max(v, e.ver);
     return v;
   }
@@ -175,7 +188,7 @@ export class ActivityData {
     );
     // Validate size before touching local state.
     const bytes = enc.encode(JSON.stringify({ v: 1, t: 'state', ops }));
-    if (bytes.length > MAX_DATA_BYTES) {
+    if (bytes.length > MAX_DATA_BYTES - 256) {
       throw new DataError(
         'TOO_LARGE',
         `State change is ${bytes.length} bytes; the limit is ${MAX_DATA_BYTES}.`,
@@ -242,6 +255,8 @@ export class ActivityData {
     for (const op of ops) {
       if (!wins(op, this.entries.get(op.k))) continue;
       this.entries.set(op.k, op);
+      if ('d' in op) this.tombAt.delete(op.k);
+      else this.tombAt.set(op.k, this.now());
       changes.push({
         key: op.k,
         value: 'd' in op ? op.d : undefined,
@@ -250,7 +265,50 @@ export class ActivityData {
         local,
       });
     }
+    this.compact();
     if (changes.length) this.emit('state', { changes, version: this.version });
+  }
+
+  /**
+   * Drop tombstones older than [`TOMBSTONE_TTL_MS`] (and the oldest beyond [`MAX_TOMBSTONES`]). A tombstone
+   * only has to outlive the delivery of a concurrent stale write, so minutes are plenty. The version it
+   * carried is kept in `floor`, so later writes still outrank it.
+   */
+  compact(): void {
+    if (this.tombAt.size === 0) return;
+    const cutoff = this.now() - TOMBSTONE_TTL_MS;
+    const stale = [...this.tombAt].filter(([, at]) => at < cutoff).map(([k]) => k);
+    if (this.tombAt.size - stale.length > MAX_TOMBSTONES) {
+      const rest = [...this.tombAt].filter(([k]) => !stale.includes(k)).sort((a, b) => a[1] - b[1]);
+      for (const [k] of rest.slice(0, rest.length - MAX_TOMBSTONES)) stale.push(k);
+    }
+    for (const k of stale) {
+      const e = this.entries.get(k);
+      if (e) this.floor = Math.max(this.floor, e.ver);
+      this.entries.delete(k);
+      this.tombAt.delete(k);
+    }
+  }
+
+  /** The live entries as snapshot envelopes, each under the size limit (late join of a big document). */
+  private snapshotEnvelopes(to: string): Record<string, unknown>[] {
+    this.compact();
+    const limit = MAX_DATA_BYTES - 256;
+    const out: Record<string, unknown>[] = [];
+    let batch: StateOp[] = [];
+    const size = (ops: StateOp[]) =>
+      enc.encode(JSON.stringify({ v: 1, t: 'snap', to, floor: this.version, ops })).length;
+    for (const e of this.entries.values()) {
+      if (!('d' in e)) continue; // tombstones are not sent; `floor` carries their version
+      if (batch.length && size([...batch, e]) > limit) {
+        out.push({ v: 1, t: 'snap', to, floor: this.version, ops: batch });
+        batch = [];
+      }
+      batch.push(e);
+    }
+    // Always send at least one envelope so the joiner learns the floor.
+    out.push({ v: 1, t: 'snap', to, floor: this.version, ops: batch });
+    return out;
   }
 
   private receive(from: string, bytes: Uint8Array): void {
@@ -268,12 +326,15 @@ export class ActivityData {
       case 'state':
       case 'snap': {
         if (!forMe) return;
+        if (env.t === 'snap' && from === t.host && typeof env.floor === 'number') {
+          if (Number.isFinite(env.floor)) this.floor = Math.max(this.floor, env.floor);
+        }
         this.applyOps(this.cleanOps(env.ops, from, t, env.t === 'snap'), false);
         return;
       }
       case 'sync':
         if (t.self === t.host) {
-          this.sendEnvelope({ v: 1, t: 'snap', to: from, ops: [...this.entries.values()] });
+          for (const env of this.snapshotEnvelopes(from)) this.sendEnvelope(env);
         }
         return;
       case 'input':
