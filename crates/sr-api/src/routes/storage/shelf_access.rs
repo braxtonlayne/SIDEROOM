@@ -717,10 +717,19 @@ pub async fn revoke_grant(
     let user = uid(&p);
     let m = owned(&d, user, &shelf_id).await?;
     let gid = parse_row(&grant_id)?;
-    if s.store
+    let revoked = s
+        .store
         .revoke_grant(m.id, gid, user)
         .await
-        .map_err(store_failed)?
+        .map_err(store_failed)?;
+    // Revoking twice is the same answer (idempotent); only a grant this shelf never had is unknown.
+    if revoked
+        || s.store
+            .grants_of(m.id)
+            .await
+            .map_err(store_failed)?
+            .iter()
+            .any(|g| g.id == gid)
     {
         Ok(StatusCode::NO_CONTENT)
     } else {

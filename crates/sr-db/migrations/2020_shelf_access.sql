@@ -34,7 +34,7 @@ CREATE TABLE shelf_objects (
     object_hash      TEXT NOT NULL CHECK (object_hash ~ '^[0-9a-f]{64}$'),
     path             TEXT NOT NULL CHECK (char_length(path) BETWEEN 1 AND 1024),
     size             BIGINT NOT NULL DEFAULT 0 CHECK (size >= 0),
-    kind             TEXT CHECK (kind IN ('cinema', 'library', 'music')),
+    kind             TEXT CHECK (kind IN ('cinema', 'library', 'music', 'games')),
     class            TEXT NOT NULL DEFAULT '',
     -- False once the object vanished from the bucket or moved to another path.
     listed           BOOLEAN NOT NULL DEFAULT TRUE,

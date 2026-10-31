@@ -1957,10 +1957,10 @@ async fn seed(
         ids_map.insert("shelf_part_id", ep.to_string());
     }
     // STU-ZK-001 (wave 41): the shelf routes name the tenant's mount (`shelf_id`), the object seeded above by its
-    // path hash (`object_hash`) and a live friend grant (`grant_id`) from the owner to another actor.
+    // path hash (`object_hash`) and a live friend grant (`shelf_grant_id`) from the owner to another actor.
     for (ids_map, owner, grantee) in [
-        (&mut a, u("member"), u("victim")),
-        (&mut b, u("ownerb"), u("member")),
+        (&mut a, u("member"), u("outsider")),
+        (&mut b, u("ownerb"), u("outsider")),
     ] {
         let grant = ids.generate().get() as i64;
         let mount: i64 = ids_map["mount_id"].parse().unwrap();
@@ -4510,6 +4510,8 @@ fn write_ending(method: &str, path: &str) -> bool {
         (method, path),
         ("POST", "/moderation/holds/{hold_id}/release")
             | ("POST", "/moderation/holds/{hold_id}/retain")
+            // STU-ZK-001: a grant is revoked while the shelf (a mount, deleted by a deeper route) still exists.
+            | ("DELETE", "/shelves/{shelf_id}/grants/{shelf_grant_id}")
     )
 }
 

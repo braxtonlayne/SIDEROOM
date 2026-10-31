@@ -16612,6 +16612,158 @@
         ]
       }
     },
+    "/admin/shelves/delist": {
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Delist one object of a shelf by `object_hash` (`MANAGE_TAKEDOWNS`): it vanishes from every catalog response and\ncan no longer be minted a URL, and a strike is logged against the shelf's owner. The bucket is untouched.",
+        "operationId": "delist_object",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShelfDelistBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfObjectLegal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/shelves/relist": {
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Put a delisted shelf object back (`MANAGE_TAKEDOWNS`; the strike row stays, marked restored).",
+        "operationId": "relist_object",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShelfDelistBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShelfObjectLegal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/staff": {
       "get": {
         "tags": [
@@ -62615,6 +62767,42 @@
         ]
       }
     },
+    "/shelves/visible": {
+      "get": {
+        "tags": [
+          "shelf_access"
+        ],
+        "summary": "The shelves the caller can see: their own, friends' shelves shared with them and server shelves their role\nreaches. Each entry is decided by the same function as every read.",
+        "operationId": "visible",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisibleShelves"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/shelves/{section}": {
       "get": {
         "tags": [
@@ -62949,6 +63137,425 @@
           },
           "404": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{shelf_id}/grants": {
+      "get": {
+        "tags": [
+          "shelf_access"
+        ],
+        "summary": "Who can see a shelf: its grants with history (the audit trail) and the older per-kind shares. The owner only.",
+        "operationId": "list_grants",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "description": "Shelf (mount) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "shelf_access"
+        ],
+        "summary": "Grant a friend, or a server role you manage, read access to the whole shelf. The grant is tied to the account,\nso it works on every device, and is written to the audit log.",
+        "operationId": "create_grant",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "description": "Shelf (mount) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{shelf_id}/grants/{shelf_grant_id}": {
+      "delete": {
+        "tags": [
+          "shelf_access"
+        ],
+        "summary": "Revoke a grant. It takes effect at the next URL mint; a URL minted earlier lives out its ten minutes.",
+        "operationId": "revoke_grant",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "description": "Shelf (mount) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "shelf_grant_id",
+            "in": "path",
+            "description": "Grant snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{shelf_id}/objects": {
+      "get": {
+        "tags": [
+          "shelf_access"
+        ],
+        "summary": "One page of the catalog of a shelf: only objects the caller may open and that nobody delisted.",
+        "operationId": "catalog",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "description": "Shelf (mount) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "next_cursor of the previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{shelf_id}/objects/{object_hash}": {
+      "patch": {
+        "tags": [
+          "shelf_access"
+        ],
+        "summary": "Edit the title, cover and note of one object (the shelf's owner only).",
+        "operationId": "patch_object",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "description": "Shelf (mount) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object_hash",
+            "in": "path",
+            "description": "Object hash from the catalog",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectMetaBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/shelves/{shelf_id}/objects/{object_hash}/url": {
+      "get": {
+        "tags": [
+          "shelf_access"
+        ],
+        "summary": "A presigned `GET` for one object of a shelf. Valid for that object and ten minutes at most (less when the\nsession ends sooner). The grant, the kind rule and every delisting are checked at the moment of minting, so\na revoked grant or a delisted object gets nothing; a URL minted earlier lives out its minutes.",
+        "operationId": "object_url",
+        "parameters": [
+          {
+            "name": "shelf_id",
+            "in": "path",
+            "description": "Shelf (mount) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object_hash",
+            "in": "path",
+            "description": "Object hash from the catalog",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectUrl"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CORS_NOT_READY",
             "content": {
               "application/json": {
                 "schema": {
@@ -83365,6 +83972,85 @@
           }
         }
       },
+      "CatalogObject": {
+        "type": "object",
+        "description": "An object of a shelf catalog. Never carries a bucket, an endpoint or a credential.",
+        "required": [
+          "object_hash",
+          "path",
+          "size",
+          "class",
+          "title",
+          "cover",
+          "note",
+          "updated_at"
+        ],
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "The classifier's class (`video`, `audio`, `reading`, `image`, ...)."
+          },
+          "cover": {
+            "type": "string",
+            "description": "The owner's cover (a key in the same shelf), empty when none."
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`cinema`, `library` or `music` when the classifier knows."
+          },
+          "note": {
+            "type": "string",
+            "description": "The owner's note, empty when none."
+          },
+          "object_hash": {
+            "type": "string",
+            "description": "64 lowercase hex characters."
+          },
+          "path": {
+            "type": "string",
+            "description": "Mount-relative key."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          },
+          "title": {
+            "type": "string",
+            "description": "The owner's title, empty when none."
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "Last change (ISO 8601)."
+          }
+        }
+      },
+      "CatalogPage": {
+        "type": "object",
+        "description": "A page of the catalog.",
+        "required": [
+          "objects"
+        ],
+        "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor of the next page, `null` at the end."
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogObject"
+            },
+            "description": "Objects the caller may open, ordered by hash."
+          }
+        }
+      },
       "ChainReport": {
         "type": "object",
         "description": "Result of verifying the whole chain.",
@@ -91941,6 +92627,30 @@
           }
         }
       },
+      "GrantList": {
+        "type": "object",
+        "description": "Who can see a shelf: the grants with their history, and the older per-kind shares.",
+        "required": [
+          "grants",
+          "legacy_shares"
+        ],
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GrantView"
+            },
+            "description": "Newest first, revoked ones included (the audit trail)."
+          },
+          "legacy_shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegacyShareView"
+            },
+            "description": "Per-kind friend shares that predate shelf grants."
+          }
+        }
+      },
       "GrantPage": {
         "type": "object",
         "required": [
@@ -95336,6 +96046,34 @@
           "webhook_id": {
             "type": "string",
             "description": "The webhook's id: remove it from Discord's Integrations page by hand."
+          }
+        }
+      },
+      "LegacyShareView": {
+        "type": "object",
+        "description": "An older per-kind friend share (`PUT /users/@me/storage/mounts/{mount_id}/shares/{user_id}`), which keeps working.",
+        "required": [
+          "friend_id",
+          "cinema",
+          "library",
+          "music"
+        ],
+        "properties": {
+          "cinema": {
+            "type": "boolean",
+            "description": "Cinema shared."
+          },
+          "friend_id": {
+            "type": "string",
+            "description": "The friend."
+          },
+          "library": {
+            "type": "boolean",
+            "description": "Library shared."
+          },
+          "music": {
+            "type": "boolean",
+            "description": "Music shared."
           }
         }
       },
@@ -99882,6 +100620,33 @@
           }
         }
       },
+      "ObjectMetaBody": {
+        "type": "object",
+        "description": "Body of `PATCH /shelves/{shelf_id}/objects/{object_hash}`; absent fields stay.",
+        "properties": {
+          "cover": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover: a key in this shelf (up to 1024 characters; empty clears)."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Note (up to 2000 characters; empty clears)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title (up to 300 characters; empty clears)."
+          }
+        }
+      },
       "ObjectMetaView": {
         "type": "object",
         "description": "Metadata of one object.",
@@ -99920,6 +100685,24 @@
             "format": "int64",
             "description": "Size in bytes.",
             "minimum": 0
+          }
+        }
+      },
+      "ObjectUrl": {
+        "type": "object",
+        "description": "A short-lived URL for one object.",
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "description": "When it stops working (ISO 8601)."
+          },
+          "url": {
+            "type": "string",
+            "description": "Presigned `GET`, valid for one object and ten minutes at most. Never stored or logged."
           }
         }
       },
@@ -108444,6 +109227,38 @@
           "dropped"
         ]
       },
+      "ShelfDelistBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/shelves/delist`.",
+        "required": [
+          "shelf_id",
+          "object_hash"
+        ],
+        "properties": {
+          "notice_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The takedown notice this belongs to, when there is one."
+          },
+          "object_hash": {
+            "type": "string",
+            "description": "The object's hash (64 lowercase hex characters)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why. Required (or the `X-Audit-Log-Reason` header)."
+          },
+          "shelf_id": {
+            "type": "string",
+            "description": "The shelf (storage mount snowflake)."
+          }
+        }
+      },
       "ShelfDetailView": {
         "type": "object",
         "description": "One item with its parts.",
@@ -108652,6 +109467,31 @@
             "type": "integer",
             "format": "int64",
             "description": "All that match."
+          }
+        }
+      },
+      "ShelfObjectLegal": {
+        "type": "object",
+        "description": "The answer of a shelf-object delist or relist.",
+        "required": [
+          "shelf_id",
+          "object_hash",
+          "strike_id",
+          "path"
+        ],
+        "properties": {
+          "object_hash": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "shelf_id": {
+            "type": "string"
+          },
+          "strike_id": {
+            "type": "string",
+            "description": "The strike row (snowflake) the delisting was logged under."
           }
         }
       },
@@ -115760,6 +116600,84 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "VisibleShelf": {
+        "type": "object",
+        "description": "One shelf the caller can see.",
+        "required": [
+          "shelf_id",
+          "label",
+          "via",
+          "object_count",
+          "can_manage"
+        ],
+        "properties": {
+          "can_manage": {
+            "type": "boolean",
+            "description": "Whether the caller owns it and can edit titles, covers, notes and grants."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `guild`: the server (snowflake)."
+          },
+          "guild_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `guild`: the server's name."
+          },
+          "label": {
+            "type": "string",
+            "description": "The mount's label."
+          },
+          "object_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Objects in the catalog that the caller can open."
+          },
+          "owner_handle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The owning member's handle."
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The owning member (snowflake), absent for a server shelf."
+          },
+          "shelf_id": {
+            "type": "string",
+            "description": "The shelf (mount snowflake)."
+          },
+          "via": {
+            "type": "string",
+            "description": "How it reaches the caller: `own`, `friend` or `guild`."
+          }
+        }
+      },
+      "VisibleShelves": {
+        "type": "object",
+        "description": "`GET /shelves/visible`.",
+        "required": [
+          "shelves"
+        ],
+        "properties": {
+          "shelves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisibleShelf"
+            },
+            "description": "Own shelves first, then friends', then servers'."
           }
         }
       },
