@@ -306,7 +306,8 @@ export function mountTable(root: HTMLElement, opts: MountOptions): () => void {
       const full = t.seats.every((s) => s !== null);
       const b = button(S.sitDown, 'holdem-sit', () => client.sit(nameDraft.trim() || opts.defaultName));
       b.disabled = full;
-      box.append(input, b, full ? el('span', { class: 'muted' }, S.seatsFull) : null);
+      box.append(input, b);
+      if (full) box.append(el('span', { class: 'muted' }, S.seatsFull));
     } else {
       if (seated.chips === 0 && !inHand) box.append(button(S.rebuy, 'holdem-rebuy', () => client.rebuy()));
       box.append(button(S.standUp, 'holdem-stand', () => client.stand(), 'ghost'));
