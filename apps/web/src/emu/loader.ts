@@ -123,7 +123,7 @@ export function extractWithWorker(
 /** Run the glue as a blob script and take the `EJS_Runtime` it defines (then remove the global). */
 export async function runGlueScript(js: Uint8Array): Promise<ModuleFactory> {
   const w = window as unknown as { EJS_Runtime?: ModuleFactory };
-  delete w.EJS_Runtime;
+  w.EJS_Runtime = undefined; // a `var` of the glue script: it cannot be deleted
   const url = URL.createObjectURL(new Blob([js as BlobPart], { type: 'text/javascript' }));
   try {
     await new Promise<void>((resolve, reject) => {
@@ -137,7 +137,7 @@ export async function runGlueScript(js: Uint8Array): Promise<ModuleFactory> {
     URL.revokeObjectURL(url);
   }
   const factory = w.EJS_Runtime;
-  delete w.EJS_Runtime;
+  w.EJS_Runtime = undefined; // a `var` of the glue script: it cannot be deleted
   if (typeof factory !== 'function') throw new CoreUnavailableError('glue', 'glue');
   return factory;
 }
@@ -191,13 +191,32 @@ export async function loadCore(
     new Blob([files.wasm as BlobPart], { type: 'application/wasm' }),
   );
   const log = (line: string) => opts.onLog?.(line);
+  // The options EmulatorJS itself passes; the patched glue reads `parent` and `callbacks` unconditionally.
+  const callbacks: Record<string, unknown> = {};
   const module = await factory({
     noInitialRun: true,
+    onRuntimeInitialized: null,
+    arguments: [],
+    preRun: [],
+    postRun: [],
+    totalDependencies: 0,
+    callbacks,
+    parent: opts.canvas.parentElement ?? document.body,
     canvas: opts.canvas,
     print: log,
     printErr: log,
     locateFile: (name: string) => (name.endsWith('.wasm') ? wasmUrl : name),
     getSavExt: () => '.srm',
   });
+  // RetroArch asks for the core-options file when it starts; the defaults need no content.
+  callbacks.setupCoreSettingFile = (path: string) => {
+    let dir = '';
+    for (const part of path.split('/').slice(0, -1)) {
+      if (!part) continue;
+      dir += `/${part}`;
+      if (!module.FS.analyzePath(dir).exists) module.FS.mkdir(dir);
+    }
+    module.FS.writeFile(path, '');
+  };
   return { module, files };
 }
