@@ -40,7 +40,7 @@ ACT-CT-001 is built end to end (no Rust, no web app changes, no migrations):
   validation, document size under 16 KiB for nine seats.
 - `sdk.integration.test.ts` (2): the same through the real `SideRoomSDK`, its `LoopbackHub`, and `sdkTransport`; the relay
   carries the hole cards only as `reply` envelopes addressed by member id; a nine-seat all-in hand fits `MAX_DATA_BYTES`.
-- 59 tests pass. `eslint src`, `prettier --check`, `tsc --noEmit` clean; `vite build` gives 36 kB JS / 4 kB CSS (13 kB gzip).
+- 62 tests pass. `eslint src`, `prettier --check`, `tsc --noEmit` clean; `vite build` gives 36 kB JS / 4 kB CSS (13 kB gzip).
 - `pnpm -r --if-present typecheck` (all 11 projects, e2e included) passes.
 
 ## Integrator actions (I did not commit these: shared files)
@@ -60,6 +60,14 @@ ACT-CT-001 is built end to end (no Rust, no web app changes, no migrations):
   `sdk.input.send/reply`, `sdk.on('state'|'input')`. The host's reply to itself is local in the SDK; the table relies on that.
 - A guest also receives its own `host:table` writes as state events; the player side ignores older `rev`s.
 
+## Added after the commander's decision
+
+- Turn timer (host-side, `HostController`): default 60 s, 15 to 120 s set in the host's lobby bar (`setTurnSeconds`). A player who does not act is checked if checking is free, else folded (log line "ran out of time"); the public table carries `turnSeconds` and `turnDeadline` and the status line shows a countdown.
+- Host "Remove" button per other seated player (`kick`): folds them at once, their seat and stack leave the bank when the hand ends. The host cannot remove itself.
+- A member who leaves the instance is folded and unseated at once: `main.ts` feeds `ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE` to `HostController.syncParticipants`.
+- Host leaving still ends the table; no handover built (waits for an SDK one).
+- Tests (+3, 62 total): timer fold/check, timer cancelled by acting and bounds 15 to 120, remove and left-the-instance folding.
+
 ## Decisions
 
 - Chips are integers; default 1000 stack, blinds 10/20, up to 9 seats (2 to 10 configurable by the host between hands).
@@ -73,13 +81,11 @@ ACT-CT-001 is built end to end (no Rust, no web app changes, no migrations):
 ## Still open
 
 - Live-spec case unrun (waits for the integration run). Browser smoke only in dev mode.
-- No host "remove player" button and no turn timer (a vanished player stalls the hand until the host removes them).
 - Right-to-left layout of the table is only approximated (seats use logical insets; the centring transform is flipped for `dir=rtl`).
 
 ## Owner questions
 
-None blocking. Optional: should a vanished player be auto-folded after a timeout (say 60 s), and should the table keep running
-if the host leaves (today the instance ends with its host, per the roadmap's host-authoritative model)?
+None.
 
 ## CHANGELOG lines
 

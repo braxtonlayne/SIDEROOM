@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { seededRandom } from './cards';
 import { PlayerClient } from './client';
 import { HostController } from './host';
@@ -214,5 +214,94 @@ describe('message validation', () => {
     expect(decodeHostMsg(enc({ t: 'hole', hand: 1, cards: ['As', 'Zz'] }))).toBeNull();
     expect(decodeHostMsg(enc({ t: 'hole', hand: 1, cards: ['As', 'Kd'] }))?.t).toBe('hole');
     expect(dec.decode(encode({ t: 'error', code: 'x', message: 'y' }))).toContain('"error"');
+  });
+});
+
+describe('the turn timer and removing players', () => {
+  const withTimers = (fn: () => void) => {
+    vi.useFakeTimers();
+    try {
+      fn();
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  it('folds a player who does not act, checks when checking is free', () =>
+    withTimers(() => {
+      const { hub, host, get } = setup(['ann', 'bob', 'cy']);
+      for (const id of ['ann', 'bob', 'cy']) get(id).sit(id);
+      hub.flush();
+      host.deal();
+      hub.flush();
+      const t0 = get('ann').snapshot().table!;
+      expect(t0.turnSeconds).toBe(60);
+      expect(t0.turnDeadline).not.toBeNull();
+      const first = t0.hand!.toAct!;
+      vi.advanceTimersByTime(59_000);
+      expect(host.current.hand!.players.find((p) => p.id === first)!.folded).toBe(false);
+      vi.advanceTimersByTime(1_500);
+      hub.flush();
+      expect(host.current.hand!.players.find((p) => p.id === first)!.folded).toBe(true);
+      expect(get('bob').snapshot().table!.hand!.toAct).not.toBe(first);
+      // The big blind may check: when it is their turn with nothing to call, the timer checks.
+      const second = get('bob').snapshot().table!.hand!.toAct!;
+      get(second).act({ type: 'call' });
+      hub.flush();
+      const bbTurn = get('bob').snapshot().table!.hand!.toAct!;
+      expect(get('bob').snapshot().table!.hand!.legal!.canCheck).toBe(true);
+      vi.advanceTimersByTime(61_000);
+      hub.flush();
+      const h = host.current.hand!;
+      expect(h.players.find((p) => p.id === bbTurn)!.folded).toBe(false);
+      expect(h.street).not.toBe('preflop');
+    }));
+
+  it('acting in time cancels the timer; the length is 15 to 120 s and host-only', () =>
+    withTimers(() => {
+      const { hub, host, get } = setup(['ann', 'bob']);
+      get('ann').sit('Ann');
+      get('bob').sit('Bob');
+      hub.flush();
+      host.setTurnSeconds(15);
+      host.deal();
+      hub.flush();
+      expect(get('bob').snapshot().table!.turnSeconds).toBe(15);
+      vi.advanceTimersByTime(10_000);
+      get(get('bob').snapshot().table!.hand!.toAct as 'ann' | 'bob').act({ type: 'call' });
+      hub.flush();
+      vi.advanceTimersByTime(10_000); // 20 s since the deal, but only 10 s on this turn
+      expect(host.current.hand!.players.every((p) => !p.folded)).toBe(true);
+      host.setTurnSeconds(5);
+      host.setTurnSeconds(500);
+      hub.flush();
+      expect(get('ann').snapshot().error).toMatch(/15 to 120/);
+      expect(get('bob').snapshot().table!.turnSeconds).toBe(15);
+      host.stop();
+    }));
+
+  it('removing a player folds them and frees the seat; a player who left the instance is folded at once', () => {
+    const { hub, host, get } = setup(['ann', 'bob', 'cy', 'dee']);
+    for (const id of ['ann', 'bob', 'cy', 'dee']) get(id).sit(id);
+    hub.flush();
+    host.deal();
+    hub.flush();
+    host.kick('cy');
+    hub.flush();
+    expect(host.current.hand!.players.find((p) => p.id === 'cy')!.folded).toBe(true);
+    host.syncParticipants(['ann', 'bob']); // dee is gone from the instance
+    hub.flush();
+    expect(host.current.hand!.players.find((p) => p.id === 'dee')!.folded).toBe(true);
+    host.kick('ann'); // the host cannot remove itself
+    expect(host.current.seats.find((s) => s?.id === 'ann')).toBeTruthy();
+    // Finish the hand: the leavers' seats are freed and their stacks go with them.
+    let guard = 0;
+    while (!host.current.hand!.over && guard++ < 20) {
+      const t = get('ann').snapshot().table!;
+      get(t.hand!.toAct as 'ann' | 'bob').act({ type: 'fold' });
+      hub.flush();
+    }
+    const ids = host.current.seats.filter(Boolean).map((s) => s!.id);
+    expect(ids).toEqual(['ann', 'bob']);
   });
 });

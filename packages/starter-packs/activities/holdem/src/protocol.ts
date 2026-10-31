@@ -63,6 +63,10 @@ export interface PublicTable {
   log: string[];
   /** Whether the host can start a hand now (two players with chips, none running). */
   canStart: boolean;
+  /** Seconds a player has to act before the host checks or folds for them. */
+  turnSeconds: number;
+  /** Epoch milliseconds when the player to act runs out of time, or null. */
+  turnDeadline: number | null;
 }
 
 export type ClientMsg =

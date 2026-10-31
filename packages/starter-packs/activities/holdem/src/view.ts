@@ -217,6 +217,10 @@ export function mountTable(root: HTMLElement, opts: MountOptions): () => void {
       const name = h.players.find((p) => p.id === h.toAct)?.name;
       text = name ? S.waitingFor(name) : '';
     }
+    if (!h?.over && t.turnDeadline) {
+      const left = Math.max(0, Math.ceil((t.turnDeadline - Date.now()) / 1000));
+      text += ` (${S.secondsLeft(left)})`;
+    }
     return el('p', { class: 'status', role: 'status', 'aria-live': 'polite', 'data-testid': 'holdem-status' }, text);
   }
 
@@ -339,6 +343,21 @@ export function mountTable(root: HTMLElement, opts: MountOptions): () => void {
         value: String(t.config.bigBlind),
         'aria-label': S.big,
       });
+      const timerInput = el('input', {
+        id: 'turn-input',
+        type: 'number',
+        min: '15',
+        max: '120',
+        value: String(t.turnSeconds),
+        'aria-label': S.turnTimer,
+        'data-testid': 'holdem-turn-seconds',
+      });
+      const setTimerBtn = button(
+        S.setTimer,
+        'holdem-set-timer',
+        () => host.setTurnSeconds(Number(timerInput.value)),
+        'ghost',
+      );
       const setB = button(S.setBlinds, 'holdem-blinds', () => host.setBlinds(Number(small.value), Number(big.value)), 'ghost');
       setB.disabled = !idle;
       box.append(
@@ -349,6 +368,16 @@ export function mountTable(root: HTMLElement, opts: MountOptions): () => void {
           el('label', {}, auto, ` ${S.autoDeal}`),
           el('span', { class: 'blinds' }, `${S.blinds}: `, small, ' / ', big, ' ', setB),
           idle && !t.canStart ? el('span', { class: 'muted' }, S.needTwo) : null,
+        ),
+        el(
+          'div',
+          { class: 'hostbar' },
+          el('label', {}, `${S.turnTimer}: `, timerInput, ' ', setTimerBtn),
+          ...t.seats
+            .filter((x): x is NonNullable<typeof x> => !!x && x.id !== client.self)
+            .map((x) =>
+              button(S.remove(x.name), `holdem-remove-${x.id}`, () => host.kick(x.id), 'ghost'),
+            ),
         ),
       );
     }
@@ -363,8 +392,14 @@ export function mountTable(root: HTMLElement, opts: MountOptions): () => void {
 
   const off = client.subscribe(render);
   render();
+  // Keep the countdown honest without disturbing a field being edited.
+  const tick = setInterval(() => {
+    const t = client.snapshot().table;
+    if (t?.turnDeadline && !t.hand?.over && document.activeElement?.tagName !== 'INPUT') render();
+  }, 1000);
   return () => {
     off();
+    clearInterval(tick);
     if (timer) clearTimeout(timer);
     root.replaceChildren();
   };

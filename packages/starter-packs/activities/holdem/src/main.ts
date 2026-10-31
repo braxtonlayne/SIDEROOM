@@ -69,6 +69,12 @@ async function startInRoom(root: HTMLElement, params: URLSearchParams): Promise<
   if (isHost) {
     host = new HostController(tp);
     host.start();
+    // A member who leaves the instance is folded and unseated at once.
+    const dealer = host;
+    sdk.subscribe('ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE', (data) => {
+      const list = (data as { participants?: { id: string }[] }).participants;
+      if (Array.isArray(list)) dealer.syncParticipants(list.map((p) => p.id));
+    });
   }
   mountTable(root, { client, host, defaultName: name || 'Player' });
   client.start();

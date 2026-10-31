@@ -36,7 +36,11 @@ import {
 import type { Transport } from './transport';
 
 /** The part of the table every participant may see. */
-export function publicView(t: Table, rev: number): PublicTable {
+export function publicView(
+  t: Table,
+  rev: number,
+  turn: { seconds: number; deadline: number | null } = { seconds: DEFAULT_TURN_SECONDS, deadline: null },
+): PublicTable {
   const h = t.hand;
   let hand: PublicHand | null = null;
   if (h) {
@@ -80,10 +84,19 @@ export function publicView(t: Table, rev: number): PublicTable {
     hand,
     log: t.log.slice(-30),
     canStart: canStart(t),
+    turnSeconds: turn.seconds,
+    turnDeadline: turn.deadline,
   };
 }
 
+export const DEFAULT_TURN_SECONDS = 60;
+export const MIN_TURN_SECONDS = 15;
+export const MAX_TURN_SECONDS = 120;
+
 export interface HostOptions {
+  turnSeconds?: number;
+  /** Clock seam for tests. */
+  now?: () => number;
   config?: Partial<Config>;
   rnd?: RandomInt;
 }
@@ -93,6 +106,11 @@ export class HostController {
   private rev = 0;
   private readonly rnd: RandomInt;
   private off: (() => void) | null = null;
+  private turnSeconds: number;
+  private turnKey = '';
+  private turnDeadline: number | null = null;
+  private turnTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly now: () => number;
 
   constructor(
     private readonly tp: Transport,
@@ -100,6 +118,8 @@ export class HostController {
   ) {
     this.table = createTable(opts.config);
     this.rnd = opts.rnd ?? cryptoRandom;
+    this.now = opts.now ?? (() => Date.now());
+    this.turnSeconds = clampTurn(opts.turnSeconds ?? DEFAULT_TURN_SECONDS);
   }
 
   /** Start listening to inputs and publish the empty table. */
@@ -117,6 +137,7 @@ export class HostController {
   stop(): void {
     this.off?.();
     this.off = null;
+    this.clearTurn();
   }
 
   get current(): Table {
@@ -190,16 +211,78 @@ export class HostController {
     this.publish();
   }
 
-  /** Remove a seated player (someone who left the call). */
+  /**
+   * Remove a seated player: they fold at once if they are in a hand, their seat and stack go back to the bank
+   * when the hand ends (at once between hands). The host cannot remove itself.
+   */
   kick(id: string): void {
-    this.handle(id, { t: 'stand' });
+    if (id === this.tp.self) return;
+    if (this.table.seats.some((s) => s?.id === id)) this.handle(id, { t: 'stand' });
+  }
+
+  /** The members still in the instance: any seated player who is not among them has left and is folded now. */
+  syncParticipants(present: Iterable<string>): void {
+    const here = new Set(present);
+    for (const s of this.table.seats) if (s && s.id !== this.tp.self && !here.has(s.id)) this.kick(s.id);
+  }
+
+  /** Seconds a player has to act (15 to 120). */
+  setTurnSeconds(n: number): void {
+    if (!Number.isInteger(n) || n < MIN_TURN_SECONDS || n > MAX_TURN_SECONDS) {
+      this.tell(this.tp.self, {
+        t: 'error',
+        code: 'bad-config',
+        message: `The turn timer is ${MIN_TURN_SECONDS} to ${MAX_TURN_SECONDS} seconds.`,
+      });
+      return;
+    }
+    this.turnSeconds = n;
+    this.turnKey = ''; // re-arm the running turn with the new length
+    this.publish();
+  }
+
+  /** The player to act ran out of time: check if that is free, else fold. */
+  private expire(key: string): void {
+    this.turnTimer = null;
+    const h = this.table.hand;
+    if (key !== this.turnKey || !h || h.over || h.toAct === null) return;
+    const p = h.players.find((x) => x.seat === h.toAct);
+    if (!p) return;
+    const legal = legalActions(this.table, p.id);
+    this.table = applyAction(this.table, p.id, legal?.canCheck ? { type: 'check' } : { type: 'fold' });
+    this.table.log.push(`${p.name} ran out of time.`);
+    this.publish();
+  }
+
+  private clearTurn(): void {
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+    this.turnTimer = null;
+    this.turnKey = '';
+    this.turnDeadline = null;
+  }
+
+  private armTurn(): void {
+    const h = this.table.hand;
+    if (!h || h.over || h.toAct === null) return this.clearTurn();
+    const key = `${h.no}|${h.street}|${h.toAct}|${potTotal(h)}|${this.turnSeconds}`;
+    if (key === this.turnKey) return;
+    this.clearTurn();
+    this.turnKey = key;
+    this.turnDeadline = this.now() + this.turnSeconds * 1000;
+    this.turnTimer = setTimeout(() => this.expire(key), this.turnSeconds * 1000);
   }
 
   // ---- output ----
 
   private publish(): void {
     this.rev += 1;
-    this.tp.setState({ [TABLE_KEY]: publicView(this.table, this.rev) });
+    this.armTurn();
+    this.tp.setState({
+      [TABLE_KEY]: publicView(this.table, this.rev, {
+        seconds: this.turnSeconds,
+        deadline: this.turnDeadline,
+      }),
+    });
   }
 
   private sendHole(id: string): void {
@@ -218,4 +301,8 @@ export class HostController {
   get handRunning(): boolean {
     return handActive(this.table);
   }
+}
+
+function clampTurn(n: number): number {
+  return Math.max(MIN_TURN_SECONDS, Math.min(MAX_TURN_SECONDS, Math.round(n)));
 }
