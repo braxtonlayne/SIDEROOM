@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
@@ -554,3 +555,6 @@ describe('Library submission page', () => {
     expect(await screen.findByText('Submission not found')).toBeInTheDocument();
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

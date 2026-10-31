@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { mockGridRows, tabStops } from '../../a11y/rovingTestUtils';
@@ -71,3 +72,6 @@ describe('Cinema keyboard navigation', () => {
     expect(screen.getByRole('main')).toHaveFocus();
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

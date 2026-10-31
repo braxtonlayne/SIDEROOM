@@ -17,6 +17,7 @@ import { t, useT } from '../i18n';
 import { getDiscover, keys } from './api';
 import { TrailerModal } from './TrailerModal';
 import { ShelfEmptyState } from '../storage/ShelfEmpty';
+import { useStudyFlag } from '../study/flags';
 import type { Row, Title, TrendingScope } from './types';
 import {
   AgeBadge,
@@ -251,6 +252,7 @@ function RowView({
 
 export function Discover() {
   const tr = useT();
+  const trendingOn = useStudyFlag('globalTrending');
   const [scope, setScope] = useState<TrendingScope>('global');
   const q = useQuery({
     queryKey: keys.discover(scope),
@@ -274,7 +276,9 @@ export function Discover() {
     );
 
   const { hero, rows } = q.data;
-  const visible = rows.filter((r) => r.titles.length > 0 && r.display !== 'hero');
+  const visible = rows.filter(
+    (r) => r.titles.length > 0 && r.display !== 'hero' && (trendingOn || r.key !== 'trending'),
+  );
   if (hero.length === 0 && visible.length === 0)
     return (
       <div className="cin-page">
