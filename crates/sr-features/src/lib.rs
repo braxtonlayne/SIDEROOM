@@ -10,6 +10,7 @@ pub mod byos;
 pub mod compliance;
 pub mod directory;
 pub mod feature;
+pub mod game_servers;
 pub mod moderation;
 pub mod modules;
 pub mod platform_defaults;
@@ -28,6 +29,7 @@ pub use directory::{DirectoryHiddenCategoriesFeature, HIDDEN_CATEGORIES_ID, hidd
 pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
+pub use game_servers::{GAME_SERVERS_ID, GameServersFeature};
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
 pub use modules::bridge::{BRIDGE_MODULE_ID, BridgeModule, PLATFORM_BRIDGE_ID, PlatformBridge};
 pub use platform_defaults::{

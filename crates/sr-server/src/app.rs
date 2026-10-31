@@ -2049,6 +2049,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
         .register(sr_features::ByosFeature)
         .context("registering the platform.byos feature")?;
     registry
+        .register(sr_features::GameServersFeature)
+        .context("registering the platform.game_servers feature")?;
+    registry
         .register(sr_features::PublicProfilesFeature)
         .context("registering the platform.public_profiles feature")?;
     registry
