@@ -40,3 +40,8 @@ role/channel mention translation in render.rs.
 
 ## Tests run
 `cargo test -j 2 -p sr-bridge --lib discord`: 10 passed (body building, reason encoding, intents, parsing, pacer).
+
+## Also done
+Migration 1756 `bridge_members.discord_role_ids BIGINT[]` (filled by `members::upsert` from the member's roles);
+`inbound::members::display_roles(discord_role_ids, map)` (pure, display only). Unit test passes. Postgres tests not run.
+Migration 1757 unused.
