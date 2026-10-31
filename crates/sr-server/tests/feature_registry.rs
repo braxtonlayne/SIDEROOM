@@ -75,7 +75,10 @@ fn every_feature_of_waves_27_to_39_is_registered_with_its_scopes_and_default() {
     }
     // The mapping is the only difference between the roadmap and the registry.
     for (roadmap, shipped) in MAPPED {
-        assert!(reg.get(roadmap).is_none(), "{roadmap} must stay unregistered");
+        assert!(
+            reg.get(roadmap).is_none(),
+            "{roadmap} must stay unregistered"
+        );
         assert!(reg.get(shipped).is_some(), "{shipped}");
     }
 }
@@ -88,7 +91,10 @@ fn the_bridge_module_is_owner_only_off_by_default_and_dies_with_the_platform_swi
     assert!(!m.meta().default_enabled);
     assert_eq!(m.gated_by(), Some("platform.bridge"));
     let s = reg.get("lounge.scrapbook").unwrap();
-    assert!(s.operator_gated(), "the scrapbook stays hidden until the operator opts in");
+    assert!(
+        s.operator_gated(),
+        "the scrapbook stays hidden until the operator opts in"
+    );
 }
 
 #[test]
@@ -125,7 +131,14 @@ fn no_wave_switch_is_named_like_encryption_authorization_or_a_log() {
     // The IMMUTABLE RULE: nothing to switch off. (immutable_rules.rs pins the same against the whole catalog.)
     for f in registry().iter() {
         let id = f.id();
-        for bad in ["e2ee", "encrypt", "audit", "access_log", "authz", "permission"] {
+        for bad in [
+            "e2ee",
+            "encrypt",
+            "audit",
+            "access_log",
+            "authz",
+            "permission",
+        ] {
             assert!(!id.contains(bad), "{id}");
         }
     }

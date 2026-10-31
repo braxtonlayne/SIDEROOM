@@ -390,7 +390,11 @@ fn flipping_the_gate_stops_and_restores_the_relay() {
     gate.set(false);
     w.send_data(a1, 4, b"two");
     w.run(Duration::from_millis(300));
-    assert_eq!(w.payloads(a2).len(), 1, "nothing relayed while the gate is off");
+    assert_eq!(
+        w.payloads(a2).len(),
+        1,
+        "nothing relayed while the gate is off"
+    );
     gate.set(true);
     w.send_data(a1, 4, b"three");
     w.run(Duration::from_millis(300));

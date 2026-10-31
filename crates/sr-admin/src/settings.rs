@@ -70,7 +70,10 @@ impl SettingDef {
                 {
                     return Err("must be all, patrons or staff".to_owned());
                 }
-                if self.key == PROFILES_ACCESS && !s.is_empty() && !PROFILES_ACCESS_VALUES.contains(&s) {
+                if self.key == PROFILES_ACCESS
+                    && !s.is_empty()
+                    && !PROFILES_ACCESS_VALUES.contains(&s)
+                {
                     return Err("must be walled or opt_in_public".to_owned());
                 }
                 if self.key == BYOS_ENDPOINT_ALLOW {
@@ -890,7 +893,13 @@ mod tests {
             assert!(d.validate(&json!(ok)).is_ok(), "{ok}");
         }
         // The roadmap's third value (public by default) is dropped.
-        for bad in ["public", "public_by_default", "Walled", "opt-in-public", "1"] {
+        for bad in [
+            "public",
+            "public_by_default",
+            "Walled",
+            "opt-in-public",
+            "1",
+        ] {
             assert!(d.validate(&json!(bad)).is_err(), "{bad}");
         }
         assert!(d.validate(&json!(true)).is_err());

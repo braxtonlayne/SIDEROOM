@@ -6,8 +6,8 @@
 
 use std::time::Duration;
 
-use sr_features::{ACTIVITIES_DATACHANNEL_ID, FeatureService, ScopeRef};
 use sr_activities::ActivityService;
+use sr_features::{ACTIVITIES_DATACHANNEL_ID, FeatureService, ScopeRef};
 use sr_voice::datachannel::Gate;
 use tokio::task::JoinHandle;
 

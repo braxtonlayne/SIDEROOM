@@ -70,7 +70,8 @@ impl FromRequestParts<AppState> for Ctx {
         let UserOnly(p) = UserOnly::from_request_parts(parts, state).await?;
         let Ext(deps) = Ext::<WatchPartyDeps>::from_request_parts(parts, state).await?;
         let viewer = deps.service.viewer(p.user_id).await;
-        let embeds = crate::module_gate::platform_on(state, sr_features::WATCH_TOGETHER_EMBEDS_ID).await;
+        let embeds =
+            crate::module_gate::platform_on(state, sr_features::WATCH_TOGETHER_EMBEDS_ID).await;
         Ok(Self {
             deps,
             viewer,

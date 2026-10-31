@@ -105,7 +105,8 @@ pub fn rule_for(template: &str) -> Option<Rule> {
     {
         return Some(Rule::tool("loot"));
     }
-    if t == "/channels/{channel_id}/tool-rooms" || t.starts_with("/channels/{channel_id}/tool-rooms/")
+    if t == "/channels/{channel_id}/tool-rooms"
+        || t.starts_with("/channels/{channel_id}/tool-rooms/")
     {
         return Some(Rule::any_tool(&["tierlist", "poll"]));
     }
@@ -309,7 +310,11 @@ mod tests {
 
     #[tokio::test]
     async fn kill_lounge_listening_rooms() {
-        refused_when_killed("/channels/{channel_id}/listening-room", &[LISTENING_ROOMS_ID]).await;
+        refused_when_killed(
+            "/channels/{channel_id}/listening-room",
+            &[LISTENING_ROOMS_ID],
+        )
+        .await;
         // Rooms also die with the jukebox they play through.
         refused_when_killed("/channels/{channel_id}/listening-room", &[JUKEBOX_ID]).await;
     }
@@ -328,7 +333,11 @@ mod tests {
             refused_when_killed(template, &[sr_features::TOOLS_ID]).await;
         }
         refused_when_killed("/tools/fx", &["platform.tools.currency"]).await;
-        refused_when_killed("/users/@me/tools/notes/{note_id}", &["platform.tools.notes"]).await;
+        refused_when_killed(
+            "/users/@me/tools/notes/{note_id}",
+            &["platform.tools.notes"],
+        )
+        .await;
         refused_when_killed("/users/@me/tools/loot-tables", &["platform.tools.loot"]).await;
         refused_when_killed("/channels/{channel_id}/cards", &["platform.tools.invite"]).await;
         refused_when_killed(
