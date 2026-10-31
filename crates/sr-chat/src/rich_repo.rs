@@ -245,3 +245,21 @@ pub trait RichStore: Send + Sync {
     /// The media key of a sticker that belongs to a published pack.
     async fn pack_sticker_media(&self, id: u64) -> StoreResult<Option<String>>;
 }
+
+#[cfg(test)]
+mod bridge_link_tests {
+    use super::BridgeLink;
+
+    #[test]
+    fn a_link_is_expired_from_its_expiry_on_and_never_without_one() {
+        let l = |e| BridgeLink {
+            filename: "a".into(),
+            url: "u".into(),
+            expires_at_ms: e,
+        };
+        assert!(!l(Some(100)).expired(99));
+        assert!(l(Some(100)).expired(100));
+        assert!(l(Some(100)).expired(101));
+        assert!(!l(None).expired(i64::MAX));
+    }
+}

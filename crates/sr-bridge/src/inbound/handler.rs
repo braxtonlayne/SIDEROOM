@@ -233,8 +233,7 @@ impl Inbound {
             return Ok(Outcome::Ignored(Why::Unmapped));
         }
         // Reactions land on any mirrored message, ours or theirs.
-        let Some((sr, _)) =
-            store::sr_message_for_discord(&self.pool, map.id, r.message_id).await?
+        let Some((sr, _)) = store::sr_message_for_discord(&self.pool, map.id, r.message_id).await?
         else {
             return Ok(Outcome::Ignored(Why::NotBridged));
         };

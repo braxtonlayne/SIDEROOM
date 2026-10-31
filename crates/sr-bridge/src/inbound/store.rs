@@ -4,7 +4,7 @@ use sqlx::{PgPool, Row};
 
 use crate::error::BridgeResult;
 use crate::model::{
-    Bridge, BridgeStatus, ChannelMap, MAP_COLS, MessageMapDirection, map_from, get_bridge,
+    Bridge, BridgeStatus, ChannelMap, MAP_COLS, MessageMapDirection, get_bridge, map_from,
 };
 
 /// The map of a Discord channel in this server's bridge.

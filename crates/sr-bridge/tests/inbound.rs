@@ -19,9 +19,7 @@ use sr_bridge::inbound::{
     convert::InLink,
 };
 use sr_bridge::model::{Bridge, get_bridge};
-use sr_sdk::gateway::{
-    Dispatch, GatewayConnection, GatewayConnector, Incoming,
-};
+use sr_sdk::gateway::{Dispatch, GatewayConnection, GatewayConnector, Incoming};
 use support::*;
 use tokio::sync::mpsc;
 
@@ -109,7 +107,13 @@ struct Fx {
 
 const BOT: i64 = 5_000;
 
-async fn bridge_for(pool: &PgPool, owner: i64, guild: i64, sr_channel: i64, dir: &str) -> (i64, i64, i64) {
+async fn bridge_for(
+    pool: &PgPool,
+    owner: i64,
+    guild: i64,
+    sr_channel: i64,
+    dir: &str,
+) -> (i64, i64, i64) {
     sqlx::query(
         "INSERT INTO bridges (guild_id, discord_guild_id, bot_user_id, bot_token_enc, status, created_by) \
          VALUES ($1, $2, $3, '\\x00'::bytea, 'connecting', $4)",
@@ -167,7 +171,10 @@ async fn fx() -> Fx {
 
 impl Fx {
     async fn bridge(&self) -> Bridge {
-        get_bridge(self.db.pool(), self.guild).await.unwrap().unwrap()
+        get_bridge(self.db.pool(), self.guild)
+            .await
+            .unwrap()
+            .unwrap()
     }
 
     async fn send(&self, name: &str, data: Value) -> Outcome {
@@ -211,7 +218,10 @@ async fn a_discord_message_is_shown_by_the_bridge_author_with_the_discord_user_a
     let (id, p) = &posts[0];
     assert_eq!(*id, sr);
     assert_eq!((p.guild_id, p.channel_id), (f.guild, f.sr_channel));
-    assert_eq!(p.as_user, f.owner, "stored under the account that connected the bot");
+    assert_eq!(
+        p.as_user, f.owner,
+        "stored under the account that connected the bot"
+    );
     assert_eq!(p.author.name, "Dana");
     assert_eq!(p.author.discord_user_id, 77);
     assert_eq!(p.author.platform, "discord");
@@ -266,7 +276,8 @@ async fn what_the_bridge_wrote_never_comes_back_as_a_new_message() {
     ));
     // A repeated dispatch is not shown twice.
     assert_eq!(
-        f.send("MESSAGE_CREATE", f.msg(4, 4243, "from another webhook")).await,
+        f.send("MESSAGE_CREATE", f.msg(4, 4243, "from another webhook"))
+            .await,
         Outcome::Ignored(Why::Known)
     );
     assert_eq!(f.sink.posts().len(), 1);
@@ -321,7 +332,12 @@ async fn a_reply_is_resolved_through_the_message_map_in_both_directions() {
     lost["type"] = json!(19);
     lost["message_reference"] = json!({"message_id": "999999"});
     f.send("MESSAGE_CREATE", lost).await;
-    let replies: Vec<_> = f.sink.posts().into_iter().map(|(_, p)| p.reply_to).collect();
+    let replies: Vec<_> = f
+        .sink
+        .posts()
+        .into_iter()
+        .map(|(_, p)| p.reply_to)
+        .collect();
     assert_eq!(replies, [None, Some(first), Some(555), None]);
     let _ = f.db.cleanup().await;
 }
@@ -381,10 +397,11 @@ async fn edits_and_deletes_follow_messages_that_came_in_and_leave_ours_alone() {
         Outcome::Deleted(2)
     );
     assert_eq!(f.sink.log.lock().unwrap().deletes, [sr, sr2]);
-    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM bridge_message_map WHERE direction = 'in'")
-        .fetch_one(f.db.pool())
-        .await
-        .unwrap();
+    let left: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM bridge_message_map WHERE direction = 'in'")
+            .fetch_one(f.db.pool())
+            .await
+            .unwrap();
     assert_eq!(left, 0);
     let _ = f.db.cleanup().await;
 }
@@ -421,10 +438,18 @@ async fn a_reaction_is_added_with_the_first_discord_user_and_removed_with_the_la
         &(sr, "\u{1F44D}".to_owned(), false)
     );
     // A custom emoji is not mirrored.
-    let (n, d) = react("MESSAGE_REACTION_ADD", 3, json!({"id": "99", "name": "pog"}));
+    let (n, d) = react(
+        "MESSAGE_REACTION_ADD",
+        3,
+        json!({"id": "99", "name": "pog"}),
+    );
     assert_eq!(f.send(&n, d).await, Outcome::Ignored(Why::CustomEmoji));
     // The bridge's own bot reacting is not echoed.
-    let (n, d) = react("MESSAGE_REACTION_ADD", BOT, json!({"id": null, "name": "\u{2705}"}));
+    let (n, d) = react(
+        "MESSAGE_REACTION_ADD",
+        BOT,
+        json!({"id": null, "name": "\u{2705}"}),
+    );
     assert_eq!(f.send(&n, d).await, Outcome::Ignored(Why::OwnBot));
     assert_eq!(f.sink.log.lock().unwrap().reactions.len(), 2);
     let _ = f.db.cleanup().await;
@@ -584,7 +609,9 @@ async fn a_shard_runs_per_bridge_connects_and_brings_messages_in() {
     let f = fx().await;
     let gw = Arc::new(FakeGateway::default());
     let discord = gw.queue();
-    let host = Arc::new(Host { off: Mutex::new(vec![]) });
+    let host = Arc::new(Host {
+        off: Mutex::new(vec![]),
+    });
     let m = manager(&f, gw.clone(), host.clone(), 10);
     let r = m.reconcile().await.unwrap();
     assert_eq!(r.started, [f.guild]);
@@ -594,7 +621,11 @@ async fn a_shard_runs_per_bridge_connects_and_brings_messages_in() {
     discord.send(hello()).unwrap();
     discord.send(ready()).unwrap();
     discord
-        .send(dispatch(2, "MESSAGE_CREATE", f.msg(500, 9, "over the gateway")))
+        .send(dispatch(
+            2,
+            "MESSAGE_CREATE",
+            f.msg(500, 9, "over the gateway"),
+        ))
         .unwrap();
     until("the message", || async { f.sink.posts().len() == 1 }).await;
     until("connected", || async {
@@ -627,7 +658,9 @@ async fn at_most_max_bridges_shards_run() {
     let gw = Arc::new(FakeGateway::default());
     let _a = gw.queue();
     let _b = gw.queue();
-    let host = Arc::new(Host { off: Mutex::new(vec![]) });
+    let host = Arc::new(Host {
+        off: Mutex::new(vec![]),
+    });
     let m = manager(&f, gw, host, 1);
     let r = m.reconcile().await.unwrap();
     assert_eq!(r.started.len(), 1);
@@ -645,7 +678,9 @@ async fn a_refused_token_marks_the_bridge_and_a_refused_intent_is_not_retried_at
     let f = fx().await;
     let gw = Arc::new(FakeGateway::default());
     let discord = gw.queue();
-    let host = Arc::new(Host { off: Mutex::new(vec![]) });
+    let host = Arc::new(Host {
+        off: Mutex::new(vec![]),
+    });
     let m = manager(&f, gw.clone(), host.clone(), 10);
     m.reconcile().await.unwrap();
     discord.send(hello()).unwrap();
@@ -672,7 +707,10 @@ async fn a_refused_token_marks_the_bridge_and_a_refused_intent_is_not_retried_at
     })
     .await;
     let again = m.reconcile().await.unwrap();
-    assert!(again.started.is_empty(), "left alone for a while after a fatal close");
+    assert!(
+        again.started.is_empty(),
+        "left alone for a while after a fatal close"
+    );
     m.stop_all();
     let _ = f.db.cleanup().await;
 }

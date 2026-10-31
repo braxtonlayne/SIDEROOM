@@ -2082,6 +2082,56 @@ async fn deleting_a_webhook_message_notes_the_webhook_in_the_audit_entry() {
     );
 }
 
+/// BRG-GW-001: a message that came in over the Discord bridge shows the Discord user as its author, carries
+/// `sr_bridge`, and its attachment links turn into "expired" once their `ex` has passed (nothing is re-hosted).
+#[tokio::test]
+async fn a_bridged_message_carries_sr_bridge_and_its_links_expire() {
+    use sr_chat::rich_repo::{BridgeAuthor, BridgeLink};
+    let e = env().await;
+    let posted = id_of(&e.say("bob", "hello from discord").await);
+    e.backend.data().bridge_authors.insert(
+        sr_core::MessageId::new(posted.parse().unwrap()),
+        BridgeAuthor {
+            platform: "discord".into(),
+            author_name: "Dana".into(),
+            author_avatar: Some("https://cdn.discordapp.com/avatars/7/abc.png".into()),
+            discord_user_id: Some("7".into()),
+            links: vec![
+                BridgeLink {
+                    filename: "old.png".into(),
+                    url: "https://cdn.discordapp.com/attachments/1/2/old.png?ex=1".into(),
+                    expires_at_ms: Some(T0 - 1),
+                },
+                BridgeLink {
+                    filename: "new.png".into(),
+                    url: "https://cdn.discordapp.com/attachments/1/2/new.png?ex=2".into(),
+                    expires_at_ms: Some(T0 + 3_600_000),
+                },
+            ],
+        },
+    );
+    let (s, m) = e.get(&format!("/messages/{posted}"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["author"]["username"], "Dana", "{m}");
+    assert_eq!(m["author"]["bot"], true);
+    // The author keeps the integration account's id: only the shown name and avatar change.
+    assert_eq!(m["author"]["id"], BOB.to_string());
+    let b = &m["sr_bridge"];
+    assert_eq!(b["platform"], "discord", "{m}");
+    assert_eq!(b["author_name"], "Dana");
+    assert_eq!(b["author_id"], "7");
+    let links = b["links"].as_array().unwrap();
+    assert_eq!(links[0]["filename"], "old.png");
+    assert_eq!(links[0]["expired"], true);
+    assert!(links[0].get("url").is_none(), "an expired link is withheld");
+    assert_eq!(links[1]["expired"], false);
+    assert!(links[1]["url"].as_str().unwrap().contains("new.png"));
+    // A native message has no `sr_bridge`.
+    let other = id_of(&e.say("bob", "plain").await);
+    let (_, p) = e.get(&format!("/messages/{other}"), "owner").await;
+    assert!(p.get("sr_bridge").is_none(), "{p}");
+}
+
 #[test]
 fn custom_emoji_tokens_are_found_in_text() {
     use super::rich_model::custom_emoji_ids;

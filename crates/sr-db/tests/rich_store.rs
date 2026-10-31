@@ -452,6 +452,43 @@ async fn webhook_author_overrides_round_trip() {
     assert!(store.webhook_authors(&[]).await.unwrap().is_empty());
 }
 
+/// BRG-GW-001: the Discord author, avatar and attachment links of a bridged message round-trip, a second write
+/// replaces the first, and messages that were not bridged are omitted.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn bridge_author_round_trips() {
+    use sr_chat::rich_repo::{BridgeAuthor, BridgeLink};
+    let pool = pool().await;
+    let store = PgRichStore::new(pool);
+    let (a, none) = (
+        sr_core::MessageId::new(900_101),
+        sr_core::MessageId::new(900_102),
+    );
+    let first = BridgeAuthor {
+        platform: "discord".into(),
+        author_name: "Dana".into(),
+        author_avatar: Some("https://cdn.discordapp.com/avatars/7/abc.png".into()),
+        discord_user_id: Some("7".into()),
+        links: vec![BridgeLink {
+            filename: "cat.png".into(),
+            url: "https://cdn.discordapp.com/attachments/1/2/cat.png?ex=65f00000".into(),
+            expires_at_ms: Some(1_710_000_000_000),
+        }],
+    };
+    store.set_bridge_author(a, &first).await.unwrap();
+    let got = store.bridge_authors(&[a, none]).await.unwrap();
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[&a], first);
+    let second = BridgeAuthor {
+        author_name: "Dana (edited)".into(),
+        links: Vec::new(),
+        ..first
+    };
+    store.set_bridge_author(a, &second).await.unwrap();
+    assert_eq!(store.bridge_authors(&[a]).await.unwrap()[&a], second);
+    assert!(store.bridge_authors(&[]).await.unwrap().is_empty());
+}
+
 /// D-237: `decorate` asks which ids are application emoji and which application a bot user runs.
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]

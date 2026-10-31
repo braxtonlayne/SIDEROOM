@@ -164,7 +164,9 @@ impl InboundManager {
             }
             match self.start(b.clone()).await {
                 Ok(()) => report.started.push(b.guild_id),
-                Err(e) => tracing::warn!(guild = b.guild_id, error = %e, "bridge shard did not start"),
+                Err(e) => {
+                    tracing::warn!(guild = b.guild_id, error = %e, "bridge shard did not start")
+                }
             }
         }
         Ok(report)

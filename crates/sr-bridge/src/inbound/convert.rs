@@ -356,9 +356,7 @@ mod tests {
 
     #[test]
     fn system_messages_and_payloads_without_an_author_are_dropped() {
-        let base = |t: i64| {
-            json!({"id":"1","channel_id":"2","type":t,"content":"x","author":{"id":"3","username":"u"}})
-        };
+        let base = |t: i64| json!({"id":"1","channel_id":"2","type":t,"content":"x","author":{"id":"3","username":"u"}});
         assert!(parse_message(&base(0)).is_some());
         assert!(parse_message(&base(19)).is_some());
         assert!(parse_message(&base(7)).is_none(), "a member joined");
@@ -448,7 +446,10 @@ mod tests {
     fn edits_deletes_and_reactions_parse() {
         let e = parse_edit(&json!({"id":"1","channel_id":"2","content":"new"})).unwrap();
         assert_eq!(e.content.as_deref(), Some("new"));
-        assert!(e.links.is_none(), "no attachments key: leave the links alone");
+        assert!(
+            e.links.is_none(),
+            "no attachments key: leave the links alone"
+        );
         let partial = parse_edit(&json!({"id":"1","channel_id":"2","embeds":[]})).unwrap();
         assert!(partial.content.is_none());
         let d = parse_delete("MESSAGE_DELETE", &json!({"id":"1","channel_id":"2"})).unwrap();
@@ -470,6 +471,9 @@ mod tests {
             &json!({"channel_id":"2","message_id":"1","user_id":"3","emoji":{"id":"9","name":"pog"}}),
         )
         .unwrap();
-        assert!(!c.add && c.unicode.is_none(), "a custom emoji is never mirrored");
+        assert!(
+            !c.add && c.unicode.is_none(),
+            "a custom emoji is never mirrored"
+        );
     }
 }
