@@ -11,8 +11,8 @@ use sqlx::{PgPool, Postgres, QueryBuilder, Row, postgres::PgRow};
 use sr_storage::index::StoreError;
 use sr_storage::index::rom::RomRow;
 use sr_storage::index::shelf::{
-    FileNote, PartPatch, PatchError, Section, ShelfDetail, ShelfFilter, ShelfItem, ShelfPage, ShelfPart,
-    ShelfPatch, ShelfStore,
+    FileNote, PartPatch, PatchError, Section, ShelfDetail, ShelfFilter, ShelfItem, ShelfPage,
+    ShelfPart, ShelfPatch, ShelfStore,
 };
 
 /// Postgres-backed [`ShelfStore`].

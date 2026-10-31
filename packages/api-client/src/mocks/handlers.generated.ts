@@ -934,6 +934,8 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"index_status","method":"get","path":"/storage/mounts/:mount_id/index","status":200,"body":{"added":0,"objects":0,"queued":false,"state":"string","truncated":false,"vanished":0}},
   {"id":"start_index","method":"post","path":"/storage/mounts/:mount_id/index","status":202,"body":{"added":0,"objects":0,"queued":false,"state":"string","truncated":false,"vanished":0}},
   {"id":"move_objects","method":"post","path":"/storage/mounts/:mount_id/move","status":200,"body":{"count":0}},
+  {"id":"list_notes","method":"get","path":"/storage/mounts/:mount_id/notes","status":200,"body":{"can_edit":false,"notes":[{}]}},
+  {"id":"put_note","method":"put","path":"/storage/mounts/:mount_id/notes","status":204,"body":null},
   {"id":"list","method":"get","path":"/storage/mounts/:mount_id/objects","status":200,"body":{"can_manage":false,"can_upload":false,"folders":["string"],"objects":[{}]}},
   {"id":"meta","method":"get","path":"/storage/mounts/:mount_id/objects/:key","status":200,"body":{"key":"string","size":0}},
   {"id":"delete_objects","method":"delete","path":"/storage/mounts/:mount_id/objects/:key","status":200,"body":{"count":0}},

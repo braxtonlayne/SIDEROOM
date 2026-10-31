@@ -13122,6 +13122,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/storage/mounts/{mount_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The owner's titles, covers and notes for the files of a mount. */
+        get: operations["list_notes"];
+        /** Set or clear the note of one file. Owner only (a manager on a guild shelf). */
+        put: operations["put_note"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/storage/mounts/{mount_id}/objects": {
         parameters: {
             query?: never;
@@ -20306,6 +20324,35 @@ export interface components {
             section: string;
             /** @description Effective settings at the platform scope. */
             settings: Record<string, never>;
+        };
+        /** @description Body of `PUT /storage/mounts/{mount_id}/notes`: the whole note of one file. All three fields empty removes it. */
+        FileNoteBody: {
+            /** @description The key of an image on the same mount, or empty/absent for none. */
+            cover_key?: string | null;
+            /** @description Mount-relative key of the file. */
+            key: string;
+            /** @description A note (1 to 2000 characters), or empty/absent for none. */
+            note?: string | null;
+            /** @description A custom title (1 to 300 characters), or empty/absent for none. */
+            title?: string | null;
+        };
+        /** @description The notes of a mount, with what the caller may do about them. */
+        FileNoteList: {
+            /** @description The caller may write notes here (owner; a manager on a guild shelf). */
+            can_edit: boolean;
+            /** @description Notes on files the caller may read. */
+            notes: components["schemas"]["FileNoteView"][];
+        };
+        /** @description One file's notes. */
+        FileNoteView: {
+            /** @description Key of an image on the same mount used as the cover. */
+            cover_key?: string | null;
+            /** @description Mount-relative key of the file. */
+            key: string;
+            /** @description The owner's note. */
+            note?: string | null;
+            /** @description The owner's title for it. */
+            title?: string | null;
         };
         FileSpec: {
             /** @description Images: BlurHash of the picture, shown until it loads. */
@@ -70958,6 +71005,92 @@ export interface operations {
             };
             /** @description TARGET_EXISTS, OBJECT_TOO_LARGE or BUCKET_UNREACHABLE */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_notes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileNoteList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mount snowflake */
+                mount_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileNoteBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

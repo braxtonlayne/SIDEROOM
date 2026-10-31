@@ -65382,6 +65382,131 @@
         ]
       }
     },
+    "/storage/mounts/{mount_id}/notes": {
+      "get": {
+        "tags": [
+          "study"
+        ],
+        "summary": "The owner's titles, covers and notes for the files of a mount.",
+        "operationId": "list_notes",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileNoteList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "study"
+        ],
+        "summary": "Set or clear the note of one file. Owner only (a manager on a guild shelf).",
+        "operationId": "put_note",
+        "parameters": [
+          {
+            "name": "mount_id",
+            "in": "path",
+            "description": "Mount snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileNoteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/storage/mounts/{mount_id}/objects": {
       "get": {
         "tags": [
@@ -91313,6 +91438,95 @@
           "settings": {
             "type": "object",
             "description": "Effective settings at the platform scope."
+          }
+        }
+      },
+      "FileNoteBody": {
+        "type": "object",
+        "description": "Body of `PUT /storage/mounts/{mount_id}/notes`: the whole note of one file. All three fields empty removes it.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "cover_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The key of an image on the same mount, or empty/absent for none."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key of the file."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note (1 to 2000 characters), or empty/absent for none."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A custom title (1 to 300 characters), or empty/absent for none."
+          }
+        }
+      },
+      "FileNoteList": {
+        "type": "object",
+        "description": "The notes of a mount, with what the caller may do about them.",
+        "required": [
+          "notes",
+          "can_edit"
+        ],
+        "properties": {
+          "can_edit": {
+            "type": "boolean",
+            "description": "The caller may write notes here (owner; a manager on a guild shelf)."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileNoteView"
+            },
+            "description": "Notes on files the caller may read."
+          }
+        }
+      },
+      "FileNoteView": {
+        "type": "object",
+        "description": "One file's notes.",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "cover_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Key of an image on the same mount used as the cover."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key of the file."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The owner's note."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The owner's title for it."
           }
         }
       },

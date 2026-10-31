@@ -230,11 +230,15 @@ pub trait ShelfStore: Send + Sync {
         _note: &FileNote,
         _by: i64,
     ) -> Result<(), StoreError> {
-        Err(StoreError("file notes are not supported by this store".into()))
+        Err(StoreError(
+            "file notes are not supported by this store".into(),
+        ))
     }
     /// Remove the note of one file; whether there was one.
     async fn delete_file_note(&self, _mount_id: i64, _key: &str) -> Result<bool, StoreError> {
-        Err(StoreError("file notes are not supported by this store".into()))
+        Err(StoreError(
+            "file notes are not supported by this store".into(),
+        ))
     }
     /// Mounts that have indexed ROMs (wave 37; the emulator's list, see `super::rom`). The default is none, for stores
     /// that predate the emulator.

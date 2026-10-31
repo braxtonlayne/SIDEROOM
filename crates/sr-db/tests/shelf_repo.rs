@@ -696,10 +696,11 @@ async fn file_notes_are_owner_words_in_shelf_objects() {
     assert!(store.file_notes(32, 100).await.unwrap().is_empty());
 
     // The row is keyed by the path's SHA-256, as 41-C's `object_hash` will be.
-    let hash: String = sqlx::query_scalar("SELECT object_hash FROM shelf_objects WHERE shelf_id = 31")
-        .fetch_one(db.pool())
-        .await
-        .unwrap();
+    let hash: String =
+        sqlx::query_scalar("SELECT object_hash FROM shelf_objects WHERE shelf_id = 31")
+            .fetch_one(db.pool())
+            .await
+            .unwrap();
     assert_eq!(hash.len(), 64);
 
     // Saving again replaces the words (a second row is not made).
