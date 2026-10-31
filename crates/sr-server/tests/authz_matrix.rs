@@ -3321,6 +3321,14 @@ async fn seed(
             Some(&json!({"enabled": true})),
         )
         .await;
+        // OPS-FLG-001 (D-382): the switch alone keeps profiles walled; the sweep also opts in with profiles.access.
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            "/admin/settings",
+            Some(&json!({"values": {"profiles.access": "opt_in_public"}})),
+        )
+        .await;
         srv.call(
             &victim_cred,
             "PUT",
@@ -7317,6 +7325,7 @@ async fn profile_privacy_holds_over_http() {
         )
         .await
     };
+    expect!("the operator walls profiles", access("walled").await, 200);
     expect!("switch on, access walled", flag(true).await, 200);
     expect!(
         "switch on but profiles.access walled: still 404",
