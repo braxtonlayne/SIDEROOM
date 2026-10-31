@@ -27,6 +27,7 @@ fn codec_name(c: Codec) -> &'static str {
         Codec::Opus => "audio/opus",
         Codec::Vp8 => "video/VP8",
         Codec::H264 => "video/H264",
+        Codec::Data => "application/x-sr-data",
     }
 }
 
