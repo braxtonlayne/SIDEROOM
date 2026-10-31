@@ -37880,6 +37880,476 @@
         ]
       }
     },
+    "/guilds/{guild_id}/bridge/discord-channels": {
+      "get": {
+        "tags": [],
+        "summary": "The text channels the bot sees in the connected Discord server (`MANAGE_GUILD`).",
+        "operationId": "discord_channels",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DiscordChannelObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/leftovers": {
+      "get": {
+        "tags": [],
+        "summary": "The Discord webhooks a teardown could not delete (owner only; readable after the module was switched off, so\nthe dialog can name them).",
+        "operationId": "leftovers",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeftoverList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/maps": {
+      "get": {
+        "tags": [],
+        "summary": "The channel maps (`MANAGE_GUILD`).",
+        "operationId": "list_maps",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MapObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "Map a SIDE ROOM channel to a Discord channel (`MANAGE_GUILD`). Direct messages and anything that is not a\ntext or announcement channel are refused: end-to-end encrypted conversations are never bridged.",
+        "operationId": "create_map",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMapBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/maps/{map_id}": {
+      "delete": {
+        "tags": [],
+        "summary": "Remove a map (`MANAGE_GUILD`): its webhook is deleted on Discord and the channel is told.",
+        "operationId": "delete_map",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "description": "Map snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Change the direction of a map (`MANAGE_GUILD`).",
+        "operationId": "patch_map",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "description": "Map snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchMapBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/maps/{map_id}/test": {
+      "post": {
+        "tags": [],
+        "summary": "Post a hello through a map's webhook (`MANAGE_GUILD`), to see that the bridge works.",
+        "operationId": "test_map",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "description": "Map snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/bridge/members": {
       "get": {
         "tags": [
@@ -37937,6 +38407,199 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/status": {
+      "get": {
+        "tags": [],
+        "summary": "The bridge of this server (`MANAGE_GUILD`; 404 while the module is off).",
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BridgeStatusObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/token": {
+      "put": {
+        "tags": [],
+        "summary": "Connect the owner's own Discord bot (`PUT`, owner only). The token is validated as a bot token with Discord,\nsealed, and never shown again; pasting another token of the same bot replaces it.",
+        "operationId": "put_token",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BridgeObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Revoke the token (`DELETE`, owner only): the bridge is torn down (the webhooks it created are deleted on\nDiscord, the maps and the token go) and the module stays on, ready for a new token.",
+        "operationId": "delete_token",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeardownObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -79647,6 +80310,19 @@
           }
         }
       },
+      "BridgeChannelState": {
+        "type": "object",
+        "description": "The bridge state of a channel: which way its messages flow.",
+        "required": [
+          "direction"
+        ],
+        "properties": {
+          "direction": {
+            "type": "string",
+            "description": "`both`, `to_discord` or `from_discord`."
+          }
+        }
+      },
       "BridgeLinkObject": {
         "type": "object",
         "description": "One Discord attachment link. Discord's links expire; past that `url` is absent and `expired` is true\n(clients show \"(link expired)\").",
@@ -79709,6 +80385,107 @@
           "platform": {
             "type": "string",
             "description": "`discord`."
+          }
+        }
+      },
+      "BridgeStatusObject": {
+        "type": "object",
+        "description": "What the owner's screen shows.",
+        "required": [
+          "platform_on",
+          "module_on",
+          "connected",
+          "maps",
+          "queued",
+          "dead_letters",
+          "leftovers",
+          "is_owner"
+        ],
+        "properties": {
+          "bridge": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BridgeObject"
+              }
+            ]
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "A bot token is held."
+          },
+          "dead_letters": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Posts that failed for good (the dead-letter counter)."
+          },
+          "is_owner": {
+            "type": "boolean",
+            "description": "The viewer is the server owner (may paste and revoke the token and switch the module off)."
+          },
+          "leftovers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeftoverObject"
+            }
+          },
+          "maps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MapObject"
+            }
+          },
+          "module_on": {
+            "type": "boolean",
+            "description": "The server's module."
+          },
+          "platform_on": {
+            "type": "boolean",
+            "description": "The operator's switch."
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Posts waiting."
+          }
+        }
+      },
+      "BridgeTile": {
+        "type": "object",
+        "description": "The Admin > System tile of the Discord bridge.",
+        "required": [
+          "platform_on",
+          "bridges",
+          "maps",
+          "queued",
+          "dead_letters"
+        ],
+        "properties": {
+          "bridges": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Servers holding a bot token."
+          },
+          "dead_letters": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Posts that failed for good (the dead-letter counter)."
+          },
+          "maps": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channel maps instance-wide."
+          },
+          "platform_on": {
+            "type": "boolean",
+            "description": "The operator's switch (`platform.bridge`)."
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Posts waiting for their turn under Discord's rate limits."
           }
         }
       },
@@ -81026,6 +81803,17 @@
               "null"
             ],
             "description": "Voice and stage channels: always `null` (this installation has one voice region)."
+          },
+          "sr_bridge": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BridgeChannelState",
+                "description": "Present when this channel is mirrored to Discord by the bridge (BRG-COR-001): the client draws the\nbanner from it. Absent when the channel is not mapped, the module is off or the operator switched the\nbridge off."
+              }
+            ]
           },
           "sr_music_allowed": {
             "type": [
@@ -84480,6 +85268,31 @@
           }
         }
       },
+      "CreateMapBody": {
+        "type": "object",
+        "description": "Body of `POST /guilds/{id}/bridge/maps`.",
+        "required": [
+          "channel_id",
+          "discord_channel_id"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "The SIDE ROOM channel (a text or announcement channel of this server)."
+          },
+          "direction": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`both` (default), `to_discord` or `from_discord`."
+          },
+          "discord_channel_id": {
+            "type": "string",
+            "description": "The Discord channel."
+          }
+        }
+      },
       "CreateMessageBody": {
         "type": "object",
         "properties": {
@@ -86825,6 +87638,22 @@
           }
         }
       },
+      "DiscordChannelObject": {
+        "type": "object",
+        "description": "A Discord channel the bot sees.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "DiscordLinkStart": {
         "type": "object",
         "description": "The authorize URL to send the browser to.",
@@ -88342,6 +89171,28 @@
           }
         }
       },
+      "FeatureTeardown": {
+        "type": "object",
+        "description": "What switching the Discord bridge off did.",
+        "required": [
+          "maps_removed",
+          "failed_webhooks"
+        ],
+        "properties": {
+          "failed_webhooks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Webhooks Discord would not delete after three attempts: the owner removes them by hand."
+          },
+          "maps_removed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channel maps removed."
+          }
+        }
+      },
       "FeatureView": {
         "type": "object",
         "required": [
@@ -89347,6 +90198,7 @@
           "enabled",
           "default_enabled",
           "platform_disabled",
+          "owner_only",
           "settings",
           "schema"
         ],
@@ -89368,6 +90220,10 @@
           "name": {
             "type": "string"
           },
+          "owner_only": {
+            "type": "boolean",
+            "description": "Only the server owner may switch this module on or off (the Discord bridge, D-381). A manager sees it\ngreyed."
+          },
           "phase": {
             "type": "integer",
             "format": "int32",
@@ -89387,6 +90243,17 @@
           "settings": {
             "type": "object",
             "description": "Effective settings in this server (schema defaults plus the server's overrides)."
+          },
+          "teardown": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FeatureTeardown",
+                "description": "Present on the answer to switching the Discord bridge off: what the teardown did."
+              }
+            ]
           }
         }
       },
@@ -92263,6 +93130,38 @@
           }
         }
       },
+      "LeftoverList": {
+        "type": "object",
+        "description": "The Discord webhooks a teardown could not delete.",
+        "required": [
+          "leftovers"
+        ],
+        "properties": {
+          "leftovers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeftoverObject"
+            }
+          }
+        }
+      },
+      "LeftoverObject": {
+        "type": "object",
+        "description": "A Discord webhook that could not be removed from Discord.",
+        "required": [
+          "webhook_id",
+          "discord_channel_id"
+        ],
+        "properties": {
+          "discord_channel_id": {
+            "type": "string"
+          },
+          "webhook_id": {
+            "type": "string",
+            "description": "The webhook's id: remove it from Discord's Integrations page by hand."
+          }
+        }
+      },
       "LevelOffer": {
         "type": "object",
         "required": [
@@ -93608,6 +94507,59 @@
           "sent_to": {
             "type": "string",
             "description": "The caller's address with the local part masked."
+          }
+        }
+      },
+      "MapObject": {
+        "type": "object",
+        "description": "One channel map with the numbers beside it.",
+        "required": [
+          "id",
+          "channel_id",
+          "discord_channel_id",
+          "discord_channel_name",
+          "direction",
+          "has_webhook",
+          "queued",
+          "dead",
+          "created_at"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "The SIDE ROOM channel."
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dead": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Posts that failed for good."
+          },
+          "direction": {
+            "type": "string",
+            "description": "`both`, `to_discord` or `from_discord`."
+          },
+          "discord_channel_id": {
+            "type": "string",
+            "description": "The Discord channel."
+          },
+          "discord_channel_name": {
+            "type": "string"
+          },
+          "has_webhook": {
+            "type": "boolean",
+            "description": "The bridge holds a Discord webhook for posting here."
+          },
+          "id": {
+            "type": "string"
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Posts waiting for their turn under Discord's rate limits."
           }
         }
       },
@@ -98156,6 +99108,19 @@
               "null"
             ],
             "description": "Replace this server's setting overrides (validated against the schema)."
+          }
+        }
+      },
+      "PatchMapBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/bridge/maps/{map}`.",
+        "required": [
+          "direction"
+        ],
+        "properties": {
+          "direction": {
+            "type": "string",
+            "description": "`both`, `to_discord` or `from_discord`."
           }
         }
       },
@@ -107482,6 +108447,17 @@
             "$ref": "#/components/schemas/BackupsView",
             "description": "When the last backup, restore check and object snapshot happened (null fields: never, or not reported)."
           },
+          "bridge": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BridgeTile",
+                "description": "The Discord bridge (BRG-COR-001): servers, maps, the queue and the dead-letter counter. Absent when the\nbridge is not wired into this process."
+              }
+            ]
+          },
           "counts": {
             "$ref": "#/components/schemas/SystemCounts"
           },
@@ -107690,6 +108666,32 @@
           "status_ring",
           "other"
         ]
+      },
+      "TeardownObject": {
+        "type": "object",
+        "description": "What a teardown did.",
+        "required": [
+          "maps_removed",
+          "webhooks_deleted",
+          "leftovers"
+        ],
+        "properties": {
+          "leftovers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeftoverObject"
+            },
+            "description": "Webhooks still on Discord, to remove by hand."
+          },
+          "maps_removed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "webhooks_deleted": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "TempRoleObject": {
         "type": "object",
@@ -108519,6 +109521,33 @@
             "type": "integer",
             "format": "int64",
             "description": "Titles matching the filters, independent of the cursor."
+          }
+        }
+      },
+      "TokenBody": {
+        "type": "object",
+        "description": "Body of `PUT /guilds/{id}/bridge/token`.",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "discord_guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Discord server to bridge, when the bot is in several."
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "'selective' (default). 'whole_guild' is reserved for a later wave and refused with a 400."
+          },
+          "token": {
+            "type": "string",
+            "description": "The bot token of the owner's own Discord application. Sealed on arrival, shown nowhere."
           }
         }
       },

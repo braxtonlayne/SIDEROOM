@@ -7522,6 +7522,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/bridge/discord-channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The text channels the bot sees in the connected Discord server (`MANAGE_GUILD`). */
+        get: operations["discord_channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/leftovers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Discord webhooks a teardown could not delete (owner only; readable after the module was switched off, so
+         *     the dialog can name them).
+         */
+        get: operations["leftovers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/maps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The channel maps (`MANAGE_GUILD`). */
+        get: operations["list_maps"];
+        put?: never;
+        /**
+         * Map a SIDE ROOM channel to a Discord channel (`MANAGE_GUILD`). Direct messages and anything that is not a
+         *     text or announcement channel are refused: end-to-end encrypted conversations are never bridged.
+         */
+        post: operations["create_map"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/maps/{map_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a map (`MANAGE_GUILD`): its webhook is deleted on Discord and the channel is told. */
+        delete: operations["delete_map"];
+        options?: never;
+        head?: never;
+        /** Change the direction of a map (`MANAGE_GUILD`). */
+        patch: operations["patch_map"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/maps/{map_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post a hello through a map's webhook (`MANAGE_GUILD`), to see that the bridge works. */
+        post: operations["test_map"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bridge/members": {
         parameters: {
             query?: never;
@@ -7534,6 +7627,47 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The bridge of this server (`MANAGE_GUILD`; 404 while the module is off). */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Connect the owner's own Discord bot (`PUT`, owner only). The token is validated as a bot token with Discord,
+         *     sealed, and never shown again; pasting another token of the same bot replaces it.
+         */
+        put: operations["put_token"];
+        post?: never;
+        /**
+         * Revoke the token (`DELETE`, owner only): the bridge is torn down (the webhooks it created are deleted on
+         *     Discord, the maps and the token go) and the module stays on, ready for a new token.
+         */
+        delete: operations["delete_token"];
         options?: never;
         head?: never;
         patch?: never;
@@ -16621,6 +16755,11 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        /** @description The bridge state of a channel: which way its messages flow. */
+        BridgeChannelState: {
+            /** @description `both`, `to_discord` or `from_discord`. */
+            direction: string;
+        };
         /**
          * @description One Discord attachment link. Discord's links expire; past that `url` is absent and `expired` is true
          *     (clients show "(link expired)").
@@ -16641,6 +16780,55 @@ export interface components {
             member_id?: string | null;
             /** @description `discord`. */
             platform: string;
+        };
+        /** @description What the owner's screen shows. */
+        BridgeStatusObject: {
+            bridge?: null | components["schemas"]["BridgeObject"];
+            /** @description A bot token is held. */
+            connected: boolean;
+            /**
+             * Format: int64
+             * @description Posts that failed for good (the dead-letter counter).
+             */
+            dead_letters: number;
+            /** @description The viewer is the server owner (may paste and revoke the token and switch the module off). */
+            is_owner: boolean;
+            leftovers: components["schemas"]["LeftoverObject"][];
+            maps: components["schemas"]["MapObject"][];
+            /** @description The server's module. */
+            module_on: boolean;
+            /** @description The operator's switch. */
+            platform_on: boolean;
+            /**
+             * Format: int64
+             * @description Posts waiting.
+             */
+            queued: number;
+        };
+        /** @description The Admin > System tile of the Discord bridge. */
+        BridgeTile: {
+            /**
+             * Format: int64
+             * @description Servers holding a bot token.
+             */
+            bridges: number;
+            /**
+             * Format: int64
+             * @description Posts that failed for good (the dead-letter counter).
+             */
+            dead_letters: number;
+            /**
+             * Format: int64
+             * @description Channel maps instance-wide.
+             */
+            maps: number;
+            /** @description The operator's switch (`platform.bridge`). */
+            platform_on: boolean;
+            /**
+             * Format: int64
+             * @description Posts waiting for their turn under Discord's rate limits.
+             */
+            queued: number;
         };
         /**
          * @description A Discord member shown in the list. `id` is the Discord user id as a decimal string: the same as
@@ -17061,6 +17249,7 @@ export interface components {
             rate_limit_per_user: number;
             /** @description Voice and stage channels: always `null` (this installation has one voice region). */
             rtc_region?: string | null;
+            sr_bridge?: null | components["schemas"]["BridgeChannelState"];
             /** @description Voice and stage channels: members with Speak may play music into the call (MUS-JB-001). */
             sr_music_allowed?: boolean | null;
             /**
@@ -18184,6 +18373,15 @@ export interface components {
              */
             usd_cents?: number | null;
         };
+        /** @description Body of `POST /guilds/{id}/bridge/maps`. */
+        CreateMapBody: {
+            /** @description The SIDE ROOM channel (a text or announcement channel of this server). */
+            channel_id: string;
+            /** @description `both` (default), `to_discord` or `from_discord`. */
+            direction?: string | null;
+            /** @description The Discord channel. */
+            discord_channel_id: string;
+        };
         CreateMessageBody: {
             allowed_mentions?: null | components["schemas"]["AllowedMentionsBody"];
             attachments?: components["schemas"]["AttachmentRef"][] | null;
@@ -19021,6 +19219,11 @@ export interface components {
             count: number;
             tag: string;
         };
+        /** @description A Discord channel the bot sees. */
+        DiscordChannelObject: {
+            id: string;
+            name: string;
+        };
         /** @description The authorize URL to send the browser to. */
         DiscordLinkStart: {
             /** @description Discord's authorize page, with the state and PKCE challenge of this attempt. */
@@ -19505,6 +19708,16 @@ export interface components {
         FeatureBody: {
             featured: boolean;
         };
+        /** @description What switching the Discord bridge off did. */
+        FeatureTeardown: {
+            /** @description Webhooks Discord would not delete after three attempts: the owner removes them by hand. */
+            failed_webhooks: string[];
+            /**
+             * Format: int64
+             * @description Channel maps removed.
+             */
+            maps_removed: number;
+        };
         FeatureView: {
             default_enabled: boolean;
             description: string;
@@ -19827,6 +20040,11 @@ export interface components {
             enabled: boolean;
             id: string;
             name: string;
+            /**
+             * @description Only the server owner may switch this module on or off (the Discord bridge, D-381). A manager sees it
+             *     greyed.
+             */
+            owner_only: boolean;
             /** Format: int32 */
             phase: number;
             /**
@@ -19839,6 +20057,7 @@ export interface components {
             section: string;
             /** @description Effective settings in this server (schema defaults plus the server's overrides). */
             settings: Record<string, never>;
+            teardown?: null | components["schemas"]["FeatureTeardown"];
         };
         /** @description Body of `POST /guilds/templates/{code}`. */
         GuildFromTemplateBody: {
@@ -20806,6 +21025,16 @@ export interface components {
             reason: string;
             ref_id?: string | null;
         };
+        /** @description The Discord webhooks a teardown could not delete. */
+        LeftoverList: {
+            leftovers: components["schemas"]["LeftoverObject"][];
+        };
+        /** @description A Discord webhook that could not be removed from Discord. */
+        LeftoverObject: {
+            discord_channel_id: string;
+            /** @description The webhook's id: remove it from Discord's Integrations page by hand. */
+            webhook_id: string;
+        };
         LevelOffer: {
             /** Format: int32 */
             level: number;
@@ -21230,6 +21459,31 @@ export interface components {
         MailTestResult: {
             /** @description The caller's address with the local part masked. */
             sent_to: string;
+        };
+        /** @description One channel map with the numbers beside it. */
+        MapObject: {
+            /** @description The SIDE ROOM channel. */
+            channel_id: string;
+            /** Format: int64 */
+            created_at: number;
+            /**
+             * Format: int64
+             * @description Posts that failed for good.
+             */
+            dead: number;
+            /** @description `both`, `to_discord` or `from_discord`. */
+            direction: string;
+            /** @description The Discord channel. */
+            discord_channel_id: string;
+            discord_channel_name: string;
+            /** @description The bridge holds a Discord webhook for posting here. */
+            has_webhook: boolean;
+            id: string;
+            /**
+             * Format: int64
+             * @description Posts waiting for their turn under Discord's rate limits.
+             */
+            queued: number;
         };
         Marker: {
             /** Format: int32 */
@@ -22663,6 +22917,11 @@ export interface components {
             enabled?: boolean | null;
             /** @description Replace this server's setting overrides (validated against the schema). */
             settings?: Record<string, never> | null;
+        };
+        /** @description Body of `PATCH /guilds/{id}/bridge/maps/{map}`. */
+        PatchMapBody: {
+            /** @description `both`, `to_discord` or `from_discord`. */
+            direction: string;
         };
         /**
          * @description Change a mount: any create field, plus `status` (`active` or `disabled`). A new `secret_access_key`
@@ -25807,6 +26066,7 @@ export interface components {
         SystemView: {
             /** @description When the last backup, restore check and object snapshot happened (null fields: never, or not reported). */
             backups: components["schemas"]["BackupsView"];
+            bridge?: null | components["schemas"]["BridgeTile"];
             counts: components["schemas"]["SystemCounts"];
             /** @description Space of the data folder and of every ingest root; unreadable paths have null sizes. */
             disk: components["schemas"]["DiskView"][];
@@ -25875,6 +26135,15 @@ export interface components {
          * @enum {string}
          */
         TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "status_ring" | "other";
+        /** @description What a teardown did. */
+        TeardownObject: {
+            /** @description Webhooks still on Discord, to remove by hand. */
+            leftovers: components["schemas"]["LeftoverObject"][];
+            /** Format: int64 */
+            maps_removed: number;
+            /** Format: int64 */
+            webhooks_deleted: number;
+        };
         TempRoleObject: {
             /**
              * Format: int64
@@ -26107,6 +26376,15 @@ export interface components {
              * @description Titles matching the filters, independent of the cursor.
              */
             total: number;
+        };
+        /** @description Body of `PUT /guilds/{id}/bridge/token`. */
+        TokenBody: {
+            /** @description The Discord server to bridge, when the bot is in several. */
+            discord_guild_id?: string | null;
+            /** @description 'selective' (default). 'whole_guild' is reserved for a later wave and refused with a 400. */
+            mode?: string | null;
+            /** @description The bot token of the owner's own Discord application. Sealed on arrival, shown nowhere. */
+            token: string;
         };
         TokenRequestBody: {
             client_id?: string | null;
@@ -52233,6 +52511,322 @@ export interface operations {
             };
         };
     };
+    discord_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscordChannelObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leftovers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeftoverList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_maps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_map: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMapBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_map: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Map snowflake */
+                map_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_map: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Map snowflake */
+                map_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchMapBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    test_map: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Map snowflake */
+                map_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_bridge_members: {
         parameters: {
             query?: never;
@@ -52251,6 +52845,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BridgedMemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgeStatusObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgeObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeardownObject"];
                 };
             };
             403: {
