@@ -210,15 +210,19 @@ export function MemberList({
   const roles = useRoles(guildId);
   const presence = usePresenceMap();
   const viewer = useViewer(guildId);
+  const allBridged = useGuildBridgedMembers(guildId);
+  // Whole-server bridge: Discord members come with their mapped roles and are listed among the others (35b).
+  const native = useMemo(() => allBridged.filter((b) => b.role_ids !== undefined), [allBridged]);
+  const bridged = useMemo(() => allBridged.filter((b) => b.role_ids === undefined), [allBridged]);
   const rows = useMemo(
     () =>
       buildMemberRows(members, roles, presence, {
-        hideOffline: members.length > OFFLINE_HIDE_THRESHOLD,
+        hideOffline: members.length + native.length > OFFLINE_HIDE_THRESHOLD,
+        bridged: native,
       }),
-    [members, roles, presence],
+    [members, roles, presence, native],
   );
-  // The Discord half of a bridged server, after the people who are here (owner direction).
-  const bridged = useGuildBridgedMembers(guildId);
+  // The Discord half of a selective bridge, after the people who are here (owner direction).
   const [needle, setNeedle] = useState('');
   const shownBridged = useMemo(() => {
     const q = needle.trim().toLowerCase();
@@ -270,6 +274,8 @@ export function MemberList({
           }
           const r = rows[i];
           if (!r) return null;
+          if (r.kind === 'bridged')
+            return <BridgedMemberRow member={r.member} guildId={guildId} color={r.color} />;
           return r.kind === 'header' ? (
             <h3 className="lng-member-group">
               {t('lounge.memberList.groupHeader', { label: r.label, count: r.count })}

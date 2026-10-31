@@ -449,6 +449,27 @@ Exceptions to the resource-scoped rule are listed in `outsider_exception` of `au
 emoji metadata lookup). Adding a route means adding its row to the TSV (`SR_UPDATE_ROUTE_MATRIX=1`, then review the `AUTHZ` cell by hand and fill `PLATFORM` from the handler's service call) and, if it takes a new
 kind of resource id, listing the placeholder in `TENANT` and seeding an instance in `seed`.
 
+### Discord bridge, whole-server mode (wave 35b)
+
+Under `/api/v1/guilds/{g}/bridge`, session-only like the rest of the bridge. Classes: `bridge_admin` is the server owner or `MANAGE_GUILD`; `guild_owner` is the owner with the MFA step. Shapes are defined in `apps/web/src/settings/server/bridge/api.ts`.
+
+| Route | Class | Purpose |
+|---|---|---|
+| `GET /preflight` | bridge_admin | The checks before a plan: bot Administrator, bot role on top, intents, caps, unique Discord server, other integrations |
+| `POST /plan` `{mode:"whole_guild", seed_structure}` | bridge_admin | Build a dry-run plan as a job; answers `{plan_id}`. One open plan per server, 15 minutes |
+| `GET /plan/{plan_id}` | bridge_admin | Status, blockers, roles, categories, channels, threads, changes on Discord, imports, not mirrored, estimate, hash |
+| `PATCH /plan/{plan_id}` | bridge_admin | `{op:"unlink"|"link"|"import"}` |
+| `POST /mode` | guild_owner | `{mode:"whole_guild", plan_id, plan_hash}` or `{mode:"selective"}`. Stale plan: 409 `BRIDGE_PLAN_STALE`. Going back to selective deletes nothing |
+| `GET /sync` | bridge_admin | Mode, sync state, bot checks, last reconcile, queue, dead ops, rate-limit wait, counts, seed progress |
+| `POST /reconcile`, `/pause`, `/resume` | bridge_admin | Reconcile now (once per 5 minutes), pause and resume pushes |
+| `GET /conflicts?kind=&open=` | bridge_admin | The conflict log |
+| `POST /conflicts/{id}/{take-discord, restore, delete-now, unfreeze, retry, dismiss}` | bridge_admin | Run as the clicking person; the SIDE ROOM rule of the edit also applies |
+| `GET /mirrors` | any member | Which roles and channels are mirrored, for badges |
+| `GET /teardown-preview` | bridge_admin | Counts of what the bridge created on Discord, for the switch-off dialog |
+| `PATCH /sr/features/bridge.enabled` `{enabled:false, teardown?:{remove_created, restore_permissions}}` | guild_owner | Switch off; `teardown` only in whole-server mode |
+
+`GET /members` gains `role_ids` (SIDE ROOM role ids, display only) in whole-server mode, and a channel's `sr_bridge` gains `mode`.
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)

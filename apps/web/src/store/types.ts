@@ -84,7 +84,11 @@ export interface Channel {
   /** Voice channels: the music track's bitrate in kbit/s (32 to 320, default 256). */
   sr_music_bitrate_kbps?: number;
   /** The Discord bridge mirrors this channel (BRG-UI-001); absent when it is not mapped. */
-  sr_bridge?: { direction: 'both' | 'to_discord' | 'from_discord' };
+  sr_bridge?: {
+    direction: 'both' | 'to_discord' | 'from_discord';
+    /** 35b: `whole_guild` when the whole server is mirrored (absent = selective). */
+    mode?: 'selective' | 'whole_guild';
+  };
   /** Age-restricted channel (the Lounge asks the viewer to confirm they are 18 or older). */
   nsfw?: boolean;
   /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */
