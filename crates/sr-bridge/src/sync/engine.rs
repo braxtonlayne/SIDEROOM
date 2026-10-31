@@ -702,7 +702,11 @@ impl SyncEngine {
         let d_roles: HashMap<i64, &crate::discord_structure::GuildRole> =
             d.roles.iter().map(|r| (r.id, r)).collect();
         for item in view.plan.items.iter().filter(|i| i.kind == ItemKind::Role) {
-            if item.sr_id.is_some_and(|s| role_sr_to_d.contains_key(&s)) {
+            if item.sr_id.is_some_and(|s| role_sr_to_d.contains_key(&s))
+                || item
+                    .discord_id
+                    .is_some_and(|x| role_sr_to_d.values().any(|v| *v == x))
+            {
                 continue;
             }
             match item.action {
