@@ -28,6 +28,7 @@ import { createEmuRoutes } from './emu/routes';
 import { isPublicPath } from './player/scope';
 import { parseSearchValue, stringifySearchValue } from './lib/searchCodec';
 import { Help } from './help/HelpPage';
+import { HelpOperators } from './help/Operators';
 import { HelpSkeleton } from './help/HelpSkeleton';
 import { AppServerInvite } from './app/AppServerInvite';
 import { AppServerTemplate } from './app/AppServerTemplate';
@@ -108,6 +109,7 @@ const routeTree = root.addChildren([
   r('/', AppDoor),
   r('/help', Help),
   r('/help/whats-new', WhatsNew),
+  r('/help/operators', HelpOperators),
   r('/invite/$code', AppServerInvite),
   r('/template/$code', AppServerTemplate),
   createLoungeRoutes(root),

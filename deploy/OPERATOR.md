@@ -115,6 +115,84 @@ Every module of the feature phase has a platform switch (and, where it makes sen
 
 **Environment you will meet:** `SR_BACKUP_DIR`, `SR_BACKUP_KEEP` (default 14,8,12), `SR_DRILL_MAX_AGE_HOURS`, `SR_BASEBACKUP_KEEP`; secrets are `server.secret_key` (rotation: [BACKUP.md](BACKUP.md)), database and storage credentials. Secrets go in the environment or a mode-0600 file, never on a command line.
 
+### The feature phase: settings, switches and jobs (waves 27 to 40)
+
+Everything below is also a switch in Admin > Features (see "Module switches" above), so an operator who does not want a module can leave it off or kill it; a killed module's routes answer 403 `SR_FEATURE_DISABLED`. The member-facing explanation of each is in Help > Operators (`/help/operators`).
+
+**Bring your own storage (Admin > Limits & settings, group storage; `platform.byos`)**
+
+| Key | Default | Meaning |
+|---|---|---|
+| `byos.who_may_mount` | empty (all) | Who may connect a bucket of their own: `all`, `patrons` or `staff`. A server's own buckets follow its Manage Storage grant instead. |
+| `byos.endpoint_allow` | empty | Hosts a bucket endpoint may use (`s3.example.com`, `*.example.com`). Empty: any https endpoint reachable from the public internet; private addresses are always refused. |
+| `byos.max_mounts_per_user`, `byos.max_mounts_per_guild` | 3 and 5 | Buckets one member or one server may connect. Lowering keeps the ones already connected. |
+| `byos.presign_ttl_secs`, `byos.presign_ttl_cap_secs` | 900 and 3600 | Lifetime of a presigned read link and its ceiling (never above 86400, never longer than the caller's session). |
+| `byos.upload_parts_per_hour` | 2000 | Part URLs one member may request per hour across their buckets. |
+| `abuse.storage_tests_per_hour` | 20 | Connection tests of a mount per member per hour. |
+| `byos.require_client_remux`, `byos.client_convert_max_mib`, `byos.worker_for_members` | off, 2048, off | The browser converter: ask for a remux before upload, the largest file it accepts, and whether the operator's transcoder workers convert members' videos inside their own buckets. |
+
+The operator's own bucket is mount 1 (seeded from `storage.*` at first start); attach it to a server or detach it with `POST /admin/storage/mounts/1/attach` and `/detach` (the OPERATOR permission, audited). The daily job `storage.cors_recheck` (id 134) re-checks every mount's CORS rule; `storage.index` (id 1450) refreshes the per-mount indexes. A mount whose CORS check has not passed serves nothing. The runbook for a member whose bucket fails is the connect screen's test table; the operator never holds a member's bucket keys in the clear (they are sealed under `server.secret_key`, and `sr-cli rotate-secret-key` re-seals them).
+
+**Music, the jukebox and the drawer (`platform.byos` for the shelves; `lounge.jukebox`, `lounge.listening_rooms`, `platform.tools`)**
+
+| Key | Default | Meaning |
+|---|---|---|
+| `music.max_playlists`, `music.max_items` | 100 and 5000 | Playlists one member or server may keep; tracks per playlist or favorites. |
+| `jukebox.vote_skip_percent` | 50 | Percent of the listeners whose skip votes skip a track. |
+| `tools.currency_rates` | on | The daily fetch of the European Central Bank reference rates (the only outbound request of the drawer). Off: no request, the converter is hidden. The server needs to reach `www.ecb.europa.eu`; an instance with an outbound allow list adds that host. |
+| `tools.currency_stale_hours` | 96 | When the converter says its rates are out of date. |
+| `voice.datachannel_kbps` (configuration file or `SR_VOICE__DATACHANNEL_KBPS`) | 256 | Per-member budget of the activity data channel in kbit/s; `0` turns the channel off. |
+
+The voice jukebox adds no media storage: listeners play files from the mount they may read, and a DJ's stereo track rides the encrypted call (a second audio track, see the playbook "Voice egress" for the gauge `sr_voice_music_egress_bits_per_second`).
+
+**Status rings, the scrapbook, profiles and embeds**
+
+| Key or switch | Default | Meaning |
+|---|---|---|
+| `lounge.rings` (platform switch) | off | Status rings. A ring is a 24-hour photo, clip, line or track on the avatar; files go to the author's own bucket or, without one, to the instance bucket under `rings/`. |
+| `lounge.scrapbook` (platform switch, then per server) | off | The scrapbook vault. Offer it at platform scope and each server owner chooses a shelf for it. |
+| `platform.public_profiles` and `profiles.access` | off and `walled` | Both are needed for any public profile page (P39-FLG-1). Pages are never indexed. |
+| `SR_PEERTUBE_HOSTS` | empty | Comma-separated PeerTube hosts that get a "Play here" button; set the same value for `sr-server` and for the web build (it widens the page policy's `frame-src`). YouTube and Vimeo (privacy-enhanced) are always the two embed hosts. |
+
+#### The Discord bridge (D-381, D-386)
+
+The bridge is off on every server. Only a server owner switches it on, under Server Settings > Modules > Discord bridge, pastes the bot token and chooses a mode (bridge named channels, or the whole server). As operator you can kill it for the whole instance with `platform.bridge`: every server's bridge is then torn down (webhooks deleted on Discord, maps and token wiped) and stays off.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `bridge.max_bridges` | 10 | Gateway connections (one per bridged server) this instance runs at once; a server that switches one on beyond it is refused. |
+| `abuse.bridge_messages_per_minute` | 60 | Messages one bridge may bring in from Discord per minute; the rest are dropped and counted. |
+| `bridge.delete_hold_hours` | 24 | Whole-server mode: how long a channel deleted on Discord is held before it is deleted here (0 deletes at once). |
+| `bridge.reconcile_minutes` | 15 | Whole-server mode: minutes between full comparisons with Discord. |
+| `bridge.struct_writes_per_sec` | 2 | Whole-server mode: role, channel and thread writes per second the bridge may make to Discord. |
+| `SR_BRIDGE_SUPERVISE_SECS` (environment) | 30 | How often the shards are matched to the database. `SR_BRIDGE_DISCORD_API` and `SR_BRIDGE_DISCORD_GATEWAY` point the bridge at a stand-in Discord for tests; leave them unset in production. |
+
+What to tell a server owner who wants the bridge: create a Discord application with a bot, enable the privileged intents MESSAGE CONTENT, SERVER MEMBERS and PRESENCE, invite the bot with the link the bridge screen shows (whole-server mode needs Administrator, because it creates roles and channels), then paste the token. A webhook that Discord would not delete on teardown is remembered by id on the screen so the owner can remove it by hand. The privacy notice for members is built in; the retention of the maps is in [doc 09](../docs/09-retention-and-privacy.md). The first run against a real Discord server is still on the owner's list ([owner checklist](../docs/dev/owner-checklist.md) section 4).
+
+**The emulator (`platform.emulator`; [EMULATOR.md](EMULATOR.md))**
+
+The instance ships no game and no BIOS. The core files are fetched at install by `deploy/scripts/fetch-emu-cores.sh` (or `sr-cli emu fetch-cores` on the host, which needs `curl`) from a list pinned by SHA-256 in `deploy/emu-cores.lock`, into `<web root>/emu/cores`, after the web build; they are served to a signed-in session only. Without them the Games page says the core is not installed. `/games` documents alone get a page policy with `blob:` in `script-src`; no setting changes that. Members bring their own ROMs (and a PlayStation BIOS) in `emu/` of their own bucket or of a server shelf with the `view_games` grant.
+
+**Search engines and the front door**
+
+Only the landing page is indexable (D-384); there is no setting that changes it, and `apps/web/public/robots.txt` and the `X-Robots-Tag` headers come with the build and the Caddyfile. The signed-out pages are a separate build and the server serves the web app itself (`SR_WEB__ROOT`; D-385, [UPGRADE.md](UPGRADE.md)). `sr-cli preflight` shows the `web` row.
+
+**Jobs added by the feature phase** (Admin > System > Jobs lists them; a singleton that did not run shows red)
+
+| Job (id) | Runs | Does |
+|---|---|---|
+| `storage.cors_recheck` (134) | daily | Re-checks each mount's CORS rule. |
+| `storage.index` (1450) | daily | Refreshes the mount indexes. |
+| `jukebox.rooms` (1580) | every 2 s | Advances the cursor of each 24/7 listening room. |
+| `tools.fx_refresh` (1620) | hourly check, one fetch per 20 h | Fetches the ECB rates when `tools.currency_rates` is on. |
+| `tool_rooms.sweep` (1660) | hourly | Deletes tool rooms older than 7 days. |
+| `cards.remind` (1670) | every 30 s | Sends invite-card reminders. |
+| `scrapbook.requests` (1690), `scrapbook.removals` (1691) | 30 s and 5 min | Archives requested messages; retries bucket removals. |
+| `rings.expire` (1710) | every 10 min | Deletes expired rings and their files. |
+| `invites.prune` (1890) | every 6 h | Revokes old unused codes and marks inactive branches (never touches the invite graph). |
+
+The security gate of the phase is `security-nightly.yml` (the whole authorization matrix with modules killed); an operator running a fork reads its result in Actions. The wave-by-wave record is [docs/13](../docs/13-roadmap-and-phases.md).
+
 ## 4. What the tiles on Admin > System mean
 
 Open Admin > System. Anything red or empty where it should not be carries a "Playbook" link to the section of [RUNBOOK.md](RUNBOOK.md) named below. Playbook opens the runbook inside Admin (Admin > Runbook, `/admin/runbook`: the copy shipped with this build); the file is also `deploy/RUNBOOK.md` in the install checkout.
