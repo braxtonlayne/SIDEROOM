@@ -4,6 +4,9 @@ import { formatNumber, useT } from '../i18n';
 import type { Mount } from '../settings/user/storage/types';
 import { useCurrentUser, useGuilds } from '../store/hooks';
 import { BiosPanel } from './BiosPanel';
+import { CoopBar } from './coop/CoopBar';
+import { blobScriptsAllowed, reloadForEmulatorPolicy } from './cspProbe';
+import { isInVoice, useVoiceSession } from '../voice/session';
 import { CORES, PLATFORM_LABEL, type Platform } from './cores';
 import './emu.css';
 import { loadMapping, saveMapping, type PadMapping } from './gamepad';
@@ -73,6 +76,23 @@ export function EmuPage() {
   const [bios, setBios] = useState<GameBios | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  // 'reload': reached in-app during a call, the page must load again for the emulator policy (cspProbe.ts).
+  const [policy, setPolicy] = useState<'ok' | 'reload' | 'blocked'>('ok');
+
+  useEffect(() => {
+    // Dev servers send the policy report-only; the probe matters for a production document.
+    if (!import.meta.env.PROD) return;
+    let live = true;
+    void blobScriptsAllowed().then((ok) => {
+      if (!live || ok) return;
+      const inCall = isInVoice(useVoiceSession.getState());
+      if (!inCall && reloadForEmulatorPolicy()) return;
+      setPolicy(inCall ? 'reload' : 'blocked');
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -125,6 +145,21 @@ export function EmuPage() {
       </header>
 
       {error && <Notice variant="danger" title={t('games.page.loadFailed')} />}
+      {policy === 'reload' && (
+        <Notice variant="warning" title={t('games.policy.reloadTitle')} data-testid="emu-policy">
+          {t('games.policy.reload')}
+          <div>
+            <Button size="sm" variant="secondary" onClick={() => window.location.assign('/games')}>
+              {t('games.policy.reloadButton')}
+            </Button>
+          </div>
+        </Notice>
+      )}
+      {policy === 'blocked' && (
+        <Notice variant="danger" title={t('games.policy.blockedTitle')} data-testid="emu-policy">
+          {t('games.policy.blocked')}
+        </Notice>
+      )}
 
       <section
         className="emu-stage"
@@ -167,6 +202,8 @@ export function EmuPage() {
             {t('games.player.close')}
           </Button>
         </div>
+        {/* In a server voice call: host this game for the others (ACT-EMU-002). */}
+        {game.session && <CoopBar />}
         <canvas
           key={selected?.id}
           ref={canvasRef}

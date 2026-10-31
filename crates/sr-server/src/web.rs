@@ -132,6 +132,10 @@ pub struct WebGate {
     root: PathBuf,
     serve_public: bool,
     app_csp: HeaderValue,
+    /// The app policy for documents of the emulator route group (`/games`, ACT-EMU-001): `app_csp` plus `blob:` in
+    /// `script-src` (the core's glue script runs from a blob URL after its 7z archive is unpacked in the browser).
+    /// Never sent on any other path, and never on the entrance or a public shell (D-385).
+    emu_csp: HeaderValue,
     table: SurfaceTable,
     operator: Arc<dyn OperatorInfo>,
     trust_forwarded_for: bool,
@@ -196,6 +200,12 @@ impl WebGate {
                     "not a single header line".into(),
                 )
             })?;
+        let emu_csp = HeaderValue::from_str(&emulator_csp(csp)).map_err(|_| {
+            WebError::Unreadable(
+                csp_path.display().to_string(),
+                "not a single header line".into(),
+            )
+        })?;
         let table = match std::fs::read_to_string(root.join("surfaces.json")) {
             Ok(s) => serde_json::from_str::<SurfaceTable>(&s)
                 .map_err(|e| WebError::Surfaces(e.to_string()))?,
@@ -211,6 +221,7 @@ impl WebGate {
             root: root.to_path_buf(),
             serve_public,
             app_csp,
+            emu_csp,
             table,
             operator,
             trust_forwarded_for,
@@ -332,7 +343,7 @@ impl WebGate {
         r
     }
 
-    async fn app_shell(&self, method: &Method) -> Response {
+    async fn app_shell(&self, method: &Method, path: &str) -> Response {
         let mut r = file_response(
             &self.root.join("app.html"),
             method,
@@ -341,7 +352,12 @@ impl WebGate {
         )
         .await;
         let h = r.headers_mut();
-        h.insert(header::CONTENT_SECURITY_POLICY, self.app_csp.clone());
+        let csp = if is_emulator_path(path) {
+            &self.emu_csp
+        } else {
+            &self.app_csp
+        };
+        h.insert(header::CONTENT_SECURITY_POLICY, csp.clone());
         h.insert(
             HeaderName::from_static("reporting-endpoints"),
             HeaderValue::from_static(REPORTING_ENDPOINTS),
@@ -361,7 +377,7 @@ async fn app_entry(State(gs): State<GateState>, req: Request) -> Response {
     let ip = client_ip(&req, gs.gate.trust_forwarded_for);
     let _ = ip;
     if gs.gate.has_session(&gs.api, req.headers()).await {
-        gs.gate.app_shell(req.method()).await
+        gs.gate.app_shell(req.method(), "/app").await
     } else {
         gs.gate.redirect_to_login(req.uri())
     }
@@ -428,7 +444,7 @@ async fn fallback_inner(gs: GateState, req: Request) -> Response {
             && is_navigation(req.headers())
             && gate.has_session(&gs.api, req.headers()).await
         {
-            return gate.app_shell(&method).await;
+            return gate.app_shell(&method, &path).await;
         }
         return if gate.serve_public {
             serve_public_path(gate, &path, &method).await
@@ -440,7 +456,7 @@ async fn fallback_inner(gs: GateState, req: Request) -> Response {
     let has_session = gate.has_session(&gs.api, req.headers()).await;
     if is_navigation(req.headers()) {
         return if has_session {
-            gate.app_shell(&method).await
+            gate.app_shell(&method, &path).await
         } else {
             gate.redirect_to_login(req.uri())
         };
@@ -581,6 +597,39 @@ async fn legal(State(gs): State<GateState>, req: Request) -> Response {
 // ---- helpers ------------------------------------------------------------------------------------------
 
 /// An empty response with the status and the headers every gate answer carries.
+/// The emulator route group (ACT-EMU-001): `/games` and below. Only these documents get [`emulator_csp`].
+pub fn is_emulator_path(path: &str) -> bool {
+    path == "/games" || path.starts_with("/games/")
+}
+
+/// The app policy with `blob:` added to `script-src` (or a `script-src 'self' blob:` directive when the policy
+/// has none). Everything else, `wasm-unsafe-eval` included, is the app policy as built.
+pub fn emulator_csp(app_csp: &str) -> String {
+    let mut found = false;
+    let parts: Vec<String> = app_csp
+        .split(';')
+        .map(|d| {
+            let t = d.trim();
+            if t == "script-src" || t.starts_with("script-src ") {
+                found = true;
+                if t.split_whitespace().any(|s| s == "blob:") {
+                    t.to_owned()
+                } else {
+                    format!("{t} blob:")
+                }
+            } else {
+                t.to_owned()
+            }
+        })
+        .filter(|d| !d.is_empty())
+        .collect();
+    let mut out = parts.join("; ");
+    if !found {
+        out.push_str("; script-src 'self' blob:");
+    }
+    out
+}
+
 fn plain(status: StatusCode) -> Response {
     let mut r = status.into_response();
     let h = r.headers_mut();
@@ -887,6 +936,35 @@ pub const LOGOUT_CLEAR_SITE_DATA: &str = CLEAR_SITE_DATA;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn emulator_policy_adds_blob_to_script_src_only() {
+        assert_eq!(
+            emulator_csp(
+                "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:"
+            ),
+            "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:"
+        );
+        // Already there: unchanged. Missing directive: added.
+        assert_eq!(
+            emulator_csp("script-src 'self' blob:"),
+            "script-src 'self' blob:"
+        );
+        assert_eq!(
+            emulator_csp("default-src 'self'"),
+            "default-src 'self'; script-src 'self' blob:"
+        );
+        // script-src-elem is another directive and is left alone.
+        assert_eq!(
+            emulator_csp("script-src-elem 'self'; script-src 'self'"),
+            "script-src-elem 'self'; script-src 'self' blob:"
+        );
+        assert!(is_emulator_path("/games"));
+        assert!(is_emulator_path("/games/x"));
+        assert!(!is_emulator_path("/gamesx"));
+        assert!(!is_emulator_path("/"));
+        assert!(!is_emulator_path("/login"));
+    }
 
     #[test]
     fn next_rule() {

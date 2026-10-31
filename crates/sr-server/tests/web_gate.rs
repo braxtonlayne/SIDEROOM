@@ -475,6 +475,33 @@ async fn a_session_gets_the_app_shell_and_private_files() {
     assert_eq!(post.status, StatusCode::METHOD_NOT_ALLOWED);
 }
 
+/// ACT-EMU-001: only documents of the emulator route group (/games) may run blob: scripts (the core's glue); the
+/// rest of the app keeps the built policy, and an anonymous visitor to /games gets the login redirect, no policy.
+#[tokio::test]
+async fn only_the_games_route_group_gets_the_emulator_policy() {
+    let f = fixture(true).await;
+    let c = &f.cookie;
+    let emu = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; frame-src 'self'";
+    for path in ["/games", "/games/", "/games/anything"] {
+        let r = send(&f, empty(nav(path).header(header::COOKIE, c))).await;
+        assert_eq!(r.status, StatusCode::OK, "{path}");
+        assert_eq!(r.body, "<html>APP-SHELL</html>");
+        assert_eq!(r.h("content-security-policy"), emu, "{path}");
+    }
+    for path in ["/gamesx", "/channels", "/app", "/cinema/games"] {
+        let r = send(&f, empty(nav(path).header(header::COOKIE, c))).await;
+        assert_eq!(r.h("content-security-policy"), APP_CSP, "{path}");
+    }
+    // The entrance never carries it (D-385).
+    for path in ["/", "/login", "/invite/abc"] {
+        let r = send(&f, empty(nav(path))).await;
+        assert!(!r.h("content-security-policy").contains("blob:"), "{path}");
+    }
+    let anon = send(&f, empty(nav("/games"))).await;
+    assert_eq!(anon.status, StatusCode::FOUND);
+    assert!(!anon.h("content-security-policy").contains("blob:"));
+}
+
 #[tokio::test]
 async fn paths_cannot_leave_the_app_directory() {
     let f = fixture(false).await;
