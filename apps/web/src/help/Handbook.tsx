@@ -90,6 +90,12 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
     links: [{ href: '/cinema/tv', label: 'help.handbook.tv.link' }],
   },
   {
+    id: 'games',
+    title: 'help.handbook.games.title',
+    body: ['help.handbook.games.body'],
+    links: [{ href: '/channels', label: 'help.handbook.games.link' }],
+  },
+  {
     id: 'privacy',
     title: 'help.handbook.privacy.title',
     body: [

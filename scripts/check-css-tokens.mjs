@@ -10,7 +10,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = join(ROOT, 'apps/web/src');
 /** Directories (relative to apps/web/src) and files that belong to the BYOS UI. */
-export const TARGETS = ['settings/user/storage', 'settings/server/storage', 'storage', 'player'];
+export const TARGETS = [
+  'settings/user/storage',
+  'settings/server/storage',
+  'settings/server/gameservers',
+  'storage',
+  'player',
+];
 const EXT = /\.(css|tsx?)$/;
 
 const NAMED = [

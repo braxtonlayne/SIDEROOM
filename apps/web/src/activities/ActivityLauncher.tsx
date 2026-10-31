@@ -5,6 +5,8 @@ import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { httpActivityApi, type ActivityApi } from './api';
 import { useShelf } from './hooks';
+import { GameServersTile } from '../settings/server/gameservers/GameServersTile';
+import { useGameServersOn } from '../settings/server/gameservers/flag';
 import type { ActivityInstance } from './types';
 
 export function ActivityLauncher({
@@ -22,6 +24,7 @@ export function ActivityLauncher({
 }) {
   const t = useT();
   const { shelf, failed } = useShelf(open, api);
+  const gameServersOn = useGameServersOn();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +88,7 @@ export function ActivityLauncher({
             </li>
           ))}
         </ul>
+        {gameServersOn && <GameServersTile />}
         {error && (
           <Notice variant="danger" role="alert">
             {error}
