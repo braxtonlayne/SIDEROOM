@@ -3,7 +3,10 @@
 // Usage: pnpm licenses list --json --prod | node scripts/check-licenses.mjs
 // Fails on any licence outside the allow-list. The two copyleft packages are allowed by name only, so a second
 // copyleft package cannot arrive unnoticed. Their notices live in THIRD_PARTY_NOTICES.md.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { coreProblems } from './lib/emu-cores.mjs';
 
 const ALLOWED = new Set([
   'MIT',
@@ -44,7 +47,18 @@ function violations(report) {
   return bad;
 }
 
-const bad = violations(JSON.parse(readFileSync(0, 'utf8')));
+// Emulator cores (ACT-EMU-003): prebuilt files, not packages; allowed by name with their licence in lib/emu-cores.mjs, and
+// each needs its licence text in THIRD_PARTY_NOTICES.md.
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const lockPath = join(root, 'deploy', 'emu-cores.lock');
+const coreBad = existsSync(lockPath)
+  ? coreProblems(
+      readFileSync(lockPath, 'utf8'),
+      readFileSync(join(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'),
+    )
+  : [];
+
+const bad = [...violations(JSON.parse(readFileSync(0, 'utf8'))), ...coreBad];
 if (bad.length) {
   console.error(`Licence check failed:\n  ${bad.join('\n  ')}`);
   process.exit(1);

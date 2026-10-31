@@ -19,7 +19,9 @@ use sr_db::{
     auth_store::PgAuthStore,
 };
 
-use crate::{Cli, Command, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd, guilds};
+use crate::{
+    Cli, Command, EmuCmd, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd, guilds,
+};
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
 use sr_db::admin_repo::PgAdminRepo;
 
@@ -31,6 +33,25 @@ const LOGIN_LINK_TTL_SECS: i64 = 3600;
 const MIN_PASSWORD_LEN: usize = 10;
 
 pub async fn run(cli: Cli) -> Result<()> {
+    // Fetching the pinned emulator cores needs neither configuration nor a database.
+    if let Command::Emu(EmuCmd::FetchCores {
+        dest,
+        base_url,
+        lock,
+        force,
+        verify_only,
+    }) = &cli.command
+    {
+        let opts = crate::emu::Options {
+            dest: dest.clone(),
+            base_url: base_url.clone(),
+            lock: lock.clone(),
+            force: *force,
+            verify_only: *verify_only,
+        };
+        crate::emu::fetch_cores(&opts)?;
+        return Ok(());
+    }
     // Checking a theme folder is an author tool: no configuration, no server.
     if let Command::Package(PackageCmd::Validate { dir, json }) = &cli.command {
         return package_validate(dir, *json);
@@ -174,7 +195,9 @@ pub async fn run(cli: Cli) -> Result<()> {
         }) => ensure_mounts_cors(&pool, &cfg, &origins, mount, all).await?,
         Command::Storage(StorageCmd::SetInstanceMount) => set_instance_mount(&pool, &cfg).await?,
         // Handled before the database connection above.
-        Command::Preflight { .. } | Command::Package(PackageCmd::Validate { .. }) => {}
+        Command::Preflight { .. }
+        | Command::Emu(_)
+        | Command::Package(PackageCmd::Validate { .. }) => {}
     }
     Ok(())
 }

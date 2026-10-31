@@ -29,7 +29,7 @@ impl Section {
     }
     /// Parse the path segment.
     pub fn parse(s: &str) -> Option<Self> {
-        Kind::parse(s).map(Self::from_kind)
+        Kind::parse(s).and_then(Self::from_kind)
     }
     /// The scope kind of the section.
     pub fn kind(self) -> Kind {
@@ -39,12 +39,13 @@ impl Section {
             Self::Music => Kind::Music,
         }
     }
-    /// The section of a scope kind.
-    pub fn from_kind(k: Kind) -> Self {
+    /// The section of a scope kind (`None` for games: the emulator lists ROMs through the bucket browser).
+    pub fn from_kind(k: Kind) -> Option<Self> {
         match k {
-            Kind::Cinema => Self::Cinema,
-            Kind::Library => Self::Library,
-            Kind::Music => Self::Music,
+            Kind::Cinema => Some(Self::Cinema),
+            Kind::Library => Some(Self::Library),
+            Kind::Music => Some(Self::Music),
+            Kind::Games => None,
         }
     }
 }
@@ -205,6 +206,19 @@ pub enum PatchError {
 /// Reads and edits of shelf rows. Every method takes the mounts the caller already proved reachable.
 #[async_trait]
 pub trait ShelfStore: Send + Sync {
+    /// Mounts that have indexed ROMs (wave 37; the emulator's list, see `super::rom`). The default is none, for stores
+    /// that predate the emulator.
+    async fn mounts_with_roms(&self) -> Result<Vec<i64>, StoreError> {
+        Ok(Vec::new())
+    }
+    /// The ROMs of `mounts`, in title order, at most `limit`.
+    async fn roms(
+        &self,
+        _mounts: &[i64],
+        _limit: i64,
+    ) -> Result<Vec<super::rom::RomRow>, StoreError> {
+        Ok(Vec::new())
+    }
     /// Mounts that have listed rows of `section` (the candidates [`reachable`] decides over).
     async fn mounts_with(&self, section: Section) -> Result<Vec<i64>, StoreError>;
     /// A page of items from `mounts`.

@@ -1,0 +1,122 @@
+/* The emulator page (ACT-EMU-001). Semantic tokens only (--ui-*); logical properties only. */
+.emu-page {
+  display: grid;
+  gap: 16px;
+  padding-block: 16px;
+  padding-inline: 16px;
+  max-inline-size: 60rem;
+  margin-inline: auto;
+}
+.emu-dim {
+  color: var(--ui-text-muted, inherit);
+  font-size: 0.875rem;
+}
+.emu-stage {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.emu-stage[hidden] {
+  display: none;
+}
+.emu-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.emu-spacer {
+  flex: 1;
+}
+.emu-canvas {
+  inline-size: 100%;
+  max-inline-size: 48rem;
+  margin-inline: auto;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  image-rendering: pixelated;
+  outline-offset: 2px;
+}
+.emu-stage:fullscreen .emu-canvas {
+  max-inline-size: none;
+  block-size: 100%;
+  object-fit: contain;
+}
+.emu-saves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.emu-slot {
+  display: inline-flex;
+  gap: 4px;
+}
+.emu-list,
+.emu-bios-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.emu-rom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+}
+.emu-filter {
+  display: grid;
+  gap: 4px;
+  max-inline-size: 20rem;
+  margin-block-end: 8px;
+}
+.emu-bios {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+}
+.emu-map-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 8px;
+}
+.emu-map-prompt {
+  font-weight: 600;
+}
+.emu-map-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+.emu-map-table th,
+.emu-map-table td {
+  text-align: start;
+  padding-block: 4px;
+  padding-inline: 8px;
+  border-block-end: 1px solid var(--ui-border);
+}
+.emu-map-table tr[data-current] {
+  background: var(--ui-bg-muted, transparent);
+  font-weight: 600;
+}
+
+/* The call strip on the Games page (co-op host): "Play together" and the screen share of the game tab. */
+.emu-coopbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+}

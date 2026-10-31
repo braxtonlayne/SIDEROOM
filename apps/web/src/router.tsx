@@ -24,6 +24,7 @@ import { createSupportRoutes } from './support/routes';
 import { createProfilePageRoutes } from './profilepage/routes';
 import { createPwaRoutes } from './pwa/routes';
 import { createStorageRoutes } from './storage/routes';
+import { createEmuRoutes } from './emu/routes';
 import { isPublicPath } from './player/scope';
 import { parseSearchValue, stringifySearchValue } from './lib/searchCodec';
 import { Help } from './help/HelpPage';
@@ -120,6 +121,7 @@ const routeTree = root.addChildren([
   ...createProfilePageRoutes(root),
   ...createPwaRoutes(root),
   ...createStorageRoutes(root),
+  ...createEmuRoutes(root),
 ]);
 
 function NotFoundPage() {

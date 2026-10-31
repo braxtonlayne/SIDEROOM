@@ -93,7 +93,8 @@ pub struct ObjectMetaView {
 pub struct PresignBody {
     /// Mount-relative key.
     pub key: String,
-    /// `GET` (the only method; writes arrive with the upload routes).
+    /// `GET`, or `PUT` for the emulator's saves only: a `PUT` is signed only for a key under `emu/saves/` of the
+    /// caller's own mount (ACT-EMU-001). Every other write goes through the upload routes.
     pub method: String,
     /// A request range the client will send, `bytes=a-b`; checked for shape.
     #[serde(default)]
@@ -107,6 +108,18 @@ pub struct PresignView {
     pub url: String,
     /// When it stops working (ISO 8601).
     pub expires_at: String,
+}
+
+/// A key the emulator may write: `emu/saves/<core>/<rom-hash>/<file>`, exactly four segments, no dot segments.
+pub(super) fn is_save_key(key: &str) -> bool {
+    let Some(rest) = key.strip_prefix("emu/saves/") else {
+        return false;
+    };
+    let parts: Vec<&str> = rest.split('/').collect();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && *p != "." && *p != "..")
 }
 
 fn content_type(key: &str) -> Option<String> {
@@ -511,14 +524,22 @@ pub async fn presign(
     Path(mount_id): Path<String>,
     ApiJson(body): ApiJson<PresignBody>,
 ) -> MsgResult<Json<PresignView>> {
-    if !body.method.eq_ignore_ascii_case("GET") {
+    let put = body.method.eq_ignore_ascii_case("PUT");
+    if !put && !body.method.eq_ignore_ascii_case("GET") {
         return Err(invalid(
             "method",
             "ENUM_TYPE_COERCE",
-            "Only GET can be presigned.",
+            "Only GET (and PUT for emulator saves) can be presigned.",
         ));
     }
     safe_key(&body.key, false).map_err(|e| key_error("key", e))?;
+    if put && !is_save_key(&body.key) {
+        return Err(invalid(
+            "key",
+            "KEY_INVALID",
+            "A PUT can only be presigned for emulator saves (emu/saves/...).",
+        ));
+    }
     if let Some(range) = &body.range
         && !check_range(range)
     {
@@ -532,6 +553,12 @@ pub async fn presign(
         &mount_id,
     )
     .await?;
+    if put {
+        // Saves go to the member's own mount, never to a shelf they merely reach, and never as staff.
+        if r.staff.is_some() || r.access.scope != Scope::Own {
+            return Err(ErrorCode::MissingPermissions.into());
+        }
+    }
     key_allowed(&d, &r, &body.key).await?;
     if r.mount.cors_ok_at.is_none() {
         return Err(cors_not_ready());
@@ -562,7 +589,11 @@ pub async fn presign(
     let storage = storage_for(&d, &r.mount)?;
     let url = storage
         .presign(
-            PresignMethod::Get,
+            if put {
+                PresignMethod::Put
+            } else {
+                PresignMethod::Get
+            },
             &r.mount.bucket_key(&body.key),
             Duration::from_secs(secs),
         )
@@ -926,4 +957,22 @@ pub async fn delete_objects(
     Ok(Json(CountView {
         count: u32::try_from(doomed.len()).unwrap_or(u32::MAX),
     }))
+}
+
+#[cfg(test)]
+mod save_key_tests {
+    use super::is_save_key;
+
+    #[test]
+    fn only_four_segment_save_keys_may_be_written() {
+        assert!(is_save_key("emu/saves/fceumm/ab12cd/sram.srm"));
+        assert!(is_save_key("emu/saves/mgba/ab12cd/state1.state"));
+        assert!(!is_save_key("emu/saves/fceumm/sram.srm"));
+        assert!(!is_save_key("emu/saves/fceumm/ab12cd/x/y.srm"));
+        assert!(!is_save_key("emu/saves/../roms/x.nes"));
+        assert!(!is_save_key("emu/saves/fceumm/../sram.srm"));
+        assert!(!is_save_key("emu/roms/game.nes"));
+        assert!(!is_save_key("emu/bios/scph1001.bin"));
+        assert!(!is_save_key("Movies/film.mp4"));
+    }
 }

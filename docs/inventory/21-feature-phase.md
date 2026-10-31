@@ -212,3 +212,34 @@ merging main 28bdcbf9); Playwright ran on Chromium only (Firefox and WebKit are 
   rolls in two contexts (Chromium). The map comes from a device file, not a mount (owner item)_
 - [x] **ACT-LND-001** [FE] Land.io as a built-in activity hosted in the starter's browser _Merged tree: Vitest (299),
   `tsc` check of the JS; live case plays one match in two contexts and the host leaving ends it (Chromium)_
+
+## Wave 37 — The emulator
+
+Integration: [dev/handoff/integration-phase37.md](../dev/handoff/integration-phase37.md). Decisions: P37-EMU-1 to
+P37-EMU-7 (commander defaults the owner may change). Ticked where the item's own proofs ran on the merged tree (wave 36
+merged first); Playwright ran on Chromium only, against the dev server and, for the emulator spec, also against the
+production bundle served by sr-server.
+
+### ACT-EMU — The emulator
+- [x] **ACT-EMU-001** [FE] The core loader and the shell: `/games` (lazy, after sign-in), the 7z core unpacked in the
+  browser, canvas, Web Audio through the core, Gamepad API with a mapping screen and keyboard fallback, save states and
+  SRAM to the member's own mount under `emu/saves/<core>/<rom-sha1>/` by presigned `PUT`, ROMs from `emu/roms/` of the
+  member's and the servers' shelves through the sixth grant `view_games` (migration 1800), the `rom` catalog kind, the
+  PS1 BIOS rule; the emulator page policy on `/games` documents only _Merged tree: Vitest (mapping, saves, BIOS,
+  detect, session, test ROM on a 6502 model, page); `sr-storage` (166), `sr-db` scopes/index repos (Postgres),
+  `sr-api` lib and `route_matrix`, `sr-server` `authz_matrix`, `immutable_rules`, `web_gate` (the `/games` policy and
+  the gated `/emu/cores/*`); `emulator.spec.ts` boots FCEUmm with the self-written test ROM, red frame, blue on A, saves
+  a state (Chromium, dev server and production bundle). Not done: no homebrew ROM ships (owner pick, P37-EMU-5); SNES
+  and Genesis have no allowed core (P37-EMU-1)_
+- [x] **ACT-EMU-002** [FE] Co-op by input forwarding: "Play together" in a server call (voice panel and the Games
+  page's call strip), the host's screen share of the game, players 2 to 4 over wave 36's sealed data channel, measured
+  round trip shown, no rollback said in the UI, seats only for `view_games` holders (P37-EMU-4) _Merged tree: Vitest
+  (protocol, input, seats, host/guest sessions, the seat rule, dialog incl. the refusal); `emulator-coop.spec.ts` on
+  Chromium in probe mode and with the real loader, FCEUmm and the test ROM: the guest is refused, then granted, takes
+  player 2, its A turns the host's frame green and the guest's stream follows, release goes back to red_
+- [x] **ACT-EMU-003** [OPS][DOC] Cores by digest at install time: `deploy/scripts/fetch-emu-cores.sh`, `sr-cli emu
+  fetch-cores`, `deploy/emu-cores.lock`, `deploy/EMULATOR.md`, the installer's optional step, the cached and verified
+  CI step, licences in the notices and `check-licenses.mjs` by name _Merged tree: `node --test` fetch script (fake
+  server), lock lib, `check-ops-files`, `install.test.mjs` (32 pass); `sr-cli` (unit and `emu_fetch`);
+  `check-licenses`, `check-notices-copy`, `check-ops-files` ok; the local cores verified against the pins. The CI step
+  is proven only on GitHub; only 3 of the 5 allowed cores have a source (P37-EMU-1)_

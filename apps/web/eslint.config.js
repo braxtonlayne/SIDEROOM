@@ -4,7 +4,8 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  // public/emu/cores holds the fetched emulator cores (untracked, third-party, never linted; deploy/EMULATOR.md).
+  { ignores: ['dist', 'public/emu/cores'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

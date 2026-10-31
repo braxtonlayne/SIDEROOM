@@ -72,6 +72,10 @@ fn reading_year(y: Option<u16>) -> Option<i16> {
 }
 
 fn parsed_json(c: &Classified) -> serde_json::Value {
+    if c.class == Class::Rom {
+        // A ROM's facts; the keys of the other classes would only add noise (and change every old row's JSON).
+        return json!({ "title": c.title, "platform": c.platform, "core": c.core });
+    }
     json!({
         "title": c.title, "year": c.year, "series": c.series, "shelf_key": c.shelf_key,
         "season": c.season, "episodes": c.episodes, "episode_title": c.episode_title,

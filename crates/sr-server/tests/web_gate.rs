@@ -61,6 +61,8 @@ fn web_root() -> tempfile::TempDir {
     let r = d.path();
     write(r, "app.html", "<html>APP-SHELL</html>");
     write(r, "app/csp.txt", &format!("{APP_CSP}\n"));
+    write(r, "emu/cores/fceumm/fceumm-legacy-wasm.data", "7z-core");
+    write(r, "emu/cores/extract7z.js", "self.onmessage = null;");
     write(r, "app/assets/index-1a2b3c4d.js", "console.log('app')");
     write(r, "app/manifest.webmanifest", "{\"shortcuts\":[]}");
     write(r, "app/THIRD_PARTY_NOTICES.md", "full notices");
@@ -473,6 +475,72 @@ async fn a_session_gets_the_app_shell_and_private_files() {
     )
     .await;
     assert_eq!(post.status, StatusCode::METHOD_NOT_ALLOWED);
+}
+
+/// ACT-EMU-001: only documents of the emulator route group (/games) may run blob: scripts (the core's glue); the
+/// rest of the app keeps the built policy, and an anonymous visitor to /games gets the login redirect, no policy.
+#[tokio::test]
+async fn only_the_games_route_group_gets_the_emulator_policy() {
+    let f = fixture(true).await;
+    let c = &f.cookie;
+    let emu = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; frame-src 'self'";
+    for path in ["/games", "/games/", "/games/anything"] {
+        let r = send(&f, empty(nav(path).header(header::COOKIE, c))).await;
+        assert_eq!(r.status, StatusCode::OK, "{path}");
+        assert_eq!(r.body, "<html>APP-SHELL</html>");
+        assert_eq!(r.h("content-security-policy"), emu, "{path}");
+    }
+    for path in ["/gamesx", "/channels", "/app", "/cinema/games"] {
+        let r = send(&f, empty(nav(path).header(header::COOKIE, c))).await;
+        assert_eq!(r.h("content-security-policy"), APP_CSP, "{path}");
+    }
+    // The entrance never carries it (D-385).
+    for path in ["/", "/login", "/invite/abc"] {
+        let r = send(&f, empty(nav(path))).await;
+        assert!(!r.h("content-security-policy").contains("blob:"), "{path}");
+    }
+    let anon = send(&f, empty(nav("/games"))).await;
+    assert_eq!(anon.status, StatusCode::FOUND);
+    assert!(!anon.h("content-security-policy").contains("blob:"));
+}
+
+/// ACT-EMU-003: the fetched cores are served from <root>/emu/cores to a session only; anonymous is the same 401 whether
+/// the file exists or not (D-385), and a path cannot leave the folder.
+#[tokio::test]
+async fn emulator_cores_are_served_to_a_session_only() {
+    let f = fixture(true).await;
+    let r = send(
+        &f,
+        empty(
+            req(Method::GET, "/emu/cores/fceumm/fceumm-legacy-wasm.data")
+                .header(header::COOKIE, &f.cookie),
+        ),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.body, "7z-core");
+    assert_eq!(r.h("content-type"), "application/octet-stream");
+    assert_eq!(r.h("cache-control"), "private, no-cache");
+    let w = send(
+        &f,
+        empty(req(Method::GET, "/emu/cores/extract7z.js").header(header::COOKIE, &f.cookie)),
+    )
+    .await;
+    assert!(w.h("content-type").starts_with("text/javascript"));
+    for path in [
+        "/emu/cores/fceumm/fceumm-legacy-wasm.data",
+        "/emu/cores/nothing.data",
+    ] {
+        let a = send(&f, empty(req(Method::GET, path))).await;
+        assert_eq!(a.status, StatusCode::UNAUTHORIZED, "{path}");
+        assert!(a.body.is_empty(), "{path}");
+    }
+    let up = send(
+        &f,
+        empty(req(Method::GET, "/emu/cores/..%2F..%2Fapp.html").header(header::COOKIE, &f.cookie)),
+    )
+    .await;
+    assert_ne!(up.body, "<html>APP-SHELL</html>");
 }
 
 #[tokio::test]

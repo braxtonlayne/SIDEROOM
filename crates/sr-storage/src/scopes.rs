@@ -17,6 +17,9 @@ use async_trait::async_trait;
 
 use crate::mounts::{Mount, MountOwner, MountStatus};
 
+/// The folder of a mount that holds the emulator's files: `emu/roms/`, `emu/saves/<core>/<rom-hash>/`, `emu/bios/`.
+pub const EMU_PREFIX: &str = "emu/";
+
 /// A kind of shelf. Friend shares and guild view grants are per kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Kind {
@@ -26,6 +29,9 @@ pub enum Kind {
     Library,
     /// Audio.
     Music,
+    /// ROMs, saves and BIOS files under `emu/` (the emulator, wave 37). Never shared with friends: only the
+    /// owner and guild roles holding `view_games` reach it.
+    Games,
 }
 
 impl Kind {
@@ -35,9 +41,10 @@ impl Kind {
             Self::Cinema => "cinema",
             Self::Library => "library",
             Self::Music => "music",
+            Self::Games => "games",
         }
     }
-    /// Parse the wire name.
+    /// Parse the wire name (friend shares and shelf sections; `games` is neither, so it is not parsed).
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "cinema" => Some(Self::Cinema),
@@ -50,6 +57,10 @@ impl Kind {
     /// subtitle, sidecar, folder marker): it is readable with any share of the mount, because a shelf
     /// without its covers and subtitles is useless.
     pub fn of_key(key: &str) -> Option<Self> {
+        // Everything under the emulator folder is games, whatever its extension (`.bin` is a ROM there).
+        if key.starts_with(EMU_PREFIX) {
+            return Some(Self::Games);
+        }
         let name = key.rsplit('/').next().unwrap_or(key);
         let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
         match ext.as_str() {
@@ -65,7 +76,7 @@ impl Kind {
     }
 }
 
-/// The five storage grants a guild role can carry (`guild_storage_grants.grant_name`).
+/// The six storage grants a guild role can carry (`guild_storage_grants.grant_name`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Grant {
     /// `VIEW_GUILD_CINEMA`.
@@ -78,16 +89,19 @@ pub enum Grant {
     Upload,
     /// `MANAGE_GUILD_STORAGE`.
     Manage,
+    /// `VIEW_GUILD_GAMES` (wave 37, the sixth grant): list and read the ROMs under `emu/roms/` of a guild shelf.
+    ViewGames,
 }
 
 impl Grant {
     /// Every grant, in the order the role editor shows them.
-    pub const ALL: [Grant; 5] = [
+    pub const ALL: [Grant; 6] = [
         Self::ViewCinema,
         Self::ViewLibrary,
         Self::ViewMusic,
         Self::Upload,
         Self::Manage,
+        Self::ViewGames,
     ];
     /// The column / wire name.
     pub fn as_str(self) -> &'static str {
@@ -97,6 +111,7 @@ impl Grant {
             Self::ViewMusic => "view_music",
             Self::Upload => "upload",
             Self::Manage => "manage",
+            Self::ViewGames => "view_games",
         }
     }
     /// Parse the column / wire name.
@@ -109,6 +124,7 @@ impl Grant {
             Kind::Cinema => Self::ViewCinema,
             Kind::Library => Self::ViewLibrary,
             Kind::Music => Self::ViewMusic,
+            Kind::Games => Self::ViewGames,
         }
     }
 }
@@ -140,6 +156,7 @@ impl GrantSet {
             || self.has(Grant::ViewCinema)
             || self.has(Grant::ViewLibrary)
             || self.has(Grant::ViewMusic)
+            || self.has(Grant::ViewGames)
     }
     /// Whether this set lets the holder read a key of `kind` (`None`: a companion file). `manage` reads
     /// everything: whoever administers a shelf sees it.
@@ -181,6 +198,8 @@ impl Share {
             Some(Kind::Cinema) => self.cinema,
             Some(Kind::Library) => self.library,
             Some(Kind::Music) => self.music,
+            // A Friend Shelf has no games column: friends never reach `emu/`.
+            Some(Kind::Games) => false,
             None => self.any(),
         }
     }
@@ -337,6 +356,8 @@ pub struct Access {
     pub scope: Scope,
     /// For a friend: what is shared. For a guild: the grants, mapped onto a share (`manage` shares all).
     pub kinds: Share,
+    /// Whether keys under `emu/` are readable (a guild role with `view_games` or `manage`; the owner is unrestricted).
+    pub games: bool,
     /// Whether every key is readable regardless of kind (own, staff).
     pub unrestricted: bool,
     /// The mount the access is for.
@@ -346,7 +367,12 @@ pub struct Access {
 impl Access {
     /// Whether a key of this key's kind may be read, ignoring delisting.
     pub fn permits(&self, key: &str) -> Result<(), Refused> {
-        if self.unrestricted || self.kinds.admits(Kind::of_key(key)) {
+        let kind = Kind::of_key(key);
+        let ok = match kind {
+            Some(Kind::Games) => self.games,
+            k => self.kinds.admits(k),
+        };
+        if self.unrestricted || ok {
             return Ok(());
         }
         Err(match self.scope {
@@ -372,9 +398,10 @@ pub async fn access(
     if !facts.owner_active(mount.owner).await? {
         return Err(Refused::OwnerInactive.into());
     }
-    let mk = |scope, kinds, unrestricted| Access {
+    let mk = |scope, kinds, games, unrestricted| Access {
         scope,
         kinds,
+        games,
         unrestricted,
         mount_id: mount.id,
     };
@@ -385,7 +412,7 @@ pub async fn access(
     };
     // The owner reads their own mount.
     if mount.owner == MountOwner::User(viewer.id) {
-        return Ok(mk(Scope::Own, all, true));
+        return Ok(mk(Scope::Own, all, true, true));
     }
     // A guild shelf: the owning guild, or a guild the mount is attached to.
     let mut guilds: Vec<i64> = Vec::new();
@@ -403,6 +430,7 @@ pub async fn access(
         saw_member = true;
         let role_grants = facts.role_grants(g, &standing.role_ids).await?;
         let grants = grants_for(&standing, &role_grants);
+        let games = grants.has(Grant::Manage) || grants.has(Grant::ViewGames);
         let kinds = if grants.has(Grant::Manage) {
             all
         } else {
@@ -412,8 +440,9 @@ pub async fn access(
                 music: grants.has(Grant::ViewMusic),
             }
         };
-        if kinds.any() && best.as_ref().is_none_or(|b| !b.kinds.any()) {
-            best = Some(mk(Scope::Guild(g), kinds, false));
+        let reaches = |k: Share, g: bool| k.any() || g;
+        if reaches(kinds, games) && best.as_ref().is_none_or(|b| !reaches(b.kinds, b.games)) {
+            best = Some(mk(Scope::Guild(g), kinds, games, false));
         }
     }
     if let Some(a) = best {
@@ -425,7 +454,7 @@ pub async fn access(
             if facts.are_friends(owner, viewer.id).await? {
                 match facts.share(mount.id, viewer.id).await? {
                     Some(s) if s.any() => {
-                        return Ok(mk(Scope::Friend { owner }, s, false));
+                        return Ok(mk(Scope::Friend { owner }, s, false, false));
                     }
                     _ => Some(Refused::NoShare),
                 }
@@ -437,7 +466,7 @@ pub async fn access(
     };
     // Staff reach any mount that is not theirs; the route logs it.
     if viewer.staff {
-        return Ok(mk(Scope::Staff, all, true));
+        return Ok(mk(Scope::Staff, all, true, true));
     }
     Err(friend_refusal
         .unwrap_or(if saw_member {
@@ -1183,8 +1212,81 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn view_games_opens_only_the_emu_folder() {
+        let f = MemoryScopeFacts::new();
+        f.member(GUILD, FRIEND, standing(&[ROLE_MEMBER]));
+        let m = mount(MountOwner::Guild(GUILD));
+        f.grant(GUILD, ROLE_MEMBER, GrantSet::of([Grant::ViewGames]));
+        // A role holding only view_games reaches the mount and the ROMs, nothing else.
+        assert_eq!(
+            go(&f, viewer(FRIEND), &m, "emu/roms/zelda.bin").await,
+            Ok(Scope::Guild(GUILD))
+        );
+        assert_eq!(
+            go(&f, viewer(FRIEND), &m, "emu/roms/game.nes").await,
+            Ok(Scope::Guild(GUILD))
+        );
+        assert_eq!(
+            go(&f, viewer(FRIEND), &m, "a.mp3").await,
+            Err(Refused::NoGrant)
+        );
+        // Without it the ROMs are refused even though the extension is harmless.
+        f.grant(GUILD, ROLE_MEMBER, GrantSet::of([Grant::ViewMusic]));
+        assert_eq!(
+            go(&f, viewer(FRIEND), &m, "emu/roms/game.nes").await,
+            Err(Refused::NoGrant)
+        );
+        // manage reads everything; the owner of a user mount needs no grant.
+        f.grant(GUILD, ROLE_MEMBER, GrantSet::of([Grant::Manage]));
+        assert!(
+            go(&f, viewer(FRIEND), &m, "emu/roms/game.nes")
+                .await
+                .is_ok()
+        );
+        let own = mount(MountOwner::User(OWNER));
+        assert!(
+            go(&f, viewer(OWNER), &own, "emu/saves/fceumm/ab/sram.srm")
+                .await
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_friend_share_never_reaches_games() {
+        let f = MemoryScopeFacts::new();
+        f.befriend(OWNER, FRIEND);
+        f.share_with(
+            MOUNT,
+            FRIEND,
+            Share {
+                cinema: true,
+                library: true,
+                music: true,
+            },
+        );
+        let m = mount(MountOwner::User(OWNER));
+        assert_eq!(
+            go(&f, viewer(FRIEND), &m, "emu/roms/game.nes").await,
+            Err(Refused::NoShare)
+        );
+        assert_eq!(
+            go(&f, viewer(FRIEND), &m, "emu/bios/scph1001.bin").await,
+            Err(Refused::NoShare)
+        );
+    }
+
     #[test]
     fn kinds_come_from_the_extension() {
+        assert_eq!(Kind::of_key("emu/roms/x.mp3"), Some(Kind::Games));
+        assert_eq!(
+            Kind::of_key("emu/saves/mgba/ab/sram.srm"),
+            Some(Kind::Games)
+        );
+        assert_eq!(Kind::of_key("Emu/roms/x.nes"), None);
+        assert_eq!(Grant::parse("view_games"), Some(Grant::ViewGames));
+        assert_eq!(Grant::ALL.len(), 6);
+        assert_eq!(Grant::view_of(Kind::Games), Grant::ViewGames);
         assert_eq!(Kind::of_key("a/b/Movie.MKV"), Some(Kind::Cinema));
         assert_eq!(Kind::of_key("x.cbz"), Some(Kind::Library));
         assert_eq!(Kind::of_key("x.opus"), Some(Kind::Music));

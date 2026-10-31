@@ -1,0 +1,5 @@
+/* ACT-EMU-002: the co-op chip sits in the narrow voice panel; its two buttons wrap instead of running under the call
+   toolbar next to it. */
+.coop-status-actions {
+  flex-wrap: wrap;
+}

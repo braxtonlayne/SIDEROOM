@@ -1033,6 +1033,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"request","method":"post","path":"/users/@me/data-export","status":202,"body":{"state":"string"}},
   {"id":"download","method":"get","path":"/users/@me/data-export/:id/download","status":200,"body":null},
   {"id":"list_my_expressions","method":"get","path":"/users/@me/expressions","status":200,"body":[{"emojis":[{}],"guild":{},"sounds":[{}],"stickers":[{}],"usable_externally":false}]},
+  {"id":"list_roms","method":"get","path":"/users/@me/games/roms","status":200,"body":{"roms":[{}]}},
   {"id":"approve_entry","method":"post","path":"/users/@me/guestbook/:entry_id/approve","status":204,"body":null},
   {"id":"list_settings","method":"get","path":"/users/@me/guild-settings","status":200,"body":{"settings":[{}]}},
   {"id":"list_my_guilds","method":"get","path":"/users/@me/guilds","status":200,"body":[{"features":["string"],"id":"1","name":"string","owner":false,"permissions":"string"}]},

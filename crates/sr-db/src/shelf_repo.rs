@@ -9,6 +9,7 @@
 use async_trait::async_trait;
 use sqlx::{PgPool, Postgres, QueryBuilder, Row, postgres::PgRow};
 use sr_storage::index::StoreError;
+use sr_storage::index::rom::RomRow;
 use sr_storage::index::shelf::{
     PartPatch, PatchError, Section, ShelfDetail, ShelfFilter, ShelfItem, ShelfPage, ShelfPart,
     ShelfPatch, ShelfStore,
@@ -148,6 +149,39 @@ fn push_filters(
 
 #[async_trait]
 impl ShelfStore for PgShelfStore {
+    async fn mounts_with_roms(&self) -> Result<Vec<i64>, StoreError> {
+        sqlx::query_scalar(
+            "SELECT DISTINCT mount_id FROM storage_objects              WHERE kind = 'games' AND class = 'rom' AND state = 'indexed'",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(se)
+    }
+
+    async fn roms(&self, mounts: &[i64], limit: i64) -> Result<Vec<RomRow>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, mount_id, key, size_bytes, COALESCE(parsed->>'title', '') AS title,                     parsed->>'platform' AS platform, parsed->>'core' AS core              FROM storage_objects              WHERE kind = 'games' AND class = 'rom' AND state = 'indexed' AND mount_id = ANY($1)              ORDER BY lower(parsed->>'title'), key LIMIT $2",
+        )
+        .bind(mounts)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(se)?;
+        rows.iter()
+            .map(|r| {
+                Ok(RomRow {
+                    id: r.try_get("id").map_err(se)?,
+                    mount_id: r.try_get("mount_id").map_err(se)?,
+                    key: r.try_get("key").map_err(se)?,
+                    size: r.try_get("size_bytes").map_err(se)?,
+                    title: r.try_get("title").map_err(se)?,
+                    platform: r.try_get("platform").map_err(se)?,
+                    core: r.try_get("core").map_err(se)?,
+                })
+            })
+            .collect()
+    }
+
     async fn mounts_with(&self, section: Section) -> Result<Vec<i64>, StoreError> {
         let sql = match section {
             Section::Cinema => {

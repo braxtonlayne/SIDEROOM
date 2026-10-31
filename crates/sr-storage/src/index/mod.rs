@@ -11,6 +11,7 @@
 
 pub mod audio;
 pub mod classify;
+pub mod rom;
 pub mod shelf;
 pub mod sniff;
 

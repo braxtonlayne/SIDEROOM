@@ -115,6 +115,20 @@ export async function apiPatch<T = unknown>(
   return (res.status() === 204 ? undefined : await res.json()) as T;
 }
 
+/** PUT with session cookie + CSRF header; throws with the body on a non-2xx. */
+export async function apiPut<T = unknown>(
+  request: APIRequestContext,
+  path: string,
+  data?: unknown,
+): Promise<T> {
+  const res = await request.put(`${API}${path}`, {
+    headers: headers(await csrf(request)),
+    data,
+  });
+  if (!res.ok()) throw new Error(`PUT ${path} -> ${res.status()}: ${await res.text()}`);
+  return (res.status() === 204 ? undefined : await res.json()) as T;
+}
+
 /** Register a new account over the API using a fresh `sr-cli` platform invite. */
 export async function registerUser(
   request: APIRequestContext,

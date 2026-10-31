@@ -437,3 +437,74 @@ async fn deleting_and_moving_objects_updates_the_rows_at_once() {
         1
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn roms_under_emu_roms_are_filed_as_games_and_nothing_else_under_emu() {
+    let db = TestDb::new().await.expect("db");
+    let s = store(&db);
+    // Migration 1800: `kind = 'games'` and `class = 'rom'`, with the platform and core in `parsed`.
+    let (added, gone) = run(
+        &s,
+        42,
+        &[
+            "emu/roms/Test Game.nes",
+            "emu/roms/Pocket.gba",
+            "emu/saves/fceumm/ab12/sram.srm",
+            "emu/bios/scph1001.bin",
+            "Movies/Alien (1979)/Alien.mp4",
+        ],
+        true,
+    )
+    .await;
+    assert_eq!((added, gone), (3, 0));
+    let rows = sqlx::query(
+        "SELECT key, kind, class, parsed->>'platform' AS platform, parsed->>'core' AS core \
+         FROM storage_objects WHERE mount_id = 42 AND kind = 'games' ORDER BY key",
+    )
+    .fetch_all(db.pool())
+    .await
+    .unwrap();
+    let got: Vec<(String, String, String)> = rows
+        .iter()
+        .map(|r| {
+            (
+                r.get("key"),
+                r.get::<String, _>("class"),
+                format!(
+                    "{}/{}",
+                    r.get::<String, _>("platform"),
+                    r.get::<String, _>("core")
+                ),
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            (
+                "emu/roms/Pocket.gba".into(),
+                "rom".into(),
+                "gba/mgba".into()
+            ),
+            (
+                "emu/roms/Test Game.nes".into(),
+                "rom".into(),
+                "nes/fceumm".into()
+            ),
+        ]
+    );
+    assert_eq!(
+        count(
+            &db,
+            "SELECT count(*) FROM storage_objects WHERE mount_id = 42 AND key LIKE 'emu/saves/%'"
+        )
+        .await,
+        0
+    );
+    // A ROM leaves no catalog row in the media tables: the shelves of the other sections stay untouched.
+    assert_eq!(
+        count(&db, "SELECT count(*) FROM music_tracks WHERE mount_id = 42").await,
+        0
+    );
+}

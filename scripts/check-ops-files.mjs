@@ -6,11 +6,13 @@
 //  - deploy/OPERATOR.md does not link every deploy doc (RDY-DOC-002); the docs/13 gate table claims a gate without a link,
 //  - a shell script under deploy/scripts (or deploy/install.sh) does not parse (`sh -n`),
 //  - the production Caddyfile lost a security-critical line,
+//  - the emulator core pin list (deploy/emu-cores.lock), the table of deploy/EMULATOR.md and the notices disagree (ACT-EMU-003),
 //  - a tracked .sh, or a file a workflow or composite action runs as ./path, is not executable in git.
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { coreProblems, tableProblems } from './lib/emu-cores.mjs';
 import {
   REQUIRED_PLAYBOOKS,
   gateTableProblems,
@@ -148,6 +150,16 @@ problems.push(
   ),
   ...gateTableProblems(read('docs/13-roadmap-and-phases.md')),
 );
+
+// Emulator cores (ACT-EMU-003): the pin list, the table of deploy/EMULATOR.md and the notices agree, and only allowed
+// cores are pinned.
+{
+  const lock = read('deploy/emu-cores.lock');
+  problems.push(
+    ...tableProblems(lock, read('deploy/EMULATOR.md')),
+    ...coreProblems(lock, read('THIRD_PARTY_NOTICES.md')),
+  );
+}
 
 // The go-live checklist must exist and be reachable from the install guide (RDY-OWN-003).
 if (!read('deploy/GO-LIVE.md').includes('## 9. The first invites'))
