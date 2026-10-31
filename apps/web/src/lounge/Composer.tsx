@@ -847,6 +847,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     .filter((id) => id !== me.id)
     .map(
       (id) =>
+        // A Discord typer of this server first: its id is never resolved to an account here.
+        (guildId ? findBridgedMember(id, guildId)?.display_name : undefined) ??
         users[id]?.displayName ??
         findBridgedMember(id)?.display_name ??
         t('lounge.composer.someone'),

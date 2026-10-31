@@ -17,14 +17,24 @@
 // and the control routes the end-to-end specs use (e2e/support/bridgeFake.ts):
 //
 //   GET  /__fake/state    -> { webhooks, posts, deleted_webhooks, deleted_messages, injected }
-//   POST /__fake/inject   <- { channel_id, content, author: { id, username, avatar? } }
-//                            Recorded in `injected`. The gateway (MESSAGE_CREATE dispatch) belongs to BRG-GW-001
-//                            and its own fake on 8091; this route only records, so a spec can assert the call.
-//   POST /__fake/control  <- { rate_limit_next?: n, fail_next?: n, exhaust_bucket_secs?: s|null, undeletable?: [ids] }
+//   POST /__fake/inject   <- { channel_id, content, author: { id, username, avatar? }, kind?: 'message'|'typing' }
+//                            Recorded in `injected` and sent to every connected gateway client as a
+//                            MESSAGE_CREATE (or TYPING_START) of the fake Discord server; answers { ok, id, gateways }.
+//   POST /__fake/control  <- { rate_limit_next?: n, fail_next?: n, exhaust_bucket_secs?: s|null, undeletable?: [ids],
+//                              deny_intents?: mask }   (an IDENTIFY asking for any intent in the mask is closed 4014)
 //   POST /__fake/reset
+//
+// and the gateway (wave 35 integration, BRG-GW-001), a WebSocket on the same port written with node built-ins only:
+//
+//   ws://127.0.0.1:8090/gateway   (SR_BRIDGE_DISCORD_GATEWAY=ws://127.0.0.1:8090/gateway)
+//
+// HELLO, IDENTIFY (the fake bot token, else close 4004), READY, GUILD_CREATE of the fake server (its channels and
+// the members injected so far), heartbeat ACKs, op 8 answered with one GUILD_MEMBERS_CHUNK, RESUME answered with an
+// invalid session (the client identifies again).
 //
 // Real Discord is never contacted, and no real token is understood: FAKE_BOT_TOKEN only means something here.
 
+import crypto from 'node:crypto';
 import http from 'node:http';
 
 const PORT = Number(process.env.SR_FAKE_DISCORD_PORT ?? 8090);
@@ -47,7 +57,14 @@ const fresh = () => ({
   deletedWebhooks: [],
   deletedMessages: [],
   injected: [],
-  control: { rate_limit_next: 0, fail_next: 0, exhaust_bucket_secs: null, undeletable: new Set() },
+  members: new Map(), // discord user id -> member object (from injected authors)
+  control: {
+    rate_limit_next: 0,
+    fail_next: 0,
+    exhaust_bucket_secs: null,
+    undeletable: new Set(),
+    deny_intents: 0,
+  },
 });
 state = fresh();
 const nextId = () => (state.next++).toString();
@@ -86,6 +103,7 @@ const server = http.createServer(async (req, res) => {
   // ---- control routes
   if (path === '/__fake/state' && method === 'GET') {
     return json(res, 200, {
+      gateways: [...gateways].filter((g) => g.ready).length,
       webhooks: [...state.webhooks].map(([id, w]) => ({ id, channel_id: w.channel_id })),
       posts: state.posts,
       deleted_webhooks: state.deletedWebhooks,
@@ -98,8 +116,46 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
   if (path === '/__fake/inject' && method === 'POST') {
-    state.injected.push(await readBody(req));
-    return json(res, 200, { ok: true });
+    const b = await readBody(req);
+    state.injected.push(b);
+    const author = {
+      id: String(b.author?.id ?? '9100000000000000050'),
+      username: b.author?.username ?? 'discord-user',
+      global_name: b.author?.global_name ?? b.author?.username ?? 'Discord user',
+      avatar: b.author?.avatar ?? null,
+    };
+    const member = { user: author, nick: null, roles: [], joined_at: new Date().toISOString() };
+    const known = state.members.has(author.id);
+    state.members.set(author.id, member);
+    if (!known) dispatch('GUILD_MEMBER_ADD', { ...member, guild_id: GUILD_ID });
+    if (b.kind === 'typing') {
+      const n = dispatch('TYPING_START', {
+        channel_id: String(b.channel_id),
+        guild_id: GUILD_ID,
+        user_id: author.id,
+        timestamp: Math.floor(Date.now() / 1000),
+      });
+      return json(res, 200, { ok: true, gateways: n });
+    }
+    const id = nextId();
+    const n = dispatch('MESSAGE_CREATE', {
+      id,
+      type: 0,
+      channel_id: String(b.channel_id),
+      guild_id: GUILD_ID,
+      content: b.content ?? '',
+      author,
+      member: { nick: null, roles: [] },
+      attachments: b.attachments ?? [],
+      embeds: [],
+      mentions: [],
+      mention_roles: [],
+      mention_everyone: false,
+      pinned: false,
+      tts: false,
+      timestamp: new Date().toISOString(),
+    });
+    return json(res, 200, { ok: true, id, gateways: n });
   }
   if (path === '/__fake/control' && method === 'POST') {
     const b = await readBody(req);
@@ -108,17 +164,23 @@ const server = http.createServer(async (req, res) => {
     if (typeof b.fail_next === 'number') c.fail_next = b.fail_next;
     if ('exhaust_bucket_secs' in b) c.exhaust_bucket_secs = b.exhaust_bucket_secs;
     if (Array.isArray(b.undeletable)) c.undeletable = new Set(b.undeletable.map(String));
+    if (typeof b.deny_intents === 'number') c.deny_intents = b.deny_intents;
     return json(res, 200, { ok: true });
   }
 
   // ---- Discord
-  const segs = path.replace(/^\/api\/v\d+\//, '').split('/').filter(Boolean);
+  const segs = path
+    .replace(/^\/api\/v\d+\//, '')
+    .split('/')
+    .filter(Boolean);
   if (!path.startsWith('/api/')) return json(res, 404, { message: '404: Not Found', code: 0 });
   const bot = botOf(req);
   const unauthorized = () => json(res, 401, { message: '401: Unauthorized', code: 0 });
 
   if (method === 'GET' && segs.join('/') === 'users/@me') {
-    return bot ? json(res, 200, { id: bot.id, username: 'sideroom-bridge-bot', bot: bot.bot }) : unauthorized();
+    return bot
+      ? json(res, 200, { id: bot.id, username: 'sideroom-bridge-bot', bot: bot.bot })
+      : unauthorized();
   }
   if (method === 'GET' && segs.join('/') === 'users/@me/guilds') {
     return bot ? json(res, 200, [{ id: GUILD_ID, name: 'Fake Discord' }]) : unauthorized();
@@ -129,7 +191,8 @@ const server = http.createServer(async (req, res) => {
   }
   if (method === 'POST' && segs[0] === 'channels' && segs[2] === 'webhooks') {
     if (!bot) return unauthorized();
-    if (!CHANNELS.some((c) => c.id === segs[1])) return json(res, 404, { message: 'Unknown Channel', code: 10003 });
+    if (!CHANNELS.some((c) => c.id === segs[1]))
+      return json(res, 404, { message: 'Unknown Channel', code: 10003 });
     const id = nextId();
     const token = `fakewhtoken${id}`;
     state.webhooks.set(id, { token, channel_id: segs[1] });
@@ -144,7 +207,12 @@ const server = http.createServer(async (req, res) => {
       if (!known) return json(res, 404, { message: 'Unknown Webhook', code: 10015 });
       if (c.rate_limit_next > 0) {
         c.rate_limit_next -= 1;
-        return json(res, 429, { message: 'You are being rate limited.', retry_after: 0.2, global: false }, { 'retry-after': '1' });
+        return json(
+          res,
+          429,
+          { message: 'You are being rate limited.', retry_after: 0.2, global: false },
+          { 'retry-after': '1' },
+        );
       }
       if (c.fail_next > 0) {
         c.fail_next -= 1;
@@ -167,11 +235,17 @@ const server = http.createServer(async (req, res) => {
         headers['x-ratelimit-remaining'] = '0';
         headers['x-ratelimit-reset-after'] = String(c.exhaust_bucket_secs);
       }
-      return json(res, 200, { id: messageId, content: body.content ?? '', webhook_id: id }, headers);
+      return json(
+        res,
+        200,
+        { id: messageId, content: body.content ?? '', webhook_id: id },
+        headers,
+      );
     }
     if (sub === 'messages' && mid) {
       const key = `${id}:${mid}`;
-      if (!known || !state.messages.has(key)) return json(res, 404, { message: 'Unknown Message', code: 10008 });
+      if (!known || !state.messages.has(key))
+        return json(res, 404, { message: 'Unknown Message', code: 10008 });
       if (method === 'PATCH') {
         const body = await readBody(req);
         state.messages.set(key, { ...state.messages.get(key), content: body.content });
@@ -197,6 +271,197 @@ const server = http.createServer(async (req, res) => {
     }
   }
   return json(res, 404, { message: '404: Not Found', code: 0 });
+});
+
+// ---- the gateway: RFC 6455 over node:http's upgrade, text frames only (what the bridge's shard speaks)
+
+const gateways = new Set();
+
+const frame = (opcode, payload) => {
+  const len = payload.length;
+  let head;
+  if (len < 126) head = Buffer.from([0x80 | opcode, len]);
+  else if (len < 65536) {
+    head = Buffer.alloc(4);
+    head[0] = 0x80 | opcode;
+    head[1] = 126;
+    head.writeUInt16BE(len, 2);
+  } else {
+    head = Buffer.alloc(10);
+    head[0] = 0x80 | opcode;
+    head[1] = 127;
+    head.writeBigUInt64BE(BigInt(len), 2);
+  }
+  return Buffer.concat([head, payload]);
+};
+
+const sendText = (g, value) => {
+  if (!g.open) return;
+  g.socket.write(frame(0x1, Buffer.from(JSON.stringify(value), 'utf8')));
+};
+
+const closeWith = (g, code) => {
+  if (!g.open) return;
+  const p = Buffer.alloc(2);
+  p.writeUInt16BE(code, 0);
+  g.socket.write(frame(0x8, p));
+  g.open = false;
+  gateways.delete(g);
+  setTimeout(() => g.socket.destroy(), 50);
+};
+
+/** Send a dispatch to every identified client; how many got it. */
+function dispatch(name, d) {
+  let n = 0;
+  for (const g of gateways) {
+    if (!g.ready) continue;
+    g.seq += 1;
+    sendText(g, { op: 0, t: name, s: g.seq, d });
+    n += 1;
+  }
+  return n;
+}
+
+const guildCreate = () => ({
+  id: GUILD_ID,
+  name: 'Fake Discord',
+  unavailable: false,
+  member_count: state.members.size + 1,
+  roles: [{ id: GUILD_ID, name: '@everyone', color: 0, position: 0, permissions: '0' }],
+  channels: CHANNELS.map((c, i) => ({ ...c, guild_id: GUILD_ID, position: i })),
+  members: [...state.members.values()],
+  presences: [],
+});
+
+function onGatewayMessage(g, text) {
+  let msg;
+  try {
+    msg = JSON.parse(text);
+  } catch {
+    return closeWith(g, 4002);
+  }
+  switch (msg.op) {
+    case 1: // heartbeat
+      return sendText(g, { op: 11 });
+    case 2: {
+      // identify
+      const token = String(msg.d?.token ?? '').replace(/^Bot /, '');
+      if (token !== FAKE_BOT_TOKEN) return closeWith(g, 4004);
+      const intents = Number(msg.d?.intents ?? 0);
+      if (intents & state.control.deny_intents) return closeWith(g, 4014);
+      g.ready = true;
+      g.seq = 0;
+      g.seq += 1;
+      sendText(g, {
+        op: 0,
+        t: 'READY',
+        s: g.seq,
+        d: {
+          v: 10,
+          user: { id: BOT_ID, username: 'sideroom-bridge-bot', bot: true },
+          guilds: [{ id: GUILD_ID, unavailable: true }],
+          session_id: crypto.randomUUID(),
+          resume_gateway_url: `ws://127.0.0.1:${PORT}/gateway`,
+          application: { id: BOT_ID, flags: 0 },
+        },
+      });
+      g.seq += 1;
+      sendText(g, { op: 0, t: 'GUILD_CREATE', s: g.seq, d: guildCreate() });
+      return;
+    }
+    case 6: // resume: this fake keeps no sessions, so the client identifies again
+      return sendText(g, { op: 9, d: false });
+    case 8: {
+      // request guild members: one chunk with everyone injected so far
+      g.seq += 1;
+      return sendText(g, {
+        op: 0,
+        t: 'GUILD_MEMBERS_CHUNK',
+        s: g.seq,
+        d: {
+          guild_id: GUILD_ID,
+          members: [...state.members.values()],
+          chunk_index: 0,
+          chunk_count: 1,
+          presences: [],
+        },
+      });
+    }
+    default:
+      return undefined;
+  }
+}
+
+server.on('upgrade', (req, socket) => {
+  const url = new URL(req.url, 'http://fake');
+  const key = req.headers['sec-websocket-key'];
+  if (url.pathname !== '/gateway' || !key) {
+    socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
+    return;
+  }
+  const accept = crypto
+    .createHash('sha1')
+    .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+    .digest('base64');
+  socket.write(
+    'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+      `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
+  );
+  socket.setNoDelay(true);
+  const g = { socket, open: true, ready: false, seq: 0, buf: Buffer.alloc(0), parts: [] };
+  gateways.add(g);
+  sendText(g, { op: 10, d: { heartbeat_interval: 41250 } });
+  socket.on('data', (chunk) => {
+    g.buf = Buffer.concat([g.buf, chunk]);
+    for (;;) {
+      if (g.buf.length < 2) return;
+      const fin = (g.buf[0] & 0x80) !== 0;
+      const opcode = g.buf[0] & 0x0f;
+      const masked = (g.buf[1] & 0x80) !== 0;
+      let len = g.buf[1] & 0x7f;
+      let off = 2;
+      if (len === 126) {
+        if (g.buf.length < 4) return;
+        len = g.buf.readUInt16BE(2);
+        off = 4;
+      } else if (len === 127) {
+        if (g.buf.length < 10) return;
+        len = Number(g.buf.readBigUInt64BE(2));
+        off = 10;
+      }
+      const maskOff = off;
+      if (masked) off += 4;
+      if (g.buf.length < off + len) return;
+      const payload = Buffer.from(g.buf.subarray(off, off + len));
+      if (masked) for (let i = 0; i < len; i++) payload[i] ^= g.buf[maskOff + (i % 4)];
+      g.buf = g.buf.subarray(off + len);
+      if (opcode === 0x8) {
+        if (g.open) socket.write(frame(0x8, payload.subarray(0, 2)));
+        g.open = false;
+        gateways.delete(g);
+        socket.end();
+        return;
+      }
+      if (opcode === 0x9) {
+        socket.write(frame(0xa, payload));
+        continue;
+      }
+      if (opcode === 0x1 || opcode === 0x0) {
+        g.parts.push(payload);
+        if (fin) {
+          const text = Buffer.concat(g.parts).toString('utf8');
+          g.parts = [];
+          onGatewayMessage(g, text);
+        }
+      }
+    }
+  });
+  const gone = () => {
+    g.open = false;
+    gateways.delete(g);
+  };
+  socket.on('close', gone);
+  socket.on('error', gone);
 });
 
 server.listen(PORT, '127.0.0.1', () => {

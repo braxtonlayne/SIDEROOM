@@ -23,8 +23,9 @@ import {
  *  5. The owner switches the bridge off: the webhook DELETE reaches the fake, the banner and the nav entry are
  *     gone, the system message is in the channel, and a post here reaches nothing.
  *
- * STATUS: written against the contract in `support/bridgeFake.ts`; it needs the fake Discord on 8090 and the server
- * pointed at it (bridge-core). It is skipped when the fake is not up, so a run without it says so instead of failing.
+ * Needs the fake Discord on 8090 (`node e2e/support/fake-discord.mjs`, REST and gateway) and the server pointed at it:
+ * SR_BRIDGE_DISCORD_API=http://127.0.0.1:8090/api/v10, SR_BRIDGE_DISCORD_GATEWAY=ws://127.0.0.1:8090/gateway and
+ * SR_BRIDGE_SUPERVISE_SECS=2. It is skipped when the fake is not up, so a run without it says so instead of failing.
  */
 
 const poll = <T>(fn: () => Promise<T>, done: (v: T) => boolean) =>
@@ -113,6 +114,11 @@ test.describe('the Discord bridge', () => {
       await poll(
         () => fakeState(control),
         (s) => s.posts.some((p) => p.content === 'hello from the lounge' && !!p.username),
+      );
+      // The bridge's shard has connected to the fake gateway (the supervisor starts it within seconds).
+      await poll(
+        () => fakeState(control),
+        (s) => s.gateways >= 1,
       );
       await fakeInject(control, {
         channel_id: FAKE_CHANNEL_ID,

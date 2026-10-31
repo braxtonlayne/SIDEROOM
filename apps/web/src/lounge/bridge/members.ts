@@ -54,9 +54,16 @@ export function useGuildBridgedMembers(guildId: string | undefined): readonly Br
   return bridged ? (list ?? NONE) : NONE;
 }
 
-/** One Discord member by id, across the servers loaded so far. */
-export function findBridgedMember(id: string): BridgedMember | undefined {
-  for (const list of Object.values(useBridgedMembers.getState().byGuild)) {
+/**
+ * One Discord member by id, across the servers loaded so far. With `guildId`, only that server's bridged members
+ * are looked at: a `<@id>` in a bridged server is looked up among its Discord members FIRST, so an id that collides
+ * with an account
+ * here shows (and pings, on Discord) the Discord member, never the account (wave 35 integration).
+ */
+export function findBridgedMember(id: string, guildId?: string | null): BridgedMember | undefined {
+  const byGuild = useBridgedMembers.getState().byGuild;
+  if (guildId) return byGuild[guildId]?.find((x) => x.id === id);
+  for (const list of Object.values(byGuild)) {
     const m = list.find((x) => x.id === id);
     if (m) return m;
   }

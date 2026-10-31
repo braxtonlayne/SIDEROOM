@@ -2,7 +2,7 @@
 // pastes the bot token (sealed, never shown again) and switches the bridge off; the owner and MANAGE_GUILD map
 // channels and post a test.
 import { Button, Notice, TextInput } from '@sideroom/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useT } from '../../../i18n';
 import { useChannels } from '../../../store';
 import { useResource } from '../hooks';
@@ -21,6 +21,14 @@ const DIRECTIONS: api.BridgeDirection[] = ['both', 'to_discord', 'from_discord']
 export function BridgeSection({ guildId, viewer }: SectionProps) {
   const t = useT();
   const res = useResource(`bridge-${guildId}`, () => api.getBridge(guildId));
+  // While the bot is connecting, look again every few seconds, so the screen says Connected on its own.
+  const connecting = res.data?.state === 'connecting';
+  const reload = res.reload;
+  useEffect(() => {
+    if (!connecting) return;
+    const timer = setTimeout(() => void reload(), 3000);
+    return () => clearTimeout(timer);
+  }, [connecting, reload, res.data]);
   return (
     <>
       <SectionHeader
@@ -82,7 +90,7 @@ function TokenCard({
   const revoke = () =>
     void act.run(async () => {
       await api.deleteToken(guildId);
-      onStatus({ ...status, token_set: false, state: 'no_token', invite_url: null });
+      onStatus(await api.getBridge(guildId));
     }, t('settings.bridge.token.revoked'));
 
   return (
@@ -97,7 +105,12 @@ function TokenCard({
                 })
               : status.state === 'connecting'
                 ? t('settings.bridge.token.connecting')
-                : t('settings.bridge.token.problem', { error: status.last_error ?? '' })}
+                : t('settings.bridge.token.problem', {
+                    error:
+                      status.problem === 'token_invalid'
+                        ? t('settings.bridge.token.invalid')
+                        : t('settings.bridge.token.disconnected'),
+                  })}
           </p>
           {status.message_content_intent === false && (
             <Notice variant="warning" title={t('settings.bridge.token.intentTitle')}>
@@ -199,17 +212,17 @@ function MapCard({
       setTheirs('');
       await reload();
     }, t('settings.bridge.map.added'));
-  const remove = (channelId: string) =>
+  const remove = (m: api.BridgeMap) =>
     void act.run(async () => {
-      await api.deleteMap(guildId, channelId);
-      onStatus({ ...status, maps: status.maps.filter((m) => m.channel_id !== channelId) });
+      await api.deleteMap(guildId, m.id);
+      onStatus({ ...status, maps: status.maps.filter((x) => x.id !== m.id) });
     }, t('settings.bridge.map.removed'));
-  const test = (channelId: string) =>
+  const test = (m: api.BridgeMap) =>
     void act.run(
       async () => {
-        await api.testMap(guildId, channelId);
+        await api.testMap(guildId, m.id);
       },
-      t('settings.bridge.map.tested', { name: nameOf(channelId) }),
+      t('settings.bridge.map.tested', { name: nameOf(m.channel_id) }),
     );
 
   return (
@@ -232,7 +245,7 @@ function MapCard({
           </thead>
           <tbody>
             {status.maps.map((m) => (
-              <tr key={m.channel_id}>
+              <tr key={m.id}>
                 <td>#{nameOf(m.channel_id)}</td>
                 <td>#{m.discord_channel_name ?? m.discord_channel_id}</td>
                 <td>{directionLabel(m.direction)}</td>
@@ -243,7 +256,7 @@ function MapCard({
                       variant="secondary"
                       disabled={act.busy}
                       aria-label={t('settings.bridge.map.test', { name: nameOf(m.channel_id) })}
-                      onClick={() => test(m.channel_id)}
+                      onClick={() => test(m)}
                     >
                       {t('settings.bridge.map.testShort')}
                     </Button>
@@ -252,7 +265,7 @@ function MapCard({
                       variant="danger"
                       disabled={act.busy}
                       aria-label={t('settings.bridge.map.remove', { name: nameOf(m.channel_id) })}
-                      onClick={() => remove(m.channel_id)}
+                      onClick={() => remove(m)}
                     >
                       {t('settings.bridge.map.removeShort')}
                     </Button>

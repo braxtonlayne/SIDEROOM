@@ -1,5 +1,6 @@
 // BRG-UI-001 (wave 35, D-381): the Modules card, the conditional "Discord bridge" nav entry, the screen and the
-// teardown dialog, against MSW handlers shaped like crates/sr-api/src/routes/guilds/bridge.rs.
+// teardown dialog, against MSW handlers with the wire shapes of crates/sr-api/src/routes/guilds/bridge.rs
+// (reconciled at the wave-35 integration: GET .../bridge/status, maps by map id, the test with no body).
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -34,23 +35,49 @@ const bridgeModule = (over: object = {}) => ({
   ...over,
 });
 
-const status = (over: object = {}) => ({
-  state: 'connected',
-  token_set: true,
+/** `BridgeObject`: connected, MESSAGE_CONTENT (bit 15) granted. */
+const wireBridge = (over: object = {}) => ({
   discord_guild_id: 'd1',
   discord_guild_name: 'Friends',
-  message_content_intent: true,
-  invite_url: 'https://discord.com/oauth2/authorize?client_id=1&permissions=536939520&scope=bot',
-  maps: [
-    {
-      channel_id: 'c1',
-      discord_channel_id: 'dc1',
-      discord_channel_name: 'general-chat',
-      direction: 'both',
-    },
-  ],
+  bot_user_id: '1',
+  bot_name: 'Relay',
+  mode: 'selective',
+  status: 'connected',
+  intents_granted: (1 << 15) | 1,
+  created_by: '1',
+  created_at: 0,
+  invite_url: 'https://discord.com/oauth2/authorize?client_id=1&scope=bot&permissions=536939584',
   ...over,
 });
+
+/** `MapObject`. */
+const wireMap = (over: object = {}) => ({
+  id: 'm1',
+  channel_id: 'c1',
+  discord_channel_id: 'dc1',
+  discord_channel_name: 'general-chat',
+  direction: 'both',
+  has_webhook: true,
+  queued: 0,
+  dead: 0,
+  created_at: 0,
+  ...over,
+});
+
+/** `BridgeStatusObject`; `bridge: null` is a server whose owner has not connected a bot. */
+const status = (over: { bridge?: object | null; maps?: object[] } = {}) => ({
+  platform_on: true,
+  module_on: true,
+  connected: over.bridge !== null,
+  ...(over.bridge === null ? {} : { bridge: wireBridge(over.bridge ?? {}) }),
+  maps: over.maps ?? [wireMap()],
+  queued: 0,
+  dead_letters: 0,
+  leftovers: [],
+  is_owner: true,
+});
+
+const STATUS = '*/api/v1/guilds/g1/bridge/status';
 
 const FEATURES = '*/api/v1/guilds/g1/sr/features';
 const OWNER = { ownerId: '1' };
@@ -180,10 +207,8 @@ describe('the Discord bridge screen', () => {
     let stored = false;
     server.use(
       on(),
-      http.get('*/api/v1/guilds/g1/bridge', () =>
-        HttpResponse.json(
-          stored ? status({ maps: [] }) : status({ token_set: false, state: 'no_token', maps: [] }),
-        ),
+      http.get(STATUS, () =>
+        HttpResponse.json(stored ? status({ maps: [] }) : status({ bridge: null, maps: [] })),
       ),
       http.get('*/api/v1/guilds/g1/bridge/discord-channels', () =>
         HttpResponse.json([{ id: 'dc1', name: 'general-chat' }]),
@@ -191,7 +216,7 @@ describe('the Discord bridge screen', () => {
       http.put('*/api/v1/guilds/g1/bridge/token', async ({ request }) => {
         await cap.record(request);
         stored = true;
-        return HttpResponse.json(status({ maps: [] }));
+        return HttpResponse.json(wireBridge());
       }),
     );
     await openSettings('bridge');
@@ -214,9 +239,7 @@ describe('the Discord bridge screen', () => {
     seed({ perms: [MANAGE.guild] });
     server.use(
       on(),
-      http.get('*/api/v1/guilds/g1/bridge', () =>
-        HttpResponse.json(status({ token_set: false, state: 'no_token', maps: [] })),
-      ),
+      http.get(STATUS, () => HttpResponse.json(status({ bridge: null, maps: [] }))),
     );
     await openSettings('bridge');
     expect(await screen.findByText('Only the server owner can paste the bot token.')).toBeVisible();
@@ -229,9 +252,7 @@ describe('the Discord bridge screen', () => {
     seed({ perms: [MANAGE.guild], ...OWNER });
     server.use(
       on(),
-      http.get('*/api/v1/guilds/g1/bridge', () =>
-        HttpResponse.json(status({ message_content_intent: false })),
-      ),
+      http.get(STATUS, () => HttpResponse.json(status({ bridge: { intents_granted: 1 } }))),
       http.get('*/api/v1/guilds/g1/bridge/discord-channels', () => HttpResponse.json([])),
     );
     await openSettings('bridge');
@@ -246,7 +267,7 @@ describe('the Discord bridge screen', () => {
     let maps = status().maps;
     server.use(
       on(),
-      http.get('*/api/v1/guilds/g1/bridge', () => HttpResponse.json(status({ maps }))),
+      http.get(STATUS, () => HttpResponse.json(status({ maps }))),
       http.get('*/api/v1/guilds/g1/bridge/discord-channels', () =>
         HttpResponse.json([
           { id: 'dc1', name: 'general-chat' },
@@ -255,22 +276,23 @@ describe('the Discord bridge screen', () => {
       ),
       http.post('*/api/v1/guilds/g1/bridge/maps', async ({ request }) => {
         await add.record(request);
-        const m = {
+        const m = wireMap({
+          id: 'm2',
           channel_id: 'c2',
           discord_channel_id: 'dc2',
           discord_channel_name: 'off-topic',
           direction: 'to_discord',
-        };
+        });
         maps = [...maps, m];
         return HttpResponse.json(m, { status: 201 });
       }),
-      http.post('*/api/v1/guilds/g1/bridge/test', async ({ request }) => {
+      http.post('*/api/v1/guilds/g1/bridge/maps/m1/test', async ({ request }) => {
         await test.record(request);
-        return HttpResponse.json({ ok: true });
+        return new HttpResponse(null, { status: 204 });
       }),
-      http.delete('*/api/v1/guilds/g1/bridge/maps/c1', async ({ request }) => {
+      http.delete('*/api/v1/guilds/g1/bridge/maps/m1', async ({ request }) => {
         await del.record(request);
-        maps = maps.filter((m) => m.channel_id !== 'c1');
+        maps = maps.filter((m) => (m as { id: string }).id !== 'm1');
         return new HttpResponse(null, { status: 204 });
       }),
     );
@@ -308,7 +330,8 @@ describe('the Discord bridge screen', () => {
       screen.getByRole('button', { name: 'Post a hello in #general on Discord' }),
     );
     await waitFor(() => expect(test.calls).toHaveLength(1));
-    expect(test.calls[0]!.body).toEqual({ channel_id: 'c1' });
+    // The test route takes no body: the map id in the path says which channel.
+    expect(test.calls[0]!.body).toBeUndefined();
     expect(await screen.findByText('Posted a hello for #general on Discord.')).toBeVisible();
 
     await userEvent.click(screen.getByRole('button', { name: 'Stop mirroring #general' }));
@@ -320,7 +343,7 @@ describe('the Discord bridge screen', () => {
     seed({ perms: [MANAGE.guild], ...OWNER });
     server.use(
       on(),
-      http.get('*/api/v1/guilds/g1/bridge', () => HttpResponse.json(status({ maps: [] }))),
+      http.get(STATUS, () => HttpResponse.json(status({ maps: [] }))),
       http.get('*/api/v1/guilds/g1/bridge/discord-channels', () =>
         HttpResponse.json([{ id: 'dc1', name: 'general-chat' }]),
       ),
@@ -355,7 +378,7 @@ describe('switching the bridge off', () => {
     let enabled = true;
     server.use(
       http.get(FEATURES, () => HttpResponse.json([bridgeModule({ enabled })])),
-      http.get('*/api/v1/guilds/g1/bridge', () => HttpResponse.json(status())),
+      http.get(STATUS, () => HttpResponse.json(status())),
       http.get('*/api/v1/guilds/g1/bridge/discord-channels', () => HttpResponse.json([])),
       http.patch(`${FEATURES}/bridge.enabled`, async ({ request }) => {
         await cap.record(request);

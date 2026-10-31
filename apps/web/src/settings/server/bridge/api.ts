@@ -1,6 +1,7 @@
-// REST helpers for the Discord bridge (BRG-UI-001). Paths and shapes follow docs/dev/roadmap-p27.md section 13 and
-// crates/sr-api/src/routes/guilds/bridge.rs (bridge-core); everything that is a guess about the wire is in this one
-// file so it can be reconciled with the server in one place.
+// REST helpers for the Discord bridge (BRG-UI-001), reconciled at the wave-35 integration with the routes of
+// crates/sr-api/src/routes/guilds/bridge.rs: `GET .../bridge/status`, maps addressed by their own id, the test with
+// no body, the token revoke answering a teardown summary. The wire shapes (`Wire*`) are turned into the small view
+// model the screen draws (`BridgeStatus`) in this one file.
 //
 // Owner-only calls (module switch, token) pass through `withReauth` because the server demands the MFA step for them
 // (D-381); the mapping, test and status calls are MANAGE_GUILD and answer 404 while the module is off.
@@ -16,6 +17,8 @@ export type BridgeDirection = 'both' | 'to_discord' | 'from_discord';
 export type BridgeState = 'no_token' | 'connecting' | 'connected' | 'error';
 
 export interface BridgeMap {
+  /** The map's own id: the PATCH, DELETE and test routes address it. */
+  id: string;
   /** SIDE ROOM channel. */
   channel_id: string;
   discord_channel_id: string;
@@ -34,9 +37,88 @@ export interface BridgeStatus {
   message_content_intent?: boolean;
   /** Invite link for the bot with the permissions it needs; present once a token is set. */
   invite_url?: string | null;
-  /** Last problem the shard reported, as plain text. */
-  last_error?: string | null;
+  /** Why the bot is not connected (`state: 'error'`): Discord refused the token, or the connection dropped. */
+  problem?: 'token_invalid' | 'disconnected' | null;
+  /** Webhooks a past teardown could not delete on Discord (the owner removes them by hand). */
+  leftovers?: { webhook_id: string; discord_channel_id: string }[];
   maps: BridgeMap[];
+}
+
+// ---- the wire (crates/sr-api/src/routes/guilds/bridge.rs)
+
+export interface WireBridge {
+  discord_guild_id: string;
+  discord_guild_name: string;
+  bot_user_id: string;
+  bot_name: string;
+  mode: string;
+  status: 'connecting' | 'connected' | 'disconnected' | 'token_invalid';
+  /** The gateway intents Discord granted (bit 15 = MESSAGE_CONTENT); 0 until the shard's first READY. */
+  intents_granted: number;
+  created_by: string;
+  created_at: number;
+  invite_url: string;
+}
+
+export interface WireMap {
+  id: string;
+  channel_id: string;
+  discord_channel_id: string;
+  discord_channel_name: string;
+  direction: BridgeDirection;
+  has_webhook: boolean;
+  queued: number;
+  dead: number;
+  created_at: number;
+}
+
+export interface WireStatus {
+  platform_on: boolean;
+  module_on: boolean;
+  connected: boolean;
+  bridge?: WireBridge;
+  maps: WireMap[];
+  queued: number;
+  dead_letters: number;
+  leftovers: { webhook_id: string; discord_channel_id: string }[];
+  is_owner: boolean;
+}
+
+/** `DELETE .../bridge/token`: the bridge was torn down (the module stays on). */
+export interface TokenRevokeSummary {
+  maps_removed: number;
+  webhooks_deleted: number;
+  leftovers: { webhook_id: string; discord_channel_id: string }[];
+}
+
+/** Discord's MESSAGE_CONTENT gateway intent. */
+const MESSAGE_CONTENT = 1 << 15;
+
+export function toStatus(w: WireStatus): BridgeStatus {
+  const b = w.bridge;
+  const maps = w.maps.map((m) => ({
+    id: m.id,
+    channel_id: m.channel_id,
+    discord_channel_id: m.discord_channel_id,
+    discord_channel_name: m.discord_channel_name || null,
+    direction: m.direction,
+  }));
+  if (!b) return { state: 'no_token', token_set: false, maps, leftovers: w.leftovers };
+  const state: BridgeState =
+    b.status === 'connected' ? 'connected' : b.status === 'connecting' ? 'connecting' : 'error';
+  return {
+    state,
+    token_set: true,
+    discord_guild_id: b.discord_guild_id,
+    discord_guild_name: b.discord_guild_name || null,
+    // Known only once the shard has connected (READY tells which intents were granted).
+    message_content_intent:
+      b.intents_granted > 0 ? (b.intents_granted & MESSAGE_CONTENT) !== 0 : undefined,
+    invite_url: b.invite_url,
+    problem: state === 'error' ? (b.status as 'token_invalid' | 'disconnected') : null,
+    leftovers: w.leftovers,
+    maps,
+  };
 }
 
 export interface DiscordChannel {
@@ -56,12 +138,18 @@ const path = (guildId: string, rest = '') => `/guilds/${guildId}/bridge${rest}`;
 const send = <T>(p: string, method: string, json?: unknown) =>
   withReauth(() => apiFetch<T>(p, { method, retries: 0, ...(json !== undefined ? { json } : {}) }));
 
-export const getBridge = (guildId: string) => apiFetch<BridgeStatus>(path(guildId), { retries: 0 });
+export const getBridge = async (guildId: string) =>
+  toStatus(await apiFetch<WireStatus>(path(guildId, '/status'), { retries: 0 }));
 
-export const putToken = (guildId: string, token: string) =>
-  send<BridgeStatus>(path(guildId, '/token'), 'PUT', { token });
+/** Connect the bot (owner only); the answer is the bridge, so the screen reads the full status again. */
+export const putToken = async (guildId: string, token: string) => {
+  await send<WireBridge>(path(guildId, '/token'), 'PUT', { token });
+  return getBridge(guildId);
+};
 
-export const deleteToken = (guildId: string) => send<void>(path(guildId, '/token'), 'DELETE');
+/** Revoke the token (owner only): the bridge is torn down, the module stays on. */
+export const deleteToken = (guildId: string) =>
+  send<TokenRevokeSummary>(path(guildId, '/token'), 'DELETE');
 
 export const listDiscordChannels = (guildId: string) =>
   apiFetch<DiscordChannel[]>(path(guildId, '/discord-channels'), { retries: 0 });
@@ -69,13 +157,14 @@ export const listDiscordChannels = (guildId: string) =>
 export const createMap = (
   guildId: string,
   body: { channel_id: string; discord_channel_id: string; direction: BridgeDirection },
-) => send<BridgeMap>(path(guildId, '/maps'), 'POST', body);
+) => send<WireMap>(path(guildId, '/maps'), 'POST', body);
 
-export const deleteMap = (guildId: string, channelId: string) =>
-  send<void>(path(guildId, `/maps/${channelId}`), 'DELETE');
+export const deleteMap = (guildId: string, mapId: string) =>
+  send<void>(path(guildId, `/maps/${mapId}`), 'DELETE');
 
-export const testMap = (guildId: string, channelId: string) =>
-  send<{ ok: boolean }>(path(guildId, '/test'), 'POST', { channel_id: channelId });
+/** "Post a hello" through the map's webhook; no body, 204 when Discord took it. */
+export const testMap = (guildId: string, mapId: string) =>
+  send<void>(path(guildId, `/maps/${mapId}/test`), 'POST');
 
 /** The Discord developer-portal page where the owner finds and enables the bot's privileged intent. */
 export const DEVELOPER_PORTAL_URL = 'https://discord.com/developers/applications';

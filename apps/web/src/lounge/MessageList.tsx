@@ -172,8 +172,9 @@ export function MessageList({
     () => ({
       user: (id) => {
         const u = users[id];
-        // A Discord member of a bridged server reads like any other mention (owner direction).
-        const b = u ? undefined : findBridgedMember(id);
+        // A Discord member of a bridged server reads like any other mention (owner direction). This server's
+        // bridged members are looked at first, so a colliding id is the Discord member, never an account here.
+        const b = guildId ? findBridgedMember(id, guildId) : u ? undefined : findBridgedMember(id);
         if (b)
           return {
             name: b.display_name,
@@ -195,7 +196,7 @@ export function MessageList({
       customEmoji: (e) => <CustomEmoji id={e.id} name={e.name} animated={e.animated} />,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-resolve when the Discord members arrive
-    [users, roles, channels, roleColor, bridgedLoaded],
+    [users, roles, channels, roleColor, bridgedLoaded, guildId],
   );
 
   const scroller = useRef<HTMLDivElement | null>(null);
