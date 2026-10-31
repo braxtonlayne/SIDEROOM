@@ -2,10 +2,10 @@
 
 ## Resume here
 
-Status at the last commit: the 41-B scope below is built and tested except where "Still open" says otherwise.
-Next step if more time: run the final gates listed under "Tests run" that are marked pending, then the integrator
-swaps the sidebar's data source (see "Decisions", item 1) when 41-C lands.
-Scratch database to keep: `sr_p41_shelves` (drop it after integration).
+Done: all of 41-B below (web, server routes, migration 2010, tests, OpenAPI/api-client/MSW). Wound down early on the owner's order; every process stopped, nothing running.
+Next: (1) run `cargo test -p sr-server --test immutable_rules` (not run) and the Playwright spec `e2e/tests/study-shelves.spec.ts` once ports are free; (2) when 41-C lands, swap `visibleShelves` in `apps/web/src/study/api.ts` for a fetch of `/shelves/visible` and reconcile the `shelf_objects` migration.
+Exact next step: `SR_TEST_DATABASE_URL=<scratch> cargo test -j 2 -p sr-server --test immutable_rules -- --include-ignored --test-threads=1`.
+Scratch DB to keep: `sr_p41_shelves` (helper script `SIDEROOM_wt/p41-shelves-pg.sh`); drop after integration. Note `packages/wasm/dist` was copied from the study-nav worktree (git-ignored) instead of rebuilt.
 
 ## Done
 
@@ -73,7 +73,9 @@ Scratch database to keep: `sr_p41_shelves` (drop it after integration).
 - Rust: `cargo check -p sr-api --tests` clean; `sr-db --test shelf_repo` (4, incl. the new `shelf_objects` test),
   `secret_columns`, `migration_versions`: pass; `sr-api --test route_matrix`: pass (rows added: GET
   `storage_scope`, PUT `mount_owner`); unit tests of `study.rs` in `sr-api`.
-- Pending items are recorded below when run.
+- Full web vitest: 425 files, 3859 tests green; web build + bundle budget + entrance isolation ok; eslint clean.
+- Authz: `authz_matrix` `every_route_enforces_its_authz_row` and `storage_scopes_hold_over_http` pass; clippy -D warnings and fmt clean on sr-api, sr-db, sr-storage; openapi_names pass.
+- Not run: `immutable_rules`, Playwright.
 
 ## Open owner questions
 
