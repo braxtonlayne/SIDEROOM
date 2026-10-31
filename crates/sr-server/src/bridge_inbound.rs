@@ -372,10 +372,11 @@ fn supervise_every() -> Duration {
     Duration::from_secs(secs)
 }
 
-/// The gateway the shards connect to: `SR_BRIDGE_DISCORD_GATEWAY` or Discord's own.
-pub fn discord_gateway_url() -> Option<String> {
-    std::env::var("SR_BRIDGE_DISCORD_GATEWAY")
-        .ok()
+/// The gateway the shards connect to: `[bridge] discord_gateway`, else `SR_BRIDGE_DISCORD_GATEWAY`, else Discord's own.
+pub fn discord_gateway_url(configured: Option<&str>) -> Option<String> {
+    configured
+        .map(str::to_owned)
+        .or_else(|| std::env::var("SR_BRIDGE_DISCORD_GATEWAY").ok())
         .map(|v| v.trim().to_owned())
         .filter(|v| !v.is_empty())
 }
@@ -386,6 +387,7 @@ pub fn spawn_inbound(
     messages: Arc<MessagesDeps>,
     bridge: Arc<BridgeService>,
     admin: sr_admin::AdminService,
+    gateway: Option<String>,
 ) -> InboundTasks {
     use sr_admin::settings as k;
     let per_minute = Arc::new(AtomicU32::new(60));
@@ -399,7 +401,7 @@ pub fn spawn_inbound(
             let v = max_bridges.clone();
             Arc::new(move || usize::try_from(v.load(Ordering::Relaxed)).unwrap_or(10))
         },
-        gateway_url: discord_gateway_url(),
+        gateway_url: gateway.clone(),
         // Asked for; a server whose bot lacks the privileged intent steps down the ladder and keeps working.
         presence: true,
     };
@@ -436,7 +438,7 @@ pub fn spawn_inbound(
     });
     let supervisor = manager.spawn_supervisor(supervise_every());
     tracing::info!(
-        gateway = %discord_gateway_url().unwrap_or_else(|| "discord".into()),
+        gateway = %gateway.as_deref().unwrap_or("discord"),
         "discord bridge inbound supervisor started"
     );
     InboundTasks {

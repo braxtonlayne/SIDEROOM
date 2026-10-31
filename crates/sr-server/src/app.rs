@@ -1309,8 +1309,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             Arc::new(crate::bridge_wiring::PgSealer(
                 sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys.clone()),
             )),
-            sr_bridge::DiscordApi::new(crate::bridge_wiring::discord_api_base())
-                .map_err(|e| anyhow::anyhow!("discord client: {e}"))?,
+            sr_bridge::DiscordApi::new(crate::bridge_wiring::discord_api_base(
+                cfg.bridge.discord_api.as_deref(),
+            ))
+            .map_err(|e| anyhow::anyhow!("discord client: {e}"))?,
         )
         .with_media(Arc::new(crate::bridge_wiring::CdnMedia {
             signer: sr_storage::cdn::CdnSigner::new(
@@ -1396,6 +1398,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         messages.clone(),
         bridge.clone(),
         admin_service.clone(),
+        crate::bridge_inbound::discord_gateway_url(cfg.bridge.discord_gateway.as_deref()),
     );
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
     // Actions from a case run through the guild, message and account services (N-21).

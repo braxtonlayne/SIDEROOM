@@ -108,10 +108,11 @@ impl BridgeNotices for PosterNotices {
     }
 }
 
-/// The Discord API root: `SR_BRIDGE_DISCORD_API` or Discord's own.
-pub fn discord_api_base() -> String {
-    std::env::var("SR_BRIDGE_DISCORD_API")
-        .ok()
+/// The Discord API root: `[bridge] discord_api`, else `SR_BRIDGE_DISCORD_API`, else Discord's own.
+pub fn discord_api_base(configured: Option<&str>) -> String {
+    configured
+        .map(str::to_owned)
+        .or_else(|| std::env::var("SR_BRIDGE_DISCORD_API").ok())
         .filter(|v| !v.trim().is_empty())
         .unwrap_or_else(|| sr_bridge::discord::DEFAULT_API_BASE.to_owned())
 }
