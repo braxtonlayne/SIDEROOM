@@ -52,7 +52,10 @@ pub struct Outcome {
 pub enum PruneError {
     Db(sqlx::Error),
     /// The graph changed during the pass; nothing was kept.
-    GraphChanged { before: i64, after: i64 },
+    GraphChanged {
+        before: i64,
+        after: i64,
+    },
 }
 
 impl std::fmt::Display for PruneError {

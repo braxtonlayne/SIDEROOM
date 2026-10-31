@@ -213,7 +213,9 @@ pub async fn compliance_public(
         Some(a) => {
             let controls = a.invite_controls().await;
             (
-                controls.default_credits.unwrap_or_else(|| a.initial_credits()),
+                controls
+                    .default_credits
+                    .unwrap_or_else(|| a.initial_credits()),
                 controls.locked,
             )
         }

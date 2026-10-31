@@ -81,9 +81,7 @@ impl AdminService {
             locked: self.setting_i64(settings::INVITES_LOCKED).await? == 1,
             default_credits: self.setting_i64(settings::INVITES_DEFAULT_CREDITS).await?,
             max_outstanding: self.setting_i64(settings::INVITES_MAX_OUTSTANDING).await?,
-            unused_code_days: self
-                .setting_i64(settings::INVITES_UNUSED_CODE_DAYS)
-                .await?,
+            unused_code_days: self.setting_i64(settings::INVITES_UNUSED_CODE_DAYS).await?,
             last_prune: self.repo().last_prune_run().await?,
             inactive_roots: total,
         })
@@ -173,4 +171,3 @@ impl AdminService {
         self.repo().append_log(&e).await.map(|_| ())
     }
 }
-

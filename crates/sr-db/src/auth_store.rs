@@ -176,7 +176,9 @@ impl AuthStore for PgAuthStore {
         .map_err(store_err)?;
         Ok(sr_auth::store::InviteControls {
             locked,
-            default_credits: credits.and_then(|c| i32::try_from(c).ok()).filter(|c| *c >= 0),
+            default_credits: credits
+                .and_then(|c| i32::try_from(c).ok())
+                .filter(|c| *c >= 0),
         })
     }
 

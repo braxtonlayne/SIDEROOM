@@ -51,7 +51,11 @@ fn closed() -> AuthRouteError {
 
 /// Lock the Doors is on (OPS-INV-001): same code as the full-house refusal, its own words.
 fn locked() -> AuthRouteError {
-    ApiError::with_message(ErrorCode::SrInviteRequired, "The doors are closed right now.").into()
+    ApiError::with_message(
+        ErrorCode::SrInviteRequired,
+        "The doors are closed right now.",
+    )
+    .into()
 }
 
 /// One message for unknown, used and revoked codes.

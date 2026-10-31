@@ -311,7 +311,12 @@ async fn the_quotas_are_settings_and_registration_and_creation_obey_them() {
     assert_eq!(store.invite_controls().await.unwrap().default_credits, None);
     let c = svc.invite_controls(&staff(op)).await.unwrap();
     assert_eq!(
-        (c.locked, c.default_credits, c.max_outstanding, c.unused_code_days),
+        (
+            c.locked,
+            c.default_credits,
+            c.max_outstanding,
+            c.unused_code_days
+        ),
         (false, 5, 20, 30)
     );
     svc.patch_settings(
@@ -381,7 +386,10 @@ async fn the_quotas_are_settings_and_registration_and_creation_obey_them() {
         Err(InviteBlock::AtOutstandingMax)
     );
     assert_eq!(
-        member_invites::overview(pool, a, NOW).await.unwrap().blocked,
+        member_invites::overview(pool, a, NOW)
+            .await
+            .unwrap()
+            .blocked,
         Some(InviteBlock::AtOutstandingMax)
     );
 

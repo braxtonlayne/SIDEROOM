@@ -99,7 +99,7 @@ pub struct RegisterTx {
     pub identity_id: i64,
     /// Maximum counted (active) accounts.
     pub account_cap: u64,
-    /// Credits granted to the new account (`invites.initial_credits`).
+    /// Credits granted to the new account (`invites.default_credits`).
     pub initial_credits: i32,
     /// Unix seconds.
     pub now: i64,

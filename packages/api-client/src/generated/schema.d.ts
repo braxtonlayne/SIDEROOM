@@ -2122,6 +2122,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/invites/controls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The invite controls: Lock the Doors, the quotas and what the last prune pass did (OPS-INV-001). */
+        get: operations["controls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites/inactive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invite subtrees whose first member never activated, marked by the `invites.prune` job. Display only: the
+         *     invite graph itself is never changed.
+         */
+        get: operations["inactive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Lock the Doors or open them again. Existing members are unaffected. Each change is one audit log row
+         *     (`invites.lock` or `invites.unlock`).
+         */
+        put: operations["set_lock"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/invites/{invite_id}": {
         parameters: {
             query?: never;
@@ -20892,6 +20949,29 @@ export interface components {
             /** Format: int64 */
             unlinked_at_ms?: number | null;
         };
+        /** @description The root of an invite subtree whose first member never activated. */
+        InactiveRoot: {
+            account_id: string;
+            /** @description The account that issued the invite the root used, when it still exists. */
+            invited_by_account_id?: string | null;
+            /** Format: int64 */
+            marked_at_ms: number;
+            /**
+             * Format: int64
+             * @description The root and everyone below it in the invite graph.
+             */
+            subtree_size: number;
+            username: string;
+        };
+        /** @description The inactive subtrees (newest mark first, at most [`MAX_INACTIVE_ROOTS`]). */
+        InactiveRoots: {
+            items: components["schemas"]["InactiveRoot"][];
+            /**
+             * Format: int64
+             * @description How many are marked in all.
+             */
+            total: number;
+        };
         /** @description Body of a bulk dismissal. */
         InboxDismissBody: {
             /** @description The cases to dismiss, at most 100. */
@@ -21156,7 +21236,7 @@ export interface components {
              * @description `too_new` only: the age an account needs, in days.
              */
             days?: number | null;
-            /** @description `unverified`, `too_new`, `at_cap`, `no_credits` or `frozen`. */
+            /** @description `unverified`, `too_new`, `at_cap`, `no_credits`, `at_max` or `frozen`. */
             reason: string;
         };
         InviteChannel: {
@@ -21166,6 +21246,32 @@ export interface components {
             name?: string | null;
             /** Format: int32 */
             type: number;
+        };
+        /** @description The controls card of Admin > Invites. */
+        InviteControls: {
+            /**
+             * Format: int64
+             * @description Credits a new account starts with.
+             */
+            default_credits: number;
+            /**
+             * Format: int64
+             * @description Subtrees currently marked inactive.
+             */
+            inactive_roots: number;
+            last_prune?: null | components["schemas"]["PruneRun"];
+            /** @description Lock the Doors: no registration succeeds while this is on. */
+            locked: boolean;
+            /**
+             * Format: int64
+             * @description Most unused codes one account may hold at once.
+             */
+            max_outstanding: number;
+            /**
+             * Format: int64
+             * @description Days after which an unused code is revoked.
+             */
+            unused_code_days: number;
         };
         InviteDescendants: {
             nodes: components["schemas"]["InviteNode"][];
@@ -21875,6 +21981,12 @@ export interface components {
         };
         ListsBody: {
             items: components["schemas"]["ListCard"][];
+        };
+        LockBody: {
+            /** @description `true` closes the doors: no registration succeeds, even with a valid invite. `false` opens them. */
+            locked: boolean;
+            /** @description Required: why the doors are being closed or opened. It goes into the audit log. */
+            reason?: string | null;
         };
         /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
         LoginBeginBody: {
@@ -24397,11 +24509,38 @@ export interface components {
             /** @description Members that would be (preview) or were (execute) removed. */
             pruned: number;
         };
+        /** @description What the last `invites.prune` pass did. */
+        PruneRun: {
+            /**
+             * Format: int64
+             * @description Unused invite codes the pass revoked.
+             */
+            codes_revoked: number;
+            /**
+             * Format: int64
+             * @description Redeemed edges in the invite graph after the pass; the same number as before it.
+             */
+            graph_rows: number;
+            /** Format: int64 */
+            ran_at_ms: number;
+            /**
+             * Format: int64
+             * @description Marks lifted because the root activated since.
+             */
+            roots_cleared: number;
+            /**
+             * Format: int64
+             * @description Subtrees newly marked inactive.
+             */
+            roots_marked: number;
+        };
         /** @description What visitors may know about the instance's compliance settings (M-06, D-293 to D-295). */
         PublicComplianceObject: {
+            /** @description Lock the Doors is on (`invites.locked`, OPS-INV-001): the entrance says the doors are closed. */
+            doors_closed: boolean;
             /**
              * Format: int32
-             * @description Invite credits a new account is granted (`invites.initial_credits`).
+             * @description Invite credits a new account is granted (`invites.default_credits`).
              */
             invite_initial_credits: number;
             /**
@@ -35617,6 +35756,126 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvitePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    controls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteControls"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    inactive: {
+        parameters: {
+            query?: {
+                /** @description 1-200, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InactiveRoots"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_lock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteControls"];
                 };
             };
             400: {
