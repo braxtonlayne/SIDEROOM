@@ -3,7 +3,6 @@
 // or written, and no request is made. Colours and fonts come from tokens only (scripts/check-css-tokens.mjs).
 import { useMediaQuery } from '@sideroom/ui';
 import { useT } from '../../../i18n';
-import type { SectionProps } from '../ServerSettings';
 import { SectionHeader } from '../ui';
 import './gameservers.css';
 
@@ -144,7 +143,7 @@ export function GameServerCards() {
   );
 }
 
-export function GameServersSection(_props: SectionProps) {
+export function GameServersSection() {
   const t = useT();
   return (
     <div className="gsv-root">

@@ -38,7 +38,7 @@ describe('the Game Servers page', () => {
     motion(false);
     const { container } = render(
       <ThemeProvider section="lounge">
-        <GameServersSection guildId="g1" viewer={viewer(true)} />
+        <GameServersSection />
       </ThemeProvider>,
     );
     expect(screen.getByRole('heading', { level: 1, name: 'Game Servers' })).toBeInTheDocument();
@@ -58,11 +58,11 @@ describe('the Game Servers page', () => {
 
   it('scrolls the marquee normally and stands it still under prefers-reduced-motion', () => {
     motion(false);
-    const { unmount } = render(<GameServersSection guildId="g1" viewer={viewer(true)} />);
+    const { unmount } = render(<GameServersSection />);
     expect(screen.getByTestId('gsv-marquee')).toHaveAttribute('data-motion', 'full');
     unmount();
     motion(true);
-    render(<GameServersSection guildId="g1" viewer={viewer(true)} />);
+    render(<GameServersSection />);
     expect(screen.getByTestId('gsv-marquee')).toHaveAttribute('data-motion', 'reduced');
   });
 });
