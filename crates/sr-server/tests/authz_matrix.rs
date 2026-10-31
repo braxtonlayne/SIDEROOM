@@ -4870,7 +4870,7 @@ async fn run_group(
     let mut failures = Vec::new();
     let mut obs: Vec<Obs> = Vec::new();
     // OPS-IMM-002: under a flag state (immutable_rules.rs) only the refusal phase runs, after the state is applied.
-    let refusals_only = harness::current().is_some();
+    let refusals_only = harness::current().is_some() && !harness::full();
     harness::after_seed(&world, g, &mut failures).await;
 
     let (denials, others): (Vec<&Call>, Vec<&Call>) =
@@ -6187,9 +6187,21 @@ pub mod harness {
         SettingsMin,
         /// Every setting at its maximum.
         SettingsMax,
+        /// OPS-IMM-003: nothing changed. The reference state the flags-killed runs are compared with (the
+        /// nightly's full runs); the log checks of [`after_seed`] still run.
+        Normal,
+        /// OPS-IMM-003, the third state: every guild module off in the seeded servers, then every registered
+        /// feature killed at platform scope.
+        KillAll,
     }
 
     static CURRENT: Mutex<Option<Flip>> = Mutex::new(None);
+    /// True while [`run_full`] drives: every phase runs under the flip, not only the refusals.
+    static FULL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    pub(super) fn full() -> bool {
+        FULL.load(std::sync::atomic::Ordering::SeqCst)
+    }
 
     /// True when this file is compiled into `immutable_rules.rs` (as its `matrix` module): the two big tests
     /// above then return at once, because their own binary runs them and the harness only needs the library.
@@ -6208,6 +6220,26 @@ pub mod harness {
         pub lines: Vec<String>,
         /// Everything that went wrong, one line each.
         pub failures: Vec<String>,
+        /// Every call that was expected to be refused, as it was answered (filled by every run).
+        pub denials: Vec<Denial>,
+    }
+
+    /// One call the matrix expects to be refused, and how it was answered.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Denial {
+        /// `group|METHOD path|actor|pass`, with `#n` appended when the same key repeats.
+        pub key: String,
+        pub status: u16,
+        /// `ok`, `masked`, `weak`, `FAIL` or `error` (the matrix's own verdicts).
+        pub verdict: &'static str,
+    }
+
+    impl Denial {
+        /// True when the call was refused (or masked by a validation error before any write), false when it
+        /// was admitted or broke.
+        pub fn refused(&self) -> bool {
+            matches!(self.verdict, "ok" | "masked" | "weak")
+        }
     }
 
     /// Run the refusal phase of `groups` (indexes into [`GROUPS`]) under `flip`, each on a freshly seeded world.
@@ -6217,18 +6249,63 @@ pub mod harness {
         let routes = parse_matrix();
         let infos = op_infos();
         let mut rep = Report::default();
+        let mut seen: HashMap<String, usize> = HashMap::new();
         for &g in groups {
             let res = run_group(g, &base, &routes, &infos).await;
             rep.lines.push(res.line);
             rep.failures.extend(res.failures);
+            for o in res.obs.iter().filter(|o| o.exp == Exp::Deny) {
+                let mut key = format!(
+                    "{}|{} {}|{}|{}",
+                    GROUPS[o.group], o.method, o.path, o.actor, o.pass
+                );
+                let n = seen.entry(key.clone()).or_insert(0);
+                *n += 1;
+                if *n > 1 {
+                    key = format!("{key}#{n}");
+                }
+                rep.denials.push(Denial {
+                    key,
+                    status: o.status,
+                    verdict: o.verdict,
+                });
+            }
         }
         *CURRENT.lock().unwrap() = None;
+        rep
+    }
+
+    /// OPS-IMM-003: like [`run`], but every phase (refusals, reads, writes) runs under the flip. Under a
+    /// state that kills features the expectation that a call is ADMITTED cannot hold (a killed feature answers
+    /// 404 to its rightful actor), so only the refusal-side failures are kept for those states; everything is
+    /// kept under [`Flip::Normal`].
+    pub async fn run_full(flip: Flip, groups: &[usize]) -> Report {
+        FULL.store(true, std::sync::atomic::Ordering::SeqCst);
+        let mut rep = run(flip, groups).await;
+        FULL.store(false, std::sync::atomic::Ordering::SeqCst);
+        if matches!(flip, Flip::KillFeatures | Flip::KillAll) {
+            let before = rep.failures.len();
+            rep.failures.retain(|f| {
+                f.contains("expected Deny")
+                    || f.contains("refused calls changed tables")
+                    || f.contains(" under ")
+            });
+            rep.lines.push(format!(
+                "{} admission failures dropped (a killed feature is not admitted)",
+                before - rep.failures.len()
+            ));
+        }
         rep
     }
 
     /// The group indexes whose refusals the IMMUTABLE RULE names: moderation, admin, and the rest (which holds
     /// the storage and voice routes).
     pub const RULE_GROUPS: [usize; 3] = [0, 1, 5];
+
+    /// How many groups the matrix has.
+    pub fn group_count() -> usize {
+        GROUPS.len()
+    }
 
     /// Settings that throttle the harness itself (HTTP rate limits and the abuse limiters). At their minimum
     /// every call would answer 429, which proves nothing about authorization, so they stay at their maximum
@@ -6293,47 +6370,143 @@ pub mod harness {
         }
     }
 
+    /// Every registered feature switched off at platform scope, through the Admin API as the Owner.
+    async fn kill_features(world: &World) -> Result<String, String> {
+        let owner = &world.actor("staff_owner").cred;
+        let srv = &world.srv;
+        let r = srv.call(owner, "GET", "/admin/features", None).await;
+        let list = json_of(&r);
+        let list = list
+            .as_array()
+            .ok_or(format!("GET /admin/features: {} {}", r.status, r.body))?;
+        let (mut killed, mut skipped) = (0, Vec::new());
+        for f in list {
+            let id = f["id"].as_str().unwrap_or_default();
+            if f["enabled"] != json!(true) {
+                continue;
+            }
+            let r = srv
+                .call_reason(
+                    owner,
+                    "PATCH",
+                    &format!("/admin/features/{id}"),
+                    Some(&json!({"enabled": false})),
+                )
+                .await;
+            if r.status == 200 {
+                killed += 1;
+            } else {
+                skipped.push(format!("{id} ({})", r.status));
+            }
+        }
+        if killed == 0 || skipped.len() * 10 > list.len() {
+            return Err(format!(
+                "only {killed} of {} features killed; skipped {skipped:?}",
+                list.len()
+            ));
+        }
+        // The state was reached: nothing the Admin API lists is still enabled, except what it refused to switch.
+        let r = srv.call(owner, "GET", "/admin/features", None).await;
+        let after = json_of(&r);
+        let still: Vec<String> = after
+            .as_array()
+            .map(|l| {
+                l.iter()
+                    .filter(|f| f["enabled"] == json!(true))
+                    .filter_map(|f| f["id"].as_str().map(str::to_owned))
+                    .filter(|id| !skipped.iter().any(|s| s.starts_with(id.as_str())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !still.is_empty() {
+            return Err(format!("features still enabled after the kill: {still:?}"));
+        }
+        Ok(format!(
+            "{killed} of {} features killed, skipped {skipped:?}",
+            list.len()
+        ))
+    }
+
+    /// OPS-IMM-003: every guild module the server lists switched off in both seeded servers, as their owners
+    /// (the walk is over what `GET /guilds/{id}/sr/features` lists, so a module a later wave registers is
+    /// covered with no edit here). Modules the platform has not offered are not listed, hence not switched.
+    async fn guild_modules_off(world: &World) -> Result<String, String> {
+        let srv = &world.srv;
+        let (mut off, mut skipped, mut total) = (0, Vec::new(), 0);
+        for (owner, guild) in [
+            ("owner_a", world.a["guild_id"].clone()),
+            ("owner_b", world.b["guild_id"].clone()),
+        ] {
+            let cred = &world.actor(owner).cred;
+            let path = format!("/guilds/{guild}/sr/features");
+            let r = srv.call(cred, "GET", &path, None).await;
+            let list = json_of(&r);
+            let list = list
+                .as_array()
+                .ok_or(format!("GET {path} as {owner}: {} {}", r.status, r.body))?;
+            for m in list {
+                total += 1;
+                let id = m["id"].as_str().unwrap_or_default();
+                if m["enabled"] != json!(true) {
+                    continue;
+                }
+                let r = srv
+                    .call(
+                        cred,
+                        "PATCH",
+                        &format!("{path}/{id}"),
+                        Some(&json!({"enabled": false})),
+                    )
+                    .await;
+                if r.status == 200 {
+                    off += 1;
+                } else {
+                    skipped.push(format!("{id}@{owner} ({})", r.status));
+                }
+            }
+            // Read it back: nothing the server lists is still on, except what it refused to switch.
+            let r = srv.call(cred, "GET", &path, None).await;
+            let on: Vec<String> = json_of(&r)
+                .as_array()
+                .map(|l| {
+                    l.iter()
+                        .filter(|m| m["enabled"] == json!(true))
+                        .filter_map(|m| m["id"].as_str().map(str::to_owned))
+                        .filter(|id| {
+                            !skipped
+                                .iter()
+                                .any(|s| s.starts_with(&format!("{id}@{owner}")))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            if !on.is_empty() {
+                return Err(format!(
+                    "guild modules still on in {owner}'s server: {on:?}"
+                ));
+            }
+        }
+        if total > 0 && off == 0 {
+            return Err(format!(
+                "no guild module could be switched off: {skipped:?}"
+            ));
+        }
+        Ok(format!(
+            "{off} of {total} guild modules switched off, skipped {skipped:?}"
+        ))
+    }
+
     /// Put the platform into the state of `flip` through the Admin API as the Owner. Returns what it did.
     async fn apply(world: &World, flip: Flip) -> Result<String, String> {
         let owner = &world.actor("staff_owner").cred;
         let srv = &world.srv;
         match flip {
-            Flip::KillFeatures => {
-                let r = srv.call(owner, "GET", "/admin/features", None).await;
-                let list = json_of(&r);
-                let list = list
-                    .as_array()
-                    .ok_or(format!("GET /admin/features: {} {}", r.status, r.body))?;
-                let (mut killed, mut skipped) = (0, Vec::new());
-                for f in list {
-                    let id = f["id"].as_str().unwrap_or_default();
-                    if f["enabled"] != json!(true) {
-                        continue;
-                    }
-                    let r = srv
-                        .call_reason(
-                            owner,
-                            "PATCH",
-                            &format!("/admin/features/{id}"),
-                            Some(&json!({"enabled": false})),
-                        )
-                        .await;
-                    if r.status == 200 {
-                        killed += 1;
-                    } else {
-                        skipped.push(format!("{id} ({})", r.status));
-                    }
-                }
-                if killed == 0 || skipped.len() * 10 > list.len() {
-                    return Err(format!(
-                        "only {killed} of {} features killed; skipped {skipped:?}",
-                        list.len()
-                    ));
-                }
-                Ok(format!(
-                    "{killed} of {} features killed, skipped {skipped:?}",
-                    list.len()
-                ))
+            Flip::Normal => Ok("no change (the reference state)".into()),
+            Flip::KillFeatures => kill_features(world).await,
+            Flip::KillAll => {
+                let modules = guild_modules_off(world).await?;
+                let features = kill_features(world).await?;
+                Ok(format!("{modules}; {features}"))
             }
             Flip::SettingsMin | Flip::SettingsMax => {
                 let r = srv.call(owner, "GET", "/admin/settings", None).await;

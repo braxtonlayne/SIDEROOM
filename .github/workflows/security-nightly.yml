@@ -1,0 +1,110 @@
+name: Security nightly
+# OPS-IMM-003 (wave 39): the final IMMUTABLE RULE suite (docs/dev/roadmap-p27.md section 17, threat model T28).
+#
+# End-to-end encryption of calls, per-route authorization and the tamper-evident audit and access logs are not
+# features, settings or flags. `rust.yml` proves the refusal phase under every flag state on every build; this job
+# is the slow, complete version, weekly and on demand:
+#
+#   1. the WHOLE authorization matrix (refusals, reads and the write phase, every group) in the normal state;
+#   2. the same matrix again with every guild module off and every registered feature killed at platform scope;
+#   3. every call that must be refused is compared between the two runs: a call refused in one and admitted in
+#      the other fails the job (a status that only moves from 403 to 404 because the feature is gone is listed
+#      and allowed);
+#   4. the name, description and catalog tests of crates/sr-server/tests/immutable_rules.rs (no flag named like a
+#      switch for the three; the deliberate violation `voice.e2ee_test` is caught).
+#
+# Standard GitHub runner, no secrets, no downloads beyond the toolchain. The Postgres below is a throwaway
+# service container.
+on:
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      states:
+        description: "Flag states to compare with the normal one (comma list: normal first; kill_features and kill_all)"
+        default: "normal,kill_features,kill_all"
+      groups:
+        description: "Matrix groups to run (comma list of indexes 0-5; empty runs all six)"
+        default: ""
+
+concurrency:
+  group: security-nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  DATABASE_URL: postgres://sideroom:sideroom_ci@localhost:5432/sideroom
+  SR_TEST_DATABASE_URL: postgres://sideroom:sideroom_ci@localhost:5432/sideroom
+
+jobs:
+  immutable-rule:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sideroom
+          POSTGRES_PASSWORD: sideroom_ci
+          POSTGRES_DB: sideroom
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sideroom" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: The catalog and name tests (no database)
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test -p sr-server --test immutable_rules 2>&1 | tee names.log
+
+      - name: The full authorization matrix, normal against flags killed
+        shell: bash
+        env:
+          SR_SECURITY_NIGHTLY: "1"
+          SR_IMMUTABLE_STATES: ${{ inputs.states || 'normal,kill_features,kill_all' }}
+          SR_IMMUTABLE_GROUPS: ${{ inputs.groups }}
+        run: |
+          set -o pipefail
+          if [ -z "${SR_IMMUTABLE_GROUPS}" ]; then unset SR_IMMUTABLE_GROUPS; fi
+          cargo test -p sr-server --test immutable_rules the_full_matrix_refuses_the_same_with_the_flags_killed \
+            -- --include-ignored --test-threads=1 --nocapture 2>&1 | tee matrix.log
+
+      - name: The refusal phase in every flag state (the rust.yml harness, once more on the nightly tree)
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test -p sr-server --test immutable_rules refusals_and_logs_hold_in_every_flag_state \
+            -- --include-ignored --test-threads=1 --nocapture 2>&1 | tee refusals.log
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Security nightly"
+            echo
+            echo '```'
+            grep -h "immutable_rules:" matrix.log refusals.log 2>/dev/null | grep -v "status change" | tail -60 || true
+            echo '```'
+            echo
+            echo "Status changes that are still refusals: $(grep -c 'status change' matrix.log 2>/dev/null || echo 0)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-nightly-logs
+          path: |
+            names.log
+            matrix.log
+            refusals.log
+          if-no-files-found: ignore
