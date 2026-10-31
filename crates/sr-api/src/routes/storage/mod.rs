@@ -22,6 +22,7 @@ mod mounts_tests;
 pub(crate) mod objects;
 mod scopes;
 pub mod shelves;
+mod study;
 mod transcode;
 #[cfg(test)]
 mod transcode_tests;
@@ -191,6 +192,10 @@ pub fn router() -> Router<AppState> {
             axum::routing::delete(transcode::revoke_token),
         )
         .route("/users/@me/games/roms", get(games::list_roms))
+        .route(
+            "/storage/mounts/{mount_id}/notes",
+            get(study::list_notes).put(study::put_note),
+        )
         .route("/shelves/{section}", get(shelves::list))
         .route(
             "/shelves/{section}/{shelf_item_id}",
@@ -227,6 +232,8 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::abort,
         games::list_roms,
+        study::list_notes,
+        study::put_note,
         shelves::list,
         shelves::get_item,
         shelves::patch_item,
@@ -247,6 +254,9 @@ pub fn router() -> Router<AppState> {
         attach::AttachmentView,
         games::RomView,
         games::RomListView,
+        study::FileNoteView,
+        study::FileNoteList,
+        study::FileNoteBody,
         objects::ObjectList,
         objects::ObjectEntry,
         objects::ObjectMetaView,

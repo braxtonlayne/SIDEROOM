@@ -147,6 +147,19 @@ pub struct ShelfPage {
     pub total: i64,
 }
 
+/// The owner's own words on one file of a mount (STU-SHF-001, migration 2010): any field may be absent, never all three.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FileNote {
+    /// Mount-relative key of the file.
+    pub key: String,
+    /// A custom title.
+    pub title: Option<String>,
+    /// A short note.
+    pub note: Option<String>,
+    /// The key of an image on the same mount, shown as the cover.
+    pub cover_key: Option<String>,
+}
+
 /// An edit of an item. A set field is written and recorded in `overridden`; a `Some("")` clears text.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ShelfPatch {
@@ -206,6 +219,23 @@ pub enum PatchError {
 /// Reads and edits of shelf rows. Every method takes the mounts the caller already proved reachable.
 #[async_trait]
 pub trait ShelfStore: Send + Sync {
+    /// Every file note of a mount (STU-SHF-001), at most `limit`, by key. The default is none.
+    async fn file_notes(&self, _mount_id: i64, _limit: i64) -> Result<Vec<FileNote>, StoreError> {
+        Ok(Vec::new())
+    }
+    /// Insert or replace the note of one file. The caller has proved the mount is theirs to edit.
+    async fn set_file_note(
+        &self,
+        _mount_id: i64,
+        _note: &FileNote,
+        _by: i64,
+    ) -> Result<(), StoreError> {
+        Err(StoreError("file notes are not supported by this store".into()))
+    }
+    /// Remove the note of one file; whether there was one.
+    async fn delete_file_note(&self, _mount_id: i64, _key: &str) -> Result<bool, StoreError> {
+        Err(StoreError("file notes are not supported by this store".into()))
+    }
     /// Mounts that have indexed ROMs (wave 37; the emulator's list, see `super::rom`). The default is none, for stores
     /// that predate the emulator.
     async fn mounts_with_roms(&self) -> Result<Vec<i64>, StoreError> {

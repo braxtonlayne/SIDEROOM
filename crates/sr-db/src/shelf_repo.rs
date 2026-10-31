@@ -11,7 +11,7 @@ use sqlx::{PgPool, Postgres, QueryBuilder, Row, postgres::PgRow};
 use sr_storage::index::StoreError;
 use sr_storage::index::rom::RomRow;
 use sr_storage::index::shelf::{
-    PartPatch, PatchError, Section, ShelfDetail, ShelfFilter, ShelfItem, ShelfPage, ShelfPart,
+    FileNote, PartPatch, PatchError, Section, ShelfDetail, ShelfFilter, ShelfItem, ShelfPage, ShelfPart,
     ShelfPatch, ShelfStore,
 };
 
@@ -149,6 +149,62 @@ fn push_filters(
 
 #[async_trait]
 impl ShelfStore for PgShelfStore {
+    async fn file_notes(&self, mount_id: i64, limit: i64) -> Result<Vec<FileNote>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT path, owner_title, owner_note, owner_cover FROM shelf_objects              WHERE shelf_id = $1 AND delisted_at IS NULL AND (owner_title IS NOT NULL OR owner_note IS NOT NULL OR owner_cover IS NOT NULL)              ORDER BY path LIMIT $2",
+        )
+        .bind(mount_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(se)?;
+        rows.iter()
+            .map(|r| {
+                Ok(FileNote {
+                    key: r.try_get("path").map_err(se)?,
+                    title: r.try_get("owner_title").map_err(se)?,
+                    note: r.try_get("owner_note").map_err(se)?,
+                    cover_key: r.try_get("owner_cover").map_err(se)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn set_file_note(&self, mount_id: i64, n: &FileNote, _by: i64) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO shelf_objects (shelf_id, object_hash, path, owner_title, owner_note, owner_cover)              VALUES ($1, encode(sha256(convert_to($2, 'UTF8')), 'hex'), $2, $3, $4, $5)              ON CONFLICT (shelf_id, object_hash) DO UPDATE SET owner_title = EXCLUDED.owner_title,              owner_note = EXCLUDED.owner_note, owner_cover = EXCLUDED.owner_cover, updated_at = now()",
+        )
+        .bind(mount_id)
+        .bind(&n.key)
+        .bind(&n.title)
+        .bind(&n.note)
+        .bind(&n.cover_key)
+        .execute(&self.pool)
+        .await
+        .map_err(se)?;
+        Ok(())
+    }
+
+    /// Clears the owner's words; the row stays when it carries more than they typed (a delist mark, 41-C), else goes.
+    async fn delete_file_note(&self, mount_id: i64, key: &str) -> Result<bool, StoreError> {
+        let r = sqlx::query(
+            "UPDATE shelf_objects SET owner_title = NULL, owner_note = NULL, owner_cover = NULL, updated_at = now()              WHERE shelf_id = $1 AND object_hash = encode(sha256(convert_to($2, 'UTF8')), 'hex')",
+        )
+        .bind(mount_id)
+        .bind(key)
+        .execute(&self.pool)
+        .await
+        .map_err(se)?;
+        sqlx::query(
+            "DELETE FROM shelf_objects WHERE shelf_id = $1 AND delisted_at IS NULL              AND owner_title IS NULL AND owner_note IS NULL AND owner_cover IS NULL AND size IS NULL AND kind IS NULL",
+        )
+        .bind(mount_id)
+        .execute(&self.pool)
+        .await
+        .map_err(se)?;
+        Ok(r.rows_affected() > 0)
+    }
+
     async fn mounts_with_roms(&self) -> Result<Vec<i64>, StoreError> {
         sqlx::query_scalar(
             "SELECT DISTINCT mount_id FROM storage_objects              WHERE kind = 'games' AND class = 'rom' AND state = 'indexed'",
