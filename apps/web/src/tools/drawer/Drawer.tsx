@@ -4,7 +4,9 @@ import type { KeyboardEvent } from 'react';
 import { useRovingTabindex } from '../../a11y/useRovingTabindex';
 import { useT } from '../../i18n';
 import { GotoList, useGotoResults } from '../../lounge/QuickSwitcher';
-import { TOOLS, getTool } from '../registry';
+import { getTool } from '../registry';
+import { toolAllowed, useAllowedTools } from '../flags';
+import { useClientFlags } from '../../moderation/reports';
 import { MAX_GADGETS } from '../gadgets/layout';
 import { useToolsStore } from '../gadgets/store';
 import { ToolView } from '../ToolView';
@@ -56,11 +58,13 @@ export function Drawer() {
     };
   }, [tab, index]);
 
+  const allowedTools = useAllowedTools();
+  const flags = useClientFlags((s) => s.flags);
   const goto = useGotoResults(query, closeDrawer);
   const { rows: toolRows, didYouMean } = useMemo(
     () =>
       rankTools(
-        TOOLS.map((entry) => ({
+        allowedTools.map((entry) => ({
           entry,
           name: t(entry.nameKey),
           description: t(entry.descriptionKey),
@@ -68,11 +72,12 @@ export function Drawer() {
         query,
         index,
       ),
-    [query, t, index],
+    [query, t, index, allowedTools],
   );
   const count = tab === 'goto' ? goto.results.length : toolRows.length;
   const clamped = Math.min(active, Math.max(0, count - 1));
-  const view = viewId ? getTool(viewId) : undefined;
+  const found = viewId ? getTool(viewId) : undefined;
+  const view = found && toolAllowed(flags, found.id) ? found : undefined;
 
   const onChange = (value: string) => {
     setViewId(null);

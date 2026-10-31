@@ -4,6 +4,8 @@ import { useRovingTabindex } from '../../a11y/useRovingTabindex';
 import { useT } from '../../i18n';
 import { MAX_GADGETS } from '../gadgets/layout';
 import { useToolsStore } from '../gadgets/store';
+import { useClientFlags } from '../../moderation/reports';
+import { toolAllowed } from '../flags';
 import { getTool } from '../registry';
 import { ToolView } from '../ToolView';
 
@@ -15,6 +17,7 @@ import { ToolView } from '../ToolView';
 export function PinRail() {
   const t = useT();
   const pins = useToolsStore((s) => s.layout.pins);
+  const flags = useClientFlags((s) => s.flags);
   const gadgets = useToolsStore((s) => s.layout.gadgets);
   const railRef = useRef<HTMLDivElement>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -22,7 +25,7 @@ export function PinRail() {
 
   const entries = pins.flatMap((id) => {
     const e = getTool(id);
-    return e ? [e] : [];
+    return e && toolAllowed(flags, e.id) ? [e] : [];
   });
   if (entries.length === 0) return null;
   const open = entries.find((e) => e.id === openId);
