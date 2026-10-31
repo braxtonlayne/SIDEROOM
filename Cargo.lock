@@ -6046,6 +6046,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-bridge"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-events",
+ "sr-features",
+ "sr-sdk",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "sr-chat"
 version = "0.0.0"
 dependencies = [

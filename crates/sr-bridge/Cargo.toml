@@ -1,0 +1,30 @@
+[package]
+name = "sr-bridge"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "The Discord bridge (BRG-COR-001): model, sealed bot token, outbound webhooks, queue and teardown"
+
+[dependencies]
+async-trait.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
+sr-core = { path = "../sr-core", default-features = false }
+sr-events = { path = "../sr-events" }
+sr-features = { path = "../sr-features" }
+# The Discord client: its HTTP transport (rustls) and error type. No default features: the bridge needs neither
+# voice nor libopus.
+sr-sdk = { path = "../sr-sdk", default-features = false }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tracing = "0.1"
+utoipa = "5"
+
+[dev-dependencies]
+sr-db = { path = "../sr-db" }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "net", "io-util"] }
+
+[lints]
+workspace = true
