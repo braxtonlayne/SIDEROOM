@@ -11,7 +11,7 @@ below. Nothing emulator-related loads before sign-in (D-385); the cores are fetc
 | The pin list both read (the table below is generated from it and checked against it) | `deploy/emu-cores.lock` |
 | Optional installer step | `SR_INSTALL_EMU_CORES=yes deploy/install.sh` (or answer the prompt) |
 | Dev directory (untracked) | `apps/web/public/emu/cores/` |
-| Production directory | `$SR_WEB_DIR/emu/cores/` (the installer's web directory) |
+| Production directory | `$SR_WEB_DIR/emu/cores/` (the installer's web directory); `sr-server` serves it at `/emu/cores/*` to signed-in members only (an anonymous request is the same `401` as an `/app` file) |
 
 ## Fetching
 
