@@ -20,6 +20,9 @@ import type { SectionProps } from '../ServerSettings';
 import { MessagePicker } from './MessagePicker';
 import { UnsavedBar } from '../../../admin/UnsavedBar';
 import { FeatureSlot } from './featureSlots';
+import { BridgeCard } from '../bridge/BridgeCard';
+import { BRIDGE_MODULE_ID, type BridgeFeature } from '../bridge/api';
+import { useBridgeModule } from '../bridge/moduleStore';
 
 const REACTION_ROLES_ID = 'lounge.reaction_roles';
 /** Channel type code of a category; it holds channels and is not somewhere a module can post. */
@@ -40,9 +43,16 @@ export function useFeaturePickers(guildId: string): PickerChoices {
   );
 }
 
-export function FeaturesSection({ guildId }: SectionProps) {
+export function FeaturesSection({ guildId, viewer }: SectionProps) {
   const t = useT();
-  const res = useResource(`features-${guildId}`, () => api.listFeatures(guildId));
+  const setBridgeModule = useBridgeModule((s) => s.set);
+  const res = useResource(`features-${guildId}`, async () => {
+    const list = await api.listFeatures(guildId);
+    // The Discord bridge's nav entry follows what this screen just read (BRG-UI-001).
+    const bridge = list.find((f) => f.id === BRIDGE_MODULE_ID);
+    if (bridge) setBridgeModule(guildId, bridge.enabled && !bridge.platform_disabled);
+    return list;
+  });
   const [query, setQuery] = useState('');
   const pickers = useFeaturePickers(guildId);
 
@@ -76,17 +86,28 @@ export function FeaturesSection({ guildId }: SectionProps) {
               {[...bySection.entries()].map(([section, list]) => (
                 <section key={section} aria-label={section}>
                   <h2 className="ss-sub">{section}</h2>
-                  {list.map((f) => (
-                    <FeatureCard
-                      key={f.id}
-                      guildId={guildId}
-                      feature={f}
-                      pickers={pickers}
-                      onChanged={(next) =>
-                        res.set((cur) => (cur ?? []).map((x) => (x.id === next.id ? next : x)))
-                      }
-                    />
-                  ))}
+                  {list.map((f) => {
+                    const onChanged = (next: api.GuildFeature) =>
+                      res.set((cur) => (cur ?? []).map((x) => (x.id === next.id ? next : x)));
+                    // The bridge is the one module only the owner switches (D-381): its own card, with the notice.
+                    return f.id === BRIDGE_MODULE_ID ? (
+                      <BridgeCard
+                        key={f.id}
+                        guildId={guildId}
+                        feature={f as BridgeFeature}
+                        isOwner={viewer.isOwner}
+                        onChanged={onChanged}
+                      />
+                    ) : (
+                      <FeatureCard
+                        key={f.id}
+                        guildId={guildId}
+                        feature={f}
+                        pickers={pickers}
+                        onChanged={onChanged}
+                      />
+                    );
+                  })}
                 </section>
               ))}
             </>

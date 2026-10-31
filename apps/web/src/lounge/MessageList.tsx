@@ -30,6 +30,7 @@ import { ReactorsModal } from './msg/Reactors';
 import { cmpId } from '../store/reducer';
 import { buildRows, estimateRow } from './messageRows';
 import { openProfilePopout } from './profile/popoutStore';
+import { bridgedColor, findBridgedMember, useBridgedMembers } from './bridge/members';
 import { DmWelcome } from './shell/DmWelcome';
 import { useHiddenAuthors } from './shell/hiddenAuthors';
 import { toSaved, useSaved } from './shell/savedMessages';
@@ -165,10 +166,19 @@ export function MessageList({
     return out;
   }, [roleDecor]);
 
+  // Re-resolve mentions when the Discord members of a server arrive.
+  const bridgedLoaded = useBridgedMembers((s) => s.byGuild);
   const resolvers: Resolvers = useMemo(
     () => ({
       user: (id) => {
         const u = users[id];
+        // A Discord member of a bridged server reads like any other mention (owner direction).
+        const b = u ? undefined : findBridgedMember(id);
+        if (b)
+          return {
+            name: b.display_name,
+            ...(bridgedColor(b) ? { color: bridgedColor(b)! } : {}),
+          };
         return u
           ? { name: u.displayName, ...(roleColor.get(id) ? { color: roleColor.get(id)! } : {}) }
           : undefined;
@@ -184,7 +194,8 @@ export function MessageList({
       ...richCardResolvers,
       customEmoji: (e) => <CustomEmoji id={e.id} name={e.name} animated={e.animated} />,
     }),
-    [users, roles, channels, roleColor],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-resolve when the Discord members arrive
+    [users, roles, channels, roleColor, bridgedLoaded],
   );
 
   const scroller = useRef<HTMLDivElement | null>(null);

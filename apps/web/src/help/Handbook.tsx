@@ -4,6 +4,7 @@ import { apiFetch } from '../api/client';
 import { useT, type MessageKey } from '../i18n';
 import { useCompliancePublic } from '../lib/compliancePublic';
 import { saveFirstRunDone } from '../lounge/shell/firstRun';
+import { BridgedChannels } from './BridgedChannels';
 
 /**
  * The member handbook (RDY-ONB-002), the body of `/help`. All words live in the i18n catalog
@@ -97,6 +98,7 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
       'help.handbook.privacy.delete',
       'help.handbook.privacy.report',
       'help.handbook.privacy.profiles',
+      'help.handbook.privacy.bridge',
     ],
     links: [
       { href: '/settings/user/privacy', label: 'help.handbook.privacy.exportLink' },
@@ -234,6 +236,7 @@ export function Handbook() {
           {s.after?.map((k) => (
             <p key={k}>{t(k)}</p>
           ))}
+          {s.id === 'privacy' && signedIn && <BridgedChannels />}
           {s.id === 'privacy' && (country || contact) && (
             <>
               {country && <p>{t('entrance.houseNotes.privacy.operatorCountry', { country })}</p>}

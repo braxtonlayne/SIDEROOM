@@ -83,6 +83,8 @@ export interface Channel {
   sr_music_allowed?: boolean;
   /** Voice channels: the music track's bitrate in kbit/s (32 to 320, default 256). */
   sr_music_bitrate_kbps?: number;
+  /** The Discord bridge mirrors this channel (BRG-UI-001); absent when it is not mapped. */
+  sr_bridge?: { direction: 'both' | 'to_discord' | 'from_discord' };
   /** Age-restricted channel (the Lounge asks the viewer to confirm they are 18 or older). */
   nsfw?: boolean;
   /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */
@@ -130,6 +132,17 @@ export interface Message {
   edited_timestamp?: string | null;
   /** Set when the message was posted through a webhook; `author` is then the webhook (DEV-BOT-006). */
   webhook_id?: string;
+  /**
+   * Set on a message the Discord bridge brought in (BRG-GW-001): who wrote it on Discord. `author_avatar` is a
+   * same-origin `/cdn/external/...` path (never a Discord URL). The Lounge shows a DISCORD tag beside the name.
+   */
+  sr_bridge?: {
+    platform: 'discord';
+    author_name: string;
+    author_avatar?: string | null;
+    /** The Discord user id: the id of the bridged member (`GET /guilds/{g}/bridge/members`). */
+    member_id?: string;
+  };
   /** Application emoji ids in `content` that stay text because the author is not that application's bot (D-237). */
   sr_text_emoji?: string[];
   pinned?: boolean;
