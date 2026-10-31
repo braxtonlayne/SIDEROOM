@@ -34,6 +34,8 @@ pub struct SfuConfig {
     /// default: it makes str0m pad every sending connection to 50 kbit/s. See
     /// [`crate::core::SfuCore::with_bwe`].
     pub video_bwe: bool,
+    /// Per-member activity data-channel budget in kbit/s (`voice.datachannel_kbps`); `0` turns it off.
+    pub datachannel_kbps: u32,
     /// Media actors (VOX-SFU-011): rooms are spread over this many actors by channel id,
     /// each owning its own share of the UDP sockets and a slice of the egress budget. `0`
     /// picks half the available cores, at least 1 and at most 8; the effective number never
@@ -56,6 +58,7 @@ impl Default for SfuConfig {
             token_secret: Vec::new(),
             egress_budget_mbps: 0.0,
             video_bwe: false,
+            datachannel_kbps: 256,
             shards: 1,
         }
     }
