@@ -37,6 +37,12 @@ pub struct Names {
     pub channels: HashMap<String, String>,
     /// Ids (decimal) of the server's bridged Discord members that the content mentions: kept as `<@id>`.
     pub bridged: HashSet<String>,
+    /// BRG-SYN-003 (whole-guild mirror, design 7.2): SIDE ROOM role id to the Discord role id it is mapped to.
+    /// A mapped `<@&id>` goes out as the Discord role mention (it renders as the role there and never pings:
+    /// every post sends `allowed_mentions: {parse: []}`). Empty in selective mode.
+    pub role_ids: HashMap<String, String>,
+    /// SIDE ROOM channel id to the Discord channel id it is mapped to, so `<#id>` is a working channel link.
+    pub channel_ids: HashMap<String, String>,
 }
 
 /// An attachment as the queue keeps it until the send (the link is signed then, so a retry gets a fresh one).
@@ -130,6 +136,9 @@ pub fn bridged_pings(content: &str, names: &Names) -> Vec<String> {
 pub fn content_for_discord(content: &str, names: &Names) -> String {
     let s = rewrite_tokens(content, &|t| {
         if let Some(id) = t.strip_prefix("@&") {
+            if let Some(d) = names.role_ids.get(id) {
+                return Some(format!("<@&{d}>"));
+            }
             return digits(id)
                 .then(|| format!("@{}", names.roles.get(id).map_or("role", String::as_str)));
         }
@@ -141,6 +150,9 @@ pub fn content_for_discord(content: &str, names: &Names) -> String {
                 .then(|| format!("@{}", names.users.get(id).map_or("user", String::as_str)));
         }
         if let Some(id) = t.strip_prefix('#') {
+            if let Some(d) = names.channel_ids.get(id) {
+                return Some(format!("<#{d}>"));
+            }
             return digits(id).then(|| {
                 format!(
                     "#{}",
@@ -288,6 +300,19 @@ mod tests {
         );
         // Nothing bridged: nobody to ping.
         assert!(bridged_pings(content, &names()).is_empty());
+    }
+
+    #[test]
+    fn mapped_roles_and_channels_keep_their_mention_on_discord() {
+        let mut n = names();
+        n.role_ids.insert("7".into(), "7007".into());
+        n.channel_ids.insert("9".into(), "9009".into());
+        assert_eq!(
+            content_for_discord("<@&7> in <#9>, <@&8> <#10>", &n),
+            "<@&7007> in <#9009>, @role #channel"
+        );
+        // Still never a ping.
+        assert!(bridged_pings("<@&7>", &n).is_empty());
     }
 
     #[test]
