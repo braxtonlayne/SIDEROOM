@@ -364,7 +364,7 @@ GET	/guilds/{guild_id}/birthdays	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/bridge/discord-channels	authenticated	bridge_admin	deny	-	-
 GET	/guilds/{guild_id}/bridge/leftovers	authenticated	guild_owner	deny	-	-
 GET	/guilds/{guild_id}/bridge/maps	authenticated	bridge_admin	deny	-	-
-GET	/guilds/{guild_id}/bridge/members	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/bridge/members	authenticated	membership	deny	-	-
 GET	/guilds/{guild_id}/bridge/status	authenticated	bridge_admin	deny	-	-
 GET	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-	-
