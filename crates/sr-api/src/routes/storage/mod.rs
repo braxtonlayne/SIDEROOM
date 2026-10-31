@@ -14,6 +14,7 @@
 mod attach;
 pub mod events;
 pub mod flags;
+mod games;
 pub mod mount_ops;
 pub mod mounts;
 #[cfg(test)]
@@ -189,6 +190,7 @@ pub fn router() -> Router<AppState> {
             "/storage/mounts/{mount_id}/worker-tokens/{worker_token_id}",
             axum::routing::delete(transcode::revoke_token),
         )
+        .route("/users/@me/games/roms", get(games::list_roms))
         .route("/shelves/{section}", get(shelves::list))
         .route(
             "/shelves/{section}/{shelf_item_id}",
@@ -224,6 +226,7 @@ pub fn router() -> Router<AppState> {
         uploads::part_url,
         uploads::complete,
         uploads::abort,
+        games::list_roms,
         shelves::list,
         shelves::get_item,
         shelves::patch_item,
@@ -242,6 +245,8 @@ pub fn router() -> Router<AppState> {
         scopes::GrantsBody,
         attach::AttachBody,
         attach::AttachmentView,
+        games::RomView,
+        games::RomListView,
         objects::ObjectList,
         objects::ObjectEntry,
         objects::ObjectMetaView,

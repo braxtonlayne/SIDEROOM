@@ -48,6 +48,13 @@
     { "token": "/settings" },
     { "token": "/library" },
     { "token": "/cinema" },
-    { "token": "/lounge" }
+    { "token": "/lounge" },
+    { "token": "/games", "note": "wave 37: the emulator route is app-only" },
+    { "token": "/emu", "note": "wave 37: emulator cores and the co-op seam" },
+    { "token": "emulator", "note": "wave 37 (D-385): nothing emulator-related before sign-in" },
+    { "token": "libretro" },
+    { "token": "EmuPage" },
+    { "token": "retroarch" },
+    { "token": "view_games" }
   ]
 }

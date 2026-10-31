@@ -1,12 +1,13 @@
 import { apiFetch } from '../../../api/client';
 
-/** The five storage grants (roadmap-p27 section 3). Rows of `guild_storage_grants`, not permission bits. */
+/** The six storage grants (roadmap-p27 section 3; `view_games` from wave 37). Rows of `guild_storage_grants`, not permission bits. */
 export const STORAGE_GRANTS = [
   'view_cinema',
   'view_library',
   'view_music',
   'upload',
   'manage',
+  'view_games',
 ] as const;
 export type StorageGrant = (typeof STORAGE_GRANTS)[number];
 
