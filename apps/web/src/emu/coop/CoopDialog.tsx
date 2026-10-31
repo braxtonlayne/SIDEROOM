@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { Button, Modal, Notice } from '@sideroom/ui';
 import { useT } from '../../i18n';
-import { useCurrentUser, useUsers } from '../../lounge/data';
+import { useCurrentUser, useGuild, useUsers } from '../../lounge/data';
 import { useVoiceSession } from '../../voice/session';
+import { viewGamesGate } from './seatGate';
 import { coopSession } from './session';
 import { useCoopSource } from './source';
 import { useCoop } from './useCoop';
@@ -26,6 +27,8 @@ export function CoopDialog({
   const me = useCurrentUser();
   const users = useUsers();
   const pingMs = useVoiceSession((s) => s.quality.pingMs);
+  const guildId = useVoiceSession((s) => s.guildId);
+  const guild = useGuild(guildId ?? undefined);
   const game = useCoopSource((s) => s.game);
   const coop = useCoop();
   const name = (id: string) => users[id]?.displayName ?? users[id]?.username ?? id;
@@ -59,6 +62,7 @@ export function CoopDialog({
             <>
               <p>{t('emu.coop.host.hosting', { title: hosting.title })}</p>
               <p>{t('emu.coop.host.shareHint')}</p>
+              <p>{t('emu.coop.host.seatRule')}</p>
               {pingMs !== null && <p>{t('emu.coop.host.ping', { ms: pingMs })}</p>}
               {hosting.seats.length === 0 ? (
                 <p>{t('emu.coop.host.noPlayers')}</p>
@@ -102,6 +106,8 @@ export function CoopDialog({
                   game,
                   selfId: me.id,
                   getPingMs: () => useVoiceSession.getState().quality.pingMs,
+                  // Owner default: only members holding view_games on this server take a seat.
+                  mayTakeSeat: viewGamesGate(guildId, guild?.ownerId),
                 })
               }
             >
@@ -139,6 +145,7 @@ export function CoopDialog({
             )}
             {g?.phase === 'joining' && <p role="status">{t('emu.coop.guest.joining')}</p>}
             {g?.phase === 'full' && <p role="status">{t('emu.coop.guest.full')}</p>}
+            {g?.phase === 'denied' && <p role="status">{t('emu.coop.guest.denied')}</p>}
             {g?.phase === 'closed' && <p role="status">{t('emu.coop.guest.closed')}</p>}
             {g?.phase === 'kicked' && <p role="status">{t('emu.coop.guest.kicked')}</p>}
             <p>{t('emu.coop.guest.keys')}</p>

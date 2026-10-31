@@ -13,6 +13,8 @@ export default {
   'emu.coop.host.hosting': 'You are hosting {title}.',
   'emu.coop.host.shareHint': 'Share your screen or the game tab so the others can see it.',
   'emu.coop.host.share': 'Share screen',
+  'emu.coop.host.seatRule':
+    'Seats go to members of this server who may play its games. Everyone in the call can watch your screen.',
   'emu.coop.host.noPlayers': 'Nobody has taken a seat yet.',
   'emu.coop.host.seat': 'Player {n}: {name}',
   'emu.coop.host.kick': 'Remove {name}',
@@ -25,6 +27,8 @@ export default {
   'emu.coop.guest.join': 'Join as a player',
   'emu.coop.guest.joining': 'Asking for a seat.',
   'emu.coop.guest.full': 'That game has no free seat.',
+  'emu.coop.guest.denied':
+    'Only members who may play the games on this server can take a seat. Ask a server admin for the View shelf games permission.',
   'emu.coop.guest.closed': 'The host ended the game.',
   'emu.coop.guest.kicked': 'The host removed you from the game.',
   'emu.coop.guest.keys':

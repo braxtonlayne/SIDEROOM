@@ -1,4 +1,4 @@
-import { NO_SEAT, decode, encode, type CoopMessage } from './protocol';
+import { NO_SEAT, SEAT_NOT_ALLOWED, decode, encode, type CoopMessage } from './protocol';
 import type { CoopTransport } from './transport';
 
 export const PING_EVERY_MS = 2000;
@@ -15,7 +15,7 @@ export interface HostInfo {
   seenAt: number;
 }
 
-export type GuestPhase = 'idle' | 'joining' | 'seated' | 'full' | 'closed' | 'kicked';
+export type GuestPhase = 'idle' | 'joining' | 'seated' | 'full' | 'denied' | 'closed' | 'kicked';
 
 export interface GuestSnapshot {
   phase: GuestPhase;
@@ -196,6 +196,10 @@ export class CoopGuest {
         if (m.guest !== this.o.selfId || sender !== this.hostId || this.phase !== 'joining') return;
         if (m.port === NO_SEAT) {
           this.reset('full');
+        } else if (m.port === SEAT_NOT_ALLOWED) {
+          this.reset('denied');
+        } else if (m.port < 1 || m.port > 3) {
+          return; // not a guest port
         } else {
           this.phase = 'seated';
           this.port = m.port;

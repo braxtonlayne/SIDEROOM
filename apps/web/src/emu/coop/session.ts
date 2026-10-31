@@ -1,6 +1,7 @@
 import { GuestControls } from './controls';
 import { CoopGuest, type GuestSnapshot } from './guest';
 import { CoopHost, type HostSnapshot } from './host';
+import { useCoopSource } from './source';
 import { dataPortTransport, type CoopTransport, type HostableGame } from './transport';
 
 export interface CoopSnapshot {
@@ -43,11 +44,18 @@ export class CoopSession {
     game: HostableGame;
     selfId: string;
     getPingMs?: () => number | null;
+    mayTakeSeat?: (userId: string) => boolean | Promise<boolean>;
   }): void {
     this.stop();
     const host = new CoopHost({ transport: this.makeTransport(), ...opts });
     this.host = host;
-    this.unsub = [host.subscribe(() => this.refresh())];
+    this.unsub = [
+      host.subscribe(() => this.refresh()),
+      // The game closed (or another one replaced it): hosting a core that no longer runs would seat players on nothing.
+      useCoopSource.subscribe((st) => {
+        if (st.game !== opts.game) this.stop();
+      }),
+    ];
     host.start();
     this.refresh();
   }

@@ -10,7 +10,7 @@
  *   1     ANNOUNCE  host -> all      version u8, free seats u8, host ping ms u16, title (UTF-8, rest of the packet)
  *   2     DISCOVER  guest -> all     (empty)  "any host here?"; hosts answer with an ANNOUNCE
  *   3     JOIN      guest -> host    host id u64
- *   4     SEAT      host -> guest    guest id u64, port u8 (1..3 = players 2..4, 255 = no free seat)
+ *   4     SEAT      host -> guest    guest id u64, port u8 (1..3 = players 2..4, 254 = not allowed, 255 = no free seat)
  *   5     PAD       guest -> host    host id u64, sequence u16, buttons u16 (the whole pad every time)
  *   6     LEAVE     guest -> host    host id u64
  *   7     PING      guest -> host    host id u64, timestamp u32
@@ -41,6 +41,8 @@ export const MSG = {
 
 /** `SEAT.port` when the host has no free seat. */
 export const NO_SEAT = 255;
+/** `SEAT.port` when the guest may not take a seat (the owner default: only members holding `view_games` play). */
+export const SEAT_NOT_ALLOWED = 254;
 /** Players 2 to 4 are the core's ports 1 to 3 (port 0 is the host's own pad and can never be assigned). */
 export const GUEST_PORTS = [1, 2, 3] as const;
 export const MAX_TITLE_BYTES = 64;

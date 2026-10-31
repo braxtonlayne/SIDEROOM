@@ -19,6 +19,19 @@ vi.mock('../../../lounge/data', () => ({
     '1': { id: '1', username: 'hal', displayName: 'Hal', avatarUrl: null },
     '2': { id: '2', username: 'me', displayName: 'Me', avatarUrl: null },
   }),
+  useGuild: (id?: string) => (id === '100' ? { id: '100', ownerId: '1' } : undefined),
+}));
+
+// The seat rule (owner default: view_games) reads the role list and the member; here @everyone holds view_games.
+vi.mock('../../../api/client', async (orig) => ({
+  ...(await orig<typeof import('../../../api/client')>()),
+  apiFetch: vi.fn(async (path: string) => {
+    if (path === '/guilds/100/roles') {
+      return [{ id: '100', permissions: '0', sr_storage_grants: ['view_games'] }];
+    }
+    if (path.startsWith('/guilds/100/members/')) return { roles: [] };
+    throw new Error('unexpected ' + path);
+  }),
 }));
 
 const wrap = (ui: React.ReactElement) =>
@@ -29,7 +42,7 @@ beforeEach(() => {
   hub = new Hub();
   coopSession.stop();
   coopSession.setTransportFactory(() => hub.transport('2'));
-  patchSession({ quality: { level: 'good', pingMs: 23, lossPct: 0 } });
+  patchSession({ quality: { level: 'good', pingMs: 23, lossPct: 0 }, guildId: '100' });
 });
 afterEach(() => {
   coopSession.stop();
@@ -67,6 +80,24 @@ describe('Play together dialog', () => {
     expect(await screen.findByText('Player 2: 7')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Remove 7' }));
     expect(screen.getByText('Nobody has taken a seat yet.')).toBeInTheDocument();
+  });
+
+  it('tells a guest without the grant why there is no seat', async () => {
+    const user = userEvent.setup();
+    const host = new CoopHost({
+      transport: hub.transport('1'),
+      game: Object.assign(new RecordingCore(), { title: 'Test ROM' }),
+      selfId: '1',
+      mayTakeSeat: () => false,
+    });
+    host.start();
+    wrap(<CoopDialog open onClose={() => undefined} onShare={() => undefined} />);
+    await screen.findByTestId('coop-host-row');
+    await user.click(screen.getByRole('button', { name: 'Join as a player' }));
+    expect(
+      await screen.findByText(/Only members who may play the games on this server can take a seat/),
+    ).toBeInTheDocument();
+    host.stop();
   });
 
   it('lists a host, takes a seat, shows the round trip and ends cleanly', async () => {

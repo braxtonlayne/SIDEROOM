@@ -32,6 +32,10 @@ export function SectionBar() {
             {t('lounge.chrome.library')}
           </Link>
         )}
+        {/* The emulator (ACT-EMU-001); an in-app link keeps a voice call alive on the way, so a game can be hosted. */}
+        <Link to="/games" className="lng-sectionbar-link">
+          {t('lounge.chrome.games')}
+        </Link>
       </nav>
       {voiceName && (
         <span className="lng-sectionbar-voice" role="status">

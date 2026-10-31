@@ -108,3 +108,15 @@
   background: var(--ui-bg-muted, transparent);
   font-weight: 600;
 }
+
+/* The call strip on the Games page (co-op host): "Play together" and the screen share of the game tab. */
+.emu-coopbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+}

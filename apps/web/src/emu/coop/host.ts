@@ -1,5 +1,12 @@
 import { diffMasks } from './input';
-import { COOP_VERSION, NO_SEAT, decode, encode, type CoopMessage } from './protocol';
+import {
+  COOP_VERSION,
+  NO_SEAT,
+  SEAT_NOT_ALLOWED,
+  decode,
+  encode,
+  type CoopMessage,
+} from './protocol';
 import { SeatTable } from './seats';
 import type { CoopTransport, HostableGame } from './transport';
 
@@ -37,6 +44,11 @@ export interface CoopHostOptions {
   selfId: string;
   /** The host's measured ping to the SFU, announced so guests can show the whole path. */
   getPingMs?: () => number | null;
+  /**
+   * Who may take a seat (asked once per JOIN, before a port is handed out). The owner default is "members of the
+   * call's server who hold `view_games`" (seatGate.ts). Absent = anyone in the call. A rejection or an error refuses.
+   */
+  mayTakeSeat?: (userId: string) => boolean | Promise<boolean>;
   now?: () => number;
 }
 
@@ -52,6 +64,8 @@ export class CoopHost {
   private timers: ReturnType<typeof setInterval>[] = [];
   private off: (() => void) | null = null;
   private running = false;
+  /** Guests whose JOIN is waiting for `mayTakeSeat`. */
+  private readonly vetting = new Set<string>();
   private cached: HostSnapshot;
   private readonly now: () => number;
 
@@ -147,17 +161,11 @@ export class CoopHost {
         return;
       case 'join': {
         if (m.host !== this.o.selfId) return;
-        const port = this.seats.assign(sender);
-        if (port === null) {
-          void this.send({ type: 'seat', guest: sender, port: NO_SEAT });
+        if (this.o.mayTakeSeat && this.seats.portOf(sender) === null) {
+          this.vet(sender, this.o.mayTakeSeat);
           return;
         }
-        const st = this.state.get(sender);
-        if (st) st.lastSeenAt = at;
-        else this.state.set(sender, { buttons: 0, seq: null, lastPadAt: at, lastSeenAt: at });
-        void this.send({ type: 'seat', guest: sender, port });
-        this.announce();
-        this.emit();
+        this.seat(sender, at);
         return;
       }
       case 'leave':
@@ -191,6 +199,40 @@ export class CoopHost {
       default:
         return; // ANNOUNCE, SEAT, PONG, CLOSE, KICK are not for a host
     }
+  }
+
+  private seat(sender: string, at: number): void {
+    const port = this.seats.assign(sender);
+    if (port === null) {
+      void this.send({ type: 'seat', guest: sender, port: NO_SEAT });
+      return;
+    }
+    const st = this.state.get(sender);
+    if (st) st.lastSeenAt = at;
+    else this.state.set(sender, { buttons: 0, seq: null, lastPadAt: at, lastSeenAt: at });
+    void this.send({ type: 'seat', guest: sender, port });
+    this.announce();
+    this.emit();
+  }
+
+  /** Ask `mayTakeSeat` once per JOIN; a repeated JOIN while the answer is pending is ignored. Fails closed. */
+  private vet(sender: string, may: (userId: string) => boolean | Promise<boolean>): void {
+    if (this.vetting.has(sender)) return;
+    this.vetting.add(sender);
+    let answer: Promise<boolean>;
+    try {
+      answer = Promise.resolve(may(sender));
+    } catch {
+      answer = Promise.resolve(false);
+    }
+    void answer
+      .catch(() => false)
+      .then((ok) => {
+        this.vetting.delete(sender);
+        if (!this.running) return;
+        if (ok === true) this.seat(sender, this.now());
+        else void this.send({ type: 'seat', guest: sender, port: SEAT_NOT_ALLOWED });
+      });
   }
 
   private apply(port: number, st: SeatState, buttons: number): void {

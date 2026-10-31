@@ -1,5 +1,8 @@
 import type { Page } from '@playwright/test';
-import { expect, test, registerUser } from '../support/fixtures';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { apiPut, expect, test, registerUser } from '../support/fixtures';
 import {
   joinVoice,
   mediaContext,
@@ -20,14 +23,21 @@ import {
  *  - default ("probe"): the host offers a tiny in-page core (a canvas that is red, and green while player 2
  *    holds A) through the e2e hook `window.__srCoopOffer` (VITE_SR_E2E=1, set by the Playwright dev server).
  *    It needs nothing from the emulator loader, so it proves the co-op path on its own.
- *  - SR_E2E_COOP_ROM=1: the host starts the repo's self-written test ROM through the loader (ACT-EMU-001) and
- *    watches the loader's canvas. The ROM must read the SECOND controller and draw a different background
- *    while its A button is held (an NES ROM reading $4017). `startTestRom` below is the one place to adapt to
- *    the loader's UI once it has landed.
+ *  - SR_E2E_COOP_ROM=1: the host opens Games from the section bar (in-app, so the call stays up), plays the repo's
+ *    self-written test ROM (`e2e/fixtures/emu/sideroom-test.nes`: red, green while controller 2 holds A, read from
+ *    $4017) through the real loader and the FCEUmm core, and hosts it from the Games page's call strip. The ROM list,
+ *    the mount and the bucket are route handlers (as in emulator.spec.ts). Skips when the core is not installed.
+ *
+ * The seat rule (owner default): only members holding `view_games` on the server take a seat. The guest is refused
+ * first, then the server owner grants `view_games` to @everyone and the guest is seated. Guests never get the ROM.
  *
  * Needs sr-server with `SR_VOICE__ENABLED=true` (SR_E2E_VOICE=1). Chromium only (fake display capture).
  */
 const ROM_MODE = process.env.SR_E2E_COOP_ROM === '1';
+const here = dirname(fileURLToPath(import.meta.url));
+const ROM_KEY = 'emu/roms/sideroom-test.nes';
+const CORE_URL = '/emu/cores/fceumm/fceumm-legacy-wasm.data';
+const BUCKET = 'https://bucket.test';
 const RED = [200, 40, 40] as const;
 const GREEN = [40, 200, 40] as const;
 
@@ -81,14 +91,91 @@ async function startProbeCore(page: Page) {
   });
 }
 
-/** ROM mode: open the self-written test ROM in the loader, IN-APP (a reload would drop the call). TODO(integrator): match emu-shell's UI. */
+/** ROM mode: is the FCEUmm core served (a 7z archive)? */
+async function coreInstalled(page: Page): Promise<boolean> {
+  const core = await page.request.get(CORE_URL);
+  const magic = core.ok() ? [...(await core.body()).subarray(0, 6)] : [];
+  return magic.join() === [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c].join();
+}
+
+/** ROM mode: the ROM list, the member's mount and the bucket, served by route handlers (no real bucket). */
+async function routeTestRom(page: Page) {
+  const rom = readFileSync(resolve(here, '../fixtures/emu/sideroom-test.nes'));
+  const mount = {
+    id: '7',
+    owner_kind: 'user',
+    owner_id: '1',
+    label: 'Test bucket',
+    provider: 's3',
+    endpoint: null,
+    region: 'us-east-1',
+    bucket: 'games',
+    prefix: '',
+    path_style: false,
+    access_key_id: 'AKIAEXAMPLE',
+    key_hint: 'MPLE',
+    status: 'active',
+    cors_ok_at: '2026-10-30T00:00:00Z',
+    last_test_at: null,
+    last_test: null,
+    created_at: '2026-10-30T00:00:00Z',
+  };
+  await page.route('**/api/v1/users/@me/games/roms', (route) =>
+    route.fulfill({
+      json: {
+        roms: [
+          {
+            id: '501',
+            mount_id: '7',
+            key: ROM_KEY,
+            size: rom.length,
+            title: 'sideroom test',
+            platform: 'nes',
+            core: 'fceumm',
+            scope: 'own',
+            mount_label: mount.label,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/v1/users/@me/storage/mounts', (route) =>
+    route.fulfill({ json: [mount] }),
+  );
+  await page.route('**/api/v1/storage/mounts/7/objects?*', (route) =>
+    route.fulfill({ json: { folders: [], objects: [], next_cursor: null } }),
+  );
+  await page.route('**/api/v1/storage/mounts/7/presign', async (route) => {
+    const body = route.request().postDataJSON() as { key: string; method: string };
+    await route.fulfill({
+      json: {
+        url: `${BUCKET}/${body.method}/${encodeURI(body.key)}`,
+        expires_at: '2099-01-01T00:00:00Z',
+      },
+    });
+  });
+  await page.route(`${BUCKET}/**`, async (route) => {
+    const req = route.request();
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': '*' };
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    const key = decodeURI(new URL(req.url()).pathname.replace(/^\/(GET|PUT)\//, ''));
+    if (req.method() === 'GET' && key === ROM_KEY) {
+      return route.fulfill({ status: 200, headers, body: rom });
+    }
+    return route.fulfill({ status: req.method() === 'PUT' ? 200 : 404, headers });
+  });
+}
+
+/** ROM mode: open Games IN-APP (a reload would drop the call) and play the test ROM until it runs. */
 async function startTestRom(page: Page) {
-  await page.getByRole('link', { name: /games/i }).first().click();
-  await page
-    .getByRole('button', { name: /pad test/i })
-    .first()
-    .click();
-  await page.locator('canvas[data-testid="emu-canvas"]').waitFor({ timeout: 30_000 });
+  await page.getByRole('link', { name: 'Games', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Games', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Play' }).first().click();
+  await expect(page.locator('canvas[data-testid="emu-canvas"]')).toHaveAttribute(
+    'data-phase',
+    'running',
+    { timeout: 60_000 },
+  );
 }
 
 const CANVAS = ROM_MODE ? 'canvas[data-testid="emu-canvas"]' : '#coop-probe';
@@ -133,7 +220,12 @@ const colourName = (got: [number, number, number] | null): string | null => {
   if (got === null) return null;
   const close = (want: readonly [number, number, number]) =>
     got.every((v, i) => Math.abs(v - want[i]!) < 60);
-  return close(RED) ? 'red' : close(GREEN) ? 'green' : 'other';
+  const [r, g, b] = got;
+  // The probe paints RED / GREEN exactly; the NES palette's red ($16) and green ($2A) are near them, and a video
+  // frame shifts colours a little, so a clearly dominant channel counts too.
+  if (close(RED) || (r > 140 && g < 110 && b < 110)) return 'red';
+  if (close(GREEN) || (g > 140 && r < 120 && b < 110)) return 'green';
+  return 'other';
 };
 
 test.describe('Co-op play (real browser)', () => {
@@ -156,6 +248,14 @@ test.describe('Co-op play (real browser)', () => {
     await trackPeerConnections(h.page);
     await trackPeerConnections(g.page);
     await shareCanvasInsteadOfScreen(h.page, CANVAS);
+
+    if (ROM_MODE) {
+      test.skip(
+        !(await coreInstalled(h.page)),
+        'the FCEUmm core is not installed (run deploy/scripts/fetch-emu-cores.sh)',
+      );
+      await routeTestRom(h.page);
+    }
 
     try {
       const server = await voiceServer(h.context, [g.context], 'Couch');
@@ -188,6 +288,17 @@ test.describe('Co-op play (real browser)', () => {
       await guestPanel.getByRole('button', { name: 'Play together' }).click();
       const row = g.page.getByTestId('coop-host-row');
       await expect(row).toContainText('is hosting', { timeout: 20_000 });
+      // The owner default: no `view_games` on this server, no seat (the host's machine checks it).
+      await row.getByRole('button', { name: 'Join as a player' }).click();
+      await expect(
+        g.page.getByText(/Only members who may play the games on this server/),
+      ).toBeVisible({ timeout: 20_000 });
+      await expect(h.page.getByTestId('coop-status')).toContainText('0 players');
+      // The server owner grants view_games to @everyone (its role id is the guild id); the next JOIN is seated.
+      await apiPut(h.context.request, `/guilds/${server.guildId}/storage/grants`, {
+        role_id: server.guildId,
+        grants: ['view_games'],
+      });
       await row.getByRole('button', { name: 'Join as a player' }).click();
       await g.page.keyboard.press('Escape'); // the dialog closes; the status chip is the guest's handle
       const status = g.page.getByTestId('coop-status');
