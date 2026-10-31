@@ -50,3 +50,59 @@ export function decodeMessage(data) {
 
 /** The key under which the host publishes the tick stream. */
 export const TICK_KEY = 'tick';
+
+/**
+ * The data channel carries at most 16 KiB per envelope (SDK `MAX_DATA_BYTES`), and a host reply travels as
+ * base64. A message whose JSON is longer than `CHUNK_CHARS` (a full snapshot of a big arena, a big capture's
+ * record) is split into ordered pieces `{ __c: id, i, n, s }`; `Reassembler` puts them back. The channel is
+ * ordered and reliable, so a piece that does not fit the sequence just resets the assembly (the game's
+ * resync covers the loss).
+ */
+export const CHUNK_CHARS = 3000;
+let chunkSeq = 0;
+
+/** @param {object} msg @param {number} [max] @returns {object[]} the message itself, or its pieces */
+export function chunkMessage(msg, max = CHUNK_CHARS) {
+  const json = JSON.stringify(msg);
+  if (json.length <= max) return [msg];
+  const id = `${Date.now().toString(36)}${(chunkSeq++).toString(36)}`;
+  const n = Math.ceil(json.length / max);
+  return Array.from({ length: n }, (_, i) => ({ __c: id, i, n, s: json.slice(i * max, (i + 1) * max) }));
+}
+
+export class Reassembler {
+  constructor() {
+    /** @type {Map<string, {id: string, next: number, parts: string[]}>} one assembly per sender and stream */
+    this.open = new Map();
+  }
+
+  /**
+   * Feed one received object. @param {string} stream who/what it came from (a member id and a kind)
+   * @param {any} obj @returns {any} the whole message when `obj` is one (or completes one), else undefined
+   */
+  push(stream, obj) {
+    if (!obj || typeof obj !== 'object' || typeof obj.__c !== 'string') return obj;
+    let a = this.open.get(stream);
+    if (obj.i === 0 || !a || a.id !== obj.__c) {
+      if (obj.i !== 0) {
+        this.open.delete(stream);
+        return undefined;
+      }
+      a = { id: obj.__c, next: 0, parts: [] };
+      this.open.set(stream, a);
+    }
+    if (obj.i !== a.next || typeof obj.s !== 'string') {
+      this.open.delete(stream);
+      return undefined;
+    }
+    a.parts.push(obj.s);
+    a.next++;
+    if (a.next < obj.n) return undefined;
+    this.open.delete(stream);
+    try {
+      return JSON.parse(a.parts.join(''));
+    } catch {
+      return undefined;
+    }
+  }
+}
