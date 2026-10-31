@@ -258,6 +258,16 @@ jobs:
           SR_E2E_FFMPEG: "1"
           SR_TRANSCODER_BIN: ${{ github.workspace }}/target/debug/sr-transcoder
           SR_E2E_WORKER_LOG: ${{ github.workspace }}/worker-cinema.log
+      # BYOS-CNV-001 (OPS-CI-001): convert.spec.ts remuxes a generated MKV with ffmpeg.wasm in the page; it builds the MKV
+      # with the host ffmpeg and skips itself without one, so it never ran in the `playwright` job. The apt ffmpeg of the
+      # step above is on PATH here. continue-on-error until its first green run on GitHub; then remove the line.
+      - name: Converter with a real ffmpeg for the fixture (Chromium)
+        if: always()
+        continue-on-error: true
+        run: |
+          ./deploy/compose/e2e-run.sh --project=chromium tests/convert.spec.ts --retries=0
+        env:
+          CI: "true"
       # RDY-LIB-001 (D-368, T-02): the Library exit gate on all three browsers, against this job's Garage. A member
       # sends ten chapters (ZIPs built by the spec from generated pages), a reviewer approves nine and sends one back
       # with a reason the member sees, the chapter is fixed and published, and a reader opens the RTL chapter at a phone
