@@ -16934,6 +16934,8 @@ export interface components {
              * @description Total unpacked size in bytes.
              */
             byte_size: number;
+            /** @description Capabilities the bundle declares in `sideroom.json` (`datachannel`), shown to staff at review. */
+            capabilities?: string[];
             /** Format: int32 */
             entry_count: number;
             id: string;
@@ -20592,6 +20594,11 @@ export interface components {
         InstanceView: {
             application_id: string;
             application_name: string;
+            /**
+             * @description What the instance's Activity may use: the capabilities of its reviewed bundle (a development build has
+             *     them all). `datachannel`: `sdk.state` and `sdk.input` through the SFU.
+             */
+            capabilities?: string[];
             channel_id: string;
             /** @description `voice` or `text`. */
             channel_type: string;

@@ -96,12 +96,13 @@ fn bundle_of(r: &PgRow) -> Result<BundleView, sqlx::Error> {
         uploaded_at_ms: r.try_get("uploaded_ms")?,
         reviewed_at_ms: r.try_get("reviewed_ms")?,
         note: r.try_get("note")?,
+        capabilities: r.try_get("capabilities")?,
     })
 }
 
 fn bundle_columns() -> String {
     format!(
-        "b.id, b.sha256, b.byte_size, b.entry_count, b.state, b.note, {} AS uploaded_ms, \
+        "b.id, b.sha256, b.byte_size, b.entry_count, b.state, b.note, b.capabilities, {} AS uploaded_ms, \
          {} AS reviewed_ms",
         ms("b.uploaded_at"),
         ms("b.reviewed_at")
@@ -388,8 +389,8 @@ impl ActivityService {
                 let id = (self.inner.ids)();
                 sqlx::query(
                     "INSERT INTO application_activity_bundles \
-                     (id, application_id, sha256, byte_size, entry_count, manifest, uploaded_by) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                     (id, application_id, sha256, byte_size, entry_count, manifest, uploaded_by, \
+                      capabilities) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                 )
                 .bind(id)
                 .bind(app)
@@ -398,6 +399,7 @@ impl ActivityService {
                 .bind(i32::try_from(unpacked.entries).unwrap_or(i32::MAX))
                 .bind(json!(manifest))
                 .bind(user)
+                .bind(&unpacked.capabilities)
                 .execute(&mut *tx)
                 .await?;
                 (id, true)
@@ -815,6 +817,16 @@ impl ActivityService {
 
     async fn view(&self, r: &PgRow) -> ActivityResult<InstanceView> {
         let id: i64 = r.try_get("id")?;
+        let development: bool = r.try_get("dev")?;
+        let capabilities = if development {
+            bundle::CAPABILITIES
+                .iter()
+                .map(|c| (*c).to_owned())
+                .collect()
+        } else {
+            r.try_get::<Option<Vec<String>>, _>("caps")?
+                .unwrap_or_default()
+        };
         Ok(InstanceView {
             id: id.to_string(),
             application_id: r.try_get::<i64, _>("application_id")?.to_string(),
@@ -822,10 +834,11 @@ impl ActivityService {
             guild_id: r.try_get::<i64, _>("guild_id")?.to_string(),
             channel_id: r.try_get::<i64, _>("channel_id")?.to_string(),
             channel_type: r.try_get("channel_type")?,
-            development: r.try_get("dev")?,
+            development,
             started_by: r.try_get::<i64, _>("started_by")?.to_string(),
             created_at_ms: r.try_get("created_ms")?,
             participants: self.participants(id).await?,
+            capabilities,
         })
     }
 
@@ -833,6 +846,9 @@ impl ActivityService {
         format!(
             "SELECT i.id, i.application_id, a.name, i.guild_id, i.channel_id, i.channel_type, \
              i.started_by, (a.release_state::text = 'development') AS dev, \
+             (SELECT b.capabilities FROM application_activities c \
+              JOIN application_activity_bundles b ON b.id = c.reviewed_bundle_id \
+              WHERE c.application_id = i.application_id) AS caps, \
              {} AS created_ms FROM activity_instances i \
              JOIN applications a ON a.id = i.application_id",
             ms("i.created_at")
