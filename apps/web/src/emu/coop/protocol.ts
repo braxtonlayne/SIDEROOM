@@ -92,7 +92,10 @@ export function encode(m: CoopMessage): Uint8Array {
       out[0] = MSG.ANNOUNCE;
       out[1] = m.version & 0xff;
       out[2] = Math.min(255, Math.max(0, m.free));
-      new DataView(out.buffer).setUint16(3, Math.min(0xffff, Math.max(0, Math.round(m.hostPingMs))));
+      new DataView(out.buffer).setUint16(
+        3,
+        Math.min(0xffff, Math.max(0, Math.round(m.hostPingMs))),
+      );
       out.set(title, 5);
       return out;
     }

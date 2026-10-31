@@ -59,7 +59,9 @@ describe('host and guests over a relay', () => {
     host.start();
     const g = guest('2');
     g.open();
-    expect(g.snapshot().hosts).toMatchObject([{ userId: '1', title: 'Test ROM', free: 3, hostPingMs: 12 }]);
+    expect(g.snapshot().hosts).toMatchObject([
+      { userId: '1', title: 'Test ROM', free: 3, hostPingMs: 12 },
+    ]);
     g.join('1');
     expect(g.snapshot()).toMatchObject({ phase: 'seated', port: 1 });
 
