@@ -158,6 +158,26 @@ impl FeatureService {
         Ok(out)
     }
 
+    /// Guilds whose own record for `id` holds an explicit `enabled` flag equal to `enabled`, whatever the
+    /// platform kill switch says (it is not applied). For the teardown that follows a platform kill, which must
+    /// find the servers that had chosen a module on while the kill hid it.
+    pub async fn guilds_with_flag(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<Vec<sr_events::GuildId>, FeatureError> {
+        self.feature(id)?;
+        Ok(self
+            .inner
+            .store
+            .list_guilds(id)
+            .await?
+            .into_iter()
+            .filter(|(_, rec)| rec.enabled == Some(enabled))
+            .map(|(g, _)| g)
+            .collect())
+    }
+
     /// Set (or with `None`, clear) the enabled flag at `scope`.
     pub async fn set_enabled(
         &self,

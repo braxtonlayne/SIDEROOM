@@ -58,11 +58,15 @@ CREATE TABLE bridge_message_map (
     discord_message_id  BIGINT NOT NULL,
     map_id              BIGINT NOT NULL REFERENCES bridge_channel_maps (id) ON DELETE CASCADE,
     webhook_id          BIGINT,
+    -- The SIDE ROOM author of an `out` message (the data-request export lists a member's bridged messages by id;
+    -- erasure deletes the Discord copies). Not a foreign key: erasure reads the rows first.
+    author_id           BIGINT,
     direction           TEXT NOT NULL CHECK (direction IN ('out', 'in')),
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (map_id, discord_message_id)
 );
 CREATE INDEX bridge_message_map_map_idx ON bridge_message_map (map_id);
+CREATE INDEX bridge_message_map_author_idx ON bridge_message_map (author_id) WHERE author_id IS NOT NULL;
 
 CREATE TABLE bridge_optouts (
     user_id     BIGINT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
@@ -89,6 +93,8 @@ CREATE TABLE bridge_outbox (
 CREATE INDEX bridge_outbox_due_idx ON bridge_outbox (due_at) WHERE state = 'pending';
 CREATE INDEX bridge_outbox_map_idx ON bridge_outbox (map_id, id);
 CREATE INDEX bridge_outbox_dead_idx ON bridge_outbox (guild_id) WHERE state = 'dead';
+-- One create per message, so a repeated event never posts twice.
+CREATE UNIQUE INDEX bridge_outbox_create_once ON bridge_outbox (sr_message_id) WHERE kind = 'create';
 
 CREATE TABLE bridge_teardown_residue (
     guild_id            BIGINT NOT NULL REFERENCES guilds (id) ON DELETE CASCADE,

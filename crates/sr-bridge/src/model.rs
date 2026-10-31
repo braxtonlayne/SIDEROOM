@@ -143,6 +143,8 @@ pub struct MessageMap {
     pub map_id: i64,
     /// The webhook that posted the Discord side of an `Out` message.
     pub webhook_id: Option<i64>,
+    /// The SIDE ROOM author of an `Out` message.
+    pub author_id: Option<i64>,
     pub direction: MessageMapDirection,
 }
 
@@ -214,7 +216,7 @@ pub async fn map_for_channel(pool: &PgPool, channel: i64) -> BridgeResult<Option
 /// The message map row of one of our messages.
 pub async fn message_map_for(pool: &PgPool, sr_message: i64) -> BridgeResult<Option<MessageMap>> {
     let row = sqlx::query(
-        "SELECT sr_message_id, discord_message_id, map_id, webhook_id, direction \
+        "SELECT sr_message_id, discord_message_id, map_id, webhook_id, author_id, direction \
          FROM bridge_message_map WHERE sr_message_id = $1",
     )
     .bind(sr_message)
@@ -226,6 +228,7 @@ pub async fn message_map_for(pool: &PgPool, sr_message: i64) -> BridgeResult<Opt
             discord_message_id: r.try_get("discord_message_id")?,
             map_id: r.try_get("map_id")?,
             webhook_id: r.try_get("webhook_id")?,
+            author_id: r.try_get("author_id")?,
             direction: MessageMapDirection::parse(&r.try_get::<String, _>("direction")?)
                 .ok_or_else(|| BridgeError::Storage("unknown message map direction".into()))?,
         })
