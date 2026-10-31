@@ -32,7 +32,7 @@ test('two tabs of one instance: the first hosts, the second plays through it', a
     assert.equal(p.ok, true);
     await new Promise((r) => setTimeout(r, 1200));
     assert.ok(wb.recvTick >= 5, `the guest saw ${wb.recvTick} ticks`);
-    assert.equal(wb.roster.size, 1, 'Ben's player is in the roster');
+    assert.equal(wb.roster.size, 1, 'the guest player is in the roster');
     await ta.leave();
   } finally {
     a.close();
