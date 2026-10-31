@@ -96,7 +96,14 @@ impl FeatureService {
         }
         // An operator-gated module (PRF-SCR-001) is off everywhere until the platform opted in.
         let opted_in = !feature.operator_gated() || platform_on;
-        let value = !killed && opted_in && explicit.unwrap_or(feature.meta().default_enabled);
+        let mut value = !killed && opted_in && explicit.unwrap_or(feature.meta().default_enabled);
+        // A module under a platform feature (`bridge.enabled` under `platform.bridge`) dies with it.
+        if value
+            && let Some(parent) = feature.gated_by()
+            && self.platform_killed(parent).await?
+        {
+            value = false;
+        }
         if self.inner.generation.load(Ordering::SeqCst) == gen_before {
             self.inner.cache.insert(key, value).await;
         }
@@ -108,6 +115,11 @@ impl FeatureService {
     /// explicit `enabled: true`. Guild Settings > Modules lists and accepts only offered modules.
     pub async fn offered(&self, id: &str) -> Result<bool, FeatureError> {
         let feature = self.feature(id)?;
+        if let Some(parent) = feature.gated_by()
+            && self.platform_killed(parent).await?
+        {
+            return Ok(false);
+        }
         if !feature.operator_gated() {
             return Ok(true);
         }
