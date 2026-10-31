@@ -206,6 +206,19 @@ pub enum PatchError {
 /// Reads and edits of shelf rows. Every method takes the mounts the caller already proved reachable.
 #[async_trait]
 pub trait ShelfStore: Send + Sync {
+    /// Mounts that have indexed ROMs (wave 37; the emulator's list, see `super::rom`). The default is none, for stores
+    /// that predate the emulator.
+    async fn mounts_with_roms(&self) -> Result<Vec<i64>, StoreError> {
+        Ok(Vec::new())
+    }
+    /// The ROMs of `mounts`, in title order, at most `limit`.
+    async fn roms(
+        &self,
+        _mounts: &[i64],
+        _limit: i64,
+    ) -> Result<Vec<super::rom::RomRow>, StoreError> {
+        Ok(Vec::new())
+    }
     /// Mounts that have listed rows of `section` (the candidates [`reachable`] decides over).
     async fn mounts_with(&self, section: Section) -> Result<Vec<i64>, StoreError>;
     /// A page of items from `mounts`.

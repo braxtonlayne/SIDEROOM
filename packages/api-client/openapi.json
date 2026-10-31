@@ -69972,6 +69972,42 @@
         ]
       }
     },
+    "/users/@me/games/roms": {
+      "get": {
+        "tags": [
+          "games"
+        ],
+        "summary": "The ROMs the caller may play, from their own and their servers' shelves.",
+        "operationId": "list_roms",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RomListView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/guestbook/{entry_id}/approve": {
       "post": {
         "tags": [
@@ -100419,7 +100455,7 @@
           },
           "method": {
             "type": "string",
-            "description": "`GET` (the only method; writes arrive with the upload routes)."
+            "description": "`GET`, or `PUT` for the emulator's saves only: a `PUT` is signed only for a key under `emu/saves/` of the\ncaller's own mount (ACT-EMU-001). Every other write goes through the upload routes."
           },
           "range": {
             "type": [
@@ -103968,6 +104004,87 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "RomListView": {
+        "type": "object",
+        "description": "The ROMs the caller may play.",
+        "required": [
+          "roms"
+        ],
+        "properties": {
+          "roms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RomView"
+            },
+            "description": "ROMs in title order."
+          }
+        }
+      },
+      "RomView": {
+        "type": "object",
+        "description": "One ROM.",
+        "required": [
+          "id",
+          "mount_id",
+          "key",
+          "size",
+          "title",
+          "scope",
+          "mount_label"
+        ],
+        "properties": {
+          "core": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The core that plays it (a directory under `/emu/cores/`)."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server whose shelf it is (`guild`)."
+          },
+          "id": {
+            "type": "string",
+            "description": "Catalog row snowflake."
+          },
+          "key": {
+            "type": "string",
+            "description": "Mount-relative key (`emu/roms/...`)."
+          },
+          "mount_id": {
+            "type": "string",
+            "description": "The mount it is on."
+          },
+          "mount_label": {
+            "type": "string",
+            "description": "The mount's label."
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`nes`, `snes`, `gb`, `gbc`, `gba`, `genesis` or `ps1`; absent for a `.bin` (the browser reads the header)."
+          },
+          "scope": {
+            "type": "string",
+            "description": "`own` or `guild`."
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size in bytes."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title from the file name."
           }
         }
       },

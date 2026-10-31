@@ -558,6 +558,7 @@ GET	/users/@me/connections	authenticated	self	deny	-	-
 GET	/users/@me/data-export	authenticated	self	deny	-	-
 GET	/users/@me/data-export/{id}/download	authenticated	self	deny	-	-
 GET	/users/@me/expressions	authenticated	self	allow	-	-
+GET	/users/@me/games/roms	authenticated	storage_scope	deny	-	-
 GET	/users/@me/guild-settings	authenticated	self	allow	-	-
 GET	/users/@me/guilds	authenticated	self	allow	guilds	-
 GET	/users/@me/guilds/{guild_id}/member	authenticated	membership	allow	-	-

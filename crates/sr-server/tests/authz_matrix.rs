@@ -5913,6 +5913,113 @@ async fn storage_scopes_hold_over_http() {
         presign(&insider, &g_mount, "a.mkv").await,
         403
     );
+    // ACT-EMU-001: the sixth grant. A ROM indexed on the server's shelf is listed and presigned only for a role
+    // holding `view_games`; saves are written to the caller's own mount only; a friend share never reaches `emu/`.
+    let rom_key = "emu/roms/Authz Test.nes";
+    sqlx::query(
+        "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class, container, parsed, state)          VALUES ($1, $2, $3, 40976, 'games', 'rom', 'nes',                  '{\"title\":\"Authz Test\",\"platform\":\"nes\",\"core\":\"fceumm\"}'::jsonb, 'indexed')",
+    )
+    .bind(ids.generate().get() as i64)
+    .bind(g_mount.parse::<i64>().unwrap())
+    .bind(rom_key)
+    .execute(pool)
+    .await
+    .unwrap();
+    let roms =
+        async |who: &Cred| -> Resp { srv.call(who, "GET", "/users/@me/games/roms", None).await };
+    let listed = expect!("insider lists roms", roms(&insider).await, 200);
+    if listed.body.contains("Authz Test") {
+        failures.push("a role without view_games lists the server's ROM".into());
+    }
+    expect!(
+        "insider presigns a rom without the grant",
+        presign(&insider, &g_mount, rom_key).await,
+        403
+    );
+    expect!(
+        "grant view_games on top of view_music",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["view_music", "view_games"])))
+        )
+        .await,
+        204
+    );
+    let listed = expect!(
+        "insider lists roms with the grant",
+        roms(&insider).await,
+        200
+    );
+    if !listed.body.contains("Authz Test") || !listed.body.contains("\"scope\":\"guild\"") {
+        failures.push(format!("the grantee lists the ROM: {}", listed.body));
+    }
+    expect!(
+        "insider presigns the rom",
+        presign(&insider, &g_mount, rom_key).await,
+        200
+    );
+    expect!(
+        "view_games does not open video",
+        presign(&insider, &g_mount, "a.mkv").await,
+        403
+    );
+    let outs = expect!("an outsider lists roms", roms(&outsider).await, 200);
+    if outs.body.contains("Authz Test") {
+        failures.push("a non-member lists the server's ROM".into());
+    }
+    let own = expect!("the guild owner lists roms", roms(&owner_a).await, 200);
+    if !own.body.contains("Authz Test") {
+        failures.push("the server owner lists the ROM".into());
+    }
+    // Saves: PUT only under emu/saves/<core>/<hash>/<file>, only on the caller's own mount.
+    let put_presign = async |who: &Cred, mount: &str, key: &str| -> Resp {
+        srv.call(
+            who,
+            "POST",
+            &format!("/storage/mounts/{mount}/presign"),
+            Some(&json!({"key": key, "method": "PUT"})),
+        )
+        .await
+    };
+    let save = "emu/saves/fceumm/ab12cd/sram.srm";
+    expect!(
+        "the owner presigns a save PUT on their own mount",
+        put_presign(&member, &m, save).await,
+        200
+    );
+    expect!(
+        "a save PUT outside emu/saves is refused",
+        put_presign(&member, &m, "Movies/x.mp4").await,
+        400
+    );
+    expect!(
+        "a save PUT on a shelf the caller merely reaches",
+        put_presign(&insider, &g_mount, save).await,
+        403
+    );
+    // Whatever the friend's share is at this point of the run, a PUT is never signed for them.
+    let friend_put = put_presign(&friend_shared, &m, save).await;
+    if friend_put.status != 403 && friend_put.status != 404 {
+        failures.push(format!("a friend PUT presign: got {}", friend_put.status));
+    }
+    expect!(
+        "a friend with a share cannot read emu/",
+        presign(&friend_shared, &m, "emu/bios/scph1001.bin").await,
+        404
+    );
+    expect!(
+        "restore view_music only",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["view_music"])))
+        )
+        .await,
+        204
+    );
     expect!(
         "a member cannot edit grants",
         srv.call(

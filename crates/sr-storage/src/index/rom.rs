@@ -7,6 +7,11 @@
 //! Only the five cores the owner allowed are named here (FCEUmm, Beetle Supafaust, mGBA, BlastEm, PCSX-ReARMed);
 //! whether a core is installed on this instance is the browser's question, not the index's.
 
+use super::StoreError;
+use super::shelf::ShelfStore;
+use crate::mounts::{Mount, MountResolver};
+use crate::scopes::{Access, ResolveError, ScopeFacts, Viewer, access};
+
 /// The folder of a mount where ROMs live.
 pub const ROM_PREFIX: &str = "emu/roms/";
 
@@ -135,6 +140,61 @@ pub fn detect(name: &str, head: &[u8]) -> Option<Platform> {
         .into_iter()
         .any(|at| is_snes_header_at(head, at));
     snes.then_some(Platform::Snes)
+}
+
+/// One ROM the indexer found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RomRow {
+    /// Row id in `storage_objects`.
+    pub id: i64,
+    /// The mount it is on.
+    pub mount_id: i64,
+    /// Mount-relative key.
+    pub key: String,
+    /// Size in bytes.
+    pub size: i64,
+    /// Title from the file name.
+    pub title: String,
+    /// `nes`, `gba`, ...; `None` for a `.bin` the browser decides from the header.
+    pub platform: Option<String>,
+    /// The core that plays it.
+    pub core: Option<String>,
+}
+
+/// A mount the viewer may read ROMs from, with how.
+#[derive(Debug, Clone)]
+pub struct RomReach {
+    /// The mount.
+    pub mount: Mount,
+    /// How the viewer reaches it.
+    pub access: Access,
+}
+
+/// The mounts with ROMs that `viewer` may read them from: their own, and guild shelves where a role holds
+/// `view_games` (or `manage`). A friend's mount never qualifies. Fails closed on a facts error.
+pub async fn reachable_roms(
+    facts: &dyn ScopeFacts,
+    mounts: &dyn MountResolver,
+    store: &dyn ShelfStore,
+    viewer: Viewer,
+) -> Result<Vec<RomReach>, StoreError> {
+    let mut out = Vec::new();
+    for id in store.mounts_with_roms().await? {
+        let m = match mounts.by_id(id).await {
+            Ok(Some(m)) => m,
+            Ok(None) => continue,
+            Err(e) => return Err(StoreError(e.to_string())),
+        };
+        match access(facts, viewer, &m).await {
+            Ok(a) if a.unrestricted || a.games => out.push(RomReach {
+                mount: m,
+                access: a,
+            }),
+            Ok(_) | Err(ResolveError::Refused(_)) => {}
+            Err(ResolveError::Facts(e)) => return Err(StoreError(e.to_string())),
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

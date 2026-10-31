@@ -14040,6 +14040,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/games/roms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The ROMs the caller may play, from their own and their servers' shelves. */
+        get: operations["list_roms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/guestbook/{entry_id}/approve": {
         parameters: {
             query?: never;
@@ -23351,7 +23368,10 @@ export interface components {
         PresignBody: {
             /** @description Mount-relative key. */
             key: string;
-            /** @description `GET` (the only method; writes arrive with the upload routes). */
+            /**
+             * @description `GET`, or `PUT` for the emulator's saves only: a `PUT` is signed only for a key under `emu/saves/` of the
+             *     caller's own mount (ACT-EMU-001). Every other write goes through the upload routes.
+             */
             method: string;
             /** @description A request range the client will send, `bytes=a-b`; checked for shape. */
             range?: string | null;
@@ -24591,6 +24611,37 @@ export interface components {
         RolesBody: {
             reason?: string | null;
             role_ids: string[];
+        };
+        /** @description The ROMs the caller may play. */
+        RomListView: {
+            /** @description ROMs in title order. */
+            roms: components["schemas"]["RomView"][];
+        };
+        /** @description One ROM. */
+        RomView: {
+            /** @description The core that plays it (a directory under `/emu/cores/`). */
+            core?: string | null;
+            /** @description The server whose shelf it is (`guild`). */
+            guild_id?: string | null;
+            /** @description Catalog row snowflake. */
+            id: string;
+            /** @description Mount-relative key (`emu/roms/...`). */
+            key: string;
+            /** @description The mount it is on. */
+            mount_id: string;
+            /** @description The mount's label. */
+            mount_label: string;
+            /** @description `nes`, `snes`, `gb`, `gbc`, `gba`, `genesis` or `ps1`; absent for a `.bin` (the browser reads the header). */
+            platform?: string | null;
+            /** @description `own` or `guild`. */
+            scope: string;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
+            /** @description Title from the file name. */
+            title: string;
         };
         /**
          * @description Who works a case (D-209).
@@ -73141,6 +73192,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServerExpressions"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_roms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RomListView"];
                 };
             };
             401: {
