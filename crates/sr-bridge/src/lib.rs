@@ -21,6 +21,7 @@
 //! configuration (the fake Discord of `e2e/support/fake-discord.mjs` in the end-to-end suite).
 
 pub mod discord;
+pub mod discord_structure;
 pub mod error;
 pub mod inbound;
 pub mod maps;
