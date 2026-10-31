@@ -29,6 +29,7 @@ pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
+pub use modules::bridge::{BRIDGE_MODULE_ID, BridgeModule, PLATFORM_BRIDGE_ID, PlatformBridge};
 pub use platform_defaults::{
     APPEARANCE_ID, AppearanceDefaultsFeature, INTEGRATIONS_ID, IntegrationsPolicy,
     IntegrationsPolicyFeature, default_themes_from,

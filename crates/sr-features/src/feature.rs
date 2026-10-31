@@ -190,6 +190,19 @@ pub trait Feature: Send + Sync + 'static {
     fn operator_gated(&self) -> bool {
         false
     }
+    /// Only the server owner may switch this module on or off (BRG-COR-001, D-381). Every other module is a
+    /// `MANAGE_GUILD` toggle; the one feature-toggle handler reads this property, so there is no second permission
+    /// path. The owner-only module also demands the same second factor step as the owner-only server actions.
+    /// Off unless the module says so.
+    fn owner_only(&self) -> bool {
+        false
+    }
+    /// The id of a platform-scope feature whose kill switch also kills this module: while the platform feature is
+    /// switched off, this module is off everywhere and absent from Guild Settings > Modules (`platform.bridge`
+    /// for `bridge.enabled`). `None` for a module with no such parent.
+    fn gated_by(&self) -> Option<&'static str> {
+        None
+    }
     fn settings_schema(&self) -> SettingsSchema;
     fn scopes(&self) -> &[Scope];
     fn on_event<'a>(
