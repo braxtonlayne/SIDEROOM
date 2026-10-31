@@ -250,7 +250,7 @@ async fn owned(d: &ScopeDeps, user: i64, shelf_id: &str) -> MsgResult<sr_storage
     responses((status = 200, body = VisibleShelves), (status = 401, body = ErrorBody)),
     security(("session" = []))
 )]
-pub async fn visible(
+pub async fn visible_shelves(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,
@@ -372,7 +372,7 @@ async fn object_allowed(
     ),
     security(("session" = []))
 )]
-pub async fn catalog(
+pub async fn shelf_catalog(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,
@@ -428,7 +428,7 @@ pub async fn catalog(
     ),
     security(("session" = []))
 )]
-pub async fn object_url(
+pub async fn shelf_object_url(
     State(state): State<AppState>,
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
@@ -493,7 +493,7 @@ pub async fn object_url(
     ),
     security(("session" = []))
 )]
-pub async fn patch_object(
+pub async fn patch_shelf_object(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,
@@ -564,7 +564,7 @@ pub async fn patch_object(
     responses((status = 200, body = GrantList), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
-pub async fn list_grants(
+pub async fn list_shelf_grants(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,
@@ -603,7 +603,7 @@ pub async fn list_grants(
     ),
     security(("session" = []))
 )]
-pub async fn create_grant(
+pub async fn create_shelf_grant(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,
@@ -707,7 +707,7 @@ pub async fn create_grant(
     responses((status = 204), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
-pub async fn revoke_grant(
+pub async fn revoke_shelf_grant(
     SessionOnly(p): SessionOnly,
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,

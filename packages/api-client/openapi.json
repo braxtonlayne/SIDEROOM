@@ -62773,7 +62773,7 @@
           "shelf_access"
         ],
         "summary": "The shelves the caller can see: their own, friends' shelves shared with them and server shelves their role\nreaches. Each entry is decided by the same function as every read.",
-        "operationId": "visible",
+        "operationId": "visible_shelves",
         "responses": {
           "200": {
             "description": "",
@@ -63159,7 +63159,7 @@
           "shelf_access"
         ],
         "summary": "Who can see a shelf: its grants with history (the audit trail) and the older per-kind shares. The owner only.",
-        "operationId": "list_grants",
+        "operationId": "list_shelf_grants",
         "parameters": [
           {
             "name": "shelf_id",
@@ -63204,7 +63204,7 @@
           "shelf_access"
         ],
         "summary": "Grant a friend, or a server role you manage, read access to the whole shelf. The grant is tied to the account,\nso it works on every device, and is written to the audit log.",
-        "operationId": "create_grant",
+        "operationId": "create_shelf_grant",
         "parameters": [
           {
             "name": "shelf_id",
@@ -63291,7 +63291,7 @@
           "shelf_access"
         ],
         "summary": "Revoke a grant. It takes effect at the next URL mint; a URL minted earlier lives out its ten minutes.",
-        "operationId": "revoke_grant",
+        "operationId": "revoke_shelf_grant",
         "parameters": [
           {
             "name": "shelf_id",
@@ -63340,7 +63340,7 @@
           "shelf_access"
         ],
         "summary": "One page of the catalog of a shelf: only objects the caller may open and that nobody delisted.",
-        "operationId": "catalog",
+        "operationId": "shelf_catalog",
         "parameters": [
           {
             "name": "shelf_id",
@@ -63416,7 +63416,7 @@
           "shelf_access"
         ],
         "summary": "Edit the title, cover and note of one object (the shelf's owner only).",
-        "operationId": "patch_object",
+        "operationId": "patch_shelf_object",
         "parameters": [
           {
             "name": "shelf_id",
@@ -63492,7 +63492,7 @@
           "shelf_access"
         ],
         "summary": "A presigned `GET` for one object of a shelf. Valid for that object and ten minutes at most (less when the\nsession ends sooner). The grant, the kind rule and every delisting are checked at the moment of minting, so\na revoked grant or a delisted object gets nothing; a URL minted earlier lives out its minutes.",
-        "operationId": "object_url",
+        "operationId": "shelf_object_url",
         "parameters": [
           {
             "name": "shelf_id",

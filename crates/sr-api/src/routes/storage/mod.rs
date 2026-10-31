@@ -193,23 +193,26 @@ pub fn router() -> Router<AppState> {
             axum::routing::delete(transcode::revoke_token),
         )
         .route("/users/@me/games/roms", get(games::list_roms))
-        .route("/shelves/visible", get(shelf_access::visible))
-        .route("/shelves/{shelf_id}/objects", get(shelf_access::catalog))
+        .route("/shelves/visible", get(shelf_access::visible_shelves))
+        .route(
+            "/shelves/{shelf_id}/objects",
+            get(shelf_access::shelf_catalog),
+        )
         .route(
             "/shelves/{shelf_id}/objects/{object_hash}",
-            patch(shelf_access::patch_object),
+            patch(shelf_access::patch_shelf_object),
         )
         .route(
             "/shelves/{shelf_id}/objects/{object_hash}/url",
-            get(shelf_access::object_url),
+            get(shelf_access::shelf_object_url),
         )
         .route(
             "/shelves/{shelf_id}/grants",
-            get(shelf_access::list_grants).post(shelf_access::create_grant),
+            get(shelf_access::list_shelf_grants).post(shelf_access::create_shelf_grant),
         )
         .route(
             "/shelves/{shelf_id}/grants/{shelf_grant_id}",
-            axum::routing::delete(shelf_access::revoke_grant),
+            axum::routing::delete(shelf_access::revoke_shelf_grant),
         )
         .route("/shelves/{section}", get(shelves::list))
         .route(
@@ -247,13 +250,13 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::abort,
         games::list_roms,
-        shelf_access::visible,
-        shelf_access::catalog,
-        shelf_access::object_url,
-        shelf_access::patch_object,
-        shelf_access::list_grants,
-        shelf_access::create_grant,
-        shelf_access::revoke_grant,
+        shelf_access::visible_shelves,
+        shelf_access::shelf_catalog,
+        shelf_access::shelf_object_url,
+        shelf_access::patch_shelf_object,
+        shelf_access::list_shelf_grants,
+        shelf_access::create_shelf_grant,
+        shelf_access::revoke_shelf_grant,
         shelves::list,
         shelves::get_item,
         shelves::patch_item,
