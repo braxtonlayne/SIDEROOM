@@ -6,6 +6,7 @@ import { useCurrentUser, useGuilds } from '../store/hooks';
 import { BiosPanel } from './BiosPanel';
 import { CoopBar } from './coop/CoopBar';
 import { blobScriptsAllowed, reloadForEmulatorPolicy } from './cspProbe';
+import { keepCarriedCall } from '../voice/carry';
 import { isInVoice, useVoiceSession } from '../voice/session';
 import { CORES, PLATFORM_LABEL, type Platform } from './cores';
 import './emu.css';
@@ -78,6 +79,9 @@ export function EmuPage() {
   const stageRef = useRef<HTMLDivElement>(null);
   // 'reload': reached in-app during a call, the page must load again for the emulator policy (cspProbe.ts).
   const [policy, setPolicy] = useState<'ok' | 'reload' | 'blocked'>('ok');
+
+  // A call carried here from the lounge (the section bar's Games link) stays up while this page is open (voice/carry.ts).
+  useEffect(keepCarriedCall, []);
 
   useEffect(() => {
     // Dev servers send the policy report-only; the probe matters for a production document.

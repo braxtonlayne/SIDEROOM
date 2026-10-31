@@ -2,6 +2,7 @@ import { Button, Notice } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { coopSession } from './session';
 import { useCoop } from './useCoop';
+import './coop.css';
 
 /**
  * The strip in the voice panel while a co-op game runs: who you are, the measured input round trip (the
@@ -41,7 +42,7 @@ export function CoopStatus() {
           </span>
         </>
       ) : null}
-      <div className="vc-error-actions">
+      <div className="vc-error-actions coop-status-actions">
         {guest && (
           <Button
             size="sm"

@@ -145,10 +145,10 @@ jobs:
       - uses: ./.github/actions/e2e-stack
       - name: Install the browsers
         run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium firefox webkit
-      - name: Voice, Activities, message components and the keyboard voice flow (Chromium)
+      - name: Voice, Activities, message components, the keyboard voice flow and co-op play (Chromium)
         run: |
           ./target/debug/sr-cli migrate
-          ./deploy/compose/e2e-run.sh --project=chromium tests/voice-live.spec.ts tests/activities-live.spec.ts tests/message-components.spec.ts tests/keyboard-6-voice.spec.ts
+          ./deploy/compose/e2e-run.sh --project=chromium tests/voice-live.spec.ts tests/activities-live.spec.ts tests/message-components.spec.ts tests/keyboard-6-voice.spec.ts tests/emulator-coop.spec.ts
         env:
           CI: "true"
       - name: Voice E2EE (Chromium)

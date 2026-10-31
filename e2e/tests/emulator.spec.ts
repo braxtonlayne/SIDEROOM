@@ -14,7 +14,6 @@ import { test } from '../support/world';
  * Signed in as the Owner on the full stack; the ROM list, the mount and the bucket are served by route handlers so no
  * real bucket is needed (the bucket is `https://bucket.test`). The case skips itself when the core is not installed.
  */
-test.use({ bypassCSP: true });
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROM = readFileSync(resolve(here, '../fixtures/emu/sideroom-test.nes'));
@@ -68,7 +67,10 @@ const isBlue = ([r, , b]: number[]) => b! > 180 && r! < 90;
 
 test('the NES core boots the test ROM, shows a non-blank frame, answers the keyboard and saves a state', async ({
   solo,
+  browserName,
 }) => {
+  // The roadmap's acceptance is Chromium (ACT-EMU-001); the other engines are not part of the emulator's proof yet.
+  test.skip(browserName !== 'chromium', 'Chromium only (ACT-EMU-001 acceptance)');
   const page = solo.a.page;
   const core = await page.request.get(CORE_URL);
   const magic = core.ok() ? [...(await core.body()).subarray(0, 6)] : [];
@@ -158,7 +160,7 @@ test('the NES core boots the test ROM, shows a non-blank frame, answers the keyb
   await expect(page.getByRole('cell', { name: 'KeyX' })).toBeVisible();
 });
 
-test('a member without a bucket of their own is told that saving is off, and the core is missing message is clear', async ({
+test('a member with no ROMs and no bucket of their own is told how to add games', async ({
   solo,
 }) => {
   const page = solo.a.page;
@@ -167,5 +169,7 @@ test('a member without a bucket of their own is told that saving is off, and the
   );
   await page.route('**/api/v1/users/@me/storage/mounts', (route) => route.fulfill({ json: [] }));
   await page.goto('/games');
-  await expect(page.getByRole('heading', { name: 'No games yet' })).toBeVisible();
+  // The empty state is a notice (its title is not a heading).
+  await expect(page.getByText('No games yet', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Put ROM files in an emu.roms folder/)).toBeVisible();
 });

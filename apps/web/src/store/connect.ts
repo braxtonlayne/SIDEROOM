@@ -52,8 +52,9 @@ export function receiveDispatch(event: string, data: unknown): void {
 
 /** Open the gateway (idempotent). Dispatches and connection status flow into the store. */
 export function connectGateway(opts: ConnectOptions = {}): GatewayClient {
-  if (client) return client;
+  // Somebody wants it open now: an earlier close request (made while a hold kept it open) no longer stands.
   closeWanted = false;
+  if (client) return client;
   const { setConnection } = useStore.getState();
   client = new GatewayClient({
     ...opts,

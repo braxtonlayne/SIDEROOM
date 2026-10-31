@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { Icon, Tooltip } from '@sideroom/ui';
 import { useT } from '../i18n';
+import { carryCall } from '../voice/carry';
 import { useVoiceSession } from '../voice/session';
 import { HelpButton } from './header/HelpButton';
 import { InboxButton } from './inbox/InboxButton';
@@ -32,8 +33,8 @@ export function SectionBar() {
             {t('lounge.chrome.library')}
           </Link>
         )}
-        {/* The emulator (ACT-EMU-001); an in-app link keeps a voice call alive on the way, so a game can be hosted. */}
-        <Link to="/games" className="lng-sectionbar-link">
+        {/* The emulator (ACT-EMU-001). In-app, and the call is carried along (voice/carry.ts), so a game can be hosted. */}
+        <Link to="/games" className="lng-sectionbar-link" onClick={carryCall}>
           {t('lounge.chrome.games')}
         </Link>
       </nav>

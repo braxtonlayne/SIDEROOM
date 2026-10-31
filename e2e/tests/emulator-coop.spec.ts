@@ -186,32 +186,39 @@ async function sample(
   source: 'canvas' | 'video',
 ): Promise<[number, number, number] | null> {
   return page.evaluate(
-    ({ source, sel }) => {
-      let el: CanvasImageSource | null = null;
-      let w = 0;
-      let h = 0;
-      if (source === 'canvas') {
-        const c = document.querySelector<HTMLCanvasElement>(sel);
-        if (c) [el, w, h] = [c, c.width, c.height];
-      } else {
-        const vids = Array.from(document.querySelectorAll('video')).filter((v) => v.videoWidth > 0);
-        vids.sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight);
-        const v = vids[0];
-        if (v) [el, w, h] = [v, v.videoWidth, v.videoHeight];
-      }
-      if (!el || !w || !h) return null;
-      const probe = document.createElement('canvas');
-      probe.width = probe.height = 8;
-      const ctx = probe.getContext('2d', { willReadFrequently: true })!;
-      ctx.drawImage(el, w * 0.4, h * 0.4, w * 0.2, h * 0.2, 0, 0, 8, 8);
-      const d = ctx.getImageData(0, 0, 8, 8).data;
-      let r = 0;
-      let g = 0;
-      let b = 0;
-      for (let i = 0; i < d.length; i += 4) [r, g, b] = [r + d[i]!, g + d[i + 1]!, b + d[i + 2]!];
-      const n = d.length / 4;
-      return [r / n, g / n, b / n] as [number, number, number];
-    },
+    ({ source, sel }) =>
+      // Read right after a frame: the core draws with WebGL and does not keep its drawing buffer between frames.
+      new Promise<[number, number, number] | null>((done) =>
+        requestAnimationFrame(() => {
+          let el: CanvasImageSource | null = null;
+          let w = 0;
+          let h = 0;
+          if (source === 'canvas') {
+            const c = document.querySelector<HTMLCanvasElement>(sel);
+            if (c) [el, w, h] = [c, c.width, c.height];
+          } else {
+            const vids = Array.from(document.querySelectorAll('video')).filter(
+              (v) => v.videoWidth > 0,
+            );
+            vids.sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight);
+            const v = vids[0];
+            if (v) [el, w, h] = [v, v.videoWidth, v.videoHeight];
+          }
+          if (!el || !w || !h) return done(null);
+          const probe = document.createElement('canvas');
+          probe.width = probe.height = 8;
+          const ctx = probe.getContext('2d', { willReadFrequently: true })!;
+          ctx.drawImage(el, w * 0.4, h * 0.4, w * 0.2, h * 0.2, 0, 0, 8, 8);
+          const d = ctx.getImageData(0, 0, 8, 8).data;
+          let r = 0;
+          let g = 0;
+          let b = 0;
+          for (let i = 0; i < d.length; i += 4)
+            [r, g, b] = [r + d[i]!, g + d[i + 1]!, b + d[i + 2]!];
+          const n = d.length / 4;
+          done([r / n, g / n, b / n]);
+        }),
+      ),
     { source, sel: CANVAS },
   );
 }
@@ -312,6 +319,8 @@ test.describe('Co-op play (real browser)', () => {
       });
 
       // --- Baseline: the host canvas is red, and so is the picture the guest receives.
+      // Discord parity: a stream is watched only after the viewer opts in.
+      await g.page.getByRole('button', { name: 'Watch Stream' }).first().click();
       await expect.poll(async () => colourName(await sample(h.page, 'canvas'))).toBe('red');
       await expect
         .poll(async () => colourName(await sample(g.page, 'video')), { timeout: 30_000 })
