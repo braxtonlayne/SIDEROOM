@@ -88,6 +88,22 @@ export function vendorSdk(srcDir = SDK_SRC) {
 }
 
 /**
+ * client/ is served at the bundle root, so a client file's imports of ../shared/ or ../host/ would climb out of
+ * the root on disk (browsers clamp that to the root, Vite and other tools do not). They are rewritten to the
+ * path they have in the bundle.
+ * @param {string} text the source of client/<rel>
+ * @param {string} rel the file's path under client/
+ */
+export function rewriteClientImports(text, rel) {
+  const depth = rel.split('/').length - 1;
+  const up = depth === 0 ? './' : '../'.repeat(depth);
+  return text.replace(
+    /(\bfrom\s*|\bimport\s*\(?\s*)(['"])(?:\.\.\/)+(shared|host)\//g,
+    (_m, kw, q, dir) => `${kw}${q}${up}${dir}/`,
+  );
+}
+
+/**
  * Every file under client/ at the zip root, every *.js file under shared/ (cards, maps, modes too) under shared/,
  * the host engine under host/, the vendored SDK under sdk/, and activity.json.
  * Sorted by path so the zip is the same on every build.
@@ -100,7 +116,8 @@ export function collectFiles(root, opt = {}) {
   const files = [];
   const clientDir = join(root, 'client');
   for (const rel of listFiles(clientDir, '')) {
-    files.push({ path: rel, data: readFileSync(join(clientDir, ...rel.split('/'))) });
+    const data = readFileSync(join(clientDir, ...rel.split('/')));
+    files.push({ path: rel, data: rel.endsWith('.js') ? Buffer.from(rewriteClientImports(data.toString('utf8'), rel), 'utf8') : data });
   }
   for (const dir of ['shared', 'host']) {
     const abs = join(root, dir);

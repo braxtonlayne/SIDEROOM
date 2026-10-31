@@ -115,7 +115,7 @@ export function createSdkTransport(opt) {
       const net = Math.max(0, clock() - Number(m.at));
       if (Number.isFinite(net)) rtt = rtt ? rtt * 0.8 + net * 0.2 : net;
     } else if (m.t === 'err' && running && onReply) {
-      onReply({ ok: false, error: String(m.error) }, clock());
+      onReply(/** @type {any} */ ({ ok: false, error: String(m.error) }), clock());
     }
   }
 
@@ -205,7 +205,7 @@ export function createSdkTransport(opt) {
         // The host going away ends the game: there is nobody left to run it.
         unsubs.push(
           ch.onMembers((list) => {
-            if (!list.some((m) => m.id === ch.hostId) && running && onReply) onReply({ ok: false, error: 'host-left' }, clock());
+            if (!list.some((m) => m.id === ch.hostId) && running && onReply) onReply(/** @type {any} */ ({ ok: false, error: 'host-left' }), clock());
           }),
         );
       }
@@ -229,7 +229,7 @@ export function createSdkTransport(opt) {
         };
         ask();
       });
-      if (first.t === 'err') return { ok: false, error: first.error };
+      if (first.t === 'err') return /** @type {any} */ ({ ok: false, error: first.error });
       rtt = ch.isHost ? 0 : clock() - sent;
       return welcomeToReply(first);
     },

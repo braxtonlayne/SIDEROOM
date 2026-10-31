@@ -51,6 +51,8 @@ export function createSideRoomPlatform(win) {
       return channel;
     },
     async ready() {
+      // The SDK is vendored next to the page by tools/bundle.mjs (it is not in the source tree).
+      // @ts-ignore
       const mod = await import('../sdk/index.js');
       sdk = new mod.SideRoomSDK(applicationId);
       config = await sdk.ready();

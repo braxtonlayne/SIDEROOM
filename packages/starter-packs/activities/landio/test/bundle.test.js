@@ -211,3 +211,29 @@ test('the real Land.io bundle passes every rule and carries the host engine, the
   const sdk = files.find((f) => f.path === 'sdk/sdk.js').data.toString('utf8');
   assert.ok(sdk.includes("from './data.js'") && !sdk.includes(': string'));
 });
+
+test('no import in the bundle climbs out of the bundle root on disk (browsers clamp it, Vite and file servers do not)', () => {
+  const files = collectFiles(ROOT);
+  const names = new Set(files.map((f) => f.path));
+  for (const f of files.filter((x) => x.path.endsWith('.js'))) {
+    const text = f.data.toString('utf8');
+    for (const m of text.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"\n]+)\1/g)) {
+      const parts = (f.path.split('/').slice(0, -1).concat(m[2].split('/'))).reduce((acc, seg) => {
+        if (seg === '..') acc.push(null);
+        else if (seg !== '.') acc.push(seg);
+        return acc;
+      }, /** @type {(string | null)[]} */ ([]));
+      // Resolve '..' against what came before it.
+      const stack = /** @type {string[]} */ ([]);
+      let escaped = false;
+      for (const p of parts) {
+        if (p === null) {
+          if (!stack.length) escaped = true;
+          else stack.pop();
+        } else stack.push(p);
+      }
+      assert.ok(!escaped, `${f.path} imports ${m[2]}, which leaves the bundle root`);
+      assert.ok(names.has(stack.join('/')), `${f.path} imports ${m[2]}, which is not in the bundle`);
+    }
+  }
+});

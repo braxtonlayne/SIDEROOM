@@ -23,6 +23,8 @@ import { createSideRoomPlatform, isSideRoom } from './sideroom-platform.js';
  * @property {(text: string) => void} setActivity           the person's presence line ("Playing Land.io — 4.2%")
  * @property {() => string | null} ticket                   always null: the host knows who everyone is
  * @property {string} kind                                  'fake' | 'sideroom'
+ * @property {() => boolean} [hasName]                      (the old plain-browser lobby; unused here)
+ * @property {(name: string) => Promise<string>} [setName]  (the old plain-browser lobby; unused here)
  * @property {import('../net/channel.js').Channel | null} [channel]   the data channel to the other members (after ready)
  */
 
