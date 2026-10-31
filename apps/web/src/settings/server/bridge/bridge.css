@@ -1,0 +1,31 @@
+.ss-bridge {
+  max-inline-size: 760px;
+}
+.ss-bridge-steps {
+  margin-block: 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+}
+.ss-bridge-h {
+  margin-block: 12px 4px;
+  font-size: 0.875rem;
+}
+.ss-bridge-add {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  padding: 12px;
+}
+.ss-bridge-sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

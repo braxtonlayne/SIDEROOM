@@ -68,6 +68,8 @@ export function buildRows(
       !divided &&
       prev !== null &&
       prev.author.id === m.author.id &&
+      // Every Discord person arrives under the one bridge author: group by their Discord name too.
+      (!m.author.bridge || prev.author.displayName === m.author.displayName) &&
       !m.replyToId &&
       new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <= GROUP_WINDOW_MS;
     rows.push({ kind: 'message', key: m.id, message: m, grouped });

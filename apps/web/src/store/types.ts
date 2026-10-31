@@ -130,6 +130,11 @@ export interface Message {
   edited_timestamp?: string | null;
   /** Set when the message was posted through a webhook; `author` is then the webhook (DEV-BOT-006). */
   webhook_id?: string;
+  /**
+   * Set on a message the Discord bridge brought in (BRG-GW-001): who wrote it on Discord. `author_avatar` is a
+   * same-origin `/cdn/external/...` path (never a Discord URL). The Lounge shows a DISCORD tag beside the name.
+   */
+  sr_bridge?: { platform: 'discord'; author_name: string; author_avatar?: string | null };
   /** Application emoji ids in `content` that stay text because the author is not that application's bot (D-237). */
   sr_text_emoji?: string[];
   pinned?: boolean;

@@ -43,6 +43,8 @@ export interface LoungeUser {
   system?: boolean;
   /** Posted through a webhook (no profile to open). */
   webhook?: boolean;
+  /** Brought in by the Discord bridge: shown with a DISCORD tag, no profile to open (BRG-UI-001). */
+  bridge?: 'discord';
 }
 
 export interface Activity {
