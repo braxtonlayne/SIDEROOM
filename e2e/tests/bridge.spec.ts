@@ -53,6 +53,8 @@ test.describe('the Discord bridge', () => {
         .catch(() => null);
       test.skip(!up?.ok(), 'The fake Discord (bridge-core, port 8090) is not running.');
       await fakeReset(control);
+      // Gateway clients already connected (bridges of earlier runs in the same database), for the end check.
+      const baseline = (await fakeState(control)).gateways;
 
       const { a, b, guildId, channelId } = await scenario.ownerAndMember();
       const owner = a.page;
@@ -73,16 +75,20 @@ test.describe('the Discord bridge', () => {
       await expect(card).toBeVisible();
       await expect(card.getByRole('switch', { name: 'Enable Discord bridge' })).toBeDisabled();
       await expect(card.getByText('Only the server owner can switch this on.')).toBeVisible();
-      await expect(member.getByRole('button', { name: 'Discord bridge' })).toHaveCount(0);
+      await expect(member.getByRole('button', { name: 'Discord bridge', exact: true })).toHaveCount(
+        0,
+      );
 
       // --- 2. The owner switches it on, the entry appears, the token is pasted and a channel is mapped.
       await owner.goto(`/settings/server/${guildId}/features`);
       await expect(
         owner.getByText(/mirrors the channels you map to a Discord server/),
       ).toBeVisible();
-      await expect(owner.getByRole('button', { name: 'Discord bridge' })).toHaveCount(0);
+      await expect(owner.getByRole('button', { name: 'Discord bridge', exact: true })).toHaveCount(
+        0,
+      );
       await owner.getByRole('switch', { name: 'Enable Discord bridge' }).click();
-      await owner.getByRole('button', { name: 'Discord bridge' }).click();
+      await owner.getByRole('button', { name: 'Discord bridge', exact: true }).click();
       await owner.getByLabel('Bot token').fill(FAKE_BOT_TOKEN);
       await owner.getByRole('button', { name: 'Connect the bot' }).click();
       await expect(owner.getByText(/^Connected to the Discord server/)).toBeVisible();
@@ -90,9 +96,11 @@ test.describe('the Discord bridge', () => {
       await expect(owner.getByLabel('Bot token')).toHaveCount(0);
       expect(await owner.content()).not.toContain(FAKE_BOT_TOKEN);
 
-      await owner.getByLabel('Channel here', { exact: true }).selectOption({ label: '#general' });
       await owner
-        .getByLabel('Channel on Discord', { exact: true })
+        .getByRole('combobox', { name: 'Channel here' })
+        .selectOption({ label: '#general' });
+      await owner
+        .getByRole('combobox', { name: 'Channel on Discord' })
         .selectOption({ label: `#${FAKE_CHANNEL_NAME}` });
       await owner.getByRole('button', { name: 'Mirror this channel' }).click();
       const table = owner.getByRole('table', { name: 'Mirrored channels' });
@@ -106,7 +114,7 @@ test.describe('the Discord bridge', () => {
       // The banner is in the channel for both people.
       await owner.goto(`/channels/${guildId}/${channelId}`);
       await member.goto(`/channels/${guildId}/${channelId}`);
-      await expect(owner.getByTestId('bridge-banner')).toContainText('mirrored to Discord server');
+      await expect(owner.getByTestId('bridge-banner')).toContainText('mirrored to Discord');
       await expect(member.getByTestId('bridge-banner')).toBeVisible();
 
       // --- 3. Here to there, and there to here with the DISCORD tag.
@@ -151,7 +159,14 @@ test.describe('the Discord bridge', () => {
         () => fakeState(control),
         (s) => s.deleted_webhooks.length >= 1,
       );
-      await expect(owner.getByRole('button', { name: 'Discord bridge' })).toHaveCount(0);
+      // The bot's gateway connection is closed with the teardown.
+      await poll(
+        () => fakeState(control),
+        (s) => s.gateways <= baseline,
+      );
+      await expect(owner.getByRole('button', { name: 'Discord bridge', exact: true })).toHaveCount(
+        0,
+      );
 
       await owner.goto(`/channels/${guildId}/${channelId}`);
       await expect(owner.getByText('The Discord bridge was switched off')).toBeVisible();

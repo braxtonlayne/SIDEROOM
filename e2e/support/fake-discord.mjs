@@ -350,6 +350,7 @@ function onGatewayMessage(g, text) {
       const intents = Number(msg.d?.intents ?? 0);
       if (intents & state.control.deny_intents) return closeWith(g, 4014);
       g.ready = true;
+      console.log(new Date().toISOString(), 'gateway identified');
       g.seq = 0;
       g.seq += 1;
       sendText(g, {
@@ -457,9 +458,16 @@ server.on('upgrade', (req, socket) => {
     }
   });
   const gone = () => {
+    if (gateways.has(g)) console.log(new Date().toISOString(), 'gateway closed');
     g.open = false;
     gateways.delete(g);
   };
+  // The upgraded socket comes from node:http, which allows half-open sockets: a client that closes without a
+  // close frame only sends FIN, so end our side too.
+  socket.on('end', () => {
+    gone();
+    socket.end();
+  });
   socket.on('close', gone);
   socket.on('error', gone);
 });

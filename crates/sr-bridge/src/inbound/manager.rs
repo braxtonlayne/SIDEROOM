@@ -73,6 +73,18 @@ struct Running {
     task: JoinHandle<()>,
 }
 
+/// Aborts the shard's connection task when dropped: aborting a bridge's task (a teardown, a stop) must also close
+/// its gateway connection, which runs on a task of its own.
+struct ShardGuard(Option<JoinHandle<sr_sdk::Result<()>>>);
+
+impl Drop for ShardGuard {
+    fn drop(&mut self) {
+        if let Some(h) = self.0.take() {
+            h.abort();
+        }
+    }
+}
+
 pub struct InboundManager {
     pool: PgPool,
     host: Arc<dyn InboundHost>,
@@ -120,6 +132,7 @@ impl InboundManager {
     pub fn stop(&self, guild: i64) {
         if let Some(r) = self.lock_running().remove(&guild) {
             r.task.abort();
+            tracing::info!(guild, "bridge shard stopped");
         }
         self.inbound.limiter.forget(guild);
     }
@@ -210,6 +223,7 @@ impl InboundManager {
             me.run_bridge(bridge, cfg, level, ladder.len()).await;
         });
         self.lock_running().insert(guild, Running { task });
+        tracing::info!(guild, "bridge shard started");
         Ok(())
     }
 
@@ -226,10 +240,11 @@ impl InboundManager {
         let (tx, mut rx) = mpsc::channel::<Dispatch>(256);
         let (out_tx, out_rx) = mpsc::channel::<String>(8);
         let connector = Arc::clone(&self.connector);
-        let shard =
-            tokio::spawn(
-                async move { run_shard_with(cfg, connector.as_ref(), tx, Some(out_rx)).await },
-            );
+        // The connection runs on its own task; the guard aborts it when this task is aborted (a teardown or a
+        // stop), so the bot does not stay connected to Discord after the bridge is gone.
+        let mut shard = ShardGuard(Some(tokio::spawn(async move {
+            run_shard_with(cfg, connector.as_ref(), tx, Some(out_rx)).await
+        })));
         while let Some(d) = rx.recv().await {
             if d.name == "READY" {
                 let _ = store::set_status(&self.pool, guild, BridgeStatus::Connected).await;
@@ -250,7 +265,10 @@ impl InboundManager {
             }
         }
         // The dispatch channel closed: the shard ended.
-        let status = match shard.await {
+        let Some(handle) = shard.0.take() else {
+            return;
+        };
+        let status = match handle.await {
             Ok(Err(sr_sdk::Error::GatewayFatal { code, reason })) => {
                 tracing::warn!(guild, code, reason, "bridge gateway closed for good");
                 if code == 4004 {

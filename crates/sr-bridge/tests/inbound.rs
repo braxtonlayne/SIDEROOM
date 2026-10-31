@@ -670,6 +670,9 @@ async fn a_shard_runs_per_bridge_connects_and_brings_messages_in() {
     let r = m.reconcile().await.unwrap();
     assert_eq!(r.stopped, [f.guild]);
     assert!(m.running().is_empty());
+    // Stopping closes the gateway connection too (wave 35 integration: it ran on a task of its own and used to
+    // stay connected until the next dispatch).
+    until("the connection closed", || async { discord.is_closed() }).await;
     m.stop_all();
     let _ = f.db.cleanup().await;
 }
