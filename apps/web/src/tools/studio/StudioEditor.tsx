@@ -565,9 +565,9 @@ export function StudioEditor({
             <label className="sr-st-field">
               <span>{t('studio.export.format')}</span>
               <select value={format} onChange={(e) => setFormat(e.target.value as ExportFormat)}>
-                <option value="png">PNG</option>
-                <option value="jpeg">JPEG</option>
-                <option value="webp">WebP</option>
+                <option value="png">{t('studio.export.formatPng')}</option>
+                <option value="jpeg">{t('studio.export.formatJpeg')}</option>
+                <option value="webp">{t('studio.export.formatWebp')}</option>
               </select>
             </label>
             {format !== 'png' && (
