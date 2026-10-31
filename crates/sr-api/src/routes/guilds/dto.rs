@@ -298,6 +298,13 @@ impl From<&ThreadMember> for ThreadMemberObject {
     }
 }
 
+/// The bridge state of a channel: which way its messages flow.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BridgeChannelState {
+    /// `both`, `to_discord` or `from_discord`.
+    pub direction: String,
+}
+
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ChannelObject {
     pub id: String,
@@ -369,6 +376,11 @@ pub struct ChannelObject {
     /// Voice and stage channels: the music track's Opus bitrate in kbit/s (32 to 320, default 256).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sr_music_bitrate_kbps: Option<u16>,
+    /// Present when this channel is mirrored to Discord by the bridge (BRG-COR-001): the client draws the
+    /// banner from it. Absent when the channel is not mapped, the module is off or the operator switched the
+    /// bridge off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_bridge: Option<BridgeChannelState>,
 }
 
 impl ChannelObject {
@@ -429,6 +441,7 @@ impl ChannelObject {
             sr_watch_party_room: (c.kind == ChannelType::Voice).then_some(c.watch_party_room),
             sr_music_allowed: c.kind.is_voice_like().then_some(c.music_allowed),
             sr_music_bitrate_kbps: c.kind.is_voice_like().then_some(c.music_bitrate_kbps),
+            sr_bridge: None,
         }
     }
 

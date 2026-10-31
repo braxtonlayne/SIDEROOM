@@ -281,6 +281,8 @@ pub struct ErasureReport {
     pub profile_media_keys: Vec<String>,
     /// Storage mounts soft-deleted, their sealed secrets wiped (BYOS-LEG-001).
     pub mounts_erased: i64,
+    /// Discord bridge (BRG-UI-001): webhook messages queued for deletion on Discord (best effort).
+    pub bridge_deletions_queued: i64,
     /// Messages and attachments kept because a moderation hold covers them.
     pub held_rows: i64,
     /// The holds that keep them, flagged for a decision (MOD-DSR-005): how many.
@@ -415,6 +417,12 @@ pub fn erasure_outcome(report: &ErasureReport, invoice_years: u8) -> String {
         s.push_str(&format!(
             " {} storage connection(s) removed and their secret keys wiped; the objects stay in the member's own bucket.",
             report.mounts_erased
+        ));
+    }
+    if report.bridge_deletions_queued > 0 {
+        s.push_str(&format!(
+            " Discord bridge: {} message(s) the bridge posted to Discord for the member were queued for deletion there (best effort, failures are logged).",
+            report.bridge_deletions_queued
         ));
     }
     if report.held_rows > 0 {
@@ -1254,4 +1262,22 @@ pub fn date_utc(ms: i64) -> String {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     format!("{:04}-{:02}-{:02}", if m <= 2 { y + 1 } else { y }, m, d)
+}
+
+#[cfg(test)]
+mod bridge_outcome_tests {
+    use super::*;
+
+    #[test]
+    fn the_outcome_names_the_discord_bridge_only_when_it_did_something() {
+        let none = erasure_outcome(&ErasureReport::default(), 10);
+        assert!(!none.contains("Discord bridge"), "{none}");
+        let report = ErasureReport {
+            bridge_deletions_queued: 3,
+            ..ErasureReport::default()
+        };
+        let text = erasure_outcome(&report, 10);
+        assert!(text.contains("Discord bridge: 3 message(s)"), "{text}");
+        assert!(text.contains("best effort"), "{text}");
+    }
 }

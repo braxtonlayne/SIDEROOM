@@ -844,6 +844,15 @@ impl Gateway {
         }
         self.voice_on_guild_event(guild, &ev).await;
         if let Some(mut d) = to_dispatch(&ev) {
+            // The Discord bridge banner rides on the channel object (BRG-COR-001).
+            if matches!(d.name, "CHANNEL_CREATE" | "CHANNEL_UPDATE")
+                && let Some(ch) = d.channel
+                && d.data.get("sr_bridge").is_none()
+                && let Some(state) = self.inner.dir.channel_bridge_state(ch).await
+                && let Some(o) = d.data.as_object_mut()
+            {
+                o.insert("sr_bridge".into(), state);
+            }
             // The changed user's own sessions hear about it as a self event.
             if let DomainEvent::UserUpdated { user, .. } = &ev {
                 d.audience = Some(self.guild_users(guild, Some(*user)));

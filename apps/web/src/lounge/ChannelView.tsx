@@ -19,6 +19,7 @@ import {
 import { AgeConfirmPrompt, useAgeGate } from './AgeGate';
 import { MessageList } from './MessageList';
 import { ScrapbookBanner } from './scrapbook/Banner';
+import { BridgeBanner } from './bridge/Banner';
 import { ForumView } from './forum/ForumView';
 import { DmCallStage } from './voice/DmCallStage';
 import { StageView } from './voice/StageView';
@@ -198,6 +199,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         <ForumView guildId={guildId} channel={channel} />
       ) : (
         <>
+          {!isDm && <BridgeBanner channelId={channelId} />}
           {!isDm && <ScrapbookBanner guildId={guildId} channelId={channelId} />}
           <MessageList
             channelId={channelId}

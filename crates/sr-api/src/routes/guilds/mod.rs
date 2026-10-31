@@ -19,6 +19,7 @@
 
 pub mod backend;
 pub mod bans;
+pub mod bridge;
 pub mod channels;
 pub mod dto;
 pub mod guild;
@@ -50,6 +51,7 @@ pub fn router() -> Router<AppState> {
         .merge(vanity::routes())
         .merge(safety::routes())
         .merge(scrapbook::router())
+        .merge(bridge::router())
 }
 
 /// OpenAPI fragment for these routes; merge it into [`crate::openapi::base`].
@@ -106,6 +108,7 @@ pub fn router() -> Router<AppState> {
         dto::RoleObject,
         dto::OverwriteObject,
         dto::ChannelObject,
+        dto::BridgeChannelState,
         dto::GuildObject,
         dto::IncidentsDataObject,
         dto::GuildPreviewObject,
@@ -143,6 +146,7 @@ pub struct GuildsApiDoc;
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = GuildsApiDoc::openapi();
     doc.merge(scrapbook::openapi());
+    doc.merge(bridge::openapi());
     doc
 }
 

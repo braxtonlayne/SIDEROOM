@@ -260,7 +260,7 @@ function MessageItemImpl(props: MessageItemProps) {
     onOpenProfile,
   } = props;
   // A webhook has no profile to open.
-  const openProfile = m.author.webhook ? undefined : onOpenProfile;
+  const openProfile = m.author.webhook && !m.author.bridgeMember ? undefined : onOpenProfile;
   const t = useT();
   const reportEntry = useReportEntry();
   const prefs = useSavedPrefs();
@@ -657,6 +657,11 @@ function MessageItemImpl(props: MessageItemProps) {
                 <ServerTagChip user={m.author} />
                 {m.author.bot && (
                   <span className="lng-bot">{t('lounge.messageItem.appBadge')}</span>
+                )}
+                {m.author.bridge && (
+                  <span className="lng-bot" data-testid="bridge-tag">
+                    {t('lounge.messageItem.bridgeTag')}
+                  </span>
                 )}
                 {m.author.system && (
                   <span className="lng-bot">{t('lounge.messageItem.systemBadge')}</span>

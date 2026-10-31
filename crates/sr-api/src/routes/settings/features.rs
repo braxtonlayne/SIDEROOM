@@ -231,12 +231,27 @@ pub struct GuildFeatureObject {
     /// The platform operator switched it off everywhere; the server's choice is kept
     /// but has no effect.
     pub platform_disabled: bool,
+    /// Only the server owner may switch this module on or off (the Discord bridge, D-381). A manager sees it
+    /// greyed.
+    pub owner_only: bool,
+    /// Present on the answer to switching the Discord bridge off: what the teardown did.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teardown: Option<FeatureTeardown>,
     /// Effective settings in this server (schema defaults plus the server's overrides).
     #[schema(value_type = Object)]
     pub settings: Value,
     /// Settings schema for the auto-rendered form.
     #[schema(value_type = Object)]
     pub schema: Value,
+}
+
+/// What switching the Discord bridge off did.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct FeatureTeardown {
+    /// Channel maps removed.
+    pub maps_removed: i64,
+    /// Webhooks Discord would not delete after three attempts: the owner removes them by hand.
+    pub failed_webhooks: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -331,6 +346,8 @@ async fn view(
         enabled: ctx.settings.is_enabled(fid, &scope).await?,
         default_enabled: meta.default_enabled,
         platform_disabled: ctx.settings.platform_killed(fid).await?,
+        owner_only: f.owner_only(),
+        teardown: None,
         settings: Value::Object(ctx.settings.effective_settings(fid, &scope).await?),
         schema: serde_json::to_value(f.settings_schema().for_scope(Scope::Guild))
             .unwrap_or(Value::Null),
@@ -388,6 +405,7 @@ pub async fn patch_feature(
     gate: MfaGate,
     Ext(deps): Ext<SettingsDeps>,
     Ext(gf): Ext<GuildFeatures>,
+    crate::routes::MaybeExt(bridge): crate::routes::MaybeExt<sr_bridge::BridgeService>,
     Path((guild_id, feature_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<PatchGuildFeatureBody>,
 ) -> ApiResult<Json<GuildFeatureObject>> {
@@ -424,7 +442,20 @@ pub async fn patch_feature(
             feature.id().to_owned(),
         )));
     }
+    // BRG-COR-001 (D-381): a module that declares itself owner-only is switched, configured and removed by the
+    // server owner alone; `MANAGE_GUILD` and `ADMINISTRATOR` are 403, a bot is refused, and the server's second
+    // factor step applies. This is the one declared property the toggle handler reads, not a second path.
+    if feature.owner_only() {
+        if !matches!(p.kind, crate::AuthKind::Session { .. }) {
+            return Err(ErrorCode::BotsCannotUseThisEndpoint.into());
+        }
+        if acc.guild.owner_id != user {
+            return Err(ErrorCode::MissingPermissions.into());
+        }
+        gate.check_level(user, acc.guild.mfa_level).await?;
+    }
     let scope = ScopeRef::Guild { guild: gid };
+    let mut teardown = None;
 
     if let Some(values) = &body.settings {
         check_settings(&deps, &acc, gid, &feature, Scope::Guild, values).await?;
@@ -440,10 +471,36 @@ pub async fn patch_feature(
             .set_enabled(feature.id(), &scope, Some(enabled))
             .await
             .map_err(feature_err)?;
+        // Switching the Discord bridge off is its teardown, before the answer (the shard stops, the webhooks are
+        // deleted on Discord, the maps and the token go).
+        if !enabled
+            && feature.id() == sr_features::BRIDGE_MODULE_ID
+            && let Some(b) = &bridge
+        {
+            let report = b
+                .teardown(
+                    i64::try_from(gid.get()).unwrap_or(0),
+                    i64::try_from(user.get()).unwrap_or(0),
+                    sr_bridge::TeardownReason::Owner,
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "bridge teardown failed");
+                    HttpError::from(ErrorCode::SrInternal)
+                })?;
+            teardown = Some(FeatureTeardown {
+                maps_removed: report.maps_removed,
+                failed_webhooks: report
+                    .leftovers
+                    .iter()
+                    .map(|l| l.webhook_id.to_string())
+                    .collect(),
+            });
+        }
     }
-    Ok(Json(
-        view(&gf.ctx, &feature, gid).await.map_err(feature_err)?,
-    ))
+    let mut out = view(&gf.ctx, &feature, gid).await.map_err(feature_err)?;
+    out.teardown = teardown;
+    Ok(Json(out))
 }
 
 // ---- temporary roles ------------------------------------------------------

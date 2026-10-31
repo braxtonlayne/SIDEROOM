@@ -102,8 +102,73 @@ pub struct WebhookAuthor {
     pub avatar_url: Option<String>,
 }
 
+/// One attachment link that came with a bridged message. Discord's CDN links expire (their `ex` parameter);
+/// after `expires_at_ms` the API shows "(link expired)" and the URL is withheld. Nothing is re-hosted.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct BridgeLink {
+    pub filename: String,
+    pub url: String,
+    pub expires_at_ms: Option<i64>,
+}
+
+impl BridgeLink {
+    /// Whether the link is past its expiry at `now_ms`.
+    pub fn expired(&self, now_ms: i64) -> bool {
+        self.expires_at_ms.is_some_and(|e| e <= now_ms)
+    }
+}
+
+/// How a message that came in over the Discord bridge is shown (BRG-GW-001): the Discord user's name and
+/// avatar under a DISCORD tag. `messages.author_id` is the bridge's integration author.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BridgeAuthor {
+    /// `discord` today.
+    pub platform: String,
+    pub author_name: String,
+    /// The Discord avatar URL, proxied through `/cdn/external` at view time.
+    pub author_avatar: Option<String>,
+    pub discord_user_id: Option<String>,
+    pub links: Vec<BridgeLink>,
+}
+
+/// A member of the mapped Discord server, shown in the member list of a bridged channel. Not an account.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BridgedMember {
+    pub discord_user_id: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub role_name: Option<String>,
+    /// `0xRRGGBB`; none when the role has no colour.
+    pub role_color: Option<i32>,
+    pub bot: bool,
+    /// `online`, `idle`, `dnd` or `offline`; none while the presence intent does not tell.
+    pub presence: Option<String>,
+}
+
 #[async_trait]
 pub trait RichStore: Send + Sync {
+    /// The Discord members bridged into the server (empty when it has no bridge).
+    async fn bridged_members(&self, _guild: GuildId) -> StoreResult<Vec<BridgedMember>> {
+        Ok(Vec::new())
+    }
+
+    /// Remember who a bridged message is shown as. The default does nothing.
+    async fn set_bridge_author(
+        &self,
+        _message: MessageId,
+        _author: &BridgeAuthor,
+    ) -> StoreResult<()> {
+        Ok(())
+    }
+
+    /// Bridge display data of the bridged messages among `messages` (others are omitted).
+    async fn bridge_authors(
+        &self,
+        _messages: &[MessageId],
+    ) -> StoreResult<HashMap<MessageId, BridgeAuthor>> {
+        Ok(HashMap::new())
+    }
+
     /// Remember who a webhook message is shown as. The default does nothing, so a store
     /// without the table keeps rendering the webhook creator.
     async fn set_webhook_author(
@@ -198,4 +263,22 @@ pub trait RichStore: Send + Sync {
 
     /// The media key of a sticker that belongs to a published pack.
     async fn pack_sticker_media(&self, id: u64) -> StoreResult<Option<String>>;
+}
+
+#[cfg(test)]
+mod bridge_link_tests {
+    use super::BridgeLink;
+
+    #[test]
+    fn a_link_is_expired_from_its_expiry_on_and_never_without_one() {
+        let l = |e| BridgeLink {
+            filename: "a".into(),
+            url: "u".into(),
+            expires_at_ms: e,
+        };
+        assert!(!l(Some(100)).expired(99));
+        assert!(l(Some(100)).expired(100));
+        assert!(l(Some(100)).expired(101));
+        assert!(!l(None).expired(i64::MAX));
+    }
 }

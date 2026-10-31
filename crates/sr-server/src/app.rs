@@ -1298,6 +1298,36 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     }
     let system_poster_for_tv = system_poster.clone();
     let system_poster_for_cards = system_poster.clone();
+
+    // The Discord bridge (BRG-COR-001, D-381): off everywhere until a server owner switches it on. Its tokens are
+    // sealed with server.secret_key; the Discord API root is SR_BRIDGE_DISCORD_API (the fake Discord in tests).
+    let bridge = Arc::new(
+        sr_bridge::BridgeService::new(
+            pool.clone(),
+            features.clone(),
+            id_src.clone(),
+            Arc::new(crate::bridge_wiring::PgSealer(
+                sr_db::sealed::SecretBox::new(master_key).with_previous_keys(previous_keys.clone()),
+            )),
+            sr_bridge::DiscordApi::new(crate::bridge_wiring::discord_api_base(
+                cfg.bridge.discord_api.as_deref(),
+            ))
+            .map_err(|e| anyhow::anyhow!("discord client: {e}"))?,
+        )
+        .with_media(Arc::new(crate::bridge_wiring::CdnMedia {
+            signer: sr_storage::cdn::CdnSigner::new(
+                secret_key(cfg.server.secret_key.expose())?.to_vec(),
+            ),
+            public_url: cfg.server.public_url.clone(),
+            clock: clock.clone(),
+        }))
+        .with_notices(Arc::new(crate::bridge_wiring::PosterNotices {
+            poster: system_poster.clone(),
+            messages: messages.clone(),
+        })),
+    );
+    let bridge_consumer = crate::bridge_wiring::spawn_event_consumer(lag_bus.tap(), bridge.clone());
+    let bridge_worker = crate::bridge_wiring::spawn_outbox_worker(bridge.clone());
     let feed_policy = unfurl_policy_for_feeds.clone();
     // The currency converter's rates (UTL-CALC-001): fetched by the server under the same outbound policy as the
     // RSS feeds (deny and allow lists, address checks), read by GET /tools/fx.
@@ -1361,6 +1391,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_data_requests(admin_repo)
         .with_notifier(staff_voice.clone())
         .with_bus(bus.clone());
+    // BRG-GW-001: the inbound half of the Discord bridge (one gateway shard per enabled bridge; none while every
+    // server has it off, the default).
+    let bridge_inbound = crate::bridge_inbound::spawn_inbound(
+        pool.clone(),
+        messages.clone(),
+        bridge.clone(),
+        admin_service.clone(),
+        crate::bridge_inbound::discord_gateway_url(cfg.bridge.discord_gateway.as_deref()),
+    );
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
     // Actions from a case run through the guild, message and account services (N-21).
     // The takedown register (step 2) reads the strike policy from the compliance module and blocks media.
@@ -1610,6 +1649,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(music_lib_deps)
         .extension(jukebox_deps)
         .extension(scrapbook_deps)
+        .extension(bridge)
         // The browser's delete and move update the index at once (wave-28 integration).
         .extension(Arc::new(routes::storage::IndexHooks {
             changes: index_store.clone(),
@@ -1933,6 +1973,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     metrics_task.abort();
     search_consumer.abort();
     scrapbook_consumer.abort();
+    bridge_consumer.abort();
+    bridge_worker.abort();
+    bridge_inbound.abort();
     push_consumer.abort();
     if let Some(h) = features_listener {
         h.abort();
@@ -1977,6 +2020,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
     registry
         .register(sr_features::PublicProfilesFeature)
         .context("registering the platform.public_profiles feature")?;
+    registry
+        .register(sr_features::PlatformBridge)
+        .context("registering the platform.bridge feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,

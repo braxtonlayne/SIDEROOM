@@ -13,6 +13,8 @@ import { MiniProfile } from '../../profilepage/MiniProfile';
 import { FullProfile } from './FullProfile';
 import { NoteField, ProfileAvatar, ProfileBanner, StatusBubble, Themed } from './parts';
 import { useProfileView } from './profileView';
+import { BridgedCard } from '../bridge/BridgedMemberViews';
+import { useBridgedMember } from '../bridge/members';
 import './profile.css';
 import './profile-p11.css';
 
@@ -210,6 +212,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
 function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLElement }) {
   const t = useT();
   const close = usePopout((s) => s.closeProfile);
+  const bridgedMember = useBridgedMember(target.userId);
   const portal = usePortalTarget();
   const node = useRef<HTMLDivElement | null>(null);
   const floating = useFloating({
@@ -258,7 +261,7 @@ function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLEl
       tabIndex={-1}
       style={floating.style}
     >
-      <ProfileCard target={target} />
+      {bridgedMember ? <BridgedCard member={bridgedMember} /> : <ProfileCard target={target} />}
     </div>,
     portal,
   );

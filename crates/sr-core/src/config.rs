@@ -458,6 +458,7 @@ pub struct Config {
     pub voice: VoiceConfig,
     pub activities: ActivitiesConfig,
     pub web: WebConfig,
+    pub bridge: BridgeConfig,
 }
 
 /// `[web]`: the built web app (`apps/web/dist`) and the gate in front of it (SEC-ENT-003, D-385,
@@ -482,6 +483,19 @@ impl WebConfig {
             .map(str::trim)
             .filter(|r| !r.is_empty())
     }
+}
+
+/// `[bridge]`: where the Discord bridge (BRG-COR-001, BRG-GW-001) talks to Discord. Both unset: Discord itself
+/// (`https://discord.com/api/v10` and its gateway). Tests and the end-to-end suite point them at a fake Discord
+/// (`e2e/support/fake-discord.mjs`), so real Discord is never contacted. The environment variables
+/// `SR_BRIDGE_DISCORD_API` and `SR_BRIDGE_DISCORD_GATEWAY` are read too when these are unset.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BridgeConfig {
+    /// The REST root, for example `http://127.0.0.1:8090/api/v10` (`SR_BRIDGE__DISCORD_API`).
+    pub discord_api: Option<String>,
+    /// The gateway WebSocket, for example `ws://127.0.0.1:8090/gateway` (`SR_BRIDGE__DISCORD_GATEWAY`).
+    pub discord_gateway: Option<String>,
 }
 
 /// `[activities]`: Activities (DEV-ACT, docs/11 section 3). Off by default: when on, the server answers on

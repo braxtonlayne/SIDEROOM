@@ -55,6 +55,7 @@ import {
   type Suggestion,
   type Trigger,
 } from './msg/autocomplete';
+import { bridgedColor, findBridgedMember, useGuildBridgedMembers } from './bridge/members';
 import { AutocompletePopup } from './msg/AutocompletePopup';
 import { MarkdownPreview, StickerSuggestions } from './msg/ComposerExtras';
 import { ScheduleDialog } from './features/ScheduleDialog';
@@ -238,6 +239,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const users = useUsers();
   const members = useMembers(guildId);
   const roles = useRoles(guildId);
+  // In a channel the bridge carries our words to Discord, its members can be mentioned (owner direction).
+  const bridgeDirection = useStore((s) => s.channels[channelId]?.sr_bridge?.direction);
+  const bridgedAll = useGuildBridgedMembers(guildId);
+  const bridgedMentions = useMemo(
+    () =>
+      bridgeDirection && bridgeDirection !== 'from_discord'
+        ? bridgedAll.map((b) => ({ id: b.id, name: b.display_name, color: bridgedColor(b) }))
+        : undefined,
+    [bridgeDirection, bridgedAll],
+  );
   const channels = useChannels(guildId);
   const typingIds = useTyping(channelId);
   const toast = useToast();
@@ -724,6 +735,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   if (trigger?.kind === '@') {
     suggestions = mentionSuggestions(trigger.query, members, roles, {
       everyone: !!canMentionEveryone,
+      bridged: bridgedMentions,
     });
     acTitle = t('lounge.composer.acMembers');
   } else if (trigger?.kind === '#') {
@@ -833,7 +845,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   const typingNames = typingIds
     .filter((id) => id !== me.id)
-    .map((id) => users[id]?.displayName ?? t('lounge.composer.someone'));
+    .map(
+      (id) =>
+        // A Discord typer of this server first: its id is never resolved to an account here.
+        (guildId ? findBridgedMember(id, guildId)?.display_name : undefined) ??
+        users[id]?.displayName ??
+        findBridgedMember(id)?.display_name ??
+        t('lounge.composer.someone'),
+    );
   const typing = typingLabel(typingNames);
   const remaining = MAX_MESSAGE_LENGTH - text.length;
   const showCounter = remaining <= 200;

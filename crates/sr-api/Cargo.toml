@@ -38,6 +38,7 @@ sr-packages = { path = "../sr-packages" }
 sr-watchparty = { path = "../sr-watchparty" }
 sr-payments = { path = "../sr-payments" }
 sr-review = { path = "../sr-review" }
+sr-bridge = { path = "../sr-bridge" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-events = { path = "../sr-events" }

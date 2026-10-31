@@ -220,6 +220,20 @@ impl PgGuildDirectory {
         self
     }
 
+    /// Bridged channels of a server and their direction (`bridge_channel_maps`, BRG-COR-001).
+    async fn bridge_directions(
+        &self,
+        guild: GuildId,
+    ) -> BuildResult<std::collections::HashMap<i64, String>> {
+        let rows: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT channel_id, direction FROM bridge_channel_maps WHERE guild_id = $1",
+        )
+        .bind(guild.get() as i64)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().collect())
+    }
+
     /// GUILD_CREATE body: guild object, `channels`, `roles`, `threads`, and `members`
     /// when the guild is at most the default large threshold. The hub adds
     /// `presences` for guilds small enough to carry them.
@@ -241,6 +255,23 @@ impl PgGuildDirectory {
             Some(roles.as_slice()),
             Some(channels.as_slice()),
         ))?;
+        // The Discord bridge state of each bridged channel (BRG-COR-001), as on `GET /guilds/{id}/channels`. A map
+        // exists only while the module and the operator's switch are on: switching either off tears the maps down.
+        let bridged = self.bridge_directions(guild).await?;
+        if !bridged.is_empty()
+            && let Some(list) = body.get_mut("channels").and_then(Value::as_array_mut)
+        {
+            for ch in list {
+                let id = ch
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|s| s.parse::<i64>().ok());
+                if let (Some(dir), Some(o)) = (id.and_then(|i| bridged.get(&i)), ch.as_object_mut())
+                {
+                    o.insert("sr_bridge".into(), json!({ "direction": dir }));
+                }
+            }
+        }
         // One row past the threshold tells whether the member list fits.
         let member_ids: Vec<i64> = sqlx::query_scalar(
             "SELECT gm.user_id FROM guild_members gm WHERE gm.guild_id = $1 \
@@ -1029,6 +1060,19 @@ impl GuildDirectory for PgGuildDirectory {
                 Vec::new()
             }
         }
+    }
+
+    async fn channel_bridge_state(&self, channel: ChannelId) -> Option<Value> {
+        let dir: Option<String> =
+            sqlx::query_scalar("SELECT direction FROM bridge_channel_maps WHERE channel_id = $1")
+                .bind(channel.get() as i64)
+                .fetch_optional(&self.pool)
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::error!(error = %e, "channel_bridge_state failed");
+                    None
+                });
+        dir.map(|d| json!({ "direction": d }))
     }
 
     async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {

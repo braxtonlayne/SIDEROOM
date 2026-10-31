@@ -15,7 +15,7 @@
 //!   (platform staff), `owner` (application owner), `bot` (an application's bot token only)
 //!   and the Watch Party roles `party_access` (channel view or invite code), `party_member`,
 //!   `party_control` (member who satisfies the party's control or queue policy) and
-//!   `party_manager` (host or channel manager), `storage_scope` (a bucket mount read decided by `sr_storage::scopes`: own, friend share, guild grant or logged staff read) and `mount_owner` (only the mount's owner). There is no catch-all value: a new route
+//!   `party_manager` (host or channel manager), `storage_scope` (a bucket mount read decided by `sr_storage::scopes`: own, friend share, guild grant or logged staff read) and `mount_owner` (only the mount's owner), `guild_owner` (the server owner alone: `MANAGE_GUILD` and `ADMINISTRATOR` are 403; the Discord bridge's token routes, BRG-COR-001) and `bridge_admin` (`MANAGE_GUILD` once the owner switched the bridge on, 404 while it is off). There is no catch-all value: a new route
 //!   must say precisely who may call it. A trailing `?` means "seeded by the generator, not
 //!   yet reviewed" and fails the test.
 //! * `BOT` and `BEARER` pin what `auth::policy` says about bot and OAuth bearer tokens, so a
@@ -46,7 +46,7 @@ const MATRIX_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/route_matr
 const METHODS: [&str; 5] = ["get", "post", "put", "patch", "delete"];
 
 /// The AUTHZ vocabulary; `other` is deliberately absent (G-19).
-const AUTHZ_VALUES: [&str; 16] = [
+const AUTHZ_VALUES: [&str; 18] = [
     "none",
     "user",
     "self",
@@ -63,6 +63,8 @@ const AUTHZ_VALUES: [&str; 16] = [
     "party_manager",
     "storage_scope",
     "mount_owner",
+    "guild_owner",
+    "bridge_admin",
 ];
 
 /// Extractor types that only a platform-staff session satisfies: `StaffCtx` and every struct that

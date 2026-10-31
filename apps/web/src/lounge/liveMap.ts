@@ -429,6 +429,21 @@ export function toLoungePoll(p: S.RawPoll): Poll {
   };
 }
 
+/**
+ * The Discord author of a bridged message (BRG-UI-001): their Discord name and avatar, a DISCORD tag, no profile.
+ * Only a same-origin proxied avatar is ever drawn; a Discord URL is never loaded directly (D-176).
+ */
+export function bridgeAuthor(b: NonNullable<S.Message['sr_bridge']>): Partial<LoungeUser> {
+  return {
+    webhook: true,
+    bridge: b.platform,
+    // A known Discord member: their id replaces the shared bridge author id, so grouping and the popout follow the person.
+    ...(b.member_id ? { id: b.member_id, bridgeMember: true as const } : {}),
+    displayName: b.author_name,
+    avatarUrl: b.author_avatar?.startsWith('/cdn/external/') ? b.author_avatar : null,
+  };
+}
+
 /** Converts one store message into the Lounge view model. */
 export function toLoungeMessage(m: S.Message): Message {
   const reactions = m.reactions?.map((r) => ({
@@ -446,6 +461,7 @@ export function toLoungeMessage(m: S.Message): Message {
       ...toLoungeUser(m.author),
       ...(flags & FLAG_SYSTEM_TAG ? { system: true } : {}),
       ...(m.webhook_id ? { webhook: true, avatarUrl: m.author.avatar_url ?? null } : {}),
+      ...(m.sr_bridge ? bridgeAuthor(m.sr_bridge) : {}),
     },
     content: m.content,
     createdAt: m.timestamp,

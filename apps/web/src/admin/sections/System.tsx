@@ -224,6 +224,34 @@ export function SystemSection() {
                 )}
               </section>
             )}
+            {s.bridge && (
+              <section className="ss-card" aria-labelledby="sys-bridge">
+                <h2 id="sys-bridge">{t('admin.system.bridgeTitle')}</h2>
+                <p className="ss-sub">{t('admin.system.bridgeHint')}</p>
+                <ul className="ss-list" aria-label={t('admin.system.bridgeTitle')}>
+                  <li className="ss-row">
+                    <div className="ss-grow">
+                      <div className="ss-name">
+                        {t('admin.system.bridgeServers', { n: formatNumber(s.bridge.bridges) })}
+                      </div>
+                      <div className="ss-meta">
+                        {t('admin.system.bridgeMaps', { n: formatNumber(s.bridge.maps) })}
+                        {' 00b7 '}
+                        {t('admin.system.bridgeQueued', { n: formatNumber(s.bridge.queued) })}
+                        {' 00b7 '}
+                        {t('admin.system.bridgeDead', { n: formatNumber(s.bridge.dead_letters) })}
+                      </div>
+                    </div>
+                    {!s.bridge.platform_on && (
+                      <Badge variant="neutral">{t('admin.system.bridgeOff')}</Badge>
+                    )}
+                    {s.bridge.dead_letters > 0 && (
+                      <Badge variant="danger">{formatNumber(s.bridge.dead_letters)}</Badge>
+                    )}
+                  </li>
+                </ul>
+              </section>
+            )}
             {s.integrations && s.integrations.length > 0 && (
               <section className="ss-card" aria-labelledby="sys-integrations">
                 <h2 id="sys-integrations">{t('admin.system.integrationsTitle')}</h2>

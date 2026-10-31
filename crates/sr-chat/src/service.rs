@@ -262,7 +262,17 @@ impl<R: ChatRepository> ChatService<R> {
     ) -> ChatResult<Vec<UserId>> {
         let mut out = Vec::with_capacity(users.len());
         let now = self.now();
+        // BRG-GW-001: a `<@id>` is looked up among the bridged Discord members of the server first. Such an id
+        // is a Discord member (mirrored to Discord as a mention there) and never pings an account here, even one
+        // whose id collides.
+        let bridged = match guild {
+            Some(g) if !users.is_empty() => self.repo.bridged_member_ids(g.id, &users).await?,
+            _ => Vec::new(),
+        };
         for u in users {
+            if bridged.contains(&u) {
+                continue;
+            }
             let ok = match guild {
                 None => self.repo.is_recipient(channel.id, u).await?,
                 Some(g) => match self.repo.get_member(g.id, u).await? {

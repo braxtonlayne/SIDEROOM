@@ -1382,6 +1382,14 @@ async fn seed(
     cfg.database.max_connections = 12;
     cfg.storage.endpoint = "memory:".into();
     cfg.activities.enabled = true;
+    // BRG-COR-001: the Discord bridge talks to a port nothing listens on, so a call that would reach Discord fails
+    // at once (409) and real Discord is never contacted, not even by the inbound shard of a seeded bridge.
+    let dead = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        l.local_addr().unwrap().port()
+    };
+    cfg.bridge.discord_api = Some(format!("http://127.0.0.1:{dead}/api/v10"));
+    cfg.bridge.discord_gateway = Some(format!("ws://127.0.0.1:{dead}/gateway"));
     // RDY-SEC-012: voice is on, so that the stage routes are reached past the module gate. The embedded SFU
     // binds loopback sockets in a small range of its own; nothing joins a call.
     cfg.voice.enabled = true;
@@ -1707,6 +1715,51 @@ async fn seed(
         slot_map.insert("scrapbook_entry_id", entry.to_string());
         slot_map.insert("scrapbook_object_id", object.to_string());
         slot_map.insert("scrapbook_removal_id", removal.to_string());
+    }
+    // BRG-COR-001 (wave 35 integration, own block): per tenant a connected Discord bridge (its bot token sealed with
+    // the world's key, as the route would) and one channel map that only receives from Discord (no webhook), so that
+    // the `{map_id}` routes name the tenant's own map. The bridge's Discord is a closed local port (see the config
+    // below): every call that would reach Discord fails at once, and real Discord is never contacted.
+    {
+        let sealer =
+            sr_db::sealed::SecretBox::new(sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap());
+        for (slot_map, guild, chan, owner) in [
+            (&mut a, ga, chan_a, u("ownera")),
+            (&mut b, gb, chan_b, u("ownerb")),
+        ] {
+            let token = sealer
+                .seal(
+                    format!("bridge:bot:{guild}").as_bytes(),
+                    b"authz-fake-bot-token",
+                )
+                .unwrap();
+            sqlx::query(
+                "INSERT INTO bridges (guild_id, discord_guild_id, discord_guild_name, bot_user_id, bot_name, \
+                 bot_token_enc, status, created_by) VALUES ($1, $2, 'Authz', $3, 'authz-bot', $4, 'connecting', $5)",
+            )
+            .bind(guild)
+            .bind(ids.generate().get() as i64)
+            .bind(ids.generate().get() as i64)
+            .bind(token)
+            .bind(owner)
+            .execute(&pool)
+            .await
+            .unwrap();
+            let map = ids.generate().get() as i64;
+            sqlx::query(
+                "INSERT INTO bridge_channel_maps (id, guild_id, channel_id, discord_channel_id, discord_channel_name, \
+                 direction, created_by) VALUES ($1, $2, $3, $4, 'authz', 'from_discord', $5)",
+            )
+            .bind(map)
+            .bind(guild)
+            .bind(chan)
+            .bind(ids.generate().get() as i64)
+            .bind(owner)
+            .execute(&pool)
+            .await
+            .unwrap();
+            slot_map.insert("map_id", map.to_string());
+        }
     }
     // PRF-RNG-001 (integration, own block): per tenant a live text ring shared with the tenant's server
     // (`ring_id`), so that the `{ring_id}` routes name a ring the tenant's actors may see: tenant A's is the plain
@@ -3468,6 +3521,14 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/storage/mounts/{mount_id}/move") => r#"{"from":"a.mp3","to":"b.mp3"}"#,
         // PRF-SCR-001: choose the server's own shelf; retag the seeded entry.
         ("PUT", "/guilds/{guild_id}/scrapbook/target") => r#"{"mount_id":"{guild_mount_id}"}"#,
+        // BRG-COR-001: a token-shaped body; the bridge's Discord is a closed local port, so the owner's call is
+        // admitted and fails at Discord (409). The matrix never reaches a real Discord.
+        ("PUT", "/guilds/{guild_id}/bridge/token") => r#"{"token":"authz.fake.token"}"#,
+        ("POST", "/guilds/{guild_id}/bridge/maps") => {
+            r#"{"channel_id":"{channel_id}","discord_channel_id":"123","direction":"both"}"#
+        }
+        // The seeded map only receives: keeping it so needs no webhook, so nothing reaches Discord.
+        ("PATCH", "/guilds/{guild_id}/bridge/maps/{map_id}") => r#"{"direction":"from_discord"}"#,
         ("PATCH", "/guilds/{guild_id}/scrapbook/{entry_id}") => r#"{"tags":["authz"]}"#,
         // PRF-RNG-001: a text ring for the caller's friends.
         ("POST", "/users/@me/rings") => r#"{"kind":"text","text":"authz","audience":"friends"}"#,
@@ -3661,6 +3722,8 @@ fn plan_calls(
                 | "party_manager"
                 | "storage_scope"
                 | "mount_owner"
+                | "guild_owner"
+                | "bridge_admin"
                 | "visibility"
         );
         let exempt = outsider_exception(r).is_some();
@@ -3725,6 +3788,8 @@ fn plan_calls(
             "member",
             if staff
                 || (portal_owner && r.path.contains("{application_id}"))
+                // BRG-COR-001: a plain member is neither the owner nor a manager of the server.
+                || matches!(r.authz.as_str(), "guild_owner" | "bridge_admin")
                 || r.authz == "bot"
                 || (r.authz == "membership" && r.path.starts_with("/moderation/cases"))
             {
@@ -3735,8 +3800,15 @@ fn plan_calls(
         ));
         calls.push(std("owner_a", Exp::Observe));
         calls.push(std("app_owner", Exp::Observe));
-        if !is_write(&r.method) {
-            calls.push(std("mod", if staff { Exp::Deny } else { Exp::Observe }));
+        if !is_write(&r.method) || r.authz == "guild_owner" {
+            calls.push(std(
+                "mod",
+                if staff || r.authz == "guild_owner" {
+                    Exp::Deny
+                } else {
+                    Exp::Observe
+                },
+            ));
         }
         for bot in ["bot_in", "bot_out"] {
             let mut exp = if r.bot_denied {

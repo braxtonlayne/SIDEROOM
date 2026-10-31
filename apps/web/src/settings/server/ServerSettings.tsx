@@ -20,6 +20,8 @@ import { FormContext, useViewer, type FormHandle, type Viewer } from './hooks';
 import { Loading } from './ui';
 import { AuditLogSection } from './sections/AuditLog';
 import { BansSection } from './sections/Bans';
+import { BridgeSection } from './bridge/BridgeSection';
+import { useBridgeNav } from './bridge/moduleStore';
 import { ChannelsSection } from './sections/Channels';
 import { CommunitySection } from './sections/Community';
 import { DeleteServerSection } from './sections/DeleteServer';
@@ -42,12 +44,17 @@ export interface SectionProps {
   viewer: Viewer;
 }
 
+interface SectionCtx {
+  bridgeOn: boolean;
+}
+
 interface SectionDef {
   id: string;
   /** Message key of the section label. */
   label: MessageKey;
   group: string;
-  visible: (v: Viewer) => boolean;
+  /** `ctx` carries what the viewer alone cannot say (the Discord bridge entry exists only while the module is on). */
+  visible: (v: Viewer, ctx?: SectionCtx) => boolean;
   component: ComponentType<SectionProps>;
   danger?: boolean;
 }
@@ -166,6 +173,14 @@ export const SECTIONS: SectionDef[] = [
     component: IntegrationsSection,
   },
   {
+    id: 'bridge',
+    label: 'settings.bridge.nav',
+    group: 'APPS',
+    // BRG-UI-001 (D-381): out of the way until the owner switches the module on; then the owner and MANAGE_GUILD.
+    visible: (v, ctx) => !!ctx?.bridgeOn && (v.isOwner || v.can('MANAGE_GUILD')),
+    component: BridgeSection,
+  },
+  {
     id: 'moderation',
     label: 'settings.server.automod',
     group: 'MODERATION',
@@ -218,9 +233,10 @@ export function ServerSettings({
     loadMembers(guildId).catch(() => undefined);
   }, [guildId, loadMembers]);
 
+  const { visible: bridgeOn, pending: bridgePending } = useBridgeNav(guildId, viewer);
   const visible = useMemo(
-    () => (viewer.ready ? SECTIONS.filter((s) => s.visible(viewer)) : []),
-    [viewer],
+    () => (viewer.ready ? SECTIONS.filter((s) => s.visible(viewer, { bridgeOn })) : []),
+    [viewer, bridgeOn],
   );
   const close = useCallback(() => {
     void navigate({ to: '/channels/$guildId', params: { guildId } });
@@ -257,6 +273,9 @@ export function ServerSettings({
         action={<Button onClick={close}>{t('settings.serverSettings.backToServer')}</Button>}
       />
     );
+  } else if (!active && bridgePending && section === 'bridge') {
+    // A deep link to the bridge screen waits for the module state instead of being sent to the first section.
+    body = <Loading label={t('settings.serverSettings.loading')} />;
   } else if (!active) {
     return (
       <Navigate

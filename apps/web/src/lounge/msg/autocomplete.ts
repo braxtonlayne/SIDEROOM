@@ -77,7 +77,12 @@ export function mentionSuggestions(
   query: string,
   members: readonly Member[],
   roles: readonly Role[],
-  opts: { everyone: boolean; limit?: number },
+  opts: {
+    everyone: boolean;
+    limit?: number;
+    /** Discord members of a bridged channel: mentioned with the same `<@id>` token (owner direction). */
+    bridged?: readonly { id: string; name: string; color?: string | undefined }[];
+  },
 ): Suggestion[] {
   const q = query.toLowerCase();
   const scored: { s: Suggestion; r: number }[] = [];
@@ -93,6 +98,21 @@ export function mentionSuggestions(
           hint: m.user.username,
           insert: `@${name}`,
           token: `<@${m.user.id}>`,
+        },
+      });
+  }
+  for (const b of opts.bridged ?? []) {
+    const r = best(q, b.name);
+    if (r >= 0)
+      scored.push({
+        r: r + 0.25,
+        s: {
+          key: `b:${b.id}`,
+          label: b.name,
+          hint: 'Discord',
+          insert: `@${b.name}`,
+          token: `<@${b.id}>`,
+          color: b.color ?? null,
         },
       });
   }

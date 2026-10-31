@@ -116,3 +116,42 @@ fn credential_columns_are_hashed_or_explicitly_allowed() {
         "plaintext credential columns (hash them or justify in PLAINTEXT_OK): {offenders:?}"
     );
 }
+
+/// BRG-COR-001 (D-381): the Discord bridge's bot token and webhook tokens are sealed (`*_enc`, bytea), never
+/// plaintext, and never a `PLAINTEXT_OK` entry.
+#[test]
+fn the_bridge_tokens_are_sealed() {
+    let sql = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations/1720_bridge.sql"),
+    )
+    .unwrap();
+    for column in ["bot_token_enc", "webhook_token_enc"] {
+        let line = sql
+            .lines()
+            .find(|l| l.trim_start().starts_with(column))
+            .unwrap_or_else(|| panic!("{column} missing from 1720"));
+        assert!(
+            line.to_ascii_uppercase().contains("BYTEA"),
+            "{column} is bytea: {line}"
+        );
+    }
+    assert!(
+        PLAINTEXT_OK.iter().all(|(f, _)| *f != "1720_bridge.sql"),
+        "no bridge column may be listed as plaintext"
+    );
+    // No other credential-looking column in the migration.
+    for line in sql.lines() {
+        let t = line.trim();
+        if t.starts_with("--") {
+            continue;
+        }
+        if let Some(name) = t.split_whitespace().next()
+            && suspicious(name)
+        {
+            assert!(
+                SAFE_SUFFIXES.iter().any(|s| name.ends_with(s)),
+                "unsealed credential column in 1720: {name}"
+            );
+        }
+    }
+}

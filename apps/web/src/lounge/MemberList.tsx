@@ -1,6 +1,6 @@
 import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
 import { RovingScope } from '../a11y/RovingNav';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { nameStyle } from '../lib/roleGradient';
 import { useDeveloperMode } from '../settings/user/prefs';
@@ -16,6 +16,8 @@ import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 import { useVoiceMenuEntries } from './voice/useVoiceMenu';
 import { ServerTagChip } from './components/ServerTagChip';
+import { BridgedMemberRow } from './bridge/BridgedMemberViews';
+import { useGuildBridgedMembers } from './bridge/members';
 
 const OFFLINE_HIDE_THRESHOLD = 1000;
 
@@ -215,16 +217,57 @@ export function MemberList({
       }),
     [members, roles, presence],
   );
+  // The Discord half of a bridged server, after the people who are here (owner direction).
+  const bridged = useGuildBridgedMembers(guildId);
+  const [needle, setNeedle] = useState('');
+  const shownBridged = useMemo(() => {
+    const q = needle.trim().toLowerCase();
+    return q ? bridged.filter((b) => b.display_name.toLowerCase().includes(q)) : bridged;
+  }, [bridged, needle]);
+  const total = rows.length;
+  const extra = bridged.length === 0 ? 0 : 2 + shownBridged.length;
   return (
     <RovingScope selector=".lng-member">
       <VirtualList
         className="lng-members"
         aria-label={t('lounge.memberList.members')}
         role="list"
-        count={rows.length}
+        count={total + extra}
         estimateSize={44}
-        getItemKey={(i) => rows[i]?.key ?? i}
+        getItemKey={(i) =>
+          i < total
+            ? (rows[i]?.key ?? i)
+            : i === total
+              ? 'bridged:h'
+              : i === total + 1
+                ? 'bridged:s'
+                : 'bridged:' + String(shownBridged[i - total - 2]?.id)
+        }
         renderItem={(i) => {
+          if (i >= total) {
+            if (i === total)
+              return (
+                <h3 className="lng-member-group">
+                  {t('lounge.memberList.groupHeader', {
+                    label: t('lounge.bridge.groupLabel'),
+                    count: bridged.length,
+                  })}
+                </h3>
+              );
+            if (i === total + 1)
+              return (
+                <input
+                  type="search"
+                  className="lng-pop-input lng-bridged-search"
+                  aria-label={t('lounge.bridge.searchMembers')}
+                  placeholder={t('lounge.bridge.searchMembers')}
+                  value={needle}
+                  onChange={(e) => setNeedle(e.target.value)}
+                />
+              );
+            const b = shownBridged[i - total - 2];
+            return b ? <BridgedMemberRow member={b} guildId={guildId} /> : null;
+          }
           const r = rows[i];
           if (!r) return null;
           return r.kind === 'header' ? (

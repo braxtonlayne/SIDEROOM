@@ -8,6 +8,25 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 35 - 2026-10-30
+
+- **Discord bridge (off until a server owner switches it on).** Under Server Settings > Modules ("Integrations,
+  more") the server owner can switch on the Discord bridge, connect their own Discord bot and map channels. Messages,
+  edits, deletes, replies and reactions flow both ways: posts here appear on Discord with the author's name and
+  avatar, and Discord messages appear here with a DISCORD tag. Attachments travel as links (Discord's links read
+  "(link expired)" after a day). Encrypted channels are never bridged.
+- **Discord people feel native.** Members of the mapped Discord server show in an "On Discord" group of the member
+  list with their role colour (and online status when the bot is allowed to see it), have a profile pop-out, show up
+  in the typing line, and can be @mentioned from here; they are not accounts and can never sign in, DM or moderate.
+- **Everyone is told.** Every mirrored channel carries a banner, a system message marks when a channel is mapped or
+  unmapped and when the bridge is switched off, and the privacy page lists the mirrored channels. There is no
+  per-member opt-out: a bridged channel is mirrored. Data export and erasure cover your bridged messages.
+- **Switching it off leaves nothing behind.** Switching the bridge off deletes the webhooks it created on Discord
+  (and names any it could not), removes the mappings and the bot token, and says so in each channel.
+- **Operators:** a kill switch for the bridge (Admin > Features, on by default), a Discord bridge tile on Admin >
+  System (servers, mapped channels, queued and failed posts), and two settings: `abuse.bridge_messages_per_minute`
+  (60) and `bridge.max_bridges` (10).
+
 ## Phase 34 - 2026-10-30
 
 - **Profiles at `/~handle`.** New Links, Featured servers and Now playing blocks, and "Who can see my profile": pick a

@@ -154,6 +154,10 @@ pub const ABUSE_APPEAL_ATTEMPTS: &str = "abuse.appeal_attempts_per_hour";
 pub const ABUSE_STORAGE_TESTS: &str = "abuse.storage_tests_per_hour";
 pub const ABUSE_COUNTER_NOTICES: &str = "abuse.counter_notices_per_day";
 pub const ABUSE_DATA_EXPORT_COOLDOWN: &str = "abuse.data_export_cooldown_hours";
+/// Messages one Discord bridge may bring in per minute (BRG-GW-001; counted by `sr-bridge`, not the HTTP limiter).
+pub const ABUSE_BRIDGE_MESSAGES: &str = "abuse.bridge_messages_per_minute";
+/// Most Discord bridges (one shard each) one instance runs (BRG-GW-001).
+pub const BRIDGE_MAX_BRIDGES: &str = "bridge.max_bridges";
 
 /// Presign lifetime of bucket mounts (BYOS-SCP-002).
 pub const BYOS_PRESIGN_TTL: &str = "byos.presign_ttl_secs";
@@ -349,6 +353,22 @@ pub const CATALOG: &[SettingDef] = &[
         720,
         24,
         "Hours a member must wait between data-package requests (one open request at a time besides).",
+    ),
+    int(
+        ABUSE_BRIDGE_MESSAGES,
+        "abuse",
+        1,
+        6000,
+        60,
+        "Messages one Discord bridge may bring in from Discord per minute; the rest are dropped and counted (applies on the next message).",
+    ),
+    int(
+        BRIDGE_MAX_BRIDGES,
+        "bridge",
+        1,
+        200,
+        10,
+        "Most Discord bridges (one gateway connection each) this instance runs at once; a server that switches one on beyond this is refused.",
     ),
     int(
         BYOS_PRESIGN_TTL,
@@ -752,7 +772,7 @@ mod tests {
     #[test]
     fn abuse_limits_are_in_their_own_group_with_a_floor_of_one() {
         let abuse: Vec<_> = CATALOG.iter().filter(|d| d.group == "abuse").collect();
-        assert_eq!(abuse.len(), 12);
+        assert_eq!(abuse.len(), 13);
         for d in abuse {
             assert!(d.key.starts_with("abuse."), "{}", d.key);
             assert!(d.min >= 1.0 && d.max > d.min, "{}", d.key);
