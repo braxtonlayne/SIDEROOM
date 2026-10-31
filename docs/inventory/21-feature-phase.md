@@ -153,3 +153,36 @@ proofs ran on the merged tree; Playwright ran on Chromium only (Firefox and WebK
   _Merged tree: Vitest (401 files, 3671 tests), typecheck, lint, prettier, `build-web` + entrance isolation + bundle
   budget; `bridge.spec.ts` on Chromium (manager greyed card, owner on, token, map, both directions, switch-off leaves
   nothing)_
+
+## Wave 35b — The whole-server Discord mirror
+
+Integration: [dev/handoff/integration-phase35b.md](../dev/handoff/integration-phase35b.md). Decisions: D-386 and
+P35B-Q1 to Q11, P35B-UI-1 to 3, P35B-INT-1 and 2 (defaults the owner may change); D-381 and the IMMUTABLE RULE
+govern. Ticked where the item's own proofs ran on the merged tree; Playwright ran on Chromium only. Open parts are in
+the handoff's "Not done" (hiding a held channel, `Origin::Bridge`, thread state and forum tags in the reconcile).
+
+### BRG-SYN — Whole-server mode
+- [x] **BRG-SYN-001** [DB][BE] Modes, maps, reconciler, plan and seed, deletion hold, teardown options: migrations
+  1750 to 1753, `sync::{engine, plan, reconcile, reconcile_run, ops, holds, jobs, store, eligible, patch}`, the
+  `bridge_sync` routes (plan, mode, sync, reconcile, pause, resume, holds, preflight, mirrors, teardown-preview,
+  teardown), the sync worker and listener in `sr-server`, `bridge.*` settings _Merged tree: `sr-bridge` Postgres
+  suites (`sync_engine` 24 incl. the integration's wiring tests, `sync_db` 9), `authz_matrix` 7 incl.
+  `every_route_enforces_its_authz_row` with a seeded `{plan_id}` and held channels, `route_matrix`, `openapi_names`;
+  `bridge-whole-guild.spec.ts` (Chromium) plans, confirms, seeds against the fake, restores a held channel, goes back
+  to selective and switches off with "also remove"_
+- [x] **BRG-SYN-002** [BE][SEC] Bit masks, overwrite translation, reverts, conflicts, audit 220 to 224, authz
+  property and matrix rows: `Permissions::BRIDGE_SHARED` / `SR_ONLY`, `sync::{perms, overwrites, conflicts}` wired
+  into the reconcile and the seed, conflict routes (+ unfreeze, retry), ping-pong freeze _Merged tree:
+  `sr-core --lib permissions` (19), `sr-bridge --test authz_property` (5, 500 cases), `--test conflicts` (5),
+  `immutable_rules` (incl. the bridge check), `authz_matrix` (no ceiling changed); the spec sees a Discord permission
+  edit put back on the fake and logged here, and "Apply on SIDE ROOM" saves nothing_
+- [x] **BRG-SYN-003** [BE] Discord REST for structure with the audit-reason header, dispatch handling to the engine
+  (`EngineSink`), intents per mode with a shard restart on a mode change, the stateful fakes, display roles and
+  mention translation both ways, migration 1756 _Merged tree: `sr-bridge --test structure` (8), `--test inbound`
+  (15), the wiring test `gateway_and_sideroom_changes_queue_looks_only_while_the_whole_guild_sync_runs`; the spec's
+  rename on the fake arrives here through the gateway_
+- [x] **BRG-SYN-004** [FE][DOC] Mode card, preflight, plan, sync status, conflict log, role and channel badges,
+  member grouping, teardown options, privacy texts, docs (07, 05, 09, lawyer brief Q21) _Merged tree: Vitest
+  `bridge/__tests__/sync.test.tsx` (17, MSW answering the wire shapes) and the full web suite, typecheck (web and e2e),
+  lint, prettier, `build-web` + entrance isolation + bundle budget; `bridge.spec.ts` and `bridge-whole-guild.spec.ts`
+  on Chromium against sr-server and the fake_
