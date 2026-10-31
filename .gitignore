@@ -20,3 +20,6 @@ e2e/test-results/
 
 # deploy/scripts/media-smoke.mjs scratch (worker token, logs, generated media)
 /media-smoke-work/
+
+# Emulator cores are fetched at install time by pinned SHA-256 and never committed (deploy/EMULATOR.md)
+/apps/web/public/emu/cores/

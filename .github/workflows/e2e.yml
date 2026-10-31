@@ -31,6 +31,16 @@ jobs:
       - uses: ./.github/actions/e2e-stack
       - name: Install the browser
         run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Emulator cores (cached; fetched by pinned URL and SHA-256, see deploy/EMULATOR.md)
+        # ACT-EMU-003: the emulator spec needs the cores in the Vite dev server's public folder. The cache is keyed on the
+        # pin list; the script re-checks every digest whether the cache hit or not, so a stale or poisoned cache cannot
+        # pass. A digest mismatch fails the job.
+        uses: actions/cache@v4
+        with:
+          path: apps/web/public/emu/cores
+          key: emu-cores-${{ hashFiles('deploy/emu-cores.lock') }}
+      - name: Verify or fetch the emulator cores
+        run: ./deploy/scripts/fetch-emu-cores.sh
       - name: Migrate, start the server, run Playwright
         # global-setup.ts bootstraps the Owner; e2e-run.sh starts sr-server and stops it afterwards.
         # The two exit gates (tagged @gate) run in the next step on a server of their own: registration allows 20
