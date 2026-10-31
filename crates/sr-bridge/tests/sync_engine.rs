@@ -93,6 +93,38 @@ impl GuildFake {
         );
     }
 
+    fn set_channel(&self, id: i64, key: &str, v: Value) {
+        self.0.lock().unwrap().channels.get_mut(&id).unwrap()[key] = v;
+    }
+
+    fn set_role(&self, id: i64, key: &str, v: Value) {
+        self.0.lock().unwrap().roles.get_mut(&id).unwrap()[key] = v;
+    }
+
+    fn remove_role(&self, id: i64) {
+        self.0.lock().unwrap().roles.remove(&id);
+    }
+
+    fn remove_channel(&self, id: i64) {
+        self.0.lock().unwrap().channels.remove(&id);
+    }
+
+    fn role_id(&self, name: &str) -> Option<i64> {
+        let s = self.0.lock().unwrap();
+        s.roles
+            .iter()
+            .find(|(_, v)| v["name"] == name)
+            .map(|(k, _)| *k)
+    }
+
+    fn channel_id(&self, name: &str) -> Option<i64> {
+        let s = self.0.lock().unwrap();
+        s.channels
+            .iter()
+            .find(|(_, v)| v["name"] == name)
+            .map(|(k, _)| *k)
+    }
+
     fn writes(&self) -> Vec<(String, String, Value)> {
         self.0
             .lock()
@@ -304,6 +336,7 @@ struct SrLog {
 struct SqlSr {
     pool: sr_db::PgPool,
     log: Mutex<SrLog>,
+    denies: Mutex<Vec<i64>>,
 }
 
 #[async_trait]
@@ -412,8 +445,8 @@ impl SrStructure for SqlSr {
         Ok(())
     }
 
-    async fn role_has_denies(&self, _g: i64, _r: i64) -> BridgeResult<bool> {
-        Ok(false)
+    async fn role_has_denies(&self, _g: i64, r: i64) -> BridgeResult<bool> {
+        Ok(self.denies.lock().unwrap().contains(&r))
     }
 }
 
@@ -443,6 +476,7 @@ async fn scene(admin: bool) -> Scene {
     let sr = Arc::new(SqlSr {
         pool: pool.clone(),
         log: Mutex::new(SrLog::default()),
+        denies: Mutex::new(vec![]),
     });
     let eng = SyncEngine::new(svc, sr.clone());
     // Align the stored bot user with the fake's, and grant the intents the preflight wants.
@@ -677,7 +711,7 @@ async fn the_seed_builds_both_sides_and_never_sends_a_sideroom_only_bit() {
     assert!(chans.contains(&Some("there-only".to_owned())));
 
     // SIDE ROOM's permissions are the master copy: Mods on Discord is now exactly SIDE ROOM's shared word.
-    assert_eq!(s.fake.role_perms("mods").as_deref(), Some("2"));
+    assert_eq!(s.fake.role_perms("Mods").as_deref(), Some("2"));
     // The imported role got Discord's shared bits (the owner confirmed), not its Discord-only bit.
     let (_, bits) = report.imported[0];
     assert_eq!(bits, 0x8);
@@ -739,7 +773,11 @@ async fn the_seed_builds_both_sides_and_never_sends_a_sideroom_only_bit() {
     // Audit rows: the mode update and the seed run.
     let actions: Vec<i16> = sqlx::query_scalar("SELECT action FROM audit_log_entries WHERE guild_id = $1 AND action IN (220, 221) ORDER BY id")
         .bind(s.guild).fetch_all(s.w.db.pool()).await.unwrap();
-    assert_eq!(actions, vec![220, 221]);
+    assert_eq!(
+        actions,
+        vec![220, 221, 221],
+        "mode update, the first reconcile that settled names, the seed run"
+    );
     // Every SIDE ROOM change the seed made carries the origin of the run.
     assert!(
         s.sr.log
@@ -1018,12 +1056,12 @@ async fn also_remove_deletes_only_what_the_bridge_created_there() {
         "the bridge-created role is gone"
     );
     assert!(
-        roles.contains(&"mods".to_owned()) && roles.contains(&"Only There".to_owned()),
+        roles.contains(&"Mods".to_owned()) && roles.contains(&"Only There".to_owned()),
         "Discord-native roles stay"
     );
     let chans = s.fake.names("channels");
     assert!(!chans.contains(&"sr-only".to_owned()));
-    for native in ["text rooms", "general", "there-only"] {
+    for native in ["Text Rooms", "general", "there-only"] {
         assert!(chans.contains(&native.to_owned()), "{native} stays");
     }
     let n: i64 = sqlx::query_scalar(
@@ -1049,7 +1087,7 @@ async fn also_remove_deletes_only_what_the_bridge_created_there() {
 async fn restore_puts_discords_permissions_back_to_before_the_bridge() {
     let s = seeded().await;
     assert_eq!(
-        s.fake.role_perms("mods").as_deref(),
+        s.fake.role_perms("Mods").as_deref(),
         Some("2"),
         "the seed pushed SIDE ROOM's word"
     );
@@ -1065,7 +1103,7 @@ async fn restore_puts_discords_permissions_back_to_before_the_bridge() {
         .unwrap();
     assert!(rep.removal.restored_roles >= 1, "{:?}", rep.removal);
     assert_eq!(
-        s.fake.role_perms("mods").as_deref(),
+        s.fake.role_perms("Mods").as_deref(),
         Some("6"),
         "Discord's pre-bridge word is back"
     );
@@ -1073,5 +1111,204 @@ async fn restore_puts_discords_permissions_back_to_before_the_bridge() {
         s.fake.names("roles").contains(&"Admins".to_owned()),
         "restore removes nothing"
     );
+    let _ = s.w.db.cleanup().await;
+}
+
+// ---- the reconcile pass ----
+
+async fn role_row(s: &Scene, name: &str) -> (i64, i64, bool) {
+    let r =
+        sqlx::query("SELECT id, permissions, hoist FROM roles WHERE guild_id = $1 AND name = $2")
+            .bind(s.guild)
+            .bind(name)
+            .fetch_one(s.w.db.pool())
+            .await
+            .unwrap();
+    use sqlx::Row;
+    (r.get("id"), r.get("permissions"), r.get("hoist"))
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_unchanged_guild_reconciles_to_nothing() {
+    let s = seeded().await;
+    s.eng.reconcile_guild(s.guild).await.unwrap(); // settles the first look of every field
+    let again = s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert!(!again.changed(), "{again:?}");
+    assert_eq!(again.conflicts, 0);
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn each_side_changes_the_two_way_fields_and_the_other_follows() {
+    let s = seeded().await;
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    let pool = s.w.db.pool();
+
+    // SIDE ROOM renames a role and hoists another; Discord renames a channel.
+    sqlx::query("UPDATE roles SET name = 'Moderators' WHERE guild_id = $1 AND name = 'Mods'")
+        .bind(s.guild)
+        .execute(pool)
+        .await
+        .unwrap();
+    s.fake.set_channel(9101, "name", json!("lobby"));
+    let r = s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert!(
+        s.fake.names("roles").contains(&"Moderators".to_owned()),
+        "pushed to Discord"
+    );
+    let n: String = sqlx::query_scalar("SELECT name FROM channels WHERE id = $1")
+        .bind(s.ids["general"])
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(n, "lobby", "applied here");
+    assert!(r.pushed >= 1 && r.applied >= 1, "{r:?}");
+    let applied = s.sr.log.lock().unwrap().applied.clone();
+    assert!(applied.iter().any(|p| matches!(p, SrStructuralPatch::Channel { patch, .. } if patch.name.as_deref() == Some("lobby"))));
+    // The echo is quiet.
+    assert!(!s.eng.reconcile_guild(s.guild).await.unwrap().changed());
+
+    // Both sides rename the same channel to different names: SIDE ROOM wins and the pass says so.
+    sqlx::query("UPDATE channels SET name = 'sr-name' WHERE id = $1")
+        .bind(s.ids["general"])
+        .execute(pool)
+        .await
+        .unwrap();
+    s.fake.set_channel(9101, "name", json!("discord-name"));
+    let r = s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert_eq!(r.conflicts, 1, "{r:?}");
+    assert_eq!(
+        s.fake.0.lock().unwrap().channels[&9101]["name"],
+        json!("sr-name")
+    );
+    let n: String = sqlx::query_scalar("SELECT name FROM channels WHERE id = $1")
+        .bind(s.ids["general"])
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(n, "sr-name");
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_discord_edit_of_a_permission_never_reaches_sideroom() {
+    let s = seeded().await;
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    let (_, before, _) = role_row(&s, "Mods").await;
+    // A Discord admin grants Mods Administrator (and ban) on Discord.
+    s.fake
+        .set_role(9001, "permissions", json!((0x8u64 | 0x4 | 0x2).to_string()));
+    let r = s.eng.reconcile_guild(s.guild).await.unwrap();
+    let (_, after, _) = role_row(&s, "Mods").await;
+    assert_eq!(after, before, "the SIDE ROOM permission word is untouched");
+    assert_eq!(r.reverted, 1, "{r:?}");
+    assert_eq!(
+        s.fake.role_perms("Mods").as_deref(),
+        Some("2"),
+        "Discord was put back"
+    );
+    assert!(!s.eng.reconcile_guild(s.guild).await.unwrap().changed());
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn new_objects_on_either_side_appear_on_the_other_without_permissions() {
+    let s = seeded().await;
+    let pool = s.w.db.pool();
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+
+    // Discord: a new role with dangerous bits and a Discord-only bit, a new channel in the category.
+    s.fake.add_role(9050, "Raiders", 4, 0x8 | 0x4 | (1 << 47));
+    s.fake.add_channel(9150, 0, "raid-room", Some(9100), 5);
+    // SIDE ROOM: a new role and a new channel.
+    sqlx::query("INSERT INTO roles (id, guild_id, name, position, permissions) VALUES ($1, $2, 'Helpers', 5, 2)")
+        .bind(uid()).bind(s.guild).execute(pool).await.unwrap();
+    channel(pool, s.guild, "Sr Fresh").await;
+
+    let r = s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert!(r.created_here >= 2 && r.created_on_discord >= 2, "{r:?}");
+    let (_, perms, _) = role_row(&s, "Raiders").await;
+    assert_eq!(
+        perms, 0,
+        "a role created from Discord has NO permissions here"
+    );
+    // On Discord the copy keeps only its Discord-only bit: nothing shared is left to be inherited by the mirror.
+    assert_eq!(
+        s.fake.role_perms("Raiders").as_deref(),
+        Some(&*(1u64 << 47).to_string())
+    );
+    assert!(s.fake.names("roles").contains(&"Helpers".to_owned()));
+    assert!(s.fake.names("channels").contains(&"sr-fresh".to_owned()));
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM channels WHERE guild_id = $1 AND name = 'raid-room')",
+    )
+    .bind(s.guild)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert!(exists);
+    // Settled.
+    assert!(!s.eng.reconcile_guild(s.guild).await.unwrap().changed());
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn deletions_on_discord_are_guarded_and_held() {
+    let s = seeded().await;
+    let pool = s.w.db.pool();
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+
+    // A plain role deleted on Discord is deleted here; a role that denies something is put back.
+    let (admins_id, _, _) = role_row(&s, "Admins").await;
+    let (mods_id, _, _) = role_row(&s, "Mods").await;
+    s.sr.denies.lock().unwrap().push(mods_id);
+    s.fake.remove_role(s.fake.role_id("Admins").unwrap());
+    s.fake.remove_role(9001);
+    let r = s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert_eq!(
+        (r.roles_deleted_here, r.roles_recreated_on_discord),
+        (1, 1),
+        "{r:?}"
+    );
+    let gone: bool = sqlx::query_scalar("SELECT NOT EXISTS (SELECT 1 FROM roles WHERE id = $1)")
+        .bind(admins_id)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert!(gone);
+    assert!(
+        s.fake.names("roles").contains(&"Mods".to_owned()),
+        "recreated with its SIDE ROOM state"
+    );
+    // The recreated role carries SIDE ROOM's shared word, never the SIDE ROOM-only bit.
+    assert_eq!(s.fake.role_perms("Mods").as_deref(), Some("2"));
+
+    // A channel deleted on Discord is held, not deleted.
+    let general = s.ids["general"];
+    s.fake
+        .remove_channel(s.fake.channel_id("general").unwrap_or(9101));
+    let r = s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert!(r.held >= 1, "{r:?}");
+    assert!(holds::is_held(pool, general).await.unwrap());
+    assert!(s.sr.log.lock().unwrap().deleted.is_empty());
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_paused_bridge_does_not_reconcile() {
+    let s = seeded().await;
+    store::set_sync_state(s.w.db.pool(), s.guild, SyncState::Paused)
+        .await
+        .unwrap();
+    assert!(matches!(
+        s.eng.reconcile_guild(s.guild).await,
+        Err(BridgeError::Conflict(_))
+    ));
     let _ = s.w.db.cleanup().await;
 }

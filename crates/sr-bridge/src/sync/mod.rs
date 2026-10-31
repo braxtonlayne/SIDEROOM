@@ -31,6 +31,7 @@ pub mod patch;
 pub mod plan;
 pub mod port;
 pub mod reconcile;
+pub mod reconcile_run;
 pub mod store;
 pub mod teardown_opts;
 pub mod types;
@@ -41,6 +42,7 @@ pub use patch::{ChannelPatch, RoleStructurePatch, SrStructuralPatch, ThreadPatch
 pub use plan::{Action, Blocker, ItemKind, Plan, PlanItem};
 pub use port::{BridgeOrigin, NoOverwrites, OverwritePush, SrNewChannel, SrNewRole, SrStructure};
 pub use reconcile::{Authority, Decision, FieldView, decide, field_authority};
+pub use reconcile_run::ReconcileReport;
 pub use teardown_opts::TeardownPreview;
 pub use types::{
     FieldState, ObjectKind, OpDirection, OpPriority, OpState, SyncMode, SyncOp, SyncState,

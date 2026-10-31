@@ -97,28 +97,30 @@ pub struct SyncEngine {
     pub svc: BridgeService,
     pub sr: Arc<dyn SrStructure>,
     pub overwrites: Arc<dyn OverwritePush>,
+    /// `bridge.delete_hold_hours`: how long a channel deleted on Discord is held (default 24).
+    pub hold_hours: i64,
 }
 
-struct SrRoleRow {
-    name: String,
-    color: i32,
-    hoist: bool,
-    mentionable: bool,
-    unicode_emoji: Option<String>,
-    permissions: i64,
+pub(super) struct SrRoleRow {
+    pub(super) name: String,
+    pub(super) color: i32,
+    pub(super) hoist: bool,
+    pub(super) mentionable: bool,
+    pub(super) unicode_emoji: Option<String>,
+    pub(super) permissions: i64,
 }
 
-struct SrChanRow {
-    id: i64,
-    kind: i16,
-    name: String,
-    topic: Option<String>,
-    parent_id: Option<i64>,
-    position: i32,
-    nsfw: bool,
-    rate_limit: i32,
-    bitrate: Option<i32>,
-    user_limit: Option<i32>,
+pub(super) struct SrChanRow {
+    pub(super) id: i64,
+    pub(super) kind: i16,
+    pub(super) name: String,
+    pub(super) topic: Option<String>,
+    pub(super) parent_id: Option<i64>,
+    pub(super) position: i32,
+    pub(super) nsfw: bool,
+    pub(super) rate_limit: i32,
+    pub(super) bitrate: Option<i32>,
+    pub(super) user_limit: Option<i32>,
 }
 
 impl SyncEngine {
@@ -127,7 +129,13 @@ impl SyncEngine {
             svc,
             sr,
             overwrites: Arc::new(NoOverwrites),
+            hold_hours: holds::DEFAULT_HOLD_HOURS,
         }
+    }
+
+    pub fn with_hold_hours(mut self, hours: i64) -> Self {
+        self.hold_hours = holds::clamp_hold_hours(hours);
+        self
     }
 
     pub fn with_overwrites(mut self, o: Arc<dyn OverwritePush>) -> Self {
@@ -135,7 +143,7 @@ impl SyncEngine {
         self
     }
 
-    fn pool(&self) -> &sqlx::PgPool {
+    pub(super) fn pool(&self) -> &sqlx::PgPool {
         &self.svc.pool
     }
 
@@ -578,7 +586,7 @@ impl SyncEngine {
 
     // ---- the seed ----
 
-    async fn sr_roles(&self, guild: i64) -> BridgeResult<HashMap<i64, SrRoleRow>> {
+    pub(super) async fn sr_roles(&self, guild: i64) -> BridgeResult<HashMap<i64, SrRoleRow>> {
         let rows = sqlx::query(
             "SELECT id, name, color, hoist, mentionable, unicode_emoji, permissions FROM roles WHERE guild_id = $1",
         )
@@ -603,7 +611,7 @@ impl SyncEngine {
         Ok(out)
     }
 
-    async fn sr_channels(&self, guild: i64) -> BridgeResult<HashMap<i64, SrChanRow>> {
+    pub(super) async fn sr_channels(&self, guild: i64) -> BridgeResult<HashMap<i64, SrChanRow>> {
         let rows = sqlx::query(
             "SELECT id, type, name, topic, parent_id, position, nsfw, rate_limit_per_user, bitrate, user_limit \
              FROM channels WHERE guild_id = $1",
@@ -719,7 +727,13 @@ impl SyncEngine {
                     };
                     let mut synced = SyncedState::new();
                     if let Some(sr) = sr_roles.get(&sid) {
-                        synced.record("name", json!(sr.name), json!(dr.name));
+                        record_matched_name(
+                            &mut synced,
+                            &view.plan.seed_structure,
+                            json!(sr.name),
+                            json!(sr.name),
+                            json!(dr.name),
+                        );
                     }
                     let m = RoleMap {
                         id: self.svc.next_id(),
@@ -880,7 +894,13 @@ impl SyncEngine {
                         let Some(src) = sr_ch.get(&sid) else { continue };
                         let name = d_ch.get(&did).map(|c| c.name.clone()).unwrap_or_default();
                         let mut synced = SyncedState::new();
-                        synced.record("name", json!(src.name), json!(name));
+                        record_matched_name(
+                            &mut synced,
+                            &view.plan.seed_structure,
+                            json!(src.name),
+                            json!(discord_name_for(src.kind, &src.name)),
+                            json!(name),
+                        );
                         let parent_map = self.parent_map_of(src.parent_id).await?;
                         let ok = store::insert_structure_map(
                             self.pool(),
@@ -1134,6 +1154,10 @@ impl SyncEngine {
         // 7. Live.
         store::set_sync_state(self.pool(), guild, SyncState::Live).await?;
         store::touch_reconcile(self.pool(), guild).await?;
+        // Matched pairs agree on names and order only after the first pass: run it now.
+        if let Err(e) = self.reconcile_guild(guild).await {
+            tracing::warn!(error = %e, guild, "the first reconcile after the seed failed");
+        }
         let mut conn = self.pool().acquire().await?;
         self.svc
             .audit(
@@ -1345,5 +1369,25 @@ mod tests {
         assert_eq!(map_kind(4), "category");
         assert_eq!(map_kind(11), "thread");
         assert_eq!(map_kind(2), "channel");
+    }
+}
+
+/// Record the first agreed name of a matched pair. When the names already agree (as Discord holds them) both are
+/// recorded. When they differ the seed structure decides: with SIDE ROOM's the Discord side is recorded as the
+/// stale one so the next pass pushes SIDE ROOM's name; with Discord's the SIDE ROOM side is stale so the next pass
+/// applies Discord's name here.
+fn record_matched_name(
+    synced: &mut SyncedState,
+    seed_structure: &str,
+    sr: Value,
+    sr_as_discord: Value,
+    discord: Value,
+) {
+    if sr_as_discord == discord {
+        synced.record("name", sr, discord);
+    } else if seed_structure == "discord" {
+        synced.record("name", sr, Value::Null);
+    } else {
+        synced.record("name", Value::Null, discord);
     }
 }
