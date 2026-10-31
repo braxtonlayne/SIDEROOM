@@ -205,6 +205,9 @@ export async function loadCore(
     canvas: opts.canvas,
     print: log,
     printErr: log,
+    // The wasm bytes go in directly: the glue then compiles them without fetching a blob: URL, which the page policy
+    // (connect-src 'self') refuses. locateFile stays as the fallback of a glue that ignores wasmBinary.
+    wasmBinary: files.wasm,
     locateFile: (name: string) => (name.endsWith('.wasm') ? wasmUrl : name),
     getSavExt: () => '.srm',
   });

@@ -239,6 +239,9 @@ impl WebGate {
             .route("/app", get(app_entry))
             .route("/app/", get(app_entry))
             .route("/app/{*path}", get(app_file))
+            // The emulator cores (ACT-EMU-003), fetched into <root>/emu/cores by deploy/scripts/fetch-emu-cores.sh:
+            // signed-in members only, like /app/* (D-385).
+            .route("/emu/cores/{*path}", get(emu_core_file))
             .route("/house-notes", get(legal))
             // `/share` is the Web Share Target page for a GET (the POST belongs to the API router); without
             // this route a GET would be a `405`, which tells a visitor the path exists.
@@ -410,6 +413,37 @@ async fn app_file(State(gs): State<GateState>, req: Request) -> Response {
     r.headers_mut().insert(
         HeaderName::from_static("x-robots-tag"),
         HeaderValue::from_static("noindex, nofollow"),
+    );
+    r
+}
+
+/// /emu/cores/*: the pinned emulator core files under <root>/emu/cores/, to a session only (an anonymous request gets
+/// the same 401 as an /app/* file, present or not). The names are not content-hashed, so the browser revalidates.
+async fn emu_core_file(State(gs): State<GateState>, req: Request) -> Response {
+    let ip = client_ip(&req, gs.gate.trust_forwarded_for);
+    if !gs.gate.has_session(&gs.api, req.headers()).await {
+        return gs.gate.unauthorized(ip);
+    }
+    let rel = req
+        .uri()
+        .path()
+        .strip_prefix("/emu/cores/")
+        .unwrap_or_default()
+        .to_owned();
+    let Some(rel) = clean_relative(&rel) else {
+        return plain(StatusCode::NOT_FOUND);
+    };
+    let path = gs.gate.root.join("emu").join("cores").join(&rel);
+    let mut r = file_response(&path, req.method(), content_type(&rel), "private, no-cache").await;
+    let h = r.headers_mut();
+    h.insert(header::VARY, HeaderValue::from_static("Cookie"));
+    h.insert(
+        HeaderName::from_static("x-robots-tag"),
+        HeaderValue::from_static("noindex, nofollow"),
+    );
+    h.insert(
+        HeaderName::from_static("x-content-type-options"),
+        HeaderValue::from_static("nosniff"),
     );
     r
 }

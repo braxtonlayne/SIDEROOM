@@ -37,7 +37,9 @@ const ROM_MODE = process.env.SR_E2E_COOP_ROM === '1';
 const here = dirname(fileURLToPath(import.meta.url));
 const ROM_KEY = 'emu/roms/sideroom-test.nes';
 const CORE_URL = '/emu/cores/fceumm/fceumm-legacy-wasm.data';
-const BUCKET = 'https://bucket.test';
+// A same-origin path stands in for the bucket: the app policy's connect-src lists only the instance (and the
+// operator's bucket origins), so a made-up origin would be refused on a production bundle.
+const BUCKET = '/__test-bucket';
 const RED = [200, 40, 40] as const;
 const GREEN = [40, 200, 40] as const;
 
@@ -149,16 +151,16 @@ async function routeTestRom(page: Page) {
     const body = route.request().postDataJSON() as { key: string; method: string };
     await route.fulfill({
       json: {
-        url: `${BUCKET}/${body.method}/${encodeURI(body.key)}`,
+        url: `${new URL(route.request().url()).origin}${BUCKET}/${body.method}/${encodeURI(body.key)}`,
         expires_at: '2099-01-01T00:00:00Z',
       },
     });
   });
-  await page.route(`${BUCKET}/**`, async (route) => {
+  await page.route(`**${BUCKET}/**`, async (route) => {
     const req = route.request();
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': '*' };
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
-    const key = decodeURI(new URL(req.url()).pathname.replace(/^\/(GET|PUT)\//, ''));
+    const key = decodeURI(new URL(req.url()).pathname.replace(/^\/__test-bucket\/(GET|PUT)\//, ''));
     if (req.method() === 'GET' && key === ROM_KEY) {
       return route.fulfill({ status: 200, headers, body: rom });
     }

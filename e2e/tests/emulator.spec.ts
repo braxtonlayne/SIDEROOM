@@ -19,7 +19,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const ROM = readFileSync(resolve(here, '../fixtures/emu/sideroom-test.nes'));
 const ROM_KEY = 'emu/roms/sideroom-test.nes';
 const CORE_URL = '/emu/cores/fceumm/fceumm-legacy-wasm.data';
-const BUCKET = 'https://bucket.test';
+// A same-origin path stands in for the bucket: the app policy's connect-src lists only the instance (and the
+// operator's bucket origins), so a made-up origin would be refused on a production bundle.
+const BUCKET = '/__test-bucket';
 
 const mount = {
   id: '7',
@@ -109,17 +111,17 @@ test('the NES core boots the test ROM, shows a non-blank frame, answers the keyb
     const body = route.request().postDataJSON() as { key: string; method: string };
     await route.fulfill({
       json: {
-        url: `${BUCKET}/${body.method}/${encodeURI(body.key)}`,
+        url: `${new URL(route.request().url()).origin}${BUCKET}/${body.method}/${encodeURI(body.key)}`,
         expires_at: '2099-01-01T00:00:00Z',
       },
     });
   });
-  await page.route(`${BUCKET}/**`, async (route) => {
+  await page.route(`**${BUCKET}/**`, async (route) => {
     const req = route.request();
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': '*' };
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     const url = new URL(req.url());
-    const key = decodeURI(url.pathname.replace(/^\/(GET|PUT)\//, ''));
+    const key = decodeURI(url.pathname.replace(/^\/__test-bucket\/(GET|PUT)\//, ''));
     if (req.method() === 'PUT') {
       puts.push({ key, size: req.postDataBuffer()?.length ?? 0 });
       return route.fulfill({ status: 200, headers });
