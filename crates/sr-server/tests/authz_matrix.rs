@@ -974,6 +974,18 @@ async fn seed(
 ) -> (World, tokio::sync::oneshot::Sender<()>, ServerTask) {
     let pool = db.pool().clone();
     sr_db::migrate(&pool).await.expect("migrate");
+    // STU-NAV-001: the Study storefront surfaces are off by default and answer 404; the matrix proves each
+    // route's authorization row, so it opts in to them (the hidden-404 rules are unit-tested in sr-api).
+    for (n, id) in sr_features::STUDY_SWITCH_IDS.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO feature_enablements (id, feature, scope, scope_id, enabled, config)              VALUES ($1, $2, 'platform'::enablement_scope, 0, true, '{}')",
+        )
+        .bind(9_000_000_000_i64 + n as i64)
+        .bind(*id)
+        .execute(&pool)
+        .await
+        .expect("switch a Study surface on");
+    }
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 9).expect("ids");
     let id_src: sr_db::auth_repo::IdSource = {
