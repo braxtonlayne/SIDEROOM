@@ -28,6 +28,7 @@ export function BridgeCard({
   const act = useAction();
   const [tearing, setTearing] = useState(false);
   const setModule = useBridgeModule((s) => s.set);
+  const whole = useBridgeModule((s) => s.wholeByGuild[guildId] === true);
   const locked = !isOwner || feature.platform_disabled;
 
   const switchOn = () =>
@@ -50,6 +51,7 @@ export function BridgeCard({
       <Notice variant="info" title={t('settings.bridge.card.noticeTitle')}>
         {t('settings.bridge.card.notice')}
       </Notice>
+      <p className="ss-sub">{t('settings.bridgeSync.card.wholeNote')}</p>
       {feature.platform_disabled && (
         <Notice variant="warning">{t('settings.features.platformOff')}</Notice>
       )}
@@ -84,6 +86,7 @@ export function BridgeCard({
       {tearing && (
         <TeardownDialog
           guildId={guildId}
+          whole={whole}
           onClose={(after) => {
             setTearing(false);
             if (after) {

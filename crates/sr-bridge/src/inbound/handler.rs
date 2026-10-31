@@ -12,6 +12,7 @@ use super::limit::BridgeLimiter;
 use super::members::{self, RoleCache};
 use super::sink::{ChatSink, InboundAuthor, InboundPost};
 use super::store;
+use super::structure::{self, StructureSink};
 use crate::error::BridgeResult;
 use crate::model::{Bridge, MessageMapDirection};
 
@@ -52,6 +53,8 @@ pub enum Outcome {
     /// A bridged member changed (added, updated, removed, presence, a members chunk).
     Member,
     Typing,
+    /// BRG-SYN-003: this many structural events were handed to the reconciler.
+    Structure(usize),
     Ignored(Why),
 }
 
@@ -77,6 +80,10 @@ pub enum Why {
     CustomEmoji,
     /// An event of another Discord server the bot is in.
     OtherServer,
+    /// BRG-SYN-003: the bridge's own structural write coming back (audit reason `sr-bridge:`).
+    Echo,
+    /// BRG-SYN-003: structural event while no reconciler is attached.
+    NoReconciler,
     /// The bridge has no integration author to store the message under (a row not made by connect).
     NoAuthor,
     /// Another dispatch the bridge has no use for.
@@ -90,6 +97,8 @@ pub struct Inbound {
     pub(crate) limiter: BridgeLimiter,
     pub(crate) cfg: InboundConfig,
     pub(crate) roles: RoleCache,
+    /// BRG-SYN-003: where structural dispatches go (the sync engine); `None` until it is attached.
+    pub(crate) structure: Option<Arc<dyn StructureSink>>,
 }
 
 impl Inbound {
@@ -100,7 +109,15 @@ impl Inbound {
             limiter: BridgeLimiter::new(),
             cfg,
             roles: RoleCache::default(),
+            structure: None,
         }
+    }
+
+    /// Attach the reconciler that gets structural dispatches (BRG-SYN-003).
+    #[must_use]
+    pub fn with_structure(mut self, sink: Arc<dyn StructureSink>) -> Self {
+        self.structure = Some(sink);
+        self
     }
 
     /// Messages dropped for the abuse limit since the process started (for the status).
@@ -109,6 +126,12 @@ impl Inbound {
     }
 
     pub async fn handle(&self, bridge: &Bridge, d: &Dispatch) -> BridgeResult<Outcome> {
+        // Structure first: role events feed both the member cache below and the reconciler.
+        let structural = if structure::is_structural(&d.name) {
+            Some(self.structural(bridge, d).await?)
+        } else {
+            None
+        };
         match d.name.as_str() {
             "MESSAGE_CREATE" => self.create(bridge, &d.data).await,
             "MESSAGE_UPDATE" => self.update(bridge, &d.data).await,
@@ -125,9 +148,53 @@ impl Inbound {
             | "GUILD_ROLE_CREATE"
             | "GUILD_ROLE_UPDATE"
             | "GUILD_ROLE_DELETE"
-            | "PRESENCE_UPDATE" => self.member_event(bridge, &d.name, &d.data).await,
-            _ => Ok(Outcome::Ignored(Why::Other)),
+            | "PRESENCE_UPDATE" => {
+                let member = self.member_event(bridge, &d.name, &d.data).await?;
+                // A role event is also structure; report the reconciler's outcome when it took it.
+                Ok(match structural {
+                    Some(o @ Outcome::Structure(_)) => o,
+                    _ => member,
+                })
+            }
+            _ => Ok(structural.unwrap_or(Outcome::Ignored(Why::Other))),
         }
+    }
+
+    /// Structural dispatches to the reconciler (BRG-SYN-003). Events of other servers and the bridge's own
+    /// audit-log echoes are dropped.
+    async fn structural(&self, bridge: &Bridge, d: &Dispatch) -> BridgeResult<Outcome> {
+        let event_guild = d.data.get("guild_id").and_then(convert::id_of);
+        if event_guild.is_some_and(|g| g != bridge.discord_guild_id) {
+            return Ok(Outcome::Ignored(Why::OtherServer));
+        }
+        let Some(sink) = &self.structure else {
+            return Ok(Outcome::Ignored(Why::NoReconciler));
+        };
+        if d.name == "GUILD_AUDIT_LOG_ENTRY_CREATE" {
+            if structure::is_echo(&d.data) {
+                return Ok(Outcome::Ignored(Why::Echo));
+            }
+            let target = d.data.get("target_id").and_then(convert::id_of);
+            let user = d.data.get("user_id").and_then(convert::id_of);
+            let action = d
+                .data
+                .get("action_type")
+                .and_then(Value::as_i64)
+                .unwrap_or(0);
+            if let (Some(t), Some(u)) = (target, user)
+                && u != bridge.bot_user_id
+            {
+                sink.attribute(bridge, t, u, action).await;
+            }
+            return Ok(Outcome::Ignored(Why::Other));
+        }
+        let events = structure::events_for(&d.name, &d.data);
+        if events.is_empty() {
+            return Ok(Outcome::Ignored(Why::Unparseable));
+        }
+        let n = events.len();
+        sink.look_at(bridge, events).await;
+        Ok(Outcome::Structure(n))
     }
 
     async fn typing(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
@@ -249,10 +316,27 @@ impl Inbound {
         Ok(Outcome::Member)
     }
 
+    /// Whole-guild bridges keep mapped `<@&role>` and `<#channel>` as SIDE ROOM mentions (never a ping: the sink
+    /// records no mention). Selective bridges, and payloads without such a mention, keep wave 35's text.
+    async fn mapped_content(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Option<String>> {
+        if bridge.mode != "whole_guild" {
+            return Ok(None);
+        }
+        let probe = data.get("content").and_then(Value::as_str).unwrap_or("");
+        if !(probe.contains("<@&") || probe.contains("<#")) {
+            return Ok(None);
+        }
+        let maps = crate::sync::mention_maps(&self.pool, bridge.guild_id).await?;
+        Ok(convert::mapped_content(data, &maps))
+    }
+
     async fn create(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
-        let Some(m) = convert::parse_message(data) else {
+        let Some(mut m) = convert::parse_message(data) else {
             return Ok(Outcome::Ignored(Why::Unparseable));
         };
+        if let Some(c) = self.mapped_content(bridge, data).await? {
+            m.content = c;
+        }
         let Some(map) =
             store::map_for_discord_channel(&self.pool, bridge.guild_id, m.channel_id).await?
         else {
@@ -317,9 +401,14 @@ impl Inbound {
     }
 
     async fn update(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
-        let Some(e) = convert::parse_edit(data) else {
+        let Some(mut e) = convert::parse_edit(data) else {
             return Ok(Outcome::Ignored(Why::Unparseable));
         };
+        if e.content.is_some()
+            && let Some(c) = self.mapped_content(bridge, data).await?
+        {
+            e.content = Some(c);
+        }
         if e.content.is_none() && e.links.is_none() {
             return Ok(Outcome::Ignored(Why::NothingToChange));
         }

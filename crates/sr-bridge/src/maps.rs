@@ -29,8 +29,10 @@ pub fn refusal_for_channel(guild_id: Option<i64>, kind: i16) -> Option<&'static 
             "Direct messages and group chats are never bridged: they are private, and the end-to-end encrypted ones cannot be read by the server at all.",
         );
     }
-    if !matches!(kind, 0 | 5) {
-        return Some("Only text and announcement channels can be bridged.");
+    if !matches!(kind, 0 | 5 | 15 | 16) {
+        return Some(
+            "Only text, announcement, forum and media channels can be picked on their own.",
+        );
     }
     None
 }
@@ -371,7 +373,11 @@ mod tests {
     fn only_server_text_channels_can_be_bridged() {
         assert!(refusal_for_channel(Some(1), 0).is_none());
         assert!(refusal_for_channel(Some(1), 5).is_none());
-        for kind in [2, 4, 13, 15] {
+        assert!(
+            refusal_for_channel(Some(1), 15).is_none()
+                && refusal_for_channel(Some(1), 16).is_none()
+        );
+        for kind in [2, 4, 13] {
             assert!(refusal_for_channel(Some(1), kind).is_some(), "type {kind}");
         }
         assert!(refusal_for_channel(None, 1).unwrap().contains("end-to-end"));

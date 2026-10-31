@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   Combobox,
   ConfirmDialog,
@@ -14,6 +15,7 @@ import { t as translate, useT } from '../../../i18n';
 import { CreateChannelDialog } from '../../../lounge/CreateChannelDialog';
 import { useGuild, useMembers } from '../../../store';
 import * as api from '../api';
+import { useWholeMirrors } from '../bridge/mirrors';
 import { useDraft, useGuildEvents, useResource, useSettingsForm, type Viewer } from '../hooks';
 import {
   PERM,
@@ -609,6 +611,8 @@ function ChannelPermissions({
   const { roles } = useGuild(guildId);
   const { members } = useMembers(guildId);
   const action = useAction();
+  const mirrors = useWholeMirrors(guildId);
+  const mirror = mirrors?.channels.find((c) => c.channel_id === channel.id);
   const [pending, setPending] = useState<Target[]>([]);
   const [targetKey, setTargetKey] = useState<string | null>(null);
 
@@ -664,6 +668,26 @@ function ChannelPermissions({
         </Notice>
       )}
       <ActionStatus error={action.error} done={action.done} />
+      {mirror && (
+        <div data-testid="channel-mirror">
+          <Badge variant="accent">
+            {mirror.state === 'frozen'
+              ? t('settings.bridgeSync.channel.frozen')
+              : t('settings.bridgeSync.channel.mirrored')}
+          </Badge>
+          {mirror.state === 'held' && (
+            <p className="ss-sub">{t('settings.bridgeSync.channel.held')}</p>
+          )}
+          {mirror.degraded_reason && (
+            <p className="ss-sub">
+              {t('settings.bridgeSync.channel.degraded', { reason: mirror.degraded_reason })}
+            </p>
+          )}
+          {overwrites.some((o) => o.type === 1) && (
+            <p className="ss-sub">{t('settings.bridgeSync.channel.srOnlyNote')}</p>
+          )}
+        </div>
+      )}
       {parent && (
         <Switch
           label={t('settings.channels.syncLabel')}
@@ -711,6 +735,9 @@ function ChannelPermissions({
                   {tg.type === 1 ? '@' : ''}
                   {nameOf(tg)}
                 </button>
+                {mirror && tg.type === 1 && (
+                  <Badge>{t('settings.bridgeSync.channel.srOnlyRow')}</Badge>
+                )}
               </li>
             ))}
           </ul>

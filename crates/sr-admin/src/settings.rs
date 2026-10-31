@@ -158,6 +158,12 @@ pub const ABUSE_DATA_EXPORT_COOLDOWN: &str = "abuse.data_export_cooldown_hours";
 pub const ABUSE_BRIDGE_MESSAGES: &str = "abuse.bridge_messages_per_minute";
 /// Most Discord bridges (one shard each) one instance runs (BRG-GW-001).
 pub const BRIDGE_MAX_BRIDGES: &str = "bridge.max_bridges";
+/// Hours a channel deleted on Discord is held here before it is deleted (BRG-SYN-001; 0 deletes at once).
+pub const BRIDGE_DELETE_HOLD_HOURS: &str = "bridge.delete_hold_hours";
+/// Minutes between the scheduled full reconciles of a whole-guild bridge (BRG-SYN-001).
+pub const BRIDGE_RECONCILE_MINUTES: &str = "bridge.reconcile_minutes";
+/// Structural writes per second the whole-guild mirror may make to Discord (BRG-SYN-001).
+pub const BRIDGE_STRUCT_WRITES_PER_SEC: &str = "bridge.struct_writes_per_sec";
 
 /// Presign lifetime of bucket mounts (BYOS-SCP-002).
 pub const BYOS_PRESIGN_TTL: &str = "byos.presign_ttl_secs";
@@ -369,6 +375,30 @@ pub const CATALOG: &[SettingDef] = &[
         200,
         10,
         "Most Discord bridges (one gateway connection each) this instance runs at once; a server that switches one on beyond this is refused.",
+    ),
+    int(
+        BRIDGE_DELETE_HOLD_HOURS,
+        "bridge",
+        0,
+        168,
+        24,
+        "Hours a channel, category or thread deleted on the Discord side is hidden here before it is deleted for good (0 deletes it at once). Until then a manager can restore it.",
+    ),
+    int(
+        BRIDGE_RECONCILE_MINUTES,
+        "bridge",
+        5,
+        60,
+        15,
+        "Minutes between the full comparison of a whole-server Discord bridge with its Discord server.",
+    ),
+    int(
+        BRIDGE_STRUCT_WRITES_PER_SEC,
+        "bridge",
+        1,
+        10,
+        2,
+        "Writes per second (roles, channels, categories, threads) a whole-server Discord bridge may make to Discord. Messages are not counted.",
     ),
     int(
         BYOS_PRESIGN_TTL,

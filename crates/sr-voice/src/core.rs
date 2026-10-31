@@ -444,6 +444,8 @@ struct Participant {
     ice_down_since: Option<Instant>,
     dead: Option<CloseReason>,
     rates: Rates,
+    /// The activity data channel (ACT-CH-001).
+    dc: crate::datachannel::Member,
 }
 
 impl Participant {
@@ -549,6 +551,9 @@ pub struct SfuCore {
     governor: EgressGovernor,
     last_maintain: Option<Instant>,
     last_governor: Option<Instant>,
+    /// `voice.datachannel_kbps`: each member's activity data budget.
+    dc_kbps: u32,
+    dc_stats: crate::datachannel::Stats,
 }
 
 impl SfuCore {
@@ -580,7 +585,21 @@ impl SfuCore {
             governor: EgressGovernor::new(GovernorConfig::default()),
             last_maintain: None,
             last_governor: None,
+            dc_kbps: crate::datachannel::DEFAULT_KBPS,
+            dc_stats: crate::datachannel::Stats::default(),
         }
+    }
+
+    /// Each member's activity data-channel budget in kbit/s (`voice.datachannel_kbps`, ACT-CH-001); `0` turns the
+    /// channel off. Applies to members who join afterwards.
+    pub fn with_datachannel_kbps(mut self, kbps: u32) -> Self {
+        self.dc_kbps = kbps;
+        self
+    }
+
+    /// What the activity data channels have relayed and dropped so far.
+    pub fn datachannel_stats(&self) -> crate::datachannel::Stats {
+        self.dc_stats
     }
 
     /// Set the egress budget (VOX-SFU-008). A zero budget leaves the governor off.
@@ -849,6 +868,7 @@ impl SfuCore {
                 ice_down_since: None,
                 dead: None,
                 rates: Rates::default(),
+                dc: crate::datachannel::Member::new(self.dc_kbps),
             },
         );
         // Existing participants' tracks become this one's subscriptions, and it learns what
@@ -1948,6 +1968,24 @@ impl SfuCore {
                     }
                 }
             }
+            Event::ChannelOpen(cid, label) => {
+                // One activity data channel per participant (ACT-CH-001); any other label is ignored.
+                if label == crate::datachannel::LABEL
+                    && let Some(p) = self.parts.get_mut(&id)
+                    && p.dc.channel.is_none()
+                {
+                    p.dc.channel = Some(cid);
+                }
+            }
+            Event::ChannelClose(cid) => {
+                if let Some(p) = self.parts.get_mut(&id)
+                    && p.dc.channel == Some(cid)
+                {
+                    p.dc.channel = None;
+                    p.dc.instances.clear();
+                }
+            }
+            Event::ChannelData(cd) => self.on_channel_data(id, cd, now),
             Event::Connected => {
                 tracing::debug!(pid = id.0, "voice DTLS connected");
             }
@@ -1958,6 +1996,74 @@ impl SfuCore {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// A message on a participant's activity data channel (ACT-CH-001): join or leave an instance, or relay
+    /// one opaque message to the other members of the same room that joined the same instance.
+    fn on_channel_data(
+        &mut self,
+        src: ParticipantId,
+        cd: str0m::channel::ChannelData,
+        now: Instant,
+    ) {
+        use crate::datachannel::{self as dc, Frame};
+        let Some(p) = self.parts.get_mut(&src) else {
+            return;
+        };
+        // Only the participant's own activity channel counts, and only binary frames.
+        if p.dc.channel != Some(cd.id) {
+            return;
+        }
+        if !cd.binary {
+            self.dc_stats.dropped_scope += 1;
+            return;
+        }
+        // The budget is charged for every frame a member sends, valid or not.
+        if !p.dc.budget.allow(now, cd.data.len()) {
+            self.dc_stats.dropped_budget += 1;
+            return;
+        }
+        match dc::parse(&cd.data) {
+            Some(Frame::Join { instance }) => {
+                if !p.dc.join(instance) {
+                    self.dc_stats.dropped_scope += 1;
+                }
+            }
+            Some(Frame::Leave { instance }) => {
+                p.dc.instances.remove(&instance);
+            }
+            Some(Frame::Data { instance, payload }) => {
+                // Nothing before the E2EE handshake (D-249), and only into an instance the sender joined.
+                if !p.e2ee_keyed || !p.dc.instances.contains(&instance) {
+                    self.dc_stats.dropped_scope += 1;
+                    return;
+                }
+                let (room, user) = (p.channel, p.user);
+                let frame = dc::relayed(instance, user, payload);
+                let targets: Vec<ParticipantId> = self
+                    .rooms
+                    .get(&room)
+                    .map(|m| m.iter().copied().filter(|x| *x != src).collect())
+                    .unwrap_or_default();
+                for t in targets {
+                    let Some(q) = self.parts.get_mut(&t) else {
+                        continue;
+                    };
+                    if !q.e2ee_keyed || !q.dc.instances.contains(&instance) {
+                        continue;
+                    }
+                    let Some(ch) = q.dc.channel else { continue };
+                    match q.rtc.channel(ch).map(|mut c| c.write(true, &frame)) {
+                        Some(Ok(true)) => {
+                            self.dc_stats.relayed += 1;
+                            self.dc_stats.relayed_bytes += frame.len() as u64;
+                        }
+                        _ => self.dc_stats.dropped_backpressure += 1,
+                    }
+                }
+            }
+            None => self.dc_stats.dropped_scope += 1,
         }
     }
 

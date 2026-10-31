@@ -28,6 +28,14 @@ pub const MAX_UNPACKED_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_PATH_LEN: usize = 256;
 /// Longest path segment.
 pub const MAX_SEGMENT_LEN: usize = 128;
+/// The optional manifest at the root of a bundle.
+pub const MANIFEST: &str = "sideroom.json";
+/// The data channel capability: the Activity shares state and inputs through the SFU (ACT-CH-001).
+pub const DATACHANNEL: &str = "datachannel";
+/// Capabilities a manifest may declare. `datachannel`: the Activity uses `sdk.state` / `sdk.input` (ACT-CH-001).
+pub const CAPABILITIES: &[&str] = &[DATACHANNEL];
+/// Largest manifest.
+pub const MAX_MANIFEST_BYTES: usize = 8 * 1024;
 
 /// The extension allow-list with each extension's content type.
 pub const ALLOWED: &[(&str, &str)] = &[
@@ -109,6 +117,8 @@ pub struct Unpacked {
     pub entries: usize,
     /// Total unpacked bytes.
     pub total: u64,
+    /// Capabilities the bundle declares in `sideroom.json` (see [`CAPABILITIES`]), sorted, no duplicates.
+    pub capabilities: Vec<String>,
 }
 
 /// The content type of a file name by its extension (case-insensitive), `None` when the extension is not
@@ -295,12 +305,56 @@ pub fn unpack(zip_bytes: &[u8]) -> Result<Unpacked, BundleError> {
             data,
         });
     }
+    let capabilities = match files.iter().find(|f| f.path == MANIFEST) {
+        Some(f) => parse_manifest(&f.data)?,
+        None => Vec::new(),
+    };
     Ok(Unpacked {
         sha256,
         entries: seen.len(),
         files,
         total,
+        capabilities,
     })
+}
+
+/// The capabilities a `sideroom.json` declares: `{"capabilities": ["datachannel"]}`. Unknown capabilities,
+/// a manifest that is not that shape and one over [`MAX_MANIFEST_BYTES`] are refused, so a bundle cannot
+/// claim something the platform does not know.
+pub fn parse_manifest(data: &[u8]) -> Result<Vec<String>, BundleError> {
+    if data.len() > MAX_MANIFEST_BYTES {
+        return Err(BundleError::at(MANIFEST, "is larger than 8 KiB"));
+    }
+    let v: serde_json::Value =
+        serde_json::from_slice(data).map_err(|_| BundleError::at(MANIFEST, "is not valid JSON"))?;
+    let obj = v
+        .as_object()
+        .ok_or_else(|| BundleError::at(MANIFEST, "must be a JSON object"))?;
+    let mut out: Vec<String> = Vec::new();
+    if let Some(c) = obj.get("capabilities") {
+        let list = c
+            .as_array()
+            .ok_or_else(|| BundleError::at(MANIFEST, "has capabilities that are not a list"))?;
+        for item in list {
+            let name = item
+                .as_str()
+                .ok_or_else(|| BundleError::at(MANIFEST, "has a capability that is not text"))?;
+            if !CAPABILITIES.contains(&name) {
+                return Err(BundleError::at(
+                    MANIFEST,
+                    format!(
+                        "declares the unknown capability \"{}\"",
+                        name.chars().take(40).collect::<String>()
+                    ),
+                ));
+            }
+            if !out.iter().any(|x| x == name) {
+                out.push(name.to_owned());
+            }
+        }
+    }
+    out.sort();
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -498,5 +552,39 @@ mod tests {
         assert_eq!(content_type_for("a/b"), None);
         assert_eq!(content_type_for("a.d/b"), None);
         assert_eq!(content_type_for("x.exe"), None);
+    }
+
+    #[test]
+    fn a_manifest_declares_known_capabilities() {
+        let ok = build(&[
+            ("index.html", b"<p>x"),
+            (
+                "sideroom.json",
+                br#"{"capabilities":["datachannel","datachannel"]}"#,
+            ),
+        ]);
+        assert_eq!(unpack(&ok).unwrap().capabilities, vec!["datachannel"]);
+        let none = build(&[("index.html", b"<p>x")]);
+        assert!(unpack(&none).unwrap().capabilities.is_empty());
+        let empty = build(&[("index.html", b"<p>x"), ("sideroom.json", b"{}")]);
+        assert!(unpack(&empty).unwrap().capabilities.is_empty());
+    }
+
+    #[test]
+    fn a_bad_manifest_names_itself() {
+        for body in [
+            &br#"{"capabilities":["root"]}"#[..],
+            br#"{"capabilities":"datachannel"}"#,
+            br#"{"capabilities":[7]}"#,
+            b"[]",
+            b"nope",
+        ] {
+            let z = build(&[("index.html", b"<p>x"), ("sideroom.json", body)]);
+            let e = unpack(&z).unwrap_err();
+            assert_eq!(e.entry.as_deref(), Some("sideroom.json"), "{body:?}");
+        }
+        let big = vec![b' '; MAX_MANIFEST_BYTES + 1];
+        let z = build(&[("index.html", b"<p>x"), ("sideroom.json", &big)]);
+        assert!(unpack(&z).is_err());
     }
 }

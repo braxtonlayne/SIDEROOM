@@ -182,6 +182,27 @@ impl BridgeService {
             .collect())
     }
 
+    /// The bridge's mode (`selective` or `whole_guild`) of a server, or `None` without a bridge.
+    pub async fn mode_of(&self, guild: i64) -> BridgeResult<Option<String>> {
+        Ok(
+            sqlx::query_scalar("SELECT mode FROM bridges WHERE guild_id = $1")
+                .bind(guild)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
+    }
+
+    /// The bridge's mode for a mapped channel, or `None` when it is not mapped.
+    pub async fn mode_for_channel(&self, channel: i64) -> BridgeResult<Option<String>> {
+        Ok(sqlx::query_scalar(
+            "SELECT b.mode FROM bridge_channel_maps m JOIN bridges b ON b.guild_id = m.guild_id \
+             WHERE m.channel_id = $1",
+        )
+        .bind(channel)
+        .fetch_optional(&self.pool)
+        .await?)
+    }
+
     /// The bridge state of one channel, or `None` when it is not bridged (or the bridge is off).
     pub async fn direction_for_channel(&self, channel: i64) -> BridgeResult<Option<Direction>> {
         let Some(map) = crate::model::map_for_channel(&self.pool, channel).await? else {

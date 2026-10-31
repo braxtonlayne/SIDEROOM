@@ -63,3 +63,61 @@ export const fakeReset = async (request: APIRequestContext): Promise<void> => {
   const res = await request.post(`${FAKE_DISCORD_URL}/__fake/reset`);
   if (!res.ok()) throw new Error(`fake Discord reset: ${res.status()}`);
 };
+
+// ---- BRG-SYN-003 (wave 35b): the structural half of the fake (roles, channels, overwrites, threads). Run the fake on
+// 8094 for the sync-gateway specs: SR_FAKE_DISCORD_PORT=8094 SR_FAKE_DISCORD_URL=http://127.0.0.1:8094.
+
+export interface FakeAuditEntry {
+  action: number;
+  target_id: string;
+  /** The reason the writer sent; `sr-bridge:<op id>` for the bridge, null for a Discord admin. */
+  reason: string | null;
+  user_id: string;
+}
+export interface FakeStructure {
+  roles: Array<Record<string, unknown>>;
+  channels: Array<Record<string, unknown>>;
+  audit: FakeAuditEntry[];
+  requests: Array<{ method: string; path: string; body: unknown; reason: string | null }>;
+}
+
+export const fakeStructure = async (request: APIRequestContext): Promise<FakeStructure> => {
+  const res = await request.get(`${FAKE_DISCORD_URL}/__fake/structure`);
+  if (!res.ok()) throw new Error(`fake Discord structure: ${res.status()}`);
+  return (await res.json()) as FakeStructure;
+};
+
+/** A Discord admin's edit (same dispatches as the bot's, but no audit reason). */
+export const fakeAdminEdit = async (
+  request: APIRequestContext,
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<void> => {
+  const res = await request.post(`${FAKE_DISCORD_URL}/__fake/structure/admin`, {
+    data: { method, path, body },
+  });
+  if (!res.ok()) throw new Error(`fake Discord admin edit: ${res.status()}`);
+};
+
+export const fakeStructureControl = async (
+  request: APIRequestContext,
+  body: {
+    community?: boolean;
+    premium_tier?: number;
+    reset_rename_window?: boolean;
+    rate_limit_next?: number;
+  },
+): Promise<void> => {
+  const res = await request.post(`${FAKE_DISCORD_URL}/__fake/structure/control`, { data: body });
+  if (!res.ok()) throw new Error(`fake Discord structure control: ${res.status()}`);
+};
+
+/** Objects that existed on Discord before the bridge (no events, no audit). */
+export const fakeSeed = async (
+  request: APIRequestContext,
+  body: { roles?: Array<Record<string, unknown>>; channels?: Array<Record<string, unknown>> },
+): Promise<void> => {
+  const res = await request.post(`${FAKE_DISCORD_URL}/__fake/structure/seed`, { data: body });
+  if (!res.ok()) throw new Error(`fake Discord seed: ${res.status()}`);
+};

@@ -87,7 +87,14 @@ describe('activity host', () => {
     expect(r.posted.at(-1)).toEqual({
       sr: 1,
       kind: 'ready',
-      config: { application_id: '7', instance_id: '9', channel_id: '3', guild_id: '2' },
+      config: {
+        application_id: '7',
+        instance_id: '9',
+        channel_id: '3',
+        guild_id: '2',
+        host_id: '10',
+        capabilities: [],
+      },
     });
     await r.req('b', 'getChannel');
     expect(r.last()).toMatchObject({ nonce: 'b', ok: true, data: { name: 'Lobby' } });

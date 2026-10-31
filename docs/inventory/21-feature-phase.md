@@ -153,3 +153,62 @@ proofs ran on the merged tree; Playwright ran on Chromium only (Firefox and WebK
   _Merged tree: Vitest (401 files, 3671 tests), typecheck, lint, prettier, `build-web` + entrance isolation + bundle
   budget; `bridge.spec.ts` on Chromium (manager greyed card, owner on, token, map, both directions, switch-off leaves
   nothing)_
+
+## Wave 35b — The whole-server Discord mirror
+
+Integration: [dev/handoff/integration-phase35b.md](../dev/handoff/integration-phase35b.md). Decisions: D-386 and
+P35B-Q1 to Q11, P35B-UI-1 to 3, P35B-INT-1 and 2 (defaults the owner may change); D-381 and the IMMUTABLE RULE
+govern. Ticked where the item's own proofs ran on the merged tree; Playwright ran on Chromium only. Open parts are in
+the handoff's "Not done" (hiding a held channel, `Origin::Bridge`, thread state and forum tags in the reconcile).
+
+### BRG-SYN — Whole-server mode
+- [x] **BRG-SYN-001** [DB][BE] Modes, maps, reconciler, plan and seed, deletion hold, teardown options: migrations
+  1750 to 1753, `sync::{engine, plan, reconcile, reconcile_run, ops, holds, jobs, store, eligible, patch}`, the
+  `bridge_sync` routes (plan, mode, sync, reconcile, pause, resume, holds, preflight, mirrors, teardown-preview,
+  teardown), the sync worker and listener in `sr-server`, `bridge.*` settings _Merged tree: `sr-bridge` Postgres
+  suites (`sync_engine` 24 incl. the integration's wiring tests, `sync_db` 9), `authz_matrix` 7 incl.
+  `every_route_enforces_its_authz_row` with a seeded `{plan_id}` and held channels, `route_matrix`, `openapi_names`;
+  `bridge-whole-guild.spec.ts` (Chromium) plans, confirms, seeds against the fake, restores a held channel, goes back
+  to selective and switches off with "also remove"_
+- [x] **BRG-SYN-002** [BE][SEC] Bit masks, overwrite translation, reverts, conflicts, audit 220 to 224, authz
+  property and matrix rows: `Permissions::BRIDGE_SHARED` / `SR_ONLY`, `sync::{perms, overwrites, conflicts}` wired
+  into the reconcile and the seed, conflict routes (+ unfreeze, retry), ping-pong freeze _Merged tree:
+  `sr-core --lib permissions` (19), `sr-bridge --test authz_property` (5, 500 cases), `--test conflicts` (5),
+  `immutable_rules` (incl. the bridge check), `authz_matrix` (no ceiling changed); the spec sees a Discord permission
+  edit put back on the fake and logged here, and "Apply on SIDE ROOM" saves nothing_
+- [x] **BRG-SYN-003** [BE] Discord REST for structure with the audit-reason header, dispatch handling to the engine
+  (`EngineSink`), intents per mode with a shard restart on a mode change, the stateful fakes, display roles and
+  mention translation both ways, migration 1756 _Merged tree: `sr-bridge --test structure` (8), `--test inbound`
+  (15), the wiring test `gateway_and_sideroom_changes_queue_looks_only_while_the_whole_guild_sync_runs`; the spec's
+  rename on the fake arrives here through the gateway_
+- [x] **BRG-SYN-004** [FE][DOC] Mode card, preflight, plan, sync status, conflict log, role and channel badges,
+  member grouping, teardown options, privacy texts, docs (07, 05, 09, lawyer brief Q21) _Merged tree: Vitest
+  `bridge/__tests__/sync.test.tsx` (17, MSW answering the wire shapes) and the full web suite, typecheck (web and e2e),
+  lint, prettier, `build-web` + entrance isolation + bundle budget; `bridge.spec.ts` and `bridge-whole-guild.spec.ts`
+  on Chromium against sr-server and the fake_
+
+## Wave 36 — Activities with shared state
+
+Integration: [dev/handoff/integration-phase36.md](../dev/handoff/integration-phase36.md). Decisions: P36-ACT-1 to
+P36-ACT-5 (commander defaults the owner may change). Ticked where the item's own proofs ran on the merged tree (after
+merging main 28bdcbf9); Playwright ran on Chromium only (Firefox and WebKit are CI's).
+
+### ACT — Activities
+- [x] **ACT-CH-001** [BE][FE] Data channels through the SFU under the room's keys: one SCTP channel per member in
+  `sr-voice` (relay scoped to room and instance, `voice.datachannel_kbps`), the `sr-e2ee` data frame, the SDK's
+  `sdk.state` / `sdk.input` / `sdk.on` with `sdk.self` and `sdk.hostId`, the `datachannel` capability (migration
+  1760), `voice::DataChannel` in sr-sdk, T32; the instance ends when its host leaves (P36-ACT-1) _Merged tree:
+  `sr-e2ee` (38), `sr-voice` (all, 6 datachannel), `sr-activities` (Postgres, host-leave case), `sr-sdk` (incl.
+  `voice_data` against the SFU), `sr-server` lib, `immutable_rules`, `web_gate`, `authz_matrix` (no ceiling changed),
+  `sr-db` secret_columns; SDK Vitest (23); `activities-live.spec.ts` state exchange on Chromium_
+- [x] **ACT-WB-001** [FE] Whiteboard: strokes, shapes, text, images, pages, undo, host compaction, PNG export
+  _Merged tree: Vitest (71, incl. the late join after a compaction now a plain `it`); live case draws, undoes, adds a
+  page and re-joins in two contexts (Chromium). Images from a mount and the studio's canvas wait (owner items)_
+- [x] **ACT-CT-001** [FE] Card table: Texas Hold'em with hole cards by addressed reply, betting, showdown, the
+  not-cheat-proof notice, 60 s turn timer and host Remove (P36-ACT-2) _Merged tree: Vitest (62); live case plays one
+  hand in two contexts (Chromium)_
+- [x] **ACT-TT-001** [FE] Tabletop map and dice: grid or hex map, tokens, fog, initiative, seeded dice, measuring
+  _Merged tree: Vitest (86, incl. the CSPRNG roll seed found missing by the live run); live case moves a token and
+  rolls in two contexts (Chromium). The map comes from a device file, not a mount (owner item)_
+- [x] **ACT-LND-001** [FE] Land.io as a built-in activity hosted in the starter's browser _Merged tree: Vitest (299),
+  `tsc` check of the JS; live case plays one match in two contexts and the host leaving ends it (Chromium)_

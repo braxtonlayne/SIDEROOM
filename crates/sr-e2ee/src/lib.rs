@@ -25,6 +25,7 @@
 //! since the media path passed in Chromium and Firefox (VOX-E2E-003).
 
 pub mod codec;
+pub mod data;
 pub mod frame;
 pub mod keys;
 pub mod mls;

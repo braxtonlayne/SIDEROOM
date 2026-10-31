@@ -37880,6 +37880,585 @@
         ]
       }
     },
+    "/guilds/{guild_id}/bridge/conflicts": {
+      "get": {
+        "tags": [],
+        "summary": "The conflicts of the bridge (`MANAGE_GUILD`).",
+        "operationId": "list_conflicts",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "Filter by kind.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "path",
+            "description": "`open` (default), `resolved`, `dismissed`, `superseded` or `all`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "object_kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "before",
+            "in": "path",
+            "description": "Page: rows older than this conflict id.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "description": "1 to 100, default 50.",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}": {
+      "get": {
+        "tags": [],
+        "summary": "One conflict (`MANAGE_GUILD`).",
+        "operationId": "get_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/dismiss": {
+      "post": {
+        "tags": [],
+        "summary": "Dismiss a conflict (`MANAGE_GUILD`): it stays in the log as dismissed. Nothing on either side changes.",
+        "operationId": "dismiss_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/resolve": {
+      "post": {
+        "tags": [],
+        "summary": "Close a conflict after \"Apply on SIDE ROOM\" (`MANAGE_GUILD`, and `MANAGE_ROLES` or `MANAGE_CHANNELS` for the\nedit the row stands for). The edit itself was an ordinary SIDE ROOM edit by this person; this only records it.",
+        "operationId": "resolve_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/retry": {
+      "post": {
+        "tags": [],
+        "summary": "\"Retry\" a `dead_op` row (`MANAGE_GUILD`): the op is queued again.",
+        "operationId": "retry_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord": {
+      "post": {
+        "tags": [],
+        "summary": "Apply Discord's value of a `structure_conflict` row here, as the person who clicks (`MANAGE_GUILD`, plus the\nSIDE ROOM rule of the edit: `MANAGE_ROLES` and hierarchy for a role, `MANAGE_CHANNELS` for a channel).",
+        "operationId": "take_discord",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeDiscordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/unfreeze": {
+      "post": {
+        "tags": [],
+        "summary": "\"Unfreeze\" a `frozen` row (`MANAGE_GUILD`): the object's map runs again from the next pass. SIDE ROOM's state\nwas never changed by the freeze, so nothing here changes either.",
+        "operationId": "unfreeze_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/bridge/discord-channels": {
       "get": {
         "tags": [],
@@ -37906,6 +38485,195 @@
                   "items": {
                     "$ref": "#/components/schemas/DiscordChannelObject"
                   }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/holds": {
+      "get": {
+        "tags": [],
+        "summary": "Channels, categories and threads deleted on Discord and held here (`MANAGE_GUILD`).",
+        "operationId": "list_holds",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BridgeHoldObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/holds/{channel_id}/delete": {
+      "post": {
+        "tags": [],
+        "summary": "Delete a held channel now (`MANAGE_GUILD` and `MANAGE_CHANNELS`).",
+        "operationId": "delete_hold",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/holds/{channel_id}/restore": {
+      "post": {
+        "tags": [],
+        "summary": "Restore a held channel (`MANAGE_GUILD` and `MANAGE_CHANNELS`): it is recreated on Discord from SIDE ROOM's\nstate and re-mapped; the old Discord messages are gone.",
+        "operationId": "restore_hold",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BridgeRestoredObject"
                 }
               }
             }
@@ -38413,6 +39181,626 @@
         ]
       }
     },
+    "/guilds/{guild_id}/bridge/mirrors": {
+      "get": {
+        "tags": [],
+        "summary": "Which roles and channels of the server are mirrored (any member of the server: the badges). 404 while the\nbridge is off or not connected.",
+        "operationId": "mirrors",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MirrorsObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/mode": {
+      "post": {
+        "tags": [],
+        "summary": "Switch the mode (the server owner alone, with the second-factor step). `whole_guild` confirms a plan by its\nhash: a plan that no longer matches either server is a 409 `BRIDGE_PLAN_STALE`; the seed then runs in the\nbackground. `selective` leaves everything where it is on both sides.",
+        "operationId": "set_mode",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BridgeModeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BridgeModeObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/pause": {
+      "post": {
+        "tags": [],
+        "summary": "Pause the sync (`MANAGE_GUILD`): pushes, reverts and applies stop; SIDE ROOM is unaffected.",
+        "operationId": "pause",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/plan": {
+      "post": {
+        "tags": [],
+        "summary": "Build a plan, a dry run that writes nothing to either side (`MANAGE_GUILD`; a manager can prepare it for the\nowner). A new plan supersedes the open one.",
+        "operationId": "create_plan",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/plan/{plan_id}": {
+      "get": {
+        "tags": [],
+        "summary": "Read a plan (`MANAGE_GUILD`). Another server's plan id is a 404.",
+        "operationId": "get_plan",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plan_id",
+            "in": "path",
+            "description": "Plan snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Edit an open plan: unlink or link a pair, switch an import, choose the seed structure (`MANAGE_GUILD`). The\nplan's hash changes with it.",
+        "operationId": "edit_plan",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plan_id",
+            "in": "path",
+            "description": "Plan snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanEditBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/preflight": {
+      "get": {
+        "tags": [],
+        "summary": "Run the preflight checks now (`MANAGE_GUILD`): reads both servers, writes nothing.",
+        "operationId": "preflight",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreflightObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/reconcile": {
+      "post": {
+        "tags": [],
+        "summary": "Queue a reconcile now (`MANAGE_GUILD`; at most once per five minutes).",
+        "operationId": "reconcile_now",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/resume": {
+      "post": {
+        "tags": [],
+        "summary": "Resume the sync (`MANAGE_GUILD`).",
+        "operationId": "resume",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/bridge/status": {
       "get": {
         "tags": [],
@@ -38436,6 +39824,181 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BridgeStatusObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/sync": {
+      "get": {
+        "tags": [],
+        "summary": "The sync status page (`MANAGE_GUILD`).",
+        "operationId": "sync_status",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/teardown": {
+      "post": {
+        "tags": [],
+        "summary": "Switch the bridge off with the whole_guild options (the server owner alone, second-factor step). The default\nleaves Discord as it is; the bot never deletes a Discord object it did not create.",
+        "operationId": "teardown",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BridgeTeardownBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeardownResultObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/teardown-preview": {
+      "get": {
+        "tags": [],
+        "summary": "What the teardown dialog shows before the owner chooses (the server owner alone).",
+        "operationId": "teardown_preview",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeardownPreviewObject"
                 }
               }
             }
@@ -80072,6 +81635,21 @@
           }
         }
       },
+      "BlockerObject": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "BoardItem": {
         "type": "object",
         "required": [
@@ -80314,12 +81892,48 @@
         "type": "object",
         "description": "The bridge state of a channel: which way its messages flow.",
         "required": [
-          "direction"
+          "direction",
+          "mode"
         ],
         "properties": {
           "direction": {
             "type": "string",
             "description": "`both`, `to_discord` or `from_discord`."
+          },
+          "mode": {
+            "type": "string",
+            "description": "The bridge's mode (wave 35b): `selective` or `whole_guild` (the banner names the whole-server mirror)."
+          }
+        }
+      },
+      "BridgeHoldObject": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "discord_channel_id",
+          "held_at",
+          "delete_after"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "delete_after": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "discord_actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_channel_id": {
+            "type": "string"
+          },
+          "held_at": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -80348,6 +81962,47 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "BridgeModeBody": {
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "`selective` or `whole_guild`."
+          },
+          "plan_hash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The plan's hash as the client saw it."
+          },
+          "plan_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The plan to confirm (required for `whole_guild`)."
+          }
+        }
+      },
+      "BridgeModeObject": {
+        "type": "object",
+        "required": [
+          "mode",
+          "sync_state"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "sync_state": {
+            "type": "string"
           }
         }
       },
@@ -80408,6 +82063,17 @@
           "status": {
             "type": "string",
             "description": "`connecting`, `connected`, `disconnected` or `token_invalid`."
+          }
+        }
+      },
+      "BridgeRestoredObject": {
+        "type": "object",
+        "required": [
+          "discord_channel_id"
+        ],
+        "properties": {
+          "discord_channel_id": {
+            "type": "string"
           }
         }
       },
@@ -80472,6 +82138,19 @@
             "type": "integer",
             "format": "int64",
             "description": "Posts waiting."
+          }
+        }
+      },
+      "BridgeTeardownBody": {
+        "type": "object",
+        "properties": {
+          "remove_created": {
+            "type": "boolean",
+            "description": "Also delete the roles, categories, channels and threads the bridge created on Discord."
+          },
+          "restore_permissions": {
+            "type": "boolean",
+            "description": "Also restore the permissions Discord had before the bridge (roles and overwrites that existed then)."
           }
         }
       },
@@ -80551,6 +82230,16 @@
             ],
             "format": "int32",
             "description": "`0xRRGGBB` as a number; null for a role without a colour."
+          },
+          "role_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Whole-server bridges only: the SIDE ROOM role ids the member's Discord roles map to, for display (grouping,\ncolour). Never an authorization input; absent for a selective bridge."
           },
           "role_name": {
             "type": [
@@ -80753,6 +82442,13 @@
             "type": "integer",
             "format": "int64",
             "description": "Total unpacked size in bytes."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Capabilities the bundle declares in `sideroom.json` (`datachannel`), shown to staff at review."
           },
           "entry_count": {
             "type": "integer",
@@ -84289,6 +85985,137 @@
           }
         }
       },
+      "ConflictList": {
+        "type": "object",
+        "description": "A page of the conflict log, newest first.",
+        "required": [
+          "conflicts",
+          "open"
+        ],
+        "properties": {
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConflictObject"
+            }
+          },
+          "open": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Conflicts still open (all pages)."
+          }
+        }
+      },
+      "ConflictObject": {
+        "type": "object",
+        "description": "One row of the conflict log.",
+        "required": [
+          "id",
+          "kind",
+          "object_kind",
+          "field",
+          "count",
+          "status",
+          "first_at",
+          "last_at"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many times it happened inside the coalescing window."
+          },
+          "discord_actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Discord user who did it, when Discord's audit log said so."
+          },
+          "discord_actor_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_object_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_value": {
+            "description": "What Discord has or attempted (permission words are decimal strings, shared bits only)."
+          },
+          "field": {
+            "type": "string"
+          },
+          "first_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`permission_reverted`, `overwrite_trimmed`, `structure_conflict`, `role_deletion_refused`,\n`deletion_held`, `frozen`, `dead_op` or `cap`."
+          },
+          "last_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "object_kind": {
+            "type": "string",
+            "description": "`role`, `channel`, `category`, `thread`, `overwrite`, `op` or `guild`."
+          },
+          "object_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The SIDE ROOM object's name now (role or channel), when it still exists."
+          },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolved_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "resolved_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sr_object_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sr_value": {
+            "description": "What SIDE ROOM has."
+          },
+          "status": {
+            "type": "string",
+            "description": "`open`, `resolved`, `dismissed` or `superseded`."
+          },
+          "target_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ConnectionLinkBody": {
         "type": "object",
         "description": "Body of `PUT /users/@me/connections/link`.",
@@ -85469,6 +87296,18 @@
           },
           "secret_access_key": {
             "type": "string"
+          }
+        }
+      },
+      "CreatePlanBody": {
+        "type": "object",
+        "properties": {
+          "seed_structure": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Whose names, topics and order win for matched channels: `sr` (default) or `discord`."
           }
         }
       },
@@ -91744,6 +93583,13 @@
           "application_name": {
             "type": "string"
           },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the instance's Activity may use: the capabilities of its reviewed bundle (a development build has\nthem all). `datachannel`: `sdk.state` and `sdk.input` through the SFU."
+          },
           "channel_id": {
             "type": "string"
           },
@@ -95675,6 +97521,89 @@
           }
         }
       },
+      "MirrorChannelObject": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "discord_channel_id",
+          "state"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "degraded_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_channel_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`mapped`, `degraded`, `frozen` or `held`."
+          }
+        }
+      },
+      "MirrorRoleObject": {
+        "type": "object",
+        "required": [
+          "role_id",
+          "discord_role_id",
+          "discord_only_bits",
+          "state"
+        ],
+        "properties": {
+          "discord_only_bits": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "Bit numbers of the permissions Discord has on this role that SIDE ROOM has no bit for (set on Discord,\nkept there); empty when none."
+          },
+          "discord_role_id": {
+            "type": "string"
+          },
+          "role_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`mapped` or `frozen`."
+          }
+        }
+      },
+      "MirrorsObject": {
+        "type": "object",
+        "description": "Which roles and channels are mirrored, for the badges of the role editor and the channel settings.",
+        "required": [
+          "mode",
+          "roles",
+          "channels"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MirrorChannelObject"
+            }
+          },
+          "mode": {
+            "type": "string",
+            "description": "`selective` or `whole_guild`."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MirrorRoleObject"
+            }
+          }
+        }
+      },
       "ModeBody": {
         "type": "object",
         "description": "Body of `PUT /channels/{id}/jukebox`.",
@@ -97209,6 +99138,42 @@
               "null"
             ],
             "description": "Empty or null clears the nickname (max 32 characters)."
+          }
+        }
+      },
+      "NotMirroredObject": {
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "reason",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`managed_role`, `dm`, `e2ee`, `staff_guild` or `degraded_type`."
+          },
+          "discord_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sr_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -99696,6 +101661,190 @@
           }
         }
       },
+      "PlanCreated": {
+        "type": "object",
+        "required": [
+          "plan_id"
+        ],
+        "properties": {
+          "plan_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PlanEditBody": {
+        "type": "object",
+        "description": "One edit of an open plan. `op` is `unlink`, `link`, `import` or `seed_structure`.",
+        "required": [
+          "op"
+        ],
+        "properties": {
+          "discord_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "import": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`role`, `category`, `channel` or `thread` (for `link`)."
+          },
+          "op": {
+            "type": "string"
+          },
+          "sr_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PlanItemObject": {
+        "type": "object",
+        "required": [
+          "kind",
+          "action",
+          "name",
+          "sr_permissions",
+          "discord_permissions",
+          "dangerous_bits",
+          "import"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`match`, `pinned`, `create_on_discord` or `create_here`."
+          },
+          "channel_type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "dangerous_bits": {
+            "type": "string",
+            "description": "Roles that exist only on Discord: the dangerous bits of the word that would be imported."
+          },
+          "degraded": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_permissions": {
+            "type": "string",
+            "description": "Roles: the word Discord holds now."
+          },
+          "import": {
+            "type": "boolean",
+            "description": "Exists only on Discord: import its shared permission bits (the owner decides, Q4)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`role`, `category`, `channel` or `thread`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "sr_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sr_permissions": {
+            "type": "string",
+            "description": "Roles: the shared permission word SIDE ROOM will push (matched) as a decimal string."
+          }
+        }
+      },
+      "PlanObject": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "seed_structure",
+          "plan_hash",
+          "expires_at",
+          "blockers",
+          "items",
+          "not_mirrored",
+          "estimated_writes"
+        ],
+        "properties": {
+          "blockers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockerObject"
+            }
+          },
+          "estimated_writes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanItemObject"
+            }
+          },
+          "not_mirrored": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotMirroredObject"
+            }
+          },
+          "plan_hash": {
+            "type": "string",
+            "description": "The hash the owner confirms with `POST .../bridge/mode`."
+          },
+          "seed_structure": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`building`, `ready`, `failed`, `confirmed`, `expired` or `superseded`."
+          }
+        }
+      },
       "PlannedChapter": {
         "type": "object",
         "description": "One file as the importer reads it.",
@@ -100214,6 +102363,32 @@
           }
         }
       },
+      "PreflightCheckObject": {
+        "type": "object",
+        "description": "One line of the preflight checklist (design 9.2): `bot_admin`, `bot_top_role`, `intents`, `caps` or\n`unique_guild`. Every one of them blocks a plan while not ok.",
+        "required": [
+          "id",
+          "ok",
+          "blocker"
+        ],
+        "properties": {
+          "blocker": {
+            "type": "boolean"
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
       "PreflightCheckView": {
         "type": "object",
         "description": "One row of the preflight table.",
@@ -100238,6 +102413,25 @@
           "title": {
             "type": "string",
             "description": "English operator text, not localized (D-356)."
+          }
+        }
+      },
+      "PreflightObject": {
+        "type": "object",
+        "required": [
+          "checks",
+          "invite_url"
+        ],
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreflightCheckObject"
+            }
+          },
+          "invite_url": {
+            "type": "string",
+            "description": "The bot's invite link with Administrator (whole-server mode needs it)."
           }
         }
       },
@@ -108407,6 +110601,82 @@
           }
         }
       },
+      "SyncStatusObject": {
+        "type": "object",
+        "required": [
+          "mode",
+          "sync_state",
+          "queue_pending",
+          "queue_running",
+          "dead_ops",
+          "role_maps",
+          "channel_maps",
+          "degraded",
+          "frozen",
+          "held_deletions",
+          "intents_ok"
+        ],
+        "properties": {
+          "channel_maps": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dead_ops": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "degraded": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "frozen": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "held_deletions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "intents_ok": {
+            "type": "boolean",
+            "description": "Discord granted the Server Members and Message Content intents (from the shard's last READY)."
+          },
+          "last_reconcile_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "queue_pending": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "queue_running": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reconcile_available_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When \"Reconcile now\" is next allowed (Unix ms); null when it is allowed now."
+          },
+          "role_maps": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sync_state": {
+            "type": "string",
+            "description": "`off`, `seeding`, `live`, `paused`, `paused_discord_access` or `paused_invalid_requests`."
+          }
+        }
+      },
       "SystemCounts": {
         "type": "object",
         "description": "Counts for the dashboard and system page.",
@@ -108604,6 +110874,10 @@
           }
         }
       },
+      "TakeDiscordBody": {
+        "type": "object",
+        "description": "What \"Take Discord's\" applies."
+      },
       "TakedownItem": {
         "type": "object",
         "description": "One content item of a notice.",
@@ -108744,6 +111018,105 @@
             "description": "Webhooks still on Discord, to remove by hand."
           },
           "maps_removed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "webhooks_deleted": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TeardownPreviewObject": {
+        "type": "object",
+        "required": [
+          "whole_guild",
+          "created_roles",
+          "created_categories",
+          "created_channels",
+          "created_threads",
+          "created_with_discord_messages",
+          "restorable_roles",
+          "restorable_channels"
+        ],
+        "properties": {
+          "created_categories": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_channels": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_roles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_threads": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_with_discord_messages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restorable_channels": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restorable_roles": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "whole_guild": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TeardownResultObject": {
+        "type": "object",
+        "required": [
+          "maps_removed",
+          "webhooks_deleted",
+          "roles_removed",
+          "channels_removed",
+          "roles_restored",
+          "channels_restored",
+          "failed_ids",
+          "leftover_webhooks"
+        ],
+        "properties": {
+          "channels_removed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "channels_restored": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failed_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Discord objects (ids) the bridge could not remove or restore: do those by hand on Discord."
+          },
+          "leftover_webhooks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Webhook ids still on Discord."
+          },
+          "maps_removed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "roles_removed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "roles_restored": {
             "type": "integer",
             "format": "int64"
           },
