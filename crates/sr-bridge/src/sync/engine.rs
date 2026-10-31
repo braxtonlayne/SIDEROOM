@@ -1371,24 +1371,6 @@ fn degrade(kind: i64, community: bool) -> (i64, Option<&'static str>) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn types_degrade_without_community() {
-        assert_eq!(degrade(5, false).0, 0);
-        assert_eq!(degrade(13, false).0, 2);
-        assert_eq!(degrade(15, false).0, 0);
-        assert_eq!(degrade(16, false).0, 0);
-        assert_eq!(degrade(5, true), (5, None));
-        assert_eq!(degrade(0, false), (0, None));
-        assert_eq!(map_kind(4), "category");
-        assert_eq!(map_kind(11), "thread");
-        assert_eq!(map_kind(2), "channel");
-    }
-}
-
 /// Record the first agreed name of a matched pair. When the names already agree (as Discord holds them) both are
 /// recorded. When they differ the seed structure decides: with SIDE ROOM's the Discord side is recorded as the
 /// stale one so the next pass pushes SIDE ROOM's name; with Discord's the SIDE ROOM side is stale so the next pass
@@ -1406,5 +1388,23 @@ fn record_matched_name(
         synced.record("name", sr, Value::Null);
     } else {
         synced.record("name", Value::Null, discord);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn types_degrade_without_community() {
+        assert_eq!(degrade(5, false).0, 0);
+        assert_eq!(degrade(13, false).0, 2);
+        assert_eq!(degrade(15, false).0, 0);
+        assert_eq!(degrade(16, false).0, 0);
+        assert_eq!(degrade(5, true), (5, None));
+        assert_eq!(degrade(0, false), (0, None));
+        assert_eq!(map_kind(4), "category");
+        assert_eq!(map_kind(11), "thread");
+        assert_eq!(map_kind(2), "channel");
     }
 }

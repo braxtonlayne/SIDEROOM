@@ -104,13 +104,11 @@ pub async fn list_held(pool: &PgPool, guild: i64) -> BridgeResult<Vec<Hold>> {
 /// Holds whose time is up (the hold job deletes them, children before parents is the caller's order: threads
 /// and channels of a category are listed first).
 pub async fn due(pool: &PgPool, limit: i64) -> BridgeResult<Vec<Hold>> {
-    let sql = format!(
-        "SELECT p.channel_id, p.guild_id, p.discord_channel_id, p.map_id, p.discord_actor_id, \
+    let sql = "SELECT p.channel_id, p.guild_id, p.discord_channel_id, p.map_id, p.discord_actor_id, \
          (extract(epoch from p.held_at) * 1000)::bigint AS held_ms, \
          (extract(epoch from p.delete_after) * 1000)::bigint AS after_ms \
          FROM bridge_pending_deletes p JOIN channels c ON c.id = p.channel_id \
-         WHERE p.delete_after <= now() ORDER BY (c.type = 4), p.delete_after, p.channel_id LIMIT $1"
-    );
+         WHERE p.delete_after <= now() ORDER BY (c.type = 4), p.delete_after, p.channel_id LIMIT $1";
     let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(limit)
         .fetch_all(pool)

@@ -281,7 +281,7 @@ pub fn spawn_sync_worker(engine: SyncEngine, admin: sr_admin::AdminService) -> J
         let (mut hold_hours, mut reconcile_minutes) = (24_i64, 15_i64);
         loop {
             tick.tick().await;
-            if n % 30 == 0 {
+            if n.is_multiple_of(30) {
                 hold_hours = admin
                     .setting_value_i64(k::BRIDGE_DELETE_HOLD_HOURS)
                     .await
@@ -305,7 +305,7 @@ pub fn spawn_sync_worker(engine: SyncEngine, admin: sr_admin::AdminService) -> J
             if let Err(e) = live.run_ops_pass(20).await {
                 tracing::warn!(error = %e, "bridge sync: ops pass failed");
             }
-            if n % 30 == 0 {
+            if n.is_multiple_of(30) {
                 minute(&live, reconcile_minutes).await;
             }
         }

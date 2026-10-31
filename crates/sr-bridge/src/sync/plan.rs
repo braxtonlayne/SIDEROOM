@@ -389,23 +389,23 @@ pub fn build(
     let mut sr_free: Vec<&SrRoleIn> = Vec::new();
     let mut d_free: Vec<&GuildRole> = d_roles.clone();
     for r in sr_roles {
-        if r.is_everyone {
-            if let Some(pos) = d_free.iter().position(|x| x.id == d.discord_guild_id) {
-                let x = d_free.remove(pos);
-                plan.items.push(PlanItem {
-                    kind: ItemKind::Role,
-                    action: Action::Match,
-                    sr_id: Some(r.id),
-                    discord_id: Some(x.id),
-                    name: "@everyone".into(),
-                    channel_type: None,
-                    sr_permissions: (r.permissions as u64) & shared_mask,
-                    discord_permissions: x.permissions,
-                    import: false,
-                    degraded: None,
-                });
-                continue;
-            }
+        if r.is_everyone
+            && let Some(pos) = d_free.iter().position(|x| x.id == d.discord_guild_id)
+        {
+            let x = d_free.remove(pos);
+            plan.items.push(PlanItem {
+                kind: ItemKind::Role,
+                action: Action::Match,
+                sr_id: Some(r.id),
+                discord_id: Some(x.id),
+                name: "@everyone".into(),
+                channel_type: None,
+                sr_permissions: (r.permissions as u64) & shared_mask,
+                discord_permissions: x.permissions,
+                import: false,
+                degraded: None,
+            });
+            continue;
         }
         sr_free.push(r);
     }
@@ -766,6 +766,18 @@ pub fn blockers(plan: &Plan, f: &PreflightFacts) -> Vec<Blocker> {
     }
     out
 }
+
+/// The bits shown in red in the plan when Discord's permissions of a Discord-only object would be imported
+/// (design 9.4): the ones that let their holder run the server.
+pub const DANGEROUS_BITS: u64 = Permissions::ADMINISTRATOR.bits()
+    | Permissions::MANAGE_GUILD.bits()
+    | Permissions::MANAGE_ROLES.bits()
+    | Permissions::MANAGE_CHANNELS.bits()
+    | Permissions::MANAGE_WEBHOOKS.bits()
+    | Permissions::BAN_MEMBERS.bits()
+    | Permissions::KICK_MEMBERS.bits()
+    | Permissions::MODERATE_MEMBERS.bits()
+    | Permissions::MENTION_EVERYONE.bits();
 
 #[cfg(test)]
 mod tests {
@@ -1136,15 +1148,3 @@ mod tests {
         assert_eq!(text_key("General Chat"), "general-chat");
     }
 }
-
-/// The bits shown in red in the plan when Discord's permissions of a Discord-only object would be imported
-/// (design 9.4): the ones that let their holder run the server.
-pub const DANGEROUS_BITS: u64 = Permissions::ADMINISTRATOR.bits()
-    | Permissions::MANAGE_GUILD.bits()
-    | Permissions::MANAGE_ROLES.bits()
-    | Permissions::MANAGE_CHANNELS.bits()
-    | Permissions::MANAGE_WEBHOOKS.bits()
-    | Permissions::BAN_MEMBERS.bits()
-    | Permissions::KICK_MEMBERS.bits()
-    | Permissions::MODERATE_MEMBERS.bits()
-    | Permissions::MENTION_EVERYONE.bits();
