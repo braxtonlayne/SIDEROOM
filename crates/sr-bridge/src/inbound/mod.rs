@@ -15,5 +15,5 @@ pub mod sink;
 pub mod store;
 
 pub use handler::{Inbound, InboundConfig, Outcome, Why};
-pub use manager::{INBOUND_INTENTS, InboundHost, InboundManager, Reconciled};
+pub use manager::{INBOUND_INTENTS, InboundHost, InboundManager, Reconciled, ServiceHost};
 pub use sink::{ChatSink, InboundAuthor, InboundPost};

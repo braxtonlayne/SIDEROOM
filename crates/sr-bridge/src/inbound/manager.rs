@@ -237,3 +237,25 @@ impl InboundManager {
         })
     }
 }
+
+/// A teardown disconnects the shard at once (the supervisor would notice within one interval anyway).
+#[async_trait]
+impl crate::service::TeardownHook for InboundManager {
+    async fn disconnect(&self, guild: i64) {
+        self.stop(guild);
+    }
+}
+
+/// [`InboundHost`] over the bridge service: the sealed token opened by it, the module and platform switches read
+/// from the feature service.
+pub struct ServiceHost(pub crate::service::BridgeService);
+
+#[async_trait]
+impl InboundHost for ServiceHost {
+    async fn bot_token(&self, guild: i64) -> BridgeResult<String> {
+        self.0.open_bot_token(guild).await
+    }
+    async fn active(&self, guild: i64) -> BridgeResult<bool> {
+        Ok(self.0.platform_on().await? && self.0.module_on(guild).await?)
+    }
+}
