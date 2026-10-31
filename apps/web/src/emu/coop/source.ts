@@ -22,3 +22,8 @@ export function withdrawCoopGame(game?: HostableGame): void {
   if (game && useCoopSource.getState().game !== game) return;
   useCoopSource.setState({ game: null });
 }
+
+// End-to-end builds only (VITE_SR_E2E=1, folded away otherwise): a browser test offers a probe core without the loader.
+if (import.meta.env.VITE_SR_E2E === '1') {
+  (window as unknown as { __srCoopOffer?: typeof offerCoopGame }).__srCoopOffer = offerCoopGame;
+}

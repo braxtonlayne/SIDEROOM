@@ -80,7 +80,14 @@ export function CoopDialog({
                 </ul>
               )}
               <div className="vc-error-actions">
-                <Button size="sm" variant="secondary" onClick={onShare}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    onClose(); // the share picker is a dialog of its own
+                    onShare();
+                  }}
+                >
                   {t('emu.coop.host.share')}
                 </Button>
                 <Button size="sm" variant="secondary" onClick={() => coopSession.stop()}>

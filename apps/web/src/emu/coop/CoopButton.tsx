@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import { isInVoice, useVoiceSession } from '../../voice/session';
 import { coopSession } from './session';
+import './source'; // registers the e2e offer hook
 import { useCoop } from './useCoop';
 
 const Dialog = lazy(() => import('./CoopDialog').then((m) => ({ default: m.CoopDialog })));
