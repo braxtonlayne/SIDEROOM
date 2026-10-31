@@ -2,6 +2,7 @@ import { lazy, Suspense, useRef, useState, type ReactNode } from 'react';
 import { Button, EmptyState } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useVoiceSession } from '../../voice/session';
+import { useClientFlags } from '../../moderation/reports';
 import { useLocalVideo, useRemoteVideo } from '../../voice/video';
 import { ChannelHeader } from '../ChannelHeader';
 import { CHANNEL_ICON } from '../ChannelSidebar';
@@ -51,6 +52,8 @@ export function VoiceChannelView({
   const perms = useVoicePerms(channel.guildId, channel.id);
   const localCamera = useLocalVideo((s) => s.camera);
   const remoteCamera = useRemoteVideo((s) => s.camera);
+  // The jukebox switch (lounge.jukebox, OPS-FLG-001): only an explicit false hides the strip.
+  const jukeboxOn = useClientFlags((s) => s.flags['lounge.jukebox'] !== false);
   const here =
     session.channelId === channel.id && session.status !== 'idle' && session.status !== 'error';
   const full = !!channel.userLimit && participants.length >= channel.userLimit && !here;
@@ -155,7 +158,7 @@ export function VoiceChannelView({
       <VoiceStatusBar channel={channel} here={here} />
       <WatchPartyStrip channelId={channel.id} />
       <Suspense fallback={null}>
-        <JukeboxStrip channelId={channel.id} meId={me.id} />
+        {jukeboxOn && <JukeboxStrip channelId={channel.id} meId={me.id} />}
       </Suspense>
       <ActivityPanel channelId={channel.id} here={here} />
       <div className="vc-body" data-chat={layout.chatOpen && here ? 'open' : undefined}>

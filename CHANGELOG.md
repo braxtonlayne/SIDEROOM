@@ -8,6 +8,26 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 39 - 2026-10-31
+
+- **Game servers: coming soon.** Server Settings has a new Game Servers page (and the Activities picker in voice a
+  small tile) showing what hosting a game server could look like, "Host it yourself" and "Managed servers". It is a
+  preview only: nothing on it works yet, and the help says game servers are coming later.
+- **Invites.** User Settings > Invites now says when you hold the most unused codes allowed (20 by default). Unused
+  codes older than 30 days are revoked automatically; the people you invited are never affected.
+- **For operators: Lock the Doors.** Admin > Invites can close registration entirely (a reason is required and the
+  change is logged). Nobody can join while the doors are closed, not even with a valid or emergency invite; members
+  already here are unaffected, and the landing page says the doors are closed. Admin > Invites also shows the last
+  cleanup pass and invite branches whose first member never activated. New settings `invites.default_credits` (was
+  `invites.initial_credits`), `invites.max_outstanding` and `invites.unused_code_days`; see `deploy/OPERATOR.md`.
+- **For operators: a switch for every module.** Admin > Features now lists the jukebox, listening rooms, the utility
+  drawer (and each tool in it), the activity data channel, the emulator, Watch Together embeds and the game-servers
+  page, beside the earlier ones; switching one off stops its routes. Nothing can switch off call encryption,
+  authorization or the logs.
+- **Upgrade note: public profiles need a second switch.** A public profile page now needs both
+  `platform.public_profiles` and the new setting `profiles.access = opt_in_public` (default `walled`). If you had
+  public profiles on, set the setting after upgrading or the public pages go dark (`deploy/UPGRADE.md`).
+
 ## Phase 37 - 2026-10-31
 
 - **Games.** A new Games page (in the section bar) plays retro games in your browser: NES, Game Boy, Game Boy Color,

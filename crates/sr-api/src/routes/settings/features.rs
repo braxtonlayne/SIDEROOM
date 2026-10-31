@@ -190,8 +190,10 @@ pub struct PublicComplianceObject {
     /// The operator's contact address, also the copyright notice address, when set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub operator_contact: Option<String>,
-    /// Invite credits a new account is granted (`invites.initial_credits`).
+    /// Invite credits a new account is granted (`invites.default_credits`).
     pub invite_initial_credits: i32,
+    /// Lock the Doors is on (`invites.locked`, OPS-INV-001): the entrance says the doors are closed.
+    pub doors_closed: bool,
 }
 
 /// The minimum registration age and the operator's country and contact (public: the entrance
@@ -206,14 +208,26 @@ pub async fn compliance_public(
     crate::routes::MaybeExt(auth): crate::routes::MaybeExt<crate::routes::auth::AuthService>,
 ) -> ApiResult<Json<PublicComplianceObject>> {
     let s = compliance_settings(&gf).await;
-    // The same number registration grants (the default, 5, when no auth service is wired).
-    let invite_initial_credits = auth.map_or(5, |a| a.initial_credits());
+    // The same number registration grants (the default, 5, when no auth service is wired), and the lock.
+    let (invite_initial_credits, doors_closed) = match auth {
+        Some(a) => {
+            let controls = a.invite_controls().await;
+            (
+                controls
+                    .default_credits
+                    .unwrap_or_else(|| a.initial_credits()),
+                controls.locked,
+            )
+        }
+        None => (5, false),
+    };
     Ok(Json(PublicComplianceObject {
         minimum_age: s.minimum_age,
         invoice_retention_years: s.invoice_retention_years,
         operator_country: s.operator_country,
         operator_contact: s.operator_contact,
         invite_initial_credits,
+        doors_closed,
     }))
 }
 

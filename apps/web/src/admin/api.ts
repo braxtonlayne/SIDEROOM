@@ -336,6 +336,40 @@ export const listInvites = (p: {
 }) => get<InvitePage>(`/admin/invites${qs(p)}`);
 export const revokeInvite = (id: string) => send<void>(`/admin/invites/${id}`, 'DELETE');
 
+// OPS-INV-001: Lock the Doors, the quotas and the invites.prune job.
+export interface PruneRun {
+  ran_at_ms: number;
+  codes_revoked: number;
+  roots_marked: number;
+  roots_cleared: number;
+  /** Redeemed edges of the invite graph after the pass; the same as before it. */
+  graph_rows: number;
+}
+export interface InviteControls {
+  locked: boolean;
+  default_credits: number;
+  max_outstanding: number;
+  unused_code_days: number;
+  last_prune?: PruneRun | null;
+  inactive_roots: number;
+}
+export interface InactiveRoot {
+  account_id: string;
+  username: string;
+  invited_by_account_id?: string | null;
+  marked_at_ms: number;
+  subtree_size: number;
+}
+export interface InactiveRoots {
+  items: InactiveRoot[];
+  total: number;
+}
+export const getInviteControls = () => get<InviteControls>('/admin/invites/controls');
+export const setInvitesLocked = (locked: boolean, reason: string) =>
+  send<InviteControls>('/admin/invites/lock', 'PUT', { locked, reason });
+export const listInactiveInviteRoots = (limit = 50) =>
+  get<InactiveRoots>(`/admin/invites/inactive${qs({ limit })}`);
+
 export interface LedgerEntry {
   id: string;
   delta: number;

@@ -77,10 +77,15 @@ Decisions: D-013, D-014, D-020–D-032.
 An issuer can revoke any `open` code. Revocation is instant. A redemption in flight that has already locked the row wins (D-024 "until the moment the code is used").
 
 ### 5.3 Credits
-- Initial grant: 5 (config `invites.initial_credits`).
+- Initial grant: 5 (setting `invites.default_credits`, 0 to 1000, read at each registration; it was `invites.initial_credits` before phase 39, P39-INV-3).
+- At most `invites.max_outstanding` unused codes per account (default 20; the credit balance still caps first). An unused code older than `invites.unused_code_days` (default 30) is revoked by the `invites.prune` job (every six hours); emergency codes are kept.
 - Consumed only on redemption.
 - **Purchase:** "Buy an invite": USD 20 (config `invites.credit_price_usd`) → BTC invoice (doc 08) → on confirmation, ledger `+1 purchase`.
 - Staff can grant or revoke credits (logged).
+
+### 5.3a Lock the Doors (phase 39)
+- The operator can close registration entirely with `invites.locked` (Admin > Invites, `MANAGE_FEATURES`, a reason is required, each change is a staff action `invites.lock` / `invites.unlock`). While locked, `POST /sr/register` answers `900005` and every invite check answers `locked`, whatever the code, emergency invites included (P39-INV-2). Existing members are unaffected. The entrance shows a "doors are closed" notice (the only entrance change, D-385).
+- The prune job also marks invite subtrees whose root never activated (P39-INV-1) for staff to see; it never deletes or edits the invite graph.
 
 ### 5.4 Invite graph and suspicion (D-023, D-031)
 - Every account (except the bootstrap Owner) has exactly one inviting edge. The graph is permanent, even across deletion.

@@ -78,6 +78,8 @@ struct Inner {
     /// Accounts whose first run was re-opened (the in-memory store starts every account as done).
     first_run_open: HashSet<i64>,
     next_row_id: i64,
+    /// Lock the Doors and the credit seed (OPS-INV-001).
+    controls: sr_auth::store::InviteControls,
 }
 
 impl Inner {
@@ -122,6 +124,11 @@ impl MemoryAuthStore {
                 state: InviteState::Open,
             },
         );
+    }
+
+    /// Set the operator's invite controls (test helper, OPS-INV-001).
+    pub fn set_invite_controls(&self, controls: sr_auth::store::InviteControls) {
+        self.lock().controls = controls;
     }
 
     /// Mark an invite revoked.
@@ -254,6 +261,10 @@ impl AuthStore for MemoryAuthStore {
         ))
     }
 
+    async fn invite_controls(&self) -> StoreResult<sr_auth::store::InviteControls> {
+        Ok(self.lock().controls)
+    }
+
     async fn counted_accounts(&self) -> StoreResult<u64> {
         Ok(self
             .lock()
@@ -266,6 +277,9 @@ impl AuthStore for MemoryAuthStore {
     async fn register(&self, tx: RegisterTx) -> StoreResult<Result<Registered, RegisterRejection>> {
         use RegisterRejection::*;
         let mut g = self.lock();
+        if g.controls.locked {
+            return Ok(Err(Locked));
+        }
         let Some(inv) = g.invites.get(tx.code.canonical()) else {
             return Ok(Err(InviteUnavailable));
         };

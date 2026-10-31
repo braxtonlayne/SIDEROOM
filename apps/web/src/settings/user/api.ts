@@ -494,7 +494,7 @@ export interface MemberInvites {
   redeemed: MemberInvite[];
   /** Why a code cannot be created now; `null` when it can. */
   blocked: {
-    reason: 'unverified' | 'too_new' | 'at_cap' | 'no_credits' | 'frozen';
+    reason: 'unverified' | 'too_new' | 'at_cap' | 'no_credits' | 'at_max' | 'frozen';
     days?: number | null;
   } | null;
 }

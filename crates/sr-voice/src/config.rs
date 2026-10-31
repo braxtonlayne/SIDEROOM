@@ -36,6 +36,8 @@ pub struct SfuConfig {
     pub video_bwe: bool,
     /// Per-member activity data-channel budget in kbit/s (`voice.datachannel_kbps`); `0` turns it off.
     pub datachannel_kbps: u32,
+    /// The operator's switch for data channels (`platform.activities_datachannel`); on by default.
+    pub datachannel_gate: crate::datachannel::Gate,
     /// Media actors (VOX-SFU-011): rooms are spread over this many actors by channel id,
     /// each owning its own share of the UDP sockets and a slice of the egress budget. `0`
     /// picks half the available cores, at least 1 and at most 8; the effective number never
@@ -59,6 +61,7 @@ impl Default for SfuConfig {
             egress_budget_mbps: 0.0,
             video_bwe: false,
             datachannel_kbps: 256,
+            datachannel_gate: crate::datachannel::Gate::default(),
             shards: 1,
         }
     }

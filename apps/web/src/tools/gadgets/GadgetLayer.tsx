@@ -2,6 +2,8 @@ import { Icon } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useT } from '../../i18n';
+import { useClientFlags } from '../../moderation/reports';
+import { toolAllowed } from '../flags';
 import { getTool, type ToolEntry } from '../registry';
 import { ToolView } from '../ToolView';
 import { clampRect, type Gadget, type GadgetRect } from './layout';
@@ -19,6 +21,7 @@ const isRtl = () =>
  */
 export function GadgetLayer() {
   const gadgets = useToolsStore((s) => s.layout.gadgets);
+  const flags = useClientFlags((s) => s.flags);
   // A smaller window must not leave a gadget off screen.
   useEffect(() => {
     const onResize = () => {
@@ -32,7 +35,9 @@ export function GadgetLayer() {
     <div className="sr-tl-gadgets">
       {gadgets.map((g) => {
         const entry = getTool(g.tool);
-        return entry ? <GadgetWindow key={g.tool} gadget={g} entry={entry} /> : null;
+        return entry && toolAllowed(flags, entry.id) ? (
+          <GadgetWindow key={g.tool} gadget={g} entry={entry} />
+        ) : null;
       })}
     </div>
   );

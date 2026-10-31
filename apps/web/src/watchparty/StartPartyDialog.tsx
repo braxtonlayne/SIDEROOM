@@ -181,7 +181,7 @@ export function StartPartyDialog({
             <input
               type="url"
               inputMode="url"
-              placeholder="https://"
+              placeholder={t('watchparty.startDialog.linkPlaceholder')}
               value={link}
               onChange={(e) => setLink(e.target.value)}
               aria-describedby="wp-link-hint"

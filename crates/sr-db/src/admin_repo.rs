@@ -1635,6 +1635,59 @@ impl AdminRepository for PgAdminRepo {
         invite_from(&row).map_err(db)
     }
 
+    async fn last_prune_run(&self) -> AdminResult<Option<sr_admin::PruneRun>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {} AS ran_ms, codes_revoked, roots_marked, roots_cleared, graph_rows              FROM invite_prune_runs ORDER BY ran_at DESC LIMIT 1",
+            ms("ran_at")
+        )))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        row.map(|r| {
+            Ok(sr_admin::PruneRun {
+                ran_at_ms: r.try_get("ran_ms")?,
+                codes_revoked: i64::from(r.try_get::<i32, _>("codes_revoked")?),
+                roots_marked: i64::from(r.try_get::<i32, _>("roots_marked")?),
+                roots_cleared: i64::from(r.try_get::<i32, _>("roots_cleared")?),
+                graph_rows: r.try_get("graph_rows")?,
+            })
+        })
+        .transpose()
+        .map_err(db)
+    }
+
+    async fn inactive_invite_roots(
+        &self,
+        limit: i64,
+    ) -> AdminResult<(Vec<sr_admin::InactiveRoot>, i64)> {
+        let total: i64 = sqlx::query_scalar("SELECT count(*) FROM invite_inactive_roots")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db)?;
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT m.root_account_id, a.username::text AS username, pi.issuer_account_id AS inviter,                     {} AS marked_ms, m.subtree_size              FROM invite_inactive_roots m              JOIN accounts a ON a.id = m.root_account_id              LEFT JOIN platform_invites pi ON pi.id = a.invited_by_invite_id              ORDER BY m.marked_at DESC, m.root_account_id DESC LIMIT $1",
+            ms("m.marked_at")
+        )))
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        let items = rows
+            .iter()
+            .map(|r| {
+                Ok(sr_admin::InactiveRoot {
+                    account_id: r.try_get("root_account_id")?,
+                    username: r.try_get("username")?,
+                    invited_by_account_id: r.try_get("inviter")?,
+                    marked_at_ms: r.try_get("marked_ms")?,
+                    subtree_size: i64::from(r.try_get::<i32, _>("subtree_size")?),
+                })
+            })
+            .collect::<Result<Vec<_>, sqlx::Error>>()
+            .map_err(db)?;
+        Ok((items, total))
+    }
+
     // ---- platform settings ---------------------------------------------
 
     async fn settings(&self) -> AdminResult<HashMap<String, StoredSetting>> {

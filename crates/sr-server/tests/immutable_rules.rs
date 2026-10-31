@@ -32,7 +32,7 @@
 #[allow(dead_code, unused_imports)]
 mod matrix;
 
-use matrix::harness::{Flip, RULE_GROUPS};
+use matrix::harness::{Denial, Flip, RULE_GROUPS, Report};
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -112,11 +112,47 @@ fn texts_of(v: &Value, out: &mut Vec<String>) {
     }
 }
 
-/// All the names a flag can have: feature ids, settings-schema field keys, settings catalog keys, and the
-/// paths of the config fields.
+/// All the names a flag can have: feature ids, settings-schema field keys, settings catalog keys, the paths of
+/// the config fields, and (OPS-IMM-003) the names the phase's new crates hand out: the storage kinds and role
+/// grants (the emulator's `games` kind and `view_games` grant), the activity bundle capabilities
+/// (`sr-activities`) and the bridge's module ids (`sr-bridge` through `sr-features`).
 fn all_flag_names() -> Vec<(String, String)> {
-    let mut names: Vec<(String, String)> = Vec::new();
     let registry = sr_server::app::feature_registry().expect("the feature registry builds");
+    all_flag_names_of(&registry)
+}
+
+/// Every storage kind, by an exhaustive match so that a kind a later wave adds stops this file compiling until
+/// it is listed (and so checked).
+fn storage_kinds() -> Vec<sr_storage::scopes::Kind> {
+    use sr_storage::scopes::Kind;
+    let all = [Kind::Cinema, Kind::Library, Kind::Music, Kind::Games];
+    for k in all {
+        match k {
+            Kind::Cinema | Kind::Library | Kind::Music | Kind::Games => {}
+        }
+    }
+    all.to_vec()
+}
+
+/// [`all_flag_names`] for a given registry (the violation proof registers a test-only feature on top of the
+/// real one).
+fn all_flag_names_of(registry: &sr_features::FeatureRegistry) -> Vec<(String, String)> {
+    let mut names: Vec<(String, String)> = Vec::new();
+    for k in storage_kinds() {
+        names.push(("storage kind".into(), k.as_str().to_owned()));
+    }
+    for g in sr_storage::scopes::Grant::ALL {
+        names.push(("storage grant".into(), g.as_str().to_owned()));
+    }
+    for c in sr_activities::bundle::CAPABILITIES {
+        names.push(("activity capability".into(), (*c).to_owned()));
+    }
+    for id in [
+        sr_features::BRIDGE_MODULE_ID,
+        sr_features::PLATFORM_BRIDGE_ID,
+    ] {
+        names.push(("bridge module id".into(), id.to_owned()));
+    }
     for f in registry.iter() {
         names.push(("feature id".into(), f.id().to_owned()));
         let schema = serde_json::to_value(f.settings_schema()).expect("schema serializes");
@@ -138,11 +174,13 @@ fn all_flag_names() -> Vec<(String, String)> {
     names
 }
 
-#[test]
-fn no_flag_name_matches_the_deny_pattern() {
+/// The body of the name test, over a given registry: panics (that is the failure the violation proof expects)
+/// when a name of the catalog matches the deny pattern outside [`LEGACY`].
+fn assert_names_clean(registry: &sr_features::FeatureRegistry) {
+    let all = all_flag_names_of(registry);
     let mut hits: BTreeSet<String> = BTreeSet::new();
-    for (what, name) in all_flag_names() {
-        if let Some(d) = denied(&name)
+    for (what, name) in &all {
+        if let Some(d) = denied(name)
             && !LEGACY.contains(&name.as_str())
         {
             hits.insert(format!("{what} `{name}` contains `{d}`"));
@@ -155,13 +193,85 @@ fn no_flag_name_matches_the_deny_pattern() {
         hits.into_iter().collect::<Vec<_>>().join("\n")
     );
     // The legacy list names things that still exist (it may only shrink).
-    let names: BTreeSet<String> = all_flag_names().into_iter().map(|(_, n)| n).collect();
+    let names: BTreeSet<&str> = all.iter().map(|(_, n)| n.as_str()).collect();
     for l in LEGACY {
         assert!(
             names.contains(*l),
             "LEGACY entry `{l}` no longer exists: remove it"
         );
     }
+}
+
+#[test]
+fn no_flag_name_matches_the_deny_pattern() {
+    let registry = sr_server::app::feature_registry().expect("the feature registry builds");
+    assert_names_clean(&registry);
+}
+
+/// A feature that exists only in this test build, named like a switch for the end-to-end encryption of calls.
+struct TestOnlyE2eeSwitch;
+
+impl sr_features::Feature for TestOnlyE2eeSwitch {
+    fn id(&self) -> &'static str {
+        "voice.e2ee_test"
+    }
+    fn meta(&self) -> sr_features::feature::FeatureMeta {
+        sr_features::feature::FeatureMeta {
+            name: "Voice test switch".into(),
+            description: "A test-only feature that exists to be caught.".into(),
+            section: "Voice".into(),
+            phase: 39,
+            default_enabled: true,
+        }
+    }
+    fn settings_schema(&self) -> sr_features::SettingsSchema {
+        sr_features::SettingsSchema::default()
+    }
+    fn scopes(&self) -> &[sr_features::feature::Scope] {
+        &[sr_features::feature::Scope::Platform]
+    }
+}
+
+/// OPS-IMM-003, the deliberate violation: `voice.e2ee_test`, registered in this test build only, is caught by
+/// the very check the name test runs. `should_panic` makes the expected failure the pass condition; the
+/// message must name the feature, so a panic for any other reason does not count.
+#[test]
+#[should_panic(expected = "feature id `voice.e2ee_test` contains `e2ee`")]
+fn a_test_only_voice_e2ee_test_feature_is_caught_by_the_name_test() {
+    let mut registry = sr_server::app::feature_registry().expect("the feature registry builds");
+    registry
+        .register(TestOnlyE2eeSwitch)
+        .expect("the test-only feature registers");
+    assert_names_clean(&registry);
+}
+
+/// The same proof without the panic: the violation is reported, and nothing else is (the real catalog is
+/// clean), so the test above fails for the right reason.
+#[test]
+fn the_deliberate_violation_is_the_only_hit() {
+    let mut registry = sr_server::app::feature_registry().expect("the feature registry builds");
+    registry.register(TestOnlyE2eeSwitch).unwrap();
+    let hits: Vec<String> = all_flag_names_of(&registry)
+        .into_iter()
+        .filter(|(_, n)| denied(n).is_some() && !LEGACY.contains(&n.as_str()))
+        .map(|(w, n)| format!("{w} {n}"))
+        .collect();
+    assert_eq!(hits, vec!["feature id voice.e2ee_test".to_owned()]);
+}
+
+/// The new crates' names are scanned: each source is non-empty (an empty source would make the deny scan pass
+/// vacuously) and the emulator's kind and grant are among them.
+#[test]
+fn the_names_of_the_new_crates_are_scanned() {
+    let names = all_flag_names();
+    let has = |what: &str, n: &str| names.iter().any(|(w, x)| w == what && x == n);
+    assert!(has("storage kind", "games"), "the emulator's storage kind");
+    assert!(has("storage grant", "view_games"), "the emulator's grant");
+    assert!(has("activity capability", "datachannel"));
+    assert!(has("bridge module id", sr_features::BRIDGE_MODULE_ID));
+    assert!(has("bridge module id", sr_features::PLATFORM_BRIDGE_ID));
+    assert!(names.iter().any(|(w, _)| w == "platform setting"));
+    assert!(names.iter().any(|(w, _)| w == "config field"));
 }
 
 #[test]
@@ -286,7 +396,13 @@ fn the_deny_pattern_itself_is_pinned() {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn refusals_and_logs_hold_in_every_flag_state() {
     let mut failures: Vec<String> = Vec::new();
-    for flip in [Flip::KillFeatures, Flip::SettingsMin, Flip::SettingsMax] {
+    // OPS-IMM-003: the third state (every guild module off, then every feature killed) joins the first three.
+    for flip in [
+        Flip::KillFeatures,
+        Flip::SettingsMin,
+        Flip::SettingsMax,
+        Flip::KillAll,
+    ] {
         let rep = matrix::harness::run(flip, &RULE_GROUPS).await;
         for l in &rep.lines {
             println!("immutable_rules: {flip:?}: {l}");
@@ -348,4 +464,240 @@ fn the_whole_guild_bridge_adds_no_switch_for_the_three() {
         Permissions::ALL
     );
     assert!((Permissions::BRIDGE_SHARED & Permissions::SR_ONLY).is_empty());
+}
+
+// ---------------------------------------------------------------------------------------------
+// OPS-IMM-003: the full catalog of this phase.
+//
+// Everything below walks the REGISTRY (and the guild module list the server answers), never a list of ids, so
+// the features the other wave-39 agents register (platform.activities_datachannel, platform.emulator,
+// profiles.access, platform.game_servers, the invite settings) are covered the moment they are merged. The
+// only hard-coded ids are the ones in `known_at_base` (named in the handoff).
+// ---------------------------------------------------------------------------------------------
+
+/// Ids that exist on the base of this wave (waves 27 to 37). Registered ids may be added to the registry freely;
+/// one of these disappearing is a finding.
+fn known_at_base() -> Vec<&'static str> {
+    vec![
+        sr_features::BYOS_ID,
+        sr_features::PUBLIC_PROFILES_ID,
+        sr_features::PLATFORM_BRIDGE_ID,
+        sr_features::BRIDGE_MODULE_ID,
+        sr_features::COMPLIANCE_ID,
+        "lounge.scrapbook",
+    ]
+}
+
+#[test]
+fn the_registry_catalog_is_well_formed_and_every_feature_can_be_killed() {
+    use sr_features::feature::Scope;
+    let registry = sr_server::app::feature_registry().expect("the feature registry builds");
+    let mut problems: Vec<String> = Vec::new();
+    for id in known_at_base() {
+        if registry.get(id).is_none() {
+            problems.push(format!("`{id}` is no longer registered"));
+        }
+    }
+    for f in registry.iter() {
+        let id = f.id();
+        let meta = f.meta();
+        if id.is_empty() // (`unfurl` predates the section.name shape: only the alphabet is checked)
+            || id
+                .chars()
+                .any(|c| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '_'))
+        {
+            problems.push(format!(
+                "`{id}`: an id is lower-case letters, digits, dots and underscores"
+            ));
+        }
+        if meta.name.trim().is_empty() || meta.description.trim().is_empty() {
+            problems.push(format!(
+                "`{id}`: no name or description for Admin > Features"
+            ));
+        }
+        if f.scopes().is_empty() {
+            problems.push(format!("`{id}`: declares no scope"));
+        }
+        // The kill switch is the platform flag: a module with only guild, channel or user scope could not be
+        // switched off by an operator, and the flags-killed states would not reach it.
+        if !f.scopes().contains(&Scope::Platform) && f.gated_by().is_none() {
+            problems.push(format!(
+                "`{id}`: no platform scope and no `gated_by` parent, so the operator cannot kill it"
+            ));
+        }
+        if f.owner_only() && !f.scopes().contains(&Scope::Guild) {
+            problems.push(format!("`{id}`: owner-only but not a guild module"));
+        }
+        if let Some(parent) = f.gated_by() {
+            match registry.get(parent) {
+                None => problems.push(format!("`{id}`: gated_by `{parent}` is not registered")),
+                Some(p) if !p.scopes().contains(&Scope::Platform) => problems.push(format!(
+                    "`{id}`: gated_by `{parent}` has no platform scope to kill"
+                )),
+                Some(_) => {}
+            }
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "the feature catalog is not well formed:\n{}",
+        problems.join("\n")
+    );
+}
+
+/// The number of groups of the authorization matrix (`GROUPS` in `authz_matrix.rs`).
+const ALL_GROUPS: usize = 6;
+
+/// The rule groups exist, and the nightly walks every group of the matrix.
+#[test]
+fn the_rule_groups_exist() {
+    assert!(RULE_GROUPS.iter().all(|g| *g < ALL_GROUPS));
+    assert_eq!(matrix::harness::group_count(), ALL_GROUPS);
+}
+
+/// How two runs of the same matrix, one in the normal state and one with the flags killed, compare on the
+/// calls that must be refused. Returns the disagreements (fatal) and the status changes that are still
+/// refusals (informational: a killed feature answers 404 where the normal state answered 403).
+fn compare_refusals(normal: &[Denial], killed: &[Denial]) -> (Vec<String>, Vec<String>) {
+    use std::collections::BTreeMap;
+    let n: BTreeMap<&str, &Denial> = normal.iter().map(|d| (d.key.as_str(), d)).collect();
+    let k: BTreeMap<&str, &Denial> = killed.iter().map(|d| (d.key.as_str(), d)).collect();
+    let (mut bad, mut info) = (Vec::new(), Vec::new());
+    let word = |d: &Denial| if d.refused() { "refused" } else { "ADMITTED" };
+    for (key, a) in &n {
+        match k.get(key) {
+            None => bad.push(format!("{key}: not made in the second run")),
+            Some(b) => {
+                if a.refused() != b.refused() {
+                    bad.push(format!(
+                        "{key}: first run {} ({}), second run {} ({})",
+                        a.status,
+                        word(a),
+                        b.status,
+                        word(b)
+                    ));
+                } else if a.status != b.status {
+                    info.push(format!("{key}: {} -> {}", a.status, b.status));
+                }
+            }
+        }
+    }
+    for key in k.keys() {
+        if !n.contains_key(key) {
+            bad.push(format!("{key}: not made in the first run"));
+        }
+    }
+    (bad, info)
+}
+
+fn denial(key: &str, status: u16, verdict: &'static str) -> Denial {
+    Denial {
+        key: key.to_owned(),
+        status,
+        verdict,
+    }
+}
+
+#[test]
+fn the_refusal_comparison_catches_what_it_should() {
+    let normal = vec![
+        denial("a|GET /x|member|std", 403, "ok"),
+        denial("a|GET /y|member|std", 404, "ok"),
+        denial("a|POST /z|outsider|std", 403, "ok"),
+    ];
+    // Same refusals, one status moved from 403 to 404: fine, reported.
+    let same = vec![
+        denial("a|GET /x|member|std", 404, "ok"),
+        denial("a|GET /y|member|std", 404, "ok"),
+        denial("a|POST /z|outsider|std", 403, "ok"),
+    ];
+    let (bad, info) = compare_refusals(&normal, &same);
+    assert!(bad.is_empty(), "{bad:?}");
+    assert_eq!(info.len(), 1);
+    // A refusal that stops being one when the flags are killed is the failure the job exists to find.
+    let mut broken = same.clone();
+    broken[2] = denial("a|POST /z|outsider|std", 200, "FAIL");
+    let (bad, _) = compare_refusals(&normal, &broken);
+    assert_eq!(bad.len(), 1, "{bad:?}");
+    assert!(bad[0].contains("ADMITTED"));
+    // The other way round is a difference too.
+    let (bad, _) = compare_refusals(&broken, &normal);
+    assert_eq!(bad.len(), 1, "{bad:?}");
+    // A call that was not made in one run is a difference as well.
+    let (bad, _) = compare_refusals(&normal, &same[..2]);
+    assert_eq!(bad.len(), 1, "{bad:?}");
+}
+
+/// Print the run and collect its failures.
+fn absorb(label: &str, rep: &Report, failures: &mut Vec<String>) {
+    for l in &rep.lines {
+        println!("immutable_rules: {label}: {l}");
+    }
+    failures.extend(rep.failures.iter().map(|f| format!("{label}: {f}")));
+}
+
+/// OPS-IMM-003, the nightly (`security-nightly.yml`): the WHOLE authorization matrix, refusals, reads and
+/// writes, runs in the normal state and again with the flags killed (every guild module off, then every
+/// feature killed at platform scope; `SR_IMMUTABLE_STATES=normal,kill_features,kill_all` adds the plain
+/// platform kill). Each run must hold on its own, and every call that must be refused must be refused in both
+/// runs. `SR_IMMUTABLE_GROUPS=0,1` restricts the groups (local iteration; the nightly runs all six).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL and SR_SECURITY_NIGHTLY=1; the nightly runs it"]
+async fn the_full_matrix_refuses_the_same_with_the_flags_killed() {
+    // rust.yml runs every ignored test on every build; this one is the nightly's (and takes a long while).
+    if std::env::var_os("SR_SECURITY_NIGHTLY").is_none() {
+        println!("immutable_rules: skipped, set SR_SECURITY_NIGHTLY=1 (security-nightly.yml does)");
+        return;
+    }
+    let groups: Vec<usize> = match std::env::var("SR_IMMUTABLE_GROUPS") {
+        Ok(v) => v.split(',').filter_map(|x| x.trim().parse().ok()).collect(),
+        Err(_) => (0..ALL_GROUPS).collect(),
+    };
+    let states: Vec<String> = std::env::var("SR_IMMUTABLE_STATES")
+        .unwrap_or_else(|_| "normal,kill_all".into())
+        .split(',')
+        .map(|x| x.trim().to_owned())
+        .collect();
+    assert!(
+        states.first().map(String::as_str) == Some("normal"),
+        "the first state is the reference: `normal`"
+    );
+    let mut failures: Vec<String> = Vec::new();
+    let reference = matrix::harness::run_full(Flip::Normal, &groups).await;
+    absorb("normal", &reference, &mut failures);
+    assert!(
+        !reference.denials.is_empty(),
+        "the normal run recorded no refusal: the matrix did not run"
+    );
+    for state in &states[1..] {
+        let flip = match state.as_str() {
+            "kill_features" => Flip::KillFeatures,
+            "kill_all" => Flip::KillAll,
+            other => panic!("unknown state `{other}`"),
+        };
+        let killed = matrix::harness::run_full(flip, &groups).await;
+        absorb(state, &killed, &mut failures);
+        let (bad, info) = compare_refusals(&reference.denials, &killed.denials);
+        println!(
+            "immutable_rules: {state}: {} refusals compared, {} disagree, {} changed status but are still refused",
+            reference.denials.len(),
+            bad.len(),
+            info.len()
+        );
+        for i in info.iter().take(200) {
+            println!("immutable_rules: {state}: status change: {i}");
+        }
+        failures.extend(bad.into_iter().map(|b| format!("{state}: {b}")));
+    }
+    let unique: BTreeSet<&String> = failures.iter().collect();
+    assert!(
+        unique.is_empty(),
+        "{} IMMUTABLE RULE failures in the full matrix:\n{}",
+        unique.len(),
+        unique
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
 }

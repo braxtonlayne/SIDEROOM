@@ -181,6 +181,17 @@ pub trait AdminRepository: Send + Sync {
     ) -> AdminResult<i64>;
     async fn list_invites(&self, q: &InviteQuery) -> AdminResult<Vec<InviteRow>>;
     async fn revoke_invite(&self, invite_id: i64, audit: &AuditEntry) -> AdminResult<InviteRow>;
+    /// The last `invites.prune` pass (OPS-INV-001).
+    async fn last_prune_run(&self) -> AdminResult<Option<crate::invite_controls::PruneRun>> {
+        Ok(None)
+    }
+    /// Up to `limit` subtrees marked inactive (newest mark first) and how many are marked in all.
+    async fn inactive_invite_roots(
+        &self,
+        _limit: i64,
+    ) -> AdminResult<(Vec<crate::invite_controls::InactiveRoot>, i64)> {
+        Ok((Vec::new(), 0))
+    }
 
     // ---- platform settings ---------------------------------------------
     async fn settings(&self) -> AdminResult<HashMap<String, StoredSetting>>;

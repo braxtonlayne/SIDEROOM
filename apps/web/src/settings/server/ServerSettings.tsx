@@ -27,6 +27,8 @@ import { CommunitySection } from './sections/Community';
 import { DeleteServerSection } from './sections/DeleteServer';
 import { ExpressionsSection } from './sections/Expressions';
 import { FeaturesSection } from './sections/Features';
+import { GameServersSection } from './gameservers/GameServersSection';
+import { useGameServersOn } from './gameservers/flag';
 import { ExtensionsSection } from './sections/Extensions';
 import { IntegrationsSection } from './sections/Integrations';
 import { InvitesSection } from './sections/Invites';
@@ -46,6 +48,8 @@ export interface SectionProps {
 
 interface SectionCtx {
   bridgeOn: boolean;
+  /** GSV-PAGE-001: the platform switch of the Game Servers page; only an explicit false hides the entry. */
+  gameServersOn?: boolean;
 }
 
 interface SectionDef {
@@ -181,6 +185,14 @@ export const SECTIONS: SectionDef[] = [
     component: BridgeSection,
   },
   {
+    id: 'gameservers',
+    label: 'settings.gameServers.nav',
+    group: 'APPS',
+    // GSV-PAGE-001: a cosmetic Coming soon page; the platform feature platform.game_servers hides it.
+    visible: (v, ctx) => v.can('MANAGE_GUILD') && ctx?.gameServersOn !== false,
+    component: GameServersSection,
+  },
+  {
     id: 'moderation',
     label: 'settings.server.automod',
     group: 'MODERATION',
@@ -234,9 +246,11 @@ export function ServerSettings({
   }, [guildId, loadMembers]);
 
   const { visible: bridgeOn, pending: bridgePending } = useBridgeNav(guildId, viewer);
+  const gameServersOn = useGameServersOn();
   const visible = useMemo(
-    () => (viewer.ready ? SECTIONS.filter((s) => s.visible(viewer, { bridgeOn })) : []),
-    [viewer, bridgeOn],
+    () =>
+      viewer.ready ? SECTIONS.filter((s) => s.visible(viewer, { bridgeOn, gameServersOn })) : [],
+    [viewer, bridgeOn, gameServersOn],
   );
   const close = useCallback(() => {
     void navigate({ to: '/channels/$guildId', params: { guildId } });
@@ -265,6 +279,9 @@ export function ServerSettings({
   let body;
   if (!viewer.ready || !guild) {
     body = <Loading label={t('settings.serverSettings.loading')} />;
+  } else if (section === 'gameservers' && !gameServersOn) {
+    // GSV-PAGE-001: switched off by the operator, the route is the Lounge's not-found view.
+    body = <p>{t('app.router.notFound')}</p>;
   } else if (visible.length === 0) {
     body = (
       <EmptyState

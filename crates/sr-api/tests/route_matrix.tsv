@@ -199,6 +199,8 @@ GET	/admin/guilds	authenticated	staff	deny	-	MANAGE_GUILDS_GLOBAL
 GET	/admin/guilds/{guild_id}	authenticated	staff	deny	-	MANAGE_GUILDS_GLOBAL
 GET	/admin/ingest-sources	authenticated	staff	deny	-	PUBLISH_READING
 GET	/admin/invites	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/invites/controls	authenticated	staff	deny	-	MANAGE_INVITES
+GET	/admin/invites/inactive	authenticated	staff	deny	-	MANAGE_INVITES
 GET	/admin/jobs	authenticated	staff	deny	-	MANAGE_TRANSCODE
 GET	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-	PUBLISH_READING
 GET	/admin/library/chapters/{chapter_id}/uploads	authenticated	staff	deny	-	PUBLISH_READING
@@ -1045,6 +1047,7 @@ PUT	/admin/cinema/variants/{variant_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
 PUT	/admin/donations/wallet	authenticated	staff	deny	-	MANAGE_DONATIONS
 PUT	/admin/entrance/copy/{key}	authenticated	staff	deny	-	MANAGE_ENTRANCE
 PUT	/admin/entrance/hero	authenticated	staff	deny	-	MANAGE_ENTRANCE
+PUT	/admin/invites/lock	authenticated	staff	deny	-	MANAGE_FEATURES
 PUT	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-	PUBLISH_READING
 PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-	PUBLISH_READING
 PUT	/admin/library/chapters/{chapter_id}/pages/{index}	authenticated	staff	deny	-	PUBLISH_READING

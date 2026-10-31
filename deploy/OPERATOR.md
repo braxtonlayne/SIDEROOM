@@ -78,6 +78,27 @@ The values for the lawyer-dependent ones are open questions: [lawyer brief](../d
 | `invites.suspicion_freeze_threshold`, `invites.suspicion_escalate_threshold` | When a banned invitee freezes the inviter's invites and when a case opens. |
 | `moderation.hold_review_days` | A hold older than this is flagged on the holds list (default 90). |
 
+**Invites (Admin > Invites; the quotas are edited in Admin > Limits & settings, group invites)**
+
+| Key | Default | Meaning |
+|---|---|---|
+| `invites.locked` | off | Lock the Doors: nobody registers, whatever the invite (emergency invites included). Change it on Admin > Invites (needs Manage features and a reason; each change is logged as `invites.lock` / `invites.unlock`). Existing members are unaffected; the landing page says the doors are closed. |
+| `invites.default_credits` | 5 (0 to 1000) | Invite credits a new account starts with (was `invites.initial_credits` before phase 39; migration 1890 moved a saved value). |
+| `invites.max_outstanding` | 20 (1 to 1000) | The most unused codes one account may hold. Lowering it keeps existing codes. |
+| `invites.unused_code_days` | 30 (1 to 3650) | An unused, non-emergency code older than this is revoked by the `invites.prune` job. |
+
+The job `invites.prune` runs every six hours: it revokes the old unused codes above and marks, for Admin > Invites, the subtrees whose root never activated (email never verified and never seen online). It never deletes or changes the invite graph. Its last pass is shown on Admin > Invites.
+
+**Public profiles (Admin > Limits & settings, group privacy, and Admin > Features)**
+
+| Key | Default | Meaning |
+|---|---|---|
+| `profiles.access` | `walled` | `walled` keeps every profile inside the instance. `opt_in_public` lets members who choose it have a public profile page, but only while the feature `platform.public_profiles` is also on. Both are needed. |
+
+**Module switches (Admin > Features)**
+
+Every module of the feature phase has a platform switch (and, where it makes sense, a per-server one under Server Settings > Modules): `lounge.jukebox`, `lounge.listening_rooms`, `platform.tools` (and one `platform.tools.<tool>` per drawer tool), `platform.activities_datachannel`, `platform.emulator`, `platform.watch_together_embeds`, `platform.byos`, `platform.bridge`, `lounge.scrapbook`, `lounge.rings`, `platform.public_profiles` and `platform.game_servers` (which only shows or hides the "Coming soon" page). A switched-off module's routes answer 403 `SR_FEATURE_DISABLED`. No switch can turn off call encryption, authorization or the audit and access logs.
+
 **Alerts and what the System page watches**
 
 | Key | Default | Meaning |

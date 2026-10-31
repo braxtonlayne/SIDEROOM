@@ -178,6 +178,9 @@ pub fn router() -> Router<AppState> {
             post(people::transfer_ownership),
         )
         .route("/admin/invites", get(invites::list))
+        .route("/admin/invites/controls", get(invites::controls))
+        .route("/admin/invites/lock", axum::routing::put(invites::set_lock))
+        .route("/admin/invites/inactive", get(invites::inactive))
         .route(
             "/admin/invites/{invite_id}",
             axum::routing::delete(invites::revoke),
@@ -384,6 +387,9 @@ pub fn router() -> Router<AppState> {
         invites::adjust,
         invites::list,
         invites::revoke,
+        invites::controls,
+        invites::set_lock,
+        invites::inactive,
         invites::suspects,
         invites::clear_suspicion,
         system::settings,
@@ -464,6 +470,11 @@ pub fn router() -> Router<AppState> {
         accounts::ForceLogoutResult,
         invites::AdjustBody,
         invites::AdjustResult,
+        invites::LockBody,
+        sr_admin::InviteControls,
+        sr_admin::PruneRun,
+        sr_admin::InactiveRoot,
+        sr_admin::InactiveRoots,
         system::PatchSettingsBody,
         system::FeatureView,
         system::PatchFeatureBody,

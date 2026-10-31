@@ -47,6 +47,34 @@ pub const MAX_PAYLOAD: usize = 16 * 1024 + 64;
 /// Instances one member may listen to at once.
 pub const MAX_INSTANCES: usize = 8;
 
+/// The operator's switch for activity data channels (`platform.activities_datachannel`, OPS-FLG-001). One handle is
+/// shared by every shard of the SFU; the host flips it when the platform feature changes. Off, the SFU ignores a
+/// data channel a member opens (nothing is registered, so nothing is relayed) and drops what an already-open one
+/// sends. Voice and video are untouched, and so is end-to-end encryption: the gate only ever refuses.
+#[derive(Debug, Clone)]
+pub struct Gate(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl Default for Gate {
+    /// On: the feature's default, and what every embedder that never wires a switch wants.
+    fn default() -> Self {
+        Self(std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+            true,
+        )))
+    }
+}
+
+impl Gate {
+    /// Switch the data channels on or off.
+    pub fn set(&self, on: bool) {
+        self.0.store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Whether data channels are on.
+    pub fn is_on(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 /// A parsed client frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Frame<'a> {

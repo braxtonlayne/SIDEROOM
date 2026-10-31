@@ -10,6 +10,7 @@ pub mod byos;
 pub mod compliance;
 pub mod directory;
 pub mod feature;
+pub mod game_servers;
 pub mod moderation;
 pub mod modules;
 pub mod platform_defaults;
@@ -21,6 +22,7 @@ pub mod state;
 pub mod store;
 pub mod template;
 pub mod testing;
+pub mod wave_modules;
 
 pub use byos::{BYOS_ID, ByosFeature, ByosSettings};
 pub use compliance::{COMPLIANCE_ID, ComplianceFeature, ComplianceSettings, INVOICE_YEARS_RANGE};
@@ -28,6 +30,7 @@ pub use directory::{DirectoryHiddenCategoriesFeature, HIDDEN_CATEGORIES_ID, hidd
 pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
+pub use game_servers::{GAME_SERVERS_ID, GameServersFeature};
 pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
 pub use modules::bridge::{BRIDGE_MODULE_ID, BridgeModule, PLATFORM_BRIDGE_ID, PlatformBridge};
 pub use platform_defaults::{
@@ -39,3 +42,7 @@ pub use runtime::{FeatureRuntime, current_module, scope_module};
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;
 pub use store::{InMemorySettingsStore, SettingsRecord, SettingsStore};
+pub use wave_modules::{
+    ACTIVITIES_DATACHANNEL_ID, EMULATOR_ID, JUKEBOX_ID, LISTENING_ROOMS_ID, TOOL_FLAGS, TOOLS_ID,
+    ToolFlag, WATCH_TOGETHER_EMBEDS_ID, tool_flag_id,
+};

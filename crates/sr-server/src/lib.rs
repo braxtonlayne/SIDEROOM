@@ -15,6 +15,7 @@ pub mod cards_jobs;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
 pub mod csp_reports;
+pub mod datachannel_gate;
 pub mod endpoint_client;
 pub mod events_jobs;
 pub mod external_jobs;
@@ -26,6 +27,7 @@ pub mod healthcheck;
 pub mod inbox_pg;
 pub mod instance_mount;
 pub mod integration_policy;
+pub mod invites_jobs;
 pub mod jobs;
 pub mod jukebox;
 pub mod jukebox_jobs;
@@ -124,6 +126,9 @@ mod feature_actions_pg_tests;
 
 #[cfg(test)]
 mod fx_pg_tests;
+
+#[cfg(test)]
+mod invites_pg_tests;
 
 #[cfg(test)]
 mod moderation_index_pg_tests;

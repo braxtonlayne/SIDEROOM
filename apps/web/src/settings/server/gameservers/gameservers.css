@@ -1,0 +1,232 @@
+/* Game Servers "Coming soon" page (GSV-PAGE-001). Tokens only; logical properties only. All of it is decoration. */
+.gsv-root {
+  display: grid;
+  gap: 16px;
+}
+.gsv-construction {
+  display: grid;
+  border: 2px solid var(--ui-warning);
+  border-radius: var(--ui-radius);
+  overflow: hidden;
+  background: var(--ui-bg-sunken);
+}
+.gsv-hazard {
+  block-size: 14px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--ui-warning) 0 14px,
+    var(--ui-bg-sunken) 14px 28px
+  );
+}
+.gsv-sign {
+  margin: 0;
+  padding-block: 6px;
+  text-align: center;
+  font-family: var(--ui-font-mono);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--ui-warning);
+}
+.gsv-soon {
+  margin: 0;
+  text-align: center;
+  font-family: var(--ui-font-display);
+  font-size: 2.2rem;
+  letter-spacing: 0.15em;
+  color: var(--ui-accent);
+  text-shadow: 2px 2px 0 var(--ui-border);
+}
+.gsv-marquee {
+  overflow: hidden;
+  border-block: 1px dashed var(--ui-border);
+  padding-block: 4px;
+  font-family: var(--ui-font-mono);
+  color: var(--ui-text-muted);
+}
+.gsv-marquee-track {
+  display: inline-block;
+  white-space: nowrap;
+  padding-inline-start: 100%;
+}
+.gsv-marquee[data-motion='full'] .gsv-marquee-track {
+  animation: gsv-scroll 18s linear infinite;
+}
+.gsv-marquee[data-motion='reduced'] {
+  text-align: center;
+}
+.gsv-marquee[data-motion='reduced'] .gsv-marquee-track {
+  white-space: normal;
+  padding-inline-start: 0;
+  animation: none;
+}
+@keyframes gsv-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gsv-marquee .gsv-marquee-track {
+    animation: none;
+    white-space: normal;
+    padding-inline-start: 0;
+  }
+}
+.gsv-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.gsv-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-bg-raised);
+}
+.gsv-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.gsv-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--ui-text);
+}
+.gsv-card-text {
+  margin: 0;
+  color: var(--ui-text-muted);
+}
+.gsv-pill {
+  display: inline-block;
+  padding-block: 1px;
+  padding-inline: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: var(--ui-text-muted);
+}
+.gsv-pill-soon {
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+.gsv-pill-ok {
+  border-color: var(--ui-success);
+  color: var(--ui-success);
+}
+.gsv-pill-wait {
+  border-color: var(--ui-warning);
+  color: var(--ui-warning);
+}
+.gsv-pill-off {
+  color: var(--ui-text-faint);
+}
+.gsv-preview {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.gsv-preview-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  opacity: 0.55;
+  filter: grayscale(1);
+  pointer-events: none;
+  user-select: none;
+}
+.gsv-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gsv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-raised);
+}
+.gsv-row-name {
+  flex: 1;
+  min-inline-size: 0;
+  color: var(--ui-text);
+}
+.gsv-row-meta {
+  font-size: 0.75rem;
+  color: var(--ui-text-faint);
+}
+.gsv-console {
+  margin: 0;
+  padding: 6px 8px;
+  overflow: hidden;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-sunken);
+  font-family: var(--ui-font-mono);
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  color: var(--ui-success);
+}
+.gsv-caption {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--ui-text-muted);
+}
+.gsv-counter {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--ui-text-muted);
+}
+.gsv-counter-digits {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+}
+.gsv-digit {
+  padding-block: 1px;
+  padding-inline: 4px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-sunken);
+  font-family: var(--ui-font-mono);
+  color: var(--ui-success);
+}
+.gsv-tile {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px dashed var(--ui-warning);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-sunken);
+}
+.gsv-tile-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ui-text);
+}
+.gsv-tile-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ui-text-muted);
+}
+.gsv-tile-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

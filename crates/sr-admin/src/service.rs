@@ -1211,7 +1211,18 @@ impl AdminService {
             &reason,
             json!({ "changes": keys }),
         );
+        // Closing or opening the doors is its own audited action, wherever the change comes from (OPS-INV-001).
+        let lock_change = match clean.iter().find(|(k, _)| k == settings::INVITES_LOCKED) {
+            Some((_, v)) => Some((
+                self.setting_i64(settings::INVITES_LOCKED).await? == 1,
+                v.as_bool().unwrap_or(false),
+            )),
+            None => None,
+        };
         self.repo.put_settings(&clean, c.user_id, &audit).await?;
+        if let Some((was, now)) = lock_change {
+            self.audit_lock_change(c, was, now, &reason).await?;
+        }
         self.settings_view(c).await
     }
 

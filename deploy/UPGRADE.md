@@ -56,6 +56,14 @@ Everything written after the backup is lost; the restored database is exactly th
 
 Upgrading across several releases: step through each release in order, running `sr-cli migrate` at each, unless the release notes say a jump is safe.
 
+## Release notes: public profiles need a second switch (phase 39, OPS-FLG-001, P39-FLG-1)
+
+A public profile page now needs **both** the feature `platform.public_profiles` (Admin > Features) **and** the new setting `profiles.access = opt_in_public` (Admin > Limits & settings, group privacy). The setting defaults to `walled`. **If your instance had `platform.public_profiles` switched on, set `profiles.access` to `opt_in_public` after upgrading, or every public profile page goes dark** (members' choices are kept; the pages come back as soon as the setting is set). Instances that never switched the feature on need do nothing.
+
+## Release notes: invite controls (phase 39, OPS-INV-001)
+
+Migration 1890 renames the setting `invites.initial_credits` to `invites.default_credits` and carries a saved value over; registration now reads it (before, it read only the configured seed). If you scripted `PATCH /admin/settings` with the old key, use the new one. New settings `invites.locked` (off), `invites.max_outstanding` (20) and `invites.unused_code_days` (30), and the job `invites.prune` (every six hours), are described in [OPERATOR.md](OPERATOR.md) section 3. Nothing to do unless you want to change them.
+
 ## Release notes: the plaintext signing seed is gone (migration 0803, G-85)
 
 Migration `0803_drop_plaintext_signing_seed.sql` drops `applications.interactions_signing_seed`. Seeds have lived encrypted in `interactions_signing_seed_sealed` since `0771`, and the old column was emptied by the startup job `apps.seal_seeds` of the release that shipped `0771`. The upgrade order is therefore: first run a release that contains `0771` (any release after it) once, with `server.secret_key` set, then upgrade. If a plaintext seed is left, the migration stops with "run the previous release once to seal seeds" and changes nothing; start the previous release, then retry. The one-version rule does not cover this migration: the release before it still reads the dropped column at startup, so go back to the pre-upgrade dump (the second case of "Rolling back") if you must roll back past it.

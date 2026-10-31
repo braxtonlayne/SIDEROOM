@@ -45,6 +45,10 @@ pub fn build_router(state: AppState, extra_v1: Router<AppState>) -> Router {
             state.clone(),
             crate::routes::storage::flags::byos_gate,
         ))
+        .route_layer(from_fn_with_state(
+            state.clone(),
+            crate::module_gate::module_gate,
+        ))
         .route_layer(from_fn_with_state(state.clone(), rate_limit))
         .route_layer(from_fn_with_state(
             state.clone(),

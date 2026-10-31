@@ -1397,7 +1397,12 @@ async fn seed(
     cfg.voice.announce_ips = vec!["127.0.0.1".into()];
     // A range of its own per world: a stopped node frees its sockets a moment after the process says so.
     static VOICE_N: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
-    let voice_base = 52_000 + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // SR_TEST_VOICE_PORT_BASE moves the range, so two matrix runs on one machine do not fight over it.
+    let first: u16 = std::env::var("SR_TEST_VOICE_PORT_BASE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(52_000);
+    let voice_base = first + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     cfg.voice.udp_port_min = voice_base;
     cfg.voice.udp_port_max = voice_base + 9;
     cfg.server.shutdown_grace_secs = 1;
@@ -3316,6 +3321,14 @@ async fn seed(
             Some(&json!({"enabled": true})),
         )
         .await;
+        // OPS-FLG-001 (D-382): the switch alone keeps profiles walled; the sweep also opts in with profiles.access.
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            "/admin/settings",
+            Some(&json!({"values": {"profiles.access": "opt_in_public"}})),
+        )
+        .await;
         srv.call(
             &victim_cred,
             "PUT",
@@ -4870,7 +4883,7 @@ async fn run_group(
     let mut failures = Vec::new();
     let mut obs: Vec<Obs> = Vec::new();
     // OPS-IMM-002: under a flag state (immutable_rules.rs) only the refusal phase runs, after the state is applied.
-    let refusals_only = harness::current().is_some();
+    let refusals_only = harness::current().is_some() && !harness::full();
     harness::after_seed(&world, g, &mut failures).await;
 
     let (denials, others): (Vec<&Call>, Vec<&Call>) =
@@ -6187,9 +6200,21 @@ pub mod harness {
         SettingsMin,
         /// Every setting at its maximum.
         SettingsMax,
+        /// OPS-IMM-003: nothing changed. The reference state the flags-killed runs are compared with (the
+        /// nightly's full runs); the log checks of [`after_seed`] still run.
+        Normal,
+        /// OPS-IMM-003, the third state: every guild module off in the seeded servers, then every registered
+        /// feature killed at platform scope.
+        KillAll,
     }
 
     static CURRENT: Mutex<Option<Flip>> = Mutex::new(None);
+    /// True while [`run_full`] drives: every phase runs under the flip, not only the refusals.
+    static FULL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    pub(super) fn full() -> bool {
+        FULL.load(std::sync::atomic::Ordering::SeqCst)
+    }
 
     /// True when this file is compiled into `immutable_rules.rs` (as its `matrix` module): the two big tests
     /// above then return at once, because their own binary runs them and the harness only needs the library.
@@ -6208,6 +6233,26 @@ pub mod harness {
         pub lines: Vec<String>,
         /// Everything that went wrong, one line each.
         pub failures: Vec<String>,
+        /// Every call that was expected to be refused, as it was answered (filled by every run).
+        pub denials: Vec<Denial>,
+    }
+
+    /// One call the matrix expects to be refused, and how it was answered.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Denial {
+        /// `group|METHOD path|actor|pass`, with `#n` appended when the same key repeats.
+        pub key: String,
+        pub status: u16,
+        /// `ok`, `masked`, `weak`, `FAIL` or `error` (the matrix's own verdicts).
+        pub verdict: &'static str,
+    }
+
+    impl Denial {
+        /// True when the call was refused (or masked by a validation error before any write), false when it
+        /// was admitted or broke.
+        pub fn refused(&self) -> bool {
+            matches!(self.verdict, "ok" | "masked" | "weak")
+        }
     }
 
     /// Run the refusal phase of `groups` (indexes into [`GROUPS`]) under `flip`, each on a freshly seeded world.
@@ -6217,18 +6262,63 @@ pub mod harness {
         let routes = parse_matrix();
         let infos = op_infos();
         let mut rep = Report::default();
+        let mut seen: HashMap<String, usize> = HashMap::new();
         for &g in groups {
             let res = run_group(g, &base, &routes, &infos).await;
             rep.lines.push(res.line);
             rep.failures.extend(res.failures);
+            for o in res.obs.iter().filter(|o| o.exp == Exp::Deny) {
+                let mut key = format!(
+                    "{}|{} {}|{}|{}",
+                    GROUPS[o.group], o.method, o.path, o.actor, o.pass
+                );
+                let n = seen.entry(key.clone()).or_insert(0);
+                *n += 1;
+                if *n > 1 {
+                    key = format!("{key}#{n}");
+                }
+                rep.denials.push(Denial {
+                    key,
+                    status: o.status,
+                    verdict: o.verdict,
+                });
+            }
         }
         *CURRENT.lock().unwrap() = None;
+        rep
+    }
+
+    /// OPS-IMM-003: like [`run`], but every phase (refusals, reads, writes) runs under the flip. Under a
+    /// state that kills features the expectation that a call is ADMITTED cannot hold (a killed feature answers
+    /// 404 to its rightful actor), so only the refusal-side failures are kept for those states; everything is
+    /// kept under [`Flip::Normal`].
+    pub async fn run_full(flip: Flip, groups: &[usize]) -> Report {
+        FULL.store(true, std::sync::atomic::Ordering::SeqCst);
+        let mut rep = run(flip, groups).await;
+        FULL.store(false, std::sync::atomic::Ordering::SeqCst);
+        if matches!(flip, Flip::KillFeatures | Flip::KillAll) {
+            let before = rep.failures.len();
+            rep.failures.retain(|f| {
+                f.contains("expected Deny")
+                    || f.contains("refused calls changed tables")
+                    || f.contains(" under ")
+            });
+            rep.lines.push(format!(
+                "{} admission failures dropped (a killed feature is not admitted)",
+                before - rep.failures.len()
+            ));
+        }
         rep
     }
 
     /// The group indexes whose refusals the IMMUTABLE RULE names: moderation, admin, and the rest (which holds
     /// the storage and voice routes).
     pub const RULE_GROUPS: [usize; 3] = [0, 1, 5];
+
+    /// How many groups the matrix has.
+    pub fn group_count() -> usize {
+        GROUPS.len()
+    }
 
     /// Settings that throttle the harness itself (HTTP rate limits and the abuse limiters). At their minimum
     /// every call would answer 429, which proves nothing about authorization, so they stay at their maximum
@@ -6293,47 +6383,174 @@ pub mod harness {
         }
     }
 
+    /// A PATCH that sets up a state (it is not what is under test). The admin routes and the guild module
+    /// toggle are rate limited per account, so a 429 is waited out and the call repeated (at most 20 times).
+    async fn patch_past_429(
+        srv: &Server,
+        cred: &Cred,
+        path: &str,
+        body: &Value,
+        with_reason: bool,
+    ) -> Resp {
+        let mut tries = 0;
+        loop {
+            let r = if with_reason {
+                srv.call_reason(cred, "PATCH", path, Some(body)).await
+            } else {
+                srv.call(cred, "PATCH", path, Some(body)).await
+            };
+            if r.status != 429 || tries >= 20 {
+                return r;
+            }
+            tries += 1;
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+        }
+    }
+
+    /// Every registered feature switched off at platform scope, through the Admin API as the Owner.
+    async fn kill_features(world: &World) -> Result<String, String> {
+        let owner = &world.actor("staff_owner").cred;
+        let srv = &world.srv;
+        let r = srv.call(owner, "GET", "/admin/features", None).await;
+        let list = json_of(&r);
+        let list = list
+            .as_array()
+            .ok_or(format!("GET /admin/features: {} {}", r.status, r.body))?;
+        let (mut killed, mut skipped) = (0, Vec::new());
+        for f in list {
+            let id = f["id"].as_str().unwrap_or_default();
+            if f["enabled"] != json!(true) {
+                continue;
+            }
+            // OPS-FLG-001: a `platform.tools.<tool>` sub-flag dies with `platform.tools` (listed first, killed
+            // above), so it needs no call of its own; it still reads off, which the check after the loop proves.
+            if id.starts_with("platform.tools.") {
+                killed += 1;
+                continue;
+            }
+            let r = patch_past_429(
+                srv,
+                owner,
+                &format!("/admin/features/{id}"),
+                &json!({"enabled": false}),
+                true,
+            )
+            .await;
+            if r.status == 200 {
+                killed += 1;
+            } else {
+                skipped.push(format!("{id} ({})", r.status));
+            }
+        }
+        if killed == 0 || skipped.len() * 10 > list.len() {
+            return Err(format!(
+                "only {killed} of {} features killed; skipped {skipped:?}",
+                list.len()
+            ));
+        }
+        // The state was reached: nothing the Admin API lists is still enabled, except what it refused to switch.
+        let r = srv.call(owner, "GET", "/admin/features", None).await;
+        let after = json_of(&r);
+        let still: Vec<String> = after
+            .as_array()
+            .map(|l| {
+                l.iter()
+                    .filter(|f| f["enabled"] == json!(true))
+                    .filter_map(|f| f["id"].as_str().map(str::to_owned))
+                    .filter(|id| !skipped.iter().any(|s| s.starts_with(id.as_str())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !still.is_empty() {
+            return Err(format!("features still enabled after the kill: {still:?}"));
+        }
+        Ok(format!(
+            "{killed} of {} features killed, skipped {skipped:?}",
+            list.len()
+        ))
+    }
+
+    /// OPS-IMM-003: every guild module the server lists switched off in both seeded servers, as their owners
+    /// (the walk is over what `GET /guilds/{id}/sr/features` lists, so a module a later wave registers is
+    /// covered with no edit here). Modules the platform has not offered are not listed, hence not switched.
+    async fn guild_modules_off(world: &World) -> Result<String, String> {
+        let srv = &world.srv;
+        let (mut off, mut skipped, mut total) = (0, Vec::new(), 0);
+        for (owner, guild) in [
+            ("owner_a", world.a["guild_id"].clone()),
+            ("owner_b", world.b["guild_id"].clone()),
+        ] {
+            let cred = &world.actor(owner).cred;
+            let path = format!("/guilds/{guild}/sr/features");
+            let r = srv.call(cred, "GET", &path, None).await;
+            let list = json_of(&r);
+            let list = list
+                .as_array()
+                .ok_or(format!("GET {path} as {owner}: {} {}", r.status, r.body))?;
+            for m in list {
+                total += 1;
+                let id = m["id"].as_str().unwrap_or_default();
+                if m["enabled"] != json!(true) {
+                    continue;
+                }
+                // The per-account rate limit of the toggle answers 429 after a burst: `patch_past_429` waits it out.
+                let r = patch_past_429(
+                    srv,
+                    cred,
+                    &format!("{path}/{id}"),
+                    &json!({"enabled": false}),
+                    false,
+                )
+                .await;
+                if r.status == 200 {
+                    off += 1;
+                } else {
+                    skipped.push(format!("{id}@{owner} ({})", r.status));
+                }
+            }
+            // Read it back: nothing the server lists is still on, except what it refused to switch.
+            let r = srv.call(cred, "GET", &path, None).await;
+            let on: Vec<String> = json_of(&r)
+                .as_array()
+                .map(|l| {
+                    l.iter()
+                        .filter(|m| m["enabled"] == json!(true))
+                        .filter_map(|m| m["id"].as_str().map(str::to_owned))
+                        .filter(|id| {
+                            !skipped
+                                .iter()
+                                .any(|s| s.starts_with(&format!("{id}@{owner}")))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            if !on.is_empty() {
+                return Err(format!(
+                    "guild modules still on in {owner}'s server: {on:?}"
+                ));
+            }
+        }
+        if !skipped.is_empty() {
+            return Err(format!(
+                "guild modules that could not be switched off: {skipped:?}"
+            ));
+        }
+        Ok(format!(
+            "{off} of {total} guild modules switched off, skipped {skipped:?}"
+        ))
+    }
+
     /// Put the platform into the state of `flip` through the Admin API as the Owner. Returns what it did.
     async fn apply(world: &World, flip: Flip) -> Result<String, String> {
         let owner = &world.actor("staff_owner").cred;
         let srv = &world.srv;
         match flip {
-            Flip::KillFeatures => {
-                let r = srv.call(owner, "GET", "/admin/features", None).await;
-                let list = json_of(&r);
-                let list = list
-                    .as_array()
-                    .ok_or(format!("GET /admin/features: {} {}", r.status, r.body))?;
-                let (mut killed, mut skipped) = (0, Vec::new());
-                for f in list {
-                    let id = f["id"].as_str().unwrap_or_default();
-                    if f["enabled"] != json!(true) {
-                        continue;
-                    }
-                    let r = srv
-                        .call_reason(
-                            owner,
-                            "PATCH",
-                            &format!("/admin/features/{id}"),
-                            Some(&json!({"enabled": false})),
-                        )
-                        .await;
-                    if r.status == 200 {
-                        killed += 1;
-                    } else {
-                        skipped.push(format!("{id} ({})", r.status));
-                    }
-                }
-                if killed == 0 || skipped.len() * 10 > list.len() {
-                    return Err(format!(
-                        "only {killed} of {} features killed; skipped {skipped:?}",
-                        list.len()
-                    ));
-                }
-                Ok(format!(
-                    "{killed} of {} features killed, skipped {skipped:?}",
-                    list.len()
-                ))
+            Flip::Normal => Ok("no change (the reference state)".into()),
+            Flip::KillFeatures => kill_features(world).await,
+            Flip::KillAll => {
+                let modules = guild_modules_off(world).await?;
+                let features = kill_features(world).await?;
+                Ok(format!("{modules}; {features}"))
             }
             Flip::SettingsMin | Flip::SettingsMax => {
                 let r = srv.call(owner, "GET", "/admin/settings", None).await;
@@ -6414,7 +6631,7 @@ pub mod harness {
         }
         // The state change itself was an admin action: the access log grew.
         let changed = logs(&world.pool).await;
-        if changed.access <= before.access {
+        if flip != Flip::Normal && changed.access <= before.access {
             failures.push(format!(
                 "{tag} the admin actions that set the state wrote no staff_access_log row"
             ));
@@ -7267,6 +7484,35 @@ async fn profile_privacy_holds_over_http() {
             .await,
         404
     );
+    // OPS-FLG-001 (D-382): the switch alone is not enough. `profiles.access` is `walled` by default, so a stored
+    // `public` page is still not served; the operator opts in with `opt_in_public`.
+    let access = async |v: &str| {
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            "/admin/settings",
+            Some(&json!({"values": {"profiles.access": v}})),
+        )
+        .await
+    };
+    expect!("the operator walls profiles", access("walled").await, 200);
+    expect!("switch on, access walled", flag(true).await, 200);
+    expect!(
+        "switch on but profiles.access walled: still 404",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        404
+    );
+    expect!(
+        "an unknown access word is refused",
+        access("everyone").await,
+        400
+    );
+    expect!(
+        "operator opts in to public profiles",
+        access("opt_in_public").await,
+        200
+    );
     expect!("operator allows public pages", flag(true).await, 200);
     expect!(
         "unknown handle with the switch on is the same 404",
@@ -7661,6 +7907,293 @@ async fn profile_privacy_holds_over_http() {
     assert!(
         failures.is_empty(),
         "{} profile privacy failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// OPS-FLG-001: one kill test per switch, through the matrix's client. A member (never staff) calls a route of the
+// feature; the operator kills the switch through the Admin API; the same call is refused with 403 `SR_FEATURE_DISABLED`
+// (900001) and the switch reads `false` in `GET /sr/features/flags`; switched back on, the call is no longer
+// refused for that reason. Nothing here weakens a refusal: a refused call stays refused, and the member's own
+// authorization is untouched.
+
+const FEATURE_DISABLED: &str = "900001";
+
+fn is_feature_disabled(r: &Resp) -> bool {
+    r.status == 403 && json_code(&r.body) == FEATURE_DISABLED
+}
+
+/// A call of a feature's route by the member: method, path, body.
+type KillCall = (&'static str, String, Option<Value>);
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn module_kill_switches_stop_their_routes() {
+    if harness::embedded() {
+        return;
+    }
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let srv = &world.srv;
+    let staff = world.actor("staff_owner").cred.clone();
+    let member = world.actor("member").cred.clone();
+    let owner_a = world.actor("owner_a").cred.clone();
+    let ch = world.a["channel_id"].clone();
+    let ga = world.guild_a;
+    let mut failures: Vec<String> = Vec::new();
+
+    let r = step_up(srv, &staff, &world.totp).await;
+    assert_eq!(r.status, 200, "staff step-up: {}", r.body);
+
+    let set = async |id: &str, on: bool| -> Resp {
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            &format!("/admin/features/{id}"),
+            Some(&json!({"enabled": on})),
+        )
+        .await
+    };
+    let flag_of = async |id: &str| -> Option<bool> {
+        let r = srv.call(&member, "GET", "/sr/features/flags", None).await;
+        serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .and_then(|v| v["flags"][id].as_bool())
+    };
+
+    let cards = format!("/channels/{ch}/cards/1/ics");
+    let rooms = format!("/channels/{ch}/tool-rooms");
+    let timer = format!("/channels/{ch}/voice-timer");
+    let timer_body = Some(json!({"timer": null}));
+    let room_listen = format!("/channels/{ch}/listening-room");
+    // (feature ids to kill together, calls that must be refused while they are dead)
+    let cases: Vec<(Vec<&'static str>, Vec<KillCall>)> = vec![
+        (
+            vec!["lounge.jukebox"],
+            vec![
+                ("GET", format!("/channels/{ch}/jukebox"), None),
+                (
+                    "POST",
+                    format!("/channels/{ch}/jukebox/queue"),
+                    Some(json!({"tracks": []})),
+                ),
+                ("GET", room_listen.clone(), None),
+            ],
+        ),
+        (
+            vec!["lounge.listening_rooms"],
+            vec![("GET", room_listen.clone(), None)],
+        ),
+        (
+            vec!["platform.tools"],
+            vec![
+                ("GET", "/tools/fx".to_owned(), None),
+                ("GET", "/users/@me/tools/notes".to_owned(), None),
+                ("GET", "/users/@me/tools/loot-tables".to_owned(), None),
+                ("GET", cards.clone(), None),
+                ("GET", rooms.clone(), None),
+                ("PUT", timer.clone(), timer_body.clone()),
+            ],
+        ),
+        (
+            vec!["platform.tools.currency"],
+            vec![("GET", "/tools/fx".to_owned(), None)],
+        ),
+        (
+            vec!["platform.tools.notes"],
+            vec![("GET", "/users/@me/tools/notes".to_owned(), None)],
+        ),
+        (
+            vec!["platform.tools.loot"],
+            vec![
+                ("GET", "/users/@me/tools/loot-tables".to_owned(), None),
+                ("GET", format!("/guilds/{ga}/tools/loot-tables"), None),
+            ],
+        ),
+        (
+            vec!["platform.tools.tierlist", "platform.tools.poll"],
+            vec![("GET", rooms.clone(), None)],
+        ),
+        (
+            vec!["platform.tools.invite"],
+            vec![("GET", cards.clone(), None)],
+        ),
+        (
+            vec![
+                "platform.tools.pomodoro",
+                "platform.tools.stopwatch",
+                "platform.tools.countdown",
+            ],
+            vec![("PUT", timer.clone(), timer_body.clone())],
+        ),
+        (
+            vec!["platform.emulator"],
+            vec![("GET", "/users/@me/games/roms".to_owned(), None)],
+        ),
+        (
+            vec!["platform.watch_together_embeds"],
+            vec![(
+                "POST",
+                "/watch-parties".to_owned(),
+                Some(json!({"external": {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}})),
+            )],
+        ),
+    ];
+    for (ids, calls) in &cases {
+        let tag = ids.join("+");
+        for (method, path, body) in calls {
+            let before = srv.call(&member, method, path, body.as_ref()).await;
+            if is_feature_disabled(&before) {
+                failures.push(format!("{tag}: {method} {path} refused before the kill"));
+            }
+        }
+        for id in ids {
+            let r = set(id, false).await;
+            if r.status != 200 {
+                failures.push(format!(
+                    "{tag}: killing {id} answered {} {}",
+                    r.status, r.body
+                ));
+            }
+        }
+        for (method, path, body) in calls {
+            let r = srv.call(&member, method, path, body.as_ref()).await;
+            if !is_feature_disabled(&r) {
+                failures.push(format!(
+                    "{tag}: {method} {path} not refused with SR_FEATURE_DISABLED: {} {}",
+                    r.status,
+                    r.body.chars().take(120).collect::<String>()
+                ));
+            }
+        }
+        for id in ids {
+            if flag_of(id).await != Some(false) {
+                failures.push(format!(
+                    "{tag}: GET /sr/features/flags does not show {id} off"
+                ));
+            }
+            set(id, true).await;
+        }
+        for (method, path, body) in calls {
+            let r = srv.call(&member, method, path, body.as_ref()).await;
+            if is_feature_disabled(&r) {
+                failures.push(format!(
+                    "{tag}: {method} {path} still refused after the switch came back"
+                ));
+            }
+        }
+    }
+
+    // The sub-flags die with their parent, the rooms with the jukebox.
+    set("platform.tools", false).await;
+    for id in ["platform.tools.md_table", "platform.tools.audio"] {
+        if flag_of(id).await != Some(false) {
+            failures.push(format!("{id} is not off while platform.tools is off"));
+        }
+    }
+    set("platform.tools", true).await;
+    set("lounge.jukebox", false).await;
+    let r = srv.call(&member, "GET", &room_listen, None).await;
+    if !is_feature_disabled(&r) {
+        failures.push("listening room answers while the jukebox is off".into());
+    }
+    set("lounge.jukebox", true).await;
+
+    // A tool room kind has its own switch.
+    set("platform.tools.poll", false).await;
+    let poll = srv
+        .call(
+            &member,
+            "POST",
+            &rooms,
+            Some(&json!({"kind": "poll", "title": "p"})),
+        )
+        .await;
+    let tier = srv
+        .call(
+            &member,
+            "POST",
+            &rooms,
+            Some(&json!({"kind": "tierlist", "title": "t"})),
+        )
+        .await;
+    if !is_feature_disabled(&poll) {
+        failures.push(format!(
+            "a poll room is created with the poll tool off: {} {}",
+            poll.status, poll.body
+        ));
+    }
+    if is_feature_disabled(&tier) {
+        failures.push("a tier list room is refused although only the poll tool is off".into());
+    }
+    set("platform.tools.poll", true).await;
+
+    // The server's own switch (guild scope) for the jukebox and the rooms: the platform stays on.
+    for id in ["lounge.jukebox", "lounge.listening_rooms"] {
+        let path = format!("/guilds/{ga}/sr/features/{id}");
+        let off = srv
+            .call(&owner_a, "PATCH", &path, Some(&json!({"enabled": false})))
+            .await;
+        if off.status != 200 {
+            failures.push(format!(
+                "{id}: the server owner could not switch it off: {} {}",
+                off.status, off.body
+            ));
+        }
+        let r = srv.call(&member, "GET", &room_listen, None).await;
+        if !is_feature_disabled(&r) {
+            failures.push(format!(
+                "{id}: the server's switch off does not refuse the room route"
+            ));
+        }
+        srv.call(&owner_a, "PATCH", &path, Some(&json!({"enabled": true})))
+            .await;
+    }
+
+    // The switches with no HTTP route of their own are visible to clients as flags, and the platform-only ones
+    // cannot be set per server.
+    for id in ["platform.activities_datachannel", "platform.tools.json"] {
+        set(id, false).await;
+        if flag_of(id).await != Some(false) {
+            failures.push(format!("{id}: the flag does not read off after the kill"));
+        }
+        set(id, true).await;
+        if flag_of(id).await != Some(true) {
+            failures.push(format!(
+                "{id}: the flag does not read on after the switch came back"
+            ));
+        }
+    }
+    let r = srv
+        .call(
+            &owner_a,
+            "PATCH",
+            &format!("/guilds/{ga}/sr/features/platform.emulator"),
+            Some(&json!({"enabled": false})),
+        )
+        .await;
+    if r.status != 404 {
+        failures.push(format!(
+            "a server could set the platform-only emulator switch: {} {}",
+            r.status, r.body
+        ));
+    }
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} module switch failures:\n{}",
         failures.len(),
         failures.join("\n")
     );

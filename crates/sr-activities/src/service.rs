@@ -77,6 +77,8 @@ struct Inner {
     channels: Arc<dyn ChannelAccess>,
     events: Arc<dyn ActivityEvents>,
     storage: Option<Arc<dyn ObjectStorage>>,
+    /// `platform.activities_datachannel` (OPS-FLG-001): off, no instance runs with the `datachannel` capability.
+    datachannel_on: std::sync::atomic::AtomicBool,
 }
 
 /// The Activities backend. Cheap to clone.
@@ -118,8 +120,24 @@ impl ActivityService {
                 channels: Arc::new(NoChannels),
                 events: Arc::new(NoEvents),
                 storage: None,
+                datachannel_on: std::sync::atomic::AtomicBool::new(true),
             }),
         }
+    }
+
+    /// Follow the platform switch `platform.activities_datachannel`: off, an instance is shown and started without
+    /// the `datachannel` capability, so its host never asks the call for a data channel. Takes effect at once.
+    pub fn set_datachannel_allowed(&self, on: bool) {
+        self.inner
+            .datachannel_on
+            .store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Whether instances may carry the `datachannel` capability now.
+    pub fn datachannel_allowed(&self) -> bool {
+        self.inner
+            .datachannel_on
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Replace the channel permission source. Call before the service is shared.
@@ -832,7 +850,10 @@ impl ActivityService {
     async fn view(&self, r: &PgRow) -> ActivityResult<InstanceView> {
         let id: i64 = r.try_get("id")?;
         let development: bool = r.try_get("dev")?;
-        let capabilities = Self::capabilities(r)?;
+        let mut capabilities = Self::capabilities(r)?;
+        if !self.datachannel_allowed() {
+            capabilities.retain(|c| c != bundle::DATACHANNEL);
+        }
         Ok(InstanceView {
             id: id.to_string(),
             application_id: r.try_get::<i64, _>("application_id")?.to_string(),

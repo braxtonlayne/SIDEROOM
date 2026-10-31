@@ -33,6 +33,7 @@ impl SettingDef {
             SettingKind::Integer => json!(self.default_int),
             SettingKind::Number => json!(self.default_int as f64),
             SettingKind::Boolean => json!(self.default_int != 0),
+            SettingKind::Text if self.key == PROFILES_ACCESS => json!("walled"),
             SettingKind::Text => json!(""),
         }
     }
@@ -68,6 +69,12 @@ impl SettingDef {
                     && !WHO_MAY_MOUNT_VALUES.contains(&s)
                 {
                     return Err("must be all, patrons or staff".to_owned());
+                }
+                if self.key == PROFILES_ACCESS
+                    && !s.is_empty()
+                    && !PROFILES_ACCESS_VALUES.contains(&s)
+                {
+                    return Err("must be walled or opt_in_public".to_owned());
                 }
                 if self.key == BYOS_ENDPOINT_ALLOW {
                     endpoint_allow_valid(s)?;
@@ -129,6 +136,12 @@ const fn int(
 
 /// Account-cap setting key (read by registration).
 pub const ACCOUNT_CAP: &str = "accounts.cap";
+/// OPS-INV-001: "Lock the Doors" (registration refused while on), the credit seed of a new account, the most
+/// unused codes one account may hold and the age at which the prune job revokes an unused code.
+pub const INVITES_LOCKED: &str = "invites.locked";
+pub const INVITES_DEFAULT_CREDITS: &str = "invites.default_credits";
+pub const INVITES_MAX_OUTSTANDING: &str = "invites.max_outstanding";
+pub const INVITES_UNUSED_CODE_DAYS: &str = "invites.unused_code_days";
 /// Inviter suspicion thresholds (doc 06 section 5.4).
 pub const SUSPICION_FREEZE: &str = "invites.suspicion_freeze_threshold";
 pub const SUSPICION_ESCALATE: &str = "invites.suspicion_escalate_threshold";
@@ -180,6 +193,12 @@ pub const BYOS_WHO_MAY_MOUNT: &str = "byos.who_may_mount";
 pub const WHO_MAY_MOUNT_VALUES: &[&str] = &["all", "patrons", "staff"];
 /// Most host patterns [`BYOS_ENDPOINT_ALLOW`] may list.
 pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
+/// Who may see a profile page: `walled` (the default, empty means walled: only signed-in members of the instance)
+/// or `opt_in_public` (a member may choose a public page; D-382, OPS-FLG-001). Public pages also need the platform
+/// feature `platform.public_profiles`. The roadmap's third value, public by default, is dropped (D-382, D-384).
+pub const PROFILES_ACCESS: &str = "profiles.access";
+/// The accepted values of [`PROFILES_ACCESS`].
+pub const PROFILES_ACCESS_VALUES: &[&str] = &["walled", "opt_in_public"];
 /// Mount caps and the upload part quota (wave 28, byos-browser; BYOS-BRW-001).
 pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
 pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
@@ -460,6 +479,15 @@ pub const CATALOG: &[SettingDef] = &[
         default_int: 0,
         description: "Who may connect a bucket of their own: all, patrons or staff (empty means all). A server's own buckets follow its Manage Storage grant instead.",
     },
+    SettingDef {
+        key: PROFILES_ACCESS,
+        group: "privacy",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 16.0,
+        default_int: 0,
+        description: "Who may see profile pages: walled (the default) keeps every profile inside the instance, opt_in_public lets a member choose a public page, which also needs the platform feature Public profiles. Public pages are never indexed by search engines.",
+    },
     // --- wave 28 byos-browser block (kept apart from the presign settings above) ---
     int(
         BYOS_MAX_MOUNTS_PER_USER,
@@ -509,13 +537,38 @@ pub const CATALOG: &[SettingDef] = &[
         2_000,
         "Most upload part URLs one member may request per hour across their buckets (a 16 MiB part each).",
     ),
+    SettingDef {
+        key: INVITES_LOCKED,
+        group: "invites",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 0,
+        description: "Lock the Doors: while on, no registration succeeds, even with a valid invite, and the entrance says the doors are closed. Members who are already in are not affected. Switch it on Admin > Invites, where each change is written to the audit log with a reason.",
+    },
     int(
-        "invites.initial_credits",
+        INVITES_DEFAULT_CREDITS,
         "invites",
         0,
         1_000,
         5,
-        "Invite credits granted to a new account.",
+        "Invite credits granted to a new account when it registers. Accounts that already exist keep what they have.",
+    ),
+    int(
+        INVITES_MAX_OUTSTANDING,
+        "invites",
+        1,
+        1_000,
+        20,
+        "Most unused invite codes one account may hold at once (the credit balance still caps it too). Lowering it keeps the codes already made.",
+    ),
+    int(
+        INVITES_UNUSED_CODE_DAYS,
+        "invites",
+        1,
+        3_650,
+        30,
+        "Days after which the invites.prune job revokes an invite code nobody used. It also marks invite subtrees whose first member never activated as inactive for Admin > Invites. It never deletes the invite graph.",
     ),
     SettingDef {
         key: "invites.credit_price_usd",
@@ -862,6 +915,28 @@ mod tests {
     }
 
     #[test]
+    fn profiles_access_is_walled_by_default_and_takes_only_the_two_words() {
+        let d = find(PROFILES_ACCESS).unwrap();
+        // Walled by default, and empty reads as walled too (D-382): every profile stays inside the instance until the operator opts in.
+        assert_eq!(d.default_value(), json!("walled"));
+        assert_eq!(d.group, "privacy");
+        for ok in ["", "walled", "opt_in_public"] {
+            assert!(d.validate(&json!(ok)).is_ok(), "{ok}");
+        }
+        // The roadmap's third value (public by default) is dropped.
+        for bad in [
+            "public",
+            "public_by_default",
+            "Walled",
+            "opt-in-public",
+            "1",
+        ] {
+            assert!(d.validate(&json!(bad)).is_err(), "{bad}");
+        }
+        assert!(d.validate(&json!(true)).is_err());
+    }
+
+    #[test]
     fn who_may_mount_takes_only_the_three_words() {
         let d = find(BYOS_WHO_MAY_MOUNT).unwrap();
         for ok in ["", "all", "patrons", "staff"] {
@@ -920,5 +995,36 @@ mod tests {
             assert!(seen.insert(d.key), "duplicate {}", d.key);
             assert!(d.validate(&d.default_value()).is_ok(), "{}", d.key);
         }
+    }
+}
+
+#[cfg(test)]
+mod invite_controls_tests {
+    use super::*;
+
+    /// OPS-INV-001: the four catalog rows, their defaults and their ranges.
+    #[test]
+    fn the_invite_controls_are_catalog_rows_with_safe_defaults() {
+        let locked = find(INVITES_LOCKED).unwrap();
+        assert_eq!(locked.kind, SettingKind::Boolean);
+        assert_eq!(locked.default_value(), json!(false), "default off (O-6)");
+        assert!(locked.validate(&json!(true)).is_ok());
+        assert!(locked.validate(&json!("yes")).is_err());
+
+        for (key, min, max, default) in [
+            (INVITES_DEFAULT_CREDITS, 0, 1_000, 5),
+            (INVITES_MAX_OUTSTANDING, 1, 1_000, 20),
+            (INVITES_UNUSED_CODE_DAYS, 1, 3_650, 30),
+        ] {
+            let d = find(key).unwrap();
+            assert_eq!(d.group, "invites", "{key}");
+            assert_eq!(d.default_value(), json!(default), "{key}");
+            assert!(d.validate(&json!(min)).is_ok(), "{key}");
+            assert!(d.validate(&json!(max)).is_ok(), "{key}");
+            assert!(d.validate(&json!(min - 1)).is_err(), "{key}");
+            assert!(d.validate(&json!(max + 1)).is_err(), "{key}");
+        }
+        // The old name was never read by registration; it is gone, not duplicated.
+        assert!(find("invites.initial_credits").is_none());
     }
 }
