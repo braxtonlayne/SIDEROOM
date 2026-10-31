@@ -67,7 +67,7 @@ Co-op code reads nothing from the loader, so if the loader changes shape only th
 
 ## Not done / open
 
-- Wasm build, `build-web`, `check-entrance-isolation`, `check-bundle-budget`: see the "Build gates" note at the end of this file (filled in after the last run).
+- (Done, not open) `pnpm --filter @sideroom/wasm build` ran; `dataPort.test.ts` 2 passed; `node scripts/build-web.mjs` ok; `check-entrance-isolation` "every public surface is clean"; `check-bundle-budget` all ok.
 - Host crash while guests are seated: no guest-side host timeout yet (the stale host leaves the list after 7 s; the seated chip stays). A tiny addition: treat 3 missed ANNOUNCEs as CLOSE. Left out to keep the seat stable through a brief SFU drop; owner/integrator call.
 - Guests cannot rebind keys (default layout only); the layout is `DEFAULT_KEYS` in `input.ts`.
 - Touch controls for phones are not built.
