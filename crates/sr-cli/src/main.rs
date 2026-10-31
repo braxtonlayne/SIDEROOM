@@ -2,6 +2,7 @@
 //! docs/06-identity-accounts-invites.md section 8.
 
 mod commands;
+mod emu;
 mod guilds;
 mod library_seed;
 mod mounts_cli;
@@ -62,6 +63,9 @@ pub enum Command {
     /// Object storage administration.
     #[command(subcommand)]
     Storage(StorageCmd),
+    /// Emulator cores (ACT-EMU-003): fetch the pinned files and verify their SHA-256 (needs curl; no server or database).
+    #[command(subcommand)]
+    Emu(EmuCmd),
     /// Theme packages: check one locally before submitting it (needs no server or database).
     #[command(subcommand)]
     Package(PackageCmd),
@@ -237,6 +241,30 @@ pub enum StaffCmd {
 }
 
 #[derive(Debug, Subcommand)]
+pub enum EmuCmd {
+    /// Download the pinned emulator core files (deploy/emu-cores.lock) and verify each SHA-256; a wrong file is
+    /// discarded and the command fails. Safe to repeat: files that already match are skipped. The table is in
+    /// deploy/EMULATOR.md.
+    FetchCores {
+        /// Directory the web server serves the cores from (dev: apps/web/public/emu/cores).
+        #[arg(long, default_value = "apps/web/public/emu/cores")]
+        dest: PathBuf,
+        /// Fetch from this mirror instead of the pinned CDN (https, or http on 127.0.0.1/localhost for tests).
+        #[arg(long)]
+        base_url: Option<String>,
+        /// Use another pin list (tests).
+        #[arg(long, hide = true)]
+        lock: Option<PathBuf>,
+        /// Download again even when the file already matches its digest.
+        #[arg(long)]
+        force: bool,
+        /// Download nothing: check that the files in --dest match the pins and exit 1 if any does not.
+        #[arg(long)]
+        verify_only: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 pub enum StorageCmd {
     /// Apply the bucket CORS rule that browser reads and uploads need (D-175, BYOS): GET, HEAD and PUT
     /// from the app origin, `content-type` allowed, `ETag`, `Content-Range`, `Accept-Ranges` and
@@ -288,6 +316,23 @@ mod tests {
 
     #[test]
     fn parses_subcommands() {
+        let fetch = Cli::try_parse_from([
+            "sr-cli",
+            "emu",
+            "fetch-cores",
+            "--dest",
+            "x",
+            "--verify-only",
+        ])
+        .unwrap();
+        assert!(matches!(
+            fetch.command,
+            Command::Emu(EmuCmd::FetchCores {
+                verify_only: true,
+                force: false,
+                ..
+            })
+        ));
         let slate = Cli::try_parse_from(["sr-cli", "tv", "slate"]).unwrap();
         assert!(matches!(
             slate.command,

@@ -104,4 +104,64 @@ that reacts to a button) any of them works. The tests do NOT use these: they use
 
 ## 3. Work log
 
-(filled in below as the item progresses)
+### Done (ACT-EMU-003)
+
+- Research and pinning: 3 of the 5 allowed cores (section 1.1), 7 files, 7.6 MB, digests in `deploy/EMULATOR.md`.
+  Downloaded with `curl -fL` over https into `p37-cores-download` (outside the repo); nothing was run or imported (only
+  `tar -tvf`/`-xf` of the five small text members `build.json`, `core.json`, `license.txt` from the 7z archives, to read
+  the licence texts). I also fetched EmulatorJS's own loader sources (`emulator.js`, `GameManager.js`, `compression.js`,
+  `loader.js`, 0.4 MB) into `p37-cores-download/ref` as text to read; they are reference only and not pinned.
+  The pinned CDN files were re-downloaded once through the finished script and matched.
+- `deploy/emu-cores.lock`: the single pin list (dest, URL, SHA-256, bytes, licence).
+- `deploy/scripts/fetch-emu-cores.sh` (mode 100755): https only, https-only redirects, size cap, `.part` file, digest and
+  size check, mismatch deletes the file and exits 1, skip when already matching, `--force`, `--verify-only`, `--dest`,
+  `--base-url` (https, or http on loopback for tests), `--lock`. `SR_EMU_CORES_DIR` env as default dest.
+- `sr-cli emu fetch-cores` (`crates/sr-cli/src/emu.rs`, wired in `main.rs` and `commands.rs`): same semantics, the lock
+  compiled in with `include_str!`, needs neither config nor database. The HTTP transfer is the system `curl` (no HTTP
+  client in sr-cli, no new dependency, and `reqwest` in sr-cli would need a `deny.toml` wrapper entry); the digest is
+  checked in Rust. The distroless server image has no curl, so the command is for the host or dev machine, not for
+  `docker run sr-server`.
+- `deploy/EMULATOR.md` (table, format, licences, source links, BIOS note), linked from `deploy/OPERATOR.md`.
+- `deploy/install.sh`: optional step `SR_INSTALL_EMU_CORES=yes` (prompt default no), fetches into `$SR_WEB_DIR/emu/cores`;
+  a failure is a warning only.
+- `.github/workflows/e2e.yml`: in the `playwright` job, `actions/cache@v4` keyed on the lock plus a verify-or-fetch step
+  (the script re-checks digests on a cache hit). YAML parses with js-yaml.
+- `.gitignore`: `/apps/web/public/emu/cores/`.
+- `THIRD_PARTY_NOTICES.md` (and the `apps/web/public` copy): section "Emulator cores" with the three licence texts copied
+  from the archives and the corresponding-source links. `scripts/check-licenses.mjs` allows the cores by name
+  (`scripts/lib/emu-cores.mjs`: fceumm GPL-2.0, mgba MPL-2.0, pcsx_rearmed GPL-2.0, plus supafaust and blastem
+  reserved); any other core in the lock (snes9x, genesis_plus_gx, picodrive, fbneo, mame, ...) fails.
+  `scripts/check-ops-files.mjs` fails when lock, EMULATOR.md table and notices disagree.
+
+### Not done / open
+
+- Beetle Supafaust and BlastEm: not in the EmulatorJS 4.2.3 build set (section 1.1). Owner decision.
+- The licence of `extract7z.js` is unconfirmed (it ships in EmulatorJS's GPL-3.0 repository; the 7-Zip port's own licence
+  is not stated in the repo). If the owner wants certainty before shipping it, the alternative is to unpack the 7z at
+  install time on the host with a 7z tool.
+- Real-network CI proof: the e2e step can only be proven on GitHub (it parses; the script ran against the live CDN here).
+- No homebrew ROM and no generated test ROM: the generated test ROM belongs to emu-shell's spec.
+
+### Tests run
+
+- `node --test scripts/fetch-emu-cores.test.mjs`: 5 pass (fake server on port 8095: happy path, skip, `--force`,
+  `--verify-only`, digest mismatch (same length, other bytes), longer file, 404, plain-http mirror refused, unsafe pin
+  list refused, real lock shape).
+- `node --test scripts/emu-cores-lib.test.mjs scripts/check-ops-files.test.mjs scripts/install.test.mjs`: pass
+  (the install test is unchanged and still green with the new optional step).
+- `node scripts/check-ops-files.mjs` ok; `echo '{}' | node scripts/check-licenses.mjs` ok;
+  `node scripts/check-notices-copy.mjs` ok.
+- `cargo test -j 2 -p sr-cli`: 31 unit tests pass (4 new in `emu::tests`, plus the CLI parse test), `emu_fetch` 4 pass
+  (in-process fake server: fetch and skip, digest mismatch discarded, longer file and 404, non-loopback http refused),
+  `cargo fmt --check -p sr-cli`, `cargo clippy -j 2 -p sr-cli --all-targets -- -D warnings` clean.
+- Live check: the script against the real CDN into `p37-cores-download/verify-run` fetched 7 files that matched the pins,
+  and `--verify-only` passed.
+
+### Owner questions
+
+1. SNES and Genesis: accept an instance without them, relax the rejected list (snes9x, genesis_plus_gx are in the same
+   CDN, non-commercial, so no), or schedule a build wave for Supafaust and BlastEm (Emscripten toolchain)?
+2. Which homebrew ROM(s) from section 2, and is GPL-3.0 for the ROM acceptable next to the bundle?
+3. `extract7z.js` licence: accept as shipped by EmulatorJS (GPL-3.0 repository), or unpack at install time instead?
+4. Does the operator CLI need to work inside the distroless image (then sr-cli needs an HTTP client: a `reqwest` entry in
+   `deny.toml`'s wrapper list, a decision)?
