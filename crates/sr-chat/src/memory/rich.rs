@@ -33,6 +33,33 @@ impl RichStore for MemoryBackend {
             .collect())
     }
 
+    async fn bridged_members(
+        &self,
+        _guild: sr_core::GuildId,
+    ) -> StoreResult<Vec<crate::rich_repo::BridgedMember>> {
+        Ok(self.data().bridged_members.clone())
+    }
+
+    async fn set_bridge_author(
+        &self,
+        message: MessageId,
+        author: &crate::rich_repo::BridgeAuthor,
+    ) -> StoreResult<()> {
+        self.data().bridge_authors.insert(message, author.clone());
+        Ok(())
+    }
+
+    async fn bridge_authors(
+        &self,
+        messages: &[MessageId],
+    ) -> StoreResult<HashMap<MessageId, crate::rich_repo::BridgeAuthor>> {
+        let d = self.data();
+        Ok(messages
+            .iter()
+            .filter_map(|m| d.bridge_authors.get(m).map(|a| (*m, a.clone())))
+            .collect())
+    }
+
     async fn app_emoji_owners(&self, emoji: &[u64]) -> StoreResult<HashMap<u64, i64>> {
         let d = self.data();
         Ok(emoji

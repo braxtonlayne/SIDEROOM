@@ -22,6 +22,7 @@
 
 pub mod discord;
 pub mod error;
+pub mod inbound;
 pub mod maps;
 pub mod model;
 pub mod outbound;

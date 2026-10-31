@@ -1735,6 +1735,7 @@ async fn openapi_fragment_documents_every_route() {
         "/channels/{channel_id}/pins",
         "/channels/{channel_id}/pins/{message_id}",
         "/channels/{channel_id}/typing",
+        "/guilds/{guild_id}/bridge/members",
         "/channels/{channel_id}/attachments",
         "/channels/{channel_id}/attachments/{upload_id}/complete",
     ] {
@@ -2080,6 +2081,117 @@ async fn deleting_a_webhook_message_notes_the_webhook_in_the_audit_entry() {
             json!({ "channel_id": e.ch.to_string(), "count": 1, "webhook_id": "4242" })
         )]
     );
+}
+
+/// BRG-GW-001: a message that came in over the Discord bridge shows the Discord user as its author, carries
+/// `sr_bridge`, and its attachment links turn into "expired" once their `ex` has passed (nothing is re-hosted).
+#[tokio::test]
+async fn a_bridged_message_carries_sr_bridge_and_its_links_expire() {
+    use sr_chat::rich_repo::{BridgeAuthor, BridgeLink};
+    let e = env().await;
+    let posted = id_of(&e.say("bob", "hello from discord").await);
+    e.backend.data().bridge_authors.insert(
+        sr_core::MessageId::new(posted.parse().unwrap()),
+        BridgeAuthor {
+            platform: "discord".into(),
+            author_name: "Dana".into(),
+            author_avatar: Some("https://cdn.discordapp.com/avatars/7/abc.png".into()),
+            discord_user_id: Some("7".into()),
+            links: vec![
+                BridgeLink {
+                    filename: "old.png".into(),
+                    url: "https://cdn.discordapp.com/attachments/1/2/old.png?ex=1".into(),
+                    expires_at_ms: Some(T0 - 1),
+                },
+                BridgeLink {
+                    filename: "new.png".into(),
+                    url: "https://cdn.discordapp.com/attachments/1/2/new.png?ex=2".into(),
+                    expires_at_ms: Some(T0 + 3_600_000),
+                },
+            ],
+        },
+    );
+    let (s, m) = e.get(&format!("/messages/{posted}"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m["author"]["username"], "Dana", "{m}");
+    assert_eq!(m["author"]["bot"], true);
+    // The author keeps the integration account's id: only the shown name and avatar change.
+    assert_eq!(m["author"]["id"], BOB.to_string());
+    let b = &m["sr_bridge"];
+    assert_eq!(b["platform"], "discord", "{m}");
+    assert_eq!(b["author_name"], "Dana");
+    assert_eq!(b["member_id"], "7");
+    let links = b["links"].as_array().unwrap();
+    assert_eq!(links[0]["filename"], "old.png");
+    assert_eq!(links[0]["expired"], true);
+    assert!(links[0].get("url").is_none(), "an expired link is withheld");
+    assert_eq!(links[1]["expired"], false);
+    assert!(links[1]["url"].as_str().unwrap().contains("new.png"));
+    // A native message has no `sr_bridge`.
+    let other = id_of(&e.say("bob", "plain").await);
+    let (_, p) = e.get(&format!("/messages/{other}"), "owner").await;
+    assert!(p.get("sr_bridge").is_none(), "{p}");
+}
+
+/// BRG-GW-001: the Discord members bridged into a server are listed for any member of it, and are not
+/// accounts (display data only).
+#[tokio::test]
+async fn bridged_members_are_listed_for_server_members_only() {
+    use sr_chat::rich_repo::BridgedMember;
+    let e = env().await;
+    e.backend.data().bridged_members = vec![
+        BridgedMember {
+            discord_user_id: "7".into(),
+            display_name: "Dana".into(),
+            avatar_url: None,
+            role_name: Some("Mod".into()),
+            role_color: Some(0x00ff_0000),
+            bot: false,
+            presence: Some("idle".into()),
+        },
+        BridgedMember {
+            discord_user_id: "8".into(),
+            display_name: "Robo".into(),
+            avatar_url: None,
+            role_name: None,
+            role_color: None,
+            bot: true,
+            presence: None,
+        },
+    ];
+    let list = |who: &'static str| {
+        let app = e.app.clone();
+        let uri = format!("/api/v1/guilds/{}/bridge/members", e.guild);
+        async move {
+            let req = Request::get(uri)
+                .header("authorization", format!("Bot {who}"))
+                .body(Body::empty())
+                .unwrap();
+            let resp = app.oneshot(req).await.unwrap();
+            let status = resp.status();
+            let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            (
+                status,
+                serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null),
+            )
+        }
+    };
+    let (s, v) = list("bob").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let m = &v[0];
+    assert_eq!(m["id"], "7");
+    assert_eq!(m["display_name"], "Dana");
+    assert_eq!(m["role_name"], "Mod");
+    assert_eq!(m["role_color"], 0x00ff_0000);
+    assert_eq!(m["presence"], "idle");
+    assert!(m["avatar"].is_null());
+    assert_eq!(v[1]["bot"], true);
+    assert!(v[1]["presence"].is_null(), "unknown presence is null");
+    // Not a member of the server: no list.
+    let (s, _) = list("carol").await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
 }
 
 #[test]

@@ -172,6 +172,47 @@ pub async fn decorate(
             }
         }
     }
+    // Messages that came in over the Discord bridge say who wrote them on Discord (BRG-GW-001). The
+    // integration author keeps its id; the shown name and avatar are the Discord user's.
+    if let Some(store) = &deps.rich.store {
+        let ids: Vec<_> = msgs.iter().map(|m| m.id).collect();
+        let bridged = store.bridge_authors(&ids).await?;
+        if !bridged.is_empty() {
+            let now = deps.now_ms();
+            for (m, o) in msgs.iter().zip(objs.iter_mut()) {
+                let Some(b) = bridged.get(&m.id) else {
+                    continue;
+                };
+                let avatar = b
+                    .author_avatar
+                    .as_deref()
+                    .and_then(|u| deps.proxy_external_image(u));
+                o.author.username = Some(b.author_name.clone());
+                o.author.global_name = Some(b.author_name.clone());
+                o.author.bot = true;
+                o.author.avatar_url = avatar.clone();
+                o.sr_bridge = Some(super::model::BridgeObject {
+                    platform: b.platform.clone(),
+                    author_name: b.author_name.clone(),
+                    author_avatar: avatar,
+                    member_id: b.discord_user_id.clone(),
+                    links: b
+                        .links
+                        .iter()
+                        .map(|l| {
+                            let expired = l.expired(now);
+                            super::model::BridgeLinkObject {
+                                filename: l.filename.clone(),
+                                url: (!expired).then(|| l.url.clone()),
+                                expired,
+                                expires_at: l.expires_at_ms.map(iso),
+                            }
+                        })
+                        .collect(),
+                });
+            }
+        }
+    }
     // Application emoji render only in messages of their own application's bot (D-237).
     if let Some(store) = &deps.rich.store {
         let per_msg: Vec<Vec<u64>> = msgs.iter().map(|m| custom_emoji_ids(&m.content)).collect();

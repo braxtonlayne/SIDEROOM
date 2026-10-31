@@ -73,6 +73,9 @@ edits AS ( \
     RETURNING id), \
 webhook_authors AS ( \
     DELETE FROM message_webhook_authors WHERE message_id IN (SELECT id FROM doomed) \
+    RETURNING message_id), \
+bridge_authors AS ( \
+    DELETE FROM message_bridge_authors WHERE message_id IN (SELECT id FROM doomed) \
     RETURNING message_id) \
 SELECT (SELECT count(*) FROM doomed)";
 
@@ -811,6 +814,14 @@ mod hold_guard_tests {
             )
             .await;
         }
+        for id in [plain, held] {
+            exec(
+                pool,
+                "INSERT INTO message_bridge_authors (message_id, platform, author_name) \n                 VALUES ($1, 'discord', 'Dana')",
+                &[id],
+            )
+            .await;
+        }
         let purged = purge_deleted_messages(
             pool,
             &sr_storage::ObjectStoreStorage::in_memory(),
@@ -819,6 +830,16 @@ mod hold_guard_tests {
         .await
         .expect("purge");
         assert_eq!(purged, 1, "only the plain, due, unheld message goes");
+        let bridged: Vec<i64> =
+            sqlx::query_scalar("SELECT message_id FROM message_bridge_authors ORDER BY 1")
+                .fetch_all(pool)
+                .await
+                .expect("bridge authors");
+        assert_eq!(
+            bridged,
+            vec![held],
+            "the purged message loses its bridge author row too"
+        );
         let authors: Vec<i64> =
             sqlx::query_scalar("SELECT message_id FROM message_webhook_authors ORDER BY 1")
                 .fetch_all(pool)

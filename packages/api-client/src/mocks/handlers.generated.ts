@@ -534,6 +534,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"create_ban","method":"put","path":"/guilds/:guild_id/bans/:user_id","status":204,"body":null},
   {"id":"remove_ban","method":"delete","path":"/guilds/:guild_id/bans/:user_id","status":204,"body":null},
   {"id":"birthdays","method":"get","path":"/guilds/:guild_id/birthdays","status":200,"body":[{"day":0,"month":0,"user_id":"1"}]},
+  {"id":"list_bridge_members","method":"get","path":"/guilds/:guild_id/bridge/members","status":200,"body":[{"bot":false,"display_name":"string","id":"1"}]},
   {"id":"bulk_ban","method":"post","path":"/guilds/:guild_id/bulk-ban","status":200,"body":{"banned_users":["string"],"failed_users":["string"]}},
   {"id":"list_channels","method":"get","path":"/guilds/:guild_id/channels","status":200,"body":[{"flags":0,"id":"1","nsfw":false,"permission_overwrites":[{}],"position":0,"rate_limit_per_user":0,"type":0}]},
   {"id":"create_channel","method":"post","path":"/guilds/:guild_id/channels","status":201,"body":{"flags":0,"id":"1","nsfw":false,"permission_overwrites":[{}],"position":0,"rate_limit_per_user":0,"type":0}},
