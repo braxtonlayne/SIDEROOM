@@ -7593,6 +7593,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** "Retry" a `dead_op` row (`MANAGE_GUILD`): the op is queued again. */
+        post: operations["retry_conflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord": {
         parameters: {
             query?: never;
@@ -7613,6 +7630,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/unfreeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * "Unfreeze" a `frozen` row (`MANAGE_GUILD`): the object's map runs again from the next pass. SIDE ROOM's state
+         *     was never changed by the freeze, so nothing here changes either.
+         */
+        post: operations["unfreeze_conflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bridge/discord-channels": {
         parameters: {
             query?: never;
@@ -7624,6 +7661,60 @@ export interface paths {
         get: operations["discord_channels"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Channels, categories and threads deleted on Discord and held here (`MANAGE_GUILD`). */
+        get: operations["list_holds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/holds/{channel_id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete a held channel now (`MANAGE_GUILD` and `MANAGE_CHANNELS`). */
+        post: operations["delete_hold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/holds/{channel_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a held channel (`MANAGE_GUILD` and `MANAGE_CHANNELS`): it is recreated on Discord from SIDE ROOM's
+         *     state and re-mapped; the old Discord messages are gone.
+         */
+        post: operations["restore_hold"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7723,6 +7814,156 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/bridge/mirrors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which roles and channels of the server are mirrored (any member of the server: the badges). 404 while the
+         *     bridge is off or not connected.
+         */
+        get: operations["mirrors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch the mode (the server owner alone, with the second-factor step). `whole_guild` confirms a plan by its
+         *     hash: a plan that no longer matches either server is a 409 `BRIDGE_PLAN_STALE`; the seed then runs in the
+         *     background. `selective` leaves everything where it is on both sides.
+         */
+        post: operations["set_mode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause the sync (`MANAGE_GUILD`): pushes, reverts and applies stop; SIDE ROOM is unaffected. */
+        post: operations["pause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build a plan, a dry run that writes nothing to either side (`MANAGE_GUILD`; a manager can prepare it for the
+         *     owner). A new plan supersedes the open one.
+         */
+        post: operations["create_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/plan/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a plan (`MANAGE_GUILD`). Another server's plan id is a 404. */
+        get: operations["get_plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit an open plan: unlink or link a pair, switch an import, choose the seed structure (`MANAGE_GUILD`). The
+         *     plan's hash changes with it.
+         */
+        patch: operations["edit_plan"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run the preflight checks now (`MANAGE_GUILD`): reads both servers, writes nothing. */
+        get: operations["preflight"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue a reconcile now (`MANAGE_GUILD`; at most once per five minutes). */
+        post: operations["reconcile_now"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume the sync (`MANAGE_GUILD`). */
+        post: operations["resume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bridge/status": {
         parameters: {
             query?: never;
@@ -7732,6 +7973,60 @@ export interface paths {
         };
         /** The bridge of this server (`MANAGE_GUILD`; 404 while the module is off). */
         get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The sync status page (`MANAGE_GUILD`). */
+        get: operations["sync_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/teardown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch the bridge off with the whole_guild options (the server owner alone, second-factor step). The default
+         *     leaves Discord as it is; the bot never deletes a Discord object it did not create.
+         */
+        post: operations["teardown"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bridge/teardown-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the teardown dialog shows before the owner chooses (the server owner alone). */
+        get: operations["teardown_preview"];
         put?: never;
         post?: never;
         delete?: never;
@@ -16783,6 +17078,10 @@ export interface components {
              */
             year?: number | null;
         };
+        BlockerObject: {
+            code: string;
+            message: string;
+        };
         BoardItem: {
             anonymous: boolean;
             avatar?: string | null;
@@ -16851,6 +17150,15 @@ export interface components {
             /** @description `both`, `to_discord` or `from_discord`. */
             direction: string;
         };
+        BridgeHoldObject: {
+            channel_id: string;
+            /** Format: int64 */
+            delete_after: number;
+            discord_actor_id?: string | null;
+            discord_channel_id: string;
+            /** Format: int64 */
+            held_at: number;
+        };
         /**
          * @description One Discord attachment link. Discord's links expire; past that `url` is absent and `expired` is true
          *     (clients show "(link expired)").
@@ -16860,6 +17168,18 @@ export interface components {
             expires_at?: string | null;
             filename: string;
             url?: string | null;
+        };
+        BridgeModeBody: {
+            /** @description `selective` or `whole_guild`. */
+            mode: string;
+            /** @description The plan's hash as the client saw it. */
+            plan_hash?: string | null;
+            /** @description The plan to confirm (required for `whole_guild`). */
+            plan_id?: string | null;
+        };
+        BridgeModeObject: {
+            mode: string;
+            sync_state: string;
         };
         /** @description The connected bot and the Discord server it works in. The token is never part of it. */
         BridgeObject: {
@@ -16890,6 +17210,9 @@ export interface components {
             /** @description `connecting`, `connected`, `disconnected` or `token_invalid`. */
             status: string;
         };
+        BridgeRestoredObject: {
+            discord_channel_id: string;
+        };
         /** @description What the owner's screen shows. */
         BridgeStatusObject: {
             bridge?: null | components["schemas"]["BridgeObject"];
@@ -16913,6 +17236,12 @@ export interface components {
              * @description Posts waiting.
              */
             queued: number;
+        };
+        BridgeTeardownBody: {
+            /** @description Also delete the roles, categories, channels and threads the bridge created on Discord. */
+            remove_created?: boolean;
+            /** @description Also restore the permissions Discord had before the bridge (roles and overwrites that existed then). */
+            restore_permissions?: boolean;
         };
         /** @description The Admin > System tile of the Discord bridge. */
         BridgeTile: {
@@ -16957,6 +17286,11 @@ export interface components {
              * @description `0xRRGGBB` as a number; null for a role without a colour.
              */
             role_color?: number | null;
+            /**
+             * @description Whole-server bridges only: the SIDE ROOM role ids the member's Discord roles map to, for display (grouping,
+             *     colour). Never an authorization input; absent for a selective bridge.
+             */
+            role_ids?: string[] | null;
             /** @description The member's top role on Discord. */
             role_name?: string | null;
         };
@@ -18161,6 +18495,8 @@ export interface components {
             last_at: number;
             /** @description `role`, `channel`, `category`, `thread`, `overwrite`, `op` or `guild`. */
             object_kind: string;
+            /** @description The SIDE ROOM object's name now (role or channel), when it still exists. */
+            object_name?: string | null;
             resolution?: string | null;
             /** Format: int64 */
             resolved_at?: number | null;
@@ -18572,6 +18908,10 @@ export interface components {
             /** @description Default `us-east-1` for `s3`, `auto` otherwise. */
             region?: string | null;
             secret_access_key: string;
+        };
+        CreatePlanBody: {
+            /** @description Whose names, topics and order win for matched channels: `sr` (default) or `discord`. */
+            seed_structure?: string | null;
         };
         CreateRequestBody: {
             creator?: string | null;
@@ -21997,6 +22337,31 @@ export interface components {
              */
             window_secs: number;
         };
+        MirrorChannelObject: {
+            channel_id: string;
+            degraded_reason?: string | null;
+            discord_channel_id: string;
+            /** @description `mapped`, `degraded`, `frozen` or `held`. */
+            state: string;
+        };
+        MirrorRoleObject: {
+            /**
+             * @description Bit numbers of the permissions Discord has on this role that SIDE ROOM has no bit for (set on Discord,
+             *     kept there); empty when none.
+             */
+            discord_only_bits: number[];
+            discord_role_id: string;
+            role_id: string;
+            /** @description `mapped` or `frozen`. */
+            state: string;
+        };
+        /** @description Which roles and channels are mirrored, for the badges of the role editor and the channel settings. */
+        MirrorsObject: {
+            channels: components["schemas"]["MirrorChannelObject"][];
+            /** @description `selective` or `whole_guild`. */
+            mode: string;
+            roles: components["schemas"]["MirrorRoleObject"][];
+        };
         /** @description Body of `PUT /channels/{id}/jukebox`. */
         ModeBody: {
             /** @description `stream` or `synced`. */
@@ -22474,6 +22839,15 @@ export interface components {
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
+        };
+        NotMirroredObject: {
+            /** @description `managed_role`, `dm`, `e2ee`, `staff_guild` or `degraded_type`. */
+            code: string;
+            discord_id?: string | null;
+            kind: string;
+            name: string;
+            reason: string;
+            sr_id?: string | null;
         };
         NoteBody: {
             /** @description Empty or null clears the note (max 256 characters). */
@@ -23232,6 +23606,55 @@ export interface components {
             has_more: boolean;
             items: components["schemas"]["PinEntry"][];
         };
+        PlanCreated: {
+            plan_id: string;
+        };
+        /** @description One edit of an open plan. `op` is `unlink`, `link`, `import` or `seed_structure`. */
+        PlanEditBody: {
+            discord_id?: string | null;
+            import?: boolean | null;
+            index?: number | null;
+            /** @description `role`, `category`, `channel` or `thread` (for `link`). */
+            kind?: string | null;
+            op: string;
+            sr_id?: string | null;
+            value?: string | null;
+        };
+        PlanItemObject: {
+            /** @description `match`, `pinned`, `create_on_discord` or `create_here`. */
+            action: string;
+            /** Format: int64 */
+            channel_type?: number | null;
+            /** @description Roles that exist only on Discord: the dangerous bits of the word that would be imported. */
+            dangerous_bits: string;
+            degraded?: string | null;
+            discord_id?: string | null;
+            /** @description Roles: the word Discord holds now. */
+            discord_permissions: string;
+            /** @description Exists only on Discord: import its shared permission bits (the owner decides, Q4). */
+            import: boolean;
+            /** @description `role`, `category`, `channel` or `thread`. */
+            kind: string;
+            name: string;
+            sr_id?: string | null;
+            /** @description Roles: the shared permission word SIDE ROOM will push (matched) as a decimal string. */
+            sr_permissions: string;
+        };
+        PlanObject: {
+            blockers: components["schemas"]["BlockerObject"][];
+            /** Format: int32 */
+            estimated_writes: number;
+            /** Format: int64 */
+            expires_at: number;
+            id: string;
+            items: components["schemas"]["PlanItemObject"][];
+            not_mirrored: components["schemas"]["NotMirroredObject"][];
+            /** @description The hash the owner confirms with `POST .../bridge/mode`. */
+            plan_hash: string;
+            seed_structure: string;
+            /** @description `building`, `ready`, `failed`, `confirmed`, `expired` or `superseded`. */
+            status: string;
+        };
         /** @description One file as the importer reads it. */
         PlannedChapter: {
             /** Format: double */
@@ -23417,6 +23840,16 @@ export interface components {
         PollVoters: {
             users: components["schemas"]["UserRef"][];
         };
+        /**
+         * @description One line of the preflight checklist (design 9.2): `bot_admin`, `bot_top_role`, `intents`, `caps` or
+         *     `unique_guild`. Every one of them blocks a plan while not ok.
+         */
+        PreflightCheckObject: {
+            blocker: boolean;
+            detail?: string | null;
+            id: string;
+            ok: boolean;
+        };
         /** @description One row of the preflight table. */
         PreflightCheckView: {
             /**
@@ -23432,6 +23865,11 @@ export interface components {
             status: components["schemas"]["PreflightStatusView"];
             /** @description English operator text, not localized (D-356). */
             title: string;
+        };
+        PreflightObject: {
+            checks: components["schemas"]["PreflightCheckObject"][];
+            /** @description The bot's invite link with Administrator (whole-server mode needs it). */
+            invite_url: string;
         };
         /**
          * @description Outcome of one preflight check.
@@ -26181,6 +26619,36 @@ export interface components {
             /** Format: int32 */
             slots_expired: number;
         };
+        SyncStatusObject: {
+            /** Format: int64 */
+            channel_maps: number;
+            /** Format: int64 */
+            dead_ops: number;
+            /** Format: int64 */
+            degraded: number;
+            /** Format: int64 */
+            frozen: number;
+            /** Format: int64 */
+            held_deletions: number;
+            /** @description Discord granted the Server Members and Message Content intents (from the shard's last READY). */
+            intents_ok: boolean;
+            /** Format: int64 */
+            last_reconcile_at?: number | null;
+            mode: string;
+            /** Format: int64 */
+            queue_pending: number;
+            /** Format: int64 */
+            queue_running: number;
+            /**
+             * Format: int64
+             * @description When "Reconcile now" is next allowed (Unix ms); null when it is allowed now.
+             */
+            reconcile_available_at?: number | null;
+            /** Format: int64 */
+            role_maps: number;
+            /** @description `off`, `seeding`, `live`, `paused`, `paused_discord_access` or `paused_invalid_requests`. */
+            sync_state: string;
+        };
         /** @description Counts for the dashboard and system page. */
         SystemCounts: {
             /** Format: int64 */
@@ -26309,6 +26777,41 @@ export interface components {
             leftovers: components["schemas"]["LeftoverObject"][];
             /** Format: int64 */
             maps_removed: number;
+            /** Format: int64 */
+            webhooks_deleted: number;
+        };
+        TeardownPreviewObject: {
+            /** Format: int64 */
+            created_categories: number;
+            /** Format: int64 */
+            created_channels: number;
+            /** Format: int64 */
+            created_roles: number;
+            /** Format: int64 */
+            created_threads: number;
+            /** Format: int64 */
+            created_with_discord_messages: number;
+            /** Format: int64 */
+            restorable_channels: number;
+            /** Format: int64 */
+            restorable_roles: number;
+            whole_guild: boolean;
+        };
+        TeardownResultObject: {
+            /** Format: int64 */
+            channels_removed: number;
+            /** Format: int64 */
+            channels_restored: number;
+            /** @description Discord objects (ids) the bridge could not remove or restore: do those by hand on Discord. */
+            failed_ids: string[];
+            /** @description Webhook ids still on Discord. */
+            leftover_webhooks: string[];
+            /** Format: int64 */
+            maps_removed: number;
+            /** Format: int64 */
+            roles_removed: number;
+            /** Format: int64 */
+            roles_restored: number;
             /** Format: int64 */
             webhooks_deleted: number;
         };
@@ -52870,6 +53373,54 @@ export interface operations {
             };
         };
     };
+    retry_conflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Conflict snowflake */
+                conflict_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     take_discord: {
         parameters: {
             query?: never;
@@ -52930,6 +53481,54 @@ export interface operations {
             };
         };
     };
+    unfreeze_conflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Conflict snowflake */
+                conflict_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     discord_channels: {
         parameters: {
             query?: never;
@@ -52948,6 +53547,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscordChannelObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_holds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgeHoldObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_hold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restore_hold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgeRestoredObject"];
                 };
             };
             403: {
@@ -53284,6 +54007,438 @@ export interface operations {
             };
         };
     };
+    mirrors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MirrorsObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_mode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BridgeModeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgeModeObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    pause: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlanBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanCreated"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Plan snowflake */
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Plan snowflake */
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanEditBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    preflight: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreflightObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reconcile_now: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    resume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     status: {
         parameters: {
             query?: never;
@@ -53302,6 +54457,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BridgeStatusObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sync_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatusObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    teardown: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BridgeTeardownBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeardownResultObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    teardown_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeardownPreviewObject"];
                 };
             };
             403: {
