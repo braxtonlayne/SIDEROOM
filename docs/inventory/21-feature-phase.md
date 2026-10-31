@@ -243,3 +243,38 @@ production bundle served by sr-server.
   server), lock lib, `check-ops-files`, `install.test.mjs` (32 pass); `sr-cli` (unit and `emu_fetch`);
   `check-licenses`, `check-notices-copy`, `check-ops-files` ok; the local cores verified against the pins. The CI step
   is proven only on GitHub; only 3 of the 5 allowed cores have a source (P37-EMU-1)_
+
+## Wave 39 — Operator switches, invite controls, the immutable suite, Game Servers "Coming soon"
+
+Integration: [dev/handoff/integration-phase39.md](../dev/handoff/integration-phase39.md). Decisions: P39-INV-1 to
+P39-INV-4, P39-FLG-1 to P39-FLG-3, P39-GSV-1. Ticked where the item's own proofs ran on the merged tree (scratch
+databases, Chromium only for Playwright).
+
+### OPS — Operator switches and the immutable suite
+- [x] **OPS-FLG-001** [BE][FE] Per-guild and global switches for every new module: `jukebox`, `listening_rooms`,
+  `platform.tools` and 31 `platform.tools.<tool>` sub-flags, `activities_datachannel`, `emulator`,
+  `watch_together_embeds` registered; the route gate `module_gate.rs`; `profiles.access` (walled default, P39-FLG-1);
+  `lounge.status_rings` mapped to `lounge.rings` (P39-FLG-2) _Merged tree: `sr-server --test feature_registry` (7,
+  incl. `platform.game_servers`), Vitest `registryScreens.test.tsx` (both screens from the refreshed fixture),
+  `authz_matrix` (8, incl. `module_kill_switches_stop_their_routes` and `profile_privacy_holds_over_http`), `sr-api`
+  lib (806, the `module_gate` tests), `sr-voice`, `sr-activities`, `sr-watchparty`. Not built: the per-server jukebox
+  switch does not hide the web strip (the server refuses the routes)_
+- [x] **OPS-INV-001** [BE][FE] Invite controls: Lock the Doors (`invites.locked`, audited, emergency invites included,
+  P39-INV-2), `invites.default_credits` (renamed, migration 1890), `invites.max_outstanding`,
+  `invites.unused_code_days`, the job `invites.prune` (1890; never touches `invite_graph`), Admin > Invites, the
+  entrance notice (D-385) _Merged tree: `sr-db --test invite_controls` (3, Postgres), `sr-server --lib` (244, incl.
+  `the_prune_job_revokes_old_unused_codes_and_never_touches_the_graph`), `sr-api` lib and `route_matrix`, `sr-admin`
+  catalog tests, Vitest `p39invites` and `doorsClosed`, Playwright `doors-closed.spec.ts` (Chromium, dev server), entrance
+  isolation (landing 114.1/120 KB). `docs/09` unchanged (`git diff` empty)_
+- [ ] **OPS-IMM-003** [TEST] The final IMMUTABLE RULE suite: the name test over the whole catalog, the deliberate
+  `voice.e2ee_test` violation, the fourth state `KillAll`, `security-nightly.yml` _Merged tree: `immutable_rules` (22;
+  `refusals_and_logs_hold_in_every_flag_state` green 2 of 3 runs, the first failed 6 admin-group checks under
+  KillFeatures once, not reproduced, see the integration handoff), the full matrix locally with
+  `SR_SECURITY_NIGHTLY=1` (normal, kill_features, kill_all: 15987 refusals compared, 0 disagree). Waits on: the
+  nightly's first run on CI (dispatched after the push)_
+
+### GSV — Game servers
+- [x] **GSV-PAGE-001** [FE] The Game Servers page, "Coming soon" (cosmetic only, D-383, P39-GSV-1): the splash, the two
+  cards, the picker tile, the nav entry, `platform.game_servers`, the handbook line _Merged tree: Vitest
+  `gameServers.test.tsx` (7, incl. axe and reduced motion) and `handbook.test.tsx`, `sr-features` (139),
+  `feature_registry` lists it, `i18n-audit` 0, `check-css-tokens` clean. No e2e spec (the page is inert)_
