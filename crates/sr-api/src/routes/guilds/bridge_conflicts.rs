@@ -393,3 +393,25 @@ pub struct BridgeConflictsApiDoc;
 pub fn openapi() -> utoipa::openapi::OpenApi {
     <BridgeConflictsApiDoc as utoipa::OpenApi>::openapi()
 }
+
+#[cfg(test)]
+mod tests {
+    use sr_bridge::sync::conflicts as c;
+    use sr_chat::settings::audit::AuditAction;
+
+    /// The bridge crate writes audit rows by number; the numbers are the `AuditAction` ones.
+    #[test]
+    fn the_bridge_audit_numbers_are_the_audit_actions() {
+        assert_eq!(c::AUDIT_MODE_UPDATE, AuditAction::BridgeModeUpdate.code());
+        assert_eq!(c::AUDIT_SYNC_RUN, AuditAction::BridgeSyncRun.code());
+        assert_eq!(
+            c::AUDIT_PERMISSION_REVERTED,
+            AuditAction::BridgePermissionReverted.code()
+        );
+        assert_eq!(c::AUDIT_CONFLICT, AuditAction::BridgeConflict.code());
+        assert_eq!(
+            c::AUDIT_OBJECT_REMOVED,
+            AuditAction::BridgeObjectRemoved.code()
+        );
+    }
+}
