@@ -354,6 +354,10 @@ jobs:
           CI: "true"
           SR_BRIDGE_DISCORD_API: http://127.0.0.1:8090/api/v10
           SR_BRIDGE_DISCORD_GATEWAY: ws://127.0.0.1:8090/gateway
+          # The specs expect the shard within seconds (bridge.spec.ts header): with the default 30 s supervisor the
+          # "Connected" line missed its 10 s wait, and Discord edits made while the shard restarted after the mode change
+          # never arrived (run 41222719038; reproduced locally, both specs pass with 2).
+          SR_BRIDGE_SUPERVISE_SECS: "2"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

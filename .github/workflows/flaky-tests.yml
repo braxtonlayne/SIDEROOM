@@ -61,6 +61,8 @@ jobs:
       SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
       SR_BRIDGE_DISCORD_API: http://127.0.0.1:8090/api/v10
       SR_BRIDGE_DISCORD_GATEWAY: ws://127.0.0.1:8090/gateway
+      # As in e2e.yml: the bridge specs expect the shard within seconds, not the default 30 s supervisor.
+      SR_BRIDGE_SUPERVISE_SECS: "2"
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
