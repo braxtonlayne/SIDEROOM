@@ -207,6 +207,11 @@ impl HttpTransport for GuildFake {
                     None => reply(404, json!({"message": "Unknown Role"})),
                 }
             }
+            ("DELETE", ["guilds", id, "roles", rid]) if *id == g => {
+                let rid: i64 = rid.parse().unwrap();
+                s.roles.remove(&rid);
+                reply(204, Value::Null)
+            }
             ("GET", ["guilds", id, "channels"]) if *id == g => {
                 reply(200, Value::Array(s.channels.values().cloned().collect()))
             }
@@ -937,5 +942,136 @@ async fn a_channel_deleted_on_discord_is_held_then_deleted_or_restored() {
             .unwrap()
     );
     let _ = (s.dg, ItemKind::Role);
+    let _ = s.w.db.cleanup().await;
+}
+
+async fn seeded() -> Scene {
+    let s = scene(true).await;
+    let (id, hash) = ready_plan(&s).await;
+    s.eng
+        .confirm_mode(s.guild, s.owner, id, &hash)
+        .await
+        .unwrap();
+    s.eng.run_seed(s.guild).await.unwrap();
+    s
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_default_teardown_leaves_discord_as_it_is() {
+    let s = seeded().await;
+    let (roles, chans) = (s.fake.names("roles"), s.fake.names("channels"));
+    let pre = s.eng.svc.teardown_preview(s.guild).await.unwrap();
+    assert!(
+        pre.whole_guild && pre.created_roles == 1 && pre.created_channels == 1,
+        "{pre:?}"
+    );
+    let rep = s
+        .eng
+        .svc
+        .teardown(s.guild, s.owner, sr_bridge::TeardownReason::Owner)
+        .await
+        .unwrap();
+    assert_eq!(rep.removal.removed(), 0);
+    assert_eq!(s.fake.names("roles"), roles);
+    assert_eq!(s.fake.names("channels"), chans);
+    assert!(
+        store::get_sync(s.w.db.pool(), s.guild)
+            .await
+            .unwrap()
+            .is_none(),
+        "the bridge row is gone"
+    );
+    assert!(
+        store::list_role_maps(s.w.db.pool(), s.guild)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn also_remove_deletes_only_what_the_bridge_created_there() {
+    let s = seeded().await;
+    let opts = sr_bridge::TeardownOptions {
+        remove_created: true,
+        restore_permissions: false,
+    };
+    let rep = s
+        .eng
+        .svc
+        .teardown_with(s.guild, s.owner, sr_bridge::TeardownReason::Owner, opts)
+        .await
+        .unwrap();
+    assert_eq!(
+        (rep.removal.roles, rep.removal.channels),
+        (1, 1),
+        "{:?}",
+        rep.removal
+    );
+    assert!(rep.removal.failed.is_empty());
+    let roles = s.fake.names("roles");
+    assert!(
+        !roles.contains(&"Admins".to_owned()),
+        "the bridge-created role is gone"
+    );
+    assert!(
+        roles.contains(&"mods".to_owned()) && roles.contains(&"Only There".to_owned()),
+        "Discord-native roles stay"
+    );
+    let chans = s.fake.names("channels");
+    assert!(!chans.contains(&"sr-only".to_owned()));
+    for native in ["text rooms", "general", "there-only"] {
+        assert!(chans.contains(&native.to_owned()), "{native} stays");
+    }
+    let n: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit_log_entries WHERE guild_id = $1 AND action = 224",
+    )
+    .bind(s.guild)
+    .fetch_one(s.w.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(n, 1);
+    // Nothing is deleted on the SIDE ROOM side by a teardown.
+    let sr_chans: i64 = sqlx::query_scalar("SELECT count(*) FROM channels WHERE guild_id = $1")
+        .bind(s.guild)
+        .fetch_one(s.w.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(sr_chans, 4, "cat, general, sr only and there-only");
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn restore_puts_discords_permissions_back_to_before_the_bridge() {
+    let s = seeded().await;
+    assert_eq!(
+        s.fake.role_perms("mods").as_deref(),
+        Some("2"),
+        "the seed pushed SIDE ROOM's word"
+    );
+    let opts = sr_bridge::TeardownOptions {
+        remove_created: false,
+        restore_permissions: true,
+    };
+    let rep = s
+        .eng
+        .svc
+        .teardown_with(s.guild, s.owner, sr_bridge::TeardownReason::Owner, opts)
+        .await
+        .unwrap();
+    assert!(rep.removal.restored_roles >= 1, "{:?}", rep.removal);
+    assert_eq!(
+        s.fake.role_perms("mods").as_deref(),
+        Some("6"),
+        "Discord's pre-bridge word is back"
+    );
+    assert!(
+        s.fake.names("roles").contains(&"Admins".to_owned()),
+        "restore removes nothing"
+    );
     let _ = s.w.db.cleanup().await;
 }

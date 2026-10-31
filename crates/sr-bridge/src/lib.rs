@@ -42,4 +42,6 @@ pub use service::{
     TokenSealer, Tuning,
 };
 pub use status::{MapView, MemberExport, StatusReport, Totals};
-pub use teardown::{Leftover, TeardownReason, TeardownReport};
+pub use teardown::{
+    FailedObject, Leftover, RemovalReport, TeardownOptions, TeardownReason, TeardownReport,
+};
