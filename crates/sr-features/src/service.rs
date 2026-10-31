@@ -96,7 +96,14 @@ impl FeatureService {
         }
         // An operator-gated module (PRF-SCR-001) is off everywhere until the platform opted in.
         let opted_in = !feature.operator_gated() || platform_on;
-        let value = !killed && opted_in && explicit.unwrap_or(feature.meta().default_enabled);
+        let mut value = !killed && opted_in && explicit.unwrap_or(feature.meta().default_enabled);
+        // A module under a platform feature (`bridge.enabled` under `platform.bridge`) dies with it.
+        if value
+            && let Some(parent) = feature.gated_by()
+            && self.platform_killed(parent).await?
+        {
+            value = false;
+        }
         if self.inner.generation.load(Ordering::SeqCst) == gen_before {
             self.inner.cache.insert(key, value).await;
         }
@@ -108,6 +115,11 @@ impl FeatureService {
     /// explicit `enabled: true`. Guild Settings > Modules lists and accepts only offered modules.
     pub async fn offered(&self, id: &str) -> Result<bool, FeatureError> {
         let feature = self.feature(id)?;
+        if let Some(parent) = feature.gated_by()
+            && self.platform_killed(parent).await?
+        {
+            return Ok(false);
+        }
         if !feature.operator_gated() {
             return Ok(true);
         }
@@ -144,6 +156,26 @@ impl FeatureService {
             }
         }
         Ok(out)
+    }
+
+    /// Guilds whose own record for `id` holds an explicit `enabled` flag equal to `enabled`, whatever the
+    /// platform kill switch says (it is not applied). For the teardown that follows a platform kill, which must
+    /// find the servers that had chosen a module on while the kill hid it.
+    pub async fn guilds_with_flag(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<Vec<sr_events::GuildId>, FeatureError> {
+        self.feature(id)?;
+        Ok(self
+            .inner
+            .store
+            .list_guilds(id)
+            .await?
+            .into_iter()
+            .filter(|(_, rec)| rec.enabled == Some(enabled))
+            .map(|(g, _)| g)
+            .collect())
     }
 
     /// Set (or with `None`, clear) the enabled flag at `scope`.

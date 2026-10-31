@@ -5970,6 +5970,7 @@ dependencies = [
  "sr-admin",
  "sr-apps",
  "sr-auth",
+ "sr-bridge",
  "sr-chat",
  "sr-cinema",
  "sr-cinema-social",
@@ -6043,6 +6044,26 @@ dependencies = [
  "thiserror 2.0.21",
  "totp-rs",
  "zxcvbn",
+]
+
+[[package]]
+name = "sr-bridge"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-events",
+ "sr-features",
+ "sr-sdk",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
 ]
 
 [[package]]
@@ -6613,6 +6634,7 @@ dependencies = [
  "sr-api",
  "sr-apps",
  "sr-auth",
+ "sr-bridge",
  "sr-chat",
  "sr-cinema",
  "sr-cinema-social",

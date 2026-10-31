@@ -3468,6 +3468,12 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/storage/mounts/{mount_id}/move") => r#"{"from":"a.mp3","to":"b.mp3"}"#,
         // PRF-SCR-001: choose the server's own shelf; retag the seeded entry.
         ("PUT", "/guilds/{guild_id}/scrapbook/target") => r#"{"mount_id":"{guild_mount_id}"}"#,
+        // BRG-COR-001: bodies that are refused before any call to Discord (the matrix never reaches a real one).
+        ("PUT", "/guilds/{guild_id}/bridge/token") => r#"{"token":"not a token"}"#,
+        ("POST", "/guilds/{guild_id}/bridge/maps") => {
+            r#"{"channel_id":"{channel_id}","discord_channel_id":"123","direction":"both"}"#
+        }
+        ("PATCH", "/guilds/{guild_id}/bridge/maps/{map_id}") => r#"{"direction":"both"}"#,
         ("PATCH", "/guilds/{guild_id}/scrapbook/{entry_id}") => r#"{"tags":["authz"]}"#,
         // PRF-RNG-001: a text ring for the caller's friends.
         ("POST", "/users/@me/rings") => r#"{"kind":"text","text":"authz","audience":"friends"}"#,
@@ -3661,6 +3667,8 @@ fn plan_calls(
                 | "party_manager"
                 | "storage_scope"
                 | "mount_owner"
+                | "guild_owner"
+                | "bridge_admin"
                 | "visibility"
         );
         let exempt = outsider_exception(r).is_some();
@@ -3725,6 +3733,8 @@ fn plan_calls(
             "member",
             if staff
                 || (portal_owner && r.path.contains("{application_id}"))
+                // BRG-COR-001: a plain member is neither the owner nor a manager of the server.
+                || matches!(r.authz.as_str(), "guild_owner" | "bridge_admin")
                 || r.authz == "bot"
                 || (r.authz == "membership" && r.path.starts_with("/moderation/cases"))
             {
@@ -3735,8 +3745,15 @@ fn plan_calls(
         ));
         calls.push(std("owner_a", Exp::Observe));
         calls.push(std("app_owner", Exp::Observe));
-        if !is_write(&r.method) {
-            calls.push(std("mod", if staff { Exp::Deny } else { Exp::Observe }));
+        if !is_write(&r.method) || r.authz == "guild_owner" {
+            calls.push(std(
+                "mod",
+                if staff || r.authz == "guild_owner" {
+                    Exp::Deny
+                } else {
+                    Exp::Observe
+                },
+            ));
         }
         for bot in ["bot_in", "bot_out"] {
             let mut exp = if r.bot_denied {

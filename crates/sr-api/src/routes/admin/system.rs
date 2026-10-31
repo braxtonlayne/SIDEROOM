@@ -277,6 +277,25 @@ pub struct SystemView {
     pub backups: BackupsView,
     /// Space of the data folder and of every ingest root; unreadable paths have null sizes.
     pub disk: Vec<DiskView>,
+    /// The Discord bridge (BRG-COR-001): servers, maps, the queue and the dead-letter counter. Absent when the
+    /// bridge is not wired into this process.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bridge: Option<BridgeTile>,
+}
+
+/// The Admin > System tile of the Discord bridge.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BridgeTile {
+    /// The operator's switch (`platform.bridge`).
+    pub platform_on: bool,
+    /// Servers holding a bot token.
+    pub bridges: i64,
+    /// Channel maps instance-wide.
+    pub maps: i64,
+    /// Posts waiting for their turn under Discord's rate limits.
+    pub queued: i64,
+    /// Posts that failed for good (the dead-letter counter).
+    pub dead_letters: i64,
 }
 
 /// System status: version, readiness probes, gateway sessions, queue depth (`OPERATOR`).
@@ -285,7 +304,11 @@ pub struct SystemView {
     responses((status = 200, body = SystemView), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
     security(("session" = []))
 )]
-pub async fn system(State(state): State<AppState>, ctx: StaffCtx) -> ApiResult<Json<SystemView>> {
+pub async fn system(
+    State(state): State<AppState>,
+    ctx: StaffCtx,
+    crate::routes::MaybeExt(bridge): crate::routes::MaybeExt<sr_bridge::BridgeService>,
+) -> ApiResult<Json<SystemView>> {
     let counts = ctx
         .svc()
         .system_counts(&ctx.caller)
@@ -324,6 +347,16 @@ pub async fn system(State(state): State<AppState>, ctx: StaffCtx) -> ApiResult<J
         integrations: ctx.deps.integrations.clone(),
         backups,
         disk,
+        bridge: match bridge {
+            Some(b) => b.totals().await.ok().map(|t| BridgeTile {
+                platform_on: t.platform_on,
+                bridges: t.bridges,
+                maps: t.maps,
+                queued: t.queued,
+                dead_letters: t.dead_letters,
+            }),
+            None => None,
+        },
     }))
 }
 

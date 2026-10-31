@@ -99,6 +99,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     {
         return true;
     }
+    // The Discord bridge is configured by people (BRG-COR-001, D-381): the token is the owner's, never a bot's.
+    if p.starts_with("/guilds/") && p.contains("/bridge/") {
+        return true;
+    }
     // Scheduling a message is a user feature (D-189); a bot posts directly.
     if p.starts_with("/channels/") && p.ends_with("/scheduled-messages") {
         return true;

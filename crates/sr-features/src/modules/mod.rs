@@ -11,6 +11,7 @@ use crate::feature::{FeatureError, FeatureRegistry};
 
 pub mod auto_roles;
 pub mod auto_thread;
+pub mod bridge;
 pub mod join_to_create;
 pub mod message_quotes;
 pub mod mod_log;
@@ -41,6 +42,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         message_quotes::MessageQuotes,
         join_to_create::JoinToCreate,
         scrapbook::Scrapbook,
+        bridge::BridgeModule,
         // new-feature:register
     )
 }

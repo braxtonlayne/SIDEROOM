@@ -68,6 +68,8 @@ DELETE	/cinema/titles/{title_id}/review	authenticated	self	allow	-	-
 DELETE	/guilds/{guild_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/bridge/maps/{map_id}	authenticated	bridge_admin	deny	-	-
+DELETE	/guilds/{guild_id}/bridge/token	authenticated	guild_owner	deny	-	-
 DELETE	/guilds/{guild_id}/directory	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/integrations/{integration_id}	authenticated	membership	allow	-	-
@@ -359,6 +361,10 @@ GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	
 GET	/guilds/{guild_id}/bans	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/birthdays	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/bridge/discord-channels	authenticated	bridge_admin	deny	-	-
+GET	/guilds/{guild_id}/bridge/leftovers	authenticated	guild_owner	deny	-	-
+GET	/guilds/{guild_id}/bridge/maps	authenticated	bridge_admin	deny	-	-
+GET	/guilds/{guild_id}/bridge/status	authenticated	bridge_admin	deny	-	-
 GET	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/directory	authenticated	membership	allow	-	-
@@ -618,6 +624,7 @@ PATCH	/donations/me/preferences	authenticated	self	allow	-	-
 PATCH	/guilds/{guild_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/appearance	authenticated	membership	deny	-	-
 PATCH	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-	-
+PATCH	/guilds/{guild_id}/bridge/maps/{map_id}	authenticated	bridge_admin	deny	-	-
 PATCH	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-	-
 PATCH	/guilds/{guild_id}/members/@me	authenticated	membership	allow	-	-
@@ -837,6 +844,8 @@ POST	/guilds/templates/{code}	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/ack	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/alert-actions	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/bridge/maps	authenticated	bridge_admin	deny	-	-
+POST	/guilds/{guild_id}/bridge/maps/{map_id}/test	authenticated	bridge_admin	deny	-	-
 POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-	-
@@ -1057,6 +1066,7 @@ PUT	/cinema/titles/{title_id}/progress	authenticated	self	allow	-	-
 PUT	/cinema/titles/{title_id}/rating	authenticated	self	allow	-	-
 PUT	/cinema/titles/{title_id}/review	authenticated	self	allow	-	-
 PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
+PUT	/guilds/{guild_id}/bridge/token	authenticated	guild_owner	deny	-	-
 PUT	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-	-
 PUT	/guilds/{guild_id}/incident-actions	authenticated	membership	allow	-	-

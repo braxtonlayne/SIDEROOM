@@ -96,6 +96,14 @@ export interface SystemView {
   backups?: BackupsView;
   disk?: DiskView[];
   integrations?: Integration[];
+  /** The Discord bridge tile (BRG-COR-001); absent when the bridge is not wired. */
+  bridge?: {
+    platform_on: boolean;
+    bridges: number;
+    maps: number;
+    queued: number;
+    dead_letters: number;
+  };
   gateway_sessions?: number | null;
   probes: Probe[];
   version: string;

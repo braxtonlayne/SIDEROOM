@@ -262,6 +262,7 @@ pub fn router() -> Router<AppState> {
         guide::GuideResourceDto,
         guide::PutGuideBody,
         features::GuildFeatureObject,
+        features::FeatureTeardown,
         features::ClientFlagsObject,
         features::AppearanceDefaultsObject,
         features::PublicComplianceObject,
