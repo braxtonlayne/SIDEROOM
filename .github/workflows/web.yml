@@ -10,6 +10,7 @@ permissions:
 jobs:
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       # Same toolchain setup as wasm.yml: the web app imports the WASM bundle from @sideroom/wasm.
@@ -67,7 +68,7 @@ jobs:
         with:
           name: web-dist
           path: apps/web/dist
-      - run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      - run: ./scripts/playwright-install.sh chromium
       # D-289: the committed sticker PNGs are reproducible from their SVG sources.
       - run: node scripts/render-stickers.mjs --check
       - run: pnpm --filter @sideroom/e2e test:static
@@ -84,6 +85,7 @@ jobs:
   # must not block unrelated pull requests. Needs the network, so it cannot run on the agent machines.
   npm-audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

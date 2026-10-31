@@ -58,6 +58,15 @@ test('flake detector separates flaky from broken tests', () => {
     [...failedTests('test db::tests::lock ... FAILED\ntest ok ... ok')],
     ['db::tests::lock'],
   );
+  // Playwright's list reporter (OPS-CI-001): the running index and the duration are not part of the name.
+  assert.deepEqual(
+    [
+      ...failedTests(
+        '  ✘  4 [chromium] › tests/a.spec.ts:9:1 › one (1.2s)\n  ✓  5 [chromium] › tests/a.spec.ts:20:1 › ok (2s)',
+      ),
+    ],
+    ['[chromium] › tests/a.spec.ts:9:1 › one'],
+  );
   const { flaky, broken } = classify([['x', 'y'], ['y'], ['y']]);
   assert.deepEqual(
     flaky.map((f) => f.name),

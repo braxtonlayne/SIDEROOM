@@ -1,6 +1,7 @@
 name: Flaky test hunt
 # XC-TEST: run the web unit suite repeatedly and report tests that fail some runs but not others
-# (scripts/flake-detect.mjs). Nightly, plus on demand with a custom command and run count.
+# (scripts/flake-detect.mjs). Nightly, plus on demand with a custom command and run count. The second job (hunt-e2e,
+# OPS-CI-001) repeats the specs wave 27 to 37 added to the Playwright suite.
 on:
   schedule:
     - cron: "37 2 * * *"
@@ -17,7 +18,9 @@ permissions:
 jobs:
   hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # 120 (was 90): ten repetitions took 89.3 minutes on the slowest of the last three runs (46.8 and 54.4 on the others).
+    # 120 keeps 25 percent over that.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -42,4 +45,50 @@ jobs:
         with:
           name: flakes
           path: flakes.json
+          if-no-files-found: ignore
+
+  # OPS-CI-001: the Playwright specs this phase added, three repetitions without retries, so a spec that passes only
+  # on a retry shows up here. Chromium only (emulator, studio and watch-together are Chromium specs; the others run
+  # the same code in every engine). The live-only specs (activities-live, emulator-coop, voice) stay in e2e.yml's
+  # live job, which has the SFU. flake-detect.mjs reads Playwright's list reporter ("✘ 4 [chromium] › file › title").
+  hunt-e2e:
+    runs-on: ubuntu-latest
+    # About 11 minutes of setup plus three runs of a few minutes each; 60 is far over 25 percent above that.
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+      SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+      SR_BRIDGE_DISCORD_API: http://127.0.0.1:8090/api/v10
+      SR_BRIDGE_DISCORD_GATEWAY: ws://127.0.0.1:8090/gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/e2e-stack
+      - name: Install the browser
+        run: ./scripts/playwright-install.sh chromium
+      - uses: actions/cache@v4
+        with:
+          path: apps/web/public/emu/cores
+          key: emu-cores-${{ hashFiles('deploy/emu-cores.lock') }}
+      - name: Verify or fetch the emulator cores
+        run: ./deploy/scripts/fetch-emu-cores.sh
+      - name: Repeat the new specs
+        run: |
+          ./target/debug/sr-cli migrate
+          node e2e/support/fake-discord.mjs > fake-discord.log 2>&1 &
+          fake_pid=$!
+          trap 'kill "$fake_pid" 2>/dev/null || true' EXIT
+          timeout 20 bash -c 'until curl -fs http://127.0.0.1:8090/__fake/state >/dev/null; do sleep 1; done'
+          node scripts/flake-detect.mjs --runs "${RUNS}" --json flakes-e2e.json --             ./deploy/compose/e2e-run.sh --project=chromium --retries=0             tests/bridge.spec.ts tests/bridge-whole-guild.spec.ts tests/convert.spec.ts tests/drawer.spec.ts             tests/emulator.spec.ts tests/studio.spec.ts tests/tool-rooms.spec.ts tests/watch-together.spec.ts
+        env:
+          RUNS: "3"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flakes-e2e
+          path: |
+            flakes-e2e.json
+            server.log
+            fake-discord.log
+            e2e/playwright-report
           if-no-files-found: ignore
