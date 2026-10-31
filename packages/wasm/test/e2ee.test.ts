@@ -98,6 +98,22 @@ describe.runIf(built)('sr-e2ee-wasm interop', () => {
     expect(() => e2ee.createEncryptor(new Uint8Array(15), Uint8Array.of(1, 2, 3, 4))).toThrow();
   });
 
+  it('seals and opens activity data messages and drops a replay (ACT-CH-001)', async () => {
+    const e2ee = await loadE2ee(readFileSync(wasmPath));
+    const secret = hex(vectors.secret);
+    const tx = e2ee.createDataSender(secret, Uint8Array.of(1, 2, 3, 4));
+    const rx = e2ee.createDataReceiver(1000);
+    rx.setEpoch(1, ['42'], secret, 0);
+    const msg = new TextEncoder().encode('{"hand":"ace of spades"}');
+    const wire = tx.seal(msg);
+    expect(toHex(wire)).not.toContain(toHex(msg));
+    expect(rx.open('42', wire, 1)).toEqual(msg);
+    expect(() => rx.open('42', wire, 2)).toThrow(); // replay
+    expect(() => rx.open('7', tx.seal(msg), 3)).toThrow(); // not a sender we hold a key for
+    expect(() => tx.seal(new Uint8Array(16 * 1024 + 1))).toThrow();
+    expect(tx.counter).toBe(2);
+  });
+
   it('runs MLS in WASM: certify, create, add, join, same sender secrets, remove', async () => {
     const e2ee = await loadE2ee(readFileSync(wasmPath));
     const subtle = webcrypto.subtle;
