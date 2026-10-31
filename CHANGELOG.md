@@ -8,6 +8,25 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 37 - 2026-10-31
+
+- **Games.** A new Games page (in the section bar) plays retro games in your browser: NES, Game Boy, Game Boy Color,
+  Game Boy Advance and PlayStation. The ROMs come from the `emu/roms` folder of your own bucket and of servers that
+  share theirs; the game runs on your device. Keyboard or gamepad, with a Controls screen to remap them. Save states
+  and in-game saves go to your own bucket, never to this instance. The instance ships no games: only play ROMs you own
+  or that are free to share. SNES and Genesis say "core not installed" for now.
+- **PlayStation needs your own BIOS.** Put the BIOS file from your own console in `emu/bios` of your bucket. It is
+  checked, used for that visit only and never stored or cached anywhere.
+- **Play together.** In a server's voice call, the person running a game can host it: share the game screen and up to
+  three others play as players 2 to 4 with their keyboard or gamepad, encrypted end to end. There is no netplay
+  rollback, so slow and turn-based games work best; the round trip is shown. Taking a seat needs the "View shelf
+  games" permission on that server; everyone in the call can watch.
+- **For server admins.** Roles have a sixth storage toggle, "View shelf games", which lets members play the ROMs in
+  the server's shelves.
+- **For operators.** The emulator cores are not in the release: fetch them with `deploy/scripts/fetch-emu-cores.sh`
+  (or `sr-cli emu fetch-cores`, or the installer's optional step), which downloads each file from its pinned URL and
+  checks its SHA-256. `deploy/EMULATOR.md` has the table, the licences and the source links. Migration 1800.
+
 ## Phase 36 - 2026-10-31
 
 - **Activities can share what you do, privately.** An Activity started from a voice call can now keep a shared state
