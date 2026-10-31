@@ -32,8 +32,14 @@ pub const MAX_SEGMENT_LEN: usize = 128;
 pub const MANIFEST: &str = "sideroom.json";
 /// The data channel capability: the Activity shares state and inputs through the SFU (ACT-CH-001).
 pub const DATACHANNEL: &str = "datachannel";
+/// STU-ZK-001 (D-389, D-399): the Activity reads objects of a shelf it names through the short-lived per-object URLs
+/// of `GET /shelves/{shelf_id}/objects/{object_hash}/url`; the sandbox CSP allow-lists exactly those hosts.
+pub const BYOS_READ: &str = "byos_read";
+/// Reserved (D-399): persistent saves to the developer's own bucket. The validator accepts the flag; the runner
+/// refuses it (never handed to an instance) until it ships.
+pub const BYOS_WRITE: &str = "byos_write";
 /// Capabilities a manifest may declare. `datachannel`: the Activity uses `sdk.state` / `sdk.input` (ACT-CH-001).
-pub const CAPABILITIES: &[&str] = &[DATACHANNEL];
+pub const CAPABILITIES: &[&str] = &[DATACHANNEL, BYOS_READ, BYOS_WRITE];
 /// Largest manifest.
 pub const MAX_MANIFEST_BYTES: usize = 8 * 1024;
 
@@ -566,6 +572,17 @@ mod tests {
         assert_eq!(unpack(&ok).unwrap().capabilities, vec!["datachannel"]);
         let none = build(&[("index.html", b"<p>x")]);
         assert!(unpack(&none).unwrap().capabilities.is_empty());
+        let byos = build(&[
+            ("index.html", b"<p>x"),
+            (
+                "sideroom.json",
+                br#"{"capabilities":["byos_write","byos_read"]}"#,
+            ),
+        ]);
+        assert_eq!(
+            unpack(&byos).unwrap().capabilities,
+            vec!["byos_read", "byos_write"]
+        );
         let empty = build(&[("index.html", b"<p>x"), ("sideroom.json", b"{}")]);
         assert!(unpack(&empty).unwrap().capabilities.is_empty());
     }

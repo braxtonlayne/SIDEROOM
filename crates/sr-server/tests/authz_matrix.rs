@@ -1956,6 +1956,31 @@ async fn seed(
         ids_map.insert("shelf_item_id", title.to_string());
         ids_map.insert("shelf_part_id", ep.to_string());
     }
+    // STU-ZK-001 (wave 41): the shelf routes name the tenant's mount (`shelf_id`), the object seeded above by its
+    // path hash (`object_hash`) and a live friend grant (`grant_id`) from the owner to another actor.
+    for (ids_map, owner, grantee) in [
+        (&mut a, u("member"), u("victim")),
+        (&mut b, u("ownerb"), u("member")),
+    ] {
+        let grant = ids.generate().get() as i64;
+        let mount: i64 = ids_map["mount_id"].parse().unwrap();
+        sqlx::query(
+            "INSERT INTO shelf_grants (id, shelf_id, grantee_kind, grantee_id, granted_by) VALUES ($1, $2, 'friend', $3, $4)",
+        )
+        .bind(grant)
+        .bind(mount)
+        .bind(grantee)
+        .bind(owner)
+        .execute(&pool)
+        .await
+        .unwrap();
+        ids_map.insert("shelf_id", mount.to_string());
+        ids_map.insert(
+            "object_hash",
+            sr_storage::shelf::path_hash("Series/Authz/Authz S01E01.mp4"),
+        );
+        ids_map.insert("grant_id", grant.to_string());
+    }
     // MUS-IDX-001/MUS-LIB-001 (wave 30): a listed track on each tenant's user mount (`{track_id}`, the member's
     // own music) and on its guild mount (`guild_track_id`, what the guild owner puts in a playlist), and a guild
     // playlist holding the guild track (`{playlist_id}`, `playlist_item_id`), for the `/music/*` routes and
@@ -3465,7 +3490,7 @@ enum Exp {
 
 /// Placeholders that name a tenant resource: a request with the other tenant's value must be
 /// refused. `user_id`, `account_id`, `token` and `code` are not tenant ids.
-const TENANT: [&str; 39] = [
+const TENANT: [&str; 42] = [
     "sticker_id",
     "sound_id",
     "request_id",
@@ -3508,6 +3533,10 @@ const TENANT: [&str; 39] = [
     // MUS-IDX-001/MUS-LIB-001 (wave 30)
     "track_id",
     "playlist_id",
+    // STU-ZK-001 (wave 41): shelf access
+    "shelf_id",
+    "object_hash",
+    "grant_id",
 ];
 
 fn scoped(path: &str) -> bool {
@@ -3610,6 +3639,14 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         ("PATCH", "/guilds/{guild_id}/scrapbook/{entry_id}") => r#"{"tags":["authz"]}"#,
         // PRF-RNG-001: a text ring for the caller's friends.
         ("POST", "/users/@me/rings") => r#"{"kind":"text","text":"authz","audience":"friends"}"#,
+        // STU-ZK-001: a friend grant, a shelf delisting of the seeded object, an owner edit of its title.
+        ("POST", "/shelves/{shelf_id}/grants") => {
+            r#"{"grantee_kind":"friend","grantee_id":"{user_id}"}"#
+        }
+        ("PATCH", "/shelves/{shelf_id}/objects/{object_hash}") => r#"{"title":"Authz"}"#,
+        ("POST", "/admin/shelves/delist") | ("POST", "/admin/shelves/relist") => {
+            r#"{"shelf_id":"{shelf_id}","object_hash":"{object_hash}","reason":"authz matrix"}"#
+        }
         ("PUT", "/guilds/{guild_id}/storage/grants") => {
             r#"{"role_id":"{role_id}","grants":["view_music"]}"#
         }
@@ -7310,6 +7347,404 @@ async fn shelves_hold_over_http() {
     assert!(
         failures.is_empty(),
         "{} shelf failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// STU-ZK-001 (P28-SHELF-1/2, P28-LEG-1; D-393, D-394): shelf access over HTTP. A grant gives per-object presigned
+// access from two sessions of the same account (two devices); a revoked grant refuses; a delisted object refuses for
+// everyone and logs the strike; a grantee never sees the bucket credentials.
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn shelf_access_holds_over_http() {
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 25).expect("ids");
+    let id_src: sr_db::auth_repo::IdSource = {
+        let g = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 26).expect("ids"));
+        Arc::new(move || g.generate().get() as i64)
+    };
+    let auth = PgAuthRepo::new(
+        world.pool.clone(),
+        id_src,
+        sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap(),
+    );
+    let victim = world.users["victim"];
+    // Two sessions of the same account: two devices.
+    let phone = Cred::Session(session_for(&auth, &ids, victim).await);
+    let laptop = Cred::Session(session_for(&auth, &ids, victim).await);
+    let stranger = Cred::Session(session_for(&auth, &ids, world.users["friendtwo"]).await);
+    let owner = world.actor("member").cred.clone();
+    let staff = world.actor(bit_actor_name("MANAGE_TAKEDOWNS")).cred.clone();
+    let srv = &world.srv;
+    let pool = &world.pool;
+    let m = world.a["shelf_id"].clone();
+    let hash = world.a["object_hash"].clone();
+    let seeded_grant = world.a["grant_id"].clone();
+    let other_shelf = world.b["shelf_id"].clone();
+
+    let mut failures: Vec<String> = Vec::new();
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(160).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+    let url_of = format!("/shelves/{m}/objects/{hash}/url");
+    let catalog = format!("/shelves/{m}/objects");
+    let has_object = |r: &Resp| r.body.contains(&hash);
+
+    // The seed granted the friend; the owner revokes it, so the sweep starts with no access.
+    expect!(
+        "the owner revokes the seeded grant",
+        srv.call(
+            &owner,
+            "DELETE",
+            &format!("/shelves/{m}/grants/{seeded_grant}"),
+            None
+        )
+        .await,
+        204
+    );
+    expect!(
+        "the friend, no grant: url",
+        srv.call(&phone, "GET", &url_of, None).await,
+        404
+    );
+    expect!(
+        "the friend, no grant: catalog",
+        srv.call(&phone, "GET", &catalog, None).await,
+        404
+    );
+    let r = expect!(
+        "the friend sees no shelf",
+        srv.call(&phone, "GET", "/shelves/visible", None).await,
+        200
+    );
+    if r.body.contains(&m) {
+        failures.push("visible lists a shelf without a grant".into());
+    }
+
+    // A grant is for the owner to give: a friend cannot grant themselves, a stranger cannot be granted.
+    let body = json!({"grantee_kind": "friend", "grantee_id": victim.to_string()});
+    expect!(
+        "the friend cannot grant themselves",
+        srv.call(&phone, "POST", &format!("/shelves/{m}/grants"), Some(&body))
+            .await,
+        404
+    );
+    expect!(
+        "a non-friend cannot be granted",
+        srv.call(
+            &owner,
+            "POST",
+            &format!("/shelves/{m}/grants"),
+            Some(&json!({"grantee_kind": "friend", "grantee_id": world.users["friendtwo"].to_string()}))
+        )
+        .await,
+        400
+    );
+    let made = expect!(
+        "the owner grants the friend",
+        srv.call(&owner, "POST", &format!("/shelves/{m}/grants"), Some(&body))
+            .await,
+        201
+    );
+    expect!(
+        "granting twice",
+        srv.call(&owner, "POST", &format!("/shelves/{m}/grants"), Some(&body))
+            .await,
+        409
+    );
+    let grant_id = serde_json::from_str::<Value>(&made.body)
+        .ok()
+        .and_then(|v| v["id"].as_str().map(str::to_owned))
+        .unwrap_or_default();
+
+    // Both devices: visible, catalog, and a ten-minute URL for the one object. No credential anywhere.
+    let mut seen = String::new();
+    for (name, dev) in [("phone", &phone), ("laptop", &laptop)] {
+        let v = expect!(
+            &format!("{name}: visible"),
+            srv.call(dev, "GET", "/shelves/visible", None).await,
+            200
+        );
+        if !v.body.contains(&m) || !v.body.contains("\"via\":\"friend\"") {
+            failures.push(format!(
+                "{name}: visible lacks the friend shelf: {}",
+                v.body.chars().take(200).collect::<String>()
+            ));
+        }
+        let c = expect!(
+            &format!("{name}: catalog"),
+            srv.call(dev, "GET", &catalog, None).await,
+            200
+        );
+        if !has_object(&c) {
+            failures.push(format!("{name}: the catalog lacks the object"));
+        }
+        let u = expect!(
+            &format!("{name}: url"),
+            srv.call(dev, "GET", &url_of, None).await,
+            200
+        );
+        if !u.body.contains("X-Amz-Expires=600") {
+            failures.push(format!(
+                "{name}: the URL must live 600 s: {}",
+                u.body.chars().take(200).collect::<String>()
+            ));
+        }
+        seen.push_str(&format!("{}{}{}", v.body, c.body, u.body));
+    }
+    // The secret and the bucket's coordinates never reach the grantee (the access key id is part of any presigned
+    // URL's credential scope, the secret is not).
+    for leak in [
+        "authz-matrix-secret",
+        "secret_key",
+        "secret_access_key",
+        "\"endpoint\"",
+        "\"bucket\"",
+    ] {
+        if seen.contains(leak) {
+            failures.push(format!("a grantee's responses carry {leak}"));
+        }
+    }
+    // The stranger and another tenant's shelf: nothing.
+    expect!(
+        "the stranger: url",
+        srv.call(&stranger, "GET", &url_of, None).await,
+        404
+    );
+    expect!(
+        "the stranger: catalog",
+        srv.call(&stranger, "GET", &catalog, None).await,
+        404
+    );
+    expect!(
+        "another tenant's shelf",
+        srv.call(
+            &phone,
+            "GET",
+            &format!("/shelves/{other_shelf}/objects/{hash}/url"),
+            None
+        )
+        .await,
+        404
+    );
+    expect!(
+        "a malformed hash",
+        srv.call(
+            &phone,
+            "GET",
+            &format!("/shelves/{m}/objects/nothash/url"),
+            None
+        )
+        .await,
+        400
+    );
+    expect!(
+        "an unknown hash",
+        srv.call(
+            &phone,
+            "GET",
+            &format!("/shelves/{m}/objects/{}/url", "0".repeat(64)),
+            None
+        )
+        .await,
+        404
+    );
+    // The grantee cannot edit or manage.
+    expect!(
+        "the grantee cannot edit a title",
+        srv.call(
+            &phone,
+            "PATCH",
+            &format!("/shelves/{m}/objects/{hash}"),
+            Some(&json!({"title": "mine"}))
+        )
+        .await,
+        404
+    );
+    expect!(
+        "the grantee cannot list grants",
+        srv.call(&phone, "GET", &format!("/shelves/{m}/grants"), None)
+            .await,
+        404
+    );
+    // The owner edits a title; the grantee sees it.
+    expect!(
+        "the owner edits a title",
+        srv.call(
+            &owner,
+            "PATCH",
+            &format!("/shelves/{m}/objects/{hash}"),
+            Some(&json!({"title": "Pilot", "note": "n"}))
+        )
+        .await,
+        200
+    );
+    let c = expect!(
+        "the grantee reads the title",
+        srv.call(&laptop, "GET", &catalog, None).await,
+        200
+    );
+    if !c.body.contains("\"title\":\"Pilot\"") {
+        failures.push("the owner's title is not in the catalog".into());
+    }
+    let gl = expect!(
+        "the owner lists the grants",
+        srv.call(&owner, "GET", &format!("/shelves/{m}/grants"), None)
+            .await,
+        200
+    );
+    if !gl.body.contains(&grant_id) {
+        failures.push("the grant list lacks the live grant".into());
+    }
+
+    // Revoked: the next mint refuses on both devices.
+    expect!(
+        "the owner revokes",
+        srv.call(
+            &owner,
+            "DELETE",
+            &format!("/shelves/{m}/grants/{grant_id}"),
+            None
+        )
+        .await,
+        204
+    );
+    for (name, dev) in [("phone", &phone), ("laptop", &laptop)] {
+        expect!(
+            &format!("{name}: url after revoke"),
+            srv.call(dev, "GET", &url_of, None).await,
+            404
+        );
+        expect!(
+            &format!("{name}: catalog after revoke"),
+            srv.call(dev, "GET", &catalog, None).await,
+            404
+        );
+    }
+
+    // Delisted: gone for everyone, strike logged, owner and grantee alike.
+    expect!(
+        "grant again",
+        srv.call(&owner, "POST", &format!("/shelves/{m}/grants"), Some(&body))
+            .await,
+        201
+    );
+    expect!(
+        "url before the delisting",
+        srv.call(&phone, "GET", &url_of, None).await,
+        200
+    );
+    let del = json!({"shelf_id": m, "object_hash": hash, "reason": "DMCA notice 17"});
+    expect!(
+        "a plain member cannot delist",
+        srv.call(&owner, "POST", "/admin/shelves/delist", Some(&del))
+            .await,
+        403
+    );
+    expect!(
+        "staff delist the object",
+        srv.call(&staff, "POST", "/admin/shelves/delist", Some(&del))
+            .await,
+        200
+    );
+    expect!(
+        "staff delist it twice",
+        srv.call(&staff, "POST", "/admin/shelves/delist", Some(&del))
+            .await,
+        404
+    );
+    for (name, dev) in [("grantee", &phone), ("owner", &owner)] {
+        expect!(
+            &format!("{name}: url when delisted"),
+            srv.call(dev, "GET", &url_of, None).await,
+            404
+        );
+        let c = expect!(
+            &format!("{name}: catalog when delisted"),
+            srv.call(dev, "GET", &catalog, None).await,
+            200
+        );
+        if has_object(&c) {
+            failures.push(format!(
+                "{name}: the delisted object is still in the catalog"
+            ));
+        }
+    }
+    // The old per-key presign honours it too.
+    expect!(
+        "the old presign refuses a delisted key",
+        srv.call(
+            &owner,
+            "POST",
+            &format!("/storage/mounts/{m}/presign"),
+            Some(&json!({"key": "Series/Authz/Authz S01E01.mp4", "method": "GET"}))
+        )
+        .await,
+        404
+    );
+    let strikes: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM shelf_delist_strikes WHERE shelf_id = $1 AND object_hash = $2 AND restored_at IS NULL",
+    )
+    .bind(m.parse::<i64>().unwrap())
+    .bind(&hash)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    if strikes != 1 {
+        failures.push(format!("expected one strike, found {strikes}"));
+    }
+    let logged: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM staff_access_log WHERE action IN ('storage.shelf.object.delist', 'shelf.grant.create', 'shelf.grant.revoke')",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    if logged < 4 {
+        failures.push(format!("the audit log has only {logged} shelf rows"));
+    }
+    // Relisting brings it back.
+    expect!(
+        "staff relist",
+        srv.call(&staff, "POST", "/admin/shelves/relist", Some(&del))
+            .await,
+        200
+    );
+    expect!(
+        "url after the relisting",
+        srv.call(&phone, "GET", &url_of, None).await,
+        200
+    );
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} shelf access failures:\n{}",
         failures.len(),
         failures.join("\n")
     );
