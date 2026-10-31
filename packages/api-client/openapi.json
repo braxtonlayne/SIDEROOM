@@ -80353,38 +80353,61 @@
       },
       "BridgeObject": {
         "type": "object",
-        "description": "Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL.",
+        "description": "The connected bot and the Discord server it works in. The token is never part of it.",
         "required": [
-          "platform",
-          "author_name"
+          "discord_guild_id",
+          "discord_guild_name",
+          "bot_user_id",
+          "bot_name",
+          "mode",
+          "status",
+          "intents_granted",
+          "created_by",
+          "created_at",
+          "invite_url"
         ],
         "properties": {
-          "author_avatar": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "author_name": {
-            "type": "string"
-          },
-          "links": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BridgeLinkObject"
-            },
-            "description": "Attachments, as links only: nothing is re-hosted."
-          },
-          "member_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The Discord user id (decimal string): the bridged member's id in `GET /guilds/{id}/bridge/members`."
-          },
-          "platform": {
+          "bot_name": {
             "type": "string",
-            "description": "`discord`."
+            "description": "The bot's name."
+          },
+          "bot_user_id": {
+            "type": "string",
+            "description": "The bot's Discord user id (also its application id)."
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When, unix ms."
+          },
+          "created_by": {
+            "type": "string",
+            "description": "Who connected it."
+          },
+          "discord_guild_id": {
+            "type": "string",
+            "description": "The Discord server's snowflake."
+          },
+          "discord_guild_name": {
+            "type": "string",
+            "description": "The Discord server's name."
+          },
+          "intents_granted": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The gateway intents Discord granted (the privileged `MESSAGE_CONTENT` intent is bit 15)."
+          },
+          "invite_url": {
+            "type": "string",
+            "description": "A link that adds the bot to a Discord server with the permissions the bridge needs."
+          },
+          "mode": {
+            "type": "string",
+            "description": "'selective' (only the mapped channels)."
+          },
+          "status": {
+            "type": "string",
+            "description": "`connecting`, `connected`, `disconnected` or `token_invalid`."
           }
         }
       },
@@ -95100,6 +95123,43 @@
           }
         }
       },
+      "MessageBridgeObject": {
+        "type": "object",
+        "description": "Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL.",
+        "required": [
+          "platform",
+          "author_name"
+        ],
+        "properties": {
+          "author_avatar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BridgeLinkObject"
+            },
+            "description": "Attachments, as links only: nothing is re-hosted."
+          },
+          "member_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Discord user id (decimal string): the bridged member's id in `GET /guilds/{id}/bridge/members`."
+          },
+          "platform": {
+            "type": "string",
+            "description": "`discord`."
+          }
+        }
+      },
       "MessageObject": {
         "type": "object",
         "required": [
@@ -95234,7 +95294,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/BridgeObject",
+                "$ref": "#/components/schemas/MessageBridgeObject",
                 "description": "Set when the message came in over the Discord bridge (BRG-GW-001): shown with a DISCORD tag."
               }
             ]

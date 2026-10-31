@@ -16770,16 +16770,34 @@ export interface components {
             filename: string;
             url?: string | null;
         };
-        /** @description Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL. */
+        /** @description The connected bot and the Discord server it works in. The token is never part of it. */
         BridgeObject: {
-            author_avatar?: string | null;
-            author_name: string;
-            /** @description Attachments, as links only: nothing is re-hosted. */
-            links?: components["schemas"]["BridgeLinkObject"][];
-            /** @description The Discord user id (decimal string): the bridged member's id in `GET /guilds/{id}/bridge/members`. */
-            member_id?: string | null;
-            /** @description `discord`. */
-            platform: string;
+            /** @description The bot's name. */
+            bot_name: string;
+            /** @description The bot's Discord user id (also its application id). */
+            bot_user_id: string;
+            /**
+             * Format: int64
+             * @description When, unix ms.
+             */
+            created_at: number;
+            /** @description Who connected it. */
+            created_by: string;
+            /** @description The Discord server's snowflake. */
+            discord_guild_id: string;
+            /** @description The Discord server's name. */
+            discord_guild_name: string;
+            /**
+             * Format: int64
+             * @description The gateway intents Discord granted (the privileged `MESSAGE_CONTENT` intent is bit 15).
+             */
+            intents_granted: number;
+            /** @description A link that adds the bot to a Discord server with the permissions the bridge needs. */
+            invite_url: string;
+            /** @description 'selective' (only the mapped channels). */
+            mode: string;
+            /** @description `connecting`, `connected`, `disconnected` or `token_invalid`. */
+            status: string;
         };
         /** @description What the owner's screen shows. */
         BridgeStatusObject: {
@@ -21642,6 +21660,17 @@ export interface components {
             /** @description The series that stays; this one is merged into it. */
             target_id: string;
         };
+        /** @description Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL. */
+        MessageBridgeObject: {
+            author_avatar?: string | null;
+            author_name: string;
+            /** @description Attachments, as links only: nothing is re-hosted. */
+            links?: components["schemas"]["BridgeLinkObject"][];
+            /** @description The Discord user id (decimal string): the bridged member's id in `GET /guilds/{id}/bridge/members`. */
+            member_id?: string | null;
+            /** @description `discord`. */
+            platform: string;
+        };
         MessageObject: {
             attachments: components["schemas"]["AttachmentObject"][];
             author: components["schemas"]["UserRef"];
@@ -21671,7 +21700,7 @@ export interface components {
             /** @description Poll definition with live results (`results.answer_counts`). */
             poll?: Record<string, never> | null;
             reactions?: components["schemas"]["ReactionObject"][];
-            sr_bridge?: null | components["schemas"]["BridgeObject"];
+            sr_bridge?: null | components["schemas"]["MessageBridgeObject"];
             /**
              * @description Ids of `<:name:id>` tokens in `content` that resolve to an application emoji but were not
              *     sent by that application's bot: clients show them as `:name:` text (D-237).

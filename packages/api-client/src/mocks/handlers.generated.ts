@@ -543,7 +543,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"test_map","method":"post","path":"/guilds/:guild_id/bridge/maps/:map_id/test","status":204,"body":null},
   {"id":"list_bridge_members","method":"get","path":"/guilds/:guild_id/bridge/members","status":200,"body":[{"bot":false,"display_name":"string","id":"1"}]},
   {"id":"status","method":"get","path":"/guilds/:guild_id/bridge/status","status":200,"body":{"connected":false,"dead_letters":0,"is_owner":false,"leftovers":[{}],"maps":[{}],"module_on":false,"platform_on":false,"queued":0}},
-  {"id":"put_token","method":"put","path":"/guilds/:guild_id/bridge/token","status":200,"body":{"author_name":"string","platform":"string"}},
+  {"id":"put_token","method":"put","path":"/guilds/:guild_id/bridge/token","status":200,"body":{"bot_name":"string","bot_user_id":"1","created_at":0,"created_by":"string","discord_guild_id":"1","discord_guild_name":"string","intents_granted":0,"invite_url":"string","mode":"string","status":"string"}},
   {"id":"delete_token","method":"delete","path":"/guilds/:guild_id/bridge/token","status":200,"body":{"leftovers":[{}],"maps_removed":0,"webhooks_deleted":0}},
   {"id":"bulk_ban","method":"post","path":"/guilds/:guild_id/bulk-ban","status":200,"body":{"banned_users":["string"],"failed_users":["string"]}},
   {"id":"list_channels","method":"get","path":"/guilds/:guild_id/channels","status":200,"body":[{"flags":0,"id":"1","nsfw":false,"permission_overwrites":[{}],"position":0,"rate_limit_per_user":0,"type":0}]},

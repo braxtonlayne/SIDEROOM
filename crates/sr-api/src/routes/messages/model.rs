@@ -219,12 +219,12 @@ pub struct MessageObject {
     pub sr_text_emoji: Vec<String>,
     /// Set when the message came in over the Discord bridge (BRG-GW-001): shown with a DISCORD tag.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sr_bridge: Option<BridgeObject>,
+    pub sr_bridge: Option<MessageBridgeObject>,
 }
 
 /// Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL.
 #[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct BridgeObject {
+pub struct MessageBridgeObject {
     /// `discord`.
     pub platform: String,
     pub author_name: String,

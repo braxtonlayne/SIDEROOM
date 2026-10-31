@@ -191,7 +191,7 @@ pub async fn decorate(
                 o.author.global_name = Some(b.author_name.clone());
                 o.author.bot = true;
                 o.author.avatar_url = avatar.clone();
-                o.sr_bridge = Some(super::model::BridgeObject {
+                o.sr_bridge = Some(super::model::MessageBridgeObject {
                     platform: b.platform.clone(),
                     author_name: b.author_name.clone(),
                     author_avatar: avatar,

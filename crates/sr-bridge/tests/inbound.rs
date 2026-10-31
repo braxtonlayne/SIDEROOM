@@ -856,7 +856,12 @@ async fn discord_members_are_synced_into_the_bridged_member_list_and_are_not_acc
         .fetch_one(f.db.pool())
         .await
         .unwrap();
-    assert_eq!((accounts, gm), (1, 1), "only the owner exists");
+    // The owner and the bridge's integration author (1721) are the only accounts; neither came from Discord.
+    assert_eq!(
+        (accounts, gm),
+        (2, 1),
+        "only the owner and the integration author exist"
+    );
     // The list the route reads is these rows, found by the mapped channel.
     let via_channel: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM bridge_members m JOIN bridge_channel_maps c ON c.guild_id = m.guild_id \

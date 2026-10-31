@@ -171,7 +171,7 @@ pub fn router() -> Router<AppState> {
         model::UserRef,
         model::AttachmentObject,
         model::PartialEmoji,
-        model::BridgeObject,
+        model::MessageBridgeObject,
         model::BridgeLinkObject,
         bridge_members::BridgedMemberObject,
         model::ReactionObject,

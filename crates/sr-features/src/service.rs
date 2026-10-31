@@ -100,7 +100,7 @@ impl FeatureService {
         // A module under a platform feature (`bridge.enabled` under `platform.bridge`) dies with it.
         if value
             && let Some(parent) = feature.gated_by()
-            && self.platform_killed(parent).await?
+            && self.parent_killed(parent).await?
         {
             value = false;
         }
@@ -116,7 +116,7 @@ impl FeatureService {
     pub async fn offered(&self, id: &str) -> Result<bool, FeatureError> {
         let feature = self.feature(id)?;
         if let Some(parent) = feature.gated_by()
-            && self.platform_killed(parent).await?
+            && self.parent_killed(parent).await?
         {
             return Ok(false);
         }
@@ -133,6 +133,15 @@ impl FeatureService {
     }
 
     /// Whether the platform has switched `id` off for every server (the kill switch).
+    /// Whether the platform feature a module is gated by is switched off. A parent that is not registered (a
+    /// registry built without it, as in tests that register only the guild modules) gates nothing.
+    async fn parent_killed(&self, parent: &str) -> Result<bool, FeatureError> {
+        match self.platform_killed(parent).await {
+            Err(FeatureError::UnknownFeature(_)) => Ok(false),
+            other => other,
+        }
+    }
+
     pub async fn platform_killed(&self, id: &str) -> Result<bool, FeatureError> {
         self.feature(id)?;
         Ok(self
