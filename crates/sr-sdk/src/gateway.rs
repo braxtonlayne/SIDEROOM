@@ -978,13 +978,19 @@ mod address_rule_tests {
     #[test]
     fn a_wildcard_entry_matches_subdomains_only() {
         let a = vec!["*.discord.gg".to_owned()];
-        assert!(host_allowed("wss://gateway-us-east1-b.discord.gg/?v=10", &a));
+        assert!(host_allowed(
+            "wss://gateway-us-east1-b.discord.gg/?v=10",
+            &a
+        ));
         assert!(host_allowed("wss://A.B.DISCORD.GG", &a));
         assert!(!host_allowed("wss://discord.gg/", &a));
         assert!(!host_allowed("wss://evildiscord.gg/", &a));
         assert!(!host_allowed("wss://discord.gg.evil.test/", &a));
         let c = ShardConfig::discord("t", 1, None);
-        assert!(host_allowed("wss://gateway-x.discord.gg/", &c.allowed_hosts));
+        assert!(host_allowed(
+            "wss://gateway-x.discord.gg/",
+            &c.allowed_hosts
+        ));
         assert!(host_allowed(DISCORD_GATEWAY_URL, &c.allowed_hosts));
     }
 
