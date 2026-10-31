@@ -43,6 +43,10 @@ test.describe('the whole-server Discord mirror', () => {
   }) => {
     test.setTimeout(300_000);
     const control = await playwright.request.newContext();
+    // A whole-server bridge left behind by a failed run keeps the fake's Discord server taken (the preflight's
+    // unique-server check), so the next run in the same database could never pass: switch it off on the way out.
+    let switchOff: (() => Promise<unknown>) | undefined;
+    let finished = false;
     try {
       const up = await control.get(`${FAKE}/__fake/state`).catch(() => null);
       test.skip(!up?.ok(), 'The fake Discord (port 8090) is not running.');
@@ -50,6 +54,10 @@ test.describe('the whole-server Discord mirror', () => {
 
       const { a, guildId } = await scenario.ownerAndMember();
       const owner = a.page;
+      switchOff = () =>
+        apiPatch(a.context.request, `/guilds/${guildId}/sr/features/bridge.enabled`, {
+          enabled: false,
+        });
       const role = await apiPost<{ id: string }>(a.context.request, `/guilds/${guildId}/roles`, {
         name: 'Manager',
         permissions: String(MANAGE_GUILD),
@@ -175,7 +183,9 @@ test.describe('the whole-server Discord mirror', () => {
       expect(channelNamed(after, 'general')).toBeFalsy();
       expect(after.roles.find((r) => r.name === '@everyone')).toBeTruthy();
       expect(after.roles.find((r) => r.name === 'bridge-bot')).toBeTruthy();
+      finished = true;
     } finally {
+      if (!finished) await switchOff?.().catch(() => undefined);
       await control.dispose();
     }
   });
