@@ -22,8 +22,6 @@ export interface BridgeMap {
   /** The channel's name as the bot sees it, for display. */
   discord_channel_name?: string | null;
   direction: BridgeDirection;
-  /** Members who opted out of being mirrored in this channel (a count; never who). */
-  optout_count: number;
 }
 
 export interface BridgeStatus {
@@ -53,18 +51,6 @@ export interface TeardownReport {
   failed_webhooks: string[];
 }
 
-/** A mapped channel as a member sees it (banner, menu, privacy list). */
-export interface BridgedChannel {
-  channel_id: string;
-  guild_id: string;
-  channel_name: string;
-  guild_name: string;
-  discord_guild_name: string;
-  direction: BridgeDirection;
-  /** The signed-in member opted out of being mirrored here. */
-  opted_out: boolean;
-}
-
 const path = (guildId: string, rest = '') => `/guilds/${guildId}/bridge${rest}`;
 
 const send = <T>(p: string, method: string, json?: unknown) =>
@@ -90,17 +76,6 @@ export const deleteMap = (guildId: string, channelId: string) =>
 
 export const testMap = (guildId: string, channelId: string) =>
   send<{ ok: boolean }>(path(guildId, '/test'), 'POST', { channel_id: channelId });
-
-// ---- the member side
-
-export const listBridgedChannels = () =>
-  apiFetch<BridgedChannel[]>('/users/@me/bridge/channels', { retries: 0 });
-
-export const setOptOut = (channelId: string, optedOut: boolean) =>
-  apiFetch<void>(`/channels/${channelId}/bridge/opt-out`, {
-    method: optedOut ? 'PUT' : 'DELETE',
-    retries: 0,
-  });
 
 /** The Discord developer-portal page where the owner finds and enables the bot's privileged intent. */
 export const DEVELOPER_PORTAL_URL = 'https://discord.com/developers/applications';

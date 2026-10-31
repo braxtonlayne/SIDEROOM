@@ -546,7 +546,6 @@ impl DataRequestRepository for PgAdminRepo {
                 report.profile_media_keys = d.profile_media_keys;
                 report.mounts_erased = d.mounts_erased;
                 report.bridge_deletions_queued = d.bridge_deletions_queued;
-                report.bridge_optouts_erased = d.bridge_optouts_erased;
             }
             Err(Blocked::NotActive) => {
                 // Deleted by its owner in the meantime, or never active: finish the request only

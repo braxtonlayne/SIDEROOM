@@ -67,10 +67,6 @@ async fn world(pool: &PgPool) {
         .await
         .unwrap();
     }
-    sqlx::query("INSERT INTO bridge_optouts (user_id, channel_id, guild_id) VALUES (1, 20, 10), (2, 20, 10)")
-        .execute(pool)
-        .await
-        .unwrap();
 }
 
 #[tokio::test]
@@ -94,23 +90,18 @@ async fn the_export_lists_the_members_bridged_messages_as_ids_only() {
         first.get("content").is_none(),
         "ids only, never text: {first}"
     );
-    assert_eq!(out["opt_outs"].as_array().unwrap().len(), 1);
-    assert_eq!(out["opt_outs"][0]["channel_id"], "20");
 }
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL and migration 1720"]
-async fn erasure_queues_the_webhook_deletes_and_removes_map_rows_and_optouts() {
+async fn erasure_queues_the_webhook_deletes_and_removes_map_rows() {
     let db = TestDb::new().await.unwrap();
     let pool = db.pool();
     world(pool).await;
     let mut tx = pool.begin().await.unwrap();
     let done = bridge_dsr::erase_for(&mut tx, 1).await.unwrap();
     tx.commit().await.unwrap();
-    assert_eq!(
-        (done.map_rows, done.deletions_queued, done.opt_outs),
-        (2, 2, 1)
-    );
+    assert_eq!((done.map_rows, done.deletions_queued), (2, 2));
 
     let left: Vec<i64> =
         sqlx::query_scalar("SELECT sr_message_id FROM bridge_message_map ORDER BY 1")
@@ -118,16 +109,6 @@ async fn erasure_queues_the_webhook_deletes_and_removes_map_rows_and_optouts() {
             .await
             .unwrap();
     assert_eq!(left, [103], "the other member's map row stays");
-    let optouts: i64 = sqlx::query_scalar("SELECT count(*) FROM bridge_optouts WHERE user_id = 1")
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert_eq!(optouts, 0);
-    let other: i64 = sqlx::query_scalar("SELECT count(*) FROM bridge_optouts WHERE user_id = 2")
-        .fetch_one(pool)
-        .await
-        .unwrap();
-    assert_eq!(other, 1, "someone else's opt-out stays");
 
     // The deletes the worker needs carry everything, because the map rows are gone.
     let rows: Vec<(i64, String, serde_json::Value)> = sqlx::query_as(
@@ -153,10 +134,7 @@ async fn a_member_with_nothing_bridged_erases_cleanly() {
     let mut tx = pool.begin().await.unwrap();
     let done = bridge_dsr::erase_for(&mut tx, 9).await.unwrap();
     tx.commit().await.unwrap();
-    assert_eq!(
-        (done.map_rows, done.deletions_queued, done.opt_outs),
-        (0, 0, 0)
-    );
+    assert_eq!((done.map_rows, done.deletions_queued), (0, 0));
     let out = bridge_dsr::export_for(pool, 9).await.unwrap();
     assert_eq!(out["bridged_messages"].as_array().unwrap().len(), 0);
 }

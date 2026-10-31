@@ -19,7 +19,7 @@ import {
  *     again), map #general to the fake's channel, and see the banner in the channel.
  *  3. A message posted here reaches the fake Discord's webhook with the author's name; a message posted there
  *     shows here with the DISCORD tag.
- *  4. A member opts out ("Don't mirror my messages"), posts, and nothing arrives there.
+ *  4. A member posts: it is mirrored too (there is no per-member opt-out, owner decision).
  *  5. The owner switches the bridge off: the webhook DELETE reaches the fake, the banner and the nav entry are
  *     gone, the system message is in the channel, and a post here reaches nothing.
  *
@@ -40,7 +40,7 @@ async function send(page: Page, channel: string, text: string) {
 }
 
 test.describe('the Discord bridge', () => {
-  test('owner switches it on, maps a channel, messages flow both ways, opt-out holds, switch-off leaves nothing', async ({
+  test('owner switches it on, maps a channel, messages flow both ways, switch-off leaves nothing', async ({
     scenario,
     playwright,
   }) => {
@@ -124,25 +124,14 @@ test.describe('the Discord bridge', () => {
       await expect(arrived.getByTestId('bridge-tag')).toHaveText('DISCORD');
       await expect(arrived).toContainText('Rhea');
 
-      // --- 4. The member opts out; their message stays here only.
-      await member
-        .getByTestId('bridge-banner')
-        .getByRole('button', { name: "Don't mirror my messages" })
-        .click();
-      await expect(member.getByText('Your messages are not mirrored.')).toBeVisible();
-      const before = (await fakeState(control)).posts.length;
-      await send(member, 'general', 'private note');
-      await expect(owner.getByText('private note', { exact: true })).toBeVisible();
-      await new Promise((r) => setTimeout(r, 4_000));
-      const after = await fakeState(control);
-      expect(after.posts.length).toBe(before);
-      expect(after.posts.some((p) => p.content === 'private note')).toBe(false);
-
-      // The count (never who) shows on the owner's mapping table.
+      // --- 4. A member's message in the mapped channel is mirrored too: there is no opt-out.
+      await send(member, 'general', 'member note');
+      await poll(
+        () => fakeState(control),
+        (s) => s.posts.some((p) => p.content === 'member note'),
+      );
       await owner.goto(`/settings/server/${guildId}/bridge`);
-      await expect(
-        owner.getByRole('table', { name: 'Mirrored channels' }).getByText('1 member'),
-      ).toBeVisible();
+      await expect(owner.getByRole('table', { name: 'Mirrored channels' })).toBeVisible();
 
       // --- 5. Switch off: what is removed, what stays, then nothing is left.
       await owner.getByRole('button', { name: 'Switch off the Discord bridge' }).click();

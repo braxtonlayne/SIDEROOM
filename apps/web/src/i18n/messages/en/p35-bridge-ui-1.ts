@@ -1,10 +1,10 @@
 // BRG-UI-001 (wave 35, D-381): the Discord bridge. Server Settings > Modules card, the "Discord bridge" screen, the
-// teardown dialog, the channel banner, the per-member opt-out, the DISCORD tag and the privacy page list.
+// teardown dialog, the channel banner, the DISCORD tag and the privacy page list.
 export default {
   // ---- the card under Modules > "Integrations, more"
   'settings.bridge.card.noticeTitle': 'Before you switch this on',
   'settings.bridge.card.notice':
-    "Switching this on mirrors the channels you map to a Discord server you choose, with members' names, avatars and messages, and shows Discord users' messages here. Members can opt out per channel. Switching it off removes the webhooks from Discord and the mappings here.",
+    "Switching this on mirrors the channels you map to a Discord server you choose, with members' names, avatars and messages, and shows Discord users' messages here. There is no per-member opt-out: everything in a mapped channel is mirrored, and each such channel shows a banner saying so. Switching it off removes the webhooks from Discord and the mappings here.",
   'settings.bridge.card.ownerOnlyOn': 'Only the server owner can switch this on.',
   'settings.bridge.card.ownerOnlyOff': 'Only the server owner can switch this off.',
   'settings.bridge.card.open': 'Open the Discord bridge settings',
@@ -17,7 +17,7 @@ export default {
   'settings.bridge.loading': 'Loading the Discord bridge',
   'settings.bridge.privacyTitle': 'What the bridge shares',
   'settings.bridge.privacy':
-    "Every channel you map is mirrored to the Discord server you choose, with members' names, avatars and messages, and Discord users' messages are shown here with a DISCORD tag. Attachments go as links, never uploaded. Encrypted channels and direct messages are never mirrored. Members can opt out per channel.",
+    "Every channel you map is mirrored to the Discord server you choose, with members' names, avatars and messages, and Discord users' messages are shown here with a DISCORD tag. Attachments go as links, never uploaded. Encrypted channels and direct messages are never mirrored.",
 
   'settings.bridge.token.title': 'Bot connection',
   'settings.bridge.token.step1': 'Create an application with a bot on Discord:',
@@ -50,12 +50,10 @@ export default {
   'settings.bridge.map.colOurs': 'Channel here',
   'settings.bridge.map.colTheirs': 'Channel on Discord',
   'settings.bridge.map.colDirection': 'Direction',
-  'settings.bridge.map.colOptOut': 'Opted out',
   'settings.bridge.map.colActions': 'Actions',
   'settings.bridge.map.both': 'Both ways',
   'settings.bridge.map.toDiscord': 'From here to Discord',
   'settings.bridge.map.fromDiscord': 'From Discord to here',
-  'settings.bridge.map.optOuts': '{n, plural, one {# member} other {# members}}',
   'settings.bridge.map.testShort': 'Test',
   'settings.bridge.map.test': 'Post a hello in #{name} on Discord',
   'settings.bridge.map.tested': 'Posted a hello for #{name} on Discord.',
@@ -82,7 +80,7 @@ export default {
   'settings.bridge.teardown.removedWebhooks':
     'The webhooks the bridge created on Discord are deleted.',
   'settings.bridge.teardown.removedMaps':
-    'The channel mappings, the message links and every opt-out are deleted here.',
+    'The channel mappings and the message links are deleted here.',
   'settings.bridge.teardown.removedToken': 'The bot token is wiped.',
   'settings.bridge.teardown.staysTitle': 'What stays',
   'settings.bridge.teardown.staysMessages':
@@ -105,22 +103,16 @@ export default {
 
   // ---- the channel banner, the menu entry and the tag
   'lounge.bridge.bannerBoth':
-    'Messages here are mirrored to Discord server {name} and back; messages from Discord are shown with a DISCORD tag.',
-  'lounge.bridge.bannerOut': 'Messages here are mirrored to Discord server {name}.',
-  'lounge.bridge.bannerIn':
-    'Messages from Discord server {name} are shown here with a DISCORD tag.',
-  'lounge.bridge.bannerOptedOut': 'Your messages are not mirrored.',
-  'lounge.bridge.optOut': "Don't mirror my messages",
-  'lounge.bridge.optIn': 'Mirror my messages again',
-  'lounge.bridge.optError': 'Could not save that change. Try again.',
+    'Messages here are mirrored to Discord and back; messages from Discord are shown with a DISCORD tag. Everything said in this channel is mirrored.',
+  'lounge.bridge.bannerOut':
+    'Messages here are mirrored to Discord. Everything said in this channel is mirrored.',
+  'lounge.bridge.bannerIn': 'Messages from Discord are shown here with a DISCORD tag.',
   'lounge.messageItem.bridgeTag': 'DISCORD',
 
   // ---- the privacy page (the handbook's privacy section)
   'help.handbook.privacy.bridge':
-    "If your server's owner switches the Discord bridge on, the channels they map are mirrored to a Discord server they choose, with names, avatars and messages. A banner in each such channel says so, and you can opt out per channel; your messages then stay here only. Messages already sent stay on Discord.",
+    "If your server's owner switches the Discord bridge on, the channels they map are mirrored to a Discord server they choose, with names, avatars and messages. A banner in each such channel says so. There is no per-member opt-out: everything said in a mapped channel is mirrored. Messages already sent stay on Discord.",
   'help.bridge.listTitle': 'Channels mirrored to Discord',
   'help.bridge.listEmpty': 'None of your servers mirrors a channel to Discord.',
-  'help.bridge.listItem': '#{channel} in {server} is mirrored with the Discord server {discord}.',
-  'help.bridge.optOut': "Don't mirror my messages in #{channel}",
-  'help.bridge.optIn': 'Mirror my messages again in #{channel}',
+  'help.bridge.listItem': '#{channel} in {server} is mirrored with Discord.',
 } satisfies Record<string, string>;

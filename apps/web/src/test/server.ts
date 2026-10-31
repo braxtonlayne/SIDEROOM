@@ -24,8 +24,6 @@ export const server = setupServer(
   ),
   http.post('*/api/v1/interactions', () => new HttpResponse(null, { status: 204 })),
   http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
-  // The Discord bridge mirrors nothing unless a test says so (BRG-UI-001).
-  http.get('*/api/v1/users/@me/bridge/channels', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/presence', () =>
     HttpResponse.json({ status: 'online', custom_status: null }),
   ),

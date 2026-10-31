@@ -47,7 +47,6 @@ const status = (over: object = {}) => ({
       discord_channel_id: 'dc1',
       discord_channel_name: 'general-chat',
       direction: 'both',
-      optout_count: 2,
     },
   ],
   ...over,
@@ -73,7 +72,7 @@ describe('the Discord bridge card under Modules', () => {
       notice.compareDocumentPosition(sw) & Node.DOCUMENT_POSITION_FOLLOWING,
       'the notice precedes the switch',
     ).toBeTruthy();
-    expect(within(card).getByText(/Members can opt out per channel/)).toBeInTheDocument();
+    expect(within(card).getByText(/There is no per-member opt-out/)).toBeInTheDocument();
   });
 
   it('is greyed for a manager who is not the owner, with the reason', async () => {
@@ -239,7 +238,7 @@ describe('the Discord bridge screen', () => {
     expect(await screen.findByText('The Message Content intent is off')).toBeVisible();
   });
 
-  it('maps a channel, shows the opt-out count, tests it and removes it (a manager can)', async () => {
+  it('maps a channel, tests it and removes it (a manager can)', async () => {
     seed({ perms: [MANAGE.guild] });
     const add = capture();
     const test = capture();
@@ -261,7 +260,6 @@ describe('the Discord bridge screen', () => {
           discord_channel_id: 'dc2',
           discord_channel_name: 'off-topic',
           direction: 'to_discord',
-          optout_count: 0,
         };
         maps = [...maps, m];
         return HttpResponse.json(m, { status: 201 });
@@ -282,7 +280,6 @@ describe('the Discord bridge screen', () => {
     expect(within(row).getByText('#general')).toBeInTheDocument();
     expect(within(row).getByText('#general-chat')).toBeInTheDocument();
     expect(within(row).getByText('Both ways')).toBeInTheDocument();
-    expect(within(row).getByText('2 members')).toBeInTheDocument();
 
     // Only unmapped channels can be picked here; the category and mapped channels are not offered.
     const ours = screen.getByLabelText('Channel here', { selector: 'select' });

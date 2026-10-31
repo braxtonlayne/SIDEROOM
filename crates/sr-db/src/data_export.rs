@@ -339,7 +339,7 @@ This archive holds the data tied to your account, as JSON files.\n\
   tools.json          your utility drawer data: scratchpad notes (still encrypted: only your browser's key or\n\
                       your recovery file opens them), your own loot tables and the invite card seats you claimed\n\
   scrapbook.json      scrapbook entries made from your messages, and ones you sent (text, tags, file names and sizes; never keys or links)\n\
-  bridge.json         your messages the Discord bridge mirrored (ids only) and the channels you opted out of
+  bridge.json         your messages the Discord bridge mirrored (ids only)
 \n  rings.json          your status rings that are still live (their audience and who opened them) and the rings you opened\n\
   messages/          the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
@@ -489,7 +489,7 @@ pub async fn build_package<W: Write + Seek>(
         &crate::scrapbook_legal::export_for(pool, user).await?,
     )?;
 
-    // BRG-UI-001 (Art. 15): the member's bridged messages (ids only) and per-channel opt-outs.
+    // BRG-UI-001 (Art. 15): the member's bridged messages (ids only).
     put(
         &mut zip,
         "bridge.json",

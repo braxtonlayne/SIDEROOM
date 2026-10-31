@@ -1,6 +1,6 @@
 // Server Settings > Discord bridge (BRG-UI-001). The entry exists only while the module is on (D-381). The owner
 // pastes the bot token (sealed, never shown again) and switches the bridge off; the owner and MANAGE_GUILD map
-// channels, post a test and read the opt-out counts.
+// channels and post a test.
 import { Button, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
@@ -225,7 +225,6 @@ function MapCard({
               <th scope="col">{t('settings.bridge.map.colOurs')}</th>
               <th scope="col">{t('settings.bridge.map.colTheirs')}</th>
               <th scope="col">{t('settings.bridge.map.colDirection')}</th>
-              <th scope="col">{t('settings.bridge.map.colOptOut')}</th>
               <th scope="col">
                 <span className="ss-bridge-sr">{t('settings.bridge.map.colActions')}</span>
               </th>
@@ -237,7 +236,6 @@ function MapCard({
                 <td>#{nameOf(m.channel_id)}</td>
                 <td>#{m.discord_channel_name ?? m.discord_channel_id}</td>
                 <td>{directionLabel(m.direction)}</td>
-                <td>{t('settings.bridge.map.optOuts', { n: m.optout_count })}</td>
                 <td>
                   <div className="ss-actions">
                     <Button

@@ -281,9 +281,8 @@ pub struct ErasureReport {
     pub profile_media_keys: Vec<String>,
     /// Storage mounts soft-deleted, their sealed secrets wiped (BYOS-LEG-001).
     pub mounts_erased: i64,
-    /// Discord bridge (BRG-UI-001): webhook messages queued for deletion on Discord (best effort), and opt-outs removed.
+    /// Discord bridge (BRG-UI-001): webhook messages queued for deletion on Discord (best effort).
     pub bridge_deletions_queued: i64,
-    pub bridge_optouts_erased: i64,
     /// Messages and attachments kept because a moderation hold covers them.
     pub held_rows: i64,
     /// The holds that keep them, flagged for a decision (MOD-DSR-005): how many.
@@ -420,10 +419,10 @@ pub fn erasure_outcome(report: &ErasureReport, invoice_years: u8) -> String {
             report.mounts_erased
         ));
     }
-    if report.bridge_deletions_queued > 0 || report.bridge_optouts_erased > 0 {
+    if report.bridge_deletions_queued > 0 {
         s.push_str(&format!(
-            " Discord bridge: {} message(s) the bridge posted to Discord for the member were queued for deletion there (best effort, failures are logged) and {} opt-out(s) removed.",
-            report.bridge_deletions_queued, report.bridge_optouts_erased
+            " Discord bridge: {} message(s) the bridge posted to Discord for the member were queued for deletion there (best effort, failures are logged).",
+            report.bridge_deletions_queued
         ));
     }
     if report.held_rows > 0 {
@@ -1275,14 +1274,10 @@ mod bridge_outcome_tests {
         assert!(!none.contains("Discord bridge"), "{none}");
         let report = ErasureReport {
             bridge_deletions_queued: 3,
-            bridge_optouts_erased: 1,
             ..ErasureReport::default()
         };
         let text = erasure_outcome(&report, 10);
-        assert!(
-            text.contains("Discord bridge: 3 message(s)") && text.contains("1 opt-out(s) removed"),
-            "{text}"
-        );
+        assert!(text.contains("Discord bridge: 3 message(s)"), "{text}");
         assert!(text.contains("best effort"), "{text}");
     }
 }

@@ -6,7 +6,6 @@ import { useLoungeUi } from '../store';
 import { applyChannelMoves } from './channelActions';
 import { canStep, planStep } from './channelMoves';
 import { entryList, useReportEntry } from '../../moderation/reports';
-import { useBridgeMenuEntries } from '../bridge/useBridgeMenu';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
 
 const TYPE_NUM: Record<Channel['type'], number> = {
@@ -49,7 +48,6 @@ export function useChannelMenu(
   const cat = channel.type === 'category';
   const muted = isMuted(notif?.channels[channel.id]);
   const fail = () => onError('Could not save that change. Try again.');
-  const bridgeEntries = useBridgeMenuEntries(channel.id, onError);
 
   const move = (delta: -1 | 1) => {
     const moves = planStep(channels, channel.id, delta);
@@ -214,7 +212,6 @@ export function useChannelMenu(
     moveUp,
     moveDown,
     remove,
-    ...bridgeEntries,
     ...entryList(reportEntry({ kind: 'channel', id: channel.id })),
     ...(developerMode
       ? [

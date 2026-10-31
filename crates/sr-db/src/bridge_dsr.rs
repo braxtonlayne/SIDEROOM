@@ -3,11 +3,11 @@
 //! `account_deletion`), the same way the scrapbook and the status rings do.
 //!
 //! * [`export_for`] (Art. 15): the member's bridged messages as ids only (ours, Discord's, the channel and the
-//!   direction), and their per-channel opt-outs. No content, no Discord names.
+//!   direction). No content, no Discord names. There is no per-member opt-out (owner decision).
 //! * [`erase_for`] (Art. 17): inside the deletion transaction, the message-map rows of the member's messages are
 //!   deleted, and for each message the bridge posted to Discord through a webhook a `delete` is queued on the
 //!   outbound queue (`bridge_outbox`, best effort: the bridge's worker logs a failure and the rows are gone
-//!   regardless); the member's opt-outs are deleted. The queue row carries everything the worker needs, because the
+//!   regardless). The queue row carries everything the worker needs, because the
 //!   map row is gone: `{ "discord_message_id", "webhook_id", "reason": "erasure" }`.
 //!
 //! Tables come from migration 1720 (bridge-core). A server that never switched the bridge on has no rows, and a
@@ -33,7 +33,7 @@ where
 /// The data-subject export for `user` (`bridge.json`): ids only.
 pub async fn export_for(pool: &PgPool, user: i64) -> DbResult<Value> {
     if !has_tables(pool).await? {
-        return Ok(json!({ "bridged_messages": [], "opt_outs": [] }));
+        return Ok(json!({ "bridged_messages": [] }));
     }
     let messages: Value = sqlx::query_scalar(
         "SELECT COALESCE(jsonb_agg(t ORDER BY t.message_id), '[]'::jsonb) FROM (
@@ -45,15 +45,7 @@ pub async fn export_for(pool: &PgPool, user: i64) -> DbResult<Value> {
     .bind(user)
     .fetch_one(pool)
     .await?;
-    let opt_outs: Value = sqlx::query_scalar(
-        "SELECT COALESCE(jsonb_agg(t ORDER BY t.channel_id), '[]'::jsonb) FROM (
-            SELECT channel_id::text AS channel_id, guild_id::text AS guild_id, created_at
-            FROM bridge_optouts WHERE user_id = $1) t",
-    )
-    .bind(user)
-    .fetch_one(pool)
-    .await?;
-    Ok(json!({ "bridged_messages": messages, "opt_outs": opt_outs }))
+    Ok(json!({ "bridged_messages": messages }))
 }
 
 /// What erasure did to the bridge's rows about a member.
@@ -63,8 +55,6 @@ pub struct Erased {
     pub map_rows: u64,
     /// Webhook messages queued for deletion on Discord.
     pub deletions_queued: u64,
-    /// Opt-outs deleted.
-    pub opt_outs: u64,
 }
 
 /// Erase the bridge's rows about `user` inside the deletion transaction.
@@ -97,14 +87,8 @@ pub async fn erase_for(conn: &mut PgConnection, user: i64) -> DbResult<Erased> {
     .execute(&mut *conn)
     .await?
     .rows_affected();
-    let opt_outs = sqlx::query("DELETE FROM bridge_optouts WHERE user_id = $1")
-        .bind(user)
-        .execute(&mut *conn)
-        .await?
-        .rows_affected();
     Ok(Erased {
         map_rows,
         deletions_queued: queued,
-        opt_outs,
     })
 }
