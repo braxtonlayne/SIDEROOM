@@ -120,7 +120,7 @@ describe.runIf(built)('activity data port', () => {
     cb.onmessage?.({ data: frame(sealed, 42n) });
     cb.onmessage?.({ data: frame(sealed, 42n) }); // replay
     const forged = sealed.slice();
-    forged[0] ^= 1;
+    forged[0] = (forged[0] ?? 0) ^ 1;
     cb.onmessage?.({ data: frame(forged, 42n) });
     cb.onmessage?.({ data: frame(sealed, 7n) }); // not a sender with a key
     await new Promise((r) => setTimeout(r, 0));

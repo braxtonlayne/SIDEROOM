@@ -68,7 +68,7 @@ export function ActivityFrame({
         setPresence: (activity) => reportPresence({ activity }),
         assets: () => httpAssetsApi.list(instance.application_id),
       }),
-    [origin, instance.application_id],
+    [origin, instance.application_id, instance.channel_type],
   );
 
   // The Activity's Rich Presence goes away with the frame.
