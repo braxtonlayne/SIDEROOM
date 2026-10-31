@@ -707,7 +707,7 @@ fn discord_only_item(x: &GuildChannel) -> PlanItem {
 }
 
 /// The facts the preflight checks (design 9.2).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreflightFacts {
     pub bot_administrator: bool,
     pub bot_is_top_role: bool,

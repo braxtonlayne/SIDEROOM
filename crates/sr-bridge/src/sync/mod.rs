@@ -24,10 +24,12 @@
 //! [`DiscordApi`](crate::DiscordApi).
 
 pub mod eligible;
+pub mod engine;
 pub mod holds;
 pub mod ops;
 pub mod patch;
 pub mod plan;
+pub mod port;
 pub mod reconcile;
 pub mod store;
 pub mod types;
