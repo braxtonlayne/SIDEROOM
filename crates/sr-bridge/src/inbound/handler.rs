@@ -77,6 +77,8 @@ pub enum Why {
     CustomEmoji,
     /// An event of another Discord server the bot is in.
     OtherServer,
+    /// The bridge has no integration author to store the message under (a row not made by connect).
+    NoAuthor,
     /// Another dispatch the bridge has no use for.
     Other,
 }
@@ -297,7 +299,15 @@ impl Inbound {
             // Stickers, embeds only, and the like: nothing to show.
             return Ok(Outcome::Ignored(Why::Unparseable));
         }
-        let post = post_of(bridge, map.channel_id, reply_to, m);
+        // Stored under the bridge's own integration author (1721), never the owner's account.
+        let Some(as_user) = bridge.integration_user_id else {
+            tracing::warn!(
+                guild = bridge.guild_id,
+                "bridge without an integration author: message not shown"
+            );
+            return Ok(Outcome::Ignored(Why::NoAuthor));
+        };
+        let post = post_of(bridge, as_user, map.channel_id, reply_to, m);
         let discord_id = post_discord_id(data);
         let sr = self.sink.post(post).await?;
         if let Some(did) = discord_id {
@@ -395,11 +405,17 @@ fn post_discord_id(data: &Value) -> Option<i64> {
     data.get("id").and_then(convert::id_of)
 }
 
-fn post_of(bridge: &Bridge, channel: i64, reply_to: Option<i64>, m: InMessage) -> InboundPost {
+fn post_of(
+    bridge: &Bridge,
+    as_user: i64,
+    channel: i64,
+    reply_to: Option<i64>,
+    m: InMessage,
+) -> InboundPost {
     InboundPost {
         guild_id: bridge.guild_id,
         channel_id: channel,
-        as_user: bridge.created_by,
+        as_user,
         reply_to,
         content: m.content,
         author: InboundAuthor {

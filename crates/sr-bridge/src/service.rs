@@ -52,6 +52,9 @@ impl MediaUrls for RelativeUrls {
 #[async_trait]
 pub trait BridgeNotices: Send + Sync {
     async fn system_message(&self, channel: i64, text: &str);
+    /// A channel's bridge state changed (mapped, unmapped, its direction, the teardown): clients get a
+    /// `CHANNEL_UPDATE` so the banner and the privacy list follow at once. The default does nothing.
+    async fn channel_changed(&self, _channel: i64) {}
 }
 
 /// Notices go nowhere (tests that do not look at them).

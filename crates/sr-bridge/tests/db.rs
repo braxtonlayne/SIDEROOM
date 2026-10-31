@@ -136,8 +136,18 @@ async fn only_bot_tokens_are_accepted_and_the_token_is_sealed() {
     .await
     .unwrap();
     assert_eq!(audits, 1);
-    // Replacing the token of the same bot is fine; a different bot is not.
-    w.svc.connect(g, owner, TOKEN, None).await.unwrap();
+    // Bridged messages get their own integration author: a bot account, never the owner (commander default).
+    let author = b.integration_user_id.expect("an integration author");
+    assert_ne!(author, owner);
+    let is_bot: bool = sqlx::query_scalar("SELECT is_bot FROM accounts WHERE id = $1")
+        .bind(author)
+        .fetch_one(w.db.pool())
+        .await
+        .unwrap();
+    assert!(is_bot, "the integration author is a bot account");
+    // Replacing the token of the same bot is fine (and keeps the author); a different bot is not.
+    let again = w.svc.connect(g, owner, TOKEN, None).await.unwrap();
+    assert_eq!(again.integration_user_id, Some(author));
     w.discord.with_bot("another-bot-token");
     let err = w
         .svc

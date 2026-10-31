@@ -24,8 +24,8 @@ pub struct InboundAuthor {
 pub struct InboundPost {
     pub guild_id: i64,
     pub channel_id: i64,
-    /// The SIDE ROOM account the message is stored under (the one who connected the bot, like a webhook's
-    /// creator). The shown author is [`InboundAuthor`].
+    /// The SIDE ROOM account the message is stored under: the bridge's own integration author (a bot account,
+    /// `bridge_integration_authors`), never the owner who connected the bot. The shown author is [`InboundAuthor`].
     pub as_user: i64,
     /// Our message this one answers.
     pub reply_to: Option<i64>,

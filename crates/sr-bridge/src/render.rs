@@ -5,6 +5,9 @@
 //!
 //! * `<@id>`, `<@!id>`, `<@&id>`, `<#id>` are ids of this server; on Discord they would resolve to unrelated
 //!   people and channels (or ping them). They become plain `@name`, `@role` and `#channel`.
+//! * The one exception is a **bridged member** (a Discord member of the mapped server, `bridge_members`): the
+//!   bridged set of the server is looked up first, so `<@id>` of a bridged member goes out unchanged and is the only
+//!   id the webhook's `allowed_mentions.users` lets ping. An id that is both is treated as the Discord member.
 //! * Custom emoji `<:name:id>` are ours; they become `:name:`.
 //! * `@everyone` and `@here` get a zero-width space so they cannot ping, and every post also sends
 //!   `allowed_mentions: {parse: []}`.
@@ -13,7 +16,7 @@
 //!
 //! Pure functions, no I/O: the queue resolves the names first and hands them in.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,6 +35,8 @@ pub struct Names {
     pub users: HashMap<String, String>,
     pub roles: HashMap<String, String>,
     pub channels: HashMap<String, String>,
+    /// Ids (decimal) of the server's bridged Discord members that the content mentions: kept as `<@id>`.
+    pub bridged: HashSet<String>,
 }
 
 /// An attachment as the queue keeps it until the send (the link is signed then, so a retry gets a fresh one).
@@ -90,6 +95,37 @@ pub fn channel_mention_ids(content: &str) -> Vec<String> {
     out
 }
 
+/// User ids the content mentions (`<@id>` and `<@!id>`), for the caller to look up among the bridged members.
+pub fn user_mention_ids(content: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = content;
+    while let Some(i) = rest.find("<@") {
+        let tail = &rest[i + 2..];
+        let tail = tail.strip_prefix('!').unwrap_or(tail);
+        if let Some(j) = tail.find('>')
+            && j <= 24
+            && digits(&tail[..j])
+        {
+            if !out.iter().any(|v: &String| v == &tail[..j]) {
+                out.push(tail[..j].to_owned());
+            }
+            rest = &tail[j + 1..];
+        } else {
+            rest = tail;
+        }
+    }
+    out
+}
+
+/// The bridged members a rendered post may ping on Discord (Discord takes at most 100).
+pub fn bridged_pings(content: &str, names: &Names) -> Vec<String> {
+    user_mention_ids(content)
+        .into_iter()
+        .filter(|id| names.bridged.contains(id))
+        .take(100)
+        .collect()
+}
+
 /// Make `content` safe and meaningful for Discord.
 pub fn content_for_discord(content: &str, names: &Names) -> String {
     let s = rewrite_tokens(content, &|t| {
@@ -98,6 +134,9 @@ pub fn content_for_discord(content: &str, names: &Names) -> String {
                 .then(|| format!("@{}", names.roles.get(id).map_or("role", String::as_str)));
         }
         if let Some(id) = t.strip_prefix("@!").or_else(|| t.strip_prefix('@')) {
+            if names.bridged.contains(id) {
+                return Some(format!("<@{id}>"));
+            }
             return digits(id)
                 .then(|| format!("@{}", names.users.get(id).map_or("user", String::as_str)));
         }
@@ -229,6 +268,26 @@ mod tests {
             &names(),
         );
         assert_eq!(out, "hi @ann and @ann in #general, ping @mods and @user");
+    }
+
+    #[test]
+    fn a_bridged_member_keeps_the_mention_and_is_the_only_ping() {
+        let mut n = names();
+        // 42 is also an account here: the bridged set is looked at first, so it is the Discord member.
+        n.bridged.insert("42".into());
+        n.bridged.insert("77".into());
+        let content = "hi <@42> <@!77> <@43> <@&7>";
+        assert_eq!(
+            content_for_discord(content, &n),
+            "hi <@42> <@77> @user @mods"
+        );
+        assert_eq!(bridged_pings(content, &n), vec!["42", "77"]);
+        assert_eq!(
+            user_mention_ids("<@1> <@!2> <@&3> <@x> <@1>"),
+            vec!["1", "2"]
+        );
+        // Nothing bridged: nobody to ping.
+        assert!(bridged_pings(content, &names()).is_empty());
     }
 
     #[test]

@@ -1319,9 +1319,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             public_url: cfg.server.public_url.clone(),
             clock: clock.clone(),
         }))
-        .with_notices(Arc::new(crate::bridge_wiring::PosterNotices(
-            system_poster.clone(),
-        ))),
+        .with_notices(Arc::new(crate::bridge_wiring::PosterNotices {
+            poster: system_poster.clone(),
+            messages: messages.clone(),
+        })),
     );
     let bridge_consumer = crate::bridge_wiring::spawn_event_consumer(lag_bus.tap(), bridge.clone());
     let bridge_worker = crate::bridge_wiring::spawn_outbox_worker(bridge.clone());
@@ -1388,6 +1389,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_data_requests(admin_repo)
         .with_notifier(staff_voice.clone())
         .with_bus(bus.clone());
+    // BRG-GW-001: the inbound half of the Discord bridge (one gateway shard per enabled bridge; none while every
+    // server has it off, the default).
+    let bridge_inbound = crate::bridge_inbound::spawn_inbound(
+        pool.clone(),
+        messages.clone(),
+        bridge.clone(),
+        admin_service.clone(),
+    );
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
     // Actions from a case run through the guild, message and account services (N-21).
     // The takedown register (step 2) reads the strike policy from the compliance module and blocks media.
@@ -1963,6 +1972,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     scrapbook_consumer.abort();
     bridge_consumer.abort();
     bridge_worker.abort();
+    bridge_inbound.abort();
     push_consumer.abort();
     if let Some(h) = features_listener {
         h.abort();

@@ -20,3 +20,5 @@ pub use manager::{
     INBOUND_INTENTS, InboundHost, InboundManager, Reconciled, ServiceHost, intent_ladder,
 };
 pub use sink::{ChatSink, InboundAuthor, InboundPost};
+/// The real gateway transport (WebSocket over rustls), for the server wiring.
+pub use sr_sdk::gateway::WsConnector;

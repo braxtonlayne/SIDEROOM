@@ -130,10 +130,54 @@ impl BridgeService {
                 .await?;
             }
         }
+        self.ensure_integration_author(&mut tx, guild).await?;
         tx.commit().await?;
         get_bridge(&self.pool, guild)
             .await?
             .ok_or(BridgeError::NotFound("bridge"))
+    }
+
+    /// The server's integration author: the bot account bridged messages are stored under (1721). Made on the
+    /// first connection and kept across teardowns, so earlier bridged messages keep their author. It is never the
+    /// owner's account: erasing the owner's data leaves the bridged messages alone.
+    pub(crate) async fn ensure_integration_author(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        guild: i64,
+    ) -> BridgeResult<i64> {
+        let existing: Option<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM bridge_integration_authors WHERE guild_id = $1",
+        )
+        .bind(guild)
+        .fetch_optional(&mut **tx)
+        .await?;
+        if let Some(id) = existing {
+            return Ok(id);
+        }
+        let (person, user) = (self.next_id(), self.next_id());
+        sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+            .bind(person)
+            .execute(&mut **tx)
+            .await?;
+        // The password hash is a well-formed Argon2id hash no password matches (the application bots' layout);
+        // the account has no application and no token, so it can never sign in or act.
+        sqlx::query(
+            "INSERT INTO accounts (id, person_id, username, display_name, email, password_hash, state, is_bot) \
+             VALUES ($1, $2, $3, 'Discord bridge', $4, \
+             '$argon2id$v=19$m=65536,t=3,p=4$c2lkZXJvb21ib3RzYQ$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'active', TRUE)",
+        )
+        .bind(user)
+        .bind(person)
+        .bind(format!("bridge.{guild}"))
+        .bind(format!("bridge-{user}@bots.invalid"))
+        .execute(&mut **tx)
+        .await?;
+        sqlx::query("INSERT INTO bridge_integration_authors (guild_id, user_id) VALUES ($1, $2)")
+            .bind(guild)
+            .bind(user)
+            .execute(&mut **tx)
+            .await?;
+        Ok(user)
     }
 
     /// Record what the gateway half learned: the connection state and the intents Discord granted.

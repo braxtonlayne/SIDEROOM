@@ -194,6 +194,16 @@ pub trait MessageRepository: Send + Sync {
         now_ms: i64,
         purge_after_ms: i64,
     ) -> RepoResult<Vec<(ChannelId, Vec<MessageId>)>>;
+    /// Which of `ids` are members of the Discord server bridged into `guild` (BRG-GW-001, `bridge_members`).
+    /// A `<@id>` is looked up among them first: such an id is a Discord member and never pings an account here,
+    /// even when an account has the same id. The default knows no bridge.
+    async fn bridged_member_ids(
+        &self,
+        _guild: GuildId,
+        _ids: &[UserId],
+    ) -> RepoResult<Vec<UserId>> {
+        Ok(Vec::new())
+    }
 }
 
 /// Everything the service needs.

@@ -2194,6 +2194,34 @@ async fn bridged_members_are_listed_for_server_members_only() {
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
 
+/// Wave 35 (commander default): a `<@id>` is looked up among the server's bridged Discord members first, so an id
+/// that collides with an account here never pings that account.
+#[tokio::test]
+async fn a_bridged_member_id_that_collides_with_an_account_never_pings_it() {
+    use sr_chat::rich_repo::BridgedMember;
+    let e = env().await;
+    // Without a bridged member of that id, `<@2>` is bob and pings him.
+    let m = e.say("owner", &format!("hi <@{BOB}>")).await;
+    assert_eq!(m["mentions"][0]["id"], BOB.to_string(), "{m}");
+    // A Discord member with the same id is bridged into the server: the mention is theirs, bob is not pinged.
+    e.backend.data().bridged_members = vec![BridgedMember {
+        discord_user_id: BOB.to_string(),
+        display_name: "Dana on Discord".into(),
+        avatar_url: None,
+        role_name: None,
+        role_color: None,
+        bot: false,
+        presence: None,
+    }];
+    let m = e.say("owner", &format!("hi <@{BOB}>")).await;
+    assert_eq!(m["mentions"], json!([]), "{m}");
+    assert_eq!(
+        m["content"],
+        format!("hi <@{BOB}>"),
+        "the text keeps the token"
+    );
+}
+
 #[test]
 fn custom_emoji_tokens_are_found_in_text() {
     use super::rich_model::custom_emoji_ids;

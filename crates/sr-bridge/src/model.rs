@@ -94,6 +94,10 @@ pub struct Bridge {
     pub intents_granted: i64,
     pub created_by: i64,
     pub created_at_ms: i64,
+    /// The bot account bridged messages are stored under (`bridge_integration_authors`, 1721): never the owner's
+    /// account. `None` only for a row written without [`crate::BridgeService::connect`] (tests).
+    #[serde(skip)]
+    pub integration_user_id: Option<i64>,
 }
 
 /// A SIDE ROOM channel mapped to a Discord channel (without the sealed webhook token).
@@ -151,7 +155,8 @@ pub struct MessageMap {
 }
 
 pub(crate) const BRIDGE_COLS: &str = "guild_id, discord_guild_id, discord_guild_name, bot_user_id, bot_name, mode, status, \
-     intents_granted, created_by, (extract(epoch from created_at) * 1000)::bigint AS created_ms";
+     intents_granted, created_by, (extract(epoch from created_at) * 1000)::bigint AS created_ms, \
+     (SELECT a.user_id FROM bridge_integration_authors a WHERE a.guild_id = bridges.guild_id) AS integration_user_id";
 pub(crate) const MAP_COLS: &str = "id, guild_id, channel_id, discord_channel_id, discord_channel_name, \
      discord_webhook_id, direction, created_by, (extract(epoch from created_at) * 1000)::bigint AS created_ms";
 
@@ -168,6 +173,7 @@ pub(crate) fn bridge_from(r: &PgRow) -> BridgeResult<Bridge> {
         intents_granted: r.try_get("intents_granted")?,
         created_by: r.try_get("created_by")?,
         created_at_ms: r.try_get("created_ms")?,
+        integration_user_id: r.try_get("integration_user_id")?,
     })
 }
 

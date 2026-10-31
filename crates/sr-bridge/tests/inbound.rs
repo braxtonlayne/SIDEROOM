@@ -130,6 +130,14 @@ async fn bridge_for(
     .execute(pool)
     .await
     .unwrap();
+    // The bridge's own integration author (1721), as connect makes it.
+    let author = account(pool).await;
+    sqlx::query("INSERT INTO bridge_integration_authors (guild_id, user_id) VALUES ($1, $2)")
+        .bind(guild)
+        .bind(author)
+        .execute(pool)
+        .await
+        .unwrap();
     let (map, dch, webhook) = (uid(), uid(), uid());
     sqlx::query(
         "INSERT INTO bridge_channel_maps (id, guild_id, channel_id, discord_channel_id, discord_webhook_id, \
@@ -223,10 +231,11 @@ async fn a_discord_message_is_shown_by_the_bridge_author_with_the_discord_user_a
     let (id, p) = &posts[0];
     assert_eq!(*id, sr);
     assert_eq!((p.guild_id, p.channel_id), (f.guild, f.sr_channel));
-    assert_eq!(
+    assert_ne!(
         p.as_user, f.owner,
-        "stored under the account that connected the bot"
+        "never stored under the account that connected the bot"
     );
+    assert_eq!(Some(p.as_user), f.bridge().await.integration_user_id);
     assert_eq!(p.author.name, "Dana");
     assert_eq!(p.author.discord_user_id, 77);
     assert_eq!(p.author.platform, "discord");

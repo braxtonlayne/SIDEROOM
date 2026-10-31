@@ -1042,6 +1042,25 @@ impl ChannelRepository for PgChatRepo {
 
 #[async_trait]
 impl MessageRepository for PgChatRepo {
+    async fn bridged_member_ids(&self, guild: GuildId, ids: &[UserId]) -> RepoResult<Vec<UserId>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let raw: Vec<i64> = ids.iter().map(|u| i(u.get())).collect();
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT discord_user_id FROM bridge_members WHERE guild_id = $1 AND discord_user_id = ANY($2)",
+        )
+        .bind(i(guild.get()))
+        .bind(&raw)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|v| u64::try_from(v).ok().map(UserId::new))
+            .collect())
+    }
+
     async fn get_message(&self, channel: ChannelId, id: MessageId) -> RepoResult<Option<Message>> {
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {MSG_COLS} FROM messages WHERE channel_id = $1 AND id = $2"

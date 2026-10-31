@@ -218,6 +218,7 @@ impl BridgeService {
                 ),
             )
             .await;
+        self.notices.channel_changed(channel).await;
         Ok(map)
     }
 
@@ -312,6 +313,7 @@ impl BridgeService {
                     .await?;
             }
         }
+        self.notices.channel_changed(map.channel_id).await;
         self.map_by_id(map_id).await
     }
 
@@ -341,6 +343,7 @@ impl BridgeService {
                 )
                 .await;
         }
+        self.notices.channel_changed(map.channel_id).await;
         Ok(())
     }
 

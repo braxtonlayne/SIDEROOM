@@ -256,6 +256,19 @@ impl ChannelRepository for MemoryBackend {
 
 #[async_trait]
 impl MessageRepository for MemoryBackend {
+    async fn bridged_member_ids(&self, _guild: GuildId, ids: &[UserId]) -> RepoResult<Vec<UserId>> {
+        let d = self.data();
+        Ok(ids
+            .iter()
+            .copied()
+            .filter(|u| {
+                d.bridged_members
+                    .iter()
+                    .any(|m| m.discord_user_id == u.get().to_string())
+            })
+            .collect())
+    }
+
     async fn get_message(&self, channel: ChannelId, id: MessageId) -> RepoResult<Option<Message>> {
         Ok(self
             .data()

@@ -124,6 +124,17 @@ pub struct WebhookPost {
     pub content: String,
     pub username: String,
     pub avatar_url: Option<String>,
+    /// Bridged Discord members the content mentions as `<@id>`: the only pings allowed.
+    pub ping_users: Vec<String>,
+}
+
+/// `allowed_mentions` of a mirrored post: nobody (`@everyone`, roles, users) except the bridged members named.
+fn allowed_mentions(ping_users: &[String]) -> Value {
+    if ping_users.is_empty() {
+        json!({ "parse": [] })
+    } else {
+        json!({ "parse": [], "users": ping_users })
+    }
 }
 
 impl WebhookPost {
@@ -131,8 +142,7 @@ impl WebhookPost {
         let mut v = json!({
             "content": self.content,
             "username": self.username,
-            // A mirrored message never pings anyone on Discord (@everyone, roles, users).
-            "allowed_mentions": { "parse": [] },
+            "allowed_mentions": allowed_mentions(&self.ping_users),
         });
         if let Some(a) = &self.avatar_url {
             v["avatar_url"] = json!(a);
@@ -445,13 +455,14 @@ impl DiscordApi {
         wtoken: &str,
         message: i64,
         content: &str,
+        ping_users: &[String],
     ) -> Result<(), CallError> {
         let key = Self::webhook_key(id);
         self.call(
             Method::Patch,
             &format!("/webhooks/{id}/{wtoken}/messages/{message}"),
             None,
-            Some(json!({ "content": content, "allowed_mentions": { "parse": [] } })),
+            Some(json!({ "content": content, "allowed_mentions": allowed_mentions(ping_users) })),
             Some(&key),
         )
         .await
@@ -518,9 +529,20 @@ mod tests {
             content: "@everyone hi".into(),
             username: "ann".into(),
             avatar_url: None,
+            ping_users: Vec::new(),
         }
         .body();
         assert_eq!(b["allowed_mentions"]["parse"], json!([]));
+        assert!(b["allowed_mentions"].get("users").is_none());
         assert!(b.get("avatar_url").is_none());
+        // A bridged member named in the content is the only ping.
+        let b = WebhookPost {
+            content: "hi <@77>".into(),
+            username: "ann".into(),
+            avatar_url: None,
+            ping_users: vec!["77".into()],
+        }
+        .body();
+        assert_eq!(b["allowed_mentions"], json!({"parse": [], "users": ["77"]}));
     }
 }

@@ -391,7 +391,11 @@ pub async fn put_token(
             ));
         }
         Some(_) => {
-            return Err(invalid("mode", "ENUM_TYPE_INVALID", "Mode must be selective."));
+            return Err(invalid(
+                "mode",
+                "ENUM_TYPE_INVALID",
+                "Mode must be selective.",
+            ));
         }
     }
     let pick = match body.discord_guild_id.as_deref() {

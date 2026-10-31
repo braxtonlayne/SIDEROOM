@@ -183,6 +183,7 @@ impl BridgeService {
             self.notices
                 .system_message(*channel, SWITCHED_OFF_NOTICE)
                 .await;
+            self.notices.channel_changed(*channel).await;
             report.channels_notified.push(*channel);
         }
         tracing::info!(

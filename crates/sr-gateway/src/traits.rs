@@ -102,6 +102,12 @@ pub trait GuildDirectory: Send + Sync {
             .collect()
     }
 
+    /// The Discord bridge state of a channel (`{"direction": ...}`, BRG-COR-001), added as `sr_bridge` to the
+    /// `CHANNEL_CREATE`/`CHANNEL_UPDATE` it rides on. `None` when the channel is not bridged. Default: none.
+    async fn channel_bridge_state(&self, _channel: ChannelId) -> Option<Value> {
+        None
+    }
+
     /// Body of `GUILD_CREATE` for `user`. Default is a bare stub.
     async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
         json!({ "id": guild })

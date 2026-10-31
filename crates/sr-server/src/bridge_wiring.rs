@@ -4,7 +4,8 @@
 //!   secrets, D-185; `sr_db::sealed::SecretBox`).
 //! * [`CdnMedia`] signs the avatar and attachment links that leave the instance (24 hour life).
 //! * [`PosterNotices`] lets the system user speak in a mapped channel (a map was created or removed, the bridge
-//!   was switched off).
+//!   was switched off), and sends a `CHANNEL_UPDATE` when a channel's bridge state changes (the gateway adds
+//!   `sr_bridge` to it, see `gateway_pg.rs`), so banners appear and go at once.
 //! * [`spawn_event_consumer`] feeds the platform's events to the bridge (mirroring, and the backstop that tears a
 //!   bridge down when a switch changes by any path); [`spawn_outbox_worker`] drains the outbound queue.
 //!
@@ -61,8 +62,11 @@ impl MediaUrls for CdnMedia {
     }
 }
 
-/// System messages through the feature modules' poster.
-pub struct PosterNotices(pub Arc<dyn Poster>);
+/// System messages through the feature modules' poster, and channel updates through the message stack's bus.
+pub struct PosterNotices {
+    pub poster: Arc<dyn Poster>,
+    pub messages: Arc<sr_api::routes::messages::MessagesDeps>,
+}
 
 #[async_trait]
 impl BridgeNotices for PosterNotices {
@@ -71,9 +75,36 @@ impl BridgeNotices for PosterNotices {
             content: text.to_owned(),
             ..Card::default()
         };
-        if let Err(e) = self.0.post(channel, card).await {
+        if let Err(e) = self.poster.post(channel, card).await {
             tracing::warn!(channel, error = %e, "could not post a bridge notice");
         }
+    }
+
+    async fn channel_changed(&self, channel: i64) {
+        let id = sr_core::ChannelId::new(u64::try_from(channel).unwrap_or(0));
+        let repo = &self.messages.repo;
+        let Ok(Some(ch)) = repo.get_channel(id).await else {
+            return; // A deleted channel has nothing to update.
+        };
+        let Some(guild) = ch.guild_id else { return };
+        let overwrites = repo
+            .get_overwrites_of(&[id])
+            .await
+            .ok()
+            .and_then(|mut m| m.remove(&id))
+            .unwrap_or_default();
+        let payload = serde_json::to_value(sr_api::routes::guilds::dto::ChannelObject::new(
+            &ch,
+            &overwrites,
+        ))
+        .unwrap_or(serde_json::Value::Null);
+        self.messages
+            .publish(DomainEvent::ChannelUpdated {
+                guild,
+                channel: id,
+                payload,
+            })
+            .await;
     }
 }
 

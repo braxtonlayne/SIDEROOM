@@ -26,8 +26,8 @@ use crate::discord::{CallError, WebhookPost};
 use crate::error::{BridgeError, BridgeResult};
 use crate::model::{Direction, MessageMapDirection, get_bridge, map_for_channel, message_map_for};
 use crate::render::{
-    AttachmentLink, Names, SIGNED_LINK_TTL_SECS, attachment_links, channel_mention_ids, compose,
-    content_for_discord, username_for_discord,
+    AttachmentLink, Names, SIGNED_LINK_TTL_SECS, attachment_links, bridged_pings,
+    channel_mention_ids, compose, content_for_discord, user_mention_ids, username_for_discord,
 };
 use crate::service::{BridgeService, SYSTEM_USER_ID};
 use crate::teardown::TeardownReason;
@@ -45,6 +45,9 @@ struct CreatePayload {
     content: String,
     #[serde(default)]
     attachments: Vec<AttachmentLink>,
+    /// Bridged Discord members the content mentions (kept as `<@id>`, allowed to ping).
+    #[serde(default)]
+    ping_users: Vec<String>,
 }
 
 /// A row picked from the queue.
@@ -351,6 +354,21 @@ impl BridgeService {
                 names.roles.insert(r.try_get("id")?, r.try_get("name")?);
             }
         }
+        // Bridged members first: `<@id>` of a member of the mapped Discord server goes out as a Discord mention.
+        let user_ids: Vec<i64> = user_mention_ids(content)
+            .iter()
+            .filter_map(|s| s.parse().ok())
+            .collect();
+        if !user_ids.is_empty() {
+            let rows: Vec<i64> = sqlx::query_scalar(
+                "SELECT discord_user_id FROM bridge_members WHERE guild_id = $1 AND discord_user_id = ANY($2)",
+            )
+            .bind(guild)
+            .bind(&user_ids)
+            .fetch_all(&self.pool)
+            .await?;
+            names.bridged = rows.into_iter().map(|id| id.to_string()).collect();
+        }
         let channel_ids: Vec<i64> = channel_mention_ids(content)
             .iter()
             .filter_map(|s| s.parse().ok())
@@ -372,6 +390,7 @@ impl BridgeService {
             "username": name,
             "avatar_hash": avatar,
             "content": content_for_discord(content, &names),
+            "ping_users": bridged_pings(content, &names),
             "attachments": attachment_links(data),
         }))
     }
@@ -398,6 +417,7 @@ impl BridgeService {
                     SIGNED_LINK_TTL_SECS,
                 )
             }),
+            ping_users: p.ping_users.clone(),
         }
     }
 
@@ -544,7 +564,13 @@ impl BridgeService {
                     .map_err(|_| CallError::Transport("unreadable queue row".into()))?;
                 let post = self.post_from(&p);
                 self.discord
-                    .edit_webhook_message(webhook, token, mm.discord_message_id, &post.content)
+                    .edit_webhook_message(
+                        webhook,
+                        token,
+                        mm.discord_message_id,
+                        &post.content,
+                        &post.ping_users,
+                    )
                     .await
             }
             "delete" => {
@@ -649,6 +675,7 @@ impl BridgeService {
             ),
             username: "SIDE ROOM bridge".into(),
             avatar_url: None,
+            ping_users: Vec::new(),
         };
         self.discord.execute_webhook(webhook, &token, &post).await?;
         Ok(())
