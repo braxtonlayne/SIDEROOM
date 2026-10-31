@@ -2010,6 +2010,14 @@ async fn seed(
         Some(&json!({"enabled": true})),
     )
     .await;
+    // PRF-RNG-001: status rings start off at platform scope; turn them on so the ring routes pass the gate.
+    srv.call_reason(
+        &staff,
+        "PATCH",
+        "/admin/features/lounge.rings",
+        Some(&json!({"enabled": true})),
+    )
+    .await;
     // Every optional module on, in both servers, so that their routes are reached past the feature gate.
     for (who, g) in [(&oa, ga), (&ob, gb)] {
         let list = srv

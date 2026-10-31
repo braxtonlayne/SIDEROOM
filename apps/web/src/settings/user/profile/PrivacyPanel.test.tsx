@@ -81,6 +81,25 @@ describe('Who can see my profile (PRF-PRO-001)', () => {
     expect(screen.getByText('Search engines never index SIDE ROOM profiles.')).toBeInTheDocument();
   });
 
+  it('asks a member with a private profile to choose who can see it, and drops the notice once they do', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/profile-privacy', () => HttpResponse.json(view())),
+      http.get(
+        '*/api/v1/users/@me/profile-page/preview',
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+      http.put('*/api/v1/users/@me/profile-privacy', () =>
+        HttpResponse.json(view({ preset: 'members', stored: policy({ page_tier: 'members' }) })),
+      ),
+    );
+    render(<PrivacyPanel />);
+    expect(await screen.findByText('Only you can see your profile')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('radio', { name: 'Members only' }));
+    await waitFor(() =>
+      expect(screen.queryByText('Only you can see your profile')).not.toBeInTheDocument(),
+    );
+  });
+
   it('saves a preset by name', async () => {
     const puts: unknown[] = [];
     server.use(

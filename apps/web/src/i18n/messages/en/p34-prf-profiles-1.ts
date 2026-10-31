@@ -34,6 +34,9 @@ export default {
     'Everyone with an account on this server can see your page and all of it.',
   'profile.privacy.presetFriendsHelp': 'Only your friends can see your page.',
   'profile.privacy.presetPrivateHelp': 'Only you can see your page.',
+  'profile.privacy.privateTitle': 'Only you can see your profile',
+  'profile.privacy.privateBody':
+    'Your profile page and its pop-out card are private until you choose who can see them. Pick Members only or Friends only below to share them.',
   'profile.privacy.presetCustomHelp':
     'Custom: you changed individual audiences below. Pick a preset to start over.',
   'profile.privacy.walledTitle': 'Public pages are off on this server',

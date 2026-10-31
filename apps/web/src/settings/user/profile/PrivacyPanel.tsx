@@ -196,6 +196,13 @@ export function PrivacyPanel() {
         )
       ) : (
         <>
+          {view.preset === 'private' && (
+            // A profile with no choice yet counts as Private (D-382), so members who customised theirs before
+            // privacy existed are told why no one else sees it (owner, beta checkpoint 2026-10-30).
+            <Notice variant="info" title={t('profile.privacy.privateTitle')}>
+              {t('profile.privacy.privateBody')}
+            </Notice>
+          )}
           <SegmentedControl
             label={t('profile.privacy.preset')}
             value={view.preset === 'custom' ? '' : view.preset}

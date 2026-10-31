@@ -167,6 +167,11 @@ impl Env {
             Arc::new(InMemorySettingsStore::new()),
             None,
         );
+        // Rings start off (the operator turns them on); these tests are about rings, so turn them on.
+        features
+            .set_enabled(RINGS_ID, &ScopeRef::Platform, Some(true))
+            .await
+            .unwrap();
         let ids: sr_userfeat::IdSource = Arc::new(uid);
         let uf = UserFeatures::new(db.pool().clone(), features, ids);
         mount(db.pool(), 1, None).await;

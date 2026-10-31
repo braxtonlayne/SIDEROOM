@@ -150,7 +150,8 @@ module!(
     "A photo, short clip, line of text or track on your avatar for 24 hours, shown to mutual friends or the servers you choose. Rings are deleted for good when the day is over.",
     "Lounge",
     34,
-    true,
+    // Off until the operator turns it on in Admin (owner, beta checkpoint 2026-10-30): rings store photos and clips.
+    false,
     vec![
         int("max_per_day", "Rings per person per day", 1, 200, 20),
         int("max_clip_seconds", "Longest clip (seconds)", 1, 60, 60),
@@ -424,7 +425,6 @@ mod tests {
             BOOKMARKS_ID,
             POLL_TEMPLATES_ID,
             WATCH_PARTY_CARDS_ID,
-            RINGS_ID,
         ] {
             assert!(r.get(id).unwrap().meta().default_enabled, "{id}");
         }
@@ -436,6 +436,7 @@ mod tests {
             WATCH_PARTY_ANNOUNCER_ID,
             SUGGESTIONS_ID,
             TICKETS_ID,
+            RINGS_ID,
         ] {
             assert!(!r.get(id).unwrap().meta().default_enabled, "{id}");
         }
