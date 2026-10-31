@@ -37880,6 +37880,437 @@
         ]
       }
     },
+    "/guilds/{guild_id}/bridge/conflicts": {
+      "get": {
+        "tags": [],
+        "summary": "The conflicts of the bridge (`MANAGE_GUILD`).",
+        "operationId": "list_conflicts",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "Filter by kind.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "path",
+            "description": "`open` (default), `resolved`, `dismissed`, `superseded` or `all`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "object_kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "before",
+            "in": "path",
+            "description": "Page: rows older than this conflict id.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "description": "1 to 100, default 50.",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}": {
+      "get": {
+        "tags": [],
+        "summary": "One conflict (`MANAGE_GUILD`).",
+        "operationId": "get_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/dismiss": {
+      "post": {
+        "tags": [],
+        "summary": "Dismiss a conflict (`MANAGE_GUILD`): it stays in the log as dismissed. Nothing on either side changes.",
+        "operationId": "dismiss_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/resolve": {
+      "post": {
+        "tags": [],
+        "summary": "Close a conflict after \"Apply on SIDE ROOM\" (`MANAGE_GUILD`, and `MANAGE_ROLES` or `MANAGE_CHANNELS` for the\nedit the row stands for). The edit itself was an ordinary SIDE ROOM edit by this person; this only records it.",
+        "operationId": "resolve_conflict",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord": {
+      "post": {
+        "tags": [],
+        "summary": "Apply Discord's value of a `structure_conflict` row here, as the person who clicks (`MANAGE_GUILD`, plus the\nSIDE ROOM rule of the edit: `MANAGE_ROLES` and hierarchy for a role, `MANAGE_CHANNELS` for a channel).",
+        "operationId": "take_discord",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conflict_id",
+            "in": "path",
+            "description": "Conflict snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeDiscordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/bridge/discord-channels": {
       "get": {
         "tags": [],
@@ -84289,6 +84720,130 @@
           }
         }
       },
+      "ConflictList": {
+        "type": "object",
+        "description": "A page of the conflict log, newest first.",
+        "required": [
+          "conflicts",
+          "open"
+        ],
+        "properties": {
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConflictObject"
+            }
+          },
+          "open": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Conflicts still open (all pages)."
+          }
+        }
+      },
+      "ConflictObject": {
+        "type": "object",
+        "description": "One row of the conflict log.",
+        "required": [
+          "id",
+          "kind",
+          "object_kind",
+          "field",
+          "count",
+          "status",
+          "first_at",
+          "last_at"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many times it happened inside the coalescing window."
+          },
+          "discord_actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Discord user who did it, when Discord's audit log said so."
+          },
+          "discord_actor_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_object_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discord_value": {
+            "description": "What Discord has or attempted (permission words are decimal strings, shared bits only)."
+          },
+          "field": {
+            "type": "string"
+          },
+          "first_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`permission_reverted`, `overwrite_trimmed`, `structure_conflict`, `role_deletion_refused`,\n`deletion_held`, `frozen`, `dead_op` or `cap`."
+          },
+          "last_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "object_kind": {
+            "type": "string",
+            "description": "`role`, `channel`, `category`, `thread`, `overwrite`, `op` or `guild`."
+          },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolved_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "resolved_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sr_object_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sr_value": {
+            "description": "What SIDE ROOM has."
+          },
+          "status": {
+            "type": "string",
+            "description": "`open`, `resolved`, `dismissed` or `superseded`."
+          },
+          "target_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ConnectionLinkBody": {
         "type": "object",
         "description": "Body of `PUT /users/@me/connections/link`.",
@@ -108603,6 +109158,10 @@
             "description": "The new tags (replaces the old ones)."
           }
         }
+      },
+      "TakeDiscordBody": {
+        "type": "object",
+        "description": "What \"Take Discord's\" applies."
       },
       "TakedownItem": {
         "type": "object",

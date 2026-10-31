@@ -305,3 +305,47 @@ async fn refusals_and_logs_hold_in_every_flag_state() {
             .join("\n")
     );
 }
+
+/// BRG-SYN-002 (wave 35b): the whole-guild bridge's settings and the permission bit classes are not switches for
+/// the three. The three keys of design section 20 pass the deny pattern whether or not they are registered yet,
+/// every bridge name that does exist passes it too, and no bridge setting offers to lift the rule that
+/// SIDE ROOM is the master copy of permissions.
+#[test]
+fn the_whole_guild_bridge_adds_no_switch_for_the_three() {
+    for key in [
+        "bridge.delete_hold_hours",
+        "bridge.reconcile_minutes",
+        "bridge.struct_writes_per_sec",
+    ] {
+        assert!(denied(key).is_none(), "`{key}` matches the deny pattern");
+    }
+    for (what, name) in all_flag_names() {
+        let lower = name.to_ascii_lowercase();
+        if lower.contains("bridge") {
+            assert!(
+                denied(&name).is_none(),
+                "{what} `{name}` matches the deny pattern"
+            );
+            // No bridge setting may let Discord set, import or override SIDE ROOM permissions or roles.
+            for bad in [
+                "perm",
+                "role_sync",
+                "discord_master",
+                "two_way",
+                "import_roles",
+            ] {
+                assert!(
+                    !lower.contains(bad),
+                    "{what} `{name}` reads like a switch for who owns permissions"
+                );
+            }
+        }
+    }
+    // The ceilings only shrink: the bridge's permission classes cover the whole word, exactly once.
+    use sr_core::permissions::Permissions;
+    assert_eq!(
+        Permissions::BRIDGE_SHARED | Permissions::SR_ONLY,
+        Permissions::ALL
+    );
+    assert!((Permissions::BRIDGE_SHARED & Permissions::SR_ONLY).is_empty());
+}
