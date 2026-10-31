@@ -340,7 +340,7 @@ pub fn parse_manifest(data: &[u8]) -> Result<Vec<String>, BundleError> {
             if !CAPABILITIES.contains(&name) {
                 return Err(BundleError::at(
                     MANIFEST,
-                    &format!(
+                    format!(
                         "declares the unknown capability \"{}\"",
                         name.chars().take(40).collect::<String>()
                     ),
