@@ -29,6 +29,7 @@ pub mod outbound;
 pub mod render;
 pub mod service;
 pub mod status;
+pub mod sync;
 pub mod teardown;
 pub mod tokens;
 
