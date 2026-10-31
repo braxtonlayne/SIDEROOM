@@ -23,6 +23,9 @@ export function failedTests(output) {
     if ((m = /^\s*FAIL\s+(\S.*?)\s*$/.exec(line)) && !/^\[/.test(m[1]) && m[1].includes('>'))
       out.add(m[1]);
     else if ((m = /^\s*test (\S+) \.\.\. FAILED/.exec(line))) out.add(m[1]);
+    // Playwright's list reporter: "✘  4 [chromium] › file:9:1 › title (1.2s)", with "(retry #1)" on a retry.
+    else if ((m = /^\s*(?:✘|×)\s+\d+\s+(\[.+?)(?:\s+\([\d.]+m?s\))?\s*$/.exec(line)))
+      out.add(m[1].replace(/\s+\(retry #\d+\)$/, ''));
     else if ((m = /^\s*FAIL \[\s*[\d.]+s\]\s+(\S.*)$/.exec(line))) out.add(m[1].trim());
   }
   return out;

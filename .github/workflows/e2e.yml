@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
       - name: Install the browser
-        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
+        run: ./scripts/playwright-install.sh ${{ matrix.browser }}
       - name: Emulator cores (cached; fetched by pinned URL and SHA-256, see deploy/EMULATOR.md)
         # ACT-EMU-003: the emulator spec needs the cores in the Vite dev server's public folder. The cache is keyed on the
         # pin list; the script re-checks every digest whether the cache hit or not, so a stale or poisoned cache cannot
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
       - name: Install the browser
-        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
+        run: ./scripts/playwright-install.sh ${{ matrix.browser }}
       - name: Build the web app (VITE_SR_E2E skips the first-run welcome, as the dev server leg does)
         run: pnpm --filter @sideroom/web build
         env:
@@ -144,7 +144,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
       - name: Install the browsers
-        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium firefox webkit
+        run: ./scripts/playwright-install.sh chromium firefox webkit
       - name: Voice, Activities, message components, the keyboard voice flow and co-op play (Chromium)
         run: |
           ./target/debug/sr-cli migrate
@@ -324,6 +324,26 @@ jobs:
           SDK_COMPAT_OWNER: owner
           # The same dev-only Owner password as e2e/global-setup.ts: the Owner already exists in this job's database.
           SDK_COMPAT_PASSWORD: e2e-owner-Passw0rd!
+      # BRG-COR-001, BRG-UI-001, BRG-SYNC-001 (OPS-CI-001): the Discord bridge specs against e2e/support/fake-discord.mjs
+      # (REST and gateway on 127.0.0.1:8090); real Discord is never contacted. Both specs skip themselves when the fake
+      # is not up, which is how they stayed green and unrun on every earlier CI run, so the step waits for the fake
+      # and fails if it does not answer. continue-on-error until its first green run on GitHub; then remove the line.
+      - name: Discord bridge against the fake Discord (Chromium)
+        if: always()
+        continue-on-error: true
+        run: |
+          node e2e/support/fake-discord.mjs > fake-discord.log 2>&1 &
+          fake_pid=$!
+          trap 'kill "$fake_pid" 2>/dev/null || true' EXIT
+          timeout 20 bash -c 'until curl -fs http://127.0.0.1:8090/__fake/state >/dev/null; do sleep 1; done'
+          status=0
+          ./deploy/compose/e2e-run.sh --project=chromium tests/bridge.spec.ts tests/bridge-whole-guild.spec.ts --retries=0 || status=$?
+          cp server.log server-bridge.log || true
+          exit "$status"
+        env:
+          CI: "true"
+          SR_BRIDGE_DISCORD_API: http://127.0.0.1:8090/api/v10
+          SR_BRIDGE_DISCORD_GATEWAY: ws://127.0.0.1:8090/gateway
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -339,6 +359,8 @@ jobs:
             server-relay.log
             server-cinema.log
             server-library.log
+            server-bridge.log
+            fake-discord.log
             worker-cinema.log
             coturn-relay.log
             e2e/playwright-report-e2ee-firefox
@@ -358,7 +380,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
       - name: Install the browser
-        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+        run: ./scripts/playwright-install.sh chromium
       - name: Visual specs
         run: |
           ./target/debug/sr-cli migrate
@@ -384,7 +406,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/e2e-stack
       - name: Install the browser
-        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+        run: ./scripts/playwright-install.sh chromium
       - name: Generate the baselines
         run: |
           ./target/debug/sr-cli migrate
