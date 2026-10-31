@@ -18,6 +18,7 @@
 //! configuration (the fake Discord of `e2e/support/fake-discord.mjs` in the end-to-end suite).
 
 pub mod error;
+pub mod inbound;
 pub mod model;
 pub mod service;
 
