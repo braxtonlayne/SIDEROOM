@@ -1263,6 +1263,23 @@ impl SyncEngine {
         Ok(n)
     }
 
+    /// "Delete now": delete a held channel at once, as the person who clicked.
+    pub async fn delete_held_now(&self, guild: i64, channel: i64, actor: i64) -> BridgeResult<()> {
+        if !holds::list_held(self.pool(), guild)
+            .await?
+            .iter()
+            .any(|h| h.channel_id == channel)
+        {
+            return Err(BridgeError::NotFound("held channel"));
+        }
+        let origin = BridgeOrigin {
+            op_id: self.svc.next_id(),
+            discord_user_id: None,
+            sr_actor: Some(actor),
+        };
+        self.sr.delete_channel(guild, channel, &origin).await
+    }
+
     /// "Restore": lift the hold and recreate the Discord side from SIDE ROOM's state; the map points at the new
     /// Discord channel. Needs `MANAGE_CHANNELS` here (the route checks).
     pub async fn restore_held(&self, guild: i64, channel: i64) -> BridgeResult<i64> {

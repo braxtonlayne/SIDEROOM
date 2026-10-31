@@ -41,7 +41,7 @@ pub use eligible::{Mirrored, Refusal, bridgeable};
 pub use engine::{PlanEdit, PlanView, SeedReport, StoredPlan, SyncEngine};
 pub use jobs::PassReport;
 pub use patch::{ChannelPatch, RoleStructurePatch, SrStructuralPatch, ThreadPatch};
-pub use plan::{Action, Blocker, ItemKind, Plan, PlanItem};
+pub use plan::{Action, Blocker, DANGEROUS_BITS, ItemKind, Plan, PlanItem};
 pub use port::{BridgeOrigin, NoOverwrites, OverwritePush, SrNewChannel, SrNewRole, SrStructure};
 pub use reconcile::{Authority, Decision, FieldView, decide, field_authority};
 pub use reconcile_run::ReconcileReport;

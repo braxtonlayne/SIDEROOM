@@ -1400,6 +1400,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         admin_service.clone(),
         crate::bridge_inbound::discord_gateway_url(cfg.bridge.discord_gateway.as_deref()),
     );
+    // BRG-SYN-001: the whole-guild mirror (idle until a server owner confirms a plan; none by default).
+    let sync_engine = Arc::new(sr_bridge::sync::SyncEngine::new(
+        (*bridge).clone(),
+        Arc::new(crate::bridge_sync_wiring::ChatSrStructure {
+            backend: guilds.0.clone(),
+            pool: pool.clone(),
+        }),
+    ));
+    let sync_worker =
+        crate::bridge_sync_wiring::spawn_sync_worker((*sync_engine).clone(), admin_service.clone());
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
     // Actions from a case run through the guild, message and account services (N-21).
     // The takedown register (step 2) reads the strike policy from the compliance module and blocks media.
@@ -1650,6 +1660,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(jukebox_deps)
         .extension(scrapbook_deps)
         .extension(bridge)
+        .extension(sync_engine)
         // The browser's delete and move update the index at once (wave-28 integration).
         .extension(Arc::new(routes::storage::IndexHooks {
             changes: index_store.clone(),
@@ -1975,6 +1986,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     scrapbook_consumer.abort();
     bridge_consumer.abort();
     bridge_worker.abort();
+    sync_worker.abort();
     bridge_inbound.abort();
     push_consumer.abort();
     if let Some(h) = features_listener {

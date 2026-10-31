@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sr_core::permissions::Permissions;
 use unicode_normalization::UnicodeNormalization;
 
 use super::eligible::{Mirrored, bridgeable};
@@ -1135,3 +1136,15 @@ mod tests {
         assert_eq!(text_key("General Chat"), "general-chat");
     }
 }
+
+/// The bits shown in red in the plan when Discord's permissions of a Discord-only object would be imported
+/// (design 9.4): the ones that let their holder run the server.
+pub const DANGEROUS_BITS: u64 = Permissions::ADMINISTRATOR.bits()
+    | Permissions::MANAGE_GUILD.bits()
+    | Permissions::MANAGE_ROLES.bits()
+    | Permissions::MANAGE_CHANNELS.bits()
+    | Permissions::MANAGE_WEBHOOKS.bits()
+    | Permissions::BAN_MEMBERS.bits()
+    | Permissions::KICK_MEMBERS.bits()
+    | Permissions::MODERATE_MEMBERS.bits()
+    | Permissions::MENTION_EVERYONE.bits();

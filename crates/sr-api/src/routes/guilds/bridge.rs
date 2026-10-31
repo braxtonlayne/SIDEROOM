@@ -199,7 +199,7 @@ fn s(v: i64) -> String {
     v.to_string()
 }
 
-fn map_err(e: BridgeError) -> HttpError {
+pub(super) fn map_err(e: BridgeError) -> HttpError {
     match e {
         BridgeError::NotFound(what) => {
             ApiError::with_message(ErrorCode::SrNotFound, format!("Unknown {what}")).into()
@@ -210,6 +210,11 @@ fn map_err(e: BridgeError) -> HttpError {
         }
         BridgeError::BadToken(m) => invalid("token", "BRIDGE_BAD_TOKEN", &m),
         BridgeError::Conflict(m) => ApiError::with_message(ErrorCode::SrConflict, m).into(),
+        BridgeError::PlanStale => ApiError::with_message(
+            ErrorCode::SrConflict,
+            "BRIDGE_PLAN_STALE: the plan no longer matches either server. Build a new plan.",
+        )
+        .into(),
         BridgeError::Discord(m) => {
             // Discord's answer is the owner's business, but never a token: the client already redacts.
             tracing::warn!(error = %m, "discord bridge: Discord refused or failed");
@@ -278,10 +283,10 @@ fn direction(raw: &str) -> ApiResult<Direction> {
 }
 
 /// Who may call and in which state of the switches.
-struct Caller {
-    gid: i64,
-    user: i64,
-    acc: GuildAccess,
+pub(super) struct Caller {
+    pub(super) gid: i64,
+    pub(super) user: i64,
+    pub(super) acc: GuildAccess,
 }
 
 /// Resolve the session, the server and its access; no switch is checked yet.
@@ -301,7 +306,7 @@ fn raw(v: u64) -> i64 {
 }
 
 /// The operator's switch and the server's module, in that order: 403 `SR_FEATURE_DISABLED`, then 404.
-async fn switches(bridge: &BridgeService, gid: i64) -> ApiResult<()> {
+pub(super) async fn switches(bridge: &BridgeService, gid: i64) -> ApiResult<()> {
     if !bridge.platform_on().await.map_err(map_err)? {
         return Err(ApiError::with_message(
             ErrorCode::SrFeatureDisabled,
@@ -320,7 +325,7 @@ async fn switches(bridge: &BridgeService, gid: i64) -> ApiResult<()> {
 }
 
 /// A `MANAGE_GUILD` manager of a server whose bridge is on (class `bridge_admin`).
-async fn bridge_admin(
+pub(super) async fn bridge_admin(
     p: &crate::Principal,
     deps: &SettingsDeps,
     bridge: &BridgeService,
@@ -341,7 +346,7 @@ async fn bridge_admin(
 
 /// The server owner alone, with the second-factor step of the server (class `guild_owner`). `ADMINISTRATOR` and
 /// `MANAGE_GUILD` do not make an owner.
-async fn guild_owner(
+pub(super) async fn guild_owner(
     p: &crate::Principal,
     gate: &MfaGate,
     deps: &SettingsDeps,
