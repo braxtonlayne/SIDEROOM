@@ -6,7 +6,7 @@
 //! 2. every Discord webhook the bridge created is deleted on Discord, three attempts with backoff; a failure is
 //!    logged with the webhook id and remembered by id in `bridge_teardown_residue`, so the owner can remove it by
 //!    hand from Discord's Integrations page (the dialog names it);
-//! 3. in one transaction the maps, the message map, the opt-outs, the queue and the bridge row (with its sealed
+//! 3. in one transaction the maps, the message map, the queue and the bridge row (with its sealed
 //!    token) are **deleted, not kept**: a map that points at a webhook that no longer exists is only a
 //!    liability, and re-enabling means pasting the token and mapping afresh. One audit-log row records the
 //!    teardown with the count of maps removed;
@@ -146,7 +146,6 @@ impl BridgeService {
         // Children first; the foreign keys would cascade, but the order says what is removed.
         for sql in [
             "DELETE FROM bridge_outbox WHERE guild_id = $1",
-            "DELETE FROM bridge_optouts WHERE guild_id = $1",
             "DELETE FROM bridge_message_map WHERE map_id IN (SELECT id FROM bridge_channel_maps WHERE guild_id = $1)",
             "DELETE FROM bridge_channel_maps WHERE guild_id = $1",
         ] {

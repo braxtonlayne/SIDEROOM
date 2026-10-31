@@ -468,6 +468,7 @@ pub fn router() -> Router<AppState> {
         system::FeatureView,
         system::PatchFeatureBody,
         system::SystemView,
+        system::BridgeTile,
         system::ProbeView,
         sr_admin::SettingView,
         sr_admin::SettingKind,

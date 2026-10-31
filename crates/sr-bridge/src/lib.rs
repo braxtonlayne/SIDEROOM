@@ -3,7 +3,7 @@
 //! The bridge is off on every server until its owner switches the module `bridge.enabled` on, pastes the token of
 //! their own Discord bot and maps channels. This crate is the half that lives in the server process:
 //!
-//! * [`model`]: the rows (bridge, channel map, message map, opt-outs) and their queries.
+//! * [`model`]: the rows (bridge, channel map, message map) and their queries.
 //! * [`service`]: [`BridgeService`], the handle the routes and the server wiring use, and its ports.
 //! * [`tokens`]: connecting the owner's bot (a bot token only, sealed).
 //! * [`maps`]: mapping and unmapping channels, with the Discord webhook each sending map owns.
@@ -11,7 +11,7 @@
 //! * [`render`]: SIDE ROOM content to what Discord should show.
 //! * [`outbound`]: messages to the queue, and the queue to Discord.
 //! * [`teardown`]: [`BridgeService::teardown`], the clean stop.
-//! * [`status`]: what the owner's screen and the members' banner read; the opt-out; the data-request side.
+//! * [`status`]: what the owner's screen and the members' banner read; the data-request side.
 //!
 //! The inbound half (the gateway shard, `MESSAGE_CREATE` to a SIDE ROOM message) is BRG-GW-001 and lives in
 //! `inbound/` next to these modules; it builds on the same model and registers a
@@ -38,5 +38,5 @@ pub use service::{
     BridgeNotices, BridgeService, IdSource, MediaUrls, NoNotices, RelativeUrls, TeardownHook,
     TokenSealer, Tuning,
 };
-pub use status::{MapView, MemberExport, PublicChannel, StatusReport};
+pub use status::{MapView, MemberExport, StatusReport, Totals};
 pub use teardown::{Leftover, TeardownReason, TeardownReport};

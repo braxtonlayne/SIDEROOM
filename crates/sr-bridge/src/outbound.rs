@@ -15,7 +15,6 @@
 //!   mirrored back, a message already in the message map is never posted twice, and the unique index on creates
 //!   makes a repeated event harmless.
 //!
-//! Messages of members who opted out of the channel are not queued at all.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -197,9 +196,7 @@ impl BridgeService {
         if author == SYSTEM_USER_ID || !self.live(guild).await? {
             return Ok(());
         }
-        if self.opted_out(author, channel).await?
-            || message_map_for(&self.pool, message).await?.is_some()
-        {
+        if message_map_for(&self.pool, message).await?.is_some() {
             return Ok(());
         }
         let payload = self.build_payload(guild, author, data).await?;
@@ -551,17 +548,24 @@ impl BridgeService {
                     .await
             }
             "delete" => {
-                let Some(sr) = row.sr_message_id else {
-                    return Ok(());
-                };
-                let Some(mm) = message_map_for(&self.pool, sr)
-                    .await
-                    .map_err(|e| CallError::Transport(e.to_string()))?
-                else {
-                    return Ok(());
+                // An erasure row carries the Discord message id itself (its map row is already gone).
+                let target = match parse_id(row.payload.get("discord_message_id")) {
+                    Some(id) => id,
+                    None => {
+                        let Some(sr) = row.sr_message_id else {
+                            return Ok(());
+                        };
+                        let Some(mm) = message_map_for(&self.pool, sr)
+                            .await
+                            .map_err(|e| CallError::Transport(e.to_string()))?
+                        else {
+                            return Ok(());
+                        };
+                        mm.discord_message_id
+                    }
                 };
                 self.discord
-                    .delete_webhook_message(webhook, token, mm.discord_message_id)
+                    .delete_webhook_message(webhook, token, target)
                     .await?;
                 self.forget_mapping(row)
                     .await

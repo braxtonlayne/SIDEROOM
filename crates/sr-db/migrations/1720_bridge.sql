@@ -1,5 +1,8 @@
 -- 1720: BRG-COR-001 (wave 35), the Discord bridge: model, sealed bot token, outbound queue.
 --
+-- There is no per-member opt-out (owner decision): a bridged channel is bridged, every message in it is mirrored
+-- per the map's direction.
+--
 -- The bridge is OFF everywhere by default (module `bridge.enabled`, D-381): a fresh server has no row in any
 -- of these tables. The server owner switches the module on, pastes the token of their own Discord bot (a bot
 -- token, never a self-bot: the route checks `bot: true`), and maps channels. Switching off is a teardown that
@@ -13,7 +16,6 @@
 --   associated data). A `from_discord` map has no webhook.
 -- * `bridge_message_map`: our message id and theirs, so edits, deletes and replies find each other, and the
 --   loop guard can tell a mirrored message from a native one. Deleted with the map.
--- * `bridge_optouts`: a member's "Don't mirror my messages" per channel. Their messages stay here only.
 -- * `bridge_outbox`: the outbound queue. A row is one webhook call (create, edit, delete) waiting for its
 --   turn under Discord's rate limits; after `max attempts` it becomes `dead` (the dead-letter counter on
 --   Admin > System counts these) and stays until the map goes.
@@ -67,15 +69,6 @@ CREATE TABLE bridge_message_map (
 );
 CREATE INDEX bridge_message_map_map_idx ON bridge_message_map (map_id);
 CREATE INDEX bridge_message_map_author_idx ON bridge_message_map (author_id) WHERE author_id IS NOT NULL;
-
-CREATE TABLE bridge_optouts (
-    user_id     BIGINT NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
-    channel_id  BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
-    guild_id    BIGINT NOT NULL REFERENCES bridges (guild_id) ON DELETE CASCADE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (user_id, channel_id)
-);
-CREATE INDEX bridge_optouts_channel_idx ON bridge_optouts (channel_id);
 
 CREATE TABLE bridge_outbox (
     id              BIGINT PRIMARY KEY,

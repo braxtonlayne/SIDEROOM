@@ -205,12 +205,28 @@ async fn thread_gate(
 pub async fn list_channels(
     p: Principal,
     Api(api): Api,
+    MaybeExt(bridge): MaybeExt<sr_bridge::BridgeService>,
     Path(guild_id): Path<String>,
 ) -> ApiResult<Json<Vec<ChannelObject>>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let list = api.list_channels(user, gid).await.map_err(ce)?;
-    Ok(Json(list.iter().map(ChannelObject::from).collect()))
+    let mut out: Vec<ChannelObject> = list.iter().map(ChannelObject::from).collect();
+    // The bridge state rides on the channel payload, so the client draws its banner without another request.
+    if let Some(b) = bridge {
+        let dirs = b
+            .directions_for_guild(i64::try_from(gid.get()).unwrap_or(0))
+            .await
+            .unwrap_or_default();
+        for c in &mut out {
+            if let Some(d) = c.id.parse::<i64>().ok().and_then(|i| dirs.get(&i)) {
+                c.sr_bridge = Some(super::dto::BridgeChannelState {
+                    direction: d.as_str().to_owned(),
+                });
+            }
+        }
+    }
+    Ok(Json(out))
 }
 
 /// Create a channel or category (`type` 4). Needs `MANAGE_CHANNELS`.
@@ -464,12 +480,23 @@ pub async fn reorder_channels(
 pub async fn get_channel(
     p: Principal,
     Api(api): Api,
+    MaybeExt(bridge): MaybeExt<sr_bridge::BridgeService>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<ChannelObject>> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
     let view = api.get_channel(user, cid).await.map_err(ce)?;
-    Ok(Json(ChannelObject::from(&view)))
+    let mut out = ChannelObject::from(&view);
+    if let Some(b) = bridge
+        && let Ok(Some(d)) = b
+            .direction_for_channel(i64::try_from(cid.get()).unwrap_or(0))
+            .await
+    {
+        out.sr_bridge = Some(super::dto::BridgeChannelState {
+            direction: d.as_str().to_owned(),
+        });
+    }
+    Ok(Json(out))
 }
 
 /// Modify a guild channel. Needs `MANAGE_CHANNELS`.

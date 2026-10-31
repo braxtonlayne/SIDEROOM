@@ -2,7 +2,7 @@
 //!
 //! The service is split by concern: this file holds the handle and its ports; `tokens` connects and replaces the
 //! bot token; `maps` maps and unmaps channels; `outbound` turns messages into queue rows and drains the queue;
-//! `teardown` is the clean stop; `status` reads what the owner's screen shows and keeps the opt-outs.
+//! `teardown` is the clean stop; `status` reads what the owner's screen shows.
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;

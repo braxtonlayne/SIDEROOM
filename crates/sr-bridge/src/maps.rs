@@ -213,7 +213,7 @@ impl BridgeService {
             .system_message(
                 channel,
                 &format!(
-                    "This channel is now bridged with #{} on the Discord server {}. Messages here are mirrored there and back, with a DISCORD tag on messages from Discord. You can opt out of having your own messages mirrored from the channel menu.",
+                    "This channel is now bridged with #{} on the Discord server {}. Messages here are mirrored there and back, with a DISCORD tag on messages from Discord.",
                     map.discord_channel_name, bridge.discord_guild_name
                 ),
             )
@@ -331,10 +331,6 @@ impl BridgeService {
         }
         sqlx::query("DELETE FROM bridge_channel_maps WHERE id = $1")
             .bind(map.id)
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("DELETE FROM bridge_optouts WHERE channel_id = $1")
-            .bind(map.channel_id)
             .execute(&self.pool)
             .await?;
         if notify {

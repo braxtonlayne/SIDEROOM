@@ -1,18 +1,23 @@
-//! What the owner's screen and the members' banner read, and the per-member opt-out.
+//! What the owner's screen and the channel payload read, and the data-request side.
 //!
-//! * [`BridgeService::status`]: the module and platform switches, the bridge, each map with its opt-out count and
-//!   queue depth, the dead-letter counter and the webhooks a teardown left behind.
-//! * [`BridgeService::public_channels`]: the bridged channels a member can see (the banner, the privacy page).
-//! * The opt-out ("Don't mirror my messages"): a member's messages in one bridged channel stay here only.
+//! There is no per-member opt-out (owner decision): a bridged channel is bridged, and every message in it is
+//! mirrored per the map's direction.
+//!
+//! * [`BridgeService::status`]: the module and platform switches, the bridge, each map with its queue depth, the
+//!   dead-letter counter and the webhooks a teardown left behind.
+//! * [`BridgeService::directions_for_guild`] and [`BridgeService::direction_for_channel`]: the bridge state of a
+//!   channel, which the channel payload carries as `sr_bridge` so the client draws the banner without a request.
 //! * The data-request side: [`BridgeService::export_for`] lists a member's bridged messages (ids only);
 //!   [`BridgeService::erase_for`] deletes the Discord copies the bridge posted for them (best effort, logged).
+
+use std::collections::HashMap;
 
 use serde::Serialize;
 use sqlx::Row;
 
 use crate::discord::CallError;
-use crate::error::{BridgeError, BridgeResult};
-use crate::model::{Bridge, ChannelMap, Direction, get_bridge, list_maps, map_for_channel};
+use crate::error::BridgeResult;
+use crate::model::{Bridge, ChannelMap, Direction, get_bridge, list_maps};
 use crate::service::BridgeService;
 use crate::teardown::Leftover;
 
@@ -21,8 +26,6 @@ use crate::teardown::Leftover;
 pub struct MapView {
     #[serde(flatten)]
     pub map: ChannelMap,
-    /// Members who opted out of being mirrored in this channel.
-    pub optouts: i64,
     /// Posts waiting for their turn under Discord's rate limits.
     pub queued: i64,
     /// Posts that failed for good (the dead-letter counter of this map).
@@ -45,22 +48,25 @@ pub struct StatusReport {
     pub leftovers: Vec<Leftover>,
 }
 
-/// A bridged channel as members see it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct PublicChannel {
-    pub channel_id: i64,
-    pub direction: Direction,
-    pub discord_guild_name: String,
-    pub discord_channel_name: String,
-    /// The viewer opted out of being mirrored here.
-    pub opted_out: bool,
-}
-
-/// A member's bridged messages and opt-outs, ids only.
+/// A member's bridged messages, ids only.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct MemberExport {
     pub message_ids: Vec<i64>,
-    pub optout_channels: Vec<i64>,
+}
+
+/// The numbers of the Admin > System tile.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct Totals {
+    /// The operator's switch.
+    pub platform_on: bool,
+    /// Servers holding a bot token.
+    pub bridges: i64,
+    /// Channel maps instance-wide.
+    pub maps: i64,
+    /// Posts waiting.
+    pub queued: i64,
+    /// Posts that failed for good: the dead-letter counter.
+    pub dead_letters: i64,
 }
 
 impl BridgeService {
@@ -96,12 +102,6 @@ impl BridgeService {
         .bind(guild)
         .fetch_all(&self.pool)
         .await?;
-        let optouts = sqlx::query(
-            "SELECT channel_id, count(*) AS n FROM bridge_optouts WHERE guild_id = $1 GROUP BY channel_id",
-        )
-        .bind(guild)
-        .fetch_all(&self.pool)
-        .await?;
         let mut views = Vec::with_capacity(maps.len());
         let (mut queued, mut dead_letters) = (0, 0);
         for map in maps {
@@ -115,16 +115,10 @@ impl BridgeService {
                     )
                 })
                 .unwrap_or((0, 0));
-            let o = optouts
-                .iter()
-                .find(|r| r.try_get::<i64, _>("channel_id").ok() == Some(map.channel_id))
-                .and_then(|r| r.try_get::<i64, _>("n").ok())
-                .unwrap_or(0);
             queued += q;
             dead_letters += d;
             views.push(MapView {
                 map,
-                optouts: o,
                 queued: q,
                 dead: d,
             });
@@ -159,83 +153,47 @@ impl BridgeService {
         )
     }
 
-    /// The bridged channels of a server, for the banner, the privacy page and the channel menu. Empty while the
-    /// module is off. Whether the viewer may see each channel is the caller's check.
-    pub async fn public_channels(
-        &self,
-        guild: i64,
-        viewer: i64,
-    ) -> BridgeResult<Vec<PublicChannel>> {
-        if !self.platform_on().await? || !self.module_on(guild).await? {
-            return Ok(Vec::new());
-        }
-        let Some(bridge) = get_bridge(&self.pool, guild).await? else {
-            return Ok(Vec::new());
-        };
-        let maps = list_maps(&self.pool, guild).await?;
-        let out: Vec<i64> = sqlx::query_scalar(
-            "SELECT channel_id FROM bridge_optouts WHERE guild_id = $1 AND user_id = $2",
+    /// Instance-wide figures for Admin > System.
+    pub async fn totals(&self) -> BridgeResult<Totals> {
+        let (bridges, maps): (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM bridges), (SELECT count(*) FROM bridge_channel_maps)",
         )
-        .bind(guild)
-        .bind(viewer)
-        .fetch_all(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(maps
+        Ok(Totals {
+            platform_on: self.platform_on().await?,
+            bridges,
+            maps,
+            queued: self.queued_count().await?,
+            dead_letters: self.dead_letter_count().await?,
+        })
+    }
+
+    /// The bridge state of every bridged channel of a server (channel id to direction), for the channel payload
+    /// (`sr_bridge`). Empty while the operator's switch or the server's module is off.
+    pub async fn directions_for_guild(&self, guild: i64) -> BridgeResult<HashMap<i64, Direction>> {
+        if !self.platform_on().await? || !self.module_on(guild).await? {
+            return Ok(HashMap::new());
+        }
+        Ok(list_maps(&self.pool, guild)
+            .await?
             .into_iter()
-            .map(|m| PublicChannel {
-                channel_id: m.channel_id,
-                direction: m.direction,
-                discord_guild_name: bridge.discord_guild_name.clone(),
-                discord_channel_name: m.discord_channel_name.clone(),
-                opted_out: out.contains(&m.channel_id),
-            })
+            .map(|m| (m.channel_id, m.direction))
             .collect())
     }
 
-    /// "Don't mirror my messages" in one bridged channel (or take it back). Their messages stay here only, and
-    /// posts of theirs still waiting in the queue are dropped.
-    pub async fn set_optout(&self, user: i64, channel: i64, opt_out: bool) -> BridgeResult<()> {
-        let map = map_for_channel(&self.pool, channel)
-            .await?
-            .ok_or(BridgeError::NotFound("bridged channel"))?;
-        if opt_out {
-            sqlx::query(
-                "INSERT INTO bridge_optouts (user_id, channel_id, guild_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-            )
-            .bind(user)
-            .bind(channel)
-            .bind(map.guild_id)
-            .execute(&self.pool)
-            .await?;
-            sqlx::query(
-                "DELETE FROM bridge_outbox WHERE map_id = $1 AND kind = 'create' \
-                 AND (payload ->> 'author_id')::bigint = $2",
-            )
-            .bind(map.id)
-            .bind(user)
-            .execute(&self.pool)
-            .await?;
-        } else {
-            sqlx::query("DELETE FROM bridge_optouts WHERE user_id = $1 AND channel_id = $2")
-                .bind(user)
-                .bind(channel)
-                .execute(&self.pool)
-                .await?;
+    /// The bridge state of one channel, or `None` when it is not bridged (or the bridge is off).
+    pub async fn direction_for_channel(&self, channel: i64) -> BridgeResult<Option<Direction>> {
+        let Some(map) = crate::model::map_for_channel(&self.pool, channel).await? else {
+            return Ok(None);
+        };
+        if !self.platform_on().await? || !self.module_on(map.guild_id).await? {
+            return Ok(None);
         }
-        Ok(())
+        Ok(Some(map.direction))
     }
 
-    pub(crate) async fn opted_out(&self, user: i64, channel: i64) -> BridgeResult<bool> {
-        Ok(sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM bridge_optouts WHERE user_id = $1 AND channel_id = $2)",
-        )
-        .bind(user)
-        .bind(channel)
-        .fetch_one(&self.pool)
-        .await?)
-    }
-
-    /// Data request: a member's bridged messages (ids only) and opt-outs.
+    /// Data request: a member's bridged messages (ids only).
     pub async fn export_for(&self, user: i64) -> BridgeResult<MemberExport> {
         let message_ids = sqlx::query_scalar(
             "SELECT sr_message_id FROM bridge_message_map WHERE author_id = $1 ORDER BY sr_message_id",
@@ -243,20 +201,11 @@ impl BridgeService {
         .bind(user)
         .fetch_all(&self.pool)
         .await?;
-        let optout_channels = sqlx::query_scalar(
-            "SELECT channel_id FROM bridge_optouts WHERE user_id = $1 ORDER BY channel_id",
-        )
-        .bind(user)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(MemberExport {
-            message_ids,
-            optout_channels,
-        })
+        Ok(MemberExport { message_ids })
     }
 
     /// Erasure: delete the Discord copies the bridge posted for the member (best effort, each failure logged by
-    /// message id) and forget the map rows, the queue rows and the opt-outs. Returns how many copies were removed.
+    /// message id) and forget the map rows and the queue rows. Returns how many copies were removed.
     pub async fn erase_for(&self, user: i64) -> BridgeResult<u64> {
         let rows: Vec<(i64, i64, i64)> = sqlx::query_as(
             "SELECT sr_message_id, discord_message_id, map_id FROM bridge_message_map \
@@ -288,14 +237,12 @@ impl BridgeService {
                 .execute(&self.pool)
                 .await?;
         }
-        sqlx::query("DELETE FROM bridge_outbox WHERE kind = 'create' AND (payload ->> 'author_id')::bigint = $1")
-            .bind(user)
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("DELETE FROM bridge_optouts WHERE user_id = $1")
-            .bind(user)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            "DELETE FROM bridge_outbox WHERE kind = 'create' AND (payload ->> 'author_id')::bigint = $1",
+        )
+        .bind(user)
+        .execute(&self.pool)
+        .await?;
         Ok(removed)
     }
 }

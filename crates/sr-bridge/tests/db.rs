@@ -56,7 +56,6 @@ async fn a_fresh_server_has_the_module_off_and_no_bridge_rows() {
         "bridges",
         "bridge_channel_maps",
         "bridge_message_map",
-        "bridge_optouts",
         "bridge_outbox",
         "bridge_teardown_residue",
     ] {
@@ -432,35 +431,25 @@ async fn edits_and_deletes_follow_the_message() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn opt_outs_the_loop_guard_and_directions_keep_messages_home() {
+async fn the_loop_guard_and_directions_keep_messages_home() {
     let w = world().await;
     let b = w.bridged().await;
     let ann = named_member(&w, b.guild, "Ann", None).await;
-    // Opted out: nothing is queued, and the opt-out is counted for the owner.
-    w.svc.set_optout(ann, b.channel, true).await.unwrap();
-    w.svc
-        .handle_event(&sent(b.guild, b.channel, 3001, ann, msg("private")))
-        .await;
-    assert_eq!(count(&w, "bridge_outbox").await, 0);
-    assert_eq!(w.svc.status(b.guild).await.unwrap().maps[0].optouts, 1);
-    let pc = w.svc.public_channels(b.guild, ann).await.unwrap();
-    assert_eq!(pc.len(), 1);
-    assert!(pc[0].opted_out);
-    // Taking it back mirrors again.
-    w.svc.set_optout(ann, b.channel, false).await.unwrap();
+    // No opt-out exists: every message of a member in a bridged channel is mirrored.
     w.svc
         .handle_event(&sent(b.guild, b.channel, 3002, ann, msg("public")))
         .await;
     assert_eq!(count(&w, "bridge_outbox").await, 1);
-    // Opting out drops what was still waiting.
-    w.svc.set_optout(ann, b.channel, true).await.unwrap();
-    assert_eq!(count(&w, "bridge_outbox").await, 0);
-    // An unmapped channel has no opt-out.
+    w.svc.drain_outbox().await.unwrap();
+    // The channel payload reads the bridge state from the map.
     let plain = channel(w.db.pool(), b.guild, "plain").await;
-    assert!(matches!(
-        w.svc.set_optout(ann, plain, true).await,
-        Err(BridgeError::NotFound(_))
-    ));
+    assert_eq!(
+        w.svc.direction_for_channel(b.channel).await.unwrap(),
+        Some(Direction::Both)
+    );
+    assert_eq!(w.svc.direction_for_channel(plain).await.unwrap(), None);
+    let dirs = w.svc.directions_for_guild(b.guild).await.unwrap();
+    assert_eq!(dirs.get(&b.channel), Some(&Direction::Both));
 
     // A message that came from Discord is never sent back, and system messages are not mirrored.
     let bob = named_member(&w, b.guild, "Bob", None).await;
@@ -641,7 +630,6 @@ async fn teardown_deletes_webhooks_rows_and_token_and_leaves_one_audit_row() {
         .await
         .unwrap();
     let ann = named_member(&w, b.guild, "Ann", None).await;
-    w.svc.set_optout(ann, b.channel, true).await.unwrap();
     w.svc
         .handle_event(&sent(b.guild, second, 6001, ann, msg("posted")))
         .await;
@@ -676,7 +664,6 @@ async fn teardown_deletes_webhooks_rows_and_token_and_leaves_one_audit_row() {
         "bridges",
         "bridge_channel_maps",
         "bridge_message_map",
-        "bridge_optouts",
         "bridge_outbox",
     ] {
         assert_eq!(
@@ -912,10 +899,8 @@ async fn a_members_export_lists_ids_and_erasure_deletes_the_discord_copies() {
             .await;
     }
     w.svc.drain_outbox().await.unwrap();
-    w.svc.set_optout(ann, b.channel, true).await.unwrap();
     let export = w.svc.export_for(ann).await.unwrap();
     assert_eq!(export.message_ids, vec![8001, 8002]);
-    assert_eq!(export.optout_channels, vec![b.channel]);
     assert_eq!(w.svc.erase_for(ann).await.unwrap(), 2);
     assert_eq!(
         w.discord.state.lock().unwrap().messages.len(),
@@ -923,7 +908,7 @@ async fn a_members_export_lists_ids_and_erasure_deletes_the_discord_copies() {
         "Bob's copy stays"
     );
     let after = w.svc.export_for(ann).await.unwrap();
-    assert!(after.message_ids.is_empty() && after.optout_channels.is_empty());
+    assert!(after.message_ids.is_empty());
     let _ = w.db.cleanup().await;
 }
 
@@ -945,5 +930,44 @@ async fn no_report_or_status_carries_a_token() {
         .unwrap();
     let dump = format!("{report:?}");
     assert!(!dump.contains(&wh_token) && !dump.contains(TOKEN));
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_erasure_delete_row_deletes_from_its_payload_after_the_map_row_is_gone() {
+    let w = world().await;
+    let b = w.bridged().await;
+    let ann = named_member(&w, b.guild, "Ann", None).await;
+    w.svc
+        .handle_event(&sent(b.guild, b.channel, 9001, ann, msg("erase me")))
+        .await;
+    w.svc.drain_outbox().await.unwrap();
+    let mm = model::message_map_for(w.db.pool(), 9001)
+        .await
+        .unwrap()
+        .unwrap();
+    // What the data-request erasure writes: a negative id, the ids in the payload, then the map row goes.
+    sqlx::query(
+        "INSERT INTO bridge_outbox (id, guild_id, map_id, kind, sr_message_id, payload) \
+         VALUES (-9001, $1, $2, 'delete', 9001, $3)",
+    )
+    .bind(b.guild)
+    .bind(b.map)
+    .bind(json!({
+        "discord_message_id": mm.discord_message_id.to_string(),
+        "webhook_id": mm.webhook_id.unwrap().to_string(),
+        "reason": "erasure"
+    }))
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    sqlx::query("DELETE FROM bridge_message_map WHERE sr_message_id = 9001")
+        .execute(w.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(w.svc.drain_outbox().await.unwrap(), 1);
+    assert!(w.discord.state.lock().unwrap().messages.is_empty());
+    assert_eq!(count(&w, "bridge_outbox").await, 0);
     let _ = w.db.cleanup().await;
 }
