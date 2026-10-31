@@ -553,6 +553,8 @@ pub struct SfuCore {
     last_governor: Option<Instant>,
     /// `voice.datachannel_kbps`: each member's activity data budget.
     dc_kbps: u32,
+    /// `platform.activities_datachannel`.
+    dc_gate: crate::datachannel::Gate,
     dc_stats: crate::datachannel::Stats,
 }
 
@@ -586,6 +588,7 @@ impl SfuCore {
             last_maintain: None,
             last_governor: None,
             dc_kbps: crate::datachannel::DEFAULT_KBPS,
+            dc_gate: crate::datachannel::Gate::default(),
             dc_stats: crate::datachannel::Stats::default(),
         }
     }
@@ -594,6 +597,13 @@ impl SfuCore {
     /// channel off. Applies to members who join afterwards.
     pub fn with_datachannel_kbps(mut self, kbps: u32) -> Self {
         self.dc_kbps = kbps;
+        self
+    }
+
+    /// The operator's switch for data channels (OPS-FLG-001): off, a channel a member opens is ignored and data
+    /// from an open one is dropped.
+    pub fn with_datachannel_gate(mut self, gate: crate::datachannel::Gate) -> Self {
+        self.dc_gate = gate;
         self
     }
 
@@ -1971,6 +1981,7 @@ impl SfuCore {
             Event::ChannelOpen(cid, label) => {
                 // One activity data channel per participant (ACT-CH-001); any other label is ignored.
                 if label == crate::datachannel::LABEL
+                    && self.dc_gate.is_on()
                     && let Some(p) = self.parts.get_mut(&id)
                     && p.dc.channel.is_none()
                 {
@@ -2008,6 +2019,11 @@ impl SfuCore {
         now: Instant,
     ) {
         use crate::datachannel::{self as dc, Frame};
+        // The operator's switch (OPS-FLG-001): off, nothing on a data channel is read or relayed.
+        if !self.dc_gate.is_on() {
+            self.dc_stats.dropped_scope += 1;
+            return;
+        }
         let Some(p) = self.parts.get_mut(&src) else {
             return;
         };

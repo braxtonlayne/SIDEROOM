@@ -12,3 +12,5 @@ packages
 *.yaml
 e2e/playwright-report
 e2e/test-results
+# Written by crates/sr-server/tests/feature_registry.rs (OPS-FLG-001); the Rust test pins its exact bytes.
+apps/web/src/admin/features/__fixtures__

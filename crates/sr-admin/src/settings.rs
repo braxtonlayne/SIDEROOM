@@ -33,6 +33,7 @@ impl SettingDef {
             SettingKind::Integer => json!(self.default_int),
             SettingKind::Number => json!(self.default_int as f64),
             SettingKind::Boolean => json!(self.default_int != 0),
+            SettingKind::Text if self.key == PROFILES_ACCESS => json!("walled"),
             SettingKind::Text => json!(""),
         }
     }
@@ -68,6 +69,12 @@ impl SettingDef {
                     && !WHO_MAY_MOUNT_VALUES.contains(&s)
                 {
                     return Err("must be all, patrons or staff".to_owned());
+                }
+                if self.key == PROFILES_ACCESS
+                    && !s.is_empty()
+                    && !PROFILES_ACCESS_VALUES.contains(&s)
+                {
+                    return Err("must be walled or opt_in_public".to_owned());
                 }
                 if self.key == BYOS_ENDPOINT_ALLOW {
                     endpoint_allow_valid(s)?;
@@ -180,6 +187,12 @@ pub const BYOS_WHO_MAY_MOUNT: &str = "byos.who_may_mount";
 pub const WHO_MAY_MOUNT_VALUES: &[&str] = &["all", "patrons", "staff"];
 /// Most host patterns [`BYOS_ENDPOINT_ALLOW`] may list.
 pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
+/// Who may see a profile page: `walled` (the default, empty means walled: only signed-in members of the instance)
+/// or `opt_in_public` (a member may choose a public page; D-382, OPS-FLG-001). Public pages also need the platform
+/// feature `platform.public_profiles`. The roadmap's third value, public by default, is dropped (D-382, D-384).
+pub const PROFILES_ACCESS: &str = "profiles.access";
+/// The accepted values of [`PROFILES_ACCESS`].
+pub const PROFILES_ACCESS_VALUES: &[&str] = &["walled", "opt_in_public"];
 /// Mount caps and the upload part quota (wave 28, byos-browser; BYOS-BRW-001).
 pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
 pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
@@ -459,6 +472,15 @@ pub const CATALOG: &[SettingDef] = &[
         max: 10.0,
         default_int: 0,
         description: "Who may connect a bucket of their own: all, patrons or staff (empty means all). A server's own buckets follow its Manage Storage grant instead.",
+    },
+    SettingDef {
+        key: PROFILES_ACCESS,
+        group: "privacy",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 16.0,
+        default_int: 0,
+        description: "Who may see profile pages: walled (the default) keeps every profile inside the instance, opt_in_public lets a member choose a public page, which also needs the platform feature Public profiles. Public pages are never indexed by search engines.",
     },
     // --- wave 28 byos-browser block (kept apart from the presign settings above) ---
     int(
@@ -859,6 +881,28 @@ mod tests {
             find(BYOS_WORKER_FOR_MEMBERS).unwrap().default_value(),
             json!(false)
         );
+    }
+
+    #[test]
+    fn profiles_access_is_walled_by_default_and_takes_only_the_two_words() {
+        let d = find(PROFILES_ACCESS).unwrap();
+        // Walled by default, and empty reads as walled too (D-382): every profile stays inside the instance until the operator opts in.
+        assert_eq!(d.default_value(), json!("walled"));
+        assert_eq!(d.group, "privacy");
+        for ok in ["", "walled", "opt_in_public"] {
+            assert!(d.validate(&json!(ok)).is_ok(), "{ok}");
+        }
+        // The roadmap's third value (public by default) is dropped.
+        for bad in [
+            "public",
+            "public_by_default",
+            "Walled",
+            "opt-in-public",
+            "1",
+        ] {
+            assert!(d.validate(&json!(bad)).is_err(), "{bad}");
+        }
+        assert!(d.validate(&json!(true)).is_err());
     }
 
     #[test]

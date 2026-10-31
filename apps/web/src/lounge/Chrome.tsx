@@ -7,12 +7,14 @@ import { HelpButton } from './header/HelpButton';
 import { InboxButton } from './inbox/InboxButton';
 import { useNavVisibility } from '../storage/navModes';
 import { useLoungeUi } from './store';
+import { useEmulatorOn } from '../emu/SwitchedOff';
 
 /** Thin global section bar above everything (spec 1). Collapsible via the store setting. */
 export function SectionBar() {
   const t = useT();
   const show = useLoungeUi((s) => s.showSectionBar);
   const nav = useNavVisibility();
+  const emulatorOn = useEmulatorOn();
   const voiceName = useVoiceSession((s) => (s.status === 'connected' ? s.channelName : null));
   if (!show) return null;
   return (
@@ -34,9 +36,11 @@ export function SectionBar() {
           </Link>
         )}
         {/* The emulator (ACT-EMU-001). In-app, and the call is carried along (voice/carry.ts), so a game can be hosted. */}
-        <Link to="/games" className="lng-sectionbar-link" onClick={carryCall}>
-          {t('lounge.chrome.games')}
-        </Link>
+        {emulatorOn && (
+          <Link to="/games" className="lng-sectionbar-link" onClick={carryCall}>
+            {t('lounge.chrome.games')}
+          </Link>
+        )}
       </nav>
       {voiceName && (
         <span className="lng-sectionbar-voice" role="status">

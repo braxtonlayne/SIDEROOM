@@ -472,6 +472,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
                 .with_id_space(k as u64, n as u64)
                 .with_bwe(cfg.video_bwe)
                 .with_datachannel_kbps(cfg.datachannel_kbps)
+                .with_datachannel_gate(cfg.datachannel_gate.clone())
                 .with_governor(crate::governor::GovernorConfig::with_budget_mbps(budget)),
             cfg: cfg.clone(),
             shard: k,

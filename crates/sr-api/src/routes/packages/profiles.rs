@@ -34,17 +34,32 @@ use sr_packages::service::ProfilePage;
 use sr_packages::service::privacy::{PrivacyUpdate, PrivacyView, PublicProfile, ViewAs};
 use utoipa::ToSchema;
 
-/// Whether the operator allows public profile pages (`platform.public_profiles`, default off). Anything that
-/// goes wrong reading the flag is "off".
+/// Whether public profile pages are possible here: the operator's switch `platform.public_profiles` is on (default
+/// off) AND the setting `profiles.access` is `opt_in_public` (default walled, D-382). Either one alone keeps every
+/// profile inside the instance. Anything that goes wrong reading either one is "walled".
 pub(crate) async fn public_possible(state: &AppState) -> bool {
     let Some(features) = state.extension::<GuildFeatures>() else {
         return false;
     };
-    features
+    let switch = features
         .ctx
         .settings
         .is_enabled(PUBLIC_PROFILES_ID, &ScopeRef::Platform)
         .await
+        .unwrap_or(false);
+    switch && access_is_opt_in_public(state).await
+}
+
+/// The setting `profiles.access` (OPS-FLG-001): true only for the explicit `opt_in_public`.
+pub(crate) async fn access_is_opt_in_public(state: &AppState) -> bool {
+    let Some(admin) = state.extension::<crate::routes::admin::AdminDeps>() else {
+        return false;
+    };
+    admin
+        .service
+        .setting_value_text(sr_admin::settings::PROFILES_ACCESS)
+        .await
+        .map(|v| v == "opt_in_public")
         .unwrap_or(false)
 }
 

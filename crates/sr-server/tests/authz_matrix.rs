@@ -1397,7 +1397,12 @@ async fn seed(
     cfg.voice.announce_ips = vec!["127.0.0.1".into()];
     // A range of its own per world: a stopped node frees its sockets a moment after the process says so.
     static VOICE_N: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0);
-    let voice_base = 52_000 + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // SR_TEST_VOICE_PORT_BASE moves the range, so two matrix runs on one machine do not fight over it.
+    let first: u16 = std::env::var("SR_TEST_VOICE_PORT_BASE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(52_000);
+    let voice_base = first + 10 * VOICE_N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     cfg.voice.udp_port_min = voice_base;
     cfg.voice.udp_port_max = voice_base + 9;
     cfg.server.shutdown_grace_secs = 1;
@@ -3314,6 +3319,14 @@ async fn seed(
             "PATCH",
             "/admin/features/platform.public_profiles",
             Some(&json!({"enabled": true})),
+        )
+        .await;
+        // OPS-FLG-001 (D-382): the switch alone keeps profiles walled; the sweep also opts in with profiles.access.
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            "/admin/settings",
+            Some(&json!({"values": {"profiles.access": "opt_in_public"}})),
         )
         .await;
         srv.call(
@@ -6310,7 +6323,13 @@ pub mod harness {
                     if f["enabled"] != json!(true) {
                         continue;
                     }
-                    let r = srv
+                    // OPS-FLG-001: a `platform.tools.<tool>` sub-flag dies with `platform.tools` (listed first, killed
+                    // above), so it needs no call of its own; it still reads off, which the check after the loop proves.
+                    if id.starts_with("platform.tools.") {
+                        killed += 1;
+                        continue;
+                    }
+                    let mut r = srv
                         .call_reason(
                             owner,
                             "PATCH",
@@ -6318,11 +6337,39 @@ pub mod harness {
                             Some(&json!({"enabled": false})),
                         )
                         .await;
+                    // The admin routes are rate limited; the kill is not what is under test, so wait the limit out.
+                    for _ in 0..20 {
+                        if r.status != 429 {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(1500)).await;
+                        r = srv
+                            .call_reason(
+                                owner,
+                                "PATCH",
+                                &format!("/admin/features/{id}"),
+                                Some(&json!({"enabled": false})),
+                            )
+                            .await;
+                    }
                     if r.status == 200 {
                         killed += 1;
                     } else {
                         skipped.push(format!("{id} ({})", r.status));
                     }
+                }
+                // Everything reads off now, the sub-flags included (they follow their parent).
+                let after = srv.call(owner, "GET", "/admin/features", None).await;
+                let after = json_of(&after);
+                let still: Vec<&str> = after
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|f| f["enabled"] == json!(true))
+                    .filter_map(|f| f["id"].as_str())
+                    .collect();
+                if !still.is_empty() {
+                    return Err(format!("features still on after the kill: {still:?}"));
                 }
                 if killed == 0 || skipped.len() * 10 > list.len() {
                     return Err(format!(
@@ -7267,6 +7314,35 @@ async fn profile_privacy_holds_over_http() {
             .await,
         404
     );
+    // OPS-FLG-001 (D-382): the switch alone is not enough. `profiles.access` is `walled` by default, so a stored
+    // `public` page is still not served; the operator opts in with `opt_in_public`.
+    let access = async |v: &str| {
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            "/admin/settings",
+            Some(&json!({"values": {"profiles.access": v}})),
+        )
+        .await
+    };
+    expect!("the operator walls profiles", access("walled").await, 200);
+    expect!("switch on, access walled", flag(true).await, 200);
+    expect!(
+        "switch on but profiles.access walled: still 404",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        404
+    );
+    expect!(
+        "an unknown access word is refused",
+        access("everyone").await,
+        400
+    );
+    expect!(
+        "operator opts in to public profiles",
+        access("opt_in_public").await,
+        200
+    );
     expect!("operator allows public pages", flag(true).await, 200);
     expect!(
         "unknown handle with the switch on is the same 404",
@@ -7661,6 +7737,293 @@ async fn profile_privacy_holds_over_http() {
     assert!(
         failures.is_empty(),
         "{} profile privacy failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// OPS-FLG-001: one kill test per switch, through the matrix's client. A member (never staff) calls a route of the
+// feature; the operator kills the switch through the Admin API; the same call is refused with 403 `SR_FEATURE_DISABLED`
+// (900001) and the switch reads `false` in `GET /sr/features/flags`; switched back on, the call is no longer
+// refused for that reason. Nothing here weakens a refusal: a refused call stays refused, and the member's own
+// authorization is untouched.
+
+const FEATURE_DISABLED: &str = "900001";
+
+fn is_feature_disabled(r: &Resp) -> bool {
+    r.status == 403 && json_code(&r.body) == FEATURE_DISABLED
+}
+
+/// A call of a feature's route by the member: method, path, body.
+type KillCall = (&'static str, String, Option<Value>);
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn module_kill_switches_stop_their_routes() {
+    if harness::embedded() {
+        return;
+    }
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let srv = &world.srv;
+    let staff = world.actor("staff_owner").cred.clone();
+    let member = world.actor("member").cred.clone();
+    let owner_a = world.actor("owner_a").cred.clone();
+    let ch = world.a["channel_id"].clone();
+    let ga = world.guild_a;
+    let mut failures: Vec<String> = Vec::new();
+
+    let r = step_up(srv, &staff, &world.totp).await;
+    assert_eq!(r.status, 200, "staff step-up: {}", r.body);
+
+    let set = async |id: &str, on: bool| -> Resp {
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            &format!("/admin/features/{id}"),
+            Some(&json!({"enabled": on})),
+        )
+        .await
+    };
+    let flag_of = async |id: &str| -> Option<bool> {
+        let r = srv.call(&member, "GET", "/sr/features/flags", None).await;
+        serde_json::from_str::<Value>(&r.body)
+            .ok()
+            .and_then(|v| v["flags"][id].as_bool())
+    };
+
+    let cards = format!("/channels/{ch}/cards/1/ics");
+    let rooms = format!("/channels/{ch}/tool-rooms");
+    let timer = format!("/channels/{ch}/voice-timer");
+    let timer_body = Some(json!({"timer": null}));
+    let room_listen = format!("/channels/{ch}/listening-room");
+    // (feature ids to kill together, calls that must be refused while they are dead)
+    let cases: Vec<(Vec<&'static str>, Vec<KillCall>)> = vec![
+        (
+            vec!["lounge.jukebox"],
+            vec![
+                ("GET", format!("/channels/{ch}/jukebox"), None),
+                (
+                    "POST",
+                    format!("/channels/{ch}/jukebox/queue"),
+                    Some(json!({"tracks": []})),
+                ),
+                ("GET", room_listen.clone(), None),
+            ],
+        ),
+        (
+            vec!["lounge.listening_rooms"],
+            vec![("GET", room_listen.clone(), None)],
+        ),
+        (
+            vec!["platform.tools"],
+            vec![
+                ("GET", "/tools/fx".to_owned(), None),
+                ("GET", "/users/@me/tools/notes".to_owned(), None),
+                ("GET", "/users/@me/tools/loot-tables".to_owned(), None),
+                ("GET", cards.clone(), None),
+                ("GET", rooms.clone(), None),
+                ("PUT", timer.clone(), timer_body.clone()),
+            ],
+        ),
+        (
+            vec!["platform.tools.currency"],
+            vec![("GET", "/tools/fx".to_owned(), None)],
+        ),
+        (
+            vec!["platform.tools.notes"],
+            vec![("GET", "/users/@me/tools/notes".to_owned(), None)],
+        ),
+        (
+            vec!["platform.tools.loot"],
+            vec![
+                ("GET", "/users/@me/tools/loot-tables".to_owned(), None),
+                ("GET", format!("/guilds/{ga}/tools/loot-tables"), None),
+            ],
+        ),
+        (
+            vec!["platform.tools.tierlist", "platform.tools.poll"],
+            vec![("GET", rooms.clone(), None)],
+        ),
+        (
+            vec!["platform.tools.invite"],
+            vec![("GET", cards.clone(), None)],
+        ),
+        (
+            vec![
+                "platform.tools.pomodoro",
+                "platform.tools.stopwatch",
+                "platform.tools.countdown",
+            ],
+            vec![("PUT", timer.clone(), timer_body.clone())],
+        ),
+        (
+            vec!["platform.emulator"],
+            vec![("GET", "/users/@me/games/roms".to_owned(), None)],
+        ),
+        (
+            vec!["platform.watch_together_embeds"],
+            vec![(
+                "POST",
+                "/watch-parties".to_owned(),
+                Some(json!({"external": {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}})),
+            )],
+        ),
+    ];
+    for (ids, calls) in &cases {
+        let tag = ids.join("+");
+        for (method, path, body) in calls {
+            let before = srv.call(&member, method, path, body.as_ref()).await;
+            if is_feature_disabled(&before) {
+                failures.push(format!("{tag}: {method} {path} refused before the kill"));
+            }
+        }
+        for id in ids {
+            let r = set(id, false).await;
+            if r.status != 200 {
+                failures.push(format!(
+                    "{tag}: killing {id} answered {} {}",
+                    r.status, r.body
+                ));
+            }
+        }
+        for (method, path, body) in calls {
+            let r = srv.call(&member, method, path, body.as_ref()).await;
+            if !is_feature_disabled(&r) {
+                failures.push(format!(
+                    "{tag}: {method} {path} not refused with SR_FEATURE_DISABLED: {} {}",
+                    r.status,
+                    r.body.chars().take(120).collect::<String>()
+                ));
+            }
+        }
+        for id in ids {
+            if flag_of(id).await != Some(false) {
+                failures.push(format!(
+                    "{tag}: GET /sr/features/flags does not show {id} off"
+                ));
+            }
+            set(id, true).await;
+        }
+        for (method, path, body) in calls {
+            let r = srv.call(&member, method, path, body.as_ref()).await;
+            if is_feature_disabled(&r) {
+                failures.push(format!(
+                    "{tag}: {method} {path} still refused after the switch came back"
+                ));
+            }
+        }
+    }
+
+    // The sub-flags die with their parent, the rooms with the jukebox.
+    set("platform.tools", false).await;
+    for id in ["platform.tools.md_table", "platform.tools.audio"] {
+        if flag_of(id).await != Some(false) {
+            failures.push(format!("{id} is not off while platform.tools is off"));
+        }
+    }
+    set("platform.tools", true).await;
+    set("lounge.jukebox", false).await;
+    let r = srv.call(&member, "GET", &room_listen, None).await;
+    if !is_feature_disabled(&r) {
+        failures.push("listening room answers while the jukebox is off".into());
+    }
+    set("lounge.jukebox", true).await;
+
+    // A tool room kind has its own switch.
+    set("platform.tools.poll", false).await;
+    let poll = srv
+        .call(
+            &member,
+            "POST",
+            &rooms,
+            Some(&json!({"kind": "poll", "title": "p"})),
+        )
+        .await;
+    let tier = srv
+        .call(
+            &member,
+            "POST",
+            &rooms,
+            Some(&json!({"kind": "tierlist", "title": "t"})),
+        )
+        .await;
+    if !is_feature_disabled(&poll) {
+        failures.push(format!(
+            "a poll room is created with the poll tool off: {} {}",
+            poll.status, poll.body
+        ));
+    }
+    if is_feature_disabled(&tier) {
+        failures.push("a tier list room is refused although only the poll tool is off".into());
+    }
+    set("platform.tools.poll", true).await;
+
+    // The server's own switch (guild scope) for the jukebox and the rooms: the platform stays on.
+    for id in ["lounge.jukebox", "lounge.listening_rooms"] {
+        let path = format!("/guilds/{ga}/sr/features/{id}");
+        let off = srv
+            .call(&owner_a, "PATCH", &path, Some(&json!({"enabled": false})))
+            .await;
+        if off.status != 200 {
+            failures.push(format!(
+                "{id}: the server owner could not switch it off: {} {}",
+                off.status, off.body
+            ));
+        }
+        let r = srv.call(&member, "GET", &room_listen, None).await;
+        if !is_feature_disabled(&r) {
+            failures.push(format!(
+                "{id}: the server's switch off does not refuse the room route"
+            ));
+        }
+        srv.call(&owner_a, "PATCH", &path, Some(&json!({"enabled": true})))
+            .await;
+    }
+
+    // The switches with no HTTP route of their own are visible to clients as flags, and the platform-only ones
+    // cannot be set per server.
+    for id in ["platform.activities_datachannel", "platform.tools.json"] {
+        set(id, false).await;
+        if flag_of(id).await != Some(false) {
+            failures.push(format!("{id}: the flag does not read off after the kill"));
+        }
+        set(id, true).await;
+        if flag_of(id).await != Some(true) {
+            failures.push(format!(
+                "{id}: the flag does not read on after the switch came back"
+            ));
+        }
+    }
+    let r = srv
+        .call(
+            &owner_a,
+            "PATCH",
+            &format!("/guilds/{ga}/sr/features/platform.emulator"),
+            Some(&json!({"enabled": false})),
+        )
+        .await;
+    if r.status != 404 {
+        failures.push(format!(
+            "a server could set the platform-only emulator switch: {} {}",
+            r.status, r.body
+        ));
+    }
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} module switch failures:\n{}",
         failures.len(),
         failures.join("\n")
     );

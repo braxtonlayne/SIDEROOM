@@ -349,3 +349,54 @@ fn the_sfu_relays_e2ee_data_frames_as_opaque_bytes() {
     assert_eq!((instance, sender), (5, w.clients[a1].user.get()));
     assert_eq!(rx.open(sender, &payload, 1).unwrap(), plain);
 }
+
+/// OPS-FLG-001 `platform.activities_datachannel`: with the gate off from the start, the channel a member opens is
+/// ignored: nothing it joins or sends is read or relayed, and the voice session itself is unharmed.
+#[test]
+fn a_switched_off_gate_refuses_new_data_channels() {
+    let gate = dc::Gate::default();
+    gate.set(false);
+    let mut w = World::new(256);
+    w.core = SfuCore::new(100, 99)
+        .with_datachannel_kbps(256)
+        .with_datachannel_gate(gate.clone());
+    let a1 = w.join(77, 1, true);
+    let a2 = w.join(77, 2, true);
+    w.connect_all();
+    w.join_instance(a1, 4);
+    w.join_instance(a2, 4);
+    w.send_data(a1, 4, b"nobody hears this");
+    w.run(Duration::from_millis(400));
+    assert!(w.payloads(a2).is_empty());
+    assert_eq!(w.core.datachannel_stats().relayed, 0);
+}
+
+/// The switch also stops a channel that was already open, and starts relaying again when it is back on.
+#[test]
+fn flipping_the_gate_stops_and_restores_the_relay() {
+    let gate = dc::Gate::default();
+    let mut w = World::new(256);
+    w.core = SfuCore::new(100, 99)
+        .with_datachannel_kbps(256)
+        .with_datachannel_gate(gate.clone());
+    let a1 = w.join(77, 1, true);
+    let a2 = w.join(77, 2, true);
+    w.connect_all();
+    w.join_instance(a1, 4);
+    w.join_instance(a2, 4);
+    w.send_data(a1, 4, b"one");
+    w.run(Duration::from_millis(300));
+    assert_eq!(w.payloads(a2).len(), 1);
+    gate.set(false);
+    w.send_data(a1, 4, b"two");
+    w.run(Duration::from_millis(300));
+    assert_eq!(
+        w.payloads(a2).len(),
+        1,
+        "nothing relayed while the gate is off"
+    );
+    gate.set(true);
+    w.send_data(a1, 4, b"three");
+    w.run(Duration::from_millis(300));
+    assert_eq!(w.payloads(a2).len(), 2);
+}

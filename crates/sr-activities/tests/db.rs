@@ -832,3 +832,34 @@ async fn an_instance_carries_the_capabilities_of_its_reviewed_bundle() {
     );
     r.db.cleanup().await.unwrap();
 }
+
+/// OPS-FLG-001 `platform.activities_datachannel`: while the switch is off an instance runs without the
+/// `datachannel` capability (its host then never asks the call for a data channel); switched on, it has it again.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_datachannel_switch_strips_the_capability_from_new_and_running_instances() {
+    let r = rig().await;
+    let owner = account(r.db.pool()).await;
+    let app = application(r.db.pool(), owner, "Board").await;
+    r.svc.save_config(app, input(None)).await.unwrap();
+    let zip = zip_of(&[
+        ("index.html", b"<h1>board</h1>"),
+        ("sideroom.json", br#"{"capabilities":["datachannel"]}"#),
+    ]);
+    let up = r.svc.upload_bundle(app, owner, zip).await.unwrap();
+    let id: i64 = up.bundle.id.parse().unwrap();
+    r.svc.submit(app, id).await.unwrap();
+    r.svc.decide(app, 1, id, true, None).await.unwrap();
+    set_state(&r, app, "released").await;
+    let member = account(r.db.pool()).await;
+
+    r.svc.set_datachannel_allowed(false);
+    let inst = r.svc.launch(member, app, 1).await.unwrap();
+    assert!(inst.capabilities.is_empty(), "{:?}", inst.capabilities);
+    let running = r.svc.in_channel(member, 1).await.unwrap().unwrap();
+    assert!(running.capabilities.is_empty());
+    r.svc.set_datachannel_allowed(true);
+    let running = r.svc.in_channel(member, 1).await.unwrap().unwrap();
+    assert_eq!(running.capabilities, vec!["datachannel"]);
+    r.db.cleanup().await.unwrap();
+}

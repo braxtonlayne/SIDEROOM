@@ -20,7 +20,7 @@ impl Feature for PublicProfilesFeature {
     fn meta(&self) -> FeatureMeta {
         FeatureMeta {
             name: "Public profiles".into(),
-            description: "Lets members choose to show parts of their profile to people without an account, at /~handle. Off (the default), every profile stays inside the instance and the public address answers 404 for everyone. Public pages are never indexed by search engines.".into(),
+            description: "Lets members choose to show parts of their profile to people without an account, at /~handle. Off (the default), every profile stays inside the instance and the public address answers 404 for everyone. It also needs the setting profiles.access to be opt_in_public (default walled). Public pages are never indexed by search engines.".into(),
             section: "Privacy".into(),
             phase: 34,
             default_enabled: false,

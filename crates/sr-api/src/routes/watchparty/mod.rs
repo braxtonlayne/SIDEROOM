@@ -42,9 +42,19 @@ impl WatchPartyDeps {
 pub(crate) struct Ctx {
     pub deps: Arc<WatchPartyDeps>,
     pub viewer: Viewer,
+    /// `platform.watch_together_embeds` is on (OPS-FLG-001): a party may be given a provider embed or a file link.
+    pub embeds: bool,
 }
 
 impl Ctx {
+    /// Refuse a link to a provider embed or a media file while the operator has switched them off.
+    pub fn require_embeds(&self, external: bool) -> Result<(), WpError> {
+        if external && !self.embeds {
+            return Err(WpError(PartyError::FeatureDisabled));
+        }
+        Ok(())
+    }
+
     pub fn svc(&self) -> &PartyService {
         &self.deps.service
     }
@@ -60,7 +70,13 @@ impl FromRequestParts<AppState> for Ctx {
         let UserOnly(p) = UserOnly::from_request_parts(parts, state).await?;
         let Ext(deps) = Ext::<WatchPartyDeps>::from_request_parts(parts, state).await?;
         let viewer = deps.service.viewer(p.user_id).await;
-        Ok(Self { deps, viewer })
+        let embeds =
+            crate::module_gate::platform_on(state, sr_features::WATCH_TOGETHER_EMBEDS_ID).await;
+        Ok(Self {
+            deps,
+            viewer,
+            embeds,
+        })
     }
 }
 
@@ -106,6 +122,7 @@ impl IntoResponse for WpError {
             PartyError::AgeConfirmationRequired => {
                 ApiError::new(ErrorCode::SrAgeConfirmationRequired)
             }
+            PartyError::FeatureDisabled => ApiError::new(ErrorCode::SrFeatureDisabled),
             PartyError::Invalid(m) => ApiError::with_message(ErrorCode::InvalidFormBody, m),
             PartyError::Conflict(m) => ApiError::with_message(ErrorCode::SrConflict, m),
             PartyError::RateLimited => ApiError::new(ErrorCode::TooManyRequests),

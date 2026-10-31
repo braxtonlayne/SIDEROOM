@@ -15,6 +15,7 @@ pub mod cards_jobs;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
 pub mod csp_reports;
+pub mod datachannel_gate;
 pub mod endpoint_client;
 pub mod events_jobs;
 pub mod external_jobs;

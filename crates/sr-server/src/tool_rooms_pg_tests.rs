@@ -152,6 +152,7 @@ impl Fx {
             who(who_id),
             Ext(self.d.clone()),
             Ext(self.m.clone()),
+            axum::extract::State(sr_api::AppState::builder().build()),
             Path(channel.to_string()),
             ApiJson(CreateRoomBody {
                 kind: kind.into(),
