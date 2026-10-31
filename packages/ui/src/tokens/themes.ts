@@ -152,6 +152,60 @@ export const loungeOnyx: ThemeDefinition = {
   },
 };
 
+/**
+ * Editorial (STU-NAV-001): the Side Room editorial palette on the Lounge shell. Warm charcoal surfaces, cream text,
+ * muted gold accents and serif display headers. Tokens only: it extends the Lounge token set, so every Lounge
+ * component reads it with no CSS of its own. The default theme of the Lounge; the other themes stay selectable.
+ */
+export const loungeEditorial: ThemeDefinition = {
+  id: "lounge-editorial",
+  name: "Editorial",
+  family: "lounge",
+  scheme: "dark",
+  extends: "lounge-dark",
+  tokens: {
+    ...loungeDark.tokens,
+    "--ui-accent": "#c2b08f",
+    "--ui-accent-hover": "#d1c1a2",
+    "--ui-accent-ink": "#1b1a15",
+    "--ui-focus": "#d9c9a4",
+    "--brand": "#c2b08f",
+    "--ui-font-display": '"Newsreader", "Source Serif 4", Georgia, serif',
+    "--ui-radius": "4px",
+    "--ui-radius-lg": "6px",
+    "--bg-base-lowest": "#14130f",
+    "--bg-base-lower": "#1c1b17",
+    "--bg-base-low": "#23221d",
+    "--bg-surface-overlay": "#1c1b17",
+    "--text-normal": "#efe6d2",
+    "--text-muted": "#b3ac9a",
+    "--interactive-normal": "#cfc7b2",
+    "--interactive-hover": "#efe6d2",
+    "--interactive-active": "#fffaf0",
+    "--mention-bg": "#7a6a45",
+    "--danger": "#c0584a",
+    "--ui-bg": "#23221d",
+    "--ui-bg-raised": "#1c1b17",
+    "--ui-bg-overlay": "#1c1b17",
+    "--ui-bg-hover": "#2c2a24",
+    "--ui-border": "#3a382f",
+    "--ui-text": "#efe6d2",
+    "--ui-text-muted": "#b3ac9a",
+    "--ui-text-faint": "#a39d8b",
+    "--ui-danger": "#b4503f",
+    "--ui-danger-ink": "#fff6f2",
+    "--ui-success": "#8c9a6a",
+    "--ui-warning": "#c2b08f",
+    "--ui-info": "#9aa8a0",
+    "--ui-status-online": "#8c9a6a",
+    "--ui-status-idle": "#c2b08f",
+    "--ui-status-dnd": "#b4503f",
+    "--ui-status-offline": "#6f6c60",
+    "--ui-shadow-overlay": "0 12px 32px rgb(0 0 0 / 0.55)",
+    "--ui-backdrop": "rgb(8 8 7 / 0.78)",
+  },
+};
+
 /** Calibrated to docs/assets/mockups (entrance, cinema, library). */
 export const sideroom: ThemeDefinition = {
   id: "sideroom",
@@ -235,12 +289,13 @@ export const THEMES: Readonly<Record<ThemeId, ThemeDefinition>> = {
   "lounge-light": loungeLight,
   "lounge-ash": loungeAsh,
   "lounge-onyx": loungeOnyx,
+  "lounge-editorial": loungeEditorial,
   sideroom,
   "sideroom-broadcast": sideroomBroadcast,
 };
 
 export const DEFAULT_THEME_BY_SECTION: Readonly<Record<Section, ThemeId>> = {
-  lounge: "lounge-dark",
+  lounge: "lounge-editorial",
   staff: "lounge-dark",
   developer: "lounge-dark",
   entrance: "sideroom",

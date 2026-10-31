@@ -44,7 +44,7 @@ describe("tokens", () => {
 
 describe("resolveTheme", () => {
   it("uses the section default", () => {
-    expect(resolveTheme({ section: "lounge" })).toBe("lounge-dark");
+    expect(resolveTheme({ section: "lounge" })).toBe("lounge-editorial");
     expect(resolveTheme({ section: "cinema" })).toBe("sideroom");
     expect(resolveTheme({ section: "live-tv" })).toBe("sideroom-broadcast");
   });
@@ -55,7 +55,7 @@ describe("resolveTheme", () => {
     );
   });
   it("ignores unknown ids", () => {
-    expect(resolveTheme({ section: "lounge", userGlobal: "nope" as never })).toBe("lounge-dark");
+    expect(resolveTheme({ section: "lounge", userGlobal: "nope" as never })).toBe("lounge-editorial");
   });
 });
 
@@ -110,7 +110,7 @@ describe("ThemeProvider", () => {
 
   it("ignores the server accent when the viewer disallows server theming", () => {
     render(<ThemeProvider section="lounge" serverAccent="#336699" allowServerTheming={false} data-testid="root" />);
-    expect(screen.getByTestId("root").style.getPropertyValue("--ui-accent")).toBe("#5865f2");
+    expect(screen.getByTestId("root").style.getPropertyValue("--ui-accent")).toBe("#c2b08f");
   });
 
   it("throws outside a provider", () => {
