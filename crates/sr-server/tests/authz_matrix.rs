@@ -7267,6 +7267,34 @@ async fn profile_privacy_holds_over_http() {
             .await,
         404
     );
+    // OPS-FLG-001 (D-382): the switch alone is not enough. `profiles.access` is `walled` by default, so a stored
+    // `public` page is still not served; the operator opts in with `opt_in_public`.
+    let access = async |v: &str| {
+        srv.call_reason(
+            &staff,
+            "PATCH",
+            "/admin/settings",
+            Some(&json!({"values": {"profiles.access": v}})),
+        )
+        .await
+    };
+    expect!("switch on, access walled", flag(true).await, 200);
+    expect!(
+        "switch on but profiles.access walled: still 404",
+        srv.call(&Cred::Anon, "GET", "/public/profiles/ppowner", None)
+            .await,
+        404
+    );
+    expect!(
+        "an unknown access word is refused",
+        access("everyone").await,
+        400
+    );
+    expect!(
+        "operator opts in to public profiles",
+        access("opt_in_public").await,
+        200
+    );
     expect!("operator allows public pages", flag(true).await, 200);
     expect!(
         "unknown handle with the switch on is the same 404",

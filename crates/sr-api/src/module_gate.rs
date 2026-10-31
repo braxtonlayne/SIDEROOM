@@ -269,4 +269,108 @@ mod tests {
         assert_eq!(channel_of("/channels/123/jukebox"), Some(123));
         assert_eq!(channel_of("/channels/x/jukebox"), None);
     }
+
+    use sr_features::{FeatureRegistry, InMemorySettingsStore};
+    use std::sync::Arc;
+
+    fn service() -> FeatureService {
+        let mut reg = FeatureRegistry::new();
+        sr_features::wave_modules::register_all(&mut reg).unwrap();
+        FeatureService::new(Arc::new(reg), Arc::new(InMemorySettingsStore::new()), None)
+    }
+
+    async fn kill(svc: &FeatureService, id: &str) {
+        svc.set_enabled(id, &ScopeRef::Platform, Some(false))
+            .await
+            .unwrap();
+    }
+
+    /// One switch: the rule of `template` lets a request through, the kill refuses it, the return lets it through.
+    async fn refused_when_killed(template: &str, ids: &[&str]) {
+        let svc = service();
+        let rule = rule_for(template).unwrap_or_else(|| panic!("{template}"));
+        assert!(allows(&svc, &rule, None).await, "{template} on");
+        for id in ids {
+            kill(&svc, id).await;
+        }
+        assert!(!allows(&svc, &rule, None).await, "{template} killed");
+        for id in ids {
+            svc.set_enabled(id, &ScopeRef::Platform, Some(true))
+                .await
+                .unwrap();
+        }
+        assert!(allows(&svc, &rule, None).await, "{template} back on");
+    }
+
+    #[tokio::test]
+    async fn kill_lounge_jukebox() {
+        refused_when_killed("/channels/{channel_id}/jukebox", &[JUKEBOX_ID]).await;
+    }
+
+    #[tokio::test]
+    async fn kill_lounge_listening_rooms() {
+        refused_when_killed("/channels/{channel_id}/listening-room", &[LISTENING_ROOMS_ID]).await;
+        // Rooms also die with the jukebox they play through.
+        refused_when_killed("/channels/{channel_id}/listening-room", &[JUKEBOX_ID]).await;
+    }
+
+    #[tokio::test]
+    async fn kill_platform_tools_and_every_server_backed_tool() {
+        for template in [
+            "/tools/fx",
+            "/users/@me/tools/notes",
+            "/users/@me/tools/loot-tables",
+            "/guilds/{guild_id}/tools/loot-tables",
+            "/channels/{channel_id}/cards",
+            "/channels/{channel_id}/tool-rooms",
+            "/channels/{channel_id}/voice-timer",
+        ] {
+            refused_when_killed(template, &[sr_features::TOOLS_ID]).await;
+        }
+        refused_when_killed("/tools/fx", &["platform.tools.currency"]).await;
+        refused_when_killed("/users/@me/tools/notes/{note_id}", &["platform.tools.notes"]).await;
+        refused_when_killed("/users/@me/tools/loot-tables", &["platform.tools.loot"]).await;
+        refused_when_killed("/channels/{channel_id}/cards", &["platform.tools.invite"]).await;
+        refused_when_killed(
+            "/channels/{channel_id}/tool-rooms",
+            &["platform.tools.tierlist", "platform.tools.poll"],
+        )
+        .await;
+        refused_when_killed(
+            "/channels/{channel_id}/voice-timer",
+            &[
+                "platform.tools.pomodoro",
+                "platform.tools.stopwatch",
+                "platform.tools.countdown",
+            ],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn one_of_two_room_kinds_off_leaves_the_route_open() {
+        let svc = service();
+        kill(&svc, "platform.tools.poll").await;
+        let rule = rule_for("/channels/{channel_id}/tool-rooms").unwrap();
+        assert!(allows(&svc, &rule, None).await);
+    }
+
+    #[tokio::test]
+    async fn kill_platform_emulator() {
+        refused_when_killed("/users/@me/games/roms", &[sr_features::EMULATOR_ID]).await;
+    }
+
+    #[tokio::test]
+    async fn a_server_can_switch_the_jukebox_off_for_itself() {
+        let svc = service();
+        let g = sr_core::GuildId::new(7);
+        let other = sr_core::GuildId::new(8);
+        svc.set_enabled(JUKEBOX_ID, &ScopeRef::Guild { guild: g }, Some(false))
+            .await
+            .unwrap();
+        let rule = rule_for("/channels/{channel_id}/jukebox").unwrap();
+        assert!(!allows(&svc, &rule, Some(g)).await);
+        assert!(allows(&svc, &rule, Some(other)).await);
+        assert!(allows(&svc, &rule, None).await);
+    }
 }

@@ -33,6 +33,7 @@ impl SettingDef {
             SettingKind::Integer => json!(self.default_int),
             SettingKind::Number => json!(self.default_int as f64),
             SettingKind::Boolean => json!(self.default_int != 0),
+            SettingKind::Text if self.key == PROFILES_ACCESS => json!("walled"),
             SettingKind::Text => json!(""),
         }
     }
@@ -476,7 +477,7 @@ pub const CATALOG: &[SettingDef] = &[
         min: 0.0,
         max: 16.0,
         default_int: 0,
-        description: "Who may see profile pages: walled (the default; empty means walled) keeps every profile inside the instance, opt_in_public lets a member choose a public page, which also needs the platform feature Public profiles. Public pages are never indexed by search engines.",
+        description: "Who may see profile pages: walled (the default) keeps every profile inside the instance, opt_in_public lets a member choose a public page, which also needs the platform feature Public profiles. Public pages are never indexed by search engines.",
     },
     // --- wave 28 byos-browser block (kept apart from the presign settings above) ---
     int(
@@ -877,6 +878,22 @@ mod tests {
             find(BYOS_WORKER_FOR_MEMBERS).unwrap().default_value(),
             json!(false)
         );
+    }
+
+    #[test]
+    fn profiles_access_is_walled_by_default_and_takes_only_the_two_words() {
+        let d = find(PROFILES_ACCESS).unwrap();
+        // Walled by default, and empty reads as walled too (D-382): every profile stays inside the instance until the operator opts in.
+        assert_eq!(d.default_value(), json!("walled"));
+        assert_eq!(d.group, "privacy");
+        for ok in ["", "walled", "opt_in_public"] {
+            assert!(d.validate(&json!(ok)).is_ok(), "{ok}");
+        }
+        // The roadmap's third value (public by default) is dropped.
+        for bad in ["public", "public_by_default", "Walled", "opt-in-public", "1"] {
+            assert!(d.validate(&json!(bad)).is_err(), "{bad}");
+        }
+        assert!(d.validate(&json!(true)).is_err());
     }
 
     #[test]
