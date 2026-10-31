@@ -586,6 +586,21 @@
     "section": "Games"
   },
   {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "Only shows a page. Game servers are not built yet: while this is on, Server Settings has a Game Servers entry and the voice Activities picker has a tile, both marked \"Coming soon\", and nothing behind them works. Turn it off to hide both; the page address then answers not found.",
+    "gated_by": null,
+    "id": "platform.game_servers",
+    "name": "Game servers page",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 39,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Games"
+  },
+  {
     "client_visible": false,
     "default_enabled": true,
     "description": "Link preview hosts and rate, GIF region and locale, and which lookup providers are offered. Secrets and endpoints stay in the operator config.",

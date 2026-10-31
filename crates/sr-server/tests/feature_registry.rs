@@ -6,9 +6,8 @@
 //! The roadmap's ids and the shipped ids are the same except one: `lounge.status_rings` is `lounge.rings`
 //! (a shipped id is never renamed; `MAPPED` below and the handoff say so).
 //!
-//! `platform.game_servers` is registered by `feat/p39-gsv-page` (GSV-PAGE-001), not on this branch. It is named here
-//! by its id string only. INTEGRATOR: after merging both branches, remove the `#[ignore]` of
-//! `game_servers_switch_is_registered_after_the_merge`; it then pins scope, default and client visibility.
+//! `platform.game_servers` is registered by GSV-PAGE-001 (`sr_features::GAME_SERVERS_ID`);
+//! `game_servers_switch_is_registered` pins its scope, default and client visibility.
 //!
 //! Refresh the fixture after adding a feature: `SR_UPDATE_FEATURE_CATALOG=1 cargo test -p sr-server --test
 //! feature_registry`.
@@ -16,7 +15,7 @@
 use serde_json::{Value, json};
 use sr_features::{Feature, FeatureRegistry, Scope, TOOL_FLAGS};
 
-const GAME_SERVERS_ID: &str = "platform.game_servers";
+use sr_features::GAME_SERVERS_ID;
 
 /// The roadmap's name and the id that shipped.
 const MAPPED: &[(&str, &str)] = &[("lounge.status_rings", "lounge.rings")];
@@ -58,6 +57,8 @@ fn every_feature_of_waves_27_to_39_is_registered_with_its_scopes_and_default() {
         // The roadmap's `lounge.status_rings`.
         ("lounge.rings", P, false, false),
         ("platform.watch_together_embeds", P, true, true),
+        // GSV-PAGE-001: shows or hides the cosmetic "Coming soon" page only.
+        ("platform.game_servers", P, true, true),
     ];
     for (id, scopes, default_on, client) in expected {
         let f = reg
@@ -145,15 +146,8 @@ fn no_wave_switch_is_named_like_encryption_authorization_or_a_log() {
 }
 
 #[test]
-fn game_servers_is_not_registered_on_this_branch() {
-    // GSV-PAGE-001 registers it on feat/p39-gsv-page. Registering it here too would be a duplicate-id panic at the
-    // merge, so this branch must not.
-    assert!(registry().get(GAME_SERVERS_ID).is_none());
-}
-
-#[test]
-#[ignore = "INTEGRATOR: enable after merging feat/p39-gsv-page, which registers platform.game_servers"]
-fn game_servers_switch_is_registered_after_the_merge() {
+fn game_servers_switch_is_registered() {
+    assert_eq!(GAME_SERVERS_ID, "platform.game_servers");
     let reg = registry();
     let f = reg
         .get(GAME_SERVERS_ID)

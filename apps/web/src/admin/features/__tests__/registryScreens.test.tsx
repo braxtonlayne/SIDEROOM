@@ -45,6 +45,7 @@ const ROADMAP: [string, string][] = [
   ['platform.emulator', 'platform.emulator'],
   ['lounge.status_rings', 'lounge.rings'],
   ['platform.watch_together_embeds', 'platform.watch_together_embeds'],
+  ['platform.game_servers', 'platform.game_servers'],
 ];
 
 const adminView = (f: Entry) => ({
