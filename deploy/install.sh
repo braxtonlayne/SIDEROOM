@@ -17,6 +17,8 @@
 # Answers can come from the environment (they win over prompts):
 #   SR_DOMAIN SR_IMAGE SR_WEB_DIR SMTP_HOST SMTP_PORT SMTP_TLS SMTP_FROM SMTP_USERNAME SMTP_PASSWORD
 #   SR_OWNER_USERNAME SR_OWNER_EMAIL SR_OWNER_PASSWORD SR_GARAGE_CAPACITY SR_INGEST_DIR
+#   SR_INSTALL_EMU_CORES (yes fetches the emulator cores into $SR_WEB_DIR/emu/cores by pinned URL and SHA-256, deploy/EMULATOR.md;
+#   default no)
 #   SR_PAYMENTS_ELECTRS (yes turns the electrs `payments` profile on) SR_PAYMENTS_ESPLORA_URL (empty = donations off)
 #   SR_INSTALL_SKIP_PULL=1 (skip `docker compose pull` when the image was built or loaded locally; compose still
 #   pulls whatever is missing when it starts the services. Used by .github/workflows/prod-smoke.yml)
@@ -43,7 +45,7 @@ for arg in "$@"; do
     --yes|--non-interactive) yes=1 ;;
     --force) force=1 ;;
     --no-start) start=0 ;;
-    -h|--help) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $arg (try --help)" ;;
   esac
 done
@@ -108,6 +110,7 @@ ask SR_OWNER_USERNAME "Owner username" "owner"
 ask SR_OWNER_EMAIL "Owner email" ""
 ask SR_GARAGE_CAPACITY "Object storage capacity to reserve (for example 100G)" "100G"
 ask SR_INGEST_DIR "Folder for local imports, mounted read-only (type none to turn local folders off)" "/srv/sideroom/ingest"
+ask SR_INSTALL_EMU_CORES "Download the emulator cores now (about 8 MB from cdn.emulatorjs.org, checked against pinned SHA-256 digests, see deploy/EMULATOR.md)? (yes/no)" "no"
 ask SR_PAYMENTS_ELECTRS "Run the optional electrs container for donations? It needs your own synced bitcoind and a pinned image, see docs/12 (yes/no)" "no"
 SMTP_USERNAME=${SMTP_USERNAME:-}
 SMTP_PASSWORD=${SMTP_PASSWORD:-}
@@ -335,6 +338,17 @@ case $preflight_mode in
     sr_cli preflight ${SR_INSTALL_PREFLIGHT_ARGS:-} || preflight_status=$?
     ;;
   *) die "SR_INSTALL_PREFLIGHT must be warn, strict or skip (got '$preflight_mode')" ;;
+esac
+
+# --- optional: emulator cores (ACT-EMU-003) ---------------------------------------------------------------
+# Fetched by pinned URL and SHA-256 into the web directory (they are never part of the release bundle). A failure is a
+# warning: the rest of the install is done and the command below can be repeated.
+case ${SR_INSTALL_EMU_CORES:-no} in
+  yes|y|true|1)
+    say "fetching the emulator cores into $SR_WEB_DIR/emu/cores"
+    sh "$here/scripts/fetch-emu-cores.sh" --dest "$SR_WEB_DIR/emu/cores" ||
+      echo "warning: the emulator cores were not installed; repeat with: deploy/scripts/fetch-emu-cores.sh --dest $SR_WEB_DIR/emu/cores" >&2
+    ;;
 esac
 
 cat <<EOF

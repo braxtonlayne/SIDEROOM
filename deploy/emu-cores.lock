@@ -1,0 +1,13 @@
+# Pinned emulator core files (ACT-EMU-003). Single source of truth: deploy/scripts/fetch-emu-cores.sh and
+# `sr-cli emu fetch-cores` read this file; deploy/EMULATOR.md shows the same table (scripts/check-ops-files.mjs
+# fails when the two disagree). Tab-separated: dest (relative to the served cores directory), url, sha256, bytes, licence.
+# Source: EmulatorJS 4.2.3, the official CDN. Core binaries are never committed. Beetle Supafaust and BlastEm do not exist in that
+# build set (see docs/dev/handoff/feat-p37-emu-ops.md); the rejected cores (snes9x, genesis_plus_gx, picodrive, fbneo,
+# any arcade core) are deliberately absent.
+extract7z.js	https://cdn.emulatorjs.org/4.2.3/data/compression/extract7z.js	4ac9933b995a516cb6b3ca4027db860278372a20c21c405d93ceb1998498853a	280155	GPL-3.0 (shipped in EmulatorJS 4.2.3; 7-Zip port, upstream licence unconfirmed)
+fceumm/fceumm-wasm.data	https://cdn.emulatorjs.org/4.2.3/data/cores/fceumm-wasm.data	8c449fd5c36646fb0769423ed6ffa9efbdfc21fbfdc9bac7952b559d34d5b493	1054015	GPL-2.0
+fceumm/fceumm-legacy-wasm.data	https://cdn.emulatorjs.org/4.2.3/data/cores/fceumm-legacy-wasm.data	f1054b094e7149fd6278485bc1b2e51ff75c5259048ddb1134171e53d651f239	1053006	GPL-2.0
+mgba/mgba-wasm.data	https://cdn.emulatorjs.org/4.2.3/data/cores/mgba-wasm.data	01fcaf6d4296ef1db6676e0c69400c4474e24572d0b2b99cc097e4ae885e02d7	1055616	MPL-2.0
+mgba/mgba-legacy-wasm.data	https://cdn.emulatorjs.org/4.2.3/data/cores/mgba-legacy-wasm.data	e300d2f368c82bf61d77c972c36e367cf16408ec3d50beede080337519a3d696	1054993	MPL-2.0
+pcsx_rearmed/pcsx_rearmed-wasm.data	https://cdn.emulatorjs.org/4.2.3/data/cores/pcsx_rearmed-wasm.data	fe5515f6c29f093f0e8c01824b213804f1f76eb9cb4c97c72fe2cc17606bfbc2	1039627	GPL-2.0
+pcsx_rearmed/pcsx_rearmed-legacy-wasm.data	https://cdn.emulatorjs.org/4.2.3/data/cores/pcsx_rearmed-legacy-wasm.data	88faee73d06c597a68a8b78e5621d97feefca134c64b623e65f0a900037456da	1038636	GPL-2.0

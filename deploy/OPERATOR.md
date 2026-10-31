@@ -15,6 +15,7 @@ Status: the shipped files were rehearsed in CI (`.github/workflows/prod-smoke.ym
 | Something is on fire, or an alert fired | [RUNBOOK.md](RUNBOOK.md) | One playbook per alert and per incident, see section 5. |
 | Set up or grow object storage | [GARAGE.md](GARAGE.md) | Single node, three nodes, CORS rule. |
 | Run video transcoding | [TRANSCODER.md](TRANSCODER.md) | The worker, its token, GPU notes. |
+| Turn on the emulator | [EMULATOR.md](EMULATOR.md) | Fetch the pinned cores, verify their SHA-256, licences, no SNES or Genesis yet. |
 | A quick answer (ports, metrics, 2FA lost, telemetry) | [FAQ.md](FAQ.md) | Short, with pointers. |
 | What the owner and lawyer still have to do | [owner checklist](../docs/dev/owner-checklist.md), [lawyer brief](../docs/legal/lawyer-brief.md) | Not operator duties, but they gate go-live. |
 | Why the system works the way it does | [doc 12](../docs/12-deployment-and-operations.md), [doc 09](../docs/09-retention-and-privacy.md) | Policy, retention, hardening checklist. |
