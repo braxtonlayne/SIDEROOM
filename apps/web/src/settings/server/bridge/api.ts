@@ -14,6 +14,8 @@ export const BRIDGE_MODULE_ID = 'bridge.enabled';
 
 export type BridgeDirection = 'both' | 'to_discord' | 'from_discord';
 
+export type BridgeMode = 'selective' | 'whole_guild';
+
 export type BridgeState = 'no_token' | 'connecting' | 'connected' | 'error';
 
 export interface BridgeMap {
@@ -29,6 +31,8 @@ export interface BridgeMap {
 
 export interface BridgeStatus {
   state: BridgeState;
+  /** Wave 35b: `selective` ("Only bridge these") unless the owner switched to the whole server. */
+  mode: BridgeMode;
   /** A sealed bot token is stored (the token itself never comes back). */
   token_set: boolean;
   discord_guild_id?: string | null;
@@ -103,11 +107,13 @@ export function toStatus(w: WireStatus): BridgeStatus {
     discord_channel_name: m.discord_channel_name || null,
     direction: m.direction,
   }));
-  if (!b) return { state: 'no_token', token_set: false, maps, leftovers: w.leftovers };
+  if (!b)
+    return { state: 'no_token', mode: 'selective', token_set: false, maps, leftovers: w.leftovers };
   const state: BridgeState =
     b.status === 'connected' ? 'connected' : b.status === 'connecting' ? 'connecting' : 'error';
   return {
     state,
+    mode: b.mode === 'whole_guild' ? 'whole_guild' : 'selective',
     token_set: true,
     discord_guild_id: b.discord_guild_id,
     discord_guild_name: b.discord_guild_name || null,
@@ -131,6 +137,8 @@ export interface TeardownReport {
   maps_removed: number;
   /** Webhooks Discord would not delete after three attempts; the owner removes them by hand. */
   failed_webhooks: string[];
+  /** Whole-server removals Discord refused (ids only); the owner deletes them on Discord by hand. */
+  residue?: string[];
 }
 
 const path = (guildId: string, rest = '') => `/guilds/${guildId}/bridge${rest}`;
@@ -213,7 +221,334 @@ export interface BridgedMember {
   bot: boolean;
   /** Present only while the bot's presence intent knows it. */
   presence: BridgedPresence | null;
+  /**
+   * Whole-server mode (35b): the SIDE ROOM role ids this member's Discord roles map to, for DISPLAY only (grouping,
+   * colour). Absent in selective mode. Never an authorization input.
+   */
+  role_ids?: string[];
 }
 
 export const listBridgedMembers = (guildId: string) =>
   apiFetch<BridgedMember[]>(path(guildId, '/members'), { retries: 0 });
+
+// =====================================================================================================================
+// Wave 35b (BRG-SYN-004): the whole-server mirror. SHAPES DEFINED HERE FOR THE INTEGRATOR TO RECONCILE with the routes
+// of sync-core (plan, mode, sync status, reconcile, pause) and sync-perms (conflicts); the MSW handlers of the tests
+// use exactly these. Paths are relative to `/guilds/{g}/bridge`. Classes (design section 16.3):
+//   bridge_admin  GET preflight, POST plan, GET/PATCH plan/{id}, GET sync, POST reconcile|pause|resume,
+//                 GET conflicts, POST conflicts/{id}/{action}, GET teardown-preview
+//   guild_owner   POST mode (+ the MFA step), PATCH sr/features/bridge.enabled (a `teardown` body in whole-server mode)
+//   any member    GET mirrors (badges), GET members (with `role_ids` in whole-server mode)
+// =====================================================================================================================
+
+/** One line of the preflight checklist (design 9.2). A `blocker` that is not ok stops the plan; the rest warn. */
+export type PreflightId =
+  | 'bot_admin'
+  | 'bot_top_role'
+  | 'intents'
+  | 'caps'
+  | 'unique_guild'
+  | 'other_integration';
+
+export interface PreflightCheck {
+  id: PreflightId;
+  ok: boolean;
+  blocker: boolean;
+  /** Plain detail when not ok (for caps: "Roles after creation: 262 of 250"). */
+  detail?: string | null;
+}
+
+export interface Preflight {
+  checks: PreflightCheck[];
+  /** The bot's invite link for whole-server mode (ADMINISTRATOR), shown when a check fails. */
+  invite_url?: string | null;
+}
+
+/** `GET .../preflight`: runs the checks now ("Check again"). */
+export const getPreflight = (guildId: string) =>
+  apiFetch<Preflight>(path(guildId, '/preflight'), { retries: 0 });
+
+export type SeedStructure = 'sr' | 'discord';
+export type PlanAction = 'match' | 'pinned' | 'create_here' | 'create_there';
+export type PlanObjectKind = 'role' | 'category' | 'channel' | 'thread';
+
+export interface PlanRow {
+  id: string;
+  kind: PlanObjectKind;
+  /** SIDE ROOM name (for a Discord-only object that will be created here, its Discord name). */
+  name: string;
+  discord_name?: string | null;
+  action: PlanAction;
+  /** Why a pair was matched, shown small ("same name"). */
+  note?: string | null;
+}
+
+/** A change Discord will get on matched objects, in plain words ("Role Mods on Discord loses Ban Members"). */
+export interface PlanDiscordChange {
+  id: string;
+  target: 'role' | 'channel';
+  name: string;
+  text: string;
+}
+
+/** Permissions of an object that exists only on Discord; the owner chooses whether they come across (Q4). */
+export interface PlanImport {
+  id: string;
+  target: 'role' | 'channel';
+  name: string;
+  /** Permission ids (`SEND_MESSAGES`...) Discord has set on it. */
+  permissions: string[];
+  /** The subset shown red: ADMINISTRATOR, MANAGE_*, BAN/KICK/MODERATE_MEMBERS, MENTION_EVERYONE. */
+  dangerous: string[];
+  import: boolean;
+}
+
+export type NotMirroredReason =
+  | 'e2ee'
+  | 'dm'
+  | 'sr_only_bit'
+  | 'member_overwrite'
+  | 'managed_role'
+  | 'degraded_type'
+  | 'cap'
+  | 'voice_media';
+
+export interface PlanNotMirrored {
+  id: string;
+  name: string;
+  reason: NotMirroredReason;
+}
+
+export type PlanBlockerCode =
+  | 'bot_admin'
+  | 'bot_top_role'
+  | 'intents'
+  | 'caps'
+  | 'unique_guild'
+  | 'staff_guild';
+
+export interface Plan {
+  plan_id: string;
+  status: 'building' | 'ready' | 'failed';
+  /** Sent back with the confirmation; the server recomputes both sides' hashes (409 BRIDGE_PLAN_STALE). */
+  plan_hash: string;
+  created_at: number;
+  /** Unix seconds; a plan lives 15 minutes. */
+  expires_at: number;
+  seed_structure: SeedStructure;
+  blockers: { code: PlanBlockerCode; detail?: string | null }[];
+  roles: PlanRow[];
+  categories: PlanRow[];
+  channels: PlanRow[];
+  threads: PlanRow[];
+  discord_changes: PlanDiscordChange[];
+  imports: PlanImport[];
+  not_mirrored: PlanNotMirrored[];
+  estimate: { discord_calls: number; seconds: number };
+}
+
+/** `POST .../plan`: builds the plan as a job; the answer is its id. Prepared by `bridge_admin`. */
+export const createPlan = (guildId: string, seed_structure: SeedStructure) =>
+  apiFetch<{ plan_id: string }>(path(guildId, '/plan'), {
+    method: 'POST',
+    retries: 0,
+    json: { mode: 'whole_guild', seed_structure },
+  });
+
+export const getPlan = (guildId: string, planId: string) =>
+  apiFetch<Plan>(path(guildId, `/plan/${planId}`), { retries: 0 });
+
+export type PlanEdit =
+  | { op: 'unlink'; row_id: string }
+  | { op: 'link'; here_id: string; discord_id: string }
+  | { op: 'import'; row_id: string; import: boolean };
+
+/** `PATCH .../plan/{id}`: unlink a proposed pair, link two unmatched objects, toggle an import row. */
+export const editPlan = (guildId: string, planId: string, edit: PlanEdit) =>
+  apiFetch<Plan>(path(guildId, `/plan/${planId}`), { method: 'PATCH', retries: 0, json: edit });
+
+/**
+ * `POST .../mode` (owner + MFA). Whole server needs the plan; back to selective needs none and deletes nothing.
+ * A stale plan answers 409 with code `BRIDGE_PLAN_STALE`.
+ */
+export const setMode = (
+  guildId: string,
+  body: { mode: 'whole_guild'; plan_id: string; plan_hash: string } | { mode: 'selective' },
+) => send<void>(path(guildId, '/mode'), 'POST', body);
+
+export const PLAN_STALE_CODE = 'BRIDGE_PLAN_STALE';
+
+/** Is this error the 409 of a plan whose state changed since it was built? */
+export function isPlanStale(e: unknown): boolean {
+  const err = e as { status?: number; message?: string; body?: object | null };
+  return (
+    err?.status === 409 &&
+    (JSON.stringify(err.body ?? {}).includes(PLAN_STALE_CODE) ||
+      (err.message ?? '').includes(PLAN_STALE_CODE))
+  );
+}
+
+export type SyncState =
+  | 'seeding'
+  | 'live'
+  | 'paused'
+  | 'paused_discord_access'
+  | 'paused_invalid_requests';
+
+export interface SyncStatus {
+  mode: BridgeMode;
+  sync_state: SyncState;
+  bot: { administrator: boolean; top_role: boolean; intents: boolean };
+  /** Unix seconds, null before the first reconcile. */
+  last_reconcile_at: number | null;
+  /** "Reconcile now" is allowed once per 5 minutes; this is when it is next. */
+  reconcile_available_at: number | null;
+  queue_depth: number;
+  dead_ops: number;
+  /** Seconds the queue is waiting on a Discord rate limit now; 0 when not. */
+  rate_limit_wait_secs: number;
+  /** Set while a breaker or a lost permission paused the sync. */
+  resume_at?: number | null;
+  counts: { mapped: number; one_sided: number; degraded: number; frozen: number };
+  seed?: { done: number; total: number; eta_secs: number } | null;
+}
+
+export const getSyncStatus = (guildId: string) =>
+  apiFetch<SyncStatus>(path(guildId, '/sync'), { retries: 0 });
+export const reconcileNow = (guildId: string) => send<void>(path(guildId, '/reconcile'), 'POST');
+export const pauseSync = (guildId: string) => send<void>(path(guildId, '/pause'), 'POST');
+export const resumeSync = (guildId: string) => send<void>(path(guildId, '/resume'), 'POST');
+
+export type ConflictKind =
+  | 'permission_reverted'
+  | 'overwrite_trimmed'
+  | 'structure_conflict'
+  | 'frozen'
+  | 'held_deletion'
+  | 'role_deletion_refused'
+  | 'dead_op'
+  | 'cap';
+
+export type ConflictAction =
+  | 'apply_on_sr'
+  | 'take_discord'
+  | 'restore'
+  | 'delete_now'
+  | 'unfreeze'
+  | 'retry'
+  | 'dismiss';
+
+export interface Conflict {
+  id: string;
+  kind: ConflictKind;
+  object_kind: PlanObjectKind | 'overwrite';
+  /** SIDE ROOM id of the object (role id, channel id) when it still exists. */
+  object_id?: string | null;
+  object_name: string;
+  /** The field that differed ("permissions", "position", "name"). */
+  field?: string | null;
+  /** What Discord had, in words ("added Ban Members"), and what SIDE ROOM has. */
+  discord_value?: string | null;
+  sr_value?: string | null;
+  /** Permission ids Discord's attempt carried (prefills "Apply on SIDE ROOM"); roles only. */
+  discord_permissions?: string[] | null;
+  /** The Discord user who did it, when the audit log named them within 10 s. */
+  discord_actor?: string | null;
+  /** What the bridge did about it ("Put it back", "Hid the channel; deletes in 22 h"). */
+  bridge_did: string;
+  count: number;
+  /** Unix seconds. */
+  first_at: number;
+  last_at: number;
+  resolved_at?: number | null;
+}
+
+export const listConflicts = (
+  guildId: string,
+  filter: { kind?: ConflictKind; open?: boolean } = {},
+) => {
+  const q = new URLSearchParams();
+  if (filter.kind) q.set('kind', filter.kind);
+  if (filter.open !== undefined) q.set('open', String(filter.open));
+  const qs = q.toString();
+  return apiFetch<Conflict[]>(path(guildId, `/conflicts${qs ? `?${qs}` : ''}`), { retries: 0 });
+};
+
+/**
+ * `POST .../conflicts/{id}/{action}` (action in kebab case: `take-discord`, `delete-now`). Everything but `dismiss`,
+ * `retry` and `unfreeze` runs as the clicking person, through the normal SIDE ROOM checks (403 when they lack the
+ * permission the edit needs). `apply_on_sr` has no call: it opens the role editor prefilled and the person saves an
+ * ordinary edit.
+ */
+export const runConflictAction = (
+  guildId: string,
+  id: string,
+  action: Exclude<ConflictAction, 'apply_on_sr'>,
+) => send<void>(path(guildId, `/conflicts/${id}/${action.replace('_', '-')}`), 'POST');
+
+/** The conflict actions each kind offers (design 15). */
+export const CONFLICT_ACTIONS: Record<ConflictKind, ConflictAction[]> = {
+  permission_reverted: ['apply_on_sr', 'dismiss'],
+  overwrite_trimmed: ['dismiss'],
+  structure_conflict: ['take_discord', 'dismiss'],
+  frozen: ['unfreeze'],
+  held_deletion: ['restore', 'delete_now'],
+  role_deletion_refused: ['dismiss'],
+  dead_op: ['retry', 'dismiss'],
+  cap: ['dismiss'],
+};
+
+export interface MirrorRole {
+  role_id: string;
+  discord_role_id: string;
+  /** Names of the permissions Discord has on this role that SIDE ROOM has no bit for (Discord-only); empty when none. */
+  discord_only: string[];
+  state: 'mapped' | 'frozen';
+}
+
+export interface MirrorChannel {
+  channel_id: string;
+  discord_channel_id: string;
+  state: 'mapped' | 'frozen' | 'held';
+  /** Set when Discord refused the real type (Community needed): the plain reason. */
+  degraded_reason?: string | null;
+}
+
+export interface Mirrors {
+  mode: BridgeMode;
+  roles: MirrorRole[];
+  channels: MirrorChannel[];
+}
+
+/** `GET .../mirrors` (any member): which roles and channels are mirrored, for the badges. 404 while the bridge is off. */
+export const getMirrors = (guildId: string) =>
+  apiFetch<Mirrors>(path(guildId, '/mirrors'), { retries: 0 });
+
+// ---- teardown options (design 12)
+
+export interface TeardownPreview {
+  /** Discord objects the bridge created there (`origin = 'sr'`). */
+  created: { roles: number; categories: number; channels: number; threads: number };
+  /** Of those channels, how many hold messages posted natively by Discord members. */
+  channels_with_discord_messages: number;
+  /** Whether a snapshot of Discord's permissions from before the bridge exists. */
+  snapshot_available: boolean;
+}
+
+export const getTeardownPreview = (guildId: string) =>
+  apiFetch<TeardownPreview>(path(guildId, '/teardown-preview'), { retries: 0 });
+
+export interface TeardownOptions {
+  /** Also delete what the bridge created on Discord. Off by default. */
+  remove_created: boolean;
+  /** Also put Discord's roles and overwrites back as they were before the bridge. Off by default. */
+  restore_permissions: boolean;
+}
+
+/** Switch off with the whole-server options: the body gains `teardown`; the report gains `residue` (ids only). */
+export const switchBridgeOff = (guildId: string, options?: TeardownOptions) =>
+  send<BridgeFeature>(
+    `/guilds/${guildId}/sr/features/${encodeURIComponent(BRIDGE_MODULE_ID)}`,
+    'PATCH',
+    { enabled: false, ...(options ? { teardown: options } : {}) },
+  );
