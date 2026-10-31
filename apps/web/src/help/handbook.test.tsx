@@ -38,6 +38,7 @@ describe('the handbook', () => {
       'submit',
       'parties',
       'tv',
+      'games',
       'privacy',
       'house',
     ]);
