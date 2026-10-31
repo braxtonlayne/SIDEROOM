@@ -522,6 +522,7 @@ GET	/stage-instances/{channel_id}	authenticated	membership	allow	-	-
 GET	/sticker-packs	authenticated	user	allow	-	-
 GET	/stickers/{sticker_id}/url	authenticated	user	allow	-	-
 GET	/storage/mounts/{mount_id}/index	authenticated	mount_owner	deny	-	-
+GET	/storage/mounts/{mount_id}/notes	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/objects	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/objects/{key}	authenticated	storage_scope	deny	-	-
 GET	/storage/mounts/{mount_id}/transcode	authenticated	mount_owner	deny	-	-
@@ -1124,6 +1125,7 @@ PUT	/requests/{request_id}/claim	authenticated	user	allow	-	-
 PUT	/requests/{request_id}/vote	authenticated	self	allow	-	-
 PUT	/sr/auth/first-run	authenticated	self	deny	-	-
 PUT	/sr/auth/username	authenticated	self	deny	-	-
+PUT	/storage/mounts/{mount_id}/notes	authenticated	mount_owner	deny	-	-
 PUT	/submissions/{submission_id}/cinema/episodes/{episode_id}	authenticated	author	allow	-	-
 PUT	/submissions/{submission_id}/cinema/title	authenticated	author	allow	-	-
 PUT	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	author	allow	-	-

@@ -660,3 +660,78 @@ async fn shelves_play_coalesce_playable_key_key() {
     assert_eq!(pk, None);
     db.cleanup().await.ok();
 }
+
+/// STU-SHF-001 (migration 2010): the owner's title, cover and note of a file live in `shelf_objects` (the table 41-C
+/// names), one row per path, keyed by the SHA-256 of the path; clearing the words removes the row.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn file_notes_are_owner_words_in_shelf_objects() {
+    use sr_storage::index::shelf::FileNote;
+    let db = TestDb::new().await.expect("db");
+    for id in [31_i64, 32] {
+        sqlx::query(
+            "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, secret_key_enc) \
+             VALUES ($1, 'user', $2, $3, 'garage', 'http://127.0.0.1:3900', 'b', 'AK', $4)",
+        )
+        .bind(id)
+        .bind(id)
+        .bind(format!("m{id}"))
+        .bind(vec![0u8])
+        .execute(db.pool())
+        .await
+        .unwrap();
+    }
+    let store = PgShelfStore::new(db.pool().clone(), ids());
+    assert!(store.file_notes(31, 100).await.unwrap().is_empty());
+
+    let note = FileNote {
+        key: "Films/a.mp4".into(),
+        title: Some("My cut".into()),
+        note: Some("seen twice".into()),
+        cover_key: Some("Films/a.jpg".into()),
+    };
+    store.set_file_note(31, &note, 31).await.unwrap();
+    assert_eq!(store.file_notes(31, 100).await.unwrap(), vec![note.clone()]);
+    // Another shelf never sees it.
+    assert!(store.file_notes(32, 100).await.unwrap().is_empty());
+
+    // The row is keyed by the path's SHA-256, as 41-C's `object_hash` will be.
+    let hash: String = sqlx::query_scalar("SELECT object_hash FROM shelf_objects WHERE shelf_id = 31")
+        .fetch_one(db.pool())
+        .await
+        .unwrap();
+    assert_eq!(hash.len(), 64);
+
+    // Saving again replaces the words (a second row is not made).
+    let again = FileNote {
+        title: Some("Director's cut".into()),
+        note: None,
+        cover_key: None,
+        ..note.clone()
+    };
+    store.set_file_note(31, &again, 31).await.unwrap();
+    assert_eq!(store.file_notes(31, 100).await.unwrap(), vec![again]);
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM shelf_objects WHERE shelf_id = 31")
+        .fetch_one(db.pool())
+        .await
+        .unwrap();
+    assert_eq!(n, 1);
+
+    // A delisted object (41-C) is not listed, and clearing the words leaves no empty row behind.
+    sqlx::query("UPDATE shelf_objects SET delisted_at = now() WHERE shelf_id = 31")
+        .execute(db.pool())
+        .await
+        .unwrap();
+    assert!(store.file_notes(31, 100).await.unwrap().is_empty());
+    sqlx::query("UPDATE shelf_objects SET delisted_at = NULL WHERE shelf_id = 31")
+        .execute(db.pool())
+        .await
+        .unwrap();
+    assert!(store.delete_file_note(31, "Films/a.mp4").await.unwrap());
+    assert!(!store.delete_file_note(31, "Films/a.mp4").await.unwrap());
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM shelf_objects")
+        .fetch_one(db.pool())
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+}

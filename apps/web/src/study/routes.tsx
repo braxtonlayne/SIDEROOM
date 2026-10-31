@@ -1,5 +1,7 @@
 import { ThemeProvider, ToastProvider } from '@sideroom/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
+import { useState } from 'react';
 import { lazyNamed } from '../lib/lazyRoute';
 
 const StudyPage = lazyNamed(() => import('./StudyPage'), 'StudyPage');
@@ -13,12 +15,15 @@ export function createStudyRoutes(root: AnyRoute) {
     getParentRoute: () => root,
     path: '/study',
     component: function StudyRoute() {
+      const [client] = useState(() => new QueryClient());
       return (
-        <ThemeProvider section="lounge">
-          <ToastProvider>
-            <StudyPage />
-          </ToastProvider>
-        </ThemeProvider>
+        <QueryClientProvider client={client}>
+          <ThemeProvider section="lounge">
+            <ToastProvider>
+              <StudyPage />
+            </ToastProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
       );
     },
   });
