@@ -1,7 +1,11 @@
 # Handoff: feat/p41-study-nav (STU-NAV-001, wave 41 worktree 41-A)
 
 ## Resume here
-(Updated at the end of the session; see "Status" below. If this section still says "in progress", the last commit on the branch is the safe point.)
+Wound down early at the owner's request (about 16:50). All work is committed on feat/p41-study-nav; nothing is running.
+- Done: switches, 404 gate, GatedLookupSwitch, room trio, hidden web surfaces, Editorial default theme, docs D-393. Proven: sr-features, sr-theme tests; sr-api module_gate unit tests; sr-server feature_registry, lookup_wiring unit, authz_matrix (every_route_enforces_its_authz_row and module_kill_switches_stop_their_routes, with the 404 proof), immutable_rules (22 passed, ignored suite); clippy -D warnings and fmt clean on sr-features, sr-api, sr-server, sr-theme; web tsc clean, check-css-tokens clean, vitest for src/cinema, library, lounge, admin, settings, help, i18n, study and packages/ui theme all green.
+- NOT run: the full web vitest (it was killed mid-run; run it once: `cd apps/web && npx pnpm@10.12.1 exec vitest run --maxWorkers=2`, expect to fix only tests that assume lounge-dark or the old nav), eslint over all of apps/web (only the touched dirs), bundle budget (`node scripts/check-bundle-budget.mjs` after a web build), Playwright exit-gate and lounge-shell (nobody ran them; ports 8080/5173 are free).
+- Exact next step: run the full web vitest, then `pnpm --filter @sideroom/web build` plus the bundle budget, then Playwright smoke.
+- Keep scratch DB `sr_p41_study_nav` until the full gates pass, then drop it. Target dir: C:/Users/braxt/Desktop/SIDEROOM_wt/p41-study-nav-target.
 
 ## Done
 - **Five Study switches** (`crates/sr-features/src/wave_modules.rs`), platform scope, client visible, OFF by default: `platform.external_metadata`, `platform.storefront_categories`, `platform.global_trending`, `platform.requests_board`, `platform.ingest_queues`. The 73-switch registry grew by five; `feature_registry.rs` and the web fixture (`registry.json`) are updated.
