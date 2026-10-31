@@ -55,7 +55,9 @@ export function ModeCard({
         </strong>
       </p>
       <p className="ss-sub">
-        {whole ? t('settings.bridgeSync.mode.wholeBody') : t('settings.bridgeSync.mode.selectiveBody')}
+        {whole
+          ? t('settings.bridgeSync.mode.wholeBody')
+          : t('settings.bridgeSync.mode.selectiveBody')}
       </p>
       {!whole && (
         <>

@@ -100,7 +100,9 @@ function RolesEditor({
   const [viewAs, setViewAs] = useState(false);
   const action = useAction();
   const mirrors = useWholeMirrors(guildId);
-  const prefillRole = useRolePrefill((s) => (s.prefill?.guildId === guildId ? s.prefill.roleId : null));
+  const prefillRole = useRolePrefill((s) =>
+    s.prefill?.guildId === guildId ? s.prefill.roleId : null,
+  );
   useEffect(() => {
     if (prefillRole) setSelectedId(prefillRole);
   }, [prefillRole]);
@@ -428,7 +430,8 @@ function RoleEditor({
   useEffect(() => onDirty(draft.dirty), [onDirty, draft.dirty]);
 
   // "Apply on SIDE ROOM" from the conflict log: Discord's attempted permissions fill the form; nothing is saved.
-  const prefillKey = prefill && prefill.guildId === guildId && prefill.roleId === role.id ? prefill : null;
+  const prefillKey =
+    prefill && prefill.guildId === guildId && prefill.roleId === role.id ? prefill : null;
   useEffect(() => {
     if (!prefillKey) return;
     const asked = new Set(prefillKey.permissions);

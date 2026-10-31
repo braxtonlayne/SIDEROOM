@@ -375,6 +375,7 @@ function SwitchOffCard({ guildId, isOwner }: { guildId: string; isOwner: boolean
   const t = useT();
   const [open, setOpen] = useState(false);
   const setModule = useBridgeModule((s) => s.set);
+  const whole = useBridgeModule((s) => s.wholeByGuild[guildId] === true);
   return (
     <section className="ss-card" aria-labelledby="ss-bridge-off">
       <h2 id="ss-bridge-off">{t('settings.bridge.off.title')}</h2>
@@ -391,6 +392,7 @@ function SwitchOffCard({ guildId, isOwner }: { guildId: string; isOwner: boolean
       {open && (
         <TeardownDialog
           guildId={guildId}
+          whole={whole}
           onClose={(after) => {
             setOpen(false);
             // The entry goes with the module: Server Settings moves to the first section that is left.

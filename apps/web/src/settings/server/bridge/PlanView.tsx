@@ -317,7 +317,9 @@ function PlanTabs({
       content: (
         <>
           <p className="ss-sub">{t('settings.bridgeSync.plan.importsIntro')}</p>
-          {plan.imports.length === 0 && <p className="ss-na">{t('settings.bridgeSync.plan.empty')}</p>}
+          {plan.imports.length === 0 && (
+            <p className="ss-na">{t('settings.bridgeSync.plan.empty')}</p>
+          )}
           <ul className="ss-bridge-imports">
             {plan.imports.map((i) => (
               <li key={i.id}>

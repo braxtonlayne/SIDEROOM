@@ -102,15 +102,17 @@ export function TeardownDialog({
       open
       onClose={() => onClose(null)}
       size="sm"
-      title={
-        whole ? t('settings.bridgeSync.teardown.title') : t('settings.bridge.teardown.title')
-      }
+      title={whole ? t('settings.bridgeSync.teardown.title') : t('settings.bridge.teardown.title')}
       footer={
         <>
           <Button variant="secondary" disabled={busy} onClick={() => onClose(null)}>
             {t('settings.bridge.teardown.cancel')}
           </Button>
-          <Button variant="danger" disabled={busy || (whole && !preview && !error)} onClick={() => void run()}>
+          <Button
+            variant="danger"
+            disabled={busy || (whole && !preview && !error)}
+            onClick={() => void run()}
+          >
             {t('settings.bridge.teardown.confirm')}
           </Button>
         </>
@@ -130,7 +132,9 @@ export function TeardownDialog({
         <>
           <h3 className="ss-bridge-h">{t('settings.bridgeSync.teardown.leaveTitle')}</h3>
           <p>{t('settings.bridgeSync.teardown.leave')}</p>
-          {!preview && !error && <p role="status">{t('settings.bridgeSync.teardown.loadingPreview')}</p>}
+          {!preview && !error && (
+            <p role="status">{t('settings.bridgeSync.teardown.loadingPreview')}</p>
+          )}
           {preview && (
             <>
               <Checkbox

@@ -46,8 +46,10 @@ export default {
   'settings.bridgeSync.preflight.botTopRole': 'The bot’s role is the highest role on Discord',
   'settings.bridgeSync.preflight.intents': 'Server Members and Message Content intents are on',
   'settings.bridgeSync.preflight.caps': 'Roles and channels fit Discord’s limits (250 and 500)',
-  'settings.bridgeSync.preflight.uniqueGuild': 'No other server here already mirrors this Discord server',
-  'settings.bridgeSync.preflight.otherIntegration': 'No other bot changed roles there in the last hour',
+  'settings.bridgeSync.preflight.uniqueGuild':
+    'No other server here already mirrors this Discord server',
+  'settings.bridgeSync.preflight.otherIntegration':
+    'No other bot changed roles there in the last hour',
 
   // ---- plan
   'settings.bridgeSync.plan.title': 'Whole-server plan',
@@ -72,12 +74,14 @@ export default {
     'This server or the Discord server changed after the plan was built. Rebuild it and look again.',
   'settings.bridgeSync.plan.blockersTitle': 'Fix these before confirming',
   'settings.bridgeSync.plan.confirm': 'Confirm the plan',
-  'settings.bridgeSync.plan.ownerOnly': 'Only the server owner can confirm. You can prepare and review it.',
+  'settings.bridgeSync.plan.ownerOnly':
+    'Only the server owner can confirm. You can prepare and review it.',
   'settings.bridgeSync.plan.confirmTitle': 'Bridge the whole server?',
   'settings.bridgeSync.plan.confirmStart': 'Confirm and start',
   'settings.bridgeSync.plan.confirmBody':
     'Roles, categories, channels and threads will be created and matched on both sides, and permissions on Discord will be set from here. Mirroring starts now; there is no history backfill.',
-  'settings.bridgeSync.plan.started': 'The whole server is now being mirrored. Progress is on this page.',
+  'settings.bridgeSync.plan.started':
+    'The whole server is now being mirrored. Progress is on this page.',
   'settings.bridgeSync.plan.tabsLabel': 'Plan sections',
   'settings.bridgeSync.plan.tabRoles': 'Roles ({n})',
   'settings.bridgeSync.plan.tabChannels': 'Channels ({n})',
@@ -116,9 +120,11 @@ export default {
   'settings.bridgeSync.plan.skipVoiceMedia': 'Voice and video are never mirrored',
   'settings.bridgeSync.plan.blockBotAdmin': 'The bot is not an Administrator on Discord.',
   'settings.bridgeSync.plan.blockBotTopRole': 'The bot’s role is not the highest on Discord.',
-  'settings.bridgeSync.plan.blockIntents': 'A privileged intent is off in the Discord developer portal.',
+  'settings.bridgeSync.plan.blockIntents':
+    'A privileged intent is off in the Discord developer portal.',
   'settings.bridgeSync.plan.blockCaps': 'Too many roles or channels for Discord’s limits.',
-  'settings.bridgeSync.plan.blockUniqueGuild': 'Another server here already mirrors this Discord server.',
+  'settings.bridgeSync.plan.blockUniqueGuild':
+    'Another server here already mirrors this Discord server.',
   'settings.bridgeSync.plan.blockStaffGuild': 'A staff server cannot be bridged.',
 
   // ---- sync status
@@ -158,7 +164,8 @@ export default {
   'settings.bridgeSync.status.resumed': 'Sync is running.',
   'settings.bridgeSync.status.window':
     'A permission changed on Discord is undone within a couple of seconds. If the bridge is offline it stays changed on Discord until it is back. Nothing on this server is ever affected.',
-  'settings.bridgeSync.status.pausedNote': 'While paused, nothing is pushed or undone. This server is unaffected.',
+  'settings.bridgeSync.status.pausedNote':
+    'While paused, nothing is pushed or undone. This server is unaffected.',
 
   // ---- conflict log
   'settings.bridgeSync.conflicts.title': 'Conflict log',
@@ -204,12 +211,12 @@ export default {
   'settings.bridgeSync.role.discordOnlyTitle': 'Set on Discord',
   'settings.bridgeSync.role.discordOnlyBody':
     'Discord has these on the role. This server cannot change them; they are kept when permissions are pushed.',
-  'settings.bridgeSync.role.orderNote':
-    'Role order is set here. A reorder on Discord is undone.',
+  'settings.bridgeSync.role.orderNote': 'Role order is set here. A reorder on Discord is undone.',
 
   // ---- channel settings
   'settings.bridgeSync.channel.mirrored': 'Mirrored to Discord',
-  'settings.bridgeSync.channel.held': 'Deleted on Discord. Held here until it is restored or removed.',
+  'settings.bridgeSync.channel.held':
+    'Deleted on Discord. Held here until it is restored or removed.',
   'settings.bridgeSync.channel.frozen': 'Sync frozen',
   'settings.bridgeSync.channel.degraded': 'Mirrored as a simpler type: {reason}',
   'settings.bridgeSync.channel.srOnlyRow': 'SIDE ROOM only',
@@ -237,7 +244,8 @@ export default {
     'Nothing is deleted here. Roles, channels and threads that came from Discord are now ordinary ones.',
   'settings.bridgeSync.teardown.loadingPreview': 'Counting what the bridge created on Discord',
   'settings.bridgeSync.teardown.residueTitle': 'Some things are still on Discord',
-  'settings.bridgeSync.teardown.residueBody': 'Discord refused to remove these. Remove them by hand.',
+  'settings.bridgeSync.teardown.residueBody':
+    'Discord refused to remove these. Remove them by hand.',
   'settings.bridgeSync.teardown.residueList': 'Ids to remove by hand',
 
   // ---- privacy surfaces

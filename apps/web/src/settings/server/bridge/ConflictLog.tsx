@@ -97,7 +97,11 @@ export function ConflictLog({ guildId }: { guildId: string }) {
   };
 
   return (
-    <section className="ss-card" aria-labelledby="ss-bridge-conflicts" data-testid="bridge-conflicts">
+    <section
+      className="ss-card"
+      aria-labelledby="ss-bridge-conflicts"
+      data-testid="bridge-conflicts"
+    >
       <h2 id="ss-bridge-conflicts">{t('settings.bridgeSync.conflicts.title')}</h2>
       <div className="ss-toolbar">
         <label className="ss-field-label">
@@ -126,14 +130,19 @@ export function ConflictLog({ guildId }: { guildId: string }) {
           rows.length === 0 ? (
             <p className="ss-na">{t('settings.bridgeSync.conflicts.empty')}</p>
           ) : (
-            <ul className="ss-bridge-conflicts" aria-label={t('settings.bridgeSync.conflicts.list')}>
+            <ul
+              className="ss-bridge-conflicts"
+              aria-label={t('settings.bridgeSync.conflicts.list')}
+            >
               {rows.map((c) => (
                 <li key={c.id}>
                   <h3 className="ss-bridge-h">
                     {kindText(c.kind, t)}: {c.object_name}
                   </h3>
                   {c.discord_value && (
-                    <p>{t('settings.bridgeSync.conflicts.discordDid', { value: c.discord_value })}</p>
+                    <p>
+                      {t('settings.bridgeSync.conflicts.discordDid', { value: c.discord_value })}
+                    </p>
                   )}
                   {c.sr_value && (
                     <p>{t('settings.bridgeSync.conflicts.srHas', { value: c.sr_value })}</p>

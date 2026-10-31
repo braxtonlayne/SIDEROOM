@@ -115,7 +115,10 @@ export function SyncStatus({ guildId }: { guildId: string }) {
                   variant="secondary"
                   disabled={act.busy || wait || paused}
                   onClick={() =>
-                    run(() => api.reconcileNow(guildId), t('settings.bridgeSync.status.reconcileStarted'))
+                    run(
+                      () => api.reconcileNow(guildId),
+                      t('settings.bridgeSync.status.reconcileStarted'),
+                    )
                   }
                 >
                   {t('settings.bridgeSync.status.reconcile')}

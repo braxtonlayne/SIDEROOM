@@ -243,12 +243,7 @@ export const listBridgedMembers = (guildId: string) =>
 
 /** One line of the preflight checklist (design 9.2). A `blocker` that is not ok stops the plan; the rest warn. */
 export type PreflightId =
-  | 'bot_admin'
-  | 'bot_top_role'
-  | 'intents'
-  | 'caps'
-  | 'unique_guild'
-  | 'other_integration';
+  'bot_admin' | 'bot_top_role' | 'intents' | 'caps' | 'unique_guild' | 'other_integration';
 
 export interface PreflightCheck {
   id: PreflightId;
@@ -320,12 +315,7 @@ export interface PlanNotMirrored {
 }
 
 export type PlanBlockerCode =
-  | 'bot_admin'
-  | 'bot_top_role'
-  | 'intents'
-  | 'caps'
-  | 'unique_guild'
-  | 'staff_guild';
+  'bot_admin' | 'bot_top_role' | 'intents' | 'caps' | 'unique_guild' | 'staff_guild';
 
 export interface Plan {
   plan_id: string;
@@ -389,11 +379,7 @@ export function isPlanStale(e: unknown): boolean {
 }
 
 export type SyncState =
-  | 'seeding'
-  | 'live'
-  | 'paused'
-  | 'paused_discord_access'
-  | 'paused_invalid_requests';
+  'seeding' | 'live' | 'paused' | 'paused_discord_access' | 'paused_invalid_requests';
 
 export interface SyncStatus {
   mode: BridgeMode;
@@ -430,13 +416,7 @@ export type ConflictKind =
   | 'cap';
 
 export type ConflictAction =
-  | 'apply_on_sr'
-  | 'take_discord'
-  | 'restore'
-  | 'delete_now'
-  | 'unfreeze'
-  | 'retry'
-  | 'dismiss';
+  'apply_on_sr' | 'take_discord' | 'restore' | 'delete_now' | 'unfreeze' | 'retry' | 'dismiss';
 
 export interface Conflict {
   id: string;
