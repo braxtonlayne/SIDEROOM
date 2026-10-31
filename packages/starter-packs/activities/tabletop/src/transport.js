@@ -145,13 +145,14 @@ export function sdkTransport(sdk, { me, hostId, people = () => [] }) {
  * Wire the host: apply every intent (own and others') with `handleInput` and write the results. Returns the
  * unsubscribe function. `seed` and `now` are injectable for tests.
  */
-export function runHost(transport, handleInput, { seed, now = Date.now } = {}) {
+export function runHost(transport, handleInput, { seed, now = Date.now, hooks = {} } = {}) {
   return transport.onInput((from, msg) => {
     const res = handleInput(transport.doc(), from, msg, {
       hostId: transport.hostId,
       now: now(),
       seed,
     });
+    if (res.error) hooks.onRefuse?.(from, msg, res.error);
     for (const w of res.writes) transport.set(w.key, w.value);
   });
 }
