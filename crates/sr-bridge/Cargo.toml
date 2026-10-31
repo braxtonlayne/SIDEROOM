@@ -10,6 +10,7 @@ async-trait.workspace = true
 futures.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2 = "0.11.0"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-core = { path = "../sr-core", default-features = false }
 sr-events = { path = "../sr-events" }
@@ -20,6 +21,7 @@ sr-sdk = { path = "../sr-sdk", default-features = false }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 tracing = "0.1"
+unicode-normalization = "0.1"
 utoipa = "5"
 
 [dev-dependencies]

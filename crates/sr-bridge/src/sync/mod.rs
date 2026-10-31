@@ -27,6 +27,7 @@ pub mod eligible;
 pub mod holds;
 pub mod ops;
 pub mod patch;
+pub mod plan;
 pub mod reconcile;
 pub mod store;
 pub mod types;
