@@ -366,7 +366,7 @@ async function play() {
           ? "You're in: the next round starts soon."
           : r.error === 'no-seat'
           ? 'You were away too long. Reconnecting…'
-            : 'Could not reach the game server. Try again.',
+            : 'Could not reach the host of this game. Try again.',
   );
   if (!r.ok || !r.pid) {
     if (r.error === 'replaced') {
@@ -375,6 +375,10 @@ async function play() {
     }
     if (r.error === 'kicked') {
       kicked();
+      return;
+    }
+    if (r.error === 'host-left') {
+      hostLeft();
       return;
     }
     if (r.error === 'no-seat') {
@@ -848,6 +852,7 @@ const ROOM_ERRORS = {
   'room-full': 'That room is full.',
   'too-many-rooms': 'The server has no room for more rooms right now.',
   banned: 'The host removed you from that room.',
+  'no-host': 'Could not reach the host of this game. Is the activity still open for them?',
 };
 // Creating rooms has its own limit (D-61); the same error word means something else there.
 const CREATE_SLOW = 'You made a lot of rooms just now. Wait a few minutes, or join one by code.';
@@ -931,9 +936,14 @@ function replaced() {
   btn.focus();
 }
 
+/** The host closed Land.io or left the call: the game ran in their browser and is gone. */
+function hostLeft() {
+  kicked('The host left, so this game has ended. Ask them to start Land.io again.');
+}
+
 /**
- * The host removed us (D-61), or a new room could not be made. Stop here and offer a way on: a browser tab goes
- * back to the lobby; in an Activity, a new room of our own, or the channel's room when this was another one.
+ * The host removed us (D-61), or the room could not be joined. Stop here and say so; outside an activity (the
+ * old plain-browser build) offer a way on.
  * @param {string} [why] what the card says
  */
 function kicked(why = 'The host removed you from this room.') {
@@ -947,6 +957,13 @@ function kicked(why = 'The host removed you from this room.') {
   card.className = 'card';
   const p = document.createElement('p');
   p.textContent = why;
+  if (document.body.classList.contains('hosted')) {
+    // One game per activity instance, run by its host: there is no other room to go to.
+    card.append(p);
+    el.replaceChildren(card);
+    el.hidden = false;
+    return;
+  }
   const actions = document.createElement('div');
   actions.className = 'boot-actions';
   /** @param {string} text @param {() => void} go */
@@ -1001,7 +1018,12 @@ async function boot() {
       el.textContent = `Could not sign in: ${/** @type {Error} */ (e).message}`;
       return;
     }
-    // Who is in the voice channel (the room's own list comes from the server: hud.roomLine).
+    // The game runs in the browser of the member who launched it; this page reaches it through the SDK's data channel.
+    if (platform.channel) {
+      transport.attach(platform.channel);
+      document.body.classList.add('hosted');
+    }
+    // Who is in the voice channel (the room's own list comes from the host: hud.roomLine).
     channelPeople = (await platform.participants()).map((p) => p.name);
     platform.onParticipantsChange((p) => (channelPeople = p.map((x) => x.name)));
     platformReady = true;
@@ -1039,7 +1061,7 @@ async function boot() {
       return;
     }
     const boot = /** @type {HTMLElement} */ (document.getElementById('boot'));
-    boot.textContent = `Could not join: ${reply.error ?? 'unknown error'}`;
+    boot.textContent = ROOM_ERRORS[reply.error ?? ''] ?? `Could not join: ${reply.error ?? 'unknown error'}`;
     return;
   }
   // Remember the room, so rejoins (a stall, "Play here") come back to it.
@@ -1062,6 +1084,10 @@ async function boot() {
       }
       if (!r.ok && r.error === 'kicked') {
         kicked();
+        return;
+      }
+      if (!r.ok && r.error === 'host-left') {
+        hostLeft();
         return;
       }
       if (!r.ok && r.error === 'no-seat') {

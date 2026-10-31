@@ -471,3 +471,20 @@ body:has(#watch:not([hidden])) .tip { display: none; }
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 40px; }
 .lobby .room-join .btn { width: auto; }
 .lobby-foot { font-size: 12px; margin-top: 14px; }
+
+/* Hosted by a SIDE ROOM member: the instance is the room, so there are no codes, links or other rooms to pick. */
+.hosted-only {
+  display: none;
+}
+body.hosted .hosted-only {
+  display: block;
+}
+body.hosted .room-line,
+body.hosted .room-intro,
+body.hosted .room-code-row,
+body.hosted .room-link-row,
+body.hosted #r-copied,
+body.hosted #r-join-form,
+body.hosted #r-back {
+  display: none;
+}

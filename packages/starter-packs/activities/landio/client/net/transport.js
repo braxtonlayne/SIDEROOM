@@ -1,9 +1,12 @@
 // @ts-check
-// The only way the game talks to its server. Phase 1 ships one implementation, HTTP polling through the
-// Activity's URL mapping (`./http-poll.js`); a WebSocket or streaming transport can replace it without the
-// game noticing, as long as it keeps this shape.
+// The only way the game talks to the game. Two implementations keep this shape: HTTP polling through a URL
+// mapping to a game server (`./http-poll.js`, the standalone game's; kept for reference and for a server
+// build), and the one this activity uses, `./sdk-transport.js`: the member who launched the activity runs the
+// game and everyone else reaches it through the SIDE ROOM data channel. `createTransport()` returns a transport
+// that starts unattached; `attach(channel)` (after the platform is ready) binds it to the SDK transport.
 
 import { createHttpPoll } from './http-poll.js';
+import { createSdkTransport } from './sdk-transport.js';
 
 /**
  * @typedef {object} PollReply           see server/arena.js `poll`
@@ -63,7 +66,27 @@ import { createHttpPoll } from './http-poll.js';
  * @property {() => {bytesIn: number, polls: number, rttMs: number, inFlight: number}} stats
  */
 
-/** @param {{ base?: string, intervalMs?: number }} [opt] @returns {Transport} */
+/**
+ * @param {{ base?: string, intervalMs?: number, channel?: import('./channel.js').Channel }} [opt]
+ * @returns {Transport & { attach(channel: import('./channel.js').Channel): void, impl(): Transport }}
+ */
 export function createTransport(opt = {}) {
-  return createHttpPoll(opt);
+  /** @type {Transport} */
+  let current = opt.channel ? createSdkTransport({ channel: opt.channel }) : createHttpPoll(opt);
+  return {
+    attach(channel) {
+      current = createSdkTransport({ channel });
+    },
+    impl: () => current,
+    join: (who) => current.join(who),
+    play: () => current.play(),
+    settings: (body) => current.settings(body),
+    host: (body) => current.host(body),
+    input: (input) => current.input(input),
+    start: (onReply, cursor) => current.start(onReply, cursor),
+    stop: () => current.stop(),
+    report: (body) => current.report(body),
+    leave: () => current.leave(),
+    stats: () => current.stats(),
+  };
 }
