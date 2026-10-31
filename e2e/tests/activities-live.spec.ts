@@ -179,6 +179,23 @@ test.describe('Activities (real browser)', () => {
       await expect(
         frameA.locator('[data-step="participants-update"]').filter({ hasText: '2' }).first(),
       ).toBeVisible({ timeout: 20_000 });
+
+      // --- ACT-CH-001: the two Activities share state through the SFU, sealed with the call's keys. A is the
+      // host (it started the instance). Each writes a key of its own; the other one sees it.
+      await expect(frameA.locator('[data-step="self"]')).toContainText('host', { timeout: 20_000 });
+      await expect(frameB.locator('[data-step="self"]')).toContainText('host', { timeout: 20_000 });
+      await frameA.getByRole('button', { name: 'Set state' }).click();
+      await expect(
+        frameB.locator('[data-step="state"]').filter({ hasText: '=hi' }).first(),
+      ).toBeVisible({
+        timeout: 30_000,
+      });
+      await frameB.getByRole('button', { name: 'Set state' }).click();
+      await expect(
+        frameA.locator('[data-step="state"]').filter({ hasText: '=hi' }).first(),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(frameA.locator('[data-step="state-error"]')).toHaveCount(0);
+      await expect(frameB.locator('[data-step="state-error"]')).toHaveCount(0);
     } finally {
       await a.context.close();
       await b.context.close();

@@ -561,3 +561,126 @@ impl E2eeMedia {
         self.active = None;
     }
 }
+
+/// One message another member sent into an activity instance, opened (ACT-CH-001).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataMessage {
+    pub instance: u64,
+    /// The sender's user id, stamped by the SFU and proven by the key that opened the message.
+    pub from: u64,
+    pub payload: Vec<u8>,
+}
+
+/// A bot's end of the activity data channel (ACT-CH-001), the same wire and the same sealing as the browser's
+/// `sdk.state` / `sdk.input`: the SFU relays opaque bytes between the members that joined an activity instance
+/// of the room, and every message is an `sr-e2ee` data frame under the sender's key for the call's epoch.
+///
+/// Sans-IO. Open the channel with `ConnectOptions { data: true, .. }`, wait for `VoiceEvent::DataOpen`, write
+/// [`DataChannel::join`] with `VoiceSession::send_data`, then [`DataChannel::seal`] for each message and
+/// [`DataChannel::open`] for each `VoiceEvent::Data`. Follow the call's epochs with [`DataChannel::prepare`] and
+/// [`DataChannel::execute`], next to [`E2eeMedia`]. The Embedded App SDK's envelope (JSON with `state`, `input`
+/// and `reply`) rides in the payload; a bot may use its own payloads between bots.
+pub struct DataChannel {
+    me: u64,
+    instance: InstanceId,
+    rx: sr_e2ee::data::DataReceiver,
+    next: Option<(u64, sr_e2ee::data::DataSender)>,
+    active: Option<(u64, sr_e2ee::data::DataSender)>,
+}
+
+const KIND_JOIN: u8 = 0;
+const KIND_LEAVE: u8 = 1;
+const KIND_DATA: u8 = 2;
+const HEADER_OUT: usize = 17;
+
+fn client_frame(kind: u8, instance: u64, payload: &[u8]) -> Vec<u8> {
+    let mut v = Vec::with_capacity(9 + payload.len());
+    v.push(kind);
+    v.extend_from_slice(&instance.to_be_bytes());
+    v.extend_from_slice(payload);
+    v
+}
+
+impl DataChannel {
+    /// `random`: four random bytes, new for every [`DataChannel`] (see [`E2eeMedia::new`]).
+    pub fn new(me: u64, random: [u8; 4]) -> Self {
+        Self {
+            me,
+            instance: InstanceId::from_random(random),
+            rx: sr_e2ee::data::DataReceiver::new(10_000),
+            next: None,
+            active: None,
+        }
+    }
+
+    /// Install the keys of a new epoch: opening works at once, sealing after [`Self::execute`].
+    pub fn prepare(&mut self, keys: &EpochKeys, now_ms: u64) -> Result<(), VoiceError> {
+        if let Some((_, secret)) = keys.senders.iter().find(|(u, _)| *u == self.me) {
+            let tx = sr_e2ee::data::DataSender::new(secret, self.instance)
+                .map_err(|_| VoiceError::from(FrameError::BadInstance))?;
+            self.next = Some((keys.epoch, tx));
+        }
+        let senders = keys
+            .senders
+            .iter()
+            .map(|(u, s)| (*u, SenderSecret::new(*s.as_bytes())));
+        self.rx.set_epoch(keys.epoch, senders, now_ms)?;
+        Ok(())
+    }
+
+    /// Switch sealing to `epoch` (the server's `execute`); false when those keys were never prepared.
+    pub fn execute(&mut self, epoch: u64) -> bool {
+        match self.next.take() {
+            Some((e, tx)) if e == epoch => {
+                self.active = Some((e, tx));
+                true
+            }
+            other => {
+                self.next = other;
+                false
+            }
+        }
+    }
+
+    /// The frame that starts delivering `instance`'s messages to this member (and lets it send into it).
+    pub fn join(&self, instance: u64) -> Vec<u8> {
+        client_frame(KIND_JOIN, instance, &[])
+    }
+
+    pub fn leave(&self, instance: u64) -> Vec<u8> {
+        client_frame(KIND_LEAVE, instance, &[])
+    }
+
+    /// Seal `payload` (at most 16 KiB) for the other members of `instance`; an error before the first
+    /// [`Self::execute`] (nothing is ever sent unsealed).
+    pub fn seal(&mut self, instance: u64, payload: &[u8]) -> Result<Vec<u8>, VoiceError> {
+        let (_, tx) = self.active.as_mut().ok_or(FrameError::NoKey)?;
+        let sealed = tx
+            .seal(payload)
+            .map_err(|_| VoiceError::from(FrameError::Malformed))?;
+        Ok(client_frame(KIND_DATA, instance, &sealed))
+    }
+
+    /// Open a frame from `VoiceEvent::Data`. `None` for anything that must be dropped: a malformed frame, no key
+    /// for the sender, a forged or replayed message.
+    pub fn open(&mut self, frame: &[u8], now_ms: u64) -> Option<DataMessage> {
+        if frame.len() <= HEADER_OUT || frame[0] != KIND_DATA {
+            return None;
+        }
+        let instance = u64::from_be_bytes(frame[1..9].try_into().ok()?);
+        let from = u64::from_be_bytes(frame[9..17].try_into().ok()?);
+        let payload = self.rx.open(from, &frame[HEADER_OUT..], now_ms).ok()?;
+        Some(DataMessage {
+            instance,
+            from,
+            payload,
+        })
+    }
+
+    /// Forget every key (left the call).
+    pub fn clear(&mut self) {
+        self.rx = sr_e2ee::data::DataReceiver::new(10_000);
+        self.next = None;
+        self.active = None;
+    }
+}

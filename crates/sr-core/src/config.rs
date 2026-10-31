@@ -193,6 +193,10 @@ pub struct VoiceConfig {
     /// it makes the SFU pad every sending connection to 50 kbit/s, audio-only ones too. With
     /// it off, layer selection falls back to loss reports.
     pub video_bwe: bool,
+    /// Each member's activity data-channel budget in kbit/s (`voice.datachannel_kbps`, ACT-CH-001): what a
+    /// member may send through the SFU to the other participants of an activity instance; above it messages
+    /// are dropped. `0` turns activity data channels off.
+    pub datachannel_kbps: u32,
     /// Media actors the SFU shards its rooms over (one per channel id hash, each with its own
     /// UDP sockets). Defaults to `1` (single actor) until the AX42 run is recorded; `0` picks half
     /// the available cores, at most 8; it never exceeds the number
@@ -246,6 +250,7 @@ impl Default for VoiceConfig {
             session_grace_secs: 20,
             egress_budget_mbps: 0,
             video_bwe: false,
+            datachannel_kbps: 256,
             removed_e2ee: None,
             shards: 1,
             turn: TurnSection::default(),

@@ -770,3 +770,31 @@ async fn participants_follow_the_voice_session() {
     assert!(r.svc.launch(a, app, 1).await.is_ok());
     r.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_instance_carries_the_capabilities_of_its_reviewed_bundle() {
+    let r = rig().await;
+    let owner = account(r.db.pool()).await;
+    let app = application(r.db.pool(), owner, "Board").await;
+    r.svc.save_config(app, input(None)).await.unwrap();
+    let zip = zip_of(&[
+        ("index.html", b"<h1>board</h1>"),
+        ("sideroom.json", br#"{"capabilities":["datachannel"]}"#),
+    ]);
+    let up = r.svc.upload_bundle(app, owner, zip).await.unwrap();
+    assert_eq!(up.bundle.capabilities, vec!["datachannel"]);
+    let id: i64 = up.bundle.id.parse().unwrap();
+    r.svc.submit(app, id).await.unwrap();
+    r.svc.decide(app, 1, id, true, None).await.unwrap();
+    set_state(&r, app, "released").await;
+    let member = account(r.db.pool()).await;
+    let inst = r.svc.launch(member, app, 1).await.unwrap();
+    assert_eq!(inst.capabilities, vec!["datachannel"]);
+    r.svc.end(member, inst.id.parse().unwrap()).await.unwrap();
+
+    // A bundle without a manifest declares nothing.
+    let plain = approved_app(&r, "Plain").await;
+    let inst = r.svc.launch(member, plain, 1).await.unwrap();
+    assert!(inst.capabilities.is_empty());
+}

@@ -10,7 +10,13 @@
  * Fail closed: without a key, or when encryption or decryption fails, the frame is dropped
  * (`null`). A plaintext frame is never sent or played.
  */
-import type { E2eeApi, E2eeEncryptor, E2eeKeyRing } from '@sideroom/wasm';
+import type {
+  E2eeApi,
+  E2eeDataReceiver,
+  E2eeDataSender,
+  E2eeEncryptor,
+  E2eeKeyRing,
+} from '@sideroom/wasm';
 
 export const GRACE_MS = 10_000;
 
@@ -27,6 +33,10 @@ export class E2eeMedia {
   private current: { epoch: number; enc: E2eeEncryptor } | null = null;
   private pending = new Map<number, E2eeEncryptor>();
   private readonly ring: E2eeKeyRing;
+  /** Activity data messages (ACT-CH-001) ride the same epoch keys as the media frames. */
+  private dataCurrent: { epoch: number; tx: E2eeDataSender } | null = null;
+  private dataPending = new Map<number, E2eeDataSender>();
+  private readonly dataRecv: E2eeDataReceiver;
   readonly stats: MediaStats = { encrypted: 0, decrypted: 0, sendDropped: 0, recvDropped: 0 };
 
   constructor(
@@ -36,6 +46,7 @@ export class E2eeMedia {
     graceMs = GRACE_MS,
   ) {
     this.ring = api.createKeyRing(graceMs);
+    this.dataRecv = api.createDataReceiver(graceMs);
   }
 
   /** The epoch frames are sent under, or -1 before the first. */
@@ -51,6 +62,7 @@ export class E2eeMedia {
   prepareSend(epoch: number, secret: Uint8Array): void {
     if (epoch <= this.sendEpoch || this.pending.has(epoch)) return;
     this.pending.set(epoch, this.api.createEncryptor(secret, this.random(4)));
+    this.dataPending.set(epoch, this.api.createDataSender(secret, this.random(4)));
   }
 
   /** Switch to `epoch`'s encryptor (server `execute`). Older pending ones are dropped. */
@@ -65,12 +77,43 @@ export class E2eeMedia {
     }
     this.current?.enc.free();
     this.current = { epoch, enc };
+    const dtx = this.dataPending.get(epoch);
+    for (const [e, p] of this.dataPending) {
+      if (e <= epoch) {
+        if (e !== epoch) p.free();
+        this.dataPending.delete(e);
+      }
+    }
+    if (dtx) {
+      this.dataCurrent?.tx.free();
+      this.dataCurrent = { epoch, tx: dtx };
+    }
     return true;
   }
 
   /** Everyone's base secrets for `epoch`; one 16-byte secret per user id. */
   setReceive(epoch: number, userIds: string[], secrets: Uint8Array, nowMs: number): void {
     this.ring.setEpoch(epoch, userIds, secrets, nowMs);
+    this.dataRecv.setEpoch(epoch, userIds, secrets, nowMs);
+  }
+
+  /** Seal one activity data message under this client's key for the current epoch; `null` drops it. */
+  sealData(message: Uint8Array): Uint8Array | null {
+    if (!this.dataCurrent) return null;
+    try {
+      return this.dataCurrent.tx.seal(message);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Open an activity data message from `sender`; `null` for anything that must be dropped (no key, forged, replayed). */
+  openData(sender: string, frame: Uint8Array, nowMs: number): Uint8Array | null {
+    try {
+      return this.dataRecv.open(sender, frame, nowMs);
+    } catch {
+      return null;
+    }
   }
 
   encrypt(mime: string, frame: Uint8Array): Uint8Array | null {
@@ -106,5 +149,9 @@ export class E2eeMedia {
     for (const p of this.pending.values()) p.free();
     this.pending.clear();
     this.ring.clear();
+    this.dataCurrent?.tx.free();
+    this.dataCurrent = null;
+    for (const p of this.dataPending.values()) p.free();
+    this.dataPending.clear();
   }
 }

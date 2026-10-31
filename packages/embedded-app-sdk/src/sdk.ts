@@ -15,6 +15,14 @@ import {
   type RpcErrorBody,
   type SubscribeArgs,
 } from './protocol';
+import {
+  ActivityData,
+  b64,
+  unb64,
+  type DataEventMap,
+  type DataEventName,
+  type DataTransport,
+} from './data';
 
 /** The slice of `window` the SDK needs, injectable for tests. */
 export interface SdkEnv {
@@ -45,6 +53,11 @@ export interface SdkOptions {
   timeoutMs?: number;
   /** Test seam; defaults to the browser's `window`. */
   env?: SdkEnv;
+  /**
+   * The activity data channel (ACT-CH-001). Tests pass a `LoopbackHub` transport; in the client the host
+   * page provides the SFU-backed one. Without it `sdk.state` and `sdk.input` throw `NO_TRANSPORT`.
+   */
+  transport?: DataTransport;
 }
 
 function browserEnv(): SdkEnv {
@@ -81,17 +94,73 @@ export class SideRoomSDK {
   private seq = 0;
   private readyWaiter: { resolve: (c: ReadyConfig) => void } | null = null;
   private readonly onMessage = (e: MessageEvent) => this.receive(e);
+  /** The data layer behind `state`, `input` and `on` (public for activities that need `version`, `snapshot`). */
+  readonly data = new ActivityData();
 
   constructor(applicationId: string, opts: SdkOptions = {}) {
     this.applicationId = applicationId;
     this.env = opts.env ?? browserEnv();
     this.timeoutMs = opts.timeoutMs ?? 60_000;
     this.env.addEventListener('message', this.onMessage);
+    if (opts.transport) this.data.attach(opts.transport);
+  }
+
+  /** Attach (or replace) the data channel transport. */
+  attachTransport(transport: DataTransport): void {
+    this.data.attach(transport);
+  }
+
+  /** The instance's shared JSON document: last writer wins per key; `host:*` keys are the host's alone. */
+  get state() {
+    const d = this.data;
+    return {
+      get: <T = unknown>(key: string): T | undefined => d.get<T>(key),
+      /** A copy of every live key. */
+      all: (): Record<string, unknown> => d.snapshot(),
+      /** The document version (the highest key version seen). */
+      get version(): number {
+        return d.version;
+      },
+      set: (patch: Record<string, unknown>): void => d.set(patch),
+      delete: (...keys: string[]): void => d.delete(...keys),
+    };
+  }
+
+  /** Inputs to the host and the host's replies to one member. */
+  get input() {
+    const d = this.data;
+    return {
+      /** Send bytes to the instance's host. */
+      send: (bytes: Uint8Array): void => d.sendInput(bytes),
+      /** Host only: send bytes to one member (e.g. hole cards); other members ignore them. */
+      reply: (member: string, bytes: Uint8Array): void => d.reply(member, bytes),
+    };
+  }
+
+  /** Listen to `'state'` (the document changed) or `'input'` (an input for the host, or a host reply). */
+  on<K extends DataEventName>(event: K, cb: (e: DataEventMap[K]) => void): () => void {
+    return this.data.on(event, cb);
+  }
+
+  /** This participant's own member id (from the data channel), `null` before a transport is attached. */
+  get self(): string | null {
+    return this.data.self;
+  }
+
+  /** The member who launched the instance: the only writer of `host:*` keys. */
+  get hostId(): string | null {
+    return this.data.host;
+  }
+
+  /** True when this participant launched the instance. */
+  get isHost(): boolean {
+    return this.data.isHost;
   }
 
   /** Stop listening. Pending commands fail. */
   close(): void {
     this.env.removeEventListener('message', this.onMessage);
+    this.data.detach();
     for (const [, p] of this.pending)
       p.reject(new SdkError({ code: 'CLOSED', message: 'The SDK was closed.' }));
     this.pending.clear();
@@ -162,6 +231,33 @@ export class SideRoomSDK {
     };
   }
 
+  /** With the `datachannel` capability the host page relays our data envelopes through the SFU. */
+  private attachHostTransport(cfg: ReadyConfig): void {
+    if (this.data.self || !cfg.capabilities?.includes('datachannel')) return;
+    if (!cfg.user_id || !cfg.host_id) return;
+    const subs = new Set<(from: string, bytes: Uint8Array) => void>();
+    this.subscribe('DATA_MESSAGE', (d) => {
+      const m = d as { from?: unknown; b?: unknown };
+      if (typeof m.from !== 'string' || typeof m.b !== 'string') return;
+      let bytes: Uint8Array;
+      try {
+        bytes = unb64(m.b);
+      } catch {
+        return;
+      }
+      for (const s of subs) s(m.from, bytes);
+    });
+    this.data.attach({
+      self: cfg.user_id,
+      host: cfg.host_id,
+      send: (bytes) => void this.call('dataSend', { b: b64(bytes) }).catch(() => undefined),
+      onMessage: (cb) => {
+        subs.add(cb);
+        return () => subs.delete(cb);
+      },
+    });
+  }
+
   private post(frame: Frame): void {
     this.env.parent?.postMessage(frame, this.env.hostOrigin || '*');
   }
@@ -193,6 +289,7 @@ export class SideRoomSDK {
     if (!f) return;
     if (f.kind === 'ready' && this.readyWaiter) {
       this.config = f.config;
+      this.attachHostTransport(f.config);
       this.readyWaiter.resolve(f.config);
       this.readyWaiter = null;
     } else if (f.kind === 'response') {

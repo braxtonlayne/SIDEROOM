@@ -97,6 +97,9 @@ pub struct BundleView {
     pub uploaded_at_ms: i64,
     pub reviewed_at_ms: Option<i64>,
     pub note: Option<String>,
+    /// Capabilities the bundle declares in `sideroom.json` (`datachannel`), shown to staff at review.
+    #[serde(default)]
+    pub capabilities: Vec<String>,
 }
 
 /// One file of a bundle.
@@ -181,4 +184,8 @@ pub struct InstanceView {
     pub started_by: String,
     pub created_at_ms: i64,
     pub participants: Vec<ParticipantView>,
+    /// What the instance's Activity may use: the capabilities of its reviewed bundle (a development build has
+    /// them all). `datachannel`: `sdk.state` and `sdk.input` through the SFU.
+    #[serde(default)]
+    pub capabilities: Vec<String>,
 }

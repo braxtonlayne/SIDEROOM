@@ -33,6 +33,8 @@ pub enum Codec {
     Opus,
     Vp8,
     H264,
+    /// Activity data-channel messages (ACT-CH-001): no clear ranges, every byte is encrypted.
+    Data,
 }
 
 impl Codec {
@@ -42,6 +44,7 @@ impl Codec {
             Codec::Opus => 1,
             Codec::Vp8 => 2,
             Codec::H264 => 3,
+            Codec::Data => 4,
         }
     }
 
@@ -50,6 +53,7 @@ impl Codec {
             1 => Some(Codec::Opus),
             2 => Some(Codec::Vp8),
             3 => Some(Codec::H264),
+            4 => Some(Codec::Data),
             _ => None,
         }
     }
@@ -61,6 +65,7 @@ impl Codec {
             "audio/opus" => Some(Codec::Opus),
             "video/vp8" => Some(Codec::Vp8),
             "video/h264" => Some(Codec::H264),
+            "application/x-sr-data" => Some(Codec::Data),
             _ => None,
         }
     }
@@ -77,7 +82,7 @@ pub const H264_SLICE_PREFIX_MAX: usize = 32;
 /// what gets encrypted.
 pub fn clear_ranges(codec: Codec, frame: &[u8]) -> Vec<Range<usize>> {
     let raw = match codec {
-        Codec::Opus => Vec::new(),
+        Codec::Opus | Codec::Data => Vec::new(),
         Codec::Vp8 => vp8(frame),
         Codec::H264 => h264(frame),
     };

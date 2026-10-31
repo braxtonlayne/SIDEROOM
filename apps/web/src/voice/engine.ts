@@ -34,6 +34,7 @@ import {
   type VideoSource,
 } from './protocol';
 import { simulcastEncodings } from './video';
+import { activityDataPort, LABEL as DATA_LABEL } from './dataPort';
 import {
   inboundSample,
   qualityFromStats,
@@ -82,6 +83,9 @@ export interface EngineE2ee {
   peerConfig: Record<string, unknown>;
   attachSender(sender: unknown, kind: 'audio' | 'video'): void;
   attachReceiver(receiver: unknown, kind: 'audio' | 'video', userId: string): void;
+  /** ACT-CH-001: seal / open an activity data message with the call's keys; `null` means drop it. */
+  sealData?(bytes: Uint8Array): Promise<Uint8Array | null>;
+  openData?(sender: string, bytes: Uint8Array): Promise<Uint8Array | null>;
 }
 
 /** The part of an RTCRtpReceiver the engine reads for per-tile quality. */
@@ -214,6 +218,19 @@ export interface PeerLike {
   setLocalDescription(d?: { type: string; sdp?: string }): Promise<void>;
   setRemoteDescription(d: { type: string; sdp?: string }): Promise<void>;
   getStats(): Promise<{ forEach(cb: (s: Record<string, unknown>) => void): void }>;
+  /** The activity data channel (ACT-CH-001); absent in fakes. */
+  createDataChannel?(label: string, init?: { ordered?: boolean }): DataChannelLike;
+  close(): void;
+}
+
+/** The part of an RTCDataChannel the engine uses. */
+export interface DataChannelLike {
+  binaryType: string;
+  readonly readyState: string;
+  onopen: (() => void) | null;
+  onclose: (() => void) | null;
+  onmessage: ((ev: { data: unknown }) => void) | null;
+  send(data: Uint8Array): void;
   close(): void;
 }
 
@@ -547,6 +564,10 @@ export class RtcVoiceEngine implements VoiceEngine {
       iceServers: this.params?.iceServers ?? [],
       ...(e2ee?.peerConfig ?? {}),
     });
+    // ACT-CH-001: the activity data channel rides the same peer connection, sealed with the call's keys.
+    if (e2ee?.sealData && pc.createDataChannel) {
+      activityDataPort.attach(pc.createDataChannel(DATA_LABEL, { ordered: true }), e2ee);
+    }
     const out = this.mic.outStream;
     const track = this.mic.track;
     if (track && out) {
@@ -1103,6 +1124,7 @@ export class RtcVoiceEngine implements VoiceEngine {
       }
     }
     if (this.pc) {
+      activityDataPort.detach();
       this.pc.onconnectionstatechange = this.pc.onicegatheringstatechange = this.pc.ontrack = null;
       this.pc.close();
       this.pc = null;

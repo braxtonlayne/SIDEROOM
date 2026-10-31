@@ -17,6 +17,8 @@ export interface ActivityInstance {
   started_by: string;
   created_at_ms: number;
   participants: ActivityParticipant[];
+  /** What the reviewed bundle may use (`sideroom.json`); `datachannel` enables `sdk.state` / `sdk.input`. */
+  capabilities?: string[];
 }
 
 export interface ShelfItem {
