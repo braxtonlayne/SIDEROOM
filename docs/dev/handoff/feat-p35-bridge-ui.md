@@ -101,3 +101,32 @@ OpenAPI, normally in bridge-core's `routes/guilds/bridge.rs`.
 - Added: Discord bridge settings (Modules card with the privacy notice, owner-only switch, "Discord bridge" screen with token, channel
   mapping, test, opt-out counts and a teardown dialog), a banner and a per-member "Don't mirror my messages" option in mirrored
   channels, the DISCORD tag, a list of mirrored channels on the privacy page, and data export/erasure of the member's bridged messages.
+
+## Tests actually run
+
+All on this branch, one process at a time, `--maxWorkers=2`, own scratch database `sr_p35_bridge_ui` (dropped).
+
+- Vitest: `src/settings/server/bridge` (17 tests: card off by default / greyed for a manager / notice before the switch / owner switch-on /
+  403 / platform-off; nav absent when off, present for a manager when on, absent without Manage Server and when platform-killed; token
+  paste once and cleared, manager sees no form, intent warning, map add/test/remove with opt-out count, encrypted refusal; teardown
+  dialog with failed webhook ids, nothing-left, cancel) and `src/lounge/bridge` (13: banner wording per direction, absent when unmapped
+  or unreadable, opt-out/in calls, rollback, menu entries, DISCORD tag mapping and no direct Discord avatar URL, grouping, privacy list).
+  30/30 pass with the repo's default 5 s `asyncUtilTimeout`.
+- Broader Vitest sweep (`src/i18n src/help src/settings src/lounge/__tests__ src/a11y`, 1111 tests): all pass except
+  `lounge/__tests__/shell.test.tsx > lists voice channels with connected users and joins voice`, which fails identically with my
+  `ChannelView.tsx` and `useChannelMenu.ts` edits reverted (so not caused by this branch as far as I can tell; not investigated).
+  Note for anyone re-running: on this loaded machine the first test of a settings file pays the cold import of the whole settings tree and
+  can exceed the 5 s `asyncUtilTimeout` (it did for `features.test.tsx` and `shell.test.tsx` here, with or without my change; they pass
+  with the timeout raised to 25 s, which I used for the broad sweep and did NOT commit). Four suites need the wasm build
+  (`channelPerms`, `p24ProfileCard`, `p14profile`, `viewAs`); they pass after `pnpm --filter @sideroom/wasm build`.
+- `pnpm -r --if-present typecheck` (includes e2e): clean. `eslint` on all touched web paths: clean. `prettier --check apps/web/src e2e
+  docs/dev/handoff`: clean.
+- `node scripts/build-web.mjs`, `node scripts/check-entrance-isolation.mjs` (every public surface clean), `node scripts/check-bundle-budget.mjs`:
+  all exit 0 (landing 114.0/120 KB, unchanged surfaces).
+- Rust: `cargo test -p sr-db --test bridge_dsr -- --include-ignored` (3 pass: export is ids only, erasure queues two webhook deletes with the
+  full payload and removes the map rows and opt-outs while another member's rows stay, an empty member erases cleanly);
+  `account_deletion` and `data_export` Postgres suites still pass (4 + 4); `sr-admin` unit test of the outcome text; `cargo fmt --check` and
+  `clippy --all-targets -D warnings` on `sr-db` and `sr-admin`. The Postgres tests ran with bridge-core's `1720_bridge.sql` copied in
+  temporarily and **not committed**; with it absent `bridge_dsr` returns empty (the `to_regclass` guard).
+- NOT run: `e2e/tests/bridge.spec.ts` (needs bridge-core's fake Discord; typechecks, skips itself when the fake is down). No server, no
+  Playwright and nothing on ports 8080/5173 was started. No authz/route matrix rows: this branch adds no routes.
