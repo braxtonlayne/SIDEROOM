@@ -23,10 +23,15 @@
 //! `sync::{perms, overwrites, conflicts}`; every Discord HTTP call is BRG-SYN-003 and goes through
 //! [`DiscordApi`](crate::DiscordApi).
 
+pub mod eligible;
+pub mod holds;
+pub mod ops;
 pub mod patch;
 pub mod reconcile;
+pub mod store;
 pub mod types;
 
+pub use eligible::{Mirrored, Refusal, bridgeable};
 pub use patch::{ChannelPatch, RoleStructurePatch, SrStructuralPatch, ThreadPatch};
 pub use reconcile::{Authority, Decision, FieldView, decide, field_authority};
 pub use types::{
