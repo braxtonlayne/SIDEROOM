@@ -451,24 +451,25 @@ kind of resource id, listing the placeholder in `TENANT` and seeding an instance
 
 ### Discord bridge, whole-server mode (wave 35b)
 
-Under `/api/v1/guilds/{g}/bridge`, session-only like the rest of the bridge. Classes: `bridge_admin` is the server owner or `MANAGE_GUILD`; `guild_owner` is the owner with the MFA step. Shapes are defined in `apps/web/src/settings/server/bridge/api.ts`.
+Under `/api/v1/guilds/{g}/bridge`, session-only like the rest of the bridge (`crates/sr-api/src/routes/guilds/bridge_sync.rs` and `bridge_conflicts.rs`; the OpenAPI document has the shapes). Classes: `bridge_admin` is `MANAGE_GUILD` once the owner switched the bridge on; `guild_owner` is the owner alone with the MFA step; `membership` is any member of the server. Times are Unix milliseconds.
 
 | Route | Class | Purpose |
 |---|---|---|
-| `GET /preflight` | bridge_admin | The checks before a plan: bot Administrator, bot role on top, intents, caps, unique Discord server, other integrations |
-| `POST /plan` `{mode:"whole_guild", seed_structure}` | bridge_admin | Build a dry-run plan as a job; answers `{plan_id}`. One open plan per server, 15 minutes |
-| `GET /plan/{plan_id}` | bridge_admin | Status, blockers, roles, categories, channels, threads, changes on Discord, imports, not mirrored, estimate, hash |
-| `PATCH /plan/{plan_id}` | bridge_admin | `{op:"unlink"|"link"|"import"}` |
-| `POST /mode` | guild_owner | `{mode:"whole_guild", plan_id, plan_hash}` or `{mode:"selective"}`. Stale plan: 409 `BRIDGE_PLAN_STALE`. Going back to selective deletes nothing |
-| `GET /sync` | bridge_admin | Mode, sync state, bot checks, last reconcile, queue, dead ops, rate-limit wait, counts, seed progress |
-| `POST /reconcile`, `/pause`, `/resume` | bridge_admin | Reconcile now (once per 5 minutes), pause and resume pushes |
-| `GET /conflicts?kind=&open=` | bridge_admin | The conflict log |
-| `POST /conflicts/{id}/{take-discord, restore, delete-now, unfreeze, retry, dismiss}` | bridge_admin | Run as the clicking person; the SIDE ROOM rule of the edit also applies |
-| `GET /mirrors` | any member | Which roles and channels are mirrored, for badges |
-| `GET /teardown-preview` | bridge_admin | Counts of what the bridge created on Discord, for the switch-off dialog |
-| `PATCH /sr/features/bridge.enabled` `{enabled:false, teardown?:{remove_created, restore_permissions}}` | guild_owner | Switch off; `teardown` only in whole-server mode |
+| `GET /preflight` | bridge_admin | The checks before a plan, run now: bot Administrator, bot role on top, intents, caps, unique Discord server; plus the Administrator invite link |
+| `POST /plan` `{seed_structure}` | bridge_admin | Build a dry-run plan (writes nothing anywhere); answers `{plan_id}`. One open plan per server, 15 minutes |
+| `GET /plan/{plan_id}` | bridge_admin | Status, blockers, items (role, category, channel, thread with the action `match`, `pinned`, `create_on_discord`, `create_here`, the permission words and the import flag), not mirrored (with a `code`), estimated writes, hash |
+| `PATCH /plan/{plan_id}` | bridge_admin | `{op:"unlink", index}`, `{op:"link", kind, sr_id, discord_id}`, `{op:"import", index, import}`, `{op:"seed_structure", value}` |
+| `POST /mode` | guild_owner | `{mode:"whole_guild", plan_id, plan_hash}` or `{mode:"selective"}`. Stale plan: 409 whose message starts with `BRIDGE_PLAN_STALE`. Going back to selective deletes nothing |
+| `GET /sync` | bridge_admin | Mode, sync state, last reconcile, queue, dead ops, maps, degraded, frozen, held deletions, `intents_ok`, when "Reconcile now" is next allowed |
+| `POST /reconcile`, `/pause`, `/resume` | bridge_admin | Reconcile now (once per 5 minutes), pause and resume |
+| `GET /holds`; `POST /holds/{channel_id}/restore`, `/delete` | bridge_admin (+ `MANAGE_CHANNELS` for the two actions) | Channels deleted on Discord and held here; restoring or deleting one closes its conflict row |
+| `GET /conflicts?kind=&status=` | bridge_admin | The conflict log (`status` `open` by default, or `all`) with the object's current name |
+| `POST /conflicts/{id}/{dismiss, resolve, take-discord, unfreeze, retry}` | bridge_admin | Run as the clicking person; `resolve` and `take-discord` also need the SIDE ROOM permission of the edit |
+| `GET /mirrors` | membership | Which roles and channels are mirrored, for badges (404 while the bridge is off) |
+| `GET /teardown-preview` | guild_owner | Counts of what the bridge created on Discord, for the switch-off dialog |
+| `POST /teardown` `{remove_created, restore_permissions}` | guild_owner | Switch the bridge off with the whole-server options; the screen then switches the module off (`PATCH /sr/features/bridge.enabled`), which finds nothing left to tear down |
 
-`GET /members` gains `role_ids` (SIDE ROOM role ids, display only) in whole-server mode, and a channel's `sr_bridge` gains `mode`.
+`GET /members` carries `role_ids` (SIDE ROOM role ids the member's Discord roles map to, display only) in whole-server mode, and a channel's `sr_bridge` (REST and gateway) carries `mode` next to `direction`.
 
 ## 6. Gateway
 

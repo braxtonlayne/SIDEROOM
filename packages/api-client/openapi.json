@@ -81892,12 +81892,17 @@
         "type": "object",
         "description": "The bridge state of a channel: which way its messages flow.",
         "required": [
-          "direction"
+          "direction",
+          "mode"
         ],
         "properties": {
           "direction": {
             "type": "string",
             "description": "`both`, `to_discord` or `from_discord`."
+          },
+          "mode": {
+            "type": "string",
+            "description": "The bridge's mode (wave 35b): `selective` or `whole_guild` (the banner names the whole-server mirror)."
           }
         }
       },

@@ -17149,6 +17149,8 @@ export interface components {
         BridgeChannelState: {
             /** @description `both`, `to_discord` or `from_discord`. */
             direction: string;
+            /** @description The bridge's mode (wave 35b): `selective` or `whole_guild` (the banner names the whole-server mirror). */
+            mode: string;
         };
         BridgeHoldObject: {
             channel_id: string;
