@@ -129,6 +129,9 @@ fn new_rtc(now: Instant) -> Rtc {
 pub struct ConnectOptions {
     /// Offer a second send-only audio line for a stereo music track (MUS-JB-001).
     pub music: bool,
+    /// Open the activity data channel (ACT-CH-001): [`VoiceSession::send_data`] and [`VoiceEvent::Data`]. Seal and
+    /// open the frames with [`crate::voice::DataChannel`].
+    pub data: bool,
 }
 
 /// Encrypts the bot's own frames and decrypts everyone else's.
@@ -249,6 +252,13 @@ impl VoiceServerUpdate {
 pub enum VoiceEvent {
     /// ICE and DTLS are up; audio can be sent.
     Connected,
+    /// The activity data channel is open (joined with [`ConnectOptions::data`]); send the instance joins now.
+    DataOpen,
+    /// One frame the SFU relayed from another member over the data channel, still sealed: give it to
+    /// [`crate::voice::DataChannel::open`].
+    Data {
+        frame: Vec<u8>,
+    },
     /// One decoded-from-RTP Opus frame (already decrypted when a transform is installed).
     Audio {
         user: u64,
@@ -303,6 +313,8 @@ pub struct VoiceSession {
     mic: Mid,
     /// The music line, when joined with [`ConnectOptions::music`].
     music: Option<Mid>,
+    /// The activity data channel, once open (ACT-CH-001).
+    data: Option<str0m::channel::ChannelId>,
     /// The SFU was told the music line is live.
     music_live: bool,
     pending: Option<SdpPendingOffer>,
@@ -390,6 +402,9 @@ impl VoiceSession {
         let music = options
             .music
             .then(|| change.add_media(MediaKind::Audio, Direction::SendOnly, None, None, None));
+        if options.data {
+            change.add_channel("sr-act".to_owned());
+        }
         let (offer, pending) = change
             .apply()
             .ok_or_else(|| TransportError::Rtc("nothing to offer".into()))?;
@@ -425,6 +440,7 @@ impl VoiceSession {
             local,
             mic,
             music,
+            data: None,
             music_live: false,
             pending: Some(pending),
             start: Instant::now(),
@@ -596,6 +612,19 @@ impl VoiceSession {
             .push(json!({"op": op::SPEAKING, "d": {"speaking": u8::from(speaking)}}));
     }
 
+    /// Write one frame on the activity data channel (see [`crate::voice::DataChannel`] for the frames). `false`
+    /// when the channel is not open yet or its buffer is full: the frame was dropped, as the SFU would drop it.
+    pub fn send_data(&mut self, frame: &[u8]) -> Result<bool, TransportError> {
+        let Some(id) = self.data else {
+            return Ok(false);
+        };
+        let Some(mut ch) = self.rtc.channel(id) else {
+            return Ok(false);
+        };
+        ch.write(true, frame)
+            .map_err(|e| TransportError::Rtc(e.to_string()))
+    }
+
     /// Drive the connection for up to `max` and return what happened. Returns early as soon as there is
     /// at least one event.
     pub async fn pump(&mut self, max: Duration) -> Result<Vec<VoiceEvent>, TransportError> {
@@ -621,6 +650,17 @@ impl VoiceSession {
                             .map(|x| x.stream_id().to_owned())
                             .unwrap_or_default();
                         self.on_media(&stream, &m.data);
+                    }
+                    Output::Event(Event::ChannelOpen(id, label)) => {
+                        if label == "sr-act" && self.data.is_none() {
+                            self.data = Some(id);
+                            self.events.push_back(VoiceEvent::DataOpen);
+                        }
+                    }
+                    Output::Event(Event::ChannelData(d)) => {
+                        if d.binary && self.data == Some(d.id) {
+                            self.events.push_back(VoiceEvent::Data { frame: d.data });
+                        }
                     }
                     Output::Event(_) => {}
                     Output::Timeout(t) => {
