@@ -556,7 +556,9 @@ fn route(
                     .map(|(k, _)| *k)
                     .collect();
                 for k in ids {
-                    s.channels.get_mut(&k).map(|x| x["parent_id"] = Value::Null);
+                    if let Some(x) = s.channels.get_mut(&k) {
+                        x["parent_id"] = Value::Null;
+                    }
                     let cj = s.channel_json(k);
                     s.emit("CHANNEL_UPDATE", cj);
                 }
