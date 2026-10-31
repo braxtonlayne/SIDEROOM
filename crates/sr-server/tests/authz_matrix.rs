@@ -6397,7 +6397,7 @@ pub mod harness {
 
     /// A PATCH that sets up a state (it is not what is under test). The admin routes and the guild module
     /// toggle are rate limited per account, so a 429 is waited out and the call repeated (at most 20 times).
-    pub async fn patch_past_429(
+    pub(super) async fn patch_past_429(
         srv: &Server,
         cred: &Cred,
         path: &str,
