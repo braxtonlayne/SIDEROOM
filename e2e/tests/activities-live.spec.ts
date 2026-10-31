@@ -1,5 +1,14 @@
 import { expect, test, apiPatch, apiPost, loginApi, registerUser } from '../support/fixtures';
-import { testActivityBundle } from '../support/activityBundle';
+import {
+  builtInActivityBundle,
+  testActivityBundle,
+  type BuiltInActivity,
+} from '../support/activityBundle';
+import { startActivityForTwo, type ActivitySession } from '../support/activities';
+import { holdemCase } from '../support/activity-cases/holdem';
+import { landioCase } from '../support/activity-cases/landio';
+import { tabletopCase } from '../support/activity-cases/tabletop';
+import { whiteboardCase } from '../support/activity-cases/whiteboard';
 import {
   debugPage,
   joinVoice,
@@ -179,10 +188,70 @@ test.describe('Activities (real browser)', () => {
       await expect(
         frameA.locator('[data-step="participants-update"]').filter({ hasText: '2' }).first(),
       ).toBeVisible({ timeout: 20_000 });
+
+      // --- ACT-CH-001: the two Activities share state through the SFU, sealed with the call's keys. A is the
+      // host (it started the instance). Each writes a key of its own; the other one sees it.
+      await expect(frameA.locator('[data-step="self"]')).toContainText('host', { timeout: 20_000 });
+      await expect(frameB.locator('[data-step="self"]')).toContainText('host', { timeout: 20_000 });
+      await frameA.getByRole('button', { name: 'Set state' }).click();
+      await expect(
+        frameB.locator('[data-step="state"]').filter({ hasText: '=hi' }).first(),
+      ).toBeVisible({
+        timeout: 30_000,
+      });
+      await frameB.getByRole('button', { name: 'Set state' }).click();
+      await expect(
+        frameA.locator('[data-step="state"]').filter({ hasText: '=hi' }).first(),
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(frameA.locator('[data-step="state-error"]')).toHaveCount(0);
+      await expect(frameB.locator('[data-step="state-error"]')).toHaveCount(0);
     } finally {
       await a.context.close();
       await b.context.close();
       await staff.dispose();
     }
   });
+});
+
+/**
+ * The built-in Activities of wave 36, each installed from its real bundle (scripts/build-activities.mjs, the zip
+ * a server's developer uploads) and run by two people in one call: everything they share goes through the SFU's
+ * data channel, sealed with the call's keys.
+ */
+test.describe('Built-in activities through the data channel (real browser)', () => {
+  test.skip(
+    !ACTIVITIES || !VOICE_STACK,
+    'Needs SR_ACTIVITIES__ENABLED and the voice stack; set SR_E2E_ACTIVITIES=1 and SR_E2E_VOICE=1.',
+  );
+  test.setTimeout(240_000);
+
+  const cases: [BuiltInActivity, (s: ActivitySession) => Promise<void>][] = [
+    ['whiteboard', whiteboardCase],
+    ['holdem', holdemCase],
+    ['tabletop', tabletopCase],
+    ['landio', landioCase],
+  ];
+  for (const [activity, run] of cases) {
+    test(`${activity}: two people share it through the SFU`, async ({
+      browser,
+      browserName,
+      owner,
+      playwright,
+    }) => {
+      test.skip(
+        browserName !== 'chromium',
+        'Chromium resolves *.localhost activity hosts by itself.',
+      );
+      const session = await startActivityForTwo(
+        { browser, browserName, owner, playwright },
+        builtInActivityBundle(activity),
+        activity,
+      );
+      try {
+        await run(session);
+      } finally {
+        await session.close();
+      }
+    });
+  }
 });

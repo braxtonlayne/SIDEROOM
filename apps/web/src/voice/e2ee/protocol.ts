@@ -16,10 +16,15 @@ export type WorkerIn =
       readable: ReadableStream<EncodedFrameLike>;
       writable: WritableStream<EncodedFrameLike>;
     }
+  /** ACT-CH-001: seal one activity data message / open one from `sender`; answered with `dataDone`. */
+  | { type: 'dataSeal'; id: number; bytes: Uint8Array }
+  | { type: 'dataOpen'; id: number; sender: string; bytes: Uint8Array }
   | { type: 'close' };
 
 export type WorkerOut =
   | { type: 'ready' }
+  /** The answer to `dataSeal` / `dataOpen`; `bytes` is `null` when the message must be dropped. */
+  | { type: 'dataDone'; id: number; bytes: Uint8Array | null }
   | { type: 'error'; message: string }
   | {
       type: 'stats';

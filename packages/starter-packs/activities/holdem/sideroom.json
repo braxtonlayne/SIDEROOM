@@ -1,0 +1,9 @@
+{
+  "id": "side-room-holdem",
+  "name": "Card table: Texas Hold'em",
+  "version": "1.0.0",
+  "description": "Texas Hold'em with play-money chips for a room of friends: seats, blinds, a rotating dealer, side pots and showdown. The host deals and each player's hole cards go to that player alone. Not cheat-proof: a friends' table, not a casino.",
+  "capabilities": [
+    "datachannel"
+  ]
+}

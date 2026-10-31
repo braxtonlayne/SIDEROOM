@@ -82443,6 +82443,13 @@
             "format": "int64",
             "description": "Total unpacked size in bytes."
           },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Capabilities the bundle declares in `sideroom.json` (`datachannel`), shown to staff at review."
+          },
           "entry_count": {
             "type": "integer",
             "format": "int32"
@@ -93575,6 +93582,13 @@
           },
           "application_name": {
             "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the instance's Activity may use: the capabilities of its reviewed bundle (a development build has\nthem all). `datachannel`: `sdk.state` and `sdk.input` through the SFU."
           },
           "channel_id": {
             "type": "string"

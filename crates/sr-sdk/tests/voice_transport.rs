@@ -397,7 +397,10 @@ async fn a_bot_dj_sends_an_encrypted_music_track() {
     let mut dj = VoiceSession::connect_with(
         &update(&sfu, 1, true),
         ip,
-        sr_sdk::voice_transport::ConnectOptions { music: true },
+        sr_sdk::voice_transport::ConnectOptions {
+            music: true,
+            ..Default::default()
+        },
     )
     .await
     .unwrap()
@@ -475,7 +478,10 @@ async fn music_needs_a_music_line_and_a_transform_in_an_encrypted_call() {
     let mut clear = VoiceSession::connect_with(
         &update(&sfu, 2, true),
         ip,
-        sr_sdk::voice_transport::ConnectOptions { music: true },
+        sr_sdk::voice_transport::ConnectOptions {
+            music: true,
+            ..Default::default()
+        },
     )
     .await
     .unwrap();

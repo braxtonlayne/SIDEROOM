@@ -230,6 +230,23 @@ export interface E2eeKeyRing {
   free(): void;
 }
 
+/** Seals one participant's activity data messages for one epoch (ACT-CH-001). Call `free()` when the epoch ends. */
+export interface E2eeDataSender {
+  /** Encrypt one message (at most 16 KiB); throws when it must not be sent. */
+  seal(message: Uint8Array): Uint8Array;
+  readonly counter: number;
+  free(): void;
+}
+
+/** Opens the other participants' activity data messages and drops replays. */
+export interface E2eeDataReceiver {
+  /** `secrets` holds one 16-byte secret per user id, in order. */
+  setEpoch(epoch: number, userIds: string[], secrets: Uint8Array, nowMs: number): void;
+  /** Throws when the message must be dropped (no key, bad tag, replayed, too large). */
+  open(sender: string, frame: Uint8Array, nowMs: number): Uint8Array;
+  free(): void;
+}
+
 export interface E2eePendingSession {
   /** What the identity key signs (ECDSA P-256, SHA-256). */
   certMessage(): Uint8Array;
@@ -268,6 +285,9 @@ export interface E2eeApi {
   /** `secret`: 16 bytes; `random`: 4 bytes from `crypto.getRandomValues`. */
   createEncryptor(secret: Uint8Array, random: Uint8Array): E2eeEncryptor;
   createKeyRing(graceMs?: number): E2eeKeyRing;
+  /** `secret`: 16 bytes; `random`: 4 bytes from `crypto.getRandomValues`. */
+  createDataSender(secret: Uint8Array, random: Uint8Array): E2eeDataSender;
+  createDataReceiver(graceMs?: number): E2eeDataReceiver;
   /** Step 1 of an MLS session: `identityKey` is the 65-byte raw P-256 identity public key. */
   createPendingSession(userId: string, identityKey: Uint8Array): E2eePendingSession;
   /** D-250: the stable verification code between two users (six groups of five digits). */

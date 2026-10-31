@@ -5,6 +5,7 @@
 
 pub mod config;
 pub mod core;
+pub mod datachannel;
 pub mod governor;
 pub mod keyframe;
 pub mod layers;

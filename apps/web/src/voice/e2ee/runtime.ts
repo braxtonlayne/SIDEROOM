@@ -42,8 +42,26 @@ export function engineHooks(
   mode: TransformMode,
 ): EngineE2ee {
   const w = worker as Worker;
+  // ACT-CH-001: activity data messages are sealed and opened in the worker, which holds the keys.
+  let nextId = 1;
+  const waiting = new Map<number, (b: Uint8Array | null) => void>();
+  if (typeof w.addEventListener === 'function') {
+    w.addEventListener('message', (ev: MessageEvent<WorkerOut>) => {
+      if (ev.data.type !== 'dataDone') return;
+      waiting.get(ev.data.id)?.(ev.data.bytes);
+      waiting.delete(ev.data.id);
+    });
+  }
+  const ask = (msg: { type: 'dataSeal' | 'dataOpen'; sender?: string; bytes: Uint8Array }) =>
+    new Promise<Uint8Array | null>((resolve) => {
+      const id = nextId++;
+      waiting.set(id, resolve);
+      w.postMessage({ ...msg, id });
+    });
   return {
     peerConfig: peerConfigFor(mode),
+    sealData: (bytes) => ask({ type: 'dataSeal', bytes }),
+    openData: (sender, bytes) => ask({ type: 'dataOpen', sender, bytes }),
     attachSender: (sender, kind) => {
       if (sender)
         attachTransform(

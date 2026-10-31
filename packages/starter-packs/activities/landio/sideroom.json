@@ -1,0 +1,9 @@
+{
+  "id": "side-room-landio",
+  "name": "Land.io",
+  "version": "1.0.0",
+  "description": "Draw a trail out of your land, come home to claim what you enclosed, and cut other players off. Hosted in the browser of the member who starts it.",
+  "capabilities": ["datachannel"],
+  "min_participants": 1,
+  "max_participants": 24
+}

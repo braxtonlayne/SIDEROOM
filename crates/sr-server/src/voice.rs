@@ -83,6 +83,7 @@ pub async fn start(cfg: &Config, master_key: &[u8; 32]) -> anyhow::Result<VoiceS
         token_secret: secret.clone(),
         egress_budget_mbps: f64::from(v.egress_budget_mbps),
         video_bwe: v.video_bwe,
+        datachannel_kbps: v.datachannel_kbps,
         shards: v.shards,
     })
     .await

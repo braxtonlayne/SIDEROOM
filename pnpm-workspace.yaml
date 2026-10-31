@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - packages/starter-packs/activities/*
   - e2e
   - e2e/sdk-compat
 onlyBuiltDependencies:

@@ -186,3 +186,29 @@ the handoff's "Not done" (hiding a held channel, `Origin::Bridge`, thread state 
   `bridge/__tests__/sync.test.tsx` (17, MSW answering the wire shapes) and the full web suite, typecheck (web and e2e),
   lint, prettier, `build-web` + entrance isolation + bundle budget; `bridge.spec.ts` and `bridge-whole-guild.spec.ts`
   on Chromium against sr-server and the fake_
+
+## Wave 36 — Activities with shared state
+
+Integration: [dev/handoff/integration-phase36.md](../dev/handoff/integration-phase36.md). Decisions: P36-ACT-1 to
+P36-ACT-5 (commander defaults the owner may change). Ticked where the item's own proofs ran on the merged tree (after
+merging main 28bdcbf9); Playwright ran on Chromium only (Firefox and WebKit are CI's).
+
+### ACT — Activities
+- [x] **ACT-CH-001** [BE][FE] Data channels through the SFU under the room's keys: one SCTP channel per member in
+  `sr-voice` (relay scoped to room and instance, `voice.datachannel_kbps`), the `sr-e2ee` data frame, the SDK's
+  `sdk.state` / `sdk.input` / `sdk.on` with `sdk.self` and `sdk.hostId`, the `datachannel` capability (migration
+  1760), `voice::DataChannel` in sr-sdk, T32; the instance ends when its host leaves (P36-ACT-1) _Merged tree:
+  `sr-e2ee` (38), `sr-voice` (all, 6 datachannel), `sr-activities` (Postgres, host-leave case), `sr-sdk` (incl.
+  `voice_data` against the SFU), `sr-server` lib, `immutable_rules`, `web_gate`, `authz_matrix` (no ceiling changed),
+  `sr-db` secret_columns; SDK Vitest (23); `activities-live.spec.ts` state exchange on Chromium_
+- [x] **ACT-WB-001** [FE] Whiteboard: strokes, shapes, text, images, pages, undo, host compaction, PNG export
+  _Merged tree: Vitest (71, incl. the late join after a compaction now a plain `it`); live case draws, undoes, adds a
+  page and re-joins in two contexts (Chromium). Images from a mount and the studio's canvas wait (owner items)_
+- [x] **ACT-CT-001** [FE] Card table: Texas Hold'em with hole cards by addressed reply, betting, showdown, the
+  not-cheat-proof notice, 60 s turn timer and host Remove (P36-ACT-2) _Merged tree: Vitest (62); live case plays one
+  hand in two contexts (Chromium)_
+- [x] **ACT-TT-001** [FE] Tabletop map and dice: grid or hex map, tokens, fog, initiative, seeded dice, measuring
+  _Merged tree: Vitest (86, incl. the CSPRNG roll seed found missing by the live run); live case moves a token and
+  rolls in two contexts (Chromium). The map comes from a device file, not a mount (owner item)_
+- [x] **ACT-LND-001** [FE] Land.io as a built-in activity hosted in the starter's browser _Merged tree: Vitest (299),
+  `tsc` check of the JS; live case plays one match in two contexts and the host leaving ends it (Chromium)_

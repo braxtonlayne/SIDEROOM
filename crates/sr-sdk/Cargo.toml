@@ -72,3 +72,7 @@ required-features = ["voice-transport", "voice-e2ee", "voice-opus"]
 [[test]]
 name = "voice_reconnect"
 required-features = ["voice-transport"]
+
+[[test]]
+name = "voice_data"
+required-features = ["voice-transport", "voice-e2ee"]

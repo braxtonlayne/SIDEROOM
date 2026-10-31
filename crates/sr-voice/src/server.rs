@@ -471,6 +471,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
             core: SfuCore::new(cfg.max_participants, cfg.max_room_size)
                 .with_id_space(k as u64, n as u64)
                 .with_bwe(cfg.video_bwe)
+                .with_datachannel_kbps(cfg.datachannel_kbps)
                 .with_governor(crate::governor::GovernorConfig::with_budget_mbps(budget)),
             cfg: cfg.clone(),
             shard: k,

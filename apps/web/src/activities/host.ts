@@ -10,6 +10,9 @@ import {
   type EventName,
   type Frame,
   type Participant,
+  b64,
+  unb64,
+  MAX_DATA_BYTES,
   type RpcErrorBody,
   type SpeakingUpdate,
   type VoiceStateUpdate,
@@ -75,9 +78,27 @@ export interface HostEnv {
   setPresence: (activity: PresenceActivity | null) => void;
   /** The application's Rich Presence assets (name and id), for resolving `assets.*_image` names. */
   assets: () => Promise<{ id: string; name: string }[]>;
+  /** The signed-in member (sent to the Activity in `ready`). */
+  selfId?: () => string | null;
+  /**
+   * The room's activity data channel (ACT-CH-001), present for an instance in a voice channel. The host page
+   * seals every message with the room's key; the SFU relays opaque bytes to the instance's other members.
+   */
+  data?: ActivityDataBridge;
   /** Test seam. */
   now?: () => number;
 }
+
+/** What the host needs from the voice engine's data channel (see `voice/dataPort.ts`). */
+export interface ActivityDataBridge {
+  join(instance: string): void;
+  leave(instance: string): void;
+  send(instance: string, bytes: Uint8Array): Promise<boolean>;
+  onMessage(cb: (instance: string, sender: string, bytes: Uint8Array) => void): () => void;
+}
+
+/** The capability a bundle declares in `sideroom.json` to use `sdk.state` and `sdk.input`. */
+export const DATA_CAPABILITY = 'datachannel';
 
 class RpcError extends Error {
   readonly code: string;
@@ -198,6 +219,21 @@ export function createActivityHost(env: HostEnv): ActivityHost {
   const calls: number[] = [];
   const now = env.now ?? Date.now;
   let voiceBaseline: Map<string, VoicePerson> | null = null;
+  let dataJoined: { instance: string; off: () => void } | null = null;
+
+  const hasData = () => !!env.data && (env.instance().capabilities ?? []).includes(DATA_CAPABILITY);
+
+  /** Start relaying the instance's data messages to the Activity (once the handshake is done). */
+  const joinData = () => {
+    const data = env.data;
+    if (!data || !hasData() || dataJoined) return;
+    const instance = env.instance().id;
+    data.join(instance);
+    const off = data.onMessage((inst, sender, bytes) => {
+      if (inst === instance) emit('DATA_MESSAGE', { from: sender, b: b64(bytes) });
+    });
+    dataJoined = { instance, off };
+  };
 
   const ok = (nonce: string, data: unknown) =>
     env.post({ sr: PROTOCOL_VERSION, kind: 'response', nonce, ok: true, data });
@@ -314,6 +350,26 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       }
       case 'setActivity':
         return setActivity(args);
+      case 'dataSend': {
+        if (!env.data || !hasData()) {
+          throw new RpcError(
+            RPC_ERRORS.notAuthorized,
+            'This Activity did not declare the datachannel capability.',
+          );
+        }
+        const b = obj(args).b;
+        if (typeof b !== 'string' || b.length > Math.ceil((MAX_DATA_BYTES * 4) / 3) + 8) {
+          throw invalid('b must be base64 of at most 16 KiB.');
+        }
+        let bytes: Uint8Array;
+        try {
+          bytes = unb64(b);
+        } catch {
+          throw invalid('b must be base64.');
+        }
+        if (bytes.length > MAX_DATA_BYTES) throw invalid('b must be base64 of at most 16 KiB.');
+        return { sent: await env.data.send(env.instance().id, bytes) };
+      }
       case 'subscribe':
       case 'unsubscribe': {
         const a = obj(args);
@@ -354,6 +410,7 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       if (f.kind === 'handshake') {
         if (f.application_id !== env.applicationId) return;
         ready = true;
+        joinData();
         const inst = env.instance();
         env.post({
           sr: PROTOCOL_VERSION,
@@ -363,6 +420,9 @@ export function createActivityHost(env: HostEnv): ActivityHost {
             instance_id: inst.id,
             channel_id: inst.channel_id,
             guild_id: inst.guild_id,
+            ...(env.selfId?.() ? { user_id: env.selfId() ?? undefined } : {}),
+            host_id: inst.started_by,
+            capabilities: inst.capabilities ?? [],
           },
         });
         return;
@@ -427,6 +487,11 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       }
     },
     dispose() {
+      if (dataJoined) {
+        dataJoined.off();
+        env.data?.leave(dataJoined.instance);
+        dataJoined = null;
+      }
       if (presenceSet) env.setPresence(null);
       presenceSet = false;
       subscribed.clear();

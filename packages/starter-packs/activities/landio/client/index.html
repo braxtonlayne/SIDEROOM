@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Land.io</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Land.io arena"></canvas>
+<div id="vignette" class="vignette" aria-hidden="true"></div>
+
+<div id="hud" class="hud" hidden>
+  <section id="leaderboard" class="panel lb" aria-label="Leaderboard">
+    <h2>Leaderboard</h2>
+    <div id="lb-teams" class="lb-teams" hidden></div>
+    <ol id="lb-list"></ol>
+  </section>
+  <section id="stats" class="panel stats" aria-label="Your stats">
+    <div><span class="k">Land</span> <span id="st-land" class="v">0%</span><span id="st-land-delta" class="delta" aria-hidden="true"></span></div>
+    <div><span class="k">Kills</span> <span id="st-kills" class="v">0</span></div>
+    <div><span class="k">Alive</span> <span id="st-time" class="v">0:00</span></div>
+    <button id="menu-btn" class="menu-btn" type="button" aria-label="Settings (Esc)" title="Settings (Esc)">⚙</button>
+  </section>
+  <div id="round" class="round-chip" aria-live="polite" hidden><span id="round-mode"></span><span id="round-info" class="round-info"></span></div>
+  <ul id="killfeed" class="killfeed" aria-live="polite"></ul>
+  <ul id="toasts" class="toasts" aria-live="polite"></ul>
+  <div id="tip" class="tip" role="status" hidden></div>
+  <section class="panel mm" aria-label="Minimap">
+    <canvas id="minimap" width="200" height="200"></canvas>
+  </section>
+  <div id="people" class="people" aria-label="In this channel"></div>
+  <div id="net" class="net" hidden>Reconnecting…</div>
+  <div id="hint" class="hint">WASD / arrows to turn · Space to stop · Q / E items · Shift ability</div>
+  <div id="inv" class="inv" aria-label="Your cards"></div>
+  <div id="watch" class="watch-bar" hidden>
+    <button id="watch-prev" type="button" class="watch-arrow" aria-label="Watch the previous player">◀</button>
+    <span class="watch-who">Watching <strong id="watch-name">…</strong></span>
+    <button id="watch-next" type="button" class="watch-arrow" aria-label="Watch the next player">▶</button>
+    <button id="watch-play" type="button" class="btn">Play</button>
+  </div>
+  <section id="draft" class="draft" hidden aria-label="Pick a card">
+    <div class="draft-title">Pick a card <span class="muted">1 · 2 · 3</span></div>
+    <div id="draft-cards" class="draft-cards"></div>
+    <div class="draft-timer"><span id="draft-bar"></span></div>
+  </section>
+</div>
+
+<div id="start" class="overlay" hidden>
+  <div class="card">
+    <h1>Land<span>.io</span></h1>
+    <p>Leave your land to draw a trail. Bring it home to claim everything inside. Touch any trail and its owner is out — yours too.</p>
+    <p id="start-who" class="muted"></p>
+    <p class="room-line"><span class="room-now"></span> <button type="button" class="link invite-btn">Invite</button></p>
+    <p class="mode-line"><span class="mode-now"></span> <button type="button" class="link settings-btn">Change</button></p>
+    <p class="warn play-msg" role="status" hidden></p>
+    <button id="play" type="button" class="btn">Play</button>
+    <button type="button" class="link watch-btn">Watch first</button>
+  </div>
+</div>
+
+<div id="summary" class="overlay" hidden>
+  <div class="card" role="dialog" aria-labelledby="sum-title">
+    <h2 id="sum-title">You were caught</h2>
+    <p id="sum-cause" class="muted"></p>
+    <p id="sum-killer" class="killer" hidden></p>
+    <dl class="sum">
+      <div><dt>Land at the end</dt><dd id="sum-land">0%</dd></div>
+      <div><dt>Most land</dt><dd id="sum-max">0%</dd></div>
+      <div><dt>Kills</dt><dd id="sum-kills">0</dd></div>
+      <div><dt>Time alive</dt><dd id="sum-time">0:00</dd></div>
+    </dl>
+    <ul id="sum-cards" class="sum-cards" aria-label="Cards you held"></ul>
+    <p class="warn play-msg" role="status" hidden></p>
+    <button id="again" type="button" class="btn">Play again</button>
+    <button type="button" class="link watch-btn">Watch</button>
+    <p class="again-hint muted">Enter or Space to play again</p>
+    <p class="room-line"><span class="room-now"></span> <button type="button" class="link invite-btn">Invite</button></p>
+    <p class="mode-line"><span class="mode-now"></span> <button type="button" class="link settings-btn">Change</button></p>
+  </div>
+</div>
+
+<div id="results" class="overlay" hidden>
+  <div class="card" role="dialog" aria-labelledby="res-title">
+    <p class="muted res-kicker">Round over</p>
+    <h2 id="res-title">Round over</h2>
+    <ol id="res-teams" class="res-teams" hidden></ol>
+    <ol id="res-list" class="res-list"></ol>
+    <p id="res-you" class="muted"></p>
+    <p id="res-next" class="res-next"></p>
+    <p class="room-line"><span class="room-now"></span> <button type="button" class="link invite-btn">Invite</button></p>
+    <p class="mode-line"><span class="mode-now"></span> <button type="button" class="link settings-btn">Change</button></p>
+  </div>
+</div>
+
+<div id="menu" class="overlay menu" hidden>
+  <div class="card" role="dialog" aria-labelledby="menu-title">
+    <div class="menu-head">
+      <h2 id="menu-title">Settings</h2>
+      <p class="muted menu-note">The game keeps running.</p>
+    </div>
+    <div class="menu-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="game">Game</button>
+      <button type="button" role="tab" data-tab="room">Room</button>
+      <button type="button" role="tab" data-tab="me">Me</button>
+      <button type="button" role="tab" data-tab="keys">Controls</button>
+    </div>
+
+    <section id="panel-game" data-panel="game" role="tabpanel">
+      <p id="g-host" class="muted"></p>
+      <fieldset class="pick-group"><legend>Mode</legend><div id="g-modes" class="pick-list"></div></fieldset>
+      <fieldset class="pick-group"><legend>Map</legend><div id="g-maps" class="pick-list"></div></fieldset>
+      <div class="opt-grid">
+        <label class="opt">Arena size <select id="g-size"></select></label>
+        <label class="opt">Bot skill
+          <select id="g-skill"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select>
+        </label>
+        <label class="opt wide"><span>Bots fill the arena up to <output id="g-bots-out">12</output> players</span>
+          <input id="g-bots" type="range" min="0" max="40" step="1">
+        </label>
+        <label class="opt">Round length <select id="g-round"></select></label>
+        <label class="opt">Spawn protection <select id="g-shield"></select></label>
+        <label class="opt check"><input id="g-cards" type="checkbox"> Power-up cards</label>
+        <label id="g-hostonly-row" class="opt check"><input id="g-hostonly" type="checkbox"> Only I (the host) can change settings</label>
+      </div>
+      <p class="warn" id="g-msg" role="status" hidden></p>
+      <div class="pick-actions"><button id="g-apply" type="button" class="btn">Apply</button></div>
+      <div id="g-host-tools" class="host-tools" hidden>
+        <h3>Host tools</h3>
+        <div class="pick-actions start">
+          <button id="g-restart" type="button" class="btn ghost">Restart the round</button>
+          <button id="g-end" type="button" class="btn ghost">End the round now</button>
+        </div>
+        <div class="give">
+          <label class="opt">Make someone else host <select id="g-newhost"></select></label>
+          <button id="g-give" type="button" class="btn ghost">Make host</button>
+        </div>
+        <div class="give">
+          <label class="opt">Remove someone from this room <select id="g-kick"></select></label>
+          <button id="g-kick-go" type="button" class="btn ghost">Remove</button>
+        </div>
+      </div>
+    </section>
+
+    <section data-panel="room" role="tabpanel" hidden>
+      <p class="muted room-intro">Anyone with this code can join this room. There is no list of rooms.</p>
+      <p class="muted hosted-only">Everyone in this activity is in this game. The host runs it in their browser.</p>
+      <div class="room-code-row">
+        <input id="r-code" class="room-code" type="text" readonly aria-label="Room code" spellcheck="false">
+        <button id="r-copy" type="button" class="btn ghost">Copy code</button>
+      </div>
+      <div id="r-link-row" class="room-link-row" hidden>
+        <input id="r-link" class="room-link" type="text" readonly aria-label="Link to this room" spellcheck="false">
+        <button id="r-copy-link" type="button" class="btn ghost">Copy link</button>
+      </div>
+      <p id="r-copied" class="muted" role="status"></p>
+      <p class="room-people-title">In this room</p>
+      <ul id="r-people" class="room-people"></ul>
+      <form id="r-join-form" class="room-join" autocomplete="off">
+        <label class="opt">Join another room
+          <input id="r-join" type="text" maxlength="8" placeholder="Code" autocapitalize="characters" autocomplete="off" spellcheck="false" inputmode="text">
+        </label>
+        <button id="r-join-go" type="submit" class="btn">Join</button>
+      </form>
+      <p id="r-msg" class="warn" role="status" hidden></p>
+      <div class="pick-actions start"><button id="r-back" type="button" class="btn ghost" hidden>Back to this channel's room</button></div>
+    </section>
+
+    <section data-panel="me" role="tabpanel" hidden>
+      <div class="opt-grid">
+        <label class="opt wide">Volume <input id="m-volume" type="range" min="0" max="100" step="1"></label>
+        <label class="opt check"><input id="m-mute" type="checkbox"> Mute (M)</label>
+        <label class="opt check"><input id="m-shake" type="checkbox"> Screen shake</label>
+        <label class="opt check"><input id="m-names" type="checkbox"> Name tags</label>
+        <label class="opt check"><input id="m-minimap" type="checkbox"> Minimap</label>
+        <label class="opt">Reduced motion
+          <select id="m-motion"><option value="system">Like my system</option><option value="on">On</option><option value="off">Off</option></select>
+        </label>
+        <label class="opt">Picture quality
+          <select id="m-quality"><option value="auto">Automatic</option><option value="high">High</option><option value="low">Low (faster)</option></select>
+        </label>
+      </div>
+      <p class="muted">These are saved on this device and change nothing for anyone else.</p>
+    </section>
+
+    <section data-panel="keys" role="tabpanel" hidden>
+      <p class="muted">Click a key to change it, then press the new key (Esc cancels, Backspace clears).</p>
+      <div id="keys-table" class="keys-table" role="table" aria-label="Key bindings"></div>
+      <dl id="keys-list" class="keys-list"></dl>
+      <div class="pick-actions start"><button id="keys-reset" type="button" class="btn ghost">Reset to defaults</button></div>
+      <p class="muted">Gamepad: stick or D-pad to turn, A to stop, X / Y items, right bumper ability.</p>
+    </section>
+
+    <div class="pick-actions"><button id="menu-close" type="button" class="btn ghost">Close (Esc)</button></div>
+  </div>
+</div>
+
+<div id="lobby" class="overlay" hidden>
+  <div class="card lobby">
+    <h1>Land<span>.io</span></h1>
+    <p>Leave your land to draw a trail. Bring it home to claim everything inside. Touch any trail and its owner is out — yours too.</p>
+    <label class="opt lobby-name">Your name
+      <input id="l-name" type="text" maxlength="24" autocomplete="nickname" spellcheck="false" placeholder="Pick a name">
+    </label>
+    <button id="l-join-this" type="button" class="btn" hidden>Join room</button>
+    <button id="l-create" type="button" class="btn">Create a room</button>
+    <form id="l-join-form" class="room-join" autocomplete="off">
+      <label class="opt">Or join with a code
+        <input id="l-code" type="text" maxlength="8" placeholder="Code" autocapitalize="characters" autocomplete="off" spellcheck="false">
+      </label>
+      <button type="submit" class="btn ghost">Join</button>
+    </form>
+    <p id="l-msg" class="warn" role="status" hidden></p>
+    <p class="muted lobby-foot">There is no list of rooms: share your room's code (or its link) with the people you want to play with. Land.io is also a Discord Activity.</p>
+  </div>
+</div>
+
+<div id="boot" class="overlay"><div class="card"><p>Joining the arena…</p></div></div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
