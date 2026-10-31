@@ -15,6 +15,8 @@ import { ScreenSharePicker } from './ScreenSharePicker';
 import { E2eeShield } from './PrivacyCodes';
 import { ActivityButton } from '../../activities/ActivityButton';
 import { SoundboardButton } from './SoundboardPopover';
+import { CoopButton } from '../../emu/coop/CoopButton';
+import { CoopStatus } from '../../emu/coop/CoopStatus';
 import './voice-p10.css';
 
 const STATUS_TEXT: Record<SessionStatus, MessageKey | ''> = {
@@ -172,7 +174,11 @@ export function VoicePanel() {
         {s.guildId && s.channelId && s.guildId !== DM_GUILD_ID && (
           <SoundboardButton guildId={s.guildId} channelId={s.channelId} compact />
         )}
+        {s.guildId && s.channelId && s.guildId !== DM_GUILD_ID && (
+          <CoopButton onShare={() => setPicker(true)} />
+        )}
       </div>
+      <CoopStatus />
       {s.notice && (
         <Notice variant="info" role="status" onDismiss={() => controller.dismissNotice()}>
           {s.notice}
