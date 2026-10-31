@@ -87,7 +87,8 @@ export class SideRoomSDK {
   private seq = 0;
   private readyWaiter: { resolve: (c: ReadyConfig) => void } | null = null;
   private readonly onMessage = (e: MessageEvent) => this.receive(e);
-  private readonly data = new ActivityData();
+  /** The data layer behind `state`, `input` and `on` (public for activities that need `version`, `snapshot`). */
+  readonly data = new ActivityData();
 
   constructor(applicationId: string, opts: SdkOptions = {}) {
     this.applicationId = applicationId;
@@ -132,6 +133,16 @@ export class SideRoomSDK {
   /** Listen to `'state'` (the document changed) or `'input'` (an input for the host, or a host reply). */
   on<K extends DataEventName>(event: K, cb: (e: DataEventMap[K]) => void): () => void {
     return this.data.on(event, cb);
+  }
+
+  /** This participant's own member id (from the data channel), `null` before a transport is attached. */
+  get self(): string | null {
+    return this.data.self;
+  }
+
+  /** The member who launched the instance: the only writer of `host:*` keys. */
+  get hostId(): string | null {
+    return this.data.host;
   }
 
   /** True when this participant launched the instance. */
