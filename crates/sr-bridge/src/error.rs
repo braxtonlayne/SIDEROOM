@@ -19,6 +19,9 @@ pub enum BridgeError {
     /// Discord could not be reached, or answered with an error.
     #[error("discord: {0}")]
     Discord(String),
+    /// A whole_guild plan no longer matches either side (409 BRIDGE_PLAN_STALE): rebuild it.
+    #[error("the plan is stale")]
+    PlanStale,
     /// A sealed value could not be written or read.
     #[error("sealed value unreadable")]
     Seal,
