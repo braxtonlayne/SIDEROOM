@@ -67,6 +67,7 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         // Bucket mounts and shelves belong to people: a bot has none (BYOS).
         || p.starts_with("/users/@me/storage")
         || p.starts_with("/users/@me/shelves")
+        || p.starts_with("/users/@me/games")
         || p.starts_with("/storage/mounts")
         || p.starts_with("/shelves/")
         || p.starts_with("/users/@me/reminders")
