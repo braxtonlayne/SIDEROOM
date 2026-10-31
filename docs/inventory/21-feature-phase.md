@@ -126,3 +126,30 @@ runs Playwright on three engines and the live Garage case of `storage.yml`.
 ### MUS-SKN — Player skins
 - [ ] **MUS-SKN-001** [FE] Backdrop skins (`player/skins/backdrop/*`): Valve & Walnut, Tidepool Glass, Night Circuit, Pastel Study Deck, Steel Stack, each a lazy chunk; shuffle as one store mode (shared with the library panel through the port since integration); the Study Deck's timer and notes bound to wave 32's tools (`player/toolsWiring.ts`) _Merged tree: see the integration handoff_
 - [ ] **MUS-SKN-002** [FE] Opus redesigns of Valve, Tidepool, Circuit and Study after the owner's references _Merged tree: see the integration handoff; screenshots in `screenshots/player-skins/final/`_
+
+## Wave 35 — The Discord bridge
+
+Integration: [dev/handoff/integration-phase35.md](../dev/handoff/integration-phase35.md). Decisions: P35-BRG-1 to P35-BRG-3
+(owner) and P35-BRG-4 to P35-BRG-8 (commander defaults the owner may change); D-381 governs. Ticked where the item's own
+proofs ran on the merged tree; Playwright ran on Chromium only (Firefox and WebKit are CI's).
+
+### BRG — The Discord bridge
+- [x] **BRG-COR-001** [DB][BE] Bridge model, sealed bot token, outbound webhooks: migrations 1720 and 1721 (the
+  integration author), `bridge.enabled` (owner-only, off by default) and `platform.bridge` (kill switch), the bridge
+  routes (`guild_owner`, `bridge_admin`), outbound queue with rate limits and dead letters, teardown, Admin > System
+  tile _Merged tree: `cargo test -p sr-bridge` (57, Postgres), `sr-features` (136), `sr-api` (895 incl. route_matrix,
+  openapi_names), `sr-db --test secret_columns`, `sr-server --test authz_matrix` (7, bridge rows seeded per tenant,
+  no ceiling changed) and `immutable_rules` (13); `bridge.spec.ts` (Chromium) against `e2e/support/fake-discord.mjs`_
+- [x] **BRG-GW-001** [BE] Inbound over the gateway: one `sr-sdk` shard per bridge (`bridge.max_bridges`), the intent
+  ladder (members and presence used when Discord grants them), loop guard, replies, edits, deletes, reactions, typing,
+  bridged members (1732), `abuse.bridge_messages_per_minute`, the production `ChatSink` and the app wiring, `<@id>`
+  of a bridged member both ways and never an account _Merged tree: `sr-bridge --test inbound` (14, Postgres),
+  `sr-sdk` (gateway), `sr-chat`, `sr-api` (`a_bridged_member_id_that_collides_with_an_account_never_pings_it`);
+  `bridge.spec.ts` posts on the fake gateway and sees the DISCORD-tagged message, and the connection closes with the
+  teardown_
+- [x] **BRG-UI-001** [FE][DOC] The Modules card, the conditional nav entry, the bridge screen (reconciled with the real
+  routes), teardown dialog, channel banner (from `sr_bridge` on REST and gateway channel payloads), DISCORD tag, Discord
+  members in the member list, privacy page list, DSR, lawyer brief Q21, docs/09 row; no per-member opt-out (P35-BRG-1)
+  _Merged tree: Vitest (401 files, 3671 tests), typecheck, lint, prettier, `build-web` + entrance isolation + bundle
+  budget; `bridge.spec.ts` on Chromium (manager greyed card, owner on, token, map, both directions, switch-off leaves
+  nothing)_
