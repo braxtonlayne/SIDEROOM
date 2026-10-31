@@ -10,6 +10,10 @@ import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 import * as api from './api';
 import { useBridgeModule } from './moduleStore';
+import { ConflictLog } from './ConflictLog';
+import { ModeCard } from './ModeCard';
+import { PlanView } from './PlanView';
+import { SyncStatus } from './SyncStatus';
 import { TeardownDialog } from './TeardownDialog';
 import './bridge.css';
 
@@ -24,6 +28,12 @@ export function BridgeSection({ guildId, viewer }: SectionProps) {
   // While the bot is connecting, look again every few seconds, so the screen says Connected on its own.
   const connecting = res.data?.state === 'connecting';
   const reload = res.reload;
+  const [planning, setPlanning] = useState(false);
+  const setWhole = useBridgeModule((s) => s.setWhole);
+  const mode = res.data?.mode;
+  useEffect(() => {
+    if (mode) setWhole(guildId, mode === 'whole_guild');
+  }, [mode, guildId, setWhole]);
   useEffect(() => {
     if (!connecting) return;
     const timer = setTimeout(() => void reload(), 3000);
@@ -41,13 +51,46 @@ export function BridgeSection({ guildId, viewer }: SectionProps) {
       <Async res={res} label={t('settings.bridge.loading')}>
         {(status) => (
           <div className="ss-form ss-bridge">
+            {status.mode === 'whole_guild' && (
+              <Notice variant="info" title={t('settings.bridgeSync.privacy.title')}>
+                {t('settings.bridgeSync.privacy.body', {
+                  name: status.discord_guild_name ?? t('settings.bridgeSync.privacy.noName'),
+                })}
+              </Notice>
+            )}
+            {status.token_set && (
+              <ModeCard
+                guildId={guildId}
+                isOwner={viewer.isOwner}
+                status={status}
+                onPrepare={() => setPlanning(true)}
+                onChanged={async () => {
+                  setPlanning(false);
+                  await reload();
+                }}
+              />
+            )}
+            {planning && status.mode === 'selective' && (
+              <PlanView
+                guildId={guildId}
+                isOwner={viewer.isOwner}
+                discordName={status.discord_guild_name ?? ''}
+                onClose={() => setPlanning(false)}
+                onStarted={async () => {
+                  setPlanning(false);
+                  await reload();
+                }}
+              />
+            )}
+            {status.mode === 'whole_guild' && <SyncStatus guildId={guildId} />}
+            {status.mode === 'whole_guild' && <ConflictLog guildId={guildId} />}
             <TokenCard
               guildId={guildId}
               isOwner={viewer.isOwner}
               status={status}
               onStatus={(next) => res.set(next)}
             />
-            {status.token_set && (
+            {status.token_set && status.mode === 'selective' && (
               <MapCard
                 guildId={guildId}
                 status={status}
