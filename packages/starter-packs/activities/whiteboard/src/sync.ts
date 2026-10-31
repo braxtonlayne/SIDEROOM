@@ -18,11 +18,13 @@ import {
   compactEntries,
   entryId,
   fold,
+  LIMITS,
   parseEntry,
   redoTarget,
   undoTarget,
   type Entry,
   type Payload,
+  type Pt,
   type View,
 } from './log';
 
@@ -38,12 +40,17 @@ export interface StateAdapter {
 export const OP_PREFIX = 'op:';
 export const BASE_META = 'host:base:meta';
 export const BASE_CHUNK_PREFIX = 'host:base:';
+/** `blob:<author>:<counter>:<i>`: base64 part i of the picture in entry `<author>:<counter>`. */
+export const BLOB_PREFIX = 'blob:';
+
+const encoder = new TextEncoder();
+const byteLength = (s: string): number => encoder.encode(s).length;
 
 export interface BoardOptions {
   /** The local member's id. */
   me: string;
-  /** Whether this member launched the activity: only the host compacts. */
-  isHost: boolean;
+  /** Whether this member launched the activity: only the host compacts. A function when it can change. */
+  isHost: boolean | (() => boolean);
   adapter: StateAdapter;
   /** Compact when this many live `op:` entries have piled up (host). */
   compactAt?: number;
@@ -85,7 +92,8 @@ function parseMeta(v: unknown): BaseMeta | null {
 
 export class Board {
   readonly me: string;
-  readonly isHost: boolean;
+  private readonly hostFn: () => boolean;
+  private readonly blobs = new Map<string, string>();
   private readonly adapter: StateAdapter;
   private readonly opts: Required<Pick<BoardOptions, 'compactAt' | 'minAgeMs' | 'chunkChars'>> & {
     compactDelayMs: number;
@@ -110,13 +118,14 @@ export class Board {
 
   constructor(o: BoardOptions) {
     this.me = o.me;
-    this.isHost = o.isHost;
+    const h = o.isHost;
+    this.hostFn = typeof h === 'function' ? h : () => h;
     this.adapter = o.adapter;
     this.now = o.now ?? Date.now;
     this.opts = {
       compactAt: o.compactAt ?? 150,
       minAgeMs: o.minAgeMs ?? 20_000,
-      chunkChars: o.chunkChars ?? 30_000,
+      chunkChars: o.chunkChars ?? 12_000,
       compactDelayMs: o.compactDelayMs ?? 2_000,
     };
     this.unsub = this.adapter.onChange((c) => this.ingest(c));
@@ -138,8 +147,26 @@ export class Board {
 
   /** The visible board. Cached until the log changes. */
   view(): View {
-    if (!this.cached) this.cached = fold(this.allEntries()).view;
+    if (!this.cached) {
+      const v = fold(this.allEntries()).view;
+      // A picture carried in blob parts shows once all of its parts have arrived (`src` is empty until then).
+      const objects = v.objects.map((o) => {
+        if (o.k !== 'image' || o.src !== '' || !o.parts || !o.mime) return o;
+        let data = '';
+        for (let i = 0; i < o.parts; i++) {
+          const part = this.blobs.get(`${BLOB_PREFIX}${o.id}:${i}`);
+          if (part === undefined) return o;
+          data += part;
+        }
+        return { ...o, src: `data:${o.mime};base64,${data}` };
+      });
+      this.cached = { pages: v.pages, objects };
+    }
     return this.cached;
+  }
+
+  get isHost(): boolean {
+    return this.hostFn();
   }
 
   /** Entries in force: the snapshot's plus the live ones it does not cover. */
@@ -162,11 +189,43 @@ export class Board {
 
   // --- local actions ---------------------------------------------------------------------------------------
 
-  /** Append an entry authored here. Returns its id. */
+  /**
+   * Add a picture from a data URL. The bytes go out first, in `blob:` parts, then the entry that points to them,
+   * so nobody sees an entry without its picture for long. Throws `too-big` over the limit.
+   */
+  addImage(o: { pg: string; at: Pt; size: Pt; dataUrl: string }): string {
+    const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(o.dataUrl);
+    if (!m || o.dataUrl.length > LIMITS.maxImageChars) throw new Error('too-big');
+    const mime = m[1] as string;
+    const data = m[2] as string;
+    const n = this.counter + 1;
+    const parts = Math.ceil(data.length / LIMITS.blobPartChars);
+    const written: Record<string, unknown> = {};
+    for (let i = 0; i < parts; i++) {
+      const key = `${BLOB_PREFIX}${this.me}:${n}:${i}`;
+      const part = data.slice(i * LIMITS.blobPartChars, (i + 1) * LIMITS.blobPartChars);
+      this.adapter.set(key, part);
+      written[key] = part;
+    }
+    this.ingest(written);
+    return this.add({
+      k: 'image',
+      pg: o.pg,
+      at: o.at,
+      size: o.size,
+      src: '',
+      mime,
+      parts,
+    });
+  }
+
+  /** Append an entry authored here. Returns its id. Throws `too-big` when it cannot fit one message. */
   add(p: Payload): string {
+    const next: Entry = { a: this.me, n: this.counter + 1, ts: this.clock + 1, p };
+    if (byteLength(JSON.stringify(next)) > LIMITS.maxEntryBytes) throw new Error('too-big');
     this.counter += 1;
     this.clock += 1;
-    const e: Entry = { a: this.me, n: this.counter, ts: this.clock, p };
+    const e = next;
     const key = opKey(e.a, e.n);
     this.adapter.set(key, e);
     this.ingest({ [key]: e });
@@ -205,6 +264,11 @@ export class Board {
         this.firstSeen.set(id, this.now());
         this.clock = Math.max(this.clock, e.ts);
         if (e.a === this.me) this.counter = Math.max(this.counter, e.n);
+        dirty = true;
+      } else if (key.startsWith(BLOB_PREFIX)) {
+        if (typeof value !== 'string' || this.blobs.has(key)) continue;
+        if (value.length > LIMITS.blobPartChars + 8 || !/^[A-Za-z0-9+/=]*$/.test(value)) continue;
+        this.blobs.set(key, value);
         dirty = true;
       } else if (key === BASE_META) {
         const m = parseMeta(value);
@@ -312,7 +376,7 @@ export class Board {
     let cur: Entry[] = [];
     let size = 0;
     for (const e of kept.sort(compareEntries)) {
-      const len = JSON.stringify(e).length;
+      const len = byteLength(JSON.stringify(e));
       if (cur.length > 0 && size + len > this.opts.chunkChars) {
         chunks.push(cur);
         cur = [];
@@ -333,6 +397,14 @@ export class Board {
     this.adapter.set(BASE_META, meta);
     this.ingest({ ...writes, [BASE_META]: meta });
     for (const e of foldedEntries) this.adapter.set(opKey(e.a, e.n), null);
+    // Pictures that were folded away (undone, erased, cleared, page deleted) free their blob parts.
+    const keptIds = new Set(kept.map(entryId));
+    const foldedIds = new Set(foldedEntries.map(entryId));
+    for (const key of Object.keys(this.adapter.snapshot())) {
+      if (!key.startsWith(BLOB_PREFIX)) continue;
+      const owner = key.slice(BLOB_PREFIX.length).split(':').slice(0, 2).join(':');
+      if (foldedIds.has(owner) && !keptIds.has(owner)) this.adapter.set(key, null);
+    }
     const prefix = `${BASE_CHUNK_PREFIX}${gen}:`;
     for (const key of Object.keys(this.adapter.snapshot())) {
       if (key.startsWith(BASE_CHUNK_PREFIX) && key !== BASE_META && !key.startsWith(prefix)) {

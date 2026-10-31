@@ -248,3 +248,68 @@ describe('compaction by the host', () => {
     expect(JSON.stringify(hub.get('host:base:5:0') ?? []).length).toBeLessThan(10); // an empty board
   });
 });
+
+describe('pictures and sizes', () => {
+  const png = (n: number) => `data:image/png;base64,${'QUJD'.repeat(n)}`;
+
+  it('sends a picture in blob parts and every participant assembles it', () => {
+    const { hub, alice, bob } = room();
+    const id = alice.addImage({ pg: HOME_PAGE, at: [10, 10], size: [100, 50], dataUrl: png(6000) });
+    const keys = hub.keys.filter((k) => k.startsWith('blob:alice:1:'));
+    expect(keys).toHaveLength(3); // 24 000 characters in parts of 10 000
+    const o = bob.view().objects.find((x) => x.id === id);
+    expect(o?.k === 'image' && o.src).toBe(png(6000));
+  });
+
+  it('shows no source until the last part arrives', () => {
+    const { hub, alice, bob } = room({ manual: true });
+    alice.addImage({ pg: HOME_PAGE, at: [0, 0], size: [5, 5], dataUrl: png(6000) });
+    hub.flush();
+    const o = bob.view().objects[0];
+    expect(o?.k === 'image' && o.src).toBe(png(6000));
+    // A picture whose parts are missing is held back (empty source), not broken.
+    const late = new Board({
+      me: 'late',
+      isHost: false,
+      adapter: {
+        snapshot: () => ({ ...Object.fromEntries(hub.keys.filter((k) => k.startsWith('op:')).map((k) => [k, hub.get(k)])) }),
+        set: () => {},
+        onChange: () => () => {},
+      },
+    });
+    const l = late.view().objects[0];
+    expect(l?.k === 'image' && l.src).toBe('');
+  });
+
+  it('compaction frees the parts of a dropped picture and keeps those of a live one', () => {
+    const { hub, host, alice } = room();
+    alice.addImage({ pg: HOME_PAGE, at: [0, 0], size: [5, 5], dataUrl: png(3000) });
+    alice.addImage({ pg: HOME_PAGE, at: [0, 0], size: [5, 5], dataUrl: png(3000) });
+    alice.undo(); // the second picture
+    host.compact();
+    const blobs = hub.keys.filter((k) => k.startsWith('blob:'));
+    expect(blobs.every((k) => k.startsWith('blob:alice:1:'))).toBe(true);
+    expect(blobs.length).toBeGreaterThan(0);
+    expect(host.view().objects).toHaveLength(1);
+  });
+
+  it('refuses an oversized picture and an oversized entry', () => {
+    const { alice } = room();
+    expect(() => alice.addImage({ pg: HOME_PAGE, at: [0, 0], size: [5, 5], dataUrl: png(50_000) })).toThrow('too-big');
+    expect(() => alice.addImage({ pg: HOME_PAGE, at: [0, 0], size: [5, 5], dataUrl: 'data:image/svg+xml;base64,AAAA' })).toThrow('too-big');
+    const huge: Payload = { k: 'text', pg: HOME_PAGE, c: '#000000', size: 20, at: [0, 0], text: '€'.repeat(500) };
+    expect(() => alice.add(huge)).not.toThrow(); // 500 euro signs are 1 500 bytes
+    const many: Payload = { k: 'stroke', pg: HOME_PAGE, c: '#000000', w: 3, hl: false, pts: Array.from({ length: 2600 }, (_, i) => 1000 + (i % 7) * 111) };
+    expect(() => alice.add(many)).toThrow('too-big');
+  });
+
+  it('isHost may be a function asked at compaction time', () => {
+    const hub = new LoopbackHub();
+    let host = false;
+    const b = new Board({ me: 'h', isHost: () => host, adapter: hub.join('h', true), compactDelayMs: 0, minAgeMs: 0 });
+    b.add(stroke(1));
+    expect(b.compact()).toBe(0);
+    host = true;
+    expect(b.compact()).toBe(1);
+  });
+});

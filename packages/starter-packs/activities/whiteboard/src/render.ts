@@ -100,6 +100,13 @@ export function drawObject(
       break;
     }
     case 'image': {
+      if (o.src === '') {
+        // Its parts have not all arrived yet.
+        ctx.strokeStyle = '#8a8a8a';
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(o.at[0], o.at[1], o.size[0], o.size[1]);
+        break;
+      }
       let img = images.get(o.src);
       if (img === undefined) {
         const el = new Image();

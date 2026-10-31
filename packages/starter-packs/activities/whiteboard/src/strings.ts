@@ -38,4 +38,6 @@ export const S = {
   loopback: 'Stand-alone mode: only tabs of this page share the board.',
   connecting: 'Connecting to the room...',
   failed: 'Could not connect to the room.',
+  sendFailed: 'A change could not be sent to the room.',
+  tooBig: 'That is too large to share.',
 };

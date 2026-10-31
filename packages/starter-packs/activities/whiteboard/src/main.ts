@@ -3,7 +3,7 @@
 import { SideRoomSDK } from '@sideroom/embedded-app-sdk';
 import { startApp } from './app';
 import { broadcastAdapter } from './loopback';
-import { adapterFromSdk, identityFromConfig, type SdkLike } from './sdkState';
+import { adapterFromSdk, memberId, type SdkLike } from './sdkState';
 import { S } from './strings';
 import { Board } from './sync';
 
@@ -24,15 +24,16 @@ async function boot(): Promise<void> {
   }
 
   if (status) status.textContent = S.connecting;
-  const host = location.hostname.split('.')[0] ?? '';
-  const sdk = new SideRoomSDK(params.get('application_id') ?? host);
-  const config = await sdk.ready();
-  const id = identityFromConfig(config);
-  if (!id) throw new Error('The host did not say who this member is.');
+  const hostName = location.hostname.split('.')[0] ?? '';
+  const sdk = new SideRoomSDK(params.get('application_id') ?? hostName);
+  await sdk.ready();
   const board = new Board({
-    me: id.me,
-    isHost: id.isHost,
-    adapter: adapterFromSdk(sdk as unknown as SdkLike),
+    me: memberId(sdk),
+    // The host is known once the client has attached the data channel, so it is asked each time.
+    isHost: () => sdk.isHost,
+    adapter: adapterFromSdk(sdk as unknown as SdkLike, () => {
+      if (status) status.textContent = S.sendFailed;
+    }),
   });
   startApp(board);
 }

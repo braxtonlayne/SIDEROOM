@@ -24,7 +24,16 @@ export type Payload =
       b: Pt;
     }
   | { k: 'text'; pg: string; c: string; size: number; at: Pt; text: string }
-  | { k: 'image'; pg: string; src: string; at: Pt; size: Pt }
+  | {
+      k: 'image';
+      pg: string;
+      at: Pt;
+      size: Pt;
+      /** An https address, or empty for a picture carried in blob keys (`mime` and `parts`). */
+      src: string;
+      mime?: string;
+      parts?: number;
+    }
   | { k: 'clear'; pg: string }
   | { k: 'erase'; t: string }
   | { k: 'undo'; t: string }
@@ -70,18 +79,25 @@ const isDrawing = (p: Payload): p is DrawPayload =>
 // --- validation: everything from the wire is untrusted ---------------------------------------------------
 
 export const LIMITS = {
-  maxPoints: 2000,
+  /** A stroke entry must fit one data-channel message (16 KiB with the envelope). */
+  maxPoints: 700,
   maxText: 500,
   maxName: 40,
+  /** Largest data URL of a picture (base64 characters), carried in blob parts. */
   maxImageChars: 160_000,
+  /** Characters of one blob part. */
+  blobPartChars: 10_000,
+  maxImageParts: 20,
+  /** Largest serialized log entry in bytes (the envelope adds some). */
+  maxEntryBytes: 11_000,
   coordMin: -200,
   coordMax: 2200,
 };
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
-const IMAGE_SRC =
-  /^(https:\/\/[^\s"'<>]{1,2000}|data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+)$/;
+const IMAGE_URL = /^https:\/\/[^\s"'<>]{1,1500}$/;
+export const IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 const num = (v: unknown, lo: number, hi: number): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : null;
@@ -141,10 +157,15 @@ function parsePayload(raw: unknown): Payload | null {
       const pg = idOf(r.pg);
       const at = pt(r.at);
       const size = pt(r.size);
-      const src = str(r.src, LIMITS.maxImageChars);
-      if (!pg || !at || !size || !src || !IMAGE_SRC.test(src)) return null;
-      if (size[0] < 1 || size[1] < 1) return null;
-      return { k: 'image', pg, src, at, size };
+      if (!pg || !at || !size || size[0] < 1 || size[1] < 1) return null;
+      if (typeof r.src === 'string' && r.src !== '') {
+        return IMAGE_URL.test(r.src) ? { k: 'image', pg, src: r.src, at, size } : null;
+      }
+      const parts = r.parts;
+      if (typeof r.mime !== 'string' || !IMAGE_MIMES.includes(r.mime)) return null;
+      if (typeof parts !== 'number' || !Number.isInteger(parts)) return null;
+      if (parts < 1 || parts > LIMITS.maxImageParts) return null;
+      return { k: 'image', pg, src: '', at, size, mime: r.mime, parts };
     }
     case 'clear': {
       const pg = idOf(r.pg);

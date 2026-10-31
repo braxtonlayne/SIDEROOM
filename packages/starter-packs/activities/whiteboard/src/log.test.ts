@@ -205,7 +205,7 @@ describe('parseEntry', () => {
     ['bad colour', { ...good, p: { ...stroke(), c: 'red' } }],
     ['odd point list', { ...good, p: { ...stroke(), pts: [1, 2, 3] } }],
     ['NaN point', { ...good, p: { ...stroke(), pts: [1, NaN, 3, 4] } }],
-    ['too many points', { ...good, p: { ...stroke(), pts: new Array(4002).fill(1) } }],
+    ['too many points', { ...good, p: { ...stroke(), pts: new Array(1402).fill(1) } }],
     [
       'javascript image',
       {
@@ -238,17 +238,25 @@ describe('parseEntry', () => {
     expect(parseEntry(raw)).toBeNull();
   });
 
-  it('accepts a png data image and an https image', () => {
-    const png = {
-      k: 'image',
-      pg: 'home',
-      src: 'data:image/png;base64,iVBORw0KGgo=',
-      at: [0, 0],
-      size: [5, 5],
-    };
-    expect(parseEntry({ ...good, p: png })).not.toBeNull();
+  it('accepts an https image and a picture carried in blob parts', () => {
+    const base = { k: 'image', pg: 'home', at: [0, 0], size: [5, 5] };
     expect(
-      parseEntry({ ...good, p: { ...png, src: 'https://files.example/a.png?x=1' } }),
+      parseEntry({ ...good, p: { ...base, src: 'https://files.example/a.png?x=1' } }),
     ).not.toBeNull();
+    expect(
+      parseEntry({ ...good, p: { ...base, src: '', mime: 'image/png', parts: 3 } }),
+    ).not.toBeNull();
+  });
+
+  it.each([
+    ['an inline data URL', { src: 'data:image/png;base64,iVBORw0KGgo=' }],
+    ['svg blob', { src: '', mime: 'image/svg+xml', parts: 1 }],
+    ['no parts', { src: '', mime: 'image/png' }],
+    ['zero parts', { src: '', mime: 'image/png', parts: 0 }],
+    ['too many parts', { src: '', mime: 'image/png', parts: 21 }],
+    ['an https address with a quote', { src: 'https://x/y"onload=1' }],
+  ])('refuses an image with %s', (_n, extra) => {
+    const p = { k: 'image', pg: 'home', at: [0, 0], size: [5, 5], ...extra };
+    expect(parseEntry({ ...good, p })).toBeNull();
   });
 });

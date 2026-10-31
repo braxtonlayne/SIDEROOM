@@ -11,6 +11,7 @@ import {
   redoTarget,
   undoTarget,
   type DrawObject,
+  type Payload,
   type Pt,
   type ShapeKind,
 } from './log';
@@ -101,6 +102,17 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
   let editingPage = false;
   let canUndo = false;
   let canRedo = false;
+
+  /** Append to the log; a refusal (an entry too large for one message) is shown, not thrown. */
+  function safeAdd(p: Payload): string | null {
+    try {
+      return board.add(p);
+    } catch {
+      status = S.tooBig;
+      syncChrome();
+      return null;
+    }
+  }
 
   // --- static labels ---------------------------------------------------------------------------------------
   $('width-label').textContent = S.width;
@@ -264,7 +276,7 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
       raw.push(p);
       const pts = packStroke(raw);
       if (pts.length >= 2) {
-        board.add({
+        safeAdd({
           k: 'stroke',
           pg: pageId,
           c: color,
@@ -275,7 +287,7 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
       }
     } else if (tool === 'line' || tool === 'arrow' || tool === 'rect' || tool === 'ellipse') {
       if (Math.hypot(p[0] - s[0], p[1] - s[1]) >= 4) {
-        board.add({
+        safeAdd({
           k: 'shape',
           pg: pageId,
           s: tool as ShapeKind,
@@ -327,7 +339,7 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
   function erase(p: Pt): void {
     const view = board.view();
     const o = pick(view.objects, pageId, p, Math.max(6, width()));
-    if (o) board.add({ k: 'erase', t: o.id });
+    if (o) safeAdd({ k: 'erase', t: o.id });
   }
 
   // --- text ------------------------------------------------------------------------------------------------
@@ -360,7 +372,7 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
     textEl.hidden = true;
     textEl.value = '';
     if (text.trim() !== '')
-      board.add({ k: 'text', pg: pageId, c: color, size: textSize(), at, text });
+      safeAdd({ k: 'text', pg: pageId, c: color, size: textSize(), at, text });
   }
   textEl.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && !ev.shiftKey) {
@@ -380,7 +392,15 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
     const at = pendingImageAt ?? ([PAGE_W / 2, PAGE_H / 2] as Pt);
     const x = Math.round(Math.min(Math.max(0, at[0] - w / 2), PAGE_W - w));
     const y = Math.round(Math.min(Math.max(0, at[1] - h / 2), PAGE_H - h));
-    board.add({ k: 'image', pg: pageId, src: img.src, at: [x, y], size: [w, h] });
+    try {
+      if (img.src.startsWith('data:')) {
+        board.addImage({ pg: pageId, at: [x, y], size: [w, h], dataUrl: img.src });
+      } else {
+        board.add({ k: 'image', pg: pageId, src: img.src, at: [x, y], size: [w, h] });
+      }
+    } catch (e) {
+      imageError(e);
+    }
     pendingImageAt = null;
     urlInput.value = '';
   }
@@ -434,7 +454,7 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
     });
   }
   clearBtn.addEventListener('click', () =>
-    confirmed(clearBtn, S.clearConfirm, () => board.add({ k: 'clear', pg: pageId })),
+    confirmed(clearBtn, S.clearConfirm, () => safeAdd({ k: 'clear', pg: pageId })),
   );
   delPageBtn.addEventListener('click', () =>
     confirmed(delPageBtn, S.pageDeleteConfirm, () => {
@@ -443,12 +463,12 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
         status = S.pageLast;
         return syncChrome();
       }
-      board.add({ k: 'pagedel', t: pageId });
+      safeAdd({ k: 'pagedel', t: pageId });
     }),
   );
   addPageBtn.addEventListener('click', () => {
     const n = board.view().pages.length + 1;
-    pageId = board.add({ k: 'page', name: `Page ${n}` });
+    pageId = safeAdd({ k: 'page', name: `Page ${n}` }) ?? pageId;
     schedule();
   });
   renameBtn.addEventListener('click', () => {
@@ -461,7 +481,7 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
       if (!editingPage) return;
       editingPage = false;
       const name = input.value.trim().slice(0, 40);
-      if (save && name && name !== current?.name) board.add({ k: 'rename', t: pageId, name });
+      if (save && name && name !== current?.name) safeAdd({ k: 'rename', t: pageId, name });
       syncChrome();
     };
     input.addEventListener('keydown', (ev) => {
