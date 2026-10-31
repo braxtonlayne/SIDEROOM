@@ -59,7 +59,7 @@ export function zip(files: Record<string, string | Uint8Array>): Buffer {
 function sdkModules(): Record<string, string> {
   const src = resolve(repoRoot, 'packages', 'embedded-app-sdk', 'src');
   const out: Record<string, string> = {};
-  for (const name of ['index', 'sdk', 'protocol']) {
+  for (const name of ['index', 'sdk', 'protocol', 'data']) {
     const js = ts.transpileModule(readFileSync(resolve(src, `${name}.ts`), 'utf8'), {
       compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ES2020 },
     }).outputText;
@@ -102,6 +102,19 @@ try {
     }
   });
   log('subscribed', 'yes');
+  // ACT-CH-001: shared state through the SFU. Each side writes its own key; the other side logs it.
+  log('self', String(sdk.self) + ' host ' + String(sdk.hostId));
+  sdk.on('state', (e) => {
+    for (const c of e.changes) if (!c.local) log('state', c.key + '=' + c.value);
+  });
+  document.getElementById('set').addEventListener('click', () => {
+    try {
+      sdk.state.set({ ['from-' + sdk.self]: 'hi' });
+      log('state-set', 'ok');
+    } catch (e) {
+      log('state-error', e.code || String(e));
+    }
+  });
 } catch (e) {
   log('error', e.code || String(e));
 }
@@ -112,6 +125,7 @@ try {
 <body>
 <h1>E2E Activity</h1>
 <button id="auth" type="button">Authorize</button>
+<button id="set" type="button">Set state</button>
 <ul id="log"></ul>
 <script type="module" src="main.js"></script>
 </body>
@@ -121,6 +135,8 @@ try {
     'index.html': html,
     'style.css': 'body { font-family: sans-serif; }\n',
     'main.js': main,
+    // ACT-CH-001: the Activity declares the data channel; without this `sdk.state` has no transport.
+    'sideroom.json': JSON.stringify({ capabilities: ['datachannel'] }),
     ...sdkModules(),
   });
 }
