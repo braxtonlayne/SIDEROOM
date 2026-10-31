@@ -9,7 +9,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sr_admin::{
-    CreditLedger, InviteDescendants, InvitePage, InviteQuery, InviteRow, InviteTree, SuspectPerson,
+    CreditLedger, InactiveRoots, InviteControls, InviteDescendants, InvitePage, InviteQuery,
+    InviteRow, InviteTree, SuspectPerson,
 };
 use utoipa::ToSchema;
 
@@ -172,6 +173,70 @@ pub async fn revoke(
     let r = reason(&headers, body.and_then(|Json(b)| b.reason).as_deref());
     ctx.svc()
         .revoke_invite(&ctx.caller, id(&invite_id)?, r.as_deref())
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// The invite controls: Lock the Doors, the quotas and what the last prune pass did (OPS-INV-001).
+#[utoipa::path(
+    get, path = "/admin/invites/controls",
+    responses((status = 200, body = InviteControls), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn controls(ctx: StaffCtx) -> ApiResult<Json<InviteControls>> {
+    ctx.svc()
+        .invite_controls(&ctx.caller)
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LockBody {
+    /// `true` closes the doors: no registration succeeds, even with a valid invite. `false` opens them.
+    pub locked: bool,
+    /// Required: why the doors are being closed or opened. It goes into the audit log.
+    pub reason: Option<String>,
+}
+
+/// Lock the Doors or open them again. Existing members are unaffected. Each change is one audit log row
+/// (`invites.lock` or `invites.unlock`).
+#[utoipa::path(
+    put, path = "/admin/invites/lock", request_body = LockBody,
+    responses((status = 200, body = InviteControls), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn set_lock(
+    ctx: StaffCtx,
+    headers: HeaderMap,
+    Json(b): Json<LockBody>,
+) -> ApiResult<Json<InviteControls>> {
+    let r = reason(&headers, b.reason.as_deref());
+    ctx.svc()
+        .set_invites_locked(&ctx.caller, b.locked, r.as_deref())
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
+
+/// Invite subtrees whose first member never activated, marked by the `invites.prune` job. Display only: the
+/// invite graph itself is never changed.
+#[utoipa::path(
+    get, path = "/admin/invites/inactive",
+    params(("limit" = Option<i64>, Query, description = "1-200, default 50")),
+    responses((status = 200, body = InactiveRoots), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn inactive(
+    ctx: StaffCtx,
+    Query(p): Query<LimitParams>,
+) -> ApiResult<Json<InactiveRoots>> {
+    ctx.svc()
+        .inactive_invite_roots(&ctx.caller, p.limit)
         .await
         .map(Json)
         .map_err(map_err)

@@ -49,6 +49,15 @@ fn closed() -> AuthRouteError {
     ApiError::with_message(ErrorCode::SrInviteRequired, "The door's closed for now.").into()
 }
 
+/// Lock the Doors is on (OPS-INV-001): same code as the full-house refusal, its own words.
+fn locked() -> AuthRouteError {
+    ApiError::with_message(
+        ErrorCode::SrInviteRequired,
+        "The doors are closed right now.",
+    )
+    .into()
+}
+
 /// One message for unknown, used and revoked codes.
 fn unusable() -> AuthRouteError {
     ApiError::new(ErrorCode::SrInviteExhausted).into()
@@ -79,6 +88,12 @@ pub async fn register(
             ],
         )
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+
+    // Lock the Doors: no registration succeeds, even with a valid invite (OPS-INV-001).
+    let controls = svc.store.invite_controls().await?;
+    if controls.locked {
+        return Err(locked());
+    }
 
     // Field validation (reported together).
     let mut problems: Vec<(&str, &str)> = Vec::new();
@@ -156,13 +171,14 @@ pub async fn register(
             email: email.clone(),
             password_hash,
             account_cap: svc.account_cap().await?,
-            initial_credits: svc.cfg.initial_credits,
+            initial_credits: controls.default_credits.unwrap_or(svc.cfg.initial_credits),
             now,
         })
         .await?;
     let registered = match outcome {
         Ok(r) => r,
         Err(RegisterRejection::AtCap) => return Err(closed()),
+        Err(RegisterRejection::Locked) => return Err(locked()),
         Err(RegisterRejection::PersonBanned) => {
             // Generic to the client; staff are alerted (ENT-INV-008).
             // The alert names the inviter's Person (D-348); nothing is raised against the inviter.

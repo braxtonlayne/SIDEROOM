@@ -741,7 +741,7 @@ async fn settings_are_validated_and_thresholds_ordered() {
             &owner,
             &[
                 ("accounts.cap".into(), json!(500)),
-                ("invites.initial_credits".into(), json!(9)),
+                ("invites.default_credits".into(), json!(9)),
             ],
             Some("tuning"),
         )

@@ -12,6 +12,7 @@ pub mod chain;
 pub mod data_requests;
 pub mod error;
 pub mod ext;
+pub mod invite_controls;
 pub mod memory;
 pub mod model;
 pub mod repo;
@@ -35,6 +36,7 @@ pub use data_requests::{
 };
 pub use error::{AdminError, AdminResult};
 pub use ext::*;
+pub use invite_controls::{InactiveRoot, InactiveRoots, InviteControls, PruneRun};
 pub use model::*;
 pub use repo::AdminRepository;
 pub use service::{AdminService, SYSTEM_USER_ID, SettingView};

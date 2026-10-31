@@ -1,7 +1,8 @@
 // Typed Entrance calls (docs 05/06). Endpoint paths and shapes are documented in docs/05-api-and-gateway.md section 5.1; passkey endpoints are in ./passkeys.ts.
 import { apiFetch, apiPost, refreshCsrf } from './client';
 
-export type InviteCheck = { valid: true } | { valid: false; reason?: 'closed' };
+/** `closed`: the house is full. `locked`: the operator locked the doors (OPS-INV-001). */
+export type InviteCheck = { valid: true } | { valid: false; reason?: 'closed' | 'locked' };
 export const checkInvite = (code: string) =>
   apiFetch<InviteCheck>(`/sr/invites/${encodeURIComponent(code)}`, { retries: 0 });
 

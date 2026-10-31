@@ -10627,6 +10627,176 @@
         ]
       }
     },
+    "/admin/invites/controls": {
+      "get": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "The invite controls: Lock the Doors, the quotas and what the last prune pass did (OPS-INV-001).",
+        "operationId": "controls",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteControls"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/invites/inactive": {
+      "get": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Invite subtrees whose first member never activated, marked by the `invites.prune` job. Display only: the\ninvite graph itself is never changed.",
+        "operationId": "inactive",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1-200, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InactiveRoots"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/invites/lock": {
+      "put": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Lock the Doors or open them again. Existing members are unaffected. Each change is one audit log row\n(`invites.lock` or `invites.unlock`).",
+        "operationId": "set_lock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LockBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteControls"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/invites/{invite_id}": {
       "delete": {
         "tags": [
@@ -93110,6 +93280,61 @@
           }
         }
       },
+      "InactiveRoot": {
+        "type": "object",
+        "description": "The root of an invite subtree whose first member never activated.",
+        "required": [
+          "account_id",
+          "username",
+          "marked_at_ms",
+          "subtree_size"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "invited_by_account_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account that issued the invite the root used, when it still exists."
+          },
+          "marked_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subtree_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The root and everyone below it in the invite graph."
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "InactiveRoots": {
+        "type": "object",
+        "description": "The inactive subtrees (newest mark first, at most [`MAX_INACTIVE_ROOTS`]).",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InactiveRoot"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many are marked in all."
+          }
+        }
+      },
       "InboxDismissBody": {
         "type": "object",
         "description": "Body of a bulk dismissal.",
@@ -93919,7 +94144,7 @@
           },
           "reason": {
             "type": "string",
-            "description": "`unverified`, `too_new`, `at_cap`, `no_credits` or `frozen`."
+            "description": "`unverified`, `too_new`, `at_cap`, `no_credits`, `at_max` or `frozen`."
           }
         }
       },
@@ -93949,6 +94174,53 @@
           "type": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "InviteControls": {
+        "type": "object",
+        "description": "The controls card of Admin > Invites.",
+        "required": [
+          "locked",
+          "default_credits",
+          "max_outstanding",
+          "unused_code_days",
+          "inactive_roots"
+        ],
+        "properties": {
+          "default_credits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Credits a new account starts with."
+          },
+          "inactive_roots": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Subtrees currently marked inactive."
+          },
+          "last_prune": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PruneRun"
+              }
+            ]
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "Lock the Doors: no registration succeeds while this is on."
+          },
+          "max_outstanding": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Most unused codes one account may hold at once."
+          },
+          "unused_code_days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Days after which an unused code is revoked."
           }
         }
       },
@@ -96164,6 +96436,25 @@
             "items": {
               "$ref": "#/components/schemas/ListCard"
             }
+          }
+        }
+      },
+      "LockBody": {
+        "type": "object",
+        "required": [
+          "locked"
+        ],
+        "properties": {
+          "locked": {
+            "type": "boolean",
+            "description": "`true` closes the doors: no registration succeeds, even with a valid invite. `false` opens them."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required: why the doors are being closed or opened. It goes into the audit log."
           }
         }
       },
@@ -104004,19 +104295,61 @@
           }
         }
       },
+      "PruneRun": {
+        "type": "object",
+        "description": "What the last `invites.prune` pass did.",
+        "required": [
+          "ran_at_ms",
+          "codes_revoked",
+          "roots_marked",
+          "roots_cleared",
+          "graph_rows"
+        ],
+        "properties": {
+          "codes_revoked": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unused invite codes the pass revoked."
+          },
+          "graph_rows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Redeemed edges in the invite graph after the pass; the same number as before it."
+          },
+          "ran_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "roots_cleared": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Marks lifted because the root activated since."
+          },
+          "roots_marked": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Subtrees newly marked inactive."
+          }
+        }
+      },
       "PublicComplianceObject": {
         "type": "object",
         "description": "What visitors may know about the instance's compliance settings (M-06, D-293 to D-295).",
         "required": [
           "minimum_age",
           "invoice_retention_years",
-          "invite_initial_credits"
+          "invite_initial_credits",
+          "doors_closed"
         ],
         "properties": {
+          "doors_closed": {
+            "type": "boolean",
+            "description": "Lock the Doors is on (`invites.locked`, OPS-INV-001): the entrance says the doors are closed."
+          },
           "invite_initial_credits": {
             "type": "integer",
             "format": "int32",
-            "description": "Invite credits a new account is granted (`invites.initial_credits`)."
+            "description": "Invite credits a new account is granted (`invites.default_credits`)."
           },
           "invoice_retention_years": {
             "type": "integer",

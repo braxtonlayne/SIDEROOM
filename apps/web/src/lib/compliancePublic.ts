@@ -10,8 +10,10 @@ export interface CompliancePublic {
   minimum_age: number;
   /** Years invoices stay linked to a member after the year of payment (D-325). */
   invoice_retention_years?: number;
-  /** Invite credits a new account is granted (`invites.initial_credits`). */
+  /** Invite credits a new account is granted (`invites.default_credits`). */
   invite_initial_credits?: number;
+  /** The operator locked the doors (`invites.locked`): no registration succeeds, the entrance says so. */
+  doors_closed?: boolean;
   operator_country?: string;
   operator_contact?: string;
 }

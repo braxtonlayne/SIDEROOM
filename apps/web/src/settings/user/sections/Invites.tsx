@@ -70,6 +70,8 @@ export function InvitesSection() {
         return t('settings.userInvites.blockedAtCap');
       case 'no_credits':
         return t('settings.userInvites.blockedNoCredits');
+      case 'at_max':
+        return t('settings.userInvites.blockedAtMax');
       default:
         return t('settings.userInvites.blockedFrozen');
     }
