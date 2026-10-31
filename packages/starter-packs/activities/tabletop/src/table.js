@@ -20,7 +20,7 @@ export const MAX_TOKENS = 200;
 export const MAX_ROLLS_KEPT = 50;
 export const MAX_URL_CHARS = 2048;
 /** A token picture or avatar as a data URL (a 64 px thumbnail is a few KB); the map image goes in chunks. */
-export const MAX_DATA_URL_CHARS = 16_000;
+export const MAX_DATA_URL_CHARS = 8_000;
 export const CHUNK_CHARS = 12_000;
 export const MAX_IMG_CHUNKS = 60;
 

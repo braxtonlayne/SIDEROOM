@@ -8,7 +8,7 @@
 //   isHost        me.id === hostId
 //   doc()         a snapshot of the shared document, { key: value }
 //   set(key, v)   write a key (`null` deletes); `host:*` only as the host, `ruler:<me.id>` as anyone
-//   send(msg)     an intent for the host (the host's own go straight to its handler)
+//   send(msg)     an intent for the host (the host's own arrive at its handler too)
 //   onChange(cb)  called with no arguments after the document changed
 //   onInput(cb)   host only: cb(fromId, msg) for each intent
 //   people()      the members of the instance: [{ id, name, avatarUrl }]
@@ -90,12 +90,18 @@ export function createLoopbackRoom(hostId) {
   return room;
 }
 
+/** The member id and the host id of an SDK instance (the SDK keeps them on its data channel). */
+export function identity(sdk) {
+  const d = sdk.data ?? {};
+  return { self: sdk.self ?? d.self ?? null, host: sdk.hostId ?? d.host ?? null };
+}
+
 /**
- * Map a Transport onto the SDK. Written against the API of ACT-CH-001 (roadmap-p27 section 14):
- *   sdk.state.get() -> { version, data }       sdk.state.set(key, value)      sdk.on('state', cb)
- *   sdk.input.send(bytes)                      sdk.on('input', cb({ from, data }))
- *   sdk.state.hostId                           the launching member (reconcile with the published stub)
- * `people` is the list from `getInstanceConnectedParticipants` (kept current by the caller).
+ * Map a Transport onto the SDK's data channel (ACT-CH-001, packages/embedded-app-sdk/src/data.ts):
+ *   sdk.state.all() / .set({ key: value }) / .delete(key)   sdk.on('state', e => e.changes)
+ *   sdk.input.send(bytes)                                  sdk.on('input', e => { from, data, reply })
+ * A host's own `input.send` is delivered to its own listeners by the SDK. `people` is the list from
+ * `getInstanceConnectedParticipants` (kept current by the caller).
  */
 export function sdkTransport(sdk, { me, hostId, people = () => [] }) {
   const changeCbs = new Set();
@@ -104,26 +110,21 @@ export function sdkTransport(sdk, { me, hostId, people = () => [] }) {
     for (const cb of [...changeCbs]) cb();
   });
   const offInput = sdk.on('input', (e) => {
+    if (e.reply) return; // replies are for other Activities (the card table); the tabletop sends none
     const msg = decodeInput(e.data);
     if (msg) for (const cb of [...inputCbs]) cb(e.from, msg);
   });
-  const t = {
+  return {
     me,
     hostId,
     isHost: me.id === hostId,
-    doc: () => ({ ...(sdk.state.get().data ?? {}) }),
+    doc: () => sdk.state.all(),
     set(key, value) {
       if (!mayWrite(me.id, hostId, key)) throw new Error(`not allowed to write ${key}`);
-      return sdk.state.set(key, value ?? null);
+      if (value === null || value === undefined) sdk.state.delete(key);
+      else sdk.state.set({ [key]: value });
     },
-    send(msg) {
-      if (t.isHost) {
-        // The host is not its own input recipient on the wire; hand it to the handler directly.
-        for (const cb of [...inputCbs]) cb(me.id, msg);
-        return Promise.resolve();
-      }
-      return sdk.input.send(encodeInput(msg));
-    },
+    send: (msg) => sdk.input.send(encodeInput(msg)),
     onChange(cb) {
       changeCbs.add(cb);
       return () => changeCbs.delete(cb);
@@ -134,11 +135,10 @@ export function sdkTransport(sdk, { me, hostId, people = () => [] }) {
     },
     people,
     close() {
-      offState?.();
-      offInput?.();
+      offState();
+      offInput();
     },
   };
-  return t;
 }
 
 /**
