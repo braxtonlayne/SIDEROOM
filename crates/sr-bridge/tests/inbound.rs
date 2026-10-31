@@ -230,8 +230,8 @@ async fn a_discord_message_is_shown_by_the_bridge_author_with_the_discord_user_a
     assert_eq!(p.author.name, "Dana");
     assert_eq!(p.author.discord_user_id, 77);
     assert_eq!(p.author.platform, "discord");
-    assert!(p.content.contains("@\u{200b}Eve") && p.content.contains("@\u{200b}everyone"));
-    assert!(!p.content.contains("<@") && p.content.contains(":pog:"));
+    assert!(p.content.contains("<@88>") && p.content.contains("@\u{200b}everyone"));
+    assert!(p.content.contains(":pog:") && !p.content.contains("<@&"));
     assert_eq!(p.author.links.len(), 1);
     assert_eq!(p.author.links[0].expires_at_ms, 0x65f0_0000_i64 * 1000);
     // The pair is remembered, so edits and replies find it.
@@ -742,7 +742,7 @@ async fn a_refused_token_marks_the_bridge_and_a_refused_intent_is_not_retried_at
 
 // ---------------------------------------------------------------------------------------------- members
 
-async fn members(pool: &PgPool, guild: i64) -> Vec<(i64, String, Option<String>, String)> {
+async fn members(pool: &PgPool, guild: i64) -> Vec<(i64, String, Option<String>, Option<String>)> {
     sqlx::query_as(
         "SELECT discord_user_id, display_name, role_name, presence FROM bridge_members \
          WHERE guild_id = $1 ORDER BY discord_user_id",
@@ -785,10 +785,7 @@ async fn discord_members_are_synced_into_the_bridged_member_list_and_are_not_acc
     .await;
     let got = members(f.db.pool(), f.guild).await;
     assert_eq!(got.len(), 3);
-    assert_eq!(
-        got[0],
-        (1, "ann".into(), Some("Mod".into()), "offline".into())
-    );
+    assert_eq!(got[0], (1, "ann".into(), Some("Mod".into()), None));
     assert_eq!(got[1].2, None, "no role, no role name");
     // A member who left while the bridge was down is dropped by the next full sync.
     f.send(
@@ -822,7 +819,7 @@ async fn discord_members_are_synced_into_the_bridged_member_list_and_are_not_acc
     let got = members(f.db.pool(), f.guild).await;
     assert_eq!(
         got[0],
-        (1, "Annie".into(), Some("Admin".into()), "dnd".into())
+        (1, "Annie".into(), Some("Admin".into()), Some("dnd".into()))
     );
     assert_eq!(got[1].1, "Benny");
     f.send(

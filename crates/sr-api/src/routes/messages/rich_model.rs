@@ -195,7 +195,7 @@ pub async fn decorate(
                     platform: b.platform.clone(),
                     author_name: b.author_name.clone(),
                     author_avatar: avatar,
-                    author_id: b.discord_user_id.clone(),
+                    member_id: b.discord_user_id.clone(),
                     links: b
                         .links
                         .iter()

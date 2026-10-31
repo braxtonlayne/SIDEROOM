@@ -141,14 +141,14 @@ pub struct BridgedMember {
     /// `0xRRGGBB`; none when the role has no colour.
     pub role_color: Option<i32>,
     pub bot: bool,
-    /// `online`, `idle`, `dnd` or `offline`.
-    pub presence: String,
+    /// `online`, `idle`, `dnd` or `offline`; none while the presence intent does not tell.
+    pub presence: Option<String>,
 }
 
 #[async_trait]
 pub trait RichStore: Send + Sync {
-    /// The Discord members bridged into `channel` (empty when it is not mapped).
-    async fn bridged_members(&self, _channel: ChannelId) -> StoreResult<Vec<BridgedMember>> {
+    /// The Discord members bridged into the server (empty when it has no bridge).
+    async fn bridged_members(&self, _guild: GuildId) -> StoreResult<Vec<BridgedMember>> {
         Ok(Vec::new())
     }
 

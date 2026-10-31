@@ -61,12 +61,12 @@ async fn lock_poll(
 impl RichStore for PgRichStore {
     async fn bridged_members(
         &self,
-        channel: sr_core::ChannelId,
+        guild: sr_core::GuildId,
     ) -> StoreResult<Vec<sr_chat::rich_repo::BridgedMember>> {
         let rows = sqlx::query(
-            "SELECT m.discord_user_id, m.display_name, m.avatar_url, m.role_name, m.role_color,                     m.is_bot, m.presence              FROM bridge_members m              JOIN bridge_channel_maps c ON c.guild_id = m.guild_id              WHERE c.channel_id = $1              ORDER BY lower(m.display_name), m.discord_user_id LIMIT 2000",
+            "SELECT m.discord_user_id, m.display_name, m.avatar_url, m.role_name, m.role_color,                     m.is_bot, m.presence              FROM bridge_members m WHERE m.guild_id = $1              ORDER BY lower(m.display_name), m.discord_user_id LIMIT 5000",
         )
-        .bind(i(channel.get()))
+        .bind(i(guild.get()))
         .fetch_all(&self.pool)
         .await
         .map_err(sdb)?;

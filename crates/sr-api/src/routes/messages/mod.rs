@@ -89,7 +89,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/channels/{channel_id}/pins", get(pins::list_pins_legacy))
         .route(
-            "/channels/{channel_id}/bridge-members",
+            "/guilds/{guild_id}/bridge/members",
             get(bridge_members::list_bridge_members),
         )
         .route(
@@ -173,9 +173,7 @@ pub fn router() -> Router<AppState> {
         model::PartialEmoji,
         model::BridgeObject,
         model::BridgeLinkObject,
-        bridge_members::BridgedMembersPage,
         bridge_members::BridgedMemberObject,
-        bridge_members::BridgedRoleObject,
         model::ReactionObject,
         model::ReactionCountDetails,
         model::ReactionTypeQuery,

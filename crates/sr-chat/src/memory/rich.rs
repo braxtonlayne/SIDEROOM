@@ -35,7 +35,7 @@ impl RichStore for MemoryBackend {
 
     async fn bridged_members(
         &self,
-        _channel: ChannelId,
+        _guild: sr_core::GuildId,
     ) -> StoreResult<Vec<crate::rich_repo::BridgedMember>> {
         Ok(self.data().bridged_members.clone())
     }

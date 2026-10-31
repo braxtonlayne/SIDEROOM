@@ -284,7 +284,6 @@ GET	/channels/{channel_id}/messages/pins	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/search	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-	-
-GET	/channels/{channel_id}/bridge-members	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/pins	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/sr/features	authenticated	membership	allow	-	-
@@ -360,6 +359,7 @@ GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	
 GET	/guilds/{guild_id}/bans	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/birthdays	authenticated	membership	allow	-	-
+GET	/guilds/{guild_id}/bridge/members	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/channels	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/default-sticker-packs	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/directory	authenticated	membership	allow	-	-

@@ -230,9 +230,9 @@ pub struct BridgeObject {
     pub author_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author_avatar: Option<String>,
-    /// The Discord user's snowflake.
+    /// The Discord user id (decimal string): the bridged member's id in `GET /guilds/{id}/bridge/members`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub author_id: Option<String>,
+    pub member_id: Option<String>,
     /// Attachments, as links only: nothing is re-hosted.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<BridgeLinkObject>,

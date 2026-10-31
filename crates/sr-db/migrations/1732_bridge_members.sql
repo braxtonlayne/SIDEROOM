@@ -4,7 +4,7 @@
 -- NOT accounts: no login, no DMs, no permissions, never in authz. This table is only what the list shows: name
 -- (the server nickname, else display name, else username), the avatar (a Discord URL, proxied through
 -- /cdn/external at view time), the top role's name and colour, whether it is a bot, and the presence when the
--- owner granted the privileged intent. Filled from GUILD_MEMBERS_CHUNK and GUILD_MEMBER_ADD/UPDATE/REMOVE; it
+-- owner granted the privileged intent (NULL: not known). Filled from GUILD_MEMBERS_CHUNK and GUILD_MEMBER_ADD/UPDATE/REMOVE; it
 -- goes with the bridge (the teardown deletes the bridges row).
 CREATE TABLE bridge_members (
     guild_id         BIGINT NOT NULL REFERENCES bridges (guild_id) ON DELETE CASCADE,
@@ -15,7 +15,7 @@ CREATE TABLE bridge_members (
     role_name        TEXT CHECK (char_length(role_name) <= 100),
     role_color       INTEGER,
     is_bot           BOOLEAN NOT NULL DEFAULT false,
-    presence         TEXT NOT NULL DEFAULT 'offline' CHECK (presence IN ('online', 'idle', 'dnd', 'offline')),
+    presence         TEXT CHECK (presence IN ('online', 'idle', 'dnd', 'offline')),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (guild_id, discord_user_id)
 );

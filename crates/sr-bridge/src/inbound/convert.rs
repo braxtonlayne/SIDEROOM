@@ -302,12 +302,11 @@ fn rewrite_token(token: &str, mentions: &[(i64, String)]) -> Option<String> {
         .strip_prefix("@!")
         .or_else(|| token.strip_prefix('@').filter(|r| !r.starts_with('&')))
     {
+        // The standard token, normalised: the Discord user id is the bridged member id here, so the web shows a
+        // mention chip of that member. No mention is recorded by the sink, so nobody is notified.
         let id: i64 = id.parse().ok()?;
-        let name = mentions
-            .iter()
-            .find(|(m, _)| *m == id)
-            .map_or("unknown-user", |(_, n)| n.as_str());
-        return Some(format!("@\u{200b}{name}"));
+        let _ = mentions;
+        return Some(format!("<@{id}>"));
     }
     if token
         .strip_prefix("@&")
@@ -408,17 +407,14 @@ mod tests {
     #[test]
     fn mentions_become_text_and_never_a_ping() {
         let m = vec![(9, "Ann".to_owned())];
-        assert_eq!(
-            clean_content("hi <@9> and <@!9>", &m),
-            "hi @\u{200b}Ann and @\u{200b}Ann"
-        );
-        assert_eq!(clean_content("<@12>", &m), "@\u{200b}unknown-user");
+        assert_eq!(clean_content("hi <@9> and <@!9>", &m), "hi <@9> and <@9>");
+        assert_eq!(clean_content("<@12>", &m), "<@12>");
         assert_eq!(clean_content("<@&77> <#5>", &m), "@\u{200b}role #channel");
         assert_eq!(
             clean_content("@everyone @here", &m),
             "@\u{200b}everyone @\u{200b}here"
         );
-        assert!(!clean_content("<@9> <@&1> @everyone", &m).contains("<@"));
+        assert!(!clean_content("<@&1> @everyone", &m).contains("<@"));
     }
 
     #[test]
