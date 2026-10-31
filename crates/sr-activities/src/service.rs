@@ -815,10 +815,10 @@ impl ActivityService {
             .map_err(Into::into)
     }
 
-    async fn view(&self, r: &PgRow) -> ActivityResult<InstanceView> {
-        let id: i64 = r.try_get("id")?;
+    /// The capabilities an instance row runs with: its reviewed bundle's, or every one in development.
+    fn capabilities(r: &PgRow) -> ActivityResult<Vec<String>> {
         let development: bool = r.try_get("dev")?;
-        let capabilities = if development {
+        Ok(if development {
             bundle::CAPABILITIES
                 .iter()
                 .map(|c| (*c).to_owned())
@@ -826,7 +826,13 @@ impl ActivityService {
         } else {
             r.try_get::<Option<Vec<String>>, _>("caps")?
                 .unwrap_or_default()
-        };
+        })
+    }
+
+    async fn view(&self, r: &PgRow) -> ActivityResult<InstanceView> {
+        let id: i64 = r.try_get("id")?;
+        let development: bool = r.try_get("dev")?;
+        let capabilities = Self::capabilities(r)?;
         Ok(InstanceView {
             id: id.to_string(),
             application_id: r.try_get::<i64, _>("application_id")?.to_string(),
@@ -1010,6 +1016,10 @@ impl ActivityService {
     }
 
     /// Mark `user` as gone from `instance`; the last one out ends it. Announces the change.
+    ///
+    /// An instance that uses the data channel is host-authoritative: the member who launched it is the only
+    /// writer of `host:*` keys and the only receiver of inputs, and there is no host handover in v1 (P36-ACT-1).
+    /// So when its starter leaves (or leaves the call), the instance ends for everybody.
     async fn remove_participant(
         &self,
         row: &PgRow,
@@ -1031,7 +1041,13 @@ impl ActivityService {
         .bind(instance)
         .fetch_one(self.pool())
         .await?;
-        if left == 0 {
+        let starter: i64 = row.try_get("started_by")?;
+        let host_left = gone.rows_affected() > 0
+            && user == starter
+            && Self::capabilities(row)?
+                .iter()
+                .any(|c| c == bundle::DATACHANNEL);
+        if left == 0 || host_left {
             sqlx::query(
                 "UPDATE activity_instances SET ended_at = now() WHERE id = $1 AND ended_at IS NULL",
             )

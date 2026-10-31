@@ -793,8 +793,42 @@ async fn an_instance_carries_the_capabilities_of_its_reviewed_bundle() {
     assert_eq!(inst.capabilities, vec!["datachannel"]);
     r.svc.end(member, inst.id.parse().unwrap()).await.unwrap();
 
-    // A bundle without a manifest declares nothing.
+    // P36-ACT-1: a data-channel instance is host-authoritative with no handover, so its starter leaving ends it
+    // for everybody, by Leave or by leaving the call; a guest leaving does not.
+    let guest = account(r.db.pool()).await;
+    let inst = r.svc.launch(member, app, 1).await.unwrap();
+    let id: i64 = inst.id.parse().unwrap();
+    r.svc.join(guest, id).await.unwrap();
+    let third = account(r.db.pool()).await;
+    r.svc.join(third, id).await.unwrap();
+    r.svc.leave(third, id).await.unwrap();
+    assert_eq!(r.svc.get(guest, id).await.unwrap().participants.len(), 2);
+    r.svc.leave(member, id).await.unwrap();
+    assert!(r.svc.in_channel(guest, 1).await.unwrap().is_none());
+    let last = r.events.0.lock().unwrap().last().cloned().unwrap();
+    assert!(last.1["instance"].is_null());
+    let inst = r.svc.launch(member, app, 1).await.unwrap();
+    let id: i64 = inst.id.parse().unwrap();
+    r.svc.join(guest, id).await.unwrap();
+    r.svc.voice_left(member, 1).await.unwrap();
+    assert!(r.svc.in_channel(guest, 1).await.unwrap().is_none());
+
+    // A bundle without a manifest declares nothing, and its starter may leave while others play on.
     let plain = approved_app(&r, "Plain").await;
     let inst = r.svc.launch(member, plain, 1).await.unwrap();
     assert!(inst.capabilities.is_empty());
+    let id: i64 = inst.id.parse().unwrap();
+    r.svc.join(guest, id).await.unwrap();
+    r.svc.leave(member, id).await.unwrap();
+    assert_eq!(
+        r.svc
+            .in_channel(guest, 1)
+            .await
+            .unwrap()
+            .unwrap()
+            .participants
+            .len(),
+        1
+    );
+    r.db.cleanup().await.unwrap();
 }

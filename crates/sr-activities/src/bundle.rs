@@ -30,8 +30,10 @@ pub const MAX_PATH_LEN: usize = 256;
 pub const MAX_SEGMENT_LEN: usize = 128;
 /// The optional manifest at the root of a bundle.
 pub const MANIFEST: &str = "sideroom.json";
+/// The data channel capability: the Activity shares state and inputs through the SFU (ACT-CH-001).
+pub const DATACHANNEL: &str = "datachannel";
 /// Capabilities a manifest may declare. `datachannel`: the Activity uses `sdk.state` / `sdk.input` (ACT-CH-001).
-pub const CAPABILITIES: &[&str] = &["datachannel"];
+pub const CAPABILITIES: &[&str] = &[DATACHANNEL];
 /// Largest manifest.
 pub const MAX_MANIFEST_BYTES: usize = 8 * 1024;
 
