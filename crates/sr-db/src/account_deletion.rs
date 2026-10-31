@@ -47,6 +47,9 @@ pub struct DeletionReport {
     /// Storage mounts (user-owned buckets) that were soft-deleted with their sealed secrets wiped
     /// (BYOS-LEG-001). The objects stay in the member's own bucket.
     pub mounts_erased: i64,
+    /// Discord bridge (BRG-UI-001): webhook messages queued for deletion on Discord, and opt-outs removed.
+    pub bridge_deletions_queued: i64,
+    pub bridge_optouts_erased: i64,
 }
 
 /// Why a deletion did not happen.
@@ -182,6 +185,10 @@ pub async fn delete_account(
 
     // BYOS-LEG-001: the member's bucket connections go with the account; the bucket and its objects are theirs.
     report.mounts_erased = crate::storage_legal::erase_for(&mut tx, id).await?.mounts;
+    // BRG-UI-001: the bridge's message-map rows and opt-outs for the member go; the webhook messages are queued.
+    let bridge = crate::bridge_dsr::erase_for(&mut tx, id).await?;
+    report.bridge_deletions_queued = i64::try_from(bridge.deletions_queued).unwrap_or(i64::MAX);
+    report.bridge_optouts_erased = i64::try_from(bridge.opt_outs).unwrap_or(i64::MAX);
     // PRF-SCR-001: scrapbook entries about the member go, and their bucket copies are queued for removal.
     crate::scrapbook_legal::erase_for(&mut tx, id).await?;
 

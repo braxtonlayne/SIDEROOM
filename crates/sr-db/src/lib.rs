@@ -14,6 +14,7 @@ pub mod apps_repo;
 pub mod auth_repo;
 pub mod auth_store;
 pub mod bounded;
+pub mod bridge_dsr;
 pub mod cards_repo;
 pub mod chat_repo;
 pub mod cinema_repo;

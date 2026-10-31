@@ -339,7 +339,8 @@ This archive holds the data tied to your account, as JSON files.\n\
   tools.json          your utility drawer data: scratchpad notes (still encrypted: only your browser's key or\n\
                       your recovery file opens them), your own loot tables and the invite card seats you claimed\n\
   scrapbook.json      scrapbook entries made from your messages, and ones you sent (text, tags, file names and sizes; never keys or links)\n\
-  rings.json          your status rings that are still live (their audience and who opened them) and the rings you opened\n\
+  bridge.json         your messages the Discord bridge mirrored (ids only) and the channels you opted out of
+\n  rings.json          your status rings that are still live (their audience and who opened them) and the rings you opened\n\
   messages/          the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
 \n\
@@ -486,6 +487,13 @@ pub async fn build_package<W: Write + Seek>(
         &mut zip,
         "scrapbook.json",
         &crate::scrapbook_legal::export_for(pool, user).await?,
+    )?;
+
+    // BRG-UI-001 (Art. 15): the member's bridged messages (ids only) and per-channel opt-outs.
+    put(
+        &mut zip,
+        "bridge.json",
+        &crate::bridge_dsr::export_for(pool, user).await?,
     )?;
 
     // UTL-DEV-001, UTL-CRD-001 (wave 32): the utility drawer's personal data. Scratchpad notes are the ciphertext
