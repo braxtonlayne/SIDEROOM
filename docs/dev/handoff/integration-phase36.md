@@ -49,4 +49,61 @@ packages/embedded-app-sdk`), so the merged SDK is byte-identical to act-channel'
   people in one call. The whiteboard's "reload" became Leave and Join of the instance (a reload drops the call);
   Land.io's last step checks that the host leaving closes the guest's frame.
 
-RESULTS_PLACEHOLDER
+- **Bug found by the live run (ACT-TT-001).** `runHost` had no default roll seed, so every roll in the real tabletop
+  threw on the host (the unit tests always injected one). `cryptoSeed()` (the browser's CSPRNG) is the default now,
+  with a test that rolls without an injected seed.
+- **Live window.** The cases run at 1280 x 1000: at the 720 px default the Activity frame (60vh, below the call
+  header and the jukebox) ends below the viewport and the whiteboard's page bar could not be clicked. A real member
+  on a short window has to scroll the channel the same way; worth a look by whoever owns the activity panel layout.
+- **Main merged twice.** First at 5b242383 (nothing to do), then 28bdcbf9 (wave 35b, PR #67) before the final gates:
+  `CHANGELOG.md` and `docs/01-decisions-log.md` conflicted only by both adding a section (kept both, Phase 36 first).
+
+## Gates (merged tree, after main 28bdcbf9)
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check` | ok |
+| clippy `-D warnings --all-targets`: sr-core, sr-e2ee, sr-e2ee-wasm, sr-voice, sr-activities, sr-sdk, sr-db, sr-bridge, sr-server | ok |
+| `sr-e2ee` (37 + 1), `sr-voice` (43 unit, 6 datachannel, e2e/loopback/video/music), `sr-sdk` incl. `voice_data`, `sr-core --lib` (43) | ok (run before the second main merge, which touched none of them) |
+| `sr-activities` lib + db (Postgres, scratch DB) | 17 + 8 ok |
+| `sr-db --test secret_columns --test migration_versions` | ok |
+| `sr-api --test route_matrix --test openapi_names` | ok (no new route) |
+| `sr-server --lib` (Postgres) | 238 ok |
+| `sr-server --test immutable_rules` | 14 ok after the merge. The run before the merge failed once: 2 failures in the `admin` group under `KillFeatures` (the detail lines were filtered out of the log); not reproduced on the rerun; nothing of this wave touches admin routes or flags. Watch it in CI |
+| `sr-server --test web_gate` | 19 ok |
+| `sr-server --test authz_matrix` | 7 ok, no ceiling changed |
+| OpenAPI from `sr-server openapi` vs `packages/api-client/openapi.json`; api-client `generate`; `mocks:check` | identical; no diff; up to date (1121 operations) |
+| `pnpm -r --if-present typecheck` (incl. e2e and the activities) | ok |
+| `pnpm -r --if-present lint`, `prettier --check .` | ok |
+| Vitest apps/web `--maxWorkers=2` | 404 files, 3692 tests ok |
+| Vitest embedded-app-sdk / whiteboard / holdem / tabletop / landio | 23 / 71 / 62 / 86 / 299 (+1 skipped) ok |
+| `build-web`, `check-entrance-isolation`, `check-bundle-budget` | ok, ok, ok |
+| Playwright `activities-live.spec.ts`, Chromium, real sr-server (voice + activities, memory storage, scratch DB) and Vite | 5 passed (test activity, whiteboard, holdem, tabletop, landio), twice: before and after the main merge |
+
+Scratch databases `sr_p36_integ` and `sr_p36_e2e` were dropped. Ports 8080/5173/8081 are free (the servers this run
+started were stopped).
+
+## Not done
+
+- **Seeding built-ins** (`sr-cli package seed` for Activities): the sticker seed does not know applications;
+  P36-ACT-4 records the developer-portal path for now.
+- **Host handover**: not built (P36-ACT-1); the instance ends instead.
+- **Images from a mount** in the whiteboard and the tabletop, **PNG download** from the whiteboard (it opens in a new
+  tab): need owner decisions (below).
+- Firefox and WebKit live runs (CI's), translations of the activities' strings (P36-ACT-5), the whiteboard's live
+  cursors and object moving, tabletop commit-reveal of roll seeds, Land.io's host scheduler in a Worker.
+
+## Owner items
+
+1. **Images in Activities.** The Activity CSP allows images only from `self`, `data:` and `blob:`, so a whiteboard
+   picture or a tabletop map cannot come from a mount by URL. Options: an SDK command that hands the Activity a mount
+   file the member may read (bytes or a `blob:` URL), or an `img-src` allowance for the instance's media host.
+2. **A download right for Activities.** The sandbox has no `allow-downloads`; the whiteboard's PNG export opens in a
+   new tab. Options: `allow-downloads`, or a host `saveFile` command that asks the member.
+3. **Host handover.** Today the host leaving ends the instance (P36-ACT-1). A successor protocol needs the gateway to
+   name a new `started_by` and each activity to hand over its state (Land.io's arena, the dealer's deck).
+4. Commander defaults P36-ACT-1 to P36-ACT-5 stand until the owner changes them.
+
+## CHANGELOG
+
+"## Phase 36 - 2026-10-31" at the top of `CHANGELOG.md` (four bullets, from the five handoffs).
