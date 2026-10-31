@@ -46,7 +46,8 @@ function makeMkv(): Buffer {
       'srt',
       '-metadata:s:s:0',
       'language=eng',
-      '-shortest',
+      // No -shortest: the subtitle stream is a stream too, and its one cue ends at 3 s, so -shortest cut the whole
+      // file to 3 s (CI run 41222719038, duration 3.018). Both lavfi sources end at 10 s on their own.
       out,
     ],
     { stdio: 'ignore' },
