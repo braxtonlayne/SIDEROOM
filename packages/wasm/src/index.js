@@ -87,6 +87,9 @@ export const loadE2ee = once(async (wasmUrl) => {
     isSupportedCodec: (mime) => m.isSupportedCodec(mime),
     createEncryptor: (secret, random) => new m.Encryptor(secret, random),
     createKeyRing: (graceMs = 10000) => new m.KeyRing(graceMs),
+    // ACT-CH-001: activity data messages (AES-GCM under the sender key, replay window on receive).
+    createDataSender: (secret, random) => new m.DataSender(secret, random),
+    createDataReceiver: (graceMs = 10000) => new m.DataReceiver(graceMs),
     createPendingSession: (userId, identityKey) => new m.PendingSession(userId, identityKey),
     pairwiseCode: (userA, keyA, userB, keyB) => m.pairwiseCode(userA, keyA, userB, keyB),
     callCode: (epochAuthenticator) => m.callCode(epochAuthenticator),
