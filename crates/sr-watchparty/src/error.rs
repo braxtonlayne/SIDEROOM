@@ -25,6 +25,9 @@ pub enum PartyError {
     /// A playback command carried a stale `expected_version`; `current` is the state to re-sync from.
     #[error("playback state changed")]
     VersionConflict { current: Box<PlaybackView> },
+    /// The operator switched off the feature the request needs (`platform.watch_together_embeds`).
+    #[error("feature disabled")]
+    FeatureDisabled,
     /// Too many commands or reactions in a short time.
     #[error("rate limited")]
     RateLimited,

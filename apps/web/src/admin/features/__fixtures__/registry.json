@@ -1,0 +1,1129 @@
+[
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Mirrors the channels you map to a Discord server you choose, with members' names, avatars and messages, and shows Discord users' messages here. Members can opt out per channel. Switching it off removes the webhooks from Discord and the mappings here. Only the server owner can switch it on or off.",
+    "gated_by": "platform.bridge",
+    "id": "bridge.enabled",
+    "name": "Discord bridge",
+    "operator_gated": false,
+    "owner_only": true,
+    "phase": 35,
+    "scopes": [
+      "guild"
+    ],
+    "section": "Integrations, more"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Save messages privately, with a note, and find them again in the bookmarks panel.",
+    "gated_by": null,
+    "id": "chat.bookmarks",
+    "name": "Bookmarks",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Save poll setups for the server and start a new poll from one with a click.",
+    "gated_by": null,
+    "id": "chat.poll_templates",
+    "name": "Poll templates",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Remind me about a message or a note with /remind or the message menu; the reminder arrives as a direct message.",
+    "gated_by": null,
+    "id": "chat.reminders",
+    "name": "Reminders",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Compose a message now and send it later. Members see and cancel their own from the composer's clock button.",
+    "gated_by": null,
+    "id": "chat.scheduled_messages",
+    "name": "Scheduled messages",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Members who share their birthday are announced in a channel on the day, and can get a role for 24 hours.",
+    "gated_by": null,
+    "id": "community.birthdays",
+    "name": "Birthdays",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Members earn XP for chatting (with a cooldown) and rise through levels. Opt-in per server, and members can opt out.",
+    "gated_by": null,
+    "id": "community.leveling",
+    "name": "Leveling",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild",
+      "user"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Post new chapters and episodes from the Library and Cinema into a channel as cards.",
+    "gated_by": null,
+    "id": "community.library_feed",
+    "name": "Library feed",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Post new entries of RSS and Atom feeds into a channel. Feeds are fetched by the server with SSRF protection.",
+    "gated_by": null,
+    "id": "community.rss",
+    "name": "RSS and Atom feeds",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Members post suggestions to a channel, everyone votes with reactions, and staff mark them approved, denied or implemented.",
+    "gated_by": null,
+    "id": "community.suggestions",
+    "name": "Suggestions",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Members open a private thread with the staff role to ask for help, and staff close it when it is done.",
+    "gated_by": null,
+    "id": "community.tickets",
+    "name": "Ticket threads",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Announce in a channel when a watch party starts in the server, with an optional role ping.",
+    "gated_by": null,
+    "id": "community.watch_party_announcer",
+    "name": "Watch party announcer",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Post a live card in the channel when a party starts",
+    "gated_by": null,
+    "id": "community.watch_party_cards",
+    "name": "Watch party cards",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 17,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Community"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Categories that are not offered in the server directory.",
+    "gated_by": null,
+    "id": "directory.hidden_categories",
+    "name": "Hidden directory categories",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 12,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Directory"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Start a thread on every message posted in chosen channels.",
+    "gated_by": null,
+    "id": "lounge.auto_thread",
+    "name": "Auto-thread",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild",
+      "channel"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Joining a hub voice channel makes a private room for the member and removes it when it empties.",
+    "gated_by": null,
+    "id": "lounge.join_to_create",
+    "name": "Join to create",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 12,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "A shared queue in voice channels, with vote-skip, a DJ and synced playback from members' own storage. Off, the jukebox routes are refused and the strip disappears from voice channels.",
+    "gated_by": null,
+    "id": "lounge.jukebox",
+    "name": "Voice jukebox",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 31,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Music"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "A voice channel that plays a playlist around the clock for whoever is in it. Off, the room routes are refused and no room advances. It also stops while the jukebox is off.",
+    "gated_by": "lounge.jukebox",
+    "id": "lounge.listening_rooms",
+    "name": "Listening rooms",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 31,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Music"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Show a preview of the message behind a message link, when everyone here could already read it.",
+    "gated_by": null,
+    "id": "lounge.message_quotes",
+    "name": "Message link quotes",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild",
+      "channel"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Members pick roles by reacting to a message.",
+    "gated_by": null,
+    "id": "lounge.reaction_roles",
+    "name": "Reaction roles",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "A photo, short clip, line of text or track on your avatar for 24 hours, shown to mutual friends or the servers you choose. Rings are deleted for good when the day is over.",
+    "gated_by": null,
+    "id": "lounge.rings",
+    "name": "Status rings",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 34,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": false,
+    "description": "A vault of messages worth keeping. Reactions, or a member with the right role, copy a message and its files into this server's own storage, where the server can browse them as a gallery.",
+    "gated_by": null,
+    "id": "lounge.scrapbook",
+    "name": "Scrapbook",
+    "operator_gated": true,
+    "owner_only": false,
+    "phase": 34,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Raise slowmode in chosen channels during recurring time windows and restore it afterwards.",
+    "gated_by": null,
+    "id": "lounge.slowmode_plus",
+    "name": "Slowmode schedules",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Moderation"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Repost messages that collect enough of one reaction into a showcase channel, with a live count.",
+    "gated_by": null,
+    "id": "lounge.starboard",
+    "name": "Starboard",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Show the member count in the name of a channel.",
+    "gated_by": null,
+    "id": "lounge.stat_channels",
+    "name": "Stat channels",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Keep a message at the bottom of a channel by re-posting it as the conversation moves on.",
+    "gated_by": null,
+    "id": "lounge.sticky",
+    "name": "Sticky messages",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Greet new members and note departures in a channel, with an optional welcome DM.",
+    "gated_by": null,
+    "id": "lounge.welcome",
+    "name": "Welcome and goodbye",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Give new members roles when they join, optionally after a delay or once they accept the rules.",
+    "gated_by": null,
+    "id": "moderation.auto_roles",
+    "name": "Auto-roles",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Moderation"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Record joins, leaves, bans, edits, deletes and role changes in a log channel.",
+    "gated_by": null,
+    "id": "moderation.mod_log",
+    "name": "Mod log",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Moderation"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": false,
+    "description": "Members can report messages, people, channels, servers, library items and cinema titles. Reports go to the server's moderators or to platform staff (D-209). The setting is platform-wide, not per server (D-329).",
+    "gated_by": null,
+    "id": "moderation.reports",
+    "name": "Reports",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 7,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Moderation"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Grant a role for a limited time; it is removed automatically.",
+    "gated_by": null,
+    "id": "moderation.temp_roles",
+    "name": "Temporary roles",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 11,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Moderation"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "Lets activities in voice channels share state and input through the call's data channel, sealed with the call's keys. Off, new data channels are refused by the voice server and activities start without the capability.",
+    "gated_by": null,
+    "id": "platform.activities_datachannel",
+    "name": "Activity data channel",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 36,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Activities"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "The theme each section starts with for a member who has not chosen one.",
+    "gated_by": null,
+    "id": "platform.appearance",
+    "name": "Default themes",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 15,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Appearance"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The operator's switch for the Discord bridge. Turning it off hides the module in every server, refuses every bridge route and removes every server's bridge from Discord (the webhooks it created) and from here; a server must switch it on again, paste its token and map its channels afresh.",
+    "gated_by": null,
+    "id": "platform.bridge",
+    "name": "Discord bridge",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 35,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Integrations"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "Members and servers connect their own S3-compatible buckets. Turning it off hides every storage screen and refuses every mount route; the instance bucket keeps serving the media already on it.",
+    "gated_by": null,
+    "id": "platform.byos",
+    "name": "Bring your own storage",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 28,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Storage"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Minimum registration age, copyright strike review, data-request deadline and the operator country and contact.",
+    "gated_by": null,
+    "id": "platform.compliance",
+    "name": "Compliance",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 17,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Moderation"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "Plays the ROMs members keep in their own storage in the browser, alone or together. Off, the games page is hidden and the ROM list and the emulator cores are refused.",
+    "gated_by": null,
+    "id": "platform.emulator",
+    "name": "Emulator",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 37,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Games"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Link preview hosts and rate, GIF region and locale, and which lookup providers are offered. Secrets and endpoints stay in the operator config.",
+    "gated_by": null,
+    "id": "platform.integrations",
+    "name": "Integrations policy",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 15,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Email & Integrations"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": false,
+    "description": "Lets members choose to show parts of their profile to people without an account, at /~handle. Off (the default), every profile stays inside the instance and the public address answers 404 for everyone. Public pages are never indexed by search engines.",
+    "gated_by": null,
+    "id": "platform.public_profiles",
+    "name": "Public profiles",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 34,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Privacy"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The utility drawer (Ctrl or Cmd+K, then >). Off, the drawer lists no tool and every tool route that talks to the server is refused. Each tool also has a switch of its own.",
+    "gated_by": null,
+    "id": "platform.tools",
+    "name": "Utility tools",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Audio tool tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.audio",
+    "name": "Tool: Audio tool",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Base64 tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.base64",
+    "name": "Tool: Base64",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Calculator tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.calculator",
+    "name": "Tool: Calculator",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Coin flip tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.coin",
+    "name": "Tool: Coin flip",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Countdown tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.countdown",
+    "name": "Tool: Countdown",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Text counter tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.counter",
+    "name": "Tool: Text counter",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Currency converter tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.currency",
+    "name": "Tool: Currency converter",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Dice tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.dice",
+    "name": "Tool: Dice",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Text diff tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.diff",
+    "name": "Tool: Text diff",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The GIF tool tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.gif",
+    "name": "Tool: GIF tool",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Hashes tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.hash",
+    "name": "Tool: Hashes",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Image studio tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.image_studio",
+    "name": "Tool: Image studio",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Invite cards tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.invite",
+    "name": "Tool: Invite cards",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The JSON tool tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.json",
+    "name": "Tool: JSON tool",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The JWT decoder tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.jwt",
+    "name": "Tool: JWT decoder",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Loot tables tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.loot",
+    "name": "Tool: Loot tables",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Markdown table tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.md_table",
+    "name": "Tool: Markdown table",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Scratch notes tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.notes",
+    "name": "Tool: Scratch notes",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Palette tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.palette",
+    "name": "Tool: Palette",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Percentages tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.percent",
+    "name": "Tool: Percentages",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Poll builder tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.poll",
+    "name": "Tool: Poll builder",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Pomodoro timer tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.pomodoro",
+    "name": "Tool: Pomodoro timer",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Programmer calculator tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.programmer",
+    "name": "Tool: Programmer calculator",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Redact tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.redact",
+    "name": "Tool: Redact",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Regex tester tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.regex",
+    "name": "Tool: Regex tester",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Stopwatch tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.stopwatch",
+    "name": "Tool: Stopwatch",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Tier list tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.tierlist",
+    "name": "Tool: Tier list",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Time zones tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.timezone",
+    "name": "Tool: Time zones",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Unit converter tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.units",
+    "name": "Tool: Unit converter",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The URL encoder tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.url",
+    "name": "Tool: URL encoder",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "The Decision wheel tool of the utility drawer. Off, it disappears from the drawer and its server routes, if it has any, are refused. It is also off while the utility tools are off.",
+    "gated_by": "platform.tools",
+    "id": "platform.tools.wheel",
+    "name": "Tool: Decision wheel",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 32,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Tools"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": true,
+    "description": "Lets a Watch Together party play a link to a provider's privacy-enhanced embed or to a media file. Off, a party can only play the Cinema catalog and Live TV, and a link is refused.",
+    "gated_by": null,
+    "id": "platform.watch_together_embeds",
+    "name": "Watch Together embeds",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 34,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Cinema"
+  },
+  {
+    "client_visible": false,
+    "default_enabled": true,
+    "description": "Fetch a title, description and image for links posted in messages.",
+    "gated_by": null,
+    "id": "unfurl",
+    "name": "Link previews",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 1,
+    "scopes": [
+      "platform",
+      "guild"
+    ],
+    "section": "Lounge"
+  }
+]

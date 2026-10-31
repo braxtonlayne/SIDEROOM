@@ -424,6 +424,10 @@ async fn emu_core_file(State(gs): State<GateState>, req: Request) -> Response {
     if !gs.gate.has_session(&gs.api, req.headers()).await {
         return gs.gate.unauthorized(ip);
     }
+    // The operator's kill switch (OPS-FLG-001): off, the cores are not served, as if the build had none.
+    if !sr_api::module_gate::platform_on(&gs.api, sr_features::EMULATOR_ID).await {
+        return plain(StatusCode::NOT_FOUND);
+    }
     let rel = req
         .uri()
         .path()

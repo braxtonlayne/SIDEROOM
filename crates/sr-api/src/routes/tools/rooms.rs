@@ -19,7 +19,7 @@ use crate::state::AppState;
 use crate::{AuthKind, Principal, openapi::ErrorBody};
 use axum::{
     Json, Router,
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
@@ -237,6 +237,7 @@ pub async fn create(
     p: Principal,
     Ext(d): Ext<ToolRoomDeps>,
     Ext(m): Ext<MessagesDeps>,
+    State(app): State<AppState>,
     Path(channel): Path<String>,
     ApiJson(body): ApiJson<CreateRoomBody>,
 ) -> Res<Json<ToolRoomObject>> {
@@ -245,6 +246,12 @@ pub async fn create(
     let acc = m.access(user, channel).await?;
     acc.require(send_perm(&acc))?;
     validate_kind(&body.kind).map_err(room_err)?;
+    // The kind is a tool of the drawer: its own switch applies (OPS-FLG-001).
+    if let Some(flag) = sr_features::tool_flag_id(&body.kind)
+        && !crate::module_gate::platform_on(&app, flag).await
+    {
+        return Err(MsgError::from(ErrorCode::SrFeatureDisabled).into());
+    }
     let title = validate_title(body.title.as_deref().unwrap_or("")).map_err(room_err)?;
     let state = body.state.unwrap_or_default();
     validate_state(&state).map_err(room_err)?;

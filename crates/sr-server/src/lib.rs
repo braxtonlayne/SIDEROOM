@@ -60,6 +60,7 @@ pub mod upload_jobs;
 pub mod upload_limits;
 pub mod userfeat;
 pub mod userset_jobs;
+pub mod datachannel_gate;
 pub mod voice;
 pub mod watchparty;
 pub mod web;

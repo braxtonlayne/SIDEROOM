@@ -1960,6 +1960,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .merge(worker_routes);
     // The SFU's WebSocket (`/voice/ws`) is served beside the gateway; media uses its own sockets.
     let sfu = voice_setup.map(|v| v.sfu);
+    // The data-channel switch (OPS-FLG-001): the SFU reads a flag, this task keeps it equal to the platform feature.
+    let datachannel_sync = Some(crate::datachannel_gate::spawn(
+        features.clone(),
+        sfu.as_ref().map(|s| s.config().datachannel_gate.clone()),
+        Some(activities_deps.service.clone()),
+    ));
     if let Some(s) = &sfu {
         app = app.merge(with_request_id(sr_voice::router(s.clone())));
     }
@@ -2006,6 +2012,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     bridge_worker.abort();
     sync_worker.abort();
     sync_listener.abort();
+    if let Some(h) = datachannel_sync {
+        h.abort();
+    }
     bridge_inbound.abort();
     push_consumer.abort();
     if let Some(h) = features_listener {
@@ -2056,6 +2065,9 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
         .context("registering the platform.bridge feature")?;
     sr_features::modules::register_all(&mut registry)
         .context("registering the built-in feature modules")?;
+    // The switches of the music, tools, activities, emulator and watch-together modules (OPS-FLG-001).
+    sr_features::wave_modules::register_all(&mut registry)
+        .context("registering the wave 31 to 37 switches")?;
     // User-facing and content modules: scheduled messages, reminders, bookmarks, birthdays, leveling, RSS,
     // library feed, watch party announcer, poll templates, suggestions, tickets (docs/inventory/09).
     sr_userfeat::register_all(&mut registry).context("registering the user feature modules")?;

@@ -69,6 +69,9 @@ impl SettingDef {
                 {
                     return Err("must be all, patrons or staff".to_owned());
                 }
+                if self.key == PROFILES_ACCESS && !s.is_empty() && !PROFILES_ACCESS_VALUES.contains(&s) {
+                    return Err("must be walled or opt_in_public".to_owned());
+                }
                 if self.key == BYOS_ENDPOINT_ALLOW {
                     endpoint_allow_valid(s)?;
                 }
@@ -180,6 +183,12 @@ pub const BYOS_WHO_MAY_MOUNT: &str = "byos.who_may_mount";
 pub const WHO_MAY_MOUNT_VALUES: &[&str] = &["all", "patrons", "staff"];
 /// Most host patterns [`BYOS_ENDPOINT_ALLOW`] may list.
 pub const ENDPOINT_ALLOW_MAX_PATTERNS: usize = 50;
+/// Who may see a profile page: `walled` (the default, empty means walled: only signed-in members of the instance)
+/// or `opt_in_public` (a member may choose a public page; D-382, OPS-FLG-001). Public pages also need the platform
+/// feature `platform.public_profiles`. The roadmap's third value, public by default, is dropped (D-382, D-384).
+pub const PROFILES_ACCESS: &str = "profiles.access";
+/// The accepted values of [`PROFILES_ACCESS`].
+pub const PROFILES_ACCESS_VALUES: &[&str] = &["walled", "opt_in_public"];
 /// Mount caps and the upload part quota (wave 28, byos-browser; BYOS-BRW-001).
 pub const BYOS_MAX_MOUNTS_PER_USER: &str = "byos.max_mounts_per_user";
 pub const BYOS_MAX_MOUNTS_PER_GUILD: &str = "byos.max_mounts_per_guild";
@@ -459,6 +468,15 @@ pub const CATALOG: &[SettingDef] = &[
         max: 10.0,
         default_int: 0,
         description: "Who may connect a bucket of their own: all, patrons or staff (empty means all). A server's own buckets follow its Manage Storage grant instead.",
+    },
+    SettingDef {
+        key: PROFILES_ACCESS,
+        group: "privacy",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 16.0,
+        default_int: 0,
+        description: "Who may see profile pages: walled (the default; empty means walled) keeps every profile inside the instance, opt_in_public lets a member choose a public page, which also needs the platform feature Public profiles. Public pages are never indexed by search engines.",
     },
     // --- wave 28 byos-browser block (kept apart from the presign settings above) ---
     int(

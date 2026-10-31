@@ -55,6 +55,7 @@ pub async fn create(
     ctx: Ctx,
     Json(body): Json<CreateInput>,
 ) -> WpResult<(StatusCode, Json<PartyView>)> {
+    ctx.require_embeds(body.external.is_some())?;
     Ok((
         StatusCode::CREATED,
         Json(ctx.svc().create(ctx.viewer, body).await?),
@@ -268,6 +269,7 @@ pub async fn change_media(
     Path(party_id): Path<String>,
     Json(body): Json<ChangeMediaInput>,
 ) -> WpResult<Json<PartyView>> {
+    ctx.require_embeds(body.external.is_some())?;
     Ok(Json(
         ctx.svc()
             .change_media(ctx.viewer, id(&party_id, "watch party")?, body)

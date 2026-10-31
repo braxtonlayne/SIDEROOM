@@ -11,6 +11,7 @@
 pub mod auth;
 pub mod error;
 pub mod health;
+pub mod module_gate;
 pub mod observability;
 pub mod openapi;
 pub mod rate_limit;
