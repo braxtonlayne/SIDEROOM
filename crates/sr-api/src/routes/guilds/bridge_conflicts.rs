@@ -30,6 +30,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sr_bridge::BridgeService;
+use sr_bridge::sync::SyncEngine;
 use sr_bridge::sync::conflicts::{Conflict, ConflictFilter, ConflictKind, ObjectKind, Resolution};
 use sr_chat::admin_rules::ChannelMove;
 use sr_chat::channel_rules::ChannelPatch;
@@ -56,6 +57,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord",
             post(take_discord),
+        )
+        .route(
+            "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/unfreeze",
+            post(unfreeze_conflict),
+        )
+        .route(
+            "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/retry",
+            post(retry_conflict),
         )
 }
 
@@ -98,6 +107,9 @@ pub struct ConflictObject {
     pub resolved_at: Option<i64>,
     pub first_at: i64,
     pub last_at: i64,
+    /// The SIDE ROOM object's name now (role or channel), when it still exists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub object_name: Option<String>,
 }
 
 impl From<&Conflict> for ConflictObject {
@@ -122,8 +134,31 @@ impl From<&Conflict> for ConflictObject {
             resolved_at: c.resolved_at_ms,
             first_at: c.first_at_ms,
             last_at: c.last_at_ms,
+            object_name: None,
         }
     }
+}
+
+/// Rows with the SIDE ROOM object's current name filled in (display only).
+async fn named(
+    bridge: &BridgeService,
+    guild: i64,
+    rows: &[Conflict],
+) -> ApiResult<Vec<ConflictObject>> {
+    let ids: Vec<i64> = rows.iter().filter_map(|c| c.sr_object_id).collect();
+    let names = if ids.is_empty() {
+        Default::default()
+    } else {
+        bridge.object_names(guild, &ids).await.map_err(map_err)?
+    };
+    Ok(rows
+        .iter()
+        .map(|c| {
+            let mut o = ConflictObject::from(c);
+            o.object_name = c.sr_object_id.and_then(|id| names.get(&id).cloned());
+            o
+        })
+        .collect())
 }
 
 /// A page of the conflict log, newest first.
@@ -212,7 +247,7 @@ pub async fn list_conflicts(
         .map_err(map_err)?;
     let open = bridge.open_conflict_count(c.gid).await.map_err(map_err)?;
     Ok(Json(ConflictList {
-        conflicts: rows.iter().map(ConflictObject::from).collect(),
+        conflicts: named(&bridge, c.gid, &rows).await?,
         open,
     }))
 }
@@ -234,7 +269,8 @@ pub async fn get_conflict(
     let c = bridge_admin(&p, &deps, &bridge, &guild_id).await?;
     let cid = path_ids(&guild_id, &conflict_id)?;
     let row = bridge.get_conflict(c.gid, cid).await.map_err(map_err)?;
-    Ok(Json(ConflictObject::from(&row)))
+    let mut list = named(&bridge, c.gid, std::slice::from_ref(&row)).await?;
+    Ok(Json(list.remove(0)))
 }
 
 /// Dismiss a conflict (`MANAGE_GUILD`): it stays in the log as dismissed. Nothing on either side changes.
@@ -386,6 +422,85 @@ pub async fn take_discord(
     Ok(Json(ConflictObject::from(&row)))
 }
 
+/// An open row of one kind, or a 409.
+async fn open_of_kind(
+    bridge: &BridgeService,
+    guild: i64,
+    id: i64,
+    kind: ConflictKind,
+) -> ApiResult<Conflict> {
+    let row = bridge.get_conflict(guild, id).await.map_err(map_err)?;
+    if row.kind != kind.as_str() || row.status != "open" {
+        return Err(ApiError::with_message(
+            ErrorCode::SrConflict,
+            "This action does not apply to this conflict.",
+        )
+        .into());
+    }
+    Ok(row)
+}
+
+/// "Unfreeze" a `frozen` row (`MANAGE_GUILD`): the object's map runs again from the next pass. SIDE ROOM's state
+/// was never changed by the freeze, so nothing here changes either.
+#[utoipa::path(
+    post,
+    path = "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/unfreeze",
+    params(("guild_id" = String, Path, description = "Guild snowflake"), ("conflict_id" = String, Path, description = "Conflict snowflake")),
+    responses((status = 200, body = ConflictObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn unfreeze_conflict(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(bridge): Ext<BridgeService>,
+    Ext(engine): Ext<SyncEngine>,
+    Path((guild_id, conflict_id)): Path<(String, String)>,
+) -> ApiResult<Json<ConflictObject>> {
+    let c = bridge_admin(&p, &deps, &bridge, &guild_id).await?;
+    let cid = path_ids(&guild_id, &conflict_id)?;
+    let row = open_of_kind(&bridge, c.gid, cid, ConflictKind::Frozen).await?;
+    if let Some(obj) = row.sr_object_id {
+        engine
+            .unfreeze(c.gid, &row.object_kind, obj)
+            .await
+            .map_err(map_err)?;
+    }
+    let row = bridge
+        .resolve_conflict(c.gid, cid, c.user, Resolution::Unfrozen)
+        .await
+        .map_err(map_err)?;
+    Ok(Json(ConflictObject::from(&row)))
+}
+
+/// "Retry" a `dead_op` row (`MANAGE_GUILD`): the op is queued again.
+#[utoipa::path(
+    post,
+    path = "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/retry",
+    params(("guild_id" = String, Path, description = "Guild snowflake"), ("conflict_id" = String, Path, description = "Conflict snowflake")),
+    responses((status = 200, body = ConflictObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn retry_conflict(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(bridge): Ext<BridgeService>,
+    Path((guild_id, conflict_id)): Path<(String, String)>,
+) -> ApiResult<Json<ConflictObject>> {
+    let c = bridge_admin(&p, &deps, &bridge, &guild_id).await?;
+    let cid = path_ids(&guild_id, &conflict_id)?;
+    let row = open_of_kind(&bridge, c.gid, cid, ConflictKind::DeadOp).await?;
+    if let Some(op) = row.op_id {
+        sr_bridge::sync::ops::retry_dead(&bridge.pool, c.gid, op)
+            .await
+            .map_err(map_err)?;
+    }
+    let row = bridge
+        .resolve_conflict(c.gid, cid, c.user, Resolution::Retried)
+        .await
+        .map_err(map_err)?;
+    Ok(Json(ConflictObject::from(&row)))
+}
+
 /// OpenAPI fragment of the conflict routes.
 #[derive(utoipa::OpenApi)]
 #[openapi(
@@ -395,6 +510,8 @@ pub async fn take_discord(
         dismiss_conflict,
         resolve_conflict,
         take_discord,
+        unfreeze_conflict,
+        retry_conflict,
     ),
     components(schemas(ErrorBody, ConflictObject, ConflictList, TakeDiscordBody))
 )]

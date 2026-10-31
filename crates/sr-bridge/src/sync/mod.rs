@@ -41,6 +41,7 @@ pub mod reconcile_run;
 pub mod store;
 pub mod teardown_opts;
 pub mod types;
+pub mod wiring;
 
 pub use eligible::{Mirrored, Refusal, bridgeable};
 pub use engine::{PlanEdit, PlanView, SeedReport, StoredPlan, SyncEngine};
@@ -55,3 +56,4 @@ pub use types::{
     FieldState, ObjectKind, OpDirection, OpPriority, OpState, SyncMode, SyncOp, SyncState,
     SyncedState,
 };
+pub use wiring::{Attributions, EngineSink, PlannedOverwrites, mention_maps};

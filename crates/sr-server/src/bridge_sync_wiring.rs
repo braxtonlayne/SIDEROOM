@@ -312,17 +312,41 @@ pub fn spawn_sync_worker(engine: SyncEngine, admin: sr_admin::AdminService) -> J
     })
 }
 
+/// SIDE ROOM role, channel and thread changes of whole-guild bridges queue a look (design 11.1). A lagged
+/// receiver loses nothing that matters: the scheduled reconcile looks at everything.
+pub fn spawn_sync_listener(
+    mut events: futures::stream::BoxStream<'static, crate::lag_bus::TapItem>,
+    engine: SyncEngine,
+) -> JoinHandle<()> {
+    use futures::StreamExt;
+    tokio::spawn(async move {
+        while let Some(item) = events.next().await {
+            if let Ok(ev) = item {
+                engine.handle_sr_event(&ev).await;
+            }
+        }
+    })
+}
+
 async fn minute(engine: &SyncEngine, reconcile_minutes: i64) {
     if let Err(e) = engine.enqueue_scheduled_reconciles(reconcile_minutes).await {
         tracing::warn!(error = %e, "bridge sync: could not queue the scheduled reconcile");
     }
     match store::live_whole_guild(&engine.svc.pool).await {
         Ok(guilds) => {
+            // The invalid-request breakers (design 11.5): Discord's per-IP limit is shared by every bridge on the
+            // instance, so past the instance limit every bridge pauses; below it, each bridge by its own count.
+            let window = Duration::from_secs(600);
+            let instance = engine.svc.discord.invalid_requests_within(window);
             for g in guilds {
-                let invalid = engine
-                    .svc
-                    .discord
-                    .invalid_requests_within(Duration::from_secs(600));
+                let invalid = if instance >= sr_bridge::discord_structure::INSTANCE_INVALID_LIMIT {
+                    instance
+                } else {
+                    match engine.svc.open_bot_token(g).await {
+                        Ok(t) => engine.svc.discord.invalid_requests_for(&t, window),
+                        Err(_) => 0,
+                    }
+                };
                 if let Err(e) = engine.trip_if_invalid(g, invalid).await {
                     tracing::warn!(error = %e, guild = g, "bridge sync: breaker check failed");
                 }

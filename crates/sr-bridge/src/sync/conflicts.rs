@@ -500,6 +500,48 @@ impl BridgeService {
         }
     }
 
+    /// Names of SIDE ROOM roles and channels by id, for the log's rows (display only).
+    pub async fn object_names(
+        &self,
+        guild: i64,
+        ids: &[i64],
+    ) -> BridgeResult<std::collections::HashMap<i64, String>> {
+        let rows: Vec<(i64, Option<String>)> = sqlx::query_as(
+            "SELECT id, name FROM roles WHERE guild_id = $1 AND id = ANY($2)              UNION ALL SELECT id, name FROM channels WHERE guild_id = $1 AND id = ANY($2)",
+        )
+        .bind(guild)
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, n)| n.map(|n| (id, n)))
+            .collect())
+    }
+
+    /// Close every open row of one kind about one SIDE ROOM object (a held channel restored or deleted through
+    /// the holds routes). Returns how many.
+    pub async fn resolve_open_for(
+        &self,
+        guild: i64,
+        kind: ConflictKind,
+        sr_object: i64,
+        by: i64,
+        how: Resolution,
+    ) -> BridgeResult<u64> {
+        Ok(sqlx::query(
+            "UPDATE bridge_conflicts SET status = 'resolved', resolution = $4, resolved_by = $5,              resolved_at = now() WHERE guild_id = $1 AND kind = $2 AND sr_object_id = $3 AND status = 'open'",
+        )
+        .bind(guild)
+        .bind(kind.as_str())
+        .bind(sr_object)
+        .bind(how.as_str())
+        .bind(by)
+        .execute(&self.pool)
+        .await?
+        .rows_affected())
+    }
+
     /// Delete closed rows older than [`RETENTION_DAYS`] (the retention job calls it). Returns the count.
     pub async fn prune_closed_conflicts(&self) -> BridgeResult<u64> {
         Ok(sqlx::query(

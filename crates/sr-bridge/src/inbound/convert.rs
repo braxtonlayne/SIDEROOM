@@ -164,6 +164,16 @@ fn now_ms() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
+/// The content of a create or edit payload with mapped role and channel mentions kept as SIDE ROOM mentions
+/// (whole-guild bridges, BRG-SYN-003); `None` when the payload carries no content or no such mention.
+pub fn mapped_content(d: &Value, maps: &MentionMaps) -> Option<String> {
+    let raw = d.get("content").and_then(Value::as_str)?;
+    if !(raw.contains("<@&") || raw.contains("<#")) {
+        return None;
+    }
+    Some(clean_content_mapped(raw, &mention_names(d), maps))
+}
+
 /// `(id, name)` of everyone the message mentions, for turning `<@id>` into text.
 fn mention_names(d: &Value) -> Vec<(i64, String)> {
     d.get("mentions")

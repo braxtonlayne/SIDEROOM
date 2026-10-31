@@ -79,8 +79,21 @@ impl SyncEngine {
                 Err(e) => {
                     tracing::warn!(guild, error = %e, "bridge sync pass failed");
                     for id in ids {
-                        ops::fail(self.pool(), id, &e.to_string()).await?;
+                        let st = ops::fail(self.pool(), id, &e.to_string()).await?;
                         rep.ops_failed += 1;
+                        if st == super::types::OpState::Dead {
+                            // Design 11.5: a dead op is a conflict row with "Retry".
+                            let mut c = super::conflicts::NewConflict::new(
+                                guild,
+                                super::conflicts::ConflictKind::DeadOp,
+                                super::conflicts::ObjectKind::Op,
+                                "",
+                            );
+                            c.op_id = Some(id);
+                            c.target_id = Some(id);
+                            c.discord_value = Some(serde_json::json!(e.to_string()));
+                            self.note(c).await;
+                        }
                     }
                 }
             }
@@ -115,6 +128,17 @@ impl SyncEngine {
             }
         }
         Ok(n)
+    }
+
+    /// When "Reconcile now" is next allowed (Unix ms), or `None` when it is allowed now.
+    pub async fn reconcile_available_at_ms(&self, guild: i64) -> BridgeResult<Option<i64>> {
+        Ok(sqlx::query_scalar(
+            "SELECT (extract(epoch from max(created_at) + ($2::bigint * interval '1 second')) * 1000)::bigint              FROM bridge_sync_ops WHERE guild_id = $1 AND object_kind = 'reconcile' AND direction = 'look'              AND priority = 0 AND created_at > now() - ($2::bigint * interval '1 second')",
+        )
+        .bind(guild)
+        .bind(RECONCILE_NOW_MIN_GAP_SECS)
+        .fetch_one(self.pool())
+        .await?)
     }
 
     /// "Reconcile now" (manager): queues a pass at once, at most once per five minutes.
@@ -192,7 +216,7 @@ impl SyncEngine {
         guild: i64,
         invalid_in_ten_minutes: usize,
     ) -> BridgeResult<bool> {
-        if invalid_in_ten_minutes < 200 {
+        if invalid_in_ten_minutes < crate::discord_structure::BRIDGE_INVALID_LIMIT {
             return Ok(false);
         }
         let sync = store::get_sync(self.pool(), guild).await?;

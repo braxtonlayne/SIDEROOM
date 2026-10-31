@@ -290,7 +290,7 @@ pub(super) struct Caller {
 }
 
 /// Resolve the session, the server and its access; no switch is checked yet.
-async fn who(
+pub(super) async fn who(
     p: &crate::Principal,
     deps: &SettingsDeps,
     guild_id: &str,
@@ -301,7 +301,7 @@ async fn who(
     Ok((gid, user, acc))
 }
 
-fn raw(v: u64) -> i64 {
+pub(super) fn raw(v: u64) -> i64 {
     i64::try_from(v).unwrap_or(i64::MAX)
 }
 

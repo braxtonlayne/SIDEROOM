@@ -316,10 +316,27 @@ impl Inbound {
         Ok(Outcome::Member)
     }
 
+    /// Whole-guild bridges keep mapped `<@&role>` and `<#channel>` as SIDE ROOM mentions (never a ping: the sink
+    /// records no mention). Selective bridges, and payloads without such a mention, keep wave 35's text.
+    async fn mapped_content(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Option<String>> {
+        if bridge.mode != "whole_guild" {
+            return Ok(None);
+        }
+        let probe = data.get("content").and_then(Value::as_str).unwrap_or("");
+        if !(probe.contains("<@&") || probe.contains("<#")) {
+            return Ok(None);
+        }
+        let maps = crate::sync::mention_maps(&self.pool, bridge.guild_id).await?;
+        Ok(convert::mapped_content(data, &maps))
+    }
+
     async fn create(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
-        let Some(m) = convert::parse_message(data) else {
+        let Some(mut m) = convert::parse_message(data) else {
             return Ok(Outcome::Ignored(Why::Unparseable));
         };
+        if let Some(c) = self.mapped_content(bridge, data).await? {
+            m.content = c;
+        }
         let Some(map) =
             store::map_for_discord_channel(&self.pool, bridge.guild_id, m.channel_id).await?
         else {
@@ -384,9 +401,14 @@ impl Inbound {
     }
 
     async fn update(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
-        let Some(e) = convert::parse_edit(data) else {
+        let Some(mut e) = convert::parse_edit(data) else {
             return Ok(Outcome::Ignored(Why::Unparseable));
         };
+        if e.content.is_some()
+            && let Some(c) = self.mapped_content(bridge, data).await?
+        {
+            e.content = Some(c);
+        }
         if e.content.is_none() && e.links.is_none() {
             return Ok(Outcome::Ignored(Why::NothingToChange));
         }

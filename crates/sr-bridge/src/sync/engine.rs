@@ -99,6 +99,11 @@ pub struct SyncEngine {
     pub overwrites: Arc<dyn OverwritePush>,
     /// `bridge.delete_hold_hours`: how long a channel deleted on Discord is held (default 24).
     pub hold_hours: i64,
+    /// Who did what on Discord, from the audit-log dispatches (conflict rows name the Discord actor).
+    pub attributions: super::wiring::Attributions,
+    /// Called after a mode change: the host restarts that bridge's gateway shard so it asks for the intents of
+    /// the new mode (whole_guild adds GUILD_MODERATION).
+    pub mode_hook: Option<Arc<dyn Fn(i64) + Send + Sync>>,
 }
 
 pub(super) struct SrRoleRow {
@@ -130,6 +135,20 @@ impl SyncEngine {
             sr,
             overwrites: Arc::new(NoOverwrites),
             hold_hours: holds::DEFAULT_HOLD_HOURS,
+            attributions: super::wiring::Attributions::default(),
+            mode_hook: None,
+        }
+    }
+
+    /// The host's mode-change hook (restart the shard with the new intents).
+    pub fn with_mode_hook(mut self, hook: Arc<dyn Fn(i64) + Send + Sync>) -> Self {
+        self.mode_hook = Some(hook);
+        self
+    }
+
+    fn mode_changed(&self, guild: i64) {
+        if let Some(h) = &self.mode_hook {
+            h(guild);
         }
     }
 
@@ -338,6 +357,27 @@ impl SyncEngine {
         Ok((StoredPlan { plan, facts }, sr_hash(&sr), discord_hash(&d)))
     }
 
+    /// The preflight checklist (design 9.2) without storing a plan: the same facts and blockers a plan would carry,
+    /// read now ("Check again"). Reads both sides; writes nothing anywhere.
+    pub async fn preflight(&self, guild: i64) -> BridgeResult<(PreflightFacts, Vec<Blocker>)> {
+        let bridge = get_bridge(self.pool(), guild)
+            .await?
+            .ok_or_else(|| BridgeError::Conflict("Connect the bot token first.".into()))?;
+        let token = self.svc.open_bot_token(guild).await?;
+        let (stored, _, _) = self
+            .compute_plan(
+                guild,
+                &token,
+                bridge.discord_guild_id,
+                bridge.bot_user_id,
+                bridge.intents_granted,
+                "sr",
+            )
+            .await?;
+        let blk = blockers(&stored.plan, &stored.facts);
+        Ok((stored.facts, blk))
+    }
+
     pub async fn get_plan(&self, guild: i64, plan_id: i64) -> BridgeResult<PlanView> {
         let row = sqlx::query(
             "SELECT id, guild_id, status, seed_structure, plan, blockers, plan_hash, created_by, \
@@ -520,6 +560,7 @@ impl SyncEngine {
             )
             .await?;
         tx.commit().await?;
+        self.mode_changed(guild);
         Ok(())
     }
 
@@ -581,6 +622,7 @@ impl SyncEngine {
             )
             .await?;
         tx.commit().await?;
+        self.mode_changed(guild);
         Ok(())
     }
 
@@ -1228,7 +1270,7 @@ impl SyncEngine {
         else {
             return Ok(false);
         };
-        holds::hold(
+        let held = holds::hold(
             self.pool(),
             guild,
             m.channel_id,
@@ -1237,7 +1279,25 @@ impl SyncEngine {
             actor,
             hours,
         )
-        .await
+        .await?;
+        if held {
+            let mut c = super::conflicts::NewConflict::new(
+                guild,
+                super::conflicts::ConflictKind::DeletionHeld,
+                if m.kind == "category" {
+                    super::conflicts::ObjectKind::Category
+                } else {
+                    super::conflicts::ObjectKind::Channel
+                },
+                "deleted",
+            );
+            c.sr_object_id = Some(m.channel_id);
+            c.discord_object_id = Some(discord_channel);
+            c.discord_actor_id = actor;
+            c.sr_value = Some(json!({"hours": hours}));
+            self.note(c).await;
+        }
+        Ok(held)
     }
 
     /// The hold job: delete every hold that is due, through the normal path (categories last). Returns how many.

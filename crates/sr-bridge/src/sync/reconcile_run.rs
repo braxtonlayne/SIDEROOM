@@ -14,7 +14,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 use serde_json::{Value, json};
+use sqlx::Row;
 
+use super::conflicts::{ConflictKind, NewConflict, ObjectKind as CObj};
 use super::engine::{AUDIT_SYNC_RUN, SyncEngine};
 use super::holds;
 use super::patch::{ChannelPatch, RoleStructurePatch, SrStructuralPatch};
@@ -146,6 +148,16 @@ impl SyncEngine {
                         .execute(self.pool())
                         .await?;
                     rep.roles_recreated_on_discord += 1;
+                    let mut c = NewConflict::new(
+                        guild,
+                        ConflictKind::RoleDeletionRefused,
+                        CObj::Role,
+                        "deleted",
+                    );
+                    c.sr_object_id = Some(m.role_id);
+                    c.discord_object_id = Some(m.discord_role_id);
+                    c.sr_value = Some(json!(sr.name));
+                    self.note(c).await;
                 } else {
                     self.sr.delete_role(guild, m.role_id, &origin).await?;
                     sqlx::query("DELETE FROM bridge_role_maps WHERE id = $1")
@@ -200,6 +212,17 @@ impl SyncEngine {
                     Decision::PushToDiscord | Decision::Conflict | Decision::Revert => {
                         if dec == Decision::Conflict {
                             rep.conflicts += 1;
+                            let mut c = NewConflict::new(
+                                guild,
+                                ConflictKind::StructureConflict,
+                                CObj::Role,
+                                f.name,
+                            );
+                            c.sr_object_id = Some(m.role_id);
+                            c.discord_object_id = Some(dr.id);
+                            c.discord_value = Some(f.discord.clone());
+                            c.sr_value = Some(f.sr.clone());
+                            self.note(c).await;
                         }
                         match f.name {
                             "name" => push.name = Some(sr.name.clone()),
@@ -245,6 +268,11 @@ impl SyncEngine {
                 .bits()
                 | (dr.permissions & DISCORD_ONLY_MASK);
             if dr.permissions != want {
+                // Discord changed the word since the bridge last pushed it (not a SIDE ROOM edit going out): put it
+                // back AND log it, with the Discord actor when the audit log named one (design 5.3).
+                let discord_changed = synced
+                    .get("permissions")
+                    .is_some_and(|f| f.discord != json!(dr.permissions.to_string()));
                 api.edit_role(
                     &token,
                     dg,
@@ -257,7 +285,29 @@ impl SyncEngine {
                 )
                 .await?;
                 rep.reverted += 1;
+                if discord_changed {
+                    let mut c = NewConflict::new(
+                        guild,
+                        ConflictKind::PermissionReverted,
+                        CObj::Role,
+                        "permissions",
+                    );
+                    c.sr_object_id = Some(m.role_id);
+                    c.discord_object_id = Some(dr.id);
+                    c.discord_value = Some(json!(
+                        (dr.permissions & Permissions::BRIDGE_SHARED.bits()).to_string()
+                    ));
+                    c.sr_value = Some(json!(
+                        (want & Permissions::BRIDGE_SHARED.bits()).to_string()
+                    ));
+                    self.note(c).await;
+                }
             }
+            synced.record(
+                "permissions",
+                json!((want & Permissions::BRIDGE_SHARED.bits()).to_string()),
+                json!(want.to_string()),
+            );
             let only = dr.permissions & DISCORD_ONLY_MASK;
             if synced != m.synced || only != m.discord_only_bits {
                 store::save_role_state(self.pool(), m.id, &synced, only).await?;
@@ -370,6 +420,14 @@ impl SyncEngine {
             rep.created_here += 1;
         }
 
+        // ---- role order: SIDE ROOM's (design 2.3, Q1) ----
+        if self
+            .reconcile_role_order(guild, &token, dg, &d.roles, &reason)
+            .await?
+        {
+            rep.pushed += 1;
+        }
+
         // ---- channels ----
         let sr_ch = self.sr_channels(guild).await?;
         let held: HashSet<i64> = holds::list_held(self.pool(), guild)
@@ -448,6 +506,21 @@ impl SyncEngine {
                     dec @ (Decision::PushToDiscord | Decision::Conflict | Decision::Revert) => {
                         if dec == Decision::Conflict {
                             rep.conflicts += 1;
+                            let mut c = NewConflict::new(
+                                guild,
+                                ConflictKind::StructureConflict,
+                                if kind == 4 {
+                                    CObj::Category
+                                } else {
+                                    CObj::Channel
+                                },
+                                f.name,
+                            );
+                            c.sr_object_id = Some(m.channel_id);
+                            c.discord_object_id = Some(dc.id);
+                            c.discord_value = Some(f.discord.clone());
+                            c.sr_value = Some(f.sr.clone());
+                            self.note(c).await;
                         }
                         match f.name {
                             "name" => push.name = Some(discord_name_for(kind, &src.name)),
@@ -499,6 +572,23 @@ impl SyncEngine {
                     m.degraded_reason.as_deref(),
                 )
                 .await?;
+            }
+            // Overwrites are SIDE ROOM's (design 5.1): Discord's are made equal to ours, a Discord edit is put back
+            // and logged. Threads inherit their parent's and have none of their own.
+            if !matches!(kind, 10..=12)
+                && self
+                    .push_overwrites(
+                        guild,
+                        &token,
+                        m.channel_id,
+                        dc.id,
+                        &dc.overwrites,
+                        &d.roles,
+                        &reason,
+                    )
+                    .await?
+            {
+                rep.pushed += 1;
             }
         }
 
@@ -670,6 +760,100 @@ impl SyncEngine {
                 .await?;
         }
         Ok(rep)
+    }
+
+    /// Role order is an authorization input here, so it flows SIDE ROOM to Discord only. The order last pushed is
+    /// kept on the `@everyone` map (`synced_state.role_order`); when Discord's relative order of the mapped roles
+    /// differs from it, a Discord reorder is put back and logged; when only SIDE ROOM's changed, it is pushed.
+    /// Returns whether a push happened.
+    async fn reconcile_role_order(
+        &self,
+        guild: i64,
+        token: &str,
+        dg: i64,
+        discord_roles: &[crate::discord_structure::GuildRole],
+        reason: &str,
+    ) -> BridgeResult<bool> {
+        let maps = store::list_role_maps(self.pool(), guild).await?;
+        let Some(everyone) = maps.iter().find(|m| m.is_everyone) else {
+            return Ok(false);
+        };
+        let to_d: HashMap<i64, i64> = maps
+            .iter()
+            .filter(|m| !m.is_everyone && m.sync_status != "frozen")
+            .map(|m| (m.role_id, m.discord_role_id))
+            .collect();
+        let rows = sqlx::query(
+            "SELECT id FROM roles WHERE guild_id = $1 AND id <> $1 ORDER BY position, id",
+        )
+        .bind(guild)
+        .fetch_all(self.pool())
+        .await?;
+        let mut want: Vec<i64> = Vec::new();
+        for r in &rows {
+            let id: i64 = r.try_get("id")?;
+            if let Some(d) = to_d.get(&id) {
+                want.push(*d);
+            }
+        }
+        let mut seen: Vec<(i64, i64)> = discord_roles
+            .iter()
+            .filter(|r| want.contains(&r.id))
+            .map(|r| (r.position, r.id))
+            .collect();
+        seen.sort_unstable();
+        let have: Vec<i64> = seen.iter().map(|(_, id)| *id).collect();
+        let ids = |v: &[i64]| json!(v.iter().map(|x| x.to_string()).collect::<Vec<_>>());
+        if have == want {
+            if everyone.synced.get("role_order").map(|f| &f.discord) != Some(&ids(&want)) {
+                let mut synced = everyone.synced.clone();
+                synced.record("role_order", ids(&want), ids(&want));
+                store::save_role_state(
+                    self.pool(),
+                    everyone.id,
+                    &synced,
+                    everyone.discord_only_bits,
+                )
+                .await?;
+            }
+            return Ok(false);
+        }
+        let discord_changed = everyone
+            .synced
+            .get("role_order")
+            .is_some_and(|f| f.discord != ids(&have));
+        let order: Vec<(i64, i64)> = want
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (*d, i64::try_from(i).unwrap_or(0) + 1))
+            .collect();
+        self.svc
+            .discord
+            .set_role_positions(token, dg, &order, reason)
+            .await?;
+        if discord_changed {
+            let mut c = NewConflict::new(
+                guild,
+                ConflictKind::PermissionReverted,
+                CObj::Guild,
+                "position",
+            );
+            c.sr_object_id = Some(guild);
+            c.discord_object_id = Some(dg);
+            c.discord_value = Some(ids(&have));
+            c.sr_value = Some(ids(&want));
+            self.note(c).await;
+        }
+        let mut synced = everyone.synced.clone();
+        synced.record("role_order", ids(&want), ids(&want));
+        store::save_role_state(
+            self.pool(),
+            everyone.id,
+            &synced,
+            everyone.discord_only_bits,
+        )
+        .await?;
+        Ok(true)
     }
 
     fn decide_field(

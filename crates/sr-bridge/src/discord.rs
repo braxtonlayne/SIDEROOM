@@ -157,8 +157,10 @@ pub struct DiscordApi {
     base: String,
     transport: Arc<dyn HttpTransport>,
     blocks: Arc<Mutex<HashMap<String, Instant>>>,
-    /// BRG-SYN-003: invalid responses (401, 403, 429) with their time, for the invalid-request breaker.
-    pub(crate) invalid: Arc<Mutex<std::collections::VecDeque<Instant>>>,
+    /// BRG-SYN-003: invalid responses (401, 403, 429) with their time and a one-way key of the bot token that got
+    /// them (never the token), for the invalid-request breakers. Shared by every clone, so one count covers the
+    /// instance (Discord's per-IP limit) and the key splits it per bridge.
+    pub(crate) invalid: Arc<Mutex<std::collections::VecDeque<(Instant, u64)>>>,
     /// BRG-SYN-003: pacing of structural writes (`bridge.struct_writes_per_sec`).
     pub(crate) pacer: Arc<crate::discord_structure::Pacer>,
 }
@@ -319,7 +321,7 @@ impl DiscordApi {
             }
         }
         if matches!(resp.status, 401 | 403 | 429) {
-            self.note_invalid();
+            self.note_invalid(bot_token);
         }
         if resp.status == 429 {
             let v: Value = serde_json::from_slice(&resp.body).unwrap_or(Value::Null);

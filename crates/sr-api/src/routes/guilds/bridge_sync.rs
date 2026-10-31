@@ -27,6 +27,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use sr_bridge::sync::conflicts::{ConflictKind, Resolution};
 use sr_bridge::sync::{
     Action, ItemKind, PlanEdit, PlanView, SyncEngine, TeardownPreview, holds, ops, store,
 };
@@ -63,6 +64,8 @@ pub fn router() -> Router<AppState> {
             get(teardown_preview),
         )
         .route("/guilds/{guild_id}/bridge/teardown", post(teardown))
+        .route("/guilds/{guild_id}/bridge/preflight", get(preflight))
+        .route("/guilds/{guild_id}/bridge/mirrors", get(mirrors))
 }
 
 // ---- wire types ------------------------------------------------------------------------------------
@@ -181,6 +184,56 @@ pub struct SyncStatusObject {
     pub degraded: i64,
     pub frozen: i64,
     pub held_deletions: i64,
+    /// Discord granted the Server Members and Message Content intents (from the shard's last READY).
+    pub intents_ok: bool,
+    /// When "Reconcile now" is next allowed (Unix ms); null when it is allowed now.
+    pub reconcile_available_at: Option<i64>,
+}
+
+/// One line of the preflight checklist (design 9.2): `bot_admin`, `bot_top_role`, `intents`, `caps` or
+/// `unique_guild`. Every one of them blocks a plan while not ok.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PreflightCheckObject {
+    pub id: String,
+    pub ok: bool,
+    pub blocker: bool,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PreflightObject {
+    pub checks: Vec<PreflightCheckObject>,
+    /// The bot's invite link with Administrator (whole-server mode needs it).
+    pub invite_url: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MirrorRoleObject {
+    pub role_id: String,
+    pub discord_role_id: String,
+    /// Bit numbers of the permissions Discord has on this role that SIDE ROOM has no bit for (set on Discord,
+    /// kept there); empty when none.
+    pub discord_only_bits: Vec<u32>,
+    /// `mapped` or `frozen`.
+    pub state: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MirrorChannelObject {
+    pub channel_id: String,
+    pub discord_channel_id: String,
+    /// `mapped`, `degraded`, `frozen` or `held`.
+    pub state: String,
+    pub degraded_reason: Option<String>,
+}
+
+/// Which roles and channels are mirrored, for the badges of the role editor and the channel settings.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MirrorsObject {
+    /// `selective` or `whole_guild`.
+    pub mode: String,
+    pub roles: Vec<MirrorRoleObject>,
+    pub channels: Vec<MirrorChannelObject>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -540,6 +593,7 @@ pub async fn sync_status(
     SessionOnly(p): SessionOnly,
     Ext(deps): Ext<SettingsDeps>,
     Ext(bridge): Ext<BridgeService>,
+    Ext(engine): Ext<SyncEngine>,
     Path(guild_id): Path<String>,
 ) -> ApiResult<Json<SyncStatusObject>> {
     let c = bridge_admin(&p, &deps, &bridge, &guild_id).await?;
@@ -570,6 +624,141 @@ pub async fn sync_status(
         frozen: maps.iter().filter(|m| m.sync_status == "frozen").count() as i64
             + roles.iter().filter(|m| m.sync_status == "frozen").count() as i64,
         held_deletions: held.len() as i64,
+        intents_ok: intents_ok(&bridge, c.gid).await?,
+        reconcile_available_at: engine
+            .reconcile_available_at_ms(c.gid)
+            .await
+            .map_err(map_err)?,
+    }))
+}
+
+/// Server Members and Message Content granted at the shard's last READY.
+async fn intents_ok(bridge: &BridgeService, guild: i64) -> ApiResult<bool> {
+    use sr_bridge::discord_structure::intents;
+    let need = intents::GUILD_MEMBERS | intents::MESSAGE_CONTENT;
+    let b = sr_bridge::model::get_bridge(&bridge.pool, guild)
+        .await
+        .map_err(map_err)?;
+    Ok(b.is_some_and(|b| u64::try_from(b.intents_granted).unwrap_or(0) & need == need))
+}
+
+/// The bot invite link with Administrator, for whole-server mode (design 10).
+fn admin_invite(bot_user: i64) -> String {
+    format!(
+        "https://discord.com/oauth2/authorize?client_id={bot_user}&scope=bot&permissions={}",
+        Permissions::ADMINISTRATOR.bits()
+    )
+}
+
+/// Run the preflight checks now (`MANAGE_GUILD`): reads both servers, writes nothing.
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/bridge/preflight",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = PreflightObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn preflight(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(bridge): Ext<BridgeService>,
+    Ext(engine): Ext<SyncEngine>,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<PreflightObject>> {
+    let c = bridge_admin(&p, &deps, &bridge, &guild_id).await?;
+    let b = sr_bridge::model::get_bridge(&bridge.pool, c.gid)
+        .await
+        .map_err(map_err)?
+        .ok_or_else(|| ApiError::from(ErrorCode::SrNotFound))?;
+    let (facts, blockers) = engine.preflight(c.gid).await.map_err(map_err)?;
+    let blocked = |codes: &[&str]| {
+        blockers
+            .iter()
+            .find(|x| codes.contains(&x.code.as_str()))
+            .map(|x| x.message.clone())
+    };
+    let check = |id: &str, ok: bool, detail: Option<String>| PreflightCheckObject {
+        id: id.into(),
+        ok,
+        blocker: true,
+        detail: if ok { None } else { detail },
+    };
+    let caps = blocked(&["role_cap", "channel_cap"]);
+    let intents = blocked(&["intents_missing"]);
+    Ok(Json(PreflightObject {
+        checks: vec![
+            check("bot_admin", facts.bot_administrator, None),
+            check("bot_top_role", facts.bot_is_top_role, None),
+            check("intents", intents.is_none(), intents),
+            check("caps", caps.is_none(), caps),
+            check("unique_guild", !facts.discord_guild_taken, None),
+        ],
+        invite_url: admin_invite(b.bot_user_id),
+    }))
+}
+
+/// Which roles and channels of the server are mirrored (any member of the server: the badges). 404 while the
+/// bridge is off or not connected.
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/bridge/mirrors",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = MirrorsObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn mirrors(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(bridge): Ext<BridgeService>,
+    Path(guild_id): Path<String>,
+) -> ApiResult<Json<MirrorsObject>> {
+    // Being a member of the server is the whole gate (as for the bridged member list).
+    let (gid, _user, _acc) = super::bridge::who(&p, &deps, &guild_id).await?;
+    let g = super::bridge::raw(gid.get());
+    super::bridge::switches(&bridge, g).await?;
+    let st = store::get_sync(&bridge.pool, g)
+        .await
+        .map_err(map_err)?
+        .ok_or_else(|| ApiError::from(ErrorCode::SrNotFound))?;
+    let held: std::collections::HashSet<i64> = holds::list_held(&bridge.pool, g)
+        .await
+        .map_err(map_err)?
+        .into_iter()
+        .map(|h| h.channel_id)
+        .collect();
+    let roles = store::list_role_maps(&bridge.pool, g)
+        .await
+        .map_err(map_err)?
+        .into_iter()
+        .filter(|m| !m.is_everyone)
+        .map(|m| MirrorRoleObject {
+            role_id: s(m.role_id),
+            discord_role_id: s(m.discord_role_id),
+            discord_only_bits: (0..64u32)
+                .filter(|b| m.discord_only_bits & (1u64 << b) != 0)
+                .collect(),
+            state: m.sync_status,
+        })
+        .collect();
+    let channels = store::list_structure_maps(&bridge.pool, g)
+        .await
+        .map_err(map_err)?
+        .into_iter()
+        .map(|m| MirrorChannelObject {
+            channel_id: s(m.channel_id),
+            discord_channel_id: s(m.discord_channel_id),
+            state: if held.contains(&m.channel_id) {
+                "held".into()
+            } else {
+                m.sync_status
+            },
+            degraded_reason: m.degraded_reason,
+        })
+        .collect();
+    Ok(Json(MirrorsObject {
+        mode: st.mode.as_str().into(),
+        roles,
+        channels,
     }))
 }
 
@@ -687,6 +876,16 @@ pub async fn restore_hold(
     let channel: i64 = id("channel_id", &channel_id)?;
     ensure_held_here(&bridge, c.gid, channel).await?;
     let d = engine.restore_held(c.gid, channel).await.map_err(map_err)?;
+    bridge
+        .resolve_open_for(
+            c.gid,
+            ConflictKind::DeletionHeld,
+            channel,
+            c.user,
+            Resolution::Restored,
+        )
+        .await
+        .map_err(map_err)?;
     Ok(Json(BridgeRestoredObject {
         discord_channel_id: s(d),
     }))
@@ -713,6 +912,16 @@ pub async fn delete_hold(
     ensure_held_here(&bridge, c.gid, channel).await?;
     engine
         .delete_held_now(c.gid, channel, c.user)
+        .await
+        .map_err(map_err)?;
+    bridge
+        .resolve_open_for(
+            c.gid,
+            ConflictKind::DeletionHeld,
+            channel,
+            c.user,
+            Resolution::DeletedNow,
+        )
         .await
         .map_err(map_err)?;
     Ok(StatusCode::NO_CONTENT)
@@ -823,6 +1032,8 @@ pub async fn teardown(
         delete_hold,
         teardown_preview,
         teardown,
+        preflight,
+        mirrors,
     ),
     components(schemas(
         ErrorBody,
@@ -841,6 +1052,11 @@ pub async fn teardown(
         TeardownPreviewObject,
         BridgeTeardownBody,
         TeardownResultObject,
+        PreflightCheckObject,
+        PreflightObject,
+        MirrorRoleObject,
+        MirrorChannelObject,
+        MirrorsObject,
     ))
 )]
 pub struct BridgeSyncApiDoc;

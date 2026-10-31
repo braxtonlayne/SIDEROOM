@@ -701,28 +701,55 @@ fn list_of<T>(v: Value, what: &str, f: impl Fn(&Value) -> Option<T>) -> Result<V
 // The calls
 // ---------------------------------------------------------------------------------------------------------
 
+/// The per-bridge invalid-request breaker (design 11.5): 200 invalid answers in ten minutes pause that bridge.
+pub const BRIDGE_INVALID_LIMIT: usize = 200;
+/// The instance breaker: 2,000 in ten minutes pause every bridge (Discord counts 10,000 per IP).
+pub const INSTANCE_INVALID_LIMIT: usize = 2_000;
+
+/// A one-way key of a bot token for the breaker's per-bridge count. Never stored, never logged.
+fn token_key(token: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    token.hash(&mut h);
+    h.finish().max(1)
+}
+
 impl DiscordApi {
-    /// Record an invalid response (401, 403, 429) for the breaker.
-    pub(crate) fn note_invalid(&self) {
+    /// Record an invalid response (401, 403, 429) for the breakers.
+    pub(crate) fn note_invalid(&self, bot_token: Option<&str>) {
+        let key = bot_token.map_or(0, token_key);
         if let Ok(mut q) = self.invalid.lock() {
             let now = Instant::now();
-            q.push_back(now);
+            q.push_back((now, key));
             while q
                 .front()
-                .is_some_and(|t| now.duration_since(*t) > Duration::from_secs(3600))
+                .is_some_and(|(t, _)| now.duration_since(*t) > Duration::from_secs(3600))
             {
                 q.pop_front();
             }
         }
     }
 
-    /// How many invalid responses (401, 403, 429) this client has seen in the last `window`. The per-bridge
-    /// breaker pauses sync at 200 in ten minutes (design 11.5).
+    /// How many invalid responses (401, 403, 429) every clone of this client has seen in the last `window`: the
+    /// instance breaker pauses every bridge at [`INSTANCE_INVALID_LIMIT`] in ten minutes (design 11.5; Discord's
+    /// per-IP limit is shared by every bridge on the instance).
     pub fn invalid_requests_within(&self, window: Duration) -> usize {
         let now = Instant::now();
         self.invalid.lock().map_or(0, |q| {
             q.iter()
-                .filter(|t| now.duration_since(**t) <= window)
+                .filter(|(t, _)| now.duration_since(*t) <= window)
+                .count()
+        })
+    }
+
+    /// The same count for one bot token (one bridge): the per-bridge breaker pauses its sync at
+    /// [`BRIDGE_INVALID_LIMIT`] in ten minutes.
+    pub fn invalid_requests_for(&self, bot_token: &str, window: Duration) -> usize {
+        let key = token_key(bot_token);
+        let now = Instant::now();
+        self.invalid.lock().map_or(0, |q| {
+            q.iter()
+                .filter(|(t, k)| *k == key && now.duration_since(*t) <= window)
                 .count()
         })
     }

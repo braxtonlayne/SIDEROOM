@@ -1393,23 +1393,41 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_bus(bus.clone());
     // BRG-GW-001: the inbound half of the Discord bridge (one gateway shard per enabled bridge; none while every
     // server has it off, the default).
+    // BRG-SYN-001: the whole-guild mirror (idle until a server owner confirms a plan; none by default). Its overwrite
+    // pushes are sync-perms' planner (BRG-SYN-002); structural gateway dispatches reach it through the inbound
+    // shard's structure sink (BRG-SYN-003), SIDE ROOM's own changes through the event listener.
+    let sync_base = sr_bridge::sync::SyncEngine::new(
+        (*bridge).clone(),
+        Arc::new(crate::bridge_sync_wiring::ChatSrStructure {
+            backend: guilds.0.clone(),
+            pool: pool.clone(),
+        }),
+    );
+    let sync_base =
+        sync_base
+            .clone()
+            .with_overwrites(Arc::new(sr_bridge::sync::PlannedOverwrites {
+                engine: sync_base.clone(),
+            }));
     let bridge_inbound = crate::bridge_inbound::spawn_inbound(
         pool.clone(),
         messages.clone(),
         bridge.clone(),
         admin_service.clone(),
         crate::bridge_inbound::discord_gateway_url(cfg.bridge.discord_gateway.as_deref()),
-    );
-    // BRG-SYN-001: the whole-guild mirror (idle until a server owner confirms a plan; none by default).
-    let sync_engine = Arc::new(sr_bridge::sync::SyncEngine::new(
-        (*bridge).clone(),
-        Arc::new(crate::bridge_sync_wiring::ChatSrStructure {
-            backend: guilds.0.clone(),
-            pool: pool.clone(),
+        Arc::new(sr_bridge::sync::EngineSink {
+            engine: sync_base.clone(),
         }),
-    ));
+    );
+    // A mode change restarts that bridge's shard (the supervisor starts it again with the new mode's intents).
+    let shard_manager = bridge_inbound.manager.clone();
+    let sync_engine = Arc::new(sync_base.with_mode_hook(Arc::new(move |guild| {
+        shard_manager.stop(guild);
+    })));
     let sync_worker =
         crate::bridge_sync_wiring::spawn_sync_worker((*sync_engine).clone(), admin_service.clone());
+    let sync_listener =
+        crate::bridge_sync_wiring::spawn_sync_listener(lag_bus.tap(), (*sync_engine).clone());
     // Reports, cases, holds and appeals (Phase 7, step 1); reporting is behind the `moderation.reports` flag.
     // Actions from a case run through the guild, message and account services (N-21).
     // The takedown register (step 2) reads the strike policy from the compliance module and blocks media.
@@ -1987,6 +2005,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     bridge_consumer.abort();
     bridge_worker.abort();
     sync_worker.abort();
+    sync_listener.abort();
     bridge_inbound.abort();
     push_consumer.abort();
     if let Some(h) = features_listener {
