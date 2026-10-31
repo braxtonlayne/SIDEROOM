@@ -2,6 +2,7 @@ import { Badge, Button, ConfirmDialog, EmptyState, Notice, Select, TextInput } f
 import { useState } from 'react';
 import * as api from '../api';
 import { useT, type MessageKey } from '../../i18n';
+import { InviteControlsCard } from './InviteControlsCard';
 import {
   ActionStatus,
   Async,
@@ -43,6 +44,7 @@ export function InvitesSection() {
         title={t('admin.invites.title')}
         description={t('admin.invites.description')}
       />
+      <InviteControlsCard />
       <Notice variant="info" className="ss-status" title={t('admin.invites.creatingTitle')}>
         {t('admin.invites.creatingLead')}{' '}
         <code>sr-cli invite create --issuer &lt;username&gt; --note &quot;why&quot;</code>.{' '}

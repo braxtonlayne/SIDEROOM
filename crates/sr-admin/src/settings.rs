@@ -129,6 +129,12 @@ const fn int(
 
 /// Account-cap setting key (read by registration).
 pub const ACCOUNT_CAP: &str = "accounts.cap";
+/// OPS-INV-001: "Lock the Doors" (registration refused while on), the credit seed of a new account, the most
+/// unused codes one account may hold and the age at which the prune job revokes an unused code.
+pub const INVITES_LOCKED: &str = "invites.locked";
+pub const INVITES_DEFAULT_CREDITS: &str = "invites.default_credits";
+pub const INVITES_MAX_OUTSTANDING: &str = "invites.max_outstanding";
+pub const INVITES_UNUSED_CODE_DAYS: &str = "invites.unused_code_days";
 /// Inviter suspicion thresholds (doc 06 section 5.4).
 pub const SUSPICION_FREEZE: &str = "invites.suspicion_freeze_threshold";
 pub const SUSPICION_ESCALATE: &str = "invites.suspicion_escalate_threshold";
@@ -509,13 +515,38 @@ pub const CATALOG: &[SettingDef] = &[
         2_000,
         "Most upload part URLs one member may request per hour across their buckets (a 16 MiB part each).",
     ),
+    SettingDef {
+        key: INVITES_LOCKED,
+        group: "invites",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 0,
+        description: "Lock the Doors: while on, no registration succeeds, even with a valid invite, and the entrance says the doors are closed. Members who are already in are not affected. Switch it on Admin > Invites, where each change is written to the audit log with a reason.",
+    },
     int(
-        "invites.initial_credits",
+        INVITES_DEFAULT_CREDITS,
         "invites",
         0,
         1_000,
         5,
-        "Invite credits granted to a new account.",
+        "Invite credits granted to a new account when it registers. Accounts that already exist keep what they have.",
+    ),
+    int(
+        INVITES_MAX_OUTSTANDING,
+        "invites",
+        1,
+        1_000,
+        20,
+        "Most unused invite codes one account may hold at once (the credit balance still caps it too). Lowering it keeps the codes already made.",
+    ),
+    int(
+        INVITES_UNUSED_CODE_DAYS,
+        "invites",
+        1,
+        3_650,
+        30,
+        "Days after which the invites.prune job revokes an invite code nobody used. It also marks invite subtrees whose first member never activated as inactive for Admin > Invites. It never deletes the invite graph.",
     ),
     SettingDef {
         key: "invites.credit_price_usd",

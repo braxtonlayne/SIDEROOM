@@ -28,8 +28,9 @@ const INVITE_RULES: [Rule; 2] = [
     },
 ];
 
-/// `GET /sr/invites/{code}`: `{valid: true}`, `{valid: false}` or
-/// `{valid: false, reason: "closed"}`. Unknown, malformed, used and revoked
+/// `GET /sr/invites/{code}`: `{valid: true}`, `{valid: false}`,
+/// `{valid: false, reason: "closed"}` (the house is full) or `{valid: false, reason: "locked"}` (Lock the Doors,
+/// OPS-INV-001; the answer does not depend on the code). Unknown, malformed, used and revoked
 /// codes are indistinguishable. When the cap is reached every code answers
 /// `closed`, so the response does not depend on the code at all.
 pub async fn check_invite(
@@ -41,6 +42,9 @@ pub async fn check_invite(
         .hit("invite-check", &ip, state.now_secs(), &INVITE_RULES)
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
 
+    if svc.store.invite_controls().await?.locked {
+        return Ok(Json(json!({ "valid": false, "reason": "locked" })));
+    }
     if svc.store.counted_accounts().await? >= svc.account_cap().await? {
         return Ok(Json(json!({ "valid": false, "reason": "closed" })));
     }

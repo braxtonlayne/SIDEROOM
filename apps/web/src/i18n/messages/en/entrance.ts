@@ -24,6 +24,8 @@ export default {
   'entrance.landing.valid': "You're on the list.",
   'entrance.landing.invalid': "That invitation doesn't open this door.",
   'entrance.landing.closed': "The door's closed for now. We're at capacity.",
+  'entrance.doors.closed':
+    'The doors are closed right now. Invitations are not being accepted; please check back later.',
   'entrance.landing.limited': 'Too many tries. Take a breath and try again later.',
   'entrance.landing.error': 'Something went wrong on our side. Try again in a moment.',
   'entrance.landing.required': 'Invitation required. Always.',

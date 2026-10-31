@@ -37,7 +37,7 @@ function fieldErrorsFrom(e: ApiError): Partial<Record<Field, string>> {
 export function Register() {
   const t = useT();
   const [code] = useState(() => heldInviteCode());
-  const { minimum_age: minimumAge } = useCompliancePublic();
+  const { minimum_age: minimumAge, doors_closed: doorsClosed } = useCompliancePublic();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -148,6 +148,8 @@ export function Register() {
         const fe = fieldErrorsFrom(err);
         setErrors(fe);
         if (err.status === 429) setFormError(t('entrance.register.tooMany'));
+        // 900005: the doors are closed (Lock the Doors, or the house is full), whatever the invite.
+        else if (err.body?.code === 900005) setFormError(t('entrance.doors.closed'));
         else if (!Object.keys(fe).length)
           setFormError(
             err.status === 403 || err.status === 404
@@ -204,7 +206,7 @@ export function Register() {
         </>
       )}
       <form className="ent-form" onSubmit={onSubmit} noValidate>
-        <FormError>{formError}</FormError>
+        <FormError>{formError ?? (doorsClosed ? t('entrance.doors.closed') : null)}</FormError>
         <TextInput
           label={t('entrance.register.email')}
           type="email"

@@ -60,7 +60,7 @@ pub struct RedeemedBy {
 /// Why a new code cannot be created right now.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct InviteBlocked {
-    /// `unverified`, `too_new`, `at_cap`, `no_credits` or `frozen`.
+    /// `unverified`, `too_new`, `at_cap`, `no_credits`, `at_max` or `frozen`.
     pub reason: String,
     /// `too_new` only: the age an account needs, in days.
     pub days: Option<i64>,
@@ -110,6 +110,7 @@ fn blocked(b: InviteBlock) -> InviteBlocked {
         InviteBlock::AtCap => ("at_cap", None),
         InviteBlock::NoCredits => ("no_credits", None),
         InviteBlock::Frozen => ("frozen", None),
+        InviteBlock::AtOutstandingMax => ("at_max", None),
     };
     InviteBlocked {
         reason: reason.to_owned(),
@@ -227,6 +228,9 @@ fn refusal_text(b: InviteBlock) -> String {
         InviteBlock::AtCap => "SIDE ROOM is full right now, so invites are paused.".into(),
         InviteBlock::NoCredits => "You have no spare invite credits.".into(),
         InviteBlock::Frozen => "Invite creation is paused for review.".into(),
+        InviteBlock::AtOutstandingMax => {
+            "You already hold the most unused invites allowed. Use or revoke one first.".into()
+        }
     }
 }
 

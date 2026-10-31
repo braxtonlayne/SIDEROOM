@@ -25,6 +25,7 @@ pub mod gateway_pg;
 pub mod healthcheck;
 pub mod inbox_pg;
 pub mod instance_mount;
+pub mod invites_jobs;
 pub mod integration_policy;
 pub mod jobs;
 pub mod jukebox;
@@ -124,6 +125,9 @@ mod feature_actions_pg_tests;
 
 #[cfg(test)]
 mod fx_pg_tests;
+
+#[cfg(test)]
+mod invites_pg_tests;
 
 #[cfg(test)]
 mod moderation_index_pg_tests;

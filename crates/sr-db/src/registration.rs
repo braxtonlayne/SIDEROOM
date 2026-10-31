@@ -50,6 +50,8 @@ pub enum Rejection {
     PersonBanned,
     UsernameTaken,
     EmailTaken,
+    /// Lock the Doors (`invites.locked`) is on (OPS-INV-001).
+    Locked,
 }
 
 /// A created account.
@@ -65,6 +67,12 @@ pub async fn register_with_invite(
     r: &NewRegistration,
 ) -> DbResult<Result<Registered, Rejection>> {
     let mut tx = pool.begin().await?;
+
+    // Lock the Doors: with the lock on, even a valid invite registers nobody (OPS-INV-001). Read inside the
+    // transaction, before anything is locked or written.
+    if setting_bool(&mut tx, "invites.locked").await? {
+        return Ok(Err(Rejection::Locked));
+    }
 
     let invite: Option<(i64, i64, String, bool)> = sqlx::query_as(
         "SELECT id, issuer_account_id, state::text, emergency FROM platform_invites \
@@ -278,4 +286,15 @@ pub async fn register_with_invite(
         account_id: r.account_id,
         issuer_id,
     }))
+}
+
+/// A boolean platform setting (`false` when there is no row, or a row of another type).
+pub(crate) async fn setting_bool(conn: &mut sqlx::PgConnection, key: &str) -> DbResult<bool> {
+    let v: Option<bool> = sqlx::query_scalar(
+        "SELECT (value #>> '{}')::boolean FROM platform_settings WHERE key = $1 AND jsonb_typeof(value) = 'boolean'",
+    )
+    .bind(key)
+    .fetch_optional(&mut *conn)
+    .await?;
+    Ok(v.unwrap_or(false))
 }

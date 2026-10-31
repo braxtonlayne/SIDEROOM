@@ -1795,6 +1795,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     let runner = crate::fx_jobs::register(runner, &pool, fx_fetcher);
+    let runner = crate::invites_jobs::register(runner, &pool);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner =
         crate::admin_jobs::register_storage_measure(runner, &pool, id_src.clone(), storage.clone());
@@ -1904,6 +1905,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::userset_jobs::schedule(&pool).await?;
     crate::payments_jobs::schedule(&pool).await?;
     crate::fx_jobs::schedule(&pool).await?;
+    crate::invites_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

@@ -163,6 +163,23 @@ impl AuthStore for PgAuthStore {
         Ok(v.and_then(|v| u64::try_from(v).ok()).filter(|v| *v > 0))
     }
 
+    async fn invite_controls(&self) -> StoreResult<sr_auth::store::InviteControls> {
+        let mut conn = self.pool.acquire().await.map_err(store_err)?;
+        let locked = crate::registration::setting_bool(&mut conn, "invites.locked")
+            .await
+            .map_err(store_err)?;
+        let credits: Option<i64> = sqlx::query_scalar(
+            "SELECT floor((value #>> '{}')::numeric)::bigint FROM platform_settings \n             WHERE key = 'invites.default_credits' AND jsonb_typeof(value) = 'number'",
+        )
+        .fetch_optional(&mut *conn)
+        .await
+        .map_err(store_err)?;
+        Ok(sr_auth::store::InviteControls {
+            locked,
+            default_credits: credits.and_then(|c| i32::try_from(c).ok()).filter(|c| *c >= 0),
+        })
+    }
+
     async fn counted_accounts(&self) -> StoreResult<u64> {
         let n: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot",
@@ -205,6 +222,7 @@ impl AuthStore for PgAuthStore {
                 Rejection::PersonBanned => RegisterRejection::PersonBanned,
                 Rejection::UsernameTaken => RegisterRejection::UsernameTaken,
                 Rejection::EmailTaken => RegisterRejection::EmailTaken,
+                Rejection::Locked => RegisterRejection::Locked,
             }),
         })
     }

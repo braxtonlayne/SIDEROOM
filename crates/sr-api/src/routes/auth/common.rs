@@ -44,7 +44,7 @@ pub struct AuthConfig {
     pub public_url: String,
     /// Maximum counted accounts (D-013).
     pub account_cap: u64,
-    /// Credits granted on registration (`invites.initial_credits`).
+    /// Credits granted on registration when staff set no `invites.default_credits`.
     pub initial_credits: i32,
     /// Take the client IP from the last `X-Forwarded-For` entry (set only
     /// behind a trusted reverse proxy that appends it).
@@ -203,9 +203,16 @@ impl AuthService {
         self.store.set_locale(id, locale).await
     }
 
-    /// Invite credits a new account is granted (`invites.initial_credits`), as registration uses it.
+    /// Invite credits a new account is granted when staff set nothing (the configured seed), as registration
+    /// uses it.
     pub fn initial_credits(&self) -> i32 {
         self.cfg.initial_credits
+    }
+
+    /// The operator's invite controls (OPS-INV-001): Lock the Doors and the credit seed. A store that cannot
+    /// answer reads as "not locked, nothing set" (the registration route reads them with errors surfaced).
+    pub async fn invite_controls(&self) -> sr_auth::store::InviteControls {
+        self.store.invite_controls().await.unwrap_or_default()
     }
 
     /// Whether the account closed or finished the platform first run (`GET /users/@me`).

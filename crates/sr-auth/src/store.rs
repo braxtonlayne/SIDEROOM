@@ -119,6 +119,9 @@ pub enum RegisterRejection {
     PersonBanned,
     /// Username already used (including by deleted accounts within 30 days).
     UsernameTaken,
+    /// Lock the Doors is on (`invites.locked`), checked inside the registration transaction as well as at the
+    /// door.
+    Locked,
     /// Email already used.
     EmailTaken,
 }
@@ -232,6 +235,17 @@ pub enum InviteBlock {
     NoCredits,
     /// The suspicion freeze applies (doc 06 section 5.4). Shown with generic wording.
     Frozen,
+    /// The account already holds `invites.max_outstanding` unused codes (OPS-INV-001).
+    AtOutstandingMax,
+}
+
+/// The operator's invite controls (OPS-INV-001), read when someone registers or checks a code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct InviteControls {
+    /// Lock the Doors (`invites.locked`): no registration succeeds while it is on.
+    pub locked: bool,
+    /// Credits a new account starts with (`invites.default_credits`), when staff set it.
+    pub default_credits: Option<i32>,
 }
 
 /// What `note_login_device` found.
@@ -289,6 +303,11 @@ pub trait AuthStore: Send + Sync {
     /// over the configured cap so Admin -> Limits applies without a restart.
     async fn account_cap_override(&self) -> StoreResult<Option<u64>> {
         Ok(None)
+    }
+    /// The lock and the credit seed set by staff in `platform_settings` (OPS-INV-001). Read per request, so
+    /// Admin > Invites applies without a restart.
+    async fn invite_controls(&self) -> StoreResult<InviteControls> {
+        Ok(InviteControls::default())
     }
     /// Record the minimum age the person affirmed at registration (D-294, `accounts.age_declared`).
     async fn set_declared_min_age(&self, _account_id: i64, _age: u8) -> StoreResult<()> {

@@ -14,6 +14,8 @@ use crate::{DbResult, lock};
 const DEFAULT_MIN_AGE_DAYS: i64 = 7;
 const DEFAULT_FREEZE: i64 = 2;
 const DEFAULT_CAP: i64 = 20_000;
+/// `invites.max_outstanding`: most unused codes one account may hold (OPS-INV-001).
+const DEFAULT_MAX_OUTSTANDING: i64 = 20;
 
 async fn setting_int(conn: &mut sqlx::PgConnection, key: &str, default: i64) -> DbResult<i64> {
     let v: Option<i64> = sqlx::query_scalar(
@@ -67,6 +69,10 @@ async fn block_for(
     }
     if open >= balance {
         return Ok(Some(InviteBlock::NoCredits));
+    }
+    let max_open = setting_int(conn, "invites.max_outstanding", DEFAULT_MAX_OUTSTANDING).await?;
+    if open >= max_open {
+        return Ok(Some(InviteBlock::AtOutstandingMax));
     }
     Ok(None)
 }

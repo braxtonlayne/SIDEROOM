@@ -13,12 +13,21 @@ import { formatInviteCode, holdInviteCode, isCompleteInviteCode } from '../../li
 import { nav } from '../../lib/enterApp';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
 
-type CheckState = 'idle' | 'checking' | 'valid' | 'invalid' | 'closed' | 'limited' | 'error';
+type CheckState =
+  | 'idle'
+  | 'checking'
+  | 'valid'
+  | 'invalid'
+  | 'closed'
+  | 'locked'
+  | 'limited'
+  | 'error';
 
 const MESSAGES: Partial<Record<CheckState, { tone: 'good' | 'bad'; key: MessageKey }>> = {
   valid: { tone: 'good', key: 'entrance.landing.valid' },
   invalid: { tone: 'bad', key: 'entrance.landing.invalid' },
   closed: { tone: 'bad', key: 'entrance.landing.closed' },
+  locked: { tone: 'bad', key: 'entrance.doors.closed' },
   limited: { tone: 'bad', key: 'entrance.landing.limited' },
   error: { tone: 'bad', key: 'entrance.landing.error' },
 };
@@ -48,6 +57,8 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
         timer.current = setTimeout(() => nav.assign('/register'), 600);
       } else if (res.reason === 'closed') {
         setState('closed');
+      } else if (res.reason === 'locked') {
+        setState('locked');
       } else {
         setState('invalid');
         setShakes((n) => n + 1);
@@ -69,7 +80,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
   // A refused code remounts the shaking input (and the button was disabled while checking), so focus would fall
   // to the page body: put it back in the field, where the message is read and the code is corrected.
   useEffect(() => {
-    if (state === 'invalid' || state === 'closed') input.current?.focus();
+    if (state === 'invalid' || state === 'closed' || state === 'locked') input.current?.focus();
   }, [state, shakes]);
 
   const onSubmit = (e: FormEvent) => {
@@ -98,6 +109,11 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
               <br />
               {t('entrance.landing.lede2')}
             </p>
+            {compliance.doors_closed && (
+              <p className="ent-invite-msg" data-tone="bad" role="status" id="doors-closed">
+                {t('entrance.doors.closed')}
+              </p>
+            )}
             <form onSubmit={onSubmit} noValidate>
               <label className="ent-invite-label" htmlFor="invite-code">
                 {t('entrance.landing.inviteLabel')}
@@ -120,7 +136,9 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  aria-invalid={state === 'invalid' || state === 'closed' ? true : undefined}
+                  aria-invalid={
+                    state === 'invalid' || state === 'closed' || state === 'locked' ? true : undefined
+                  }
                   aria-describedby="invite-msg"
                 />
                 <GoldButton
