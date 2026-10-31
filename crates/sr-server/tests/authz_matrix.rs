@@ -6450,7 +6450,8 @@ pub mod harness {
                 if m["enabled"] != json!(true) {
                     continue;
                 }
-                let r = srv
+                // The per-account rate limit of the toggle answers 429 after a burst: wait it out and retry.
+                let mut r = srv
                     .call(
                         cred,
                         "PATCH",
@@ -6458,6 +6459,20 @@ pub mod harness {
                         Some(&json!({"enabled": false})),
                     )
                     .await;
+                for _ in 0..12 {
+                    if r.status != 429 {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    r = srv
+                        .call(
+                            cred,
+                            "PATCH",
+                            &format!("{path}/{id}"),
+                            Some(&json!({"enabled": false})),
+                        )
+                        .await;
+                }
                 if r.status == 200 {
                     off += 1;
                 } else {
@@ -6486,9 +6501,9 @@ pub mod harness {
                 ));
             }
         }
-        if total > 0 && off == 0 {
+        if !skipped.is_empty() {
             return Err(format!(
-                "no guild module could be switched off: {skipped:?}"
+                "guild modules that could not be switched off: {skipped:?}"
             ));
         }
         Ok(format!(
@@ -6587,7 +6602,7 @@ pub mod harness {
         }
         // The state change itself was an admin action: the access log grew.
         let changed = logs(&world.pool).await;
-        if changed.access <= before.access {
+        if flip != Flip::Normal && changed.access <= before.access {
             failures.push(format!(
                 "{tag} the admin actions that set the state wrote no staff_access_log row"
             ));

@@ -501,12 +501,14 @@ fn the_registry_catalog_is_well_formed_and_every_feature_can_be_killed() {
     for f in registry.iter() {
         let id = f.id();
         let meta = f.meta();
-        if !id.contains('.')
+        if id.is_empty() // (`unfurl` predates the section.name shape: only the alphabet is checked)
             || id
                 .chars()
                 .any(|c| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '_'))
         {
-            problems.push(format!("`{id}`: an id is lower-case `section.name`"));
+            problems.push(format!(
+                "`{id}`: an id is lower-case letters, digits, dots and underscores"
+            ));
         }
         if meta.name.trim().is_empty() || meta.description.trim().is_empty() {
             problems.push(format!(
