@@ -29,8 +29,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sr_bridge::sync::conflicts::{Conflict, ConflictFilter, ConflictKind, ObjectKind, Resolution};
 use sr_bridge::BridgeService;
+use sr_bridge::sync::conflicts::{Conflict, ConflictFilter, ConflictKind, ObjectKind, Resolution};
 use sr_chat::admin_rules::ChannelMove;
 use sr_chat::channel_rules::ChannelPatch;
 use sr_chat::role_rules::RolePatch;
@@ -170,16 +170,18 @@ pub async fn list_conflicts(
     let c = bridge_admin(&p, &deps, &bridge, &guild_id).await?;
     let kind = match q.kind.as_deref() {
         None => None,
-        Some(k) => Some(ConflictKind::parse(k).ok_or_else(|| {
-            invalid("kind", "ENUM_TYPE_INVALID", "Unknown conflict kind.")
-        })?),
+        Some(k) => Some(
+            ConflictKind::parse(k)
+                .ok_or_else(|| invalid("kind", "ENUM_TYPE_INVALID", "Unknown conflict kind."))?,
+        ),
     };
-    let object_kind = match q.object_kind.as_deref() {
-        None => None,
-        Some(k) => Some(ObjectKind::parse(k).ok_or_else(|| {
-            invalid("object_kind", "ENUM_TYPE_INVALID", "Unknown object kind.")
-        })?),
-    };
+    let object_kind =
+        match q.object_kind.as_deref() {
+            None => None,
+            Some(k) => Some(ObjectKind::parse(k).ok_or_else(|| {
+                invalid("object_kind", "ENUM_TYPE_INVALID", "Unknown object kind.")
+            })?),
+        };
     let status = match q.status.as_deref() {
         None => Some("open".to_owned()),
         Some("all") => None,
@@ -204,7 +206,10 @@ pub async fn list_conflicts(
         before,
         limit: q.limit.unwrap_or(50).clamp(1, 100),
     };
-    let rows = bridge.list_conflicts(c.gid, &filter).await.map_err(map_err)?;
+    let rows = bridge
+        .list_conflicts(c.gid, &filter)
+        .await
+        .map_err(map_err)?;
     let open = bridge.open_conflict_count(c.gid).await.map_err(map_err)?;
     Ok(Json(ConflictList {
         conflicts: rows.iter().map(ConflictObject::from).collect(),
@@ -331,7 +336,13 @@ pub async fn take_discord(
     let target = row
         .sr_object_id
         .and_then(|v| u64::try_from(v).ok())
-        .ok_or_else(|| invalid("conflict", "BRIDGE_INVALID", "The conflict names no SIDE ROOM object."))?;
+        .ok_or_else(|| {
+            invalid(
+                "conflict",
+                "BRIDGE_INVALID",
+                "The conflict names no SIDE ROOM object.",
+            )
+        })?;
     let value = row.discord_value.clone().unwrap_or(Value::Null);
     let bad = || {
         invalid(
@@ -346,9 +357,8 @@ pub async fn take_discord(
             match f {
                 "name" => patch.name = Some(value.as_str().ok_or_else(bad)?.to_owned()),
                 "color" => {
-                    patch.color = Some(
-                        u32::try_from(value.as_u64().ok_or_else(bad)?).map_err(|_| bad())?,
-                    )
+                    patch.color =
+                        Some(u32::try_from(value.as_u64().ok_or_else(bad)?).map_err(|_| bad())?)
                 }
                 "hoist" => patch.hoist = Some(value.as_bool().ok_or_else(bad)?),
                 _ => patch.mentionable = Some(value.as_bool().ok_or_else(bad)?),

@@ -1759,6 +1759,19 @@ async fn seed(
             .await
             .unwrap();
             slot_map.insert("map_id", map.to_string());
+            // BRG-SYN-002: one open conflict of the tenant's bridge, so that the `{conflict_id}` routes name
+            // the tenant's own row (the cross-tenant sweep then proves the other tenant's id is not reachable).
+            let conflict = ids.generate().get() as i64;
+            sqlx::query(
+                "INSERT INTO bridge_conflicts (id, guild_id, kind, object_kind, field, discord_value, sr_value) \
+                 VALUES ($1, $2, 'permission_reverted', 'role', 'permissions', '\"8\"', '\"2048\"')",
+            )
+            .bind(conflict)
+            .bind(guild)
+            .execute(&pool)
+            .await
+            .unwrap();
+            slot_map.insert("conflict_id", conflict.to_string());
         }
     }
     // PRF-RNG-001 (integration, own block): per tenant a live text ring shared with the tenant's server
@@ -3529,6 +3542,8 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         }
         // The seeded map only receives: keeping it so needs no webhook, so nothing reaches Discord.
         ("PATCH", "/guilds/{guild_id}/bridge/maps/{map_id}") => r#"{"direction":"from_discord"}"#,
+        // BRG-SYN-002: nothing to apply on a permission conflict, so an admitted caller gets a 409, not a change.
+        ("POST", "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord") => "{}",
         ("PATCH", "/guilds/{guild_id}/scrapbook/{entry_id}") => r#"{"tags":["authz"]}"#,
         // PRF-RNG-001: a text ring for the caller's friends.
         ("POST", "/users/@me/rings") => r#"{"kind":"text","text":"authz","audience":"friends"}"#,
