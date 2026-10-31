@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   Combobox,
   ColorPicker,
@@ -26,7 +27,8 @@ import {
   useSettingsForm,
   type Viewer,
 } from '../hooks';
-import { PERM, bitsToValues, has, permissionGroups, toBig } from '../permissions';
+import { PERM, PERMISSIONS, bitsToValues, has, permissionGroups, toBig } from '../permissions';
+import { useRolePrefill, useWholeMirrors } from '../bridge/mirrors';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, ColorDot, NotAvailable, SectionHeader, useAction } from '../ui';
 import { ImageField } from './ImageField';
@@ -97,6 +99,11 @@ function RolesEditor({
   const [blocked, setBlocked] = useState(false);
   const [viewAs, setViewAs] = useState(false);
   const action = useAction();
+  const mirrors = useWholeMirrors(guildId);
+  const prefillRole = useRolePrefill((s) => (s.prefill?.guildId === guildId ? s.prefill.roleId : null));
+  useEffect(() => {
+    if (prefillRole) setSelectedId(prefillRole);
+  }, [prefillRole]);
   const { members } = useMembers(guildId);
   const counts = useMemo(() => {
     const c = new Map<string, number>();
@@ -241,6 +248,9 @@ function RolesEditor({
                 >
                   {r.name}
                 </button>
+                {mirrors?.roles.some((m) => m.role_id === r.id) && (
+                  <Badge variant="accent">{t('settings.bridgeSync.role.mirrored')}</Badge>
+                )}
                 <span className="ss-meta">
                   {t('settings.roles.memberCount', { count: String(counts.get(r.id) ?? 0) })}
                 </span>
@@ -367,6 +377,13 @@ function RoleEditor({
   );
   const draft = useDraft(base);
   const action = useAction();
+  const mirrors = useWholeMirrors(guildId);
+  const mirror = mirrors?.roles.find((m) => m.role_id === role.id);
+  const prefill = useRolePrefill((s) => s.prefill);
+  const setPrefill = useRolePrefill((s) => s.set);
+  const [prefilled, setPrefilled] = useState(
+    () => prefill?.guildId === guildId && prefill.roleId === role.id,
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const name = draft.value.name.trim();
   const nameError =
@@ -410,6 +427,31 @@ function RoleEditor({
   });
   useEffect(() => onDirty(draft.dirty), [onDirty, draft.dirty]);
 
+  // "Apply on SIDE ROOM" from the conflict log: Discord's attempted permissions fill the form; nothing is saved.
+  const prefillKey = prefill && prefill.guildId === guildId && prefill.roleId === role.id ? prefill : null;
+  useEffect(() => {
+    if (!prefillKey) return;
+    const asked = new Set(prefillKey.permissions);
+    let bits = toBig(role.permissions);
+    for (const p of PERMISSIONS) {
+      if (p.bit >= 56) continue;
+      const bit = PERM[p.id]!;
+      bits = asked.has(p.id) ? bits | bit : bits & ~bit;
+    }
+    draft.set('permissions', String(bits));
+    setPrefilled(true);
+    setPrefill(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillKey]);
+  const groups = useMemo(
+    () =>
+      mirror
+        ? GROUPS.map((g) =>
+            g.id === 'sideroom' ? { ...g, label: t('settings.bridgeSync.role.srOnlyGroup') } : g,
+          )
+        : GROUPS,
+    [mirror, t],
+  );
   const perms = toBig(draft.value.permissions);
   const values = useMemo(() => bitsToValues(perms), [perms]);
   const setPerm = (id: string, v: TriState) => {
@@ -590,13 +632,28 @@ function RoleEditor({
         : t('settings.roles.tabPermissions'),
       content: (
         <div className="ss-form">
+          {prefilled && (
+            <Notice variant="info" title={t('settings.bridgeSync.conflicts.prefillTitle')}>
+              {t('settings.bridgeSync.conflicts.prefillBody')}
+            </Notice>
+          )}
+          {mirror && (
+            <p>
+              <Badge variant="accent">
+                {mirror.state === 'frozen'
+                  ? t('settings.bridgeSync.role.frozen')
+                  : t('settings.bridgeSync.role.mirrored')}
+              </Badge>{' '}
+              <span className="ss-sub">{t('settings.bridgeSync.role.orderNote')}</span>
+            </p>
+          )}
           {has(perms, PERM.ADMINISTRATOR!) && (
             <Notice variant="warning" title={t('settings.roles.adminTitle')}>
               {t('settings.roles.adminBody')}
             </Notice>
           )}
           <PermissionMatrix
-            groups={GROUPS}
+            groups={groups}
             values={values}
             mode="binary"
             lockedReason={lockedReason}
@@ -612,6 +669,16 @@ function RoleEditor({
               </Button>
             }
           />
+          {mirror && mirror.discord_only.length > 0 && (
+            <Notice variant="info" title={t('settings.bridgeSync.role.discordOnlyTitle')}>
+              <p>{t('settings.bridgeSync.role.discordOnlyBody')}</p>
+              <ul>
+                {mirror.discord_only.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
           <StorageGrantsCard
             key={role.id}
             guildId={guildId}
@@ -659,7 +726,12 @@ function RoleEditor({
         </Notice>
       )}
       <ActionStatus error={action.error} done={action.done} />
-      <Tabs items={tabs} label={t('settings.roles.settingsLabel')} className="ss-tabs" />
+      <Tabs
+        items={tabs}
+        label={t('settings.roles.settingsLabel')}
+        className="ss-tabs"
+        {...(prefilled ? { defaultValue: 'permissions' } : {})}
+      />
       {!isEveryone && !role.managed && (
         <div className="ss-actions" style={{ marginTop: 24 }}>
           <Button
