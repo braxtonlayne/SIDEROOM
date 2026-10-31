@@ -62,9 +62,18 @@ async function installStandIn(page: Page, guildId: string, roleId: string, st: S
         { id: 'r2', kind: 'role', name: 'Regulars', action: 'create_there' },
       ],
       categories: [],
-      channels: [{ id: 'c1', kind: 'channel', name: 'general', discord_name: 'general', action: 'match' }],
+      channels: [
+        { id: 'c1', kind: 'channel', name: 'general', discord_name: 'general', action: 'match' },
+      ],
       threads: [],
-      discord_changes: [{ id: 'x1', target: 'role', name: 'Manager', text: 'Role Manager on Discord gets Manage Server' }],
+      discord_changes: [
+        {
+          id: 'x1',
+          target: 'role',
+          name: 'Manager',
+          text: 'Role Manager on Discord gets Manage Server',
+        },
+      ],
       imports: [],
       not_mirrored: [],
       estimate: { discord_calls: 12, seconds: 30 },
@@ -180,7 +189,9 @@ test.describe('the whole-server Discord mirror', () => {
       await dialog.getByRole('button', { name: 'Confirm and start' }).click();
       await expect(owner.getByTestId('bridge-sync-status').getByText('In sync')).toBeVisible();
       expect(st.modeBody).toEqual({ mode: 'whole_guild', plan_id: 'p1', plan_hash: 'hash-1' });
-      await expect(owner.getByText(/Everything in this server except direct messages/)).toBeVisible();
+      await expect(
+        owner.getByText(/Everything in this server except direct messages/),
+      ).toBeVisible();
 
       // A Discord admin edits a permission; the bridge undid it and logged it.
       st.conflicts = [

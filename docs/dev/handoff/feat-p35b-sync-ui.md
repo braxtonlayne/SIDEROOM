@@ -1,0 +1,49 @@
+# feat/p35b-sync-ui (BRG-SYN-004): the whole-server mirror, front end and docs
+
+Branch `feat/p35b-sync-ui`, base `integration/phase35b` (a98c3540). No migrations (1758 and 1759 unused). No Rust. Built against MSW with every route shape in one file, `apps/web/src/settings/server/bridge/api.ts` (section "Wave 35b"); the integrator reconciles it with the real routes of sync-core and sync-perms. Not pushed.
+
+## Done
+
+| Item (design 17 / 15) | Where |
+|---|---|
+| Mode card: Only bridge these / Bridge the whole server, owner-only change (greyed with the reason for a manager), Administrator warning, "go back" with a confirm that says nothing is deleted | `bridge/ModeCard.tsx` |
+| Preflight checklist with "Check again", blockers stop the plan | `bridge/Preflight.tsx` |
+| Plan screen: seed choice, tabs Roles / Channels / Threads / Changes on Discord / Imported from Discord (dangerous bits marked, per-row toggle) / Not mirrored (reason per row) / Blockers with counts, unlink and link by hand, estimate, 15-minute expiry, Rebuild, 409 `BRIDGE_PLAN_STALE` handling, Confirm owner-only, disabled while blockers exist, confirm dialog with the privacy sentence | `bridge/PlanView.tsx` |
+| Sync status: state, seed progress, bot checks, last reconcile, queue, dead ops, rate-limit wait, counts, Reconcile now, Pause / Resume, the Discord-side window explained | `bridge/SyncStatus.tsx` |
+| Conflict log: filter by kind, include resolved, per-kind actions (Apply on SIDE ROOM, Take Discord's, Restore, Delete now, Unfreeze, Retry, Dismiss) run as the clicking person | `bridge/ConflictLog.tsx` |
+| "Apply on SIDE ROOM": opens the role editor with Discord's attempted shared bits filled in and a notice; SR-only bits kept; nothing saved until the person saves | `bridge/mirrors.ts` (`useRolePrefill`), `sections/Roles.tsx` |
+| Role editor: "Mirrored to Discord" badge (also in the role list), the SIDE ROOM bits group renamed "SIDE ROOM only, not sent to Discord", read-only "Set on Discord" for Discord-only bits, order note | `sections/Roles.tsx` |
+| Channel settings: mirrored / frozen badge, held and degraded reasons, per-person overwrites marked "SIDE ROOM only" | `sections/Channels.tsx` |
+| Member list: in whole-server mode Discord members sit under the hoisted SIDE ROOM roles their Discord roles map to (`role_ids`, display only), in the role colour, online / offline like everyone; selective keeps the "On Discord" group | `lounge/memberGroups.ts`, `lounge/MemberList.tsx`, `lounge/bridge/BridgedMemberViews.tsx` |
+| Teardown dialog, whole-server: leave Discord as it is (default), also remove what the bridge created (counts, warning for channels with Discord members' messages), also restore Discord's permissions (off, disabled without a snapshot), "the bot never deletes what it did not create", residue ids on the done screen | `bridge/TeardownDialog.tsx` |
+| Privacy texts: whole-server notice on the screen and in the confirm dialog, channel banner variant, one sentence per server on the privacy page, a line on the Modules card | `BridgeSection.tsx`, `BridgeCard.tsx`, `lounge/bridge/Banner.tsx`, `help/BridgedChannels.tsx`, fragment `i18n/messages/en/p35b-sync-ui-1.ts` |
+| Docs | `docs/07` (Discord bridge bit table and rules), `docs/05` (routes), `docs/09` (retention row), `docs/legal/lawyer-brief.md` (Q21 addendum) |
+| Playwright spec (written) | `e2e/tests/bridge-whole-guild.spec.ts` |
+
+## Routes the UI expects (for the integrator; classes per design 16.3)
+
+Under `/guilds/{g}/bridge`: `GET preflight`, `POST plan`, `GET|PATCH plan/{id}`, `GET sync` (name is mine; sync-core may call it `status`), `POST reconcile|pause|resume`, `GET conflicts?kind=&open=`, `POST conflicts/{id}/{take-discord|restore|delete-now|unfreeze|retry|dismiss}`: `bridge_admin`. `POST mode`: `guild_owner` + MFA. `GET mirrors` (any member: badges; 404 while off) and `GET teardown-preview` (`bridge_admin`) are additions of mine that the design did not name. Also: `PATCH sr/features/bridge.enabled` takes `teardown:{remove_created, restore_permissions}` and answers `teardown.residue`; `GET members` gains `role_ids`; a channel's `sr_bridge` gains `mode`; `GET status` carries `bridge.mode` (already in wave 35). Every one needs a row in `route_matrix.tsv` and `authz_matrix.rs` (sync-perms owns that).
+
+## Tests run
+
+- `vitest` new file `bridge/__tests__/sync.test.tsx`, 17 tests: mode card (manager vs owner, back to selective with no plan), preflight blocker, plan tabs and counts, confirm sends `{mode, plan_id, plan_hash}`, blockers disable confirm, manager cannot confirm, stale 409, unlink PATCH, sync status and pause, paused-for-access state, conflict rows and actions, Apply on SIDE ROOM prefill without a save, role editor badge / group / Discord-only bits, channel overwrite mark, member grouping (pure), teardown options body and residue. All pass. Existing bridge, lounge, help, settings, i18n suites pass: `src/settings/server`, `src/lounge`, `src/help` (1,027 tests with the wasm dist copied in), `src/i18n`, `src/app` (48).
+- `tsc --noEmit` for `@sideroom/web` and `@sideroom/e2e`, eslint on the touched folders, `prettier --check apps/web e2e`: pass.
+- Full web vitest, build and bundle budget: see the end of this file.
+
+## Not done, and why
+
+- **Playwright was NOT run.** The wave-35 integration worktree and its `sr-server.exe` were deleted from `SIDEROOM_wt` (cleanup), so there is no server binary, and building one is the Rust build I was told to avoid. The spec is written and typechecks; it runs the real switch-on and bot connection against the fake Discord on 8090 (as `bridge.spec.ts`) and answers the 35b routes with a `page.route` stand-in. The integrator should run it (`node e2e/support/fake-discord.mjs`, server pointed at it, Vite 5173) and swap the stand-in for the real routes plus sync-gateway's stateful fake (the spec the design describes: edit a role on the fake and see it reverted, rename and delete a channel on the fake). The scratch database I made (`sr_p35b_syncui`) is dropped, the fake process stopped.
+- "Apply on SIDE ROOM" for a channel overwrite only opens the Channels section; the prefill exists for roles only.
+- The permission bit table in the UI is the existing catalog; the three masks live in sync-perms' `sr-core` work, the UI does not duplicate them (the plan and conflicts name permissions by id).
+- Presence of Discord members in whole-server mode: unknown presence is listed with online members, not offline.
+- `docs/dev/handoff` integration notes and the inventory ticking are the integrator's.
+
+## Owner questions (section 19 defaults relied on)
+
+I relied on the stated defaults of **Q1** (role order is set here; the editor says a reorder on Discord is undone), **Q2** (role deletion guard; conflict kind `role_deletion_refused`), **Q3** (member overwrites trimmed; kind `overwrite_trimmed`, member rows marked "SIDE ROOM only"), **Q4** (imports shown with dangerous bits red, owner toggles per row), **Q5** (no exclusion list: the plan has none), **Q6** (new Discord channel takes its parent's permissions; nothing in the UI), **Q7** (no history; the confirm text says so), **Q8** (not synced), **Q9** (voice structure only: the plan lists voice media under "Not mirrored"), **Q10** (teardown: leave by default, remove-created and restore as options, no option to delete what the bot did not create), **Q11** (no UI effect).
+
+Open for the owner: (1) the mode card says the bot needs Administrator; keep that wording? (2) "Include resolved" in the conflict log: how long should resolved rows stay (docs/09 row says 90 days, my proposal)? (3) Should a manager (not only the owner) see the "Go back to Only bridge these" button greyed, or hidden? It is greyed with the reason.
+
+## D-386 proposal (text for the integrator to add to `docs/01-decisions-log.md`)
+
+> **D-386 | The Discord bridge has two modes, and in "Bridge the whole server" SIDE ROOM is the master copy of permissions.** The owner chooses "Only bridge these" (default: the wave-35 channel mirror plus categories and threads, no role or permission sync) or "Bridge the whole server" (one server on two platforms: roles, categories, channels and active threads are created and kept in step on both, messages flow both ways). Changing the mode is the owner's alone (MFA step); managers prepare and read a plan, and the owner confirms a reviewed dry run (hash-checked, 15 minutes). Permissions are set here: role and `@everyone` bits and role overwrites go to Discord only, and an edit made to them on Discord is undone, logged and offered as a proposal ("Apply on SIDE ROOM", an ordinary edit by whoever clicks). Nothing arriving from Discord can raise any member's computed permissions, any role's position or any overwrite here (the Discord-to-SIDE ROOM path has no such field). SIDE ROOM-only bits (56 to 62) never leave and cannot be granted from Discord; Discord-only bits are kept raw on Discord. Role order is set here and a role deletion from Discord is mirrored only if no channel overwrite denies anything to it; a channel deleted on Discord is held 24 hours (setting `bridge.delete_hold_hours`) and restorable. Discord members are display rows (grouped under mapped roles), never accounts and never in authorization. DMs, end-to-end encrypted content and voice are never mirrored. There is no per-member opt-out. Switching off leaves Discord as it is by default; the owner may also remove what the bridge created there or restore Discord's earlier permissions; the bot never deletes what it did not create. The bot needs Administrator and the top role in whole-server mode, shown before the owner confirms. Notice: "Everything in this server except direct messages and voice is mirrored to Discord server X. Who can read it there is decided by Discord's role assignments." | Owner direction (2026-10-30), commander defaults Q1 to Q11 pending the owner |
