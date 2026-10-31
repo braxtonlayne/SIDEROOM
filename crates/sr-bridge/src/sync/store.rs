@@ -360,3 +360,12 @@ pub async fn prune_plans(pool: &PgPool) -> BridgeResult<u64> {
     .await?
     .rows_affected())
 }
+
+/// Bridges left in `seeding` (a restart during the seed): the worker runs their seed again, which resumes.
+pub async fn seeding_guilds(pool: &PgPool) -> BridgeResult<Vec<i64>> {
+    Ok(sqlx::query_scalar(
+        "SELECT guild_id FROM bridges WHERE mode = 'whole_guild' AND sync_state = 'seeding'",
+    )
+    .fetch_all(pool)
+    .await?)
+}

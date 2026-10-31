@@ -372,6 +372,19 @@ mod tests {
     }
 
     #[test]
+    fn a_payload_with_mapped_mentions_gets_our_ids_and_one_without_is_left_alone() {
+        let mut maps = MentionMaps::default();
+        maps.roles.insert(70, 7);
+        let d = json!({"content": "hi <@&70> @everyone", "mentions": []});
+        assert_eq!(
+            mapped_content(&d, &maps).as_deref(),
+            Some("hi <@&7> @\u{200b}everyone")
+        );
+        assert_eq!(mapped_content(&json!({"content": "plain"}), &maps), None);
+        assert_eq!(mapped_content(&json!({}), &maps), None);
+    }
+
+    #[test]
     fn a_plain_message_parses_with_the_nick_first_and_a_cdn_avatar() {
         let m = parse_message(&json!({
             "id": "100", "channel_id": "200", "type": 0, "content": "hi",

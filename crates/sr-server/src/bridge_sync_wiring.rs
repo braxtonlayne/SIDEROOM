@@ -275,6 +275,20 @@ pub fn spawn_sync_worker(engine: SyncEngine, admin: sr_admin::AdminService) -> J
         if let Err(e) = sr_bridge::sync::ops::recover_running(&engine.svc.pool).await {
             tracing::warn!(error = %e, "bridge sync: could not recover running ops");
         }
+        // A seed cut short by a restart resumes (the seed is idempotent: what exists is matched, not made twice).
+        match store::seeding_guilds(&engine.svc.pool).await {
+            Ok(guilds) => {
+                for g in guilds {
+                    let seed = engine.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = seed.run_seed(g).await {
+                            tracing::error!(error = %e, guild = g, "bridge sync: resuming the seed failed");
+                        }
+                    });
+                }
+            }
+            Err(e) => tracing::warn!(error = %e, "bridge sync: could not list seeding bridges"),
+        }
         let mut tick = tokio::time::interval(SYNC_TICK);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         let mut n: u64 = 0;
