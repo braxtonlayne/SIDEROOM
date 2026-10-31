@@ -3579,6 +3579,8 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
             r#"{"guild_id":"{guild_id}"}"#
         }
         ("POST", "/storage/mounts/{mount_id}/folders") => r#"{"key":"Albums/"}"#,
+        // STU-SHF-001: the owner sets the title of a file; the viewer actors are refused before the body is read.
+        ("PUT", "/storage/mounts/{mount_id}/notes") => r#"{"key":"Films/a.mp4","title":"Matrix"}"#,
         // BYOS-CNV-003 (conv-worker, own block): a conversion of a video key, a mount-scoped worker token.
         ("POST", "/storage/mounts/{mount_id}/transcode") => {
             r#"{"key":"Films/a.mkv","format":"mp4","preset":"low"}"#

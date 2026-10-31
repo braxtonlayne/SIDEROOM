@@ -28,7 +28,9 @@ export function ScreeningRoom({ channelId }: { channelId: string }) {
         <div className="vc-screening-actions">
           <Button
             size="sm"
-            onClick={() => (party ? router.history.push(`/cinema/party/${party.id}`) : setOpen(true))}
+            onClick={() =>
+              party ? router.history.push(`/cinema/party/${party.id}`) : setOpen(true)
+            }
           >
             {party ? t('lounge.screeningRoom.join') : t('lounge.screeningRoom.start')}
           </Button>
