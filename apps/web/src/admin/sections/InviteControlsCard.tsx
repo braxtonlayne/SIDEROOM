@@ -41,10 +41,7 @@ export function InviteControlsCard() {
                 </div>
               </div>
               {canLock ? (
-                <Button
-                  variant={c.locked ? 'secondary' : 'danger'}
-                  onClick={() => setDialog(true)}
-                >
+                <Button variant={c.locked ? 'secondary' : 'danger'} onClick={() => setDialog(true)}>
                   {c.locked ? t('admin.invites.doorsUnlock') : t('admin.invites.doorsLock')}
                 </Button>
               ) : (
@@ -77,7 +74,9 @@ export function InviteControlsCard() {
               description={
                 c.locked ? t('admin.invites.unlockDescription') : t('admin.invites.lockDescription')
               }
-              confirmLabel={c.locked ? t('admin.invites.doorsUnlock') : t('admin.invites.doorsLock')}
+              confirmLabel={
+                c.locked ? t('admin.invites.doorsUnlock') : t('admin.invites.doorsLock')
+              }
               onCancel={() => setDialog(false)}
               onConfirm={async (reason) => {
                 const next = await api.setInvitesLocked(!c.locked, reason);

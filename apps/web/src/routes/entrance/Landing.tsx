@@ -14,14 +14,7 @@ import { nav } from '../../lib/enterApp';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
 
 type CheckState =
-  | 'idle'
-  | 'checking'
-  | 'valid'
-  | 'invalid'
-  | 'closed'
-  | 'locked'
-  | 'limited'
-  | 'error';
+  'idle' | 'checking' | 'valid' | 'invalid' | 'closed' | 'locked' | 'limited' | 'error';
 
 const MESSAGES: Partial<Record<CheckState, { tone: 'good' | 'bad'; key: MessageKey }>> = {
   valid: { tone: 'good', key: 'entrance.landing.valid' },
@@ -137,7 +130,9 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
                   autoCapitalize="characters"
                   spellCheck={false}
                   aria-invalid={
-                    state === 'invalid' || state === 'closed' || state === 'locked' ? true : undefined
+                    state === 'invalid' || state === 'closed' || state === 'locked'
+                      ? true
+                      : undefined
                   }
                   aria-describedby="invite-msg"
                 />

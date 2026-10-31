@@ -2848,3 +2848,73 @@ async fn appeal_account_passes_only_a_banned_account_with_its_password() {
         );
     }
 }
+
+// ---- OPS-INV-001: Lock the Doors and the credit seed -----------------------
+
+fn locked_doors(h: &H) {
+    h.store.set_invite_controls(sr_auth::store::InviteControls {
+        locked: true,
+        default_credits: None,
+    });
+}
+
+#[tokio::test]
+async fn a_locked_door_refuses_registration_even_with_a_valid_invite() {
+    let h = harness();
+    let code = h.issuer_with_invite(1, 5);
+    locked_doors(&h);
+    let r = h
+        .post(
+            "/api/v1/sr/register",
+            reg_body(&code, "sam", "sam@example.com"),
+        )
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::FORBIDDEN);
+    assert_eq!(r.body["code"], 900_005);
+    assert_eq!(r.body["message"], "The doors are closed right now.");
+    // Nothing was written: no session, the invite is still open and the issuer kept the credit.
+    assert!(r.cookie("sr_session").is_none());
+    assert_eq!(h.store.balance(1), 5);
+
+    // The invite check answers `locked` for every code, valid or not.
+    for c in [
+        code.formatted(),
+        InviteCode::generate().unwrap().formatted(),
+    ] {
+        let check = h.get(&invite_uri(&c)).send().await;
+        assert_eq!(check.body, json!({"valid": false, "reason": "locked"}));
+    }
+
+    // Lifting the lock lets the same invite through.
+    h.store
+        .set_invite_controls(sr_auth::store::InviteControls::default());
+    let ok = h
+        .post(
+            "/api/v1/sr/register",
+            reg_body(&code, "sam", "sam@example.com"),
+        )
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::CREATED, "{:?}", ok.body);
+}
+
+#[tokio::test]
+async fn the_credit_seed_setting_wins_over_the_configured_one() {
+    let h = harness();
+    let code = h.issuer_with_invite(1, 5);
+    h.store.set_invite_controls(sr_auth::store::InviteControls {
+        locked: false,
+        default_credits: Some(8),
+    });
+    let r = h
+        .post(
+            "/api/v1/sr/register",
+            reg_body(&code, "sam", "sam@example.com"),
+        )
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{:?}", r.body);
+    let id: i64 = r.body["id"].as_str().unwrap().parse().unwrap();
+    assert_eq!(h.store.ledger_for(id), vec![(8, "initial_grant")]);
+}

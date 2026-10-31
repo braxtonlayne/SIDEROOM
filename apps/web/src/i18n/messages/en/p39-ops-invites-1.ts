@@ -12,8 +12,7 @@ export default {
   'admin.invites.doorsOpenHelp': 'Anyone with a valid invite can register.',
   'admin.invites.doorsLock': 'Lock the doors',
   'admin.invites.doorsUnlock': 'Open the doors',
-  'admin.invites.doorsNeedFeatures':
-    'Locking the doors needs the Manage features permission.',
+  'admin.invites.doorsNeedFeatures': 'Locking the doors needs the Manage features permission.',
   'admin.invites.lockTitle': 'Lock the doors?',
   'admin.invites.lockDescription':
     'No new account can be created until you open the doors again. Say why; it goes into the audit log.',

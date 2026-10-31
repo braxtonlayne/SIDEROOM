@@ -953,3 +953,34 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod invite_controls_tests {
+    use super::*;
+
+    /// OPS-INV-001: the four catalog rows, their defaults and their ranges.
+    #[test]
+    fn the_invite_controls_are_catalog_rows_with_safe_defaults() {
+        let locked = find(INVITES_LOCKED).unwrap();
+        assert_eq!(locked.kind, SettingKind::Boolean);
+        assert_eq!(locked.default_value(), json!(false), "default off (O-6)");
+        assert!(locked.validate(&json!(true)).is_ok());
+        assert!(locked.validate(&json!("yes")).is_err());
+
+        for (key, min, max, default) in [
+            (INVITES_DEFAULT_CREDITS, 0, 1_000, 5),
+            (INVITES_MAX_OUTSTANDING, 1, 1_000, 20),
+            (INVITES_UNUSED_CODE_DAYS, 1, 3_650, 30),
+        ] {
+            let d = find(key).unwrap();
+            assert_eq!(d.group, "invites", "{key}");
+            assert_eq!(d.default_value(), json!(default), "{key}");
+            assert!(d.validate(&json!(min)).is_ok(), "{key}");
+            assert!(d.validate(&json!(max)).is_ok(), "{key}");
+            assert!(d.validate(&json!(min - 1)).is_err(), "{key}");
+            assert!(d.validate(&json!(max + 1)).is_err(), "{key}");
+        }
+        // The old name was never read by registration; it is gone, not duplicated.
+        assert!(find("invites.initial_credits").is_none());
+    }
+}
