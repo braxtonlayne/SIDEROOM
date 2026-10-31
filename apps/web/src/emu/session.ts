@@ -39,7 +39,13 @@ export interface StartOptions {
 
 export const contentFileName = (romName: string): string => {
   const i = romName.lastIndexOf('.');
-  const ext = i > 0 ? romName.slice(i + 1).toLowerCase().replace(/[^a-z0-9]/g, '') : 'bin';
+  const ext =
+    i > 0
+      ? romName
+          .slice(i + 1)
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+      : 'bin';
   return `${CONTENT_STEM}.${ext || 'bin'}`;
 };
 
@@ -105,11 +111,13 @@ export class EmuSession {
   /** Press or release a RetroPad button of a player (0 to 3). */
   setButton(player: number, button: Button, pressed: boolean): void {
     if (!this.running) return;
-    (this.fn('simulate_input', null, ['number', 'number', 'number']) as (
-      p: number,
-      i: number,
-      v: number,
-    ) => void)(player, retroIndex(button), pressed ? 1 : 0);
+    (
+      this.fn('simulate_input', null, ['number', 'number', 'number']) as (
+        p: number,
+        i: number,
+        v: number,
+      ) => void
+    )(player, retroIndex(button), pressed ? 1 : 0);
   }
 
   get supportsStates(): boolean {
@@ -147,7 +155,9 @@ export class EmuSession {
   readSram(): Uint8Array | null {
     try {
       (this.fn('cmd_savefiles', '', []) as () => void)();
-      const path = String(this.fn('save_file_path', 'string', [])() || `${SAVE_DIR}/${CONTENT_STEM}.srm`);
+      const path = String(
+        this.fn('save_file_path', 'string', [])() || `${SAVE_DIR}/${CONTENT_STEM}.srm`,
+      );
       if (!this.m.FS.analyzePath(path).exists) return null;
       const data = this.m.FS.readFile(path);
       return data.length > 0 ? data : null;

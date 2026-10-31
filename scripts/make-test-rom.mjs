@@ -169,7 +169,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       have = null;
     }
     if (!have || Buffer.compare(Buffer.from(rom), have) !== 0) {
-      console.error(`${OUTPUT} differs from the generator output; run node scripts/make-test-rom.mjs`);
+      console.error(
+        `${OUTPUT} differs from the generator output; run node scripts/make-test-rom.mjs`,
+      );
       process.exit(1);
     }
     console.log('test ROM ok');

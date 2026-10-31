@@ -28,8 +28,7 @@ export const retroIndex = (b: Button): number => BUTTONS.indexOf(b);
 
 /** A gamepad control: a button by index, or one direction of an axis. */
 export type PadBinding =
-  | { kind: 'button'; index: number }
-  | { kind: 'axis'; index: number; dir: -1 | 1 };
+  { kind: 'button'; index: number } | { kind: 'axis'; index: number; dir: -1 | 1 };
 
 export interface PadMapping {
   /** `KeyboardEvent.code` per button. */
@@ -198,12 +197,16 @@ const sameBinding = (a: PadBinding | undefined, b: PadBinding) =>
 export function captureStep(state: CaptureState, input: CaptureInput): CaptureState {
   const cur = state.current;
   if (!cur) return state;
-  const mapping: PadMapping = { keyboard: { ...state.mapping.keyboard }, gamepad: { ...state.mapping.gamepad } };
+  const mapping: PadMapping = {
+    keyboard: { ...state.mapping.keyboard },
+    gamepad: { ...state.mapping.gamepad },
+  };
   if (state.target === 'keyboard' && 'key' in input) {
     for (const b of BUTTONS) if (mapping.keyboard[b] === input.key) delete mapping.keyboard[b];
     mapping.keyboard[cur] = input.key;
   } else if (state.target === 'gamepad' && 'binding' in input) {
-    for (const b of BUTTONS) if (sameBinding(mapping.gamepad[b], input.binding)) delete mapping.gamepad[b];
+    for (const b of BUTTONS)
+      if (sameBinding(mapping.gamepad[b], input.binding)) delete mapping.gamepad[b];
     mapping.gamepad[cur] = input.binding;
   } else {
     return state;
@@ -240,7 +243,8 @@ export const MAPPING_KEY = 'sr.emu.pad.v1';
 const isBinding = (v: unknown): v is PadBinding => {
   if (!v || typeof v !== 'object') return false;
   const o = v as Record<string, unknown>;
-  if (typeof o.index !== 'number' || !Number.isInteger(o.index) || o.index < 0 || o.index > 64) return false;
+  if (typeof o.index !== 'number' || !Number.isInteger(o.index) || o.index < 0 || o.index > 64)
+    return false;
   if (o.kind === 'button') return true;
   return o.kind === 'axis' && (o.dir === 1 || o.dir === -1);
 };
@@ -250,7 +254,10 @@ export function parseMapping(raw: string | null): PadMapping {
   const out = defaultMapping();
   if (!raw) return out;
   try {
-    const j = JSON.parse(raw) as { keyboard?: Record<string, unknown>; gamepad?: Record<string, unknown> };
+    const j = JSON.parse(raw) as {
+      keyboard?: Record<string, unknown>;
+      gamepad?: Record<string, unknown>;
+    };
     for (const b of BUTTONS) {
       const k = j.keyboard?.[b];
       if (typeof k === 'string' && k.length > 0 && k.length < 32) out.keyboard[b] = k;

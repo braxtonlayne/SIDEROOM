@@ -98,11 +98,15 @@ describe('loading a core', () => {
     expect(opts).toMatchObject({ noInitialRun: true, canvas });
   });
   it('says the core is missing for a 404 and for an index page served in its place', async () => {
-    const notFound = deps({ fetch: (async () => new Response(null, { status: 404 })) as typeof fetch });
+    const notFound = deps({
+      fetch: (async () => new Response(null, { status: 404 })) as typeof fetch,
+    });
     await expect(loadCore(CORES.blastem, { canvas }, notFound)).rejects.toMatchObject({
       why: 'missing',
     });
-    const html = deps({ fetch: (async () => new Response('<!doctype html><html>')) as typeof fetch });
+    const html = deps({
+      fetch: (async () => new Response('<!doctype html><html>')) as typeof fetch,
+    });
     await expect(loadCore(CORES.supafaust, { canvas }, html)).rejects.toBeInstanceOf(
       CoreUnavailableError,
     );

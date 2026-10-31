@@ -19,7 +19,9 @@ describe('the core is chosen by extension and header', () => {
   });
   it('lets the header beat the extension', () => {
     expect(detectPlatform('x.bin', buf(64, { 0: [0x4e, 0x45, 0x53, 0x1a] }))).toBe('nes');
-    expect(detectPlatform('x.bin', buf(0x200, { 0x100: [0x53, 0x45, 0x47, 0x41] }))).toBe('genesis');
+    expect(detectPlatform('x.bin', buf(0x200, { 0x100: [0x53, 0x45, 0x47, 0x41] }))).toBe(
+      'genesis',
+    );
     expect(detectPlatform('x.bin', buf(0xc0, { 4: [0x24, 0xff, 0xae, 0x51], 0xb2: [0x96] }))).toBe(
       'gba',
     );

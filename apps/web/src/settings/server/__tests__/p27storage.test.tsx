@@ -40,7 +40,7 @@ describe('Server settings > Storage (BYOS-UI-001, against MSW mocks)', () => {
 });
 
 describe('Role editor > Storage grants', () => {
-  it('shows the five grants, saves one through the grants route, and keeps them out of the permission catalog', async () => {
+  it('shows the six grants, saves one through the grants route, and keeps them out of the permission catalog', async () => {
     seed({ perms: [MANAGE.roles, MANAGE.guild], position: 7 });
     const user = userEvent.setup();
     let put: unknown;
@@ -60,8 +60,9 @@ describe('Role editor > Storage grants', () => {
     await openSettings('roles');
     await user.click(await screen.findByRole('button', { name: 'Member' }));
     await user.click(screen.getByRole('tab', { name: 'Permissions' }));
-    expect(screen.getAllByRole('switch', { name: /storage|shelf/i })).toHaveLength(5);
+    expect(screen.getAllByRole('switch', { name: /storage|shelf/i })).toHaveLength(6);
     expect(screen.getByRole('switch', { name: 'View shelf movies and shows' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: /View shelf games/ })).not.toBeChecked();
     await user.click(screen.getByRole('switch', { name: 'Upload to the shelf' }));
     await waitFor(() => expect(put).toEqual({ role_id: 'low', grants: ['view_cinema', 'upload'] }));
     expect(PERMISSIONS.some((p) => /storage|shelf/i.test(p.id))).toBe(false);

@@ -20,7 +20,22 @@ interface CoopSourceModule {
 const sources = import.meta.glob<CoopSourceModule>('./coop/source.ts');
 
 const BY_INDEX: readonly Button[] = [
-  'b', 'y', 'select', 'start', 'up', 'down', 'left', 'right', 'a', 'x', 'l', 'r', 'l2', 'r2', 'l3', 'r3',
+  'b',
+  'y',
+  'select',
+  'start',
+  'up',
+  'down',
+  'left',
+  'right',
+  'a',
+  'x',
+  'l',
+  'r',
+  'l2',
+  'r2',
+  'l3',
+  'r3',
 ];
 
 /** The game object the co-op code drives: pad inputs of remote players go straight to the session. */

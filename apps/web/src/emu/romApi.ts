@@ -23,7 +23,8 @@ export interface RomItem {
   guild_id?: string | null;
 }
 
-export const romPlatform = (r: RomItem): Platform | null => (isPlatform(r.platform) ? r.platform : null);
+export const romPlatform = (r: RomItem): Platform | null =>
+  isPlatform(r.platform) ? r.platform : null;
 
 export const listRoms = () =>
   apiFetch<{ roms: RomItem[] }>('/users/@me/games/roms', { retries: 0 }).then((r) => r.roms);
@@ -119,7 +120,8 @@ export async function listBiosFiles(mounts: readonly Mount[]): Promise<BiosCandi
     try {
       const page = await listObjects(m.id, BIOS_PREFIX);
       for (const o of page.objects) {
-        if (o.size === 512 * 1024) out.push({ mountId: m.id, mountLabel: m.label, key: o.key, size: o.size });
+        if (o.size === 512 * 1024)
+          out.push({ mountId: m.id, mountLabel: m.label, key: o.key, size: o.size });
       }
     } catch {
       /* a mount that cannot be listed offers no BIOS */

@@ -43,25 +43,72 @@ function colourFor(rom: Uint8Array, p1A: boolean, p2A: boolean): number {
       n = (v & 0x80) !== 0;
     };
     switch (op) {
-      case 0x78: case 0xd8: case 0x9a: pc += 1; break;
-      case 0xe8: x = (x + 1) & 0xff; flags(x); pc += 1; break;
-      case 0xa2: x = b1; flags(x); pc += 2; break;
-      case 0xa9: a = b1; flags(a); pc += 2; break;
-      case 0x29: a &= b1; flags(a); pc += 2; break;
-      case 0x85: mem[b1] = a; pc += 2; break;
-      case 0xa5: a = mem[b1]!; flags(a); pc += 2; break;
-      case 0xa6: x = mem[b1]!; flags(x); pc += 2; break;
-      case 0xad: a = rd(abs); flags(a); pc += 3; break;
-      case 0x2c: n = (rd(abs) & 0x80) !== 0; pc += 3; break;
-      case 0x10: pc += 2 + (n ? 0 : (b1 << 24) >> 24); break;
-      case 0xf0: pc += 2 + (z ? (b1 << 24) >> 24 : 0); break;
-      case 0x4c: pc = abs; break;
-      case 0x8d: case 0x8e:
-        if (abs === 0x2006) ppuAddr.push(op === 0x8d ? a : x);
-        if (abs === 0x2007 && ppuAddr.length >= 2 && ppuAddr[0] === 0x3f && ppuAddr[1] === 0x00) return a;
+      case 0x78:
+      case 0xd8:
+      case 0x9a:
+        pc += 1;
+        break;
+      case 0xe8:
+        x = (x + 1) & 0xff;
+        flags(x);
+        pc += 1;
+        break;
+      case 0xa2:
+        x = b1;
+        flags(x);
+        pc += 2;
+        break;
+      case 0xa9:
+        a = b1;
+        flags(a);
+        pc += 2;
+        break;
+      case 0x29:
+        a &= b1;
+        flags(a);
+        pc += 2;
+        break;
+      case 0x85:
+        mem[b1] = a;
+        pc += 2;
+        break;
+      case 0xa5:
+        a = mem[b1]!;
+        flags(a);
+        pc += 2;
+        break;
+      case 0xa6:
+        x = mem[b1]!;
+        flags(x);
+        pc += 2;
+        break;
+      case 0xad:
+        a = rd(abs);
+        flags(a);
         pc += 3;
         break;
-      default: throw new Error(`unmodelled opcode ${op.toString(16)} at ${pc.toString(16)}`);
+      case 0x2c:
+        n = (rd(abs) & 0x80) !== 0;
+        pc += 3;
+        break;
+      case 0x10:
+        pc += 2 + (n ? 0 : (b1 << 24) >> 24);
+        break;
+      case 0xf0:
+        pc += 2 + (z ? (b1 << 24) >> 24 : 0);
+        break;
+      case 0x4c:
+        pc = abs;
+        break;
+      case 0x8d:
+      case 0x8e:
+        if (abs === 0x2006) ppuAddr.push(op === 0x8d ? a : x);
+        if (abs === 0x2007 && ppuAddr.length >= 2 && ppuAddr[0] === 0x3f && ppuAddr[1] === 0x00)
+          return a;
+        pc += 3;
+        break;
+      default:
+        throw new Error(`unmodelled opcode ${op.toString(16)} at ${pc.toString(16)}`);
     }
   }
   throw new Error('the program never painted');

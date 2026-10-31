@@ -48,7 +48,10 @@ export interface MountLike {
  * The mount saves go to: the member's own (never a server's shelf, never the instance bucket), working, with its CORS
  * check passed. A saved choice wins when it is still one of those.
  */
-export function pickSaveMount<M extends MountLike>(mounts: readonly M[], preferred?: string | null): M | null {
+export function pickSaveMount<M extends MountLike>(
+  mounts: readonly M[],
+  preferred?: string | null,
+): M | null {
   const ok = mounts.filter((m) => m.owner_kind === 'user' && m.status === 'active' && m.cors_ok_at);
   return ok.find((m) => m.id === preferred) ?? ok[0] ?? null;
 }
@@ -60,7 +63,10 @@ export interface SaveIo {
 
 export const realSaveIo: SaveIo = {
   presign: (mountId, key, method) =>
-    apiPost<{ url: string }>(`/storage/mounts/${encodeURIComponent(mountId)}/presign`, { key, method }),
+    apiPost<{ url: string }>(`/storage/mounts/${encodeURIComponent(mountId)}/presign`, {
+      key,
+      method,
+    }),
   fetch: (...a) => fetch(...a),
 };
 

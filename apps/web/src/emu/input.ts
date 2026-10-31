@@ -47,7 +47,8 @@ export class InputPoller {
     const now = this.state();
     now.forEach((next, player) => {
       const before = this.prev[player] ?? new Set<Button>();
-      for (const ev of diffButtons(player, before, next)) this.send(ev.player, ev.button, ev.pressed);
+      for (const ev of diffButtons(player, before, next))
+        this.send(ev.player, ev.button, ev.pressed);
       this.prev[player] = next;
     });
   }

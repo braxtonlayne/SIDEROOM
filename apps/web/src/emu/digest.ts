@@ -15,10 +15,13 @@ export async function sha1Hex(bytes: Uint8Array): Promise<string> {
 
 const S = [
   7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14,
-  20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10,
-  15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+  20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6,
+  10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
 ];
-const K = Array.from({ length: 64 }, (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0);
+const K = Array.from(
+  { length: 64 },
+  (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0,
+);
 
 export function md5Hex(bytes: Uint8Array): string {
   const len = bytes.length;
