@@ -268,6 +268,19 @@ pub fn link_expiry_ms(url: &str, now_ms: i64) -> i64 {
 /// (a name, not a `<@id>` token the server would resolve), `@everyone` and `@here` get a zero-width space, custom
 /// emoji become `:name:` (the emoji does not exist here, note 8), and the result is cut to [`MAX_CONTENT_CHARS`].
 pub fn clean_content(raw: &str, mentions: &[(i64, String)]) -> String {
+    clean_content_mapped(raw, mentions, &MentionMaps::default())
+}
+
+/// Discord role and channel ids to the SIDE ROOM ids they are mapped to (whole-guild mirror, BRG-SYN-003).
+#[derive(Debug, Default, Clone)]
+pub struct MentionMaps {
+    pub roles: std::collections::HashMap<i64, i64>,
+    pub channels: std::collections::HashMap<i64, i64>,
+}
+
+/// [`clean_content`] that keeps mapped `<@&role>` and `<#channel>` as the SIDE ROOM role and channel mention.
+/// The sink records no mention, so a role mention coming from Discord pings nobody here.
+pub fn clean_content_mapped(raw: &str, mentions: &[(i64, String)], maps: &MentionMaps) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut rest = raw;
     while let Some(start) = rest.find('<') {
@@ -275,7 +288,7 @@ pub fn clean_content(raw: &str, mentions: &[(i64, String)]) -> String {
         let tail = &rest[start..];
         if let Some(end) = tail.find('>').filter(|e| *e <= 64) {
             let token = &tail[1..end];
-            if let Some(repl) = rewrite_token(token, mentions) {
+            if let Some(repl) = rewrite_token(token, mentions, maps) {
                 out.push_str(&repl);
                 rest = &tail[end + 1..];
                 continue;
@@ -297,7 +310,7 @@ pub fn clean_content(raw: &str, mentions: &[(i64, String)]) -> String {
     }
 }
 
-fn rewrite_token(token: &str, mentions: &[(i64, String)]) -> Option<String> {
+fn rewrite_token(token: &str, mentions: &[(i64, String)], maps: &MentionMaps) -> Option<String> {
     if let Some(id) = token
         .strip_prefix("@!")
         .or_else(|| token.strip_prefix('@').filter(|r| !r.starts_with('&')))
@@ -308,16 +321,16 @@ fn rewrite_token(token: &str, mentions: &[(i64, String)]) -> Option<String> {
         let _ = mentions;
         return Some(format!("<@{id}>"));
     }
-    if token
-        .strip_prefix("@&")
-        .is_some_and(|r| r.parse::<i64>().is_ok())
-    {
+    if let Some(id) = token.strip_prefix("@&").and_then(|r| r.parse::<i64>().ok()) {
+        if let Some(sr) = maps.roles.get(&id) {
+            return Some(format!("<@&{sr}>"));
+        }
         return Some("@\u{200b}role".to_owned());
     }
-    if token
-        .strip_prefix('#')
-        .is_some_and(|r| r.parse::<i64>().is_ok())
-    {
+    if let Some(id) = token.strip_prefix('#').and_then(|r| r.parse::<i64>().ok()) {
+        if let Some(sr) = maps.channels.get(&id) {
+            return Some(format!("<#{sr}>"));
+        }
         return Some("#channel".to_owned());
     }
     // <:name:id> and <a:name:id>
@@ -335,6 +348,18 @@ fn rewrite_token(token: &str, mentions: &[(i64, String)]) -> Option<String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn mapped_roles_and_channels_become_ours_and_the_rest_stays_text() {
+        let mut maps = MentionMaps::default();
+        maps.roles.insert(70, 7);
+        maps.channels.insert(90, 9);
+        assert_eq!(
+            clean_content_mapped("<@&70> <#90> <@&71> <#91>", &[], &maps),
+            "<@&7> <#9> @\u{200b}role #channel"
+        );
+        assert_eq!(clean_content("<@&70> <#90>", &[]), "@\u{200b}role #channel");
+    }
 
     #[test]
     fn a_plain_message_parses_with_the_nick_first_and_a_cdn_avatar() {
