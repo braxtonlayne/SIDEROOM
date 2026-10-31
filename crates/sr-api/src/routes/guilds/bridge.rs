@@ -199,7 +199,7 @@ fn s(v: i64) -> String {
     v.to_string()
 }
 
-fn map_err(e: BridgeError) -> HttpError {
+pub(super) fn map_err(e: BridgeError) -> HttpError {
     match e {
         BridgeError::NotFound(what) => {
             ApiError::with_message(ErrorCode::SrNotFound, format!("Unknown {what}")).into()
@@ -278,10 +278,10 @@ fn direction(raw: &str) -> ApiResult<Direction> {
 }
 
 /// Who may call and in which state of the switches.
-struct Caller {
-    gid: i64,
-    user: i64,
-    acc: GuildAccess,
+pub(super) struct Caller {
+    pub(super) gid: i64,
+    pub(super) user: i64,
+    pub(super) acc: GuildAccess,
 }
 
 /// Resolve the session, the server and its access; no switch is checked yet.
@@ -320,7 +320,7 @@ async fn switches(bridge: &BridgeService, gid: i64) -> ApiResult<()> {
 }
 
 /// A `MANAGE_GUILD` manager of a server whose bridge is on (class `bridge_admin`).
-async fn bridge_admin(
+pub(super) async fn bridge_admin(
     p: &crate::Principal,
     deps: &SettingsDeps,
     bridge: &BridgeService,

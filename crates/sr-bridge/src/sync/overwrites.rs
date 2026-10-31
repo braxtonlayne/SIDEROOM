@@ -110,6 +110,11 @@ pub struct PushPlan {
     pub changed: bool,
 }
 
+/// Drop what no Discord word may carry (SIDE ROOM-only bits and bit 63): garbage in, never echoed back.
+fn clean(w: u64) -> u64 {
+    w & (Permissions::BRIDGE_SHARED.bits() | DISCORD_ONLY_MASK)
+}
+
 fn kind_rank(k: OverwriteKind) -> u8 {
     match k {
         OverwriteKind::Role => 0,
@@ -186,7 +191,11 @@ pub fn plan_push(
             continue;
         }
         if protected.covers(c) {
-            desired.push(*c);
+            desired.push(DiscordOverwrite {
+                allow: clean(c.allow),
+                deny: clean(c.deny),
+                ..*c
+            });
             continue;
         }
         let mapped_role = c.kind == OverwriteKind::Role && map.to_sr(c.id).is_some();
@@ -218,9 +227,10 @@ pub fn plan_push(
                     stripped_allow: stripped,
                 });
             }
-            let allow = c.allow & !Permissions::BRIDGE_SHARED.bits();
-            if allow | c.deny != 0 {
-                desired.push(DiscordOverwrite { allow, ..*c });
+            let allow = clean(c.allow) & !Permissions::BRIDGE_SHARED.bits();
+            let deny = clean(c.deny);
+            if allow | deny != 0 {
+                desired.push(DiscordOverwrite { allow, deny, ..*c });
             }
         }
     }

@@ -6052,6 +6052,7 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "futures",
+ "proptest",
  "serde",
  "serde_json",
  "sqlx",

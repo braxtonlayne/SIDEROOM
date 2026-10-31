@@ -13,8 +13,12 @@
 //! anything to. Cases: `SR_PROP_CASES` (default 500; CI nightly 10000). Pure, no database.
 
 use proptest::prelude::*;
-use sr_bridge::sync::overwrites::{DiscordOverwrite, Protected, RoleMapping, inherit_from_parent, plan_push};
-use sr_bridge::sync::perms::{DeletionVerdict, compare_role, push_word, role_deletion_verdict, role_from_discord};
+use sr_bridge::sync::overwrites::{
+    DiscordOverwrite, Protected, RoleMapping, inherit_from_parent, plan_push,
+};
+use sr_bridge::sync::perms::{
+    DeletionVerdict, compare_role, push_word, role_deletion_verdict, role_from_discord,
+};
 use sr_core::permissions::{
     ComputeInput, DISCORD_ONLY_MASK, Overwrite, OverwriteKind, Permissions, compute,
 };
@@ -74,6 +78,7 @@ struct Discord {
     sent_words: Vec<u64>,
 }
 
+#[derive(Debug, Clone)]
 struct World {
     sr: Sr,
     d: Discord,
@@ -127,12 +132,23 @@ impl World {
 enum Ev {
     SetRolePerms(usize, u64),
     SetEveryone(u64),
-    SetOverwrite { chan: usize, target: u8, allow: u64, deny: u64 },
-    DeleteOverwrite { chan: usize, target: u8 },
+    SetOverwrite {
+        chan: usize,
+        target: u8,
+        allow: u64,
+        deny: u64,
+    },
+    DeleteOverwrite {
+        chan: usize,
+        target: u8,
+    },
     Swap(usize, usize),
     DeleteRole(usize),
     CreateRole(u64),
-    CreateChannel { parent: usize, private: bool },
+    CreateChannel {
+        parent: usize,
+        private: bool,
+    },
 }
 
 fn any_word() -> impl Strategy<Value = u64> {
@@ -148,13 +164,20 @@ fn ev() -> impl Strategy<Value = Ev> {
     prop_oneof![
         (0usize..6, any_word()).prop_map(|(i, w)| Ev::SetRolePerms(i, w)),
         any_word().prop_map(Ev::SetEveryone),
-        (0usize..4, 0u8..12, any_word(), any_word())
-            .prop_map(|(chan, target, allow, deny)| Ev::SetOverwrite { chan, target, allow, deny }),
+        (0usize..4, 0u8..12, any_word(), any_word()).prop_map(|(chan, target, allow, deny)| {
+            Ev::SetOverwrite {
+                chan,
+                target,
+                allow,
+                deny,
+            }
+        }),
         (0usize..4, 0u8..12).prop_map(|(chan, target)| Ev::DeleteOverwrite { chan, target }),
         (0usize..6, 0usize..6).prop_map(|(a, b)| Ev::Swap(a, b)),
         (0usize..6).prop_map(Ev::DeleteRole),
         any_word().prop_map(Ev::CreateRole),
-        (0usize..4, any::<bool>()).prop_map(|(parent, private)| Ev::CreateChannel { parent, private }),
+        (0usize..4, any::<bool>())
+            .prop_map(|(parent, private)| Ev::CreateChannel { parent, private }),
     ]
 }
 
@@ -183,17 +206,29 @@ fn apply_event(w: &mut World, e: &Ev) {
             }
         }
         Ev::SetEveryone(v) => w.d.everyone_raw = *v,
-        Ev::SetOverwrite { chan, target: t, allow, deny } => {
+        Ev::SetOverwrite {
+            chan,
+            target: t,
+            allow,
+            deny,
+        } => {
             let n = w.d.channels.len();
             let (id, kind) = target(w, *t);
             let ch = &mut w.d.channels[chan % n];
             ch.overwrites.retain(|o| !(o.id == id && o.kind == kind));
-            ch.overwrites.push(DiscordOverwrite { id, kind, allow: *allow, deny: *deny });
+            ch.overwrites.push(DiscordOverwrite {
+                id,
+                kind,
+                allow: *allow,
+                deny: *deny,
+            });
         }
         Ev::DeleteOverwrite { chan, target: t } => {
             let n = w.d.channels.len();
             let (id, kind) = target(w, *t);
-            w.d.channels[chan % n].overwrites.retain(|o| !(o.id == id && o.kind == kind));
+            w.d.channels[chan % n]
+                .overwrites
+                .retain(|o| !(o.id == id && o.kind == kind));
         }
         Ev::Swap(a, b) => {
             let n = w.d.roles.len();
@@ -209,7 +244,8 @@ fn apply_event(w: &mut World, e: &Ev) {
             if n > 0 {
                 let id = w.d.roles.remove(i % n).id;
                 for c in &mut w.d.channels {
-                    c.overwrites.retain(|o| !(o.kind == OverwriteKind::Role && o.id == id));
+                    c.overwrites
+                        .retain(|o| !(o.kind == OverwriteKind::Role && o.id == id));
                 }
             }
         }
@@ -217,7 +253,11 @@ fn apply_event(w: &mut World, e: &Ev) {
             let id = w.d.next_id;
             w.d.next_id += 1;
             let position = w.d.roles.iter().map(|r| r.position).max().unwrap_or(0) + 1;
-            w.d.roles.push(DRole { id, raw: *raw, position });
+            w.d.roles.push(DRole {
+                id,
+                raw: *raw,
+                position,
+            });
         }
         Ev::CreateChannel { parent, private } => {
             let id = w.d.next_id;
@@ -241,7 +281,11 @@ fn apply_event(w: &mut World, e: &Ev) {
                 deny: 0,
             });
             // A channel is "created under" a parent: remember the parent's SIDE ROOM id through `sr`.
-            w.d.channels.push(DChannel { id, sr: None, overwrites });
+            w.d.channels.push(DChannel {
+                id,
+                sr: None,
+                overwrites,
+            });
             // Stash the parent in `next_parent` by a side table (see `step`).
             PARENT.with(|c| c.borrow_mut().insert(id, p));
         }
@@ -257,13 +301,12 @@ thread_local! {
 
 fn step(w: &mut World) {
     // 1. Roles that exist on Discord but are not mapped (and are not managed): created here with no permissions.
-    let new: Vec<DRole> = w
-        .d
-        .roles
-        .iter()
-        .filter(|r| r.id != MANAGED && !w.pairs.iter().any(|(_, d)| *d == r.id))
-        .cloned()
-        .collect();
+    let new: Vec<DRole> =
+        w.d.roles
+            .iter()
+            .filter(|r| r.id != MANAGED && !w.pairs.iter().any(|(_, d)| *d == r.id))
+            .cloned()
+            .collect();
     for r in new {
         let rf = role_from_discord(r.raw);
         let sr_id = 10_000 + r.id;
@@ -271,7 +314,11 @@ fn step(w: &mut World) {
         for x in &mut w.sr.roles {
             x.position += 1;
         }
-        w.sr.roles.push(SrRole { id: sr_id, perms: rf.permissions, position: rf.position });
+        w.sr.roles.push(SrRole {
+            id: sr_id,
+            perms: rf.permissions,
+            position: rf.position,
+        });
         w.pairs.push((sr_id, r.id));
     }
     // 2. Mapped roles Discord no longer has: deleted here if no overwrite denies them anything, else recreated.
@@ -282,17 +329,17 @@ fn step(w: &mut World) {
         .copied()
         .collect();
     for (sr_id, d_id) in gone {
-        let all: Vec<(i64, &Overwrite)> = w
-            .sr
-            .channels
-            .iter()
-            .flat_map(|c| c.overwrites.iter().map(move |o| (c.id as i64, o)))
-            .collect();
+        let all: Vec<(i64, &Overwrite)> =
+            w.sr.channels
+                .iter()
+                .flat_map(|c| c.overwrites.iter().map(move |o| (c.id as i64, o)))
+                .collect();
         match role_deletion_verdict(sf(G), sf(sr_id), all) {
             DeletionVerdict::Mirror => {
                 w.sr.roles.retain(|r| r.id != sr_id);
                 for c in &mut w.sr.channels {
-                    c.overwrites.retain(|o| !(o.kind == OverwriteKind::Role && o.id == sr_id));
+                    c.overwrites
+                        .retain(|o| !(o.kind == OverwriteKind::Role && o.id == sf(sr_id)));
                 }
                 for m in &mut w.sr.members {
                     m.1.retain(|r| *r != sr_id);
@@ -302,11 +349,19 @@ fn step(w: &mut World) {
             DeletionVerdict::Refuse { .. } => {
                 let new_id = w.d.next_id;
                 w.d.next_id += 1;
-                let sr = w.sr.roles.iter().find(|r| r.id == sr_id).expect("mapped role exists");
+                let sr =
+                    w.sr.roles
+                        .iter()
+                        .find(|r| r.id == sr_id)
+                        .expect("mapped role exists");
                 let pos = sr.position;
                 let word = push_word(sr.perms, 0);
                 w.d.sent_words.push(word);
-                w.d.roles.push(DRole { id: new_id, raw: word, position: pos });
+                w.d.roles.push(DRole {
+                    id: new_id,
+                    raw: word,
+                    position: pos,
+                });
                 for p in &mut w.pairs {
                     if p.0 == sr_id {
                         p.1 = new_id;
@@ -317,7 +372,12 @@ fn step(w: &mut World) {
         }
     }
     // 3. Channels Discord created: here with the SIDE ROOM parent's overwrites.
-    let fresh: Vec<u64> = w.d.channels.iter().filter(|c| c.sr.is_none()).map(|c| c.id).collect();
+    let fresh: Vec<u64> =
+        w.d.channels
+            .iter()
+            .filter(|c| c.sr.is_none())
+            .map(|c| c.id)
+            .collect();
     for did in fresh {
         let parent = PARENT.with(|c| c.borrow().get(&did).copied().flatten());
         let inherited = parent
@@ -325,14 +385,22 @@ fn step(w: &mut World) {
             .map(|c| inherit_from_parent(&c.overwrites))
             .unwrap_or_default();
         let sr_id = 20_000 + did;
-        w.sr.channels.push(SrChannel { id: sr_id, overwrites: inherited });
+        w.sr.channels.push(SrChannel {
+            id: sr_id,
+            overwrites: inherited,
+        });
         if let Some(c) = w.d.channels.iter_mut().find(|c| c.id == did) {
             c.sr = Some(sr_id);
         }
     }
     // 4. Role words: SIDE ROOM's shared bits, Discord-only bits preserved.
     for (sr_id, d_id) in w.pairs.clone() {
-        let sr = w.sr.roles.iter().find(|r| r.id == sr_id).expect("mapped").perms;
+        let sr =
+            w.sr.roles
+                .iter()
+                .find(|r| r.id == sr_id)
+                .expect("mapped")
+                .perms;
         if let Some(dr) = w.d.roles.iter_mut().find(|r| r.id == d_id) {
             let drift = compare_role(sr, dr.raw);
             let word = push_word(sr, drift.discord_only);
@@ -369,10 +437,20 @@ fn step(w: &mut World) {
     }
     // 6. Overwrites of every mapped channel.
     let map = w.mapping();
-    let prot = Protected { bot_user: BOT_USER, bot_roles: vec![] };
+    let prot = Protected {
+        bot_user: BOT_USER,
+        bot_roles: vec![],
+    };
     for i in 0..w.d.channels.len() {
-        let Some(sr_id) = w.d.channels[i].sr else { continue };
-        let sr_ows = w.sr.channels.iter().find(|c| c.id == sr_id).map(|c| c.overwrites.clone()).unwrap_or_default();
+        let Some(sr_id) = w.d.channels[i].sr else {
+            continue;
+        };
+        let sr_ows =
+            w.sr.channels
+                .iter()
+                .find(|c| c.id == sr_id)
+                .map(|c| c.overwrites.clone())
+                .unwrap_or_default();
         let plan = plan_push(&sr_ows, &w.d.channels[i].overwrites, &map, &prot);
         if plan.changed {
             for o in &plan.desired {
@@ -400,13 +478,23 @@ fn sr_word() -> impl Strategy<Value = Permissions> {
 
 fn world() -> impl Strategy<Value = World> {
     let roles = proptest::collection::vec(sr_word(), 4);
-    let ows = proptest::collection::vec((0u8..6, sr_word(), sr_word()), 0..6);
-    (sr_word(), roles, proptest::collection::vec(proptest::collection::vec(0usize..4, 0..3), 5), ows.clone(), ows)
+    let ows = || proptest::collection::vec((0u8..6, sr_word(), sr_word()), 0..6);
+    (
+        sr_word(),
+        roles,
+        proptest::collection::vec(proptest::collection::vec(0usize..4, 0..3), 5),
+        ows(),
+        ows(),
+    )
         .prop_map(|(everyone, roles, members, ows_a, ows_b)| {
             let sr_roles: Vec<SrRole> = roles
                 .iter()
                 .enumerate()
-                .map(|(i, p)| SrRole { id: 10 + i as u64, perms: *p, position: i as i32 + 1 })
+                .map(|(i, p)| SrRole {
+                    id: 10 + i as u64,
+                    perms: *p,
+                    position: i as i32 + 1,
+                })
                 .collect();
             let mk = |list: &[(u8, Permissions, Permissions)]| -> Vec<Overwrite> {
                 let mut out: Vec<Overwrite> = Vec::new();
@@ -416,8 +504,13 @@ fn world() -> impl Strategy<Value = World> {
                         1..=4 => (10 + u64::from(*t % 4), OverwriteKind::Role),
                         _ => (500, OverwriteKind::Member),
                     };
-                    out.retain(|o| !(o.id == id && o.kind == kind));
-                    out.push(Overwrite { id: sf(id), kind, allow: *a & !*d, deny: *d });
+                    out.retain(|o| !(o.id == sf(id) && o.kind == kind));
+                    out.push(Overwrite {
+                        id: sf(id),
+                        kind,
+                        allow: *a & !*d,
+                        deny: *d,
+                    });
                 }
                 out
             };
@@ -432,27 +525,53 @@ fn world() -> impl Strategy<Value = World> {
                 })
                 .collect();
             let channels = vec![
-                SrChannel { id: 51, overwrites: mk(&ows_a) },
-                SrChannel { id: 52, overwrites: mk(&ows_b) },
-                SrChannel { id: 53, overwrites: vec![] },
+                SrChannel {
+                    id: 51,
+                    overwrites: mk(&ows_a),
+                },
+                SrChannel {
+                    id: 52,
+                    overwrites: mk(&ows_b),
+                },
+                SrChannel {
+                    id: 53,
+                    overwrites: vec![],
+                },
             ];
             let pairs: Vec<(u64, u64)> = sr_roles.iter().map(|r| (r.id, r.id + 100)).collect();
             let d = Discord {
                 roles: sr_roles
                     .iter()
-                    .map(|r| DRole { id: r.id + 100, raw: push_word(r.perms, 0), position: r.position * 2 })
-                    .chain([DRole { id: MANAGED, raw: 0, position: 1 }])
+                    .map(|r| DRole {
+                        id: r.id + 100,
+                        raw: push_word(r.perms, 0),
+                        position: r.position * 2,
+                    })
+                    .chain([DRole {
+                        id: MANAGED,
+                        raw: 0,
+                        position: 1,
+                    }])
                     .collect(),
                 everyone_raw: push_word(everyone, 0),
                 channels: channels
                     .iter()
-                    .map(|c| DChannel { id: c.id + 100, sr: Some(c.id), overwrites: Vec::new() })
+                    .map(|c| DChannel {
+                        id: c.id + 100,
+                        sr: Some(c.id),
+                        overwrites: Vec::new(),
+                    })
                     .collect(),
                 next_id: 5000,
                 sent_words: Vec::new(),
             };
             let mut w = World {
-                sr: Sr { roles: sr_roles, everyone, members, channels },
+                sr: Sr {
+                    roles: sr_roles,
+                    everyone,
+                    members,
+                    channels,
+                },
                 d,
                 pairs,
             };
@@ -463,7 +582,10 @@ fn world() -> impl Strategy<Value = World> {
 }
 
 fn cases() -> u32 {
-    std::env::var("SR_PROP_CASES").ok().and_then(|v| v.parse().ok()).unwrap_or(500)
+    std::env::var("SR_PROP_CASES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(500)
 }
 
 proptest! {
@@ -566,7 +688,11 @@ proptest! {
 fn a_muted_role_is_recreated_not_deleted() {
     // Role 10 denies Send Messages in channel 51: a Discord-side deletion must not remove it here.
     let sr = Sr {
-        roles: vec![SrRole { id: 10, perms: Permissions::empty(), position: 1 }],
+        roles: vec![SrRole {
+            id: 10,
+            perms: Permissions::empty(),
+            position: 1,
+        }],
         everyone: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
         members: vec![(100, vec![10])],
         channels: vec![SrChannel {
@@ -580,20 +706,38 @@ fn a_muted_role_is_recreated_not_deleted() {
         }],
     };
     let d = Discord {
-        roles: vec![DRole { id: 110, raw: 0, position: 1 }],
+        roles: vec![DRole {
+            id: 110,
+            raw: 0,
+            position: 1,
+        }],
         everyone_raw: 0,
-        channels: vec![DChannel { id: 151, sr: Some(51), overwrites: vec![] }],
+        channels: vec![DChannel {
+            id: 151,
+            sr: Some(51),
+            overwrites: vec![],
+        }],
         next_id: 5000,
         sent_words: vec![],
     };
-    let mut w = World { sr, d, pairs: vec![(10, 110)] };
+    let mut w = World {
+        sr,
+        d,
+        pairs: vec![(10, 110)],
+    };
     step(&mut w);
     apply_event(&mut w, &Ev::DeleteRole(0));
     step(&mut w);
-    assert!(w.sr.roles.iter().any(|r| r.id == 10), "the role is still here");
+    assert!(
+        w.sr.roles.iter().any(|r| r.id == 10),
+        "the role is still here"
+    );
     assert!(!w.compute_for(0, 51).contains(Permissions::SEND_MESSAGES));
     assert_eq!(w.pairs.len(), 1);
-    assert!(w.d.roles.iter().any(|r| r.id == w.pairs[0].1), "recreated on Discord");
+    assert!(
+        w.d.roles.iter().any(|r| r.id == w.pairs[0].1),
+        "recreated on Discord"
+    );
 }
 
 #[test]
@@ -601,7 +745,9 @@ fn a_sideroom_only_bit_is_never_in_a_body_and_stays_here() {
     let sr = Sr {
         roles: vec![SrRole {
             id: 10,
-            perms: Permissions::SEND_MESSAGES | Permissions::START_WATCH_PARTY | Permissions::MANAGE_EXTENSIONS,
+            perms: Permissions::SEND_MESSAGES
+                | Permissions::START_WATCH_PARTY
+                | Permissions::MANAGE_EXTENSIONS,
             position: 1,
         }],
         everyone: Permissions::USE_EXPRESSIONS_EXTERNALLY | Permissions::VIEW_CHANNEL,
@@ -617,21 +763,46 @@ fn a_sideroom_only_bit_is_never_in_a_body_and_stays_here() {
         }],
     };
     let d = Discord {
-        roles: vec![DRole { id: 110, raw: 0, position: 1 }],
+        roles: vec![DRole {
+            id: 110,
+            raw: 0,
+            position: 1,
+        }],
         everyone_raw: 0,
-        channels: vec![DChannel { id: 151, sr: Some(51), overwrites: vec![] }],
+        channels: vec![DChannel {
+            id: 151,
+            sr: Some(51),
+            overwrites: vec![],
+        }],
         next_id: 5000,
         sent_words: vec![],
     };
-    let mut w = World { sr, d, pairs: vec![(10, 110)] };
+    let mut w = World {
+        sr,
+        d,
+        pairs: vec![(10, 110)],
+    };
     // Seed, a Discord admin tries to grant bit 56 and 62, then everything is reconciled again.
     step(&mut w);
-    apply_event(&mut w, &Ev::SetRolePerms(0, (1 << 56) | (1 << 62) | Permissions::BAN_MEMBERS.bits()));
+    apply_event(
+        &mut w,
+        &Ev::SetRolePerms(0, (1 << 56) | (1 << 62) | Permissions::BAN_MEMBERS.bits()),
+    );
     step(&mut w);
     assert!(!w.d.sent_words.is_empty());
-    assert!(w.d.sent_words.iter().all(|x| x & Permissions::SR_ONLY.bits() == 0));
+    assert!(
+        w.d.sent_words
+            .iter()
+            .all(|x| x & Permissions::SR_ONLY.bits() == 0)
+    );
     let r = &w.sr.roles[0];
-    assert!(r.perms.contains(Permissions::START_WATCH_PARTY | Permissions::MANAGE_EXTENSIONS));
+    assert!(
+        r.perms
+            .contains(Permissions::START_WATCH_PARTY | Permissions::MANAGE_EXTENSIONS)
+    );
     assert!(!r.perms.contains(Permissions::BAN_MEMBERS));
-    assert!(w.sr.everyone.contains(Permissions::USE_EXPRESSIONS_EXTERNALLY));
+    assert!(
+        w.sr.everyone
+            .contains(Permissions::USE_EXPRESSIONS_EXTERNALLY)
+    );
 }
