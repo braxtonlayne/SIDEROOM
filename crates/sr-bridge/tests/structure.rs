@@ -294,6 +294,9 @@ async fn a_global_429_blocks_everything_and_a_wrong_token_is_401() {
     let e = api2.guild_roles("wrong", GUILD).await.unwrap_err();
     assert!(matches!(e, CallError::Status { status: 401, .. }));
     assert_eq!(api2.invalid_requests_within(Duration::from_secs(600)), 1);
+    // The per-bridge breaker counts by bot token (a one-way key, never the token); the instance count is the sum.
+    assert_eq!(api2.invalid_requests_for("wrong", Duration::from_secs(600)), 1);
+    assert_eq!(api2.invalid_requests_for(TOKEN, Duration::from_secs(600)), 0);
 }
 
 #[tokio::test]

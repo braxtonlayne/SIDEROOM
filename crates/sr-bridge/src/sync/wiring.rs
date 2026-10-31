@@ -131,6 +131,16 @@ impl SyncEngine {
             .rows_affected()
         };
         if frozen > 0 {
+            // The rows that counted to the freeze close with it, so an unfrozen map starts counting afresh.
+            sqlx::query(
+                "UPDATE bridge_conflicts SET status = 'superseded', resolution = 'superseded', \
+                 resolved_at = now() WHERE guild_id = $1 AND kind = $2 AND sr_object_id = $3 AND status = 'open'",
+            )
+            .bind(c.guild)
+            .bind(c.kind.as_str())
+            .bind(sr)
+            .execute(self.pool())
+            .await?;
             let mut f = NewConflict::new(
                 c.guild,
                 ConflictKind::Frozen,

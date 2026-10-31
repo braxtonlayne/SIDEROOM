@@ -1463,3 +1463,308 @@ async fn pause_resume_reconcile_now_and_the_breakers() {
     );
     let _ = s.w.db.cleanup().await;
 }
+
+// ---- wave 35b integration: the engine wired to sync-perms' planners and conflict log, and to the gateway ----
+
+async fn conflicts_of(s: &Scene) -> Vec<(String, String, String, Option<i64>, Option<i64>, i32)> {
+    sqlx::query_as(
+        "SELECT kind, object_kind, field, sr_object_id, discord_actor_id, count FROM bridge_conflicts \
+         WHERE guild_id = $1 AND status = 'open' ORDER BY id",
+    )
+    .bind(s.guild)
+    .fetch_all(s.w.db.pool())
+    .await
+    .unwrap()
+}
+
+async fn role_status(s: &Scene, role: i64) -> String {
+    sqlx::query_scalar("SELECT sync_status FROM bridge_role_maps WHERE role_id = $1")
+        .bind(role)
+        .fetch_one(s.w.db.pool())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_discord_permission_edit_is_logged_with_its_actor_and_repeats_freeze_the_role() {
+    let s = seeded().await;
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    let mods = s.ids["mods"];
+    // A SIDE ROOM edit going out is a push, never a conflict.
+    sqlx::query("UPDATE roles SET permissions = $2 WHERE id = $1")
+        .bind(mods)
+        .bind(0x2i64 | 0x40 | (1 << 56))
+        .execute(s.w.db.pool())
+        .await
+        .unwrap();
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert_eq!(s.fake.role_perms("Mods").as_deref(), Some("66"));
+    assert!(
+        conflicts_of(&s).await.is_empty(),
+        "an SR edit is not a conflict"
+    );
+
+    // Discord's audit log named user 777 for the role; then the edit arrives.
+    s.eng.attributions.note(9001, 777);
+    s.fake.set_role(
+        9001,
+        "permissions",
+        json!((0x8u64 | 0x40 | 0x2).to_string()),
+    );
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert_eq!(s.fake.role_perms("Mods").as_deref(), Some("66"), "put back");
+    let c = conflicts_of(&s).await;
+    assert_eq!(c.len(), 1, "{c:?}");
+    assert_eq!(
+        (c[0].0.as_str(), c[0].1.as_str(), c[0].2.as_str()),
+        ("permission_reverted", "role", "permissions")
+    );
+    assert_eq!((c[0].3, c[0].4), (Some(mods), Some(777)));
+    // The audit row (222) is there, by the bridge user.
+    let audits: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit_log_entries WHERE guild_id = $1 AND action = 222",
+    )
+    .bind(s.guild)
+    .fetch_one(s.w.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(audits, 1);
+
+    // Five more fights inside ten minutes: the role's map freezes, a `frozen` row says so, Discord is left alone.
+    for _ in 0..5 {
+        s.fake.set_role(
+            9001,
+            "permissions",
+            json!((0x8u64 | 0x40 | 0x2).to_string()),
+        );
+        s.eng.reconcile_guild(s.guild).await.unwrap();
+    }
+    assert_eq!(role_status(&s, mods).await, "frozen");
+    let c = conflicts_of(&s).await;
+    assert!(
+        c.iter().any(|r| r.0 == "frozen" && r.3 == Some(mods)),
+        "{c:?}"
+    );
+    // The counting row closed with the freeze (superseded at six), so an unfrozen map starts counting afresh.
+    assert!(!c.iter().any(|r| r.0 == "permission_reverted"), "{c:?}");
+    let six: i32 = sqlx::query_scalar(
+        "SELECT count FROM bridge_conflicts WHERE guild_id = $1 AND kind = 'permission_reverted' AND status = 'superseded'",
+    )
+    .bind(s.guild)
+    .fetch_one(s.w.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(six, 6);
+    s.fake.set_role(
+        9001,
+        "permissions",
+        json!((0x8u64 | 0x40 | 0x2).to_string()),
+    );
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert_eq!(
+        s.fake.role_perms("Mods").as_deref(),
+        Some("74"),
+        "a frozen map is not pushed"
+    );
+    // SIDE ROOM was never touched by any of it.
+    let (_, word, _) = role_row(&s, "Mods").await;
+    assert_eq!(word, 0x2 | 0x40 | (1 << 56));
+    // Unfreeze: the next pass puts SIDE ROOM's word back.
+    assert!(s.eng.unfreeze(s.guild, "role", mods).await.unwrap());
+    assert_eq!(role_status(&s, mods).await, "mapped");
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert_eq!(s.fake.role_perms("Mods").as_deref(), Some("66"));
+    assert_eq!(
+        role_status(&s, mods).await,
+        "mapped",
+        "one revert after unfreezing does not freeze again"
+    );
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn overwrites_go_through_the_planner_and_a_discord_edit_is_put_back_and_trimmed() {
+    let s = seeded().await;
+    let pool = s.w.db.pool();
+    let mods = s.ids["mods"];
+    // SIDE ROOM: Mods may not send in #general (and holds a SIDE ROOM-only allow); a member overwrite here only.
+    sqlx::query(
+        "INSERT INTO permission_overwrites (channel_id, target_id, target_type, allow, deny) VALUES \
+         ($1, $2, 'role', $3, 2048), ($1, $4, 'member', 1024, 0)",
+    )
+    .bind(s.ids["general"])
+    .bind(mods)
+    .bind(1i64 << 56)
+    .bind(s.owner)
+    .execute(pool)
+    .await
+    .unwrap();
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    let ow = s.fake.0.lock().unwrap().channels[&9101]["permission_overwrites"].clone();
+    let list = ow.as_array().cloned().unwrap_or_default();
+    assert_eq!(list.len(), 1, "only the role overwrite is sent: {ow}");
+    assert_eq!(list[0]["id"], "9001");
+    assert_eq!(list[0]["deny"], "2048");
+    assert_eq!(list[0]["allow"], "0", "the SIDE ROOM-only bit never leaves");
+    assert!(
+        conflicts_of(&s).await.is_empty(),
+        "the first push is not a conflict"
+    );
+
+    // A Discord admin lets Mods send, and lets a Discord member in: put back, and the member's allow trimmed.
+    s.fake.set_channel(
+        9101,
+        "permission_overwrites",
+        json!([
+            {"id": "9001", "type": 0, "allow": "2048", "deny": "0"},
+            {"id": "4242", "type": 1, "allow": "1024", "deny": "16384"}
+        ]),
+    );
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    let ow = s.fake.0.lock().unwrap().channels[&9101]["permission_overwrites"].clone();
+    let list = ow.as_array().cloned().unwrap_or_default();
+    let role = list.iter().find(|o| o["id"] == "9001").unwrap();
+    assert_eq!(
+        (role["allow"].clone(), role["deny"].clone()),
+        (json!("0"), json!("2048"))
+    );
+    let member = list.iter().find(|o| o["id"] == "4242").unwrap();
+    assert_eq!(
+        (member["allow"].clone(), member["deny"].clone()),
+        (json!("0"), json!("16384")),
+        "deny kept, allow removed"
+    );
+    let kinds: Vec<String> = conflicts_of(&s).await.into_iter().map(|c| c.0).collect();
+    assert!(
+        kinds.contains(&"permission_reverted".to_owned()),
+        "{kinds:?}"
+    );
+    assert!(kinds.contains(&"overwrite_trimmed".to_owned()), "{kinds:?}");
+    // SIDE ROOM's overwrites are what they were.
+    let (allow, deny): (i64, i64) = sqlx::query_as(
+        "SELECT allow, deny FROM permission_overwrites WHERE channel_id = $1 AND target_id = $2",
+    )
+    .bind(s.ids["general"])
+    .bind(mods)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!((allow, deny), (1 << 56, 2048));
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn role_order_is_set_on_sideroom_and_a_discord_reorder_is_put_back() {
+    let s = seeded().await;
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    let admins_d = s.fake.role_id("Admins").unwrap();
+    let pos = |id: i64| {
+        s.fake.0.lock().unwrap().roles[&id]["position"]
+            .as_i64()
+            .unwrap()
+    };
+    assert!(pos(admins_d) > pos(9001), "Admins above Mods, as here");
+    // A Discord admin puts Mods above Admins.
+    s.fake.set_role(9001, "position", json!(50));
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert!(pos(admins_d) > pos(9001), "put back");
+    let c = conflicts_of(&s).await;
+    assert!(
+        c.iter()
+            .any(|r| r.0 == "permission_reverted" && r.2 == "position"),
+        "{c:?}"
+    );
+    // SIDE ROOM reorders: pushed, no new conflict.
+    sqlx::query("UPDATE roles SET position = 9 WHERE id = $1")
+        .bind(s.ids["mods"])
+        .execute(s.w.db.pool())
+        .await
+        .unwrap();
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert!(pos(9001) > pos(admins_d), "SIDE ROOM's order went out");
+    assert_eq!(conflicts_of(&s).await.len(), c.len());
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn gateway_and_sideroom_changes_queue_looks_only_while_the_whole_guild_sync_runs() {
+    use sr_bridge::inbound::structure::{Change, StructureEvent, StructureKind, StructureSink};
+    let s = scene(true).await;
+    let pool = s.w.db.pool();
+    let pending = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM bridge_sync_ops WHERE guild_id = $1 AND state = 'pending'",
+        )
+        .bind(s.guild)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    };
+    let sink = sr_bridge::sync::EngineSink {
+        engine: s.eng.clone(),
+    };
+    let ev = StructureEvent {
+        kind: StructureKind::Role,
+        id: 9001,
+        change: Change::Updated,
+        parent_id: None,
+    };
+    let bridge = sr_bridge::model::get_bridge(pool, s.guild)
+        .await
+        .unwrap()
+        .unwrap();
+    sink.look_at(&bridge, vec![ev]).await;
+    let role_ev = sr_events::DomainEvent::RoleUpdated {
+        guild: sr_events::GuildId::new(s.guild as u64),
+        role: sr_events::RoleId::new(s.ids["mods"] as u64),
+        payload: json!({}),
+    };
+    s.eng.handle_sr_event(&role_ev).await;
+    assert_eq!(pending().await, 0, "selective: nothing is queued");
+    // Mention maps are empty for a selective bridge.
+    assert!(
+        sr_bridge::sync::mention_maps(pool, s.guild)
+            .await
+            .unwrap()
+            .roles
+            .is_empty()
+    );
+
+    let (id, hash) = ready_plan(&s).await;
+    s.eng
+        .confirm_mode(s.guild, s.owner, id, &hash)
+        .await
+        .unwrap();
+    s.eng.run_seed(s.guild).await.unwrap();
+    let bridge = sr_bridge::model::get_bridge(pool, s.guild)
+        .await
+        .unwrap()
+        .unwrap();
+    sink.look_at(&bridge, vec![ev]).await;
+    assert_eq!(pending().await, 1, "a Discord change queues one look");
+    s.eng.handle_sr_event(&role_ev).await;
+    assert_eq!(pending().await, 2, "a SIDE ROOM change queues one look");
+    s.eng.handle_sr_event(&role_ev).await;
+    assert_eq!(pending().await, 2, "a burst on one object is one op");
+    // The audit-log dispatch names the actor for the conflict rows.
+    sink.attribute(&bridge, 9001, 4242, 31).await;
+    assert_eq!(s.eng.attributions.who(9001), Some(4242));
+    // Whole guild: Discord's mapped role and channel ids map to ours for inbound mentions.
+    let maps = sr_bridge::sync::mention_maps(pool, s.guild).await.unwrap();
+    assert_eq!(maps.roles.get(&9001), Some(&s.ids["mods"]));
+    assert_eq!(maps.channels.get(&9101), Some(&s.ids["general"]));
+    // Paused: nothing is queued.
+    s.eng.pause(s.guild).await.unwrap();
+    let other = sr_events::DomainEvent::RoleUpdated {
+        guild: sr_events::GuildId::new(s.guild as u64),
+        role: sr_events::RoleId::new(s.ids["admins"] as u64),
+        payload: json!({}),
+    };
+    s.eng.handle_sr_event(&other).await;
+    assert_eq!(pending().await, 2);
+    let _ = s.w.db.cleanup().await;
+}
