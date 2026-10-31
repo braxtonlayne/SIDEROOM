@@ -29,6 +29,9 @@ CREATE TABLE bridges (
     bot_user_id         BIGINT NOT NULL,
     bot_name            TEXT NOT NULL DEFAULT '' CHECK (char_length(bot_name) <= 200),
     bot_token_enc       BYTEA NOT NULL,
+    -- 'selective': only the mapped channels. 'whole_guild' (the entire server mirrored, one server on both sides) is
+    -- reserved for wave 35b; the API refuses it for now.
+    mode                TEXT NOT NULL DEFAULT 'selective' CHECK (mode IN ('selective', 'whole_guild')),
     status              TEXT NOT NULL DEFAULT 'connecting'
                         CHECK (status IN ('connecting', 'connected', 'disconnected', 'token_invalid')),
     intents_granted     BIGINT NOT NULL DEFAULT 0 CHECK (intents_granted >= 0),
@@ -42,6 +45,8 @@ CREATE TABLE bridge_channel_maps (
     guild_id              BIGINT NOT NULL REFERENCES bridges (guild_id) ON DELETE CASCADE,
     channel_id            BIGINT NOT NULL REFERENCES channels (id) ON DELETE CASCADE,
     discord_channel_id    BIGINT NOT NULL,
+    -- Only 'channel' is used now; categories and threads are reserved for the whole-guild mode (wave 35b).
+    kind                  TEXT NOT NULL DEFAULT 'channel' CHECK (kind IN ('channel', 'category', 'thread')),
     discord_channel_name  TEXT NOT NULL DEFAULT '' CHECK (char_length(discord_channel_name) <= 200),
     discord_webhook_id    BIGINT,
     webhook_token_enc     BYTEA,

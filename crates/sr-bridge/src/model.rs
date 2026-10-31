@@ -88,6 +88,8 @@ pub struct Bridge {
     pub discord_guild_name: String,
     pub bot_user_id: i64,
     pub bot_name: String,
+    /// 'selective' (only the mapped channels); 'whole_guild' is reserved for wave 35b and refused for now.
+    pub mode: String,
     pub status: BridgeStatus,
     pub intents_granted: i64,
     pub created_by: i64,
@@ -148,7 +150,7 @@ pub struct MessageMap {
     pub direction: MessageMapDirection,
 }
 
-pub(crate) const BRIDGE_COLS: &str = "guild_id, discord_guild_id, discord_guild_name, bot_user_id, bot_name, status, \
+pub(crate) const BRIDGE_COLS: &str = "guild_id, discord_guild_id, discord_guild_name, bot_user_id, bot_name, mode, status, \
      intents_granted, created_by, (extract(epoch from created_at) * 1000)::bigint AS created_ms";
 pub(crate) const MAP_COLS: &str = "id, guild_id, channel_id, discord_channel_id, discord_channel_name, \
      discord_webhook_id, direction, created_by, (extract(epoch from created_at) * 1000)::bigint AS created_ms";
@@ -160,6 +162,7 @@ pub(crate) fn bridge_from(r: &PgRow) -> BridgeResult<Bridge> {
         discord_guild_name: r.try_get("discord_guild_name")?,
         bot_user_id: r.try_get("bot_user_id")?,
         bot_name: r.try_get("bot_name")?,
+        mode: r.try_get("mode")?,
         status: BridgeStatus::parse(&r.try_get::<String, _>("status")?)
             .ok_or_else(|| BridgeError::Storage("unknown bridge status".into()))?,
         intents_granted: r.try_get("intents_granted")?,

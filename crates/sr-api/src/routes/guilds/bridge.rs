@@ -29,8 +29,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sr_bridge::{BridgeError, BridgeService, Direction, TeardownReason};
 use sr_core::permissions::Permissions;
-use sr_core::{ApiError, ChannelId, ErrorCode, GuildId, UserId};
-use std::sync::Arc;
+use sr_core::{ApiError, ErrorCode, GuildId, UserId};
 use utoipa::ToSchema;
 
 /// The permissions the invite link asks for: view channels, send messages, read history, add reactions and
@@ -77,6 +76,8 @@ pub struct BridgeObject {
     pub bot_user_id: String,
     /// The bot's name.
     pub bot_name: String,
+    /// 'selective' (only the mapped channels).
+    pub mode: String,
     /// `connecting`, `connected`, `disconnected` or `token_invalid`.
     pub status: String,
     /// The gateway intents Discord granted (the privileged `MESSAGE_CONTENT` intent is bit 15).
@@ -146,6 +147,9 @@ pub struct TokenBody {
     /// The Discord server to bridge, when the bot is in several.
     #[serde(default)]
     pub discord_guild_id: Option<String>,
+    /// 'selective' (default). 'whole_guild' is reserved for a later wave and refused with a 400.
+    #[serde(default)]
+    pub mode: Option<String>,
 }
 
 /// What a teardown did.
@@ -228,6 +232,7 @@ fn bridge_object(b: &sr_bridge::Bridge) -> BridgeObject {
         discord_guild_name: b.discord_guild_name.clone(),
         bot_user_id: s(b.bot_user_id),
         bot_name: b.bot_name.clone(),
+        mode: b.mode.clone(),
         status: b.status.as_str().to_owned(),
         intents_granted: b.intents_granted,
         created_by: s(b.created_by),
@@ -376,6 +381,19 @@ pub async fn put_token(
 ) -> ApiResult<Json<BridgeObject>> {
     let c = guild_owner(&p, &gate, &deps, &guild_id).await?;
     switches(&bridge, c.gid).await?;
+    match body.mode.as_deref() {
+        None | Some("selective") => {}
+        Some("whole_guild") => {
+            return Err(invalid(
+                "mode",
+                "BRIDGE_MODE_UNAVAILABLE",
+                "Whole-server mirroring is not available yet. Only selective bridging (the channels you map) is supported.",
+            ));
+        }
+        Some(_) => {
+            return Err(invalid("mode", "ENUM_TYPE_INVALID", "Mode must be selective."));
+        }
+    }
     let pick = match body.discord_guild_id.as_deref() {
         Some(raw) => Some(id::<i64>("discord_guild_id", raw)?),
         None => None,

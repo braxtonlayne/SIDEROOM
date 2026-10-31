@@ -112,6 +112,7 @@ async fn only_bot_tokens_are_accepted_and_the_token_is_sealed() {
         .unwrap();
     assert_eq!(b.discord_guild_id, dg);
     assert_eq!(b.discord_guild_name, "Their server");
+    assert_eq!(b.mode, "selective");
     // The column is ciphertext: the token is nowhere in it.
     let enc: Vec<u8> = sqlx::query_scalar("SELECT bot_token_enc FROM bridges WHERE guild_id = $1")
         .bind(g)

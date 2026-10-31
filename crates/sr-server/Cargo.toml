@@ -35,6 +35,7 @@ sr-packages = { path = "../sr-packages" }
 sr-api = { path = "../sr-api" }
 sr-apps = { path = "../sr-apps" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }
+sr-bridge = { path = "../sr-bridge" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-db = { path = "../sr-db" }
