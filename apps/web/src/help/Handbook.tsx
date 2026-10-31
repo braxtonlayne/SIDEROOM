@@ -90,6 +90,52 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
     links: [{ href: '/cinema/tv', label: 'help.handbook.tv.link' }],
   },
   {
+    id: 'storage',
+    title: 'help.handbook.storage.title',
+    body: ['help.handbook.storage.body1', 'help.handbook.storage.body2'],
+    links: [{ href: '/settings/user/storage', label: 'help.handbook.storage.link' }],
+  },
+  {
+    id: 'player',
+    title: 'help.handbook.player.title',
+    body: ['help.handbook.player.body1', 'help.handbook.player.body2'],
+    links: [{ href: '/settings/user/appearance', label: 'help.handbook.player.link' }],
+  },
+  {
+    id: 'drawer',
+    title: 'help.handbook.drawer.title',
+    body: ['help.handbook.drawer.body1', 'help.handbook.drawer.body2'],
+    links: [{ href: '/channels', label: 'help.handbook.drawer.link' }],
+  },
+  {
+    id: 'profiles',
+    title: 'help.handbook.profiles.title',
+    body: ['help.handbook.profiles.body1', 'help.handbook.profiles.body2'],
+    links: [{ href: '/settings/user/profile', label: 'help.handbook.profiles.link' }],
+  },
+  {
+    id: 'bridge',
+    title: 'help.handbook.bridge.title',
+    body: [
+      'help.handbook.bridge.body1',
+      'help.handbook.bridge.body2',
+      'help.handbook.bridge.body3',
+    ],
+    links: [{ href: '/channels', label: 'help.handbook.bridge.link' }],
+  },
+  {
+    id: 'activities',
+    title: 'help.handbook.activities.title',
+    body: ['help.handbook.activities.body1', 'help.handbook.activities.body2'],
+    links: [{ href: '/channels', label: 'help.handbook.activities.link' }],
+  },
+  {
+    id: 'emulator',
+    title: 'help.handbook.emulator.title',
+    body: ['help.handbook.emulator.body1', 'help.handbook.emulator.body2'],
+    links: [{ href: '/games', label: 'help.handbook.emulator.link' }],
+  },
+  {
     id: 'games',
     title: 'help.handbook.games.title',
     body: ['help.handbook.games.body'],
@@ -111,6 +157,12 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
       { href: '/settings/user/account', label: 'help.handbook.privacy.deleteLink' },
       { href: '/house-notes#privacy', label: 'help.handbook.privacy.notesLink' },
     ],
+  },
+  {
+    id: 'operators',
+    title: 'help.handbook.operators.title',
+    body: ['help.handbook.operators.body'],
+    links: [{ href: '/help/operators', label: 'help.handbook.operators.link' }],
   },
   {
     id: 'house',

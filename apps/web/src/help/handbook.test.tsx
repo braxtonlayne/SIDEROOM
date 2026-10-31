@@ -10,6 +10,7 @@ import { resetCompliancePublic } from '../lib/compliancePublic';
 import { APP_VERSION, hasUnseenNews, markNewsSeen } from '../lib/whatsNew';
 import { http, HttpResponse, server } from '../test/server';
 import { HANDBOOK_SECTIONS } from './Handbook';
+import { OPERATOR_SWITCHES } from './Operators';
 import { changelogBody } from './WhatsNew';
 
 const root = resolve(__dirname, '../../../..');
@@ -38,8 +39,16 @@ describe('the handbook', () => {
       'submit',
       'parties',
       'tv',
+      'storage',
+      'player',
+      'drawer',
+      'profiles',
+      'bridge',
+      'activities',
+      'emulator',
       'games',
       'privacy',
+      'operators',
       'house',
     ]);
     for (const s of HANDBOOK_SECTIONS) {
@@ -116,6 +125,36 @@ describe('the handbook', () => {
     }
     expect(doc).toMatch(/invite graph, invoices, staff-side moderation history/);
     expect(doc).toMatch(/Deleted User/);
+  });
+
+  it('agrees with doc 09 on the feature phase: rings last 24 hours, shared boards seven days (OPS-DOC-001)', () => {
+    const doc = readFileSync(resolve(root, 'docs/09-retention-and-privacy.md'), 'utf8');
+    expect(t('help.handbook.profiles.body2')).toContain('exactly 24 hours');
+    expect(doc).toMatch(/Status rings[^\n]*\*\*Hard 24-hour expiry/);
+    expect(t('help.handbook.drawer.body2')).toContain('lasts seven days');
+    expect(doc).toMatch(/Tool rooms[^\n]*\*\*7 days from creation/);
+    // The bridge is off until the owner switches it on, and there is no opt-out (doc 09, decisions D-381 and P35-BRG-1).
+    expect(t('help.handbook.bridge.body1')).toContain('off for every server until the owner');
+    expect(t('help.handbook.privacy.bridge')).toContain('no per-member opt-out');
+    expect(doc).toMatch(/There is no per-member opt-out/);
+    // Nothing is shipped to play and the BIOS is never stored (doc 09, the emulator row).
+    expect(t('help.handbook.emulator.body1')).toContain('ships no games');
+    expect(t('help.handbook.emulator.body2')).toContain('never stored');
+    expect(doc).toMatch(/The emulator[^\n]*\*\*The instance stores nothing/);
+  });
+
+  it('has an operator page that lists every module switch the instance registers', async () => {
+    at('/help/operators');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Module switches' })).toBeVisible();
+    const registry = readFileSync(
+      resolve(root, 'apps/web/src/admin/features/__fixtures__/registry.json'),
+      'utf8',
+    );
+    for (const s of OPERATOR_SWITCHES) {
+      expect(screen.getByText(s.id)).toBeVisible();
+      expect(registry, s.id).toContain(s.id);
+    }
+    expect(screen.getByRole('link', { name: 'Back to Help' })).toHaveAttribute('href', '/help');
   });
 
   it("names the operator's country and contact when they are set", async () => {
