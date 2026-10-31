@@ -25,6 +25,7 @@ what the operator now has to know. Keep each wave to a handful of lines.
   `node scripts/build-activities.mjs`, upload them in the developer portal and approve them in the review queue.
   Bundles may now declare the `datachannel` capability in `sideroom.json` (migration 1760); bots get the same channel
   through `voice::DataChannel` in sr-sdk.
+
 ## Phase 35b - 2026-10-31
 
 - **Bridge the whole server.** A server owner with the Discord bridge on can now choose between "Only bridge
