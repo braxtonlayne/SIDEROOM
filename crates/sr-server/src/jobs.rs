@@ -73,6 +73,9 @@ edits AS ( \
     RETURNING id), \
 webhook_authors AS ( \
     DELETE FROM message_webhook_authors WHERE message_id IN (SELECT id FROM doomed) \
+    RETURNING message_id), \
+bridge_authors AS ( \
+    DELETE FROM message_bridge_authors WHERE message_id IN (SELECT id FROM doomed) \
     RETURNING message_id) \
 SELECT (SELECT count(*) FROM doomed)";
 

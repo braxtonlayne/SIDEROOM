@@ -217,6 +217,37 @@ pub struct MessageObject {
     /// sent by that application's bot: clients show them as `:name:` text (D-237).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sr_text_emoji: Vec<String>,
+    /// Set when the message came in over the Discord bridge (BRG-GW-001): shown with a DISCORD tag.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_bridge: Option<BridgeObject>,
+}
+
+/// Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BridgeObject {
+    /// `discord`.
+    pub platform: String,
+    pub author_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author_avatar: Option<String>,
+    /// The Discord user's snowflake.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author_id: Option<String>,
+    /// Attachments, as links only: nothing is re-hosted.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<BridgeLinkObject>,
+}
+
+/// One Discord attachment link. Discord's links expire; past that `url` is absent and `expired` is true
+/// (clients show "(link expired)").
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BridgeLinkObject {
+    pub filename: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    pub expired: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
 }
 
 impl MessageObject {
@@ -303,6 +334,7 @@ impl MessageObject {
             call,
             webhook_id: None,
             sr_text_emoji: Vec::new(),
+            sr_bridge: None,
         }
     }
 

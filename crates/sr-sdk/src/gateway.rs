@@ -146,9 +146,27 @@ pub fn url_host(url: &str) -> Option<String> {
 }
 
 /// Whether `url` has a host in `allowed` (compared case-insensitively).
+///
+/// An entry `*.example.gg` matches any subdomain of `example.gg` (at least one label), never `example.gg` itself
+/// and never a host that merely ends in the same letters (`evilexample.gg`).
 pub fn host_allowed(url: &str, allowed: &[String]) -> bool {
-    url_host(url).is_some_and(|h| allowed.iter().any(|a| a.eq_ignore_ascii_case(&h)))
+    url_host(url).is_some_and(|h| allowed.iter().any(|a| host_matches(a, &h)))
 }
+
+fn host_matches(pattern: &str, host: &str) -> bool {
+    match pattern.strip_prefix("*.") {
+        Some(suffix) if !suffix.is_empty() => {
+            let (h, s) = (host.to_ascii_lowercase(), suffix.to_ascii_lowercase());
+            h.len() > s.len() + 1 && h.ends_with(&s) && h[..h.len() - s.len()].ends_with('.')
+        }
+        _ => pattern.eq_ignore_ascii_case(host),
+    }
+}
+
+/// Discord's public gateway (BRG-GW-001). The bridge connects here with a bot token.
+pub const DISCORD_GATEWAY_URL: &str = "wss://gateway.discord.gg/?v=10&encoding=json";
+/// Where Discord may send a shard to resume (`resume_gateway_url` is e.g. `wss://gateway-us-east1-b.discord.gg`).
+pub const DISCORD_RESUME_HOSTS: &str = "*.discord.gg";
 
 impl ShardConfig {
     pub fn new(
@@ -168,6 +186,16 @@ impl ShardConfig {
             max_backoff: Duration::from_secs(60),
             allowed_hosts,
         }
+    }
+}
+
+impl ShardConfig {
+    /// A shard for Discord's real gateway, or for `url` (a fake gateway in tests) when given. Resume URLs on
+    /// `*.discord.gg` are followed (D-234 allow-list); anything else falls back to `url`.
+    pub fn discord(token: impl Into<String>, intents: u64, url: Option<&str>) -> Self {
+        let mut cfg = Self::new(token, intents, (0, 1), url.unwrap_or(DISCORD_GATEWAY_URL));
+        cfg.allowed_hosts.push(DISCORD_RESUME_HOSTS.to_owned());
+        cfg
     }
 }
 
@@ -945,6 +973,19 @@ mod address_rule_tests {
     async fn a_resume_url_on_an_allow_listed_host_is_followed() {
         let urls = urls_after_reconnect(cfg(&["resume.test"]), "wss://resume.test/gw").await;
         assert_eq!(urls[1], "wss://resume.test/gw");
+    }
+
+    #[test]
+    fn a_wildcard_entry_matches_subdomains_only() {
+        let a = vec!["*.discord.gg".to_owned()];
+        assert!(host_allowed("wss://gateway-us-east1-b.discord.gg/?v=10", &a));
+        assert!(host_allowed("wss://A.B.DISCORD.GG", &a));
+        assert!(!host_allowed("wss://discord.gg/", &a));
+        assert!(!host_allowed("wss://evildiscord.gg/", &a));
+        assert!(!host_allowed("wss://discord.gg.evil.test/", &a));
+        let c = ShardConfig::discord("t", 1, None);
+        assert!(host_allowed("wss://gateway-x.discord.gg/", &c.allowed_hosts));
+        assert!(host_allowed(DISCORD_GATEWAY_URL, &c.allowed_hosts));
     }
 
     #[tokio::test(start_paused = true)]

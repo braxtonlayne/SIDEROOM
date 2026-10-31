@@ -59,6 +59,66 @@ async fn lock_poll(
 
 #[async_trait]
 impl RichStore for PgRichStore {
+    async fn set_bridge_author(
+        &self,
+        message: MessageId,
+        author: &sr_chat::rich_repo::BridgeAuthor,
+    ) -> StoreResult<()> {
+        let links = serde_json::to_value(&author.links).unwrap_or_else(|_| serde_json::json!([]));
+        sqlx::query(
+            "INSERT INTO message_bridge_authors \
+               (message_id, platform, author_name, author_avatar, discord_user_id, links) \
+             VALUES ($1, $2, $3, $4, $5, $6) \
+             ON CONFLICT (message_id) DO UPDATE SET \
+               platform = EXCLUDED.platform, author_name = EXCLUDED.author_name, \
+               author_avatar = EXCLUDED.author_avatar, \
+               discord_user_id = EXCLUDED.discord_user_id, links = EXCLUDED.links",
+        )
+        .bind(i(message.get()))
+        .bind(&author.platform)
+        .bind(&author.author_name)
+        .bind(&author.author_avatar)
+        .bind(&author.discord_user_id)
+        .bind(links)
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(())
+    }
+
+    async fn bridge_authors(
+        &self,
+        messages: &[MessageId],
+    ) -> StoreResult<HashMap<MessageId, sr_chat::rich_repo::BridgeAuthor>> {
+        if messages.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let ids: Vec<i64> = messages.iter().map(|m| i(m.get())).collect();
+        let rows = sqlx::query(
+            "SELECT message_id, platform, author_name, author_avatar, discord_user_id, links \
+             FROM message_bridge_authors WHERE message_id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        let mut out = HashMap::new();
+        for r in rows {
+            let links: serde_json::Value = r.try_get("links").map_err(sdb)?;
+            out.insert(
+                MessageId::new(u(r.try_get("message_id").map_err(sdb)?)),
+                sr_chat::rich_repo::BridgeAuthor {
+                    platform: r.try_get("platform").map_err(sdb)?,
+                    author_name: r.try_get("author_name").map_err(sdb)?,
+                    author_avatar: r.try_get("author_avatar").map_err(sdb)?,
+                    discord_user_id: r.try_get("discord_user_id").map_err(sdb)?,
+                    links: serde_json::from_value(links).unwrap_or_default(),
+                },
+            );
+        }
+        Ok(out)
+    }
+
     async fn set_webhook_author(
         &self,
         message: MessageId,

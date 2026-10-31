@@ -46,6 +46,7 @@ pub struct Data {
     pub sticker_packs: Vec<crate::rich_repo::StickerPack>,
     /// Webhook author overrides (DEV-BOT-006).
     pub webhook_authors: HashMap<MessageId, crate::rich_repo::WebhookAuthor>,
+    pub bridge_authors: HashMap<MessageId, crate::rich_repo::BridgeAuthor>,
     /// Application emoji id to owning application (test seed, D-237).
     pub app_emojis: HashMap<u64, i64>,
     /// Server emoji for the external-use gate (test seed, D-376).
