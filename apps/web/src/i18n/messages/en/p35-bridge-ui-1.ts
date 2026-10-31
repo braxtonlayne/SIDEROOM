@@ -101,7 +101,7 @@ export default {
   'settings.bridge.teardown.failedBody':
     'Discord would not delete these webhooks. Remove them by hand under {where} on Discord.',
   'settings.bridge.teardown.failedList': 'Webhooks to remove by hand',
-  'settings.bridge.teardown.close': 'Close',
+  'settings.bridge.teardown.close': 'Done',
 
   // ---- the channel banner, the menu entry and the tag
   'lounge.bridge.bannerBoth':

@@ -21,7 +21,7 @@ import { Loading } from './ui';
 import { AuditLogSection } from './sections/AuditLog';
 import { BansSection } from './sections/Bans';
 import { BridgeSection } from './bridge/BridgeSection';
-import { useBridgeNavVisible } from './bridge/moduleStore';
+import { useBridgeNav } from './bridge/moduleStore';
 import { ChannelsSection } from './sections/Channels';
 import { CommunitySection } from './sections/Community';
 import { DeleteServerSection } from './sections/DeleteServer';
@@ -233,7 +233,7 @@ export function ServerSettings({
     loadMembers(guildId).catch(() => undefined);
   }, [guildId, loadMembers]);
 
-  const bridgeOn = useBridgeNavVisible(guildId, viewer);
+  const { visible: bridgeOn, pending: bridgePending } = useBridgeNav(guildId, viewer);
   const visible = useMemo(
     () => (viewer.ready ? SECTIONS.filter((s) => s.visible(viewer, { bridgeOn })) : []),
     [viewer, bridgeOn],
@@ -273,6 +273,9 @@ export function ServerSettings({
         action={<Button onClick={close}>{t('settings.serverSettings.backToServer')}</Button>}
       />
     );
+  } else if (!active && bridgePending && section === 'bridge') {
+    // A deep link to the bridge screen waits for the module state instead of being sent to the first section.
+    body = <Loading label={t('settings.serverSettings.loading')} />;
   } else if (!active) {
     return (
       <Navigate

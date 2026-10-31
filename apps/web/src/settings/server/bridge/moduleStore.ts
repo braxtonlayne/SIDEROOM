@@ -36,13 +36,20 @@ export const useBridgeModule = create<ModuleState>()((set, get) => ({
   reset: () => set({ byGuild: {}, requested: {} }),
 }));
 
-/** The bridge entry of Server Settings: the module is on and the viewer is the owner or holds MANAGE_GUILD. */
-export function useBridgeNavVisible(guildId: string, viewer: Viewer): boolean {
+/**
+ * The bridge entry of Server Settings: the module is on and the viewer is the owner or holds MANAGE_GUILD.
+ * `pending` is true while that is still being read, so a deep link to the screen waits instead of being sent
+ * to the first section.
+ */
+export function useBridgeNav(
+  guildId: string,
+  viewer: Viewer,
+): { visible: boolean; pending: boolean } {
   const mayManage = viewer.ready && (viewer.isOwner || viewer.can('MANAGE_GUILD'));
   const on = useBridgeModule((s) => s.byGuild[guildId]);
   const load = useBridgeModule((s) => s.load);
   useEffect(() => {
     if (mayManage) void load(guildId);
   }, [mayManage, guildId, load]);
-  return mayManage && on === true;
+  return { visible: mayManage && on === true, pending: mayManage && on === undefined };
 }
