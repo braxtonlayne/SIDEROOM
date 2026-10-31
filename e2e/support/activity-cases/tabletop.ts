@@ -1,41 +1,9 @@
-/**
- * ACT-TT-001 live-spec case for the integrator: "move a token in two contexts".
- *
- * Not run by this wave (nobody but act-channel may run Playwright on 5173/8080). To wire it in, copy this file to
- * `e2e/tests/support/tabletopCase.ts` (adjust the imports) and call `tabletopMoveTokenCase` from
- * `activities-live.spec.ts` after A started the Activity and B joined it, exactly as the existing test does, but
- * with `tabletopBundle()` as the uploaded bundle instead of `testActivityBundle()`:
- *
- *   await frameA.locator('[data-testid=role]').waitFor();                 // the Activity booted on both seats
- *   await tabletopMoveTokenCase(a.page, frameA, b.page, frameB);
- *
- * What it proves: the host (A) sets a map, the guest (B) adds their token and drags it two cells, and A's board
- * shows the token on the new cell, with the roll record reaching both seats with the same seed.
- */
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+// ACT-TT-001 live case: "move a token in two contexts". The host (Alice) sets a map, the guest (Bob) adds their
+// token and drags it two cells, and Alice's board shows the token on the new cell; then a roll record reaches
+// both seats with the same seed and checks out.
+
 import { expect, type FrameLocator, type Page } from '@playwright/test';
-
-const repoRoot = join(__dirname, '..', '..', '..', '..', '..');
-const tabletopDir = join(repoRoot, 'packages', 'starter-packs', 'activities', 'tabletop');
-
-/** The built bundle's files, ready for `zip()` of e2e/support/activityBundle.ts. */
-export function tabletopBundleFiles(): Record<string, Buffer> {
-  const out = join(mkdtempSync(join(tmpdir(), 'tabletop-')), 'dist');
-  execFileSync('node', [join(tabletopDir, 'build.mjs'), out], { stdio: 'ignore' });
-  const files: Record<string, Buffer> = {};
-  const walk = (dir: string) => {
-    for (const name of readdirSync(dir)) {
-      const p = join(dir, name);
-      if (statSync(p).isDirectory()) walk(p);
-      else files[relative(out, p).split('\\').join('/')] = readFileSync(p);
-    }
-  };
-  walk(out);
-  return files;
-}
+import type { ActivitySession } from '../activities';
 
 /** A 600 x 400 PNG made in the page (no encoder needed here). */
 async function mapPng(page: Page): Promise<number[]> {
@@ -66,12 +34,10 @@ async function tokens(frame: FrameLocator): Promise<TokenLayout[]> {
   return raw ? (JSON.parse(raw) as TokenLayout[]) : [];
 }
 
-export async function tabletopMoveTokenCase(
-  pageA: Page,
-  hostFrame: FrameLocator,
-  pageB: Page,
-  guestFrame: FrameLocator,
-) {
+export async function tabletopCase(s: ActivitySession) {
+  const { page: pageA, frame: hostFrame } = s.a;
+  const { page: pageB, frame: guestFrame } = s.b;
+  await expect(hostFrame.locator('[data-testid=map-file]')).toBeAttached({ timeout: 30_000 });
   // Host: a map (the file input takes the PNG; the grid defaults are 50 px squares).
   const png = await mapPng(pageA);
   await hostFrame.locator('[data-testid=map-file]').setInputFiles({
@@ -103,9 +69,16 @@ export async function tabletopMoveTokenCase(
   // Both boards show it on the new cell (the guest's intent went to the host, the host wrote host:tok:<id>).
   for (const frame of [hostFrame, guestFrame]) {
     await expect
-      .poll(async () => (await tokens(frame))[0] && { c: (await tokens(frame))[0]!.c, r: (await tokens(frame))[0]!.r }, {
-        timeout: 20_000,
-      })
+      .poll(
+        async () =>
+          (await tokens(frame))[0] && {
+            c: (await tokens(frame))[0]!.c,
+            r: (await tokens(frame))[0]!.r,
+          },
+        {
+          timeout: 20_000,
+        },
+      )
       .toEqual({ c: before.c + 2, r: before.r + 1 });
   }
 

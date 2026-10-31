@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { crc32 } from 'node:zlib';
@@ -139,4 +140,21 @@ try {
     'sideroom.json': JSON.stringify({ capabilities: ['datachannel'] }),
     ...sdkModules(),
   });
+}
+
+/** The built-in Activities of wave 36 (packages/starter-packs/activities/<name>). */
+export type BuiltInActivity = 'whiteboard' | 'holdem' | 'tabletop' | 'landio';
+
+/**
+ * A built-in Activity's bundle, exactly as a server's developer uploads it: `scripts/build-activities.mjs`
+ * builds the package's dist/ (index.html and sideroom.json declaring `datachannel` at the root) and zips it.
+ */
+export function builtInActivityBundle(name: BuiltInActivity): Buffer {
+  execFileSync(process.execPath, [resolve(repoRoot, 'scripts', 'build-activities.mjs'), name], {
+    cwd: repoRoot,
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
+  return readFileSync(
+    resolve(repoRoot, 'packages', 'starter-packs', 'activities', 'dist', `${name}.zip`),
+  );
 }

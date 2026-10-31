@@ -86,6 +86,21 @@ export async function apiPost<T = unknown>(
   return (res.status() === 204 ? undefined : await res.json()) as T;
 }
 
+/** POST a raw body (for example an Activity bundle zip) with session cookie + CSRF header. */
+export async function apiPostBytes<T = unknown>(
+  request: APIRequestContext,
+  path: string,
+  body: Buffer,
+  contentType: string,
+): Promise<T> {
+  const res = await request.post(`${API}${path}`, {
+    headers: { ...headers(await csrf(request)), 'content-type': contentType },
+    data: body,
+  });
+  if (!res.ok()) throw new Error(`POST ${path} -> ${res.status()}: ${await res.text()}`);
+  return (res.status() === 204 ? undefined : await res.json()) as T;
+}
+
 /** PATCH with session cookie + CSRF header; throws with the body on a non-2xx. */
 export async function apiPatch<T = unknown>(
   request: APIRequestContext,

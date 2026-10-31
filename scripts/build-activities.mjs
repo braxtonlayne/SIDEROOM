@@ -127,7 +127,11 @@ function main(argv) {
       continue;
     }
     const dir = join(activitiesDir, name);
-    if (build) execFileSync(process.execPath, cmd(dir), { cwd: dir, stdio: ['ignore', 'ignore', 'inherit'] });
+    if (build)
+      execFileSync(process.execPath, cmd(dir), {
+        cwd: dir,
+        stdio: ['ignore', 'ignore', 'inherit'],
+      });
     const files = readTree(join(dir, 'dist'));
     const problems = checkTree(files);
     if (problems.length) {
@@ -138,9 +142,12 @@ function main(argv) {
     const out = join(outDir, `${name}.zip`);
     const body = zip(files);
     writeFileSync(out, body);
-    console.log(`${name}: ${Object.keys(files).length} files, ${body.length} bytes -> ${relative(root, out)}`);
+    console.log(
+      `${name}: ${Object.keys(files).length} files, ${body.length} bytes -> ${relative(root, out)}`,
+    );
   }
   if (failed) process.exitCode = 1;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2));
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  main(process.argv.slice(2));

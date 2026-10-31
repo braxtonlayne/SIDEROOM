@@ -1,5 +1,14 @@
 import { expect, test, apiPatch, apiPost, loginApi, registerUser } from '../support/fixtures';
-import { testActivityBundle } from '../support/activityBundle';
+import {
+  builtInActivityBundle,
+  testActivityBundle,
+  type BuiltInActivity,
+} from '../support/activityBundle';
+import { startActivityForTwo, type ActivitySession } from '../support/activities';
+import { holdemCase } from '../support/activity-cases/holdem';
+import { landioCase } from '../support/activity-cases/landio';
+import { tabletopCase } from '../support/activity-cases/tabletop';
+import { whiteboardCase } from '../support/activity-cases/whiteboard';
 import {
   debugPage,
   joinVoice,
@@ -202,4 +211,47 @@ test.describe('Activities (real browser)', () => {
       await staff.dispose();
     }
   });
+});
+
+/**
+ * The built-in Activities of wave 36, each installed from its real bundle (scripts/build-activities.mjs, the zip
+ * a server's developer uploads) and run by two people in one call: everything they share goes through the SFU's
+ * data channel, sealed with the call's keys.
+ */
+test.describe('Built-in activities through the data channel (real browser)', () => {
+  test.skip(
+    !ACTIVITIES || !VOICE_STACK,
+    'Needs SR_ACTIVITIES__ENABLED and the voice stack; set SR_E2E_ACTIVITIES=1 and SR_E2E_VOICE=1.',
+  );
+  test.setTimeout(240_000);
+
+  const cases: [BuiltInActivity, (s: ActivitySession) => Promise<void>][] = [
+    ['whiteboard', whiteboardCase],
+    ['holdem', holdemCase],
+    ['tabletop', tabletopCase],
+    ['landio', landioCase],
+  ];
+  for (const [activity, run] of cases) {
+    test(`${activity}: two people share it through the SFU`, async ({
+      browser,
+      browserName,
+      owner,
+      playwright,
+    }) => {
+      test.skip(
+        browserName !== 'chromium',
+        'Chromium resolves *.localhost activity hosts by itself.',
+      );
+      const session = await startActivityForTwo(
+        { browser, browserName, owner, playwright },
+        builtInActivityBundle(activity),
+        activity,
+      );
+      try {
+        await run(session);
+      } finally {
+        await session.close();
+      }
+    });
+  }
 });
