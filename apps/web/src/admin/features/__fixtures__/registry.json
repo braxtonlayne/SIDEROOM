@@ -603,7 +603,7 @@
   {
     "client_visible": false,
     "default_enabled": false,
-    "description": "Lets members choose to show parts of their profile to people without an account, at /~handle. Off (the default), every profile stays inside the instance and the public address answers 404 for everyone. Public pages are never indexed by search engines.",
+    "description": "Lets members choose to show parts of their profile to people without an account, at /~handle. Off (the default), every profile stays inside the instance and the public address answers 404 for everyone. It also needs the setting profiles.access to be opt_in_public (default walled). Public pages are never indexed by search engines.",
     "gated_by": null,
     "id": "platform.public_profiles",
     "name": "Public profiles",
