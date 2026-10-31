@@ -24,6 +24,16 @@ pub enum Refusal {
 }
 
 impl Refusal {
+    /// A stable code for the wire (`dm`, `e2ee`, `staff_guild`, `degraded_type`).
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::DirectMessage => "dm",
+            Self::Encrypted => "e2ee",
+            Self::StaffServer => "staff_guild",
+            Self::UnsupportedType => "degraded_type",
+        }
+    }
+
     pub const fn reason(self) -> &'static str {
         match self {
             Self::DirectMessage => {

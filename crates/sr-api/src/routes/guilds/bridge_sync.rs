@@ -110,6 +110,8 @@ pub struct NotMirroredObject {
     pub discord_id: Option<String>,
     pub name: String,
     pub reason: String,
+    /// `managed_role`, `dm`, `e2ee`, `staff_guild` or `degraded_type`.
+    pub code: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -369,6 +371,7 @@ fn plan_object(v: &PlanView) -> PlanObject {
                 discord_id: n.discord_id.map(s),
                 name: n.name.clone(),
                 reason: n.reason.clone(),
+                code: n.code.clone(),
             })
             .collect(),
         estimated_writes: v.plan.estimated_writes,

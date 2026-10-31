@@ -91,7 +91,7 @@ export function ConflictLog({ guildId }: { guildId: string }) {
       return;
     }
     void act.run(async () => {
-      await api.runConflictAction(guildId, c.id, a);
+      await api.runConflictAction(guildId, c, a);
       await res.reload();
     }, t('settings.bridgeSync.conflicts.done'));
   };

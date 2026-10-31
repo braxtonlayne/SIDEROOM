@@ -1772,6 +1772,46 @@ async fn seed(
             .await
             .unwrap();
             slot_map.insert("conflict_id", conflict.to_string());
+            // BRG-SYN-001 (wave 35b integration): an open whole-guild plan of the tenant's bridge (`{plan_id}`; the
+            // cross-tenant sweep proves the other tenant's plan is a 404), and two channels deleted on Discord and
+            // held here, one for "Delete now" and one for "Restore" (dedicated channels: the delete really deletes).
+            let plan = ids.generate().get() as i64;
+            sqlx::query(
+                "INSERT INTO bridge_sync_plans (id, guild_id, mode, seed_structure, status, plan, blockers, \
+                 plan_hash, created_by, expires_at) VALUES ($1, $2, 'whole_guild', 'sr', 'ready', \
+                 '{\"plan\":{\"items\":[],\"not_mirrored\":[],\"seed_structure\":\"sr\",\"estimated_writes\":0},\
+                 \"facts\":{\"bot_administrator\":true,\"bot_is_top_role\":true,\"intents_granted\":32770,\
+                 \"discord_guild_taken\":false}}', '[]', 'authz', $3, now() + interval '1 day')",
+            )
+            .bind(plan)
+            .bind(guild)
+            .bind(owner)
+            .execute(&pool)
+            .await
+            .unwrap();
+            slot_map.insert("plan_id", plan.to_string());
+            for slot in ["held_delete_channel_id", "held_restore_channel_id"] {
+                let held = ids.generate().get() as i64;
+                sqlx::query(
+                    "INSERT INTO channels (id, guild_id, type, name, position) VALUES ($1, $2, 0, 'held', 90)",
+                )
+                .bind(held)
+                .bind(guild)
+                .execute(&pool)
+                .await
+                .unwrap();
+                sqlx::query(
+                    "INSERT INTO bridge_pending_deletes (channel_id, guild_id, discord_channel_id, delete_after) \
+                     VALUES ($1, $2, $3, now() + interval '1 day')",
+                )
+                .bind(held)
+                .bind(guild)
+                .bind(ids.generate().get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+                slot_map.insert(slot, held.to_string());
+            }
         }
     }
     // PRF-RNG-001 (integration, own block): per tenant a live text ring shared with the tenant's server
@@ -3544,6 +3584,16 @@ fn body_override(method: &str, path: &str) -> Option<&'static str> {
         ("PATCH", "/guilds/{guild_id}/bridge/maps/{map_id}") => r#"{"direction":"from_discord"}"#,
         // BRG-SYN-002: nothing to apply on a permission conflict, so an admitted caller gets a 409, not a change.
         ("POST", "/guilds/{guild_id}/bridge/conflicts/{conflict_id}/take-discord") => "{}",
+        // BRG-SYN-001 (wave 35b integration): a plan reads Discord, which is a closed local port: 409. The seeded plan
+        // takes a seed-structure edit; back to selective on a selective bridge is a 409; the teardown options.
+        ("POST", "/guilds/{guild_id}/bridge/plan") => r#"{"seed_structure":"sr"}"#,
+        ("PATCH", "/guilds/{guild_id}/bridge/plan/{plan_id}") => {
+            r#"{"op":"seed_structure","value":"discord"}"#
+        }
+        ("POST", "/guilds/{guild_id}/bridge/mode") => r#"{"mode":"selective"}"#,
+        ("POST", "/guilds/{guild_id}/bridge/teardown") => {
+            r#"{"remove_created":false,"restore_permissions":false}"#
+        }
         ("PATCH", "/guilds/{guild_id}/scrapbook/{entry_id}") => r#"{"tags":["authz"]}"#,
         // PRF-RNG-001: a text ring for the caller's friends.
         ("POST", "/users/@me/rings") => r#"{"kind":"text","text":"authz","audience":"friends"}"#,
@@ -4353,7 +4403,7 @@ fn write_late(method: &str, path: &str) -> u8 {
     if matches!(
         (method, path),
         // A new token ends the old one, which the routes before it are called with; the delete ends the app
-        // or the webhook.
+        // or the webhook. (The bridge teardown is in the later rank below.)
         ("POST", "/webhooks/{webhook_id}/reset-token")
             | ("DELETE", "/webhooks/{webhook_id}")
             | ("POST", "/applications/{application_id}/bot/reset-token")
@@ -4381,6 +4431,8 @@ fn write_late(method: &str, path: &str) -> u8 {
             | ("POST", "/guilds/{guild_id}/prune")
             | ("POST", "/guilds/{guild_id}/bulk-ban")
             | ("DELETE", "/watch-parties/{party_id}")
+            // BRG-SYN-001: the teardown removes the bridge every other bridge route addresses.
+            | ("POST", "/guilds/{guild_id}/bridge/teardown")
     ))
 }
 
@@ -4425,6 +4477,11 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
         vec![("user_id", world.users["ownera"].to_string())]
     } else if r.path.contains("/bans/") {
         vec![("user_id", world.users["friendtwo"].to_string())]
+    } else if r.path == "/guilds/{guild_id}/bridge/holds/{channel_id}/delete" {
+        // BRG-SYN-001: "Delete now" deletes the channel: a dedicated held one, never the shared seed channel.
+        vec![("channel_id", world.a["held_delete_channel_id"].clone())]
+    } else if r.path == "/guilds/{guild_id}/bridge/holds/{channel_id}/restore" {
+        vec![("channel_id", world.a["held_restore_channel_id"].clone())]
     } else if r.method == "DELETE" && r.path == "/webhooks/{webhook_id}/{token}" {
         vec![
             ("webhook_id", world.a["webhook2_id"].clone()),

@@ -121,6 +121,9 @@ pub struct NotMirrored {
     pub discord_id: Option<i64>,
     pub name: String,
     pub reason: String,
+    /// A stable code of the reason: `managed_role`, `dm`, `e2ee`, `staff_guild` or `degraded_type`.
+    #[serde(default)]
+    pub code: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -366,6 +369,7 @@ pub fn build(
                 discord_id: None,
                 name: r.name.clone(),
                 reason: "A managed role is never mirrored.".into(),
+                code: "managed_role".into(),
             });
         } else {
             sr_roles.push(r);
@@ -381,6 +385,7 @@ pub fn build(
                 name: r.name.clone(),
                 reason: "A Discord managed role (bot, booster or integration) is never mirrored."
                     .into(),
+                code: "managed_role".into(),
             });
         } else {
             d_roles.push(r);
@@ -475,6 +480,7 @@ pub fn build(
                 discord_id: None,
                 name: c.name.clone(),
                 reason: why.reason().into(),
+                code: why.code().into(),
             }),
         }
     }
@@ -489,6 +495,7 @@ pub fn build(
                 discord_id: Some(c.id),
                 name: c.name.clone(),
                 reason: "This Discord channel type has no SIDE ROOM counterpart.".into(),
+                code: "degraded_type".into(),
             });
         }
     }

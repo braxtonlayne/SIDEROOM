@@ -1,5 +1,6 @@
-// BRG-SYN-004 (wave 35b): the whole-server mirror screens against MSW handlers with the route shapes of
-// settings/server/bridge/api.ts (the integrator reconciles them with the real routes).
+// BRG-SYN-004 (wave 35b): the whole-server mirror screens against MSW handlers that answer the WIRE shapes of the
+// real routes (crates/sr-api/src/routes/guilds/bridge_sync.rs and bridge_conflicts.rs); settings/server/bridge/api.ts
+// turns them into what the screens draw (reconciled at the wave-35b integration).
 import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../../../../store';
@@ -15,7 +16,7 @@ import {
 } from '../../__tests__/helpers';
 import { buildMemberRows } from '../../../../lounge/memberGroups';
 import type { Role } from '../../../../lounge/data';
-import type { Plan, Preflight, SyncStatus, Conflict, Mirrors } from '../api';
+import type { Preflight, WireConflict, WireMirrors, WirePlan, WireSyncStatus } from '../api';
 import { useMirrorStore, useRolePrefill } from '../mirrors';
 import { useBridgeModule } from '../moduleStore';
 
@@ -81,80 +82,91 @@ const preflight = (over: Partial<Preflight> = {}): Preflight => ({
   ...over,
 });
 
-const plan = (over: Partial<Plan> = {}): Plan => ({
-  plan_id: 'p1',
+// Permission words: SEND_MESSAGES = 2048, BAN_MEMBERS = 4.
+const item = (over: Partial<WirePlan['items'][number]>): WirePlan['items'][number] => ({
+  kind: 'role',
+  action: 'match',
+  sr_id: null,
+  discord_id: null,
+  name: 'x',
+  channel_type: null,
+  sr_permissions: '0',
+  discord_permissions: '0',
+  dangerous_bits: '0',
+  import: false,
+  degraded: null,
+  ...over,
+});
+
+const plan = (over: Partial<WirePlan> = {}): WirePlan => ({
+  id: 'p1',
   status: 'ready',
   plan_hash: 'h1',
-  created_at: 0,
-  expires_at: Math.floor(Date.now() / 1000) + 900,
+  expires_at: Date.now() + 900_000,
   seed_structure: 'sr',
   blockers: [],
-  roles: [
-    {
-      id: 'r1',
-      kind: 'role',
+  items: [
+    item({
       name: 'Mods',
-      discord_name: 'Mods',
-      action: 'match',
-      note: 'same name',
-    },
-    { id: 'r2', kind: 'role', name: 'Fans', action: 'create_there' },
-    { id: 'r3', kind: 'role', name: 'Boosters', action: 'create_here' },
-  ],
-  categories: [],
-  channels: [
-    { id: 'c1', kind: 'channel', name: 'general', discord_name: 'general', action: 'match' },
-  ],
-  threads: [],
-  discord_changes: [
-    { id: 'x1', target: 'role', name: 'Mods', text: 'Role Mods on Discord loses Ban Members' },
-  ],
-  imports: [
-    {
-      id: 'i1',
-      target: 'role',
+      sr_id: 'mods',
+      discord_id: 'D1',
+      sr_permissions: '2048',
+      discord_permissions: '2052',
+    }),
+    item({ name: 'Fans', sr_id: 'fans', action: 'create_on_discord' }),
+    item({
       name: 'Boosters',
-      permissions: ['SEND_MESSAGES', 'BAN_MEMBERS'],
-      dangerous: ['BAN_MEMBERS'],
+      discord_id: 'D3',
+      action: 'create_here',
+      discord_permissions: '2052',
+      dangerous_bits: '4',
       import: true,
-    },
+    }),
+    item({ kind: 'channel', name: 'general', sr_id: 'c1', discord_id: 'D4', channel_type: 0 }),
   ],
-  not_mirrored: [{ id: 'n1', name: 'dm-ish', reason: 'e2ee' }],
-  estimate: { discord_calls: 40, seconds: 90 },
+  not_mirrored: [
+    { kind: 'channel', sr_id: 'n1', name: 'dm-ish', reason: 'End-to-end encrypted', code: 'e2ee' },
+  ],
+  estimated_writes: 40,
   ...over,
 });
 
-const syncStatus = (over: Partial<SyncStatus> = {}): SyncStatus => ({
+const syncStatus = (over: Partial<WireSyncStatus> = {}): WireSyncStatus => ({
   mode: 'whole_guild',
   sync_state: 'live',
-  bot: { administrator: true, top_role: true, intents: true },
   last_reconcile_at: null,
-  reconcile_available_at: null,
-  queue_depth: 3,
+  queue_pending: 2,
+  queue_running: 1,
   dead_ops: 0,
-  rate_limit_wait_secs: 0,
-  counts: { mapped: 12, one_sided: 1, degraded: 0, frozen: 0 },
-  seed: null,
+  role_maps: 5,
+  channel_maps: 7,
+  degraded: 0,
+  frozen: 0,
+  held_deletions: 1,
+  intents_ok: true,
+  reconcile_available_at: null,
   ...over,
 });
 
-const conflict = (over: Partial<Conflict> = {}): Conflict => ({
+const conflict = (over: Partial<WireConflict> = {}): WireConflict => ({
   id: 'k1',
   kind: 'permission_reverted',
   object_kind: 'role',
-  object_id: 'mod',
+  sr_object_id: 'mod',
+  discord_object_id: 'D1',
   object_name: 'Mod',
   field: 'permissions',
-  discord_value: 'added Ban Members',
-  sr_value: 'no Ban Members',
-  discord_permissions: ['BAN_MEMBERS'],
-  discord_actor: 'Rin',
-  bridge_did: 'Put it back',
+  discord_value: '4',
+  sr_value: '0',
+  discord_actor_name: 'Rin',
   count: 2,
-  first_at: 1_700_000_000,
-  last_at: 1_700_000_100,
+  status: 'open',
+  first_at: 1_700_000_000_000,
+  last_at: 1_700_000_100_000,
   ...over,
 });
+
+const conflicts = (rows: WireConflict[]) => ({ conflicts: rows, open: rows.length });
 
 beforeAll(() => configure({ asyncUtilTimeout: 5000 }));
 
@@ -190,7 +202,7 @@ describe('mode card', () => {
       moduleOn(),
       http.get(`${B}/status`, () => HttpResponse.json(wireStatus('whole_guild'))),
       http.get(`${B}/sync`, () => HttpResponse.json(syncStatus())),
-      http.get(`${B}/conflicts`, () => HttpResponse.json([])),
+      http.get(`${B}/conflicts`, () => HttpResponse.json(conflicts([]))),
     );
     await openSettings('bridge');
     const card = await screen.findByTestId('bridge-mode-card');
@@ -211,7 +223,7 @@ describe('mode card', () => {
       moduleOn(),
       http.get(`${B}/status`, () => HttpResponse.json(wireStatus(mode))),
       http.get(`${B}/sync`, () => HttpResponse.json(syncStatus())),
-      http.get(`${B}/conflicts`, () => HttpResponse.json([])),
+      http.get(`${B}/conflicts`, () => HttpResponse.json(conflicts([]))),
       http.get(`${B}/discord-channels`, () => HttpResponse.json([])),
       http.post(`${B}/mode`, async ({ request }) => {
         await cap.record(request);
@@ -231,7 +243,11 @@ describe('mode card', () => {
 });
 
 describe('preflight and plan', () => {
-  const setup = (opts: { pre?: Preflight; plans?: Plan[]; mode?: (b: unknown) => Response }) => {
+  const setup = (opts: {
+    pre?: Preflight;
+    plans?: WirePlan[];
+    mode?: (b: unknown) => Response;
+  }) => {
     const mode = capture();
     let n = 0;
     server.use(
@@ -293,7 +309,7 @@ describe('preflight and plan', () => {
     expect(screen.getByRole('tab', { name: 'Channels (1)' })).toBeVisible();
     expect(screen.getByRole('tab', { name: 'Changes on Discord (1)' })).toBeVisible();
     await userEvent.click(screen.getByRole('tab', { name: 'Changes on Discord (1)' }));
-    expect(screen.getByText('Role Mods on Discord loses Ban Members')).toBeVisible();
+    expect(screen.getByText('Role Mods on Discord loses Ban Members.')).toBeVisible();
     await userEvent.click(screen.getByRole('tab', { name: 'Imported from Discord (1)' }));
     expect(screen.getByText('Dangerous: Ban Members')).toBeVisible();
     await userEvent.click(screen.getByRole('tab', { name: 'Not mirrored (1)' }));
@@ -309,7 +325,7 @@ describe('preflight and plan', () => {
 
   it('blockers disable Confirm; a manager can read the plan but not confirm', async () => {
     seed({ perms: [MANAGE.guild] });
-    setup({ plans: [plan({ blockers: [{ code: 'bot_top_role' }] })] });
+    setup({ plans: [plan({ blockers: [{ code: 'bot_role_not_top', message: 'top role' }] })] });
     await openSettings('bridge');
     await userEvent.click(
       await screen.findByRole('button', { name: 'Prepare the whole-server plan' }),
@@ -361,30 +377,25 @@ describe('preflight and plan', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Build the plan' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Unlink Mods' }));
     await waitFor(() => expect(patch.calls).toHaveLength(1));
-    expect(patch.calls[0]!.body).toEqual({ op: 'unlink', row_id: 'r1' });
+    expect(patch.calls[0]!.body).toEqual({ op: 'unlink', index: 0 });
   });
 });
 
 describe('sync status and conflict log', () => {
-  const wholeHandlers = (status: SyncStatus, conflicts: Conflict[]) =>
+  const wholeHandlers = (status: WireSyncStatus, rows: WireConflict[]) =>
     server.use(
       moduleOn(),
       http.get(`${B}/status`, () => HttpResponse.json(wireStatus('whole_guild'))),
       http.get(`${B}/sync`, () => HttpResponse.json(status)),
-      http.get(`${B}/conflicts`, () => HttpResponse.json(conflicts)),
+      http.get(`${B}/conflicts`, () => HttpResponse.json(conflicts(rows))),
     );
 
-  it('shows the state, the bot checks and the seed progress; pause posts', async () => {
+  // The server reports neither seed progress nor the rate-limit wait yet (integration handoff): those lines stay
+  // empty; the state, the bot checks, the queue and the counts come from `GET .../sync`.
+  it('shows the state, the bot checks, the queue and the counts; pause posts', async () => {
     seed({ perms: [MANAGE.guild] });
     const pause = capture();
-    wholeHandlers(
-      syncStatus({
-        sync_state: 'seeding',
-        seed: { done: 10, total: 40, eta_secs: 120 },
-        rate_limit_wait_secs: 4,
-      }),
-      [],
-    );
+    wholeHandlers(syncStatus({ sync_state: 'seeding' }), []);
     server.use(
       http.post(`${B}/pause`, async ({ request }) => {
         await pause.record(request);
@@ -394,8 +405,8 @@ describe('sync status and conflict log', () => {
     await openSettings('bridge');
     const card = await screen.findByTestId('bridge-sync-status');
     expect(await within(card).findByText('Setting up')).toBeVisible();
-    expect(within(card).getByRole('progressbar', { name: 'Mirroring 10 of 40' })).toBeVisible();
-    expect(within(card).getByText('4 seconds')).toBeVisible();
+    expect(within(card).getByText('3')).toBeVisible();
+    expect(within(card).getByText('12')).toBeVisible();
     await userEvent.click(within(card).getByRole('button', { name: 'Pause sync' }));
     await waitFor(() => expect(pause.calls).toHaveLength(1));
   });
@@ -416,10 +427,13 @@ describe('sync status and conflict log', () => {
       conflict(),
       conflict({
         id: 'k2',
-        kind: 'held_deletion',
+        kind: 'deletion_held',
         object_kind: 'channel',
+        sr_object_id: 'c9',
         object_name: 'lore',
-        bridge_did: 'Hid it',
+        field: 'deleted',
+        discord_value: undefined,
+        sr_value: { hours: 24 },
       }),
     ]);
     server.use(
@@ -431,9 +445,11 @@ describe('sync status and conflict log', () => {
     await openSettings('bridge');
     const log = await screen.findByTestId('bridge-conflicts');
     expect(await within(log).findByText('Permission change undone: Mod')).toBeVisible();
-    expect(within(log).getAllByText('Discord: added Ban Members').length).toBe(2);
+    expect(within(log).getAllByText('Discord: Ban Members').length).toBe(1);
     expect(within(log).getAllByText('By Rin').length).toBeGreaterThan(0);
-    expect(within(log).getByText('The bridge: Put it back')).toBeVisible();
+    expect(
+      within(log).getByText('The bridge: Put the permissions set here back on Discord.'),
+    ).toBeVisible();
     expect(within(log).getByRole('button', { name: 'Apply on SIDE ROOM: Mod' })).toBeVisible();
     expect(within(log).getByRole('button', { name: 'Restore: lore' })).toBeVisible();
     expect(within(log).getByRole('button', { name: 'Delete now: lore' })).toBeVisible();
@@ -462,11 +478,9 @@ describe('sync status and conflict log', () => {
 });
 
 describe('badges and member grouping', () => {
-  const mirrors = (over: Partial<Mirrors> = {}): Mirrors => ({
+  const mirrors = (over: Partial<WireMirrors> = {}): WireMirrors => ({
     mode: 'whole_guild',
-    roles: [
-      { role_id: 'mod', discord_role_id: 'D1', discord_only: ['Use Clyde AI'], state: 'mapped' },
-    ],
+    roles: [{ role_id: 'mod', discord_role_id: 'D1', discord_only_bits: [47], state: 'mapped' }],
     channels: [{ channel_id: 'c1', discord_channel_id: 'D2', state: 'mapped' }],
     ...over,
   });
@@ -492,7 +506,7 @@ describe('badges and member grouping', () => {
     expect((await screen.findAllByText('Mirrored to Discord')).length).toBeGreaterThan(0);
     expect(screen.getByText('SIDE ROOM only, not sent to Discord')).toBeVisible();
     expect(screen.getByText('Set on Discord')).toBeVisible();
-    expect(screen.getByText('Use Clyde AI')).toBeVisible();
+    expect(screen.getByText('Discord permission 47')).toBeVisible();
   });
 
   it('the channel permissions screen marks a member overwrite SIDE ROOM only', async () => {
@@ -515,7 +529,7 @@ describe('badges and member grouping', () => {
               {
                 channel_id: 'c1',
                 discord_channel_id: 'D2',
-                state: 'mapped',
+                state: 'degraded',
                 degraded_reason: 'Discord needs Community for announcements',
               },
             ],
@@ -612,25 +626,44 @@ describe('teardown options (whole server)', () => {
   it('leave is the default; the options send what the owner ticked', async () => {
     seed({ perms: [MANAGE.guild], ...OWNER });
     const off = capture();
+    const teardown = capture();
     server.use(
       moduleOn(),
       http.get(`${B}/status`, () => HttpResponse.json(wireStatus('whole_guild'))),
       http.get(`${B}/sync`, () => HttpResponse.json(syncStatus())),
-      http.get(`${B}/conflicts`, () => HttpResponse.json([])),
+      http.get(`${B}/conflicts`, () => HttpResponse.json(conflicts([]))),
       http.get(`${B}/teardown-preview`, () =>
         HttpResponse.json({
-          created: { roles: 2, categories: 1, channels: 3, threads: 0 },
-          channels_with_discord_messages: 1,
-          snapshot_available: true,
+          whole_guild: true,
+          created_roles: 2,
+          created_categories: 1,
+          created_channels: 3,
+          created_threads: 0,
+          created_with_discord_messages: 1,
+          restorable_roles: 4,
+          restorable_channels: 2,
         }),
       ),
+      http.post(`${B}/teardown`, async ({ request }) => {
+        await teardown.record(request);
+        return HttpResponse.json({
+          maps_removed: 6,
+          webhooks_deleted: 3,
+          roles_removed: 2,
+          channels_removed: 3,
+          roles_restored: 0,
+          channels_restored: 0,
+          failed_ids: ['123'],
+          leftover_webhooks: [],
+        });
+      }),
       http.patch(`${FEATURES}/bridge.enabled`, async ({ request }) => {
         await off.record(request);
         return HttpResponse.json({
           id: 'bridge.enabled',
           enabled: false,
           platform_disabled: false,
-          teardown: { maps_removed: 6, failed_webhooks: [], residue: ['role:123'] },
+          teardown: { maps_removed: 0, failed_webhooks: [] },
         });
       }),
     );
@@ -656,10 +689,9 @@ describe('teardown options (whole server)', () => {
     ).toBeVisible();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Switch off and remove' }));
     await waitFor(() => expect(off.calls).toHaveLength(1));
-    expect(off.calls[0]!.body).toEqual({
-      enabled: false,
-      teardown: { remove_created: true, restore_permissions: false },
-    });
-    expect(await screen.findByText('role:123')).toBeVisible();
+    expect(teardown.calls).toHaveLength(1);
+    expect(teardown.calls[0]!.body).toEqual({ remove_created: true, restore_permissions: false });
+    expect(off.calls[0]!.body).toEqual({ enabled: false });
+    expect(await screen.findByText('123')).toBeVisible();
   });
 });

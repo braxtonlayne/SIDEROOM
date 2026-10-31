@@ -464,7 +464,10 @@ function RowsTable({
               size="sm"
               disabled={busy || !here || !there}
               onClick={() => {
-                edit({ op: 'link', here_id: here, discord_id: there });
+                const h = onlyHere.find((r) => r.id === here);
+                const d = onlyThere.find((r) => r.id === there);
+                if (h?.sr_id && d?.discord_id)
+                  edit({ op: 'link', kind: h.kind, sr_id: h.sr_id, discord_id: d.discord_id });
                 setHere('');
                 setThere('');
               }}
