@@ -12,6 +12,9 @@ interface ModuleState {
   /** `true` on and offered, `false` off or switched off by the operator; missing until known. */
   byGuild: Record<string, boolean>;
   requested: Record<string, true>;
+  /** Wave 35b: whole-server mode, as the bridge screen last read it (the teardown dialog offers more options). */
+  wholeByGuild: Record<string, boolean>;
+  setWhole(guildId: string, whole: boolean): void;
   set(guildId: string, on: boolean): void;
   load(guildId: string): Promise<void>;
   reset(): void;
@@ -20,6 +23,9 @@ interface ModuleState {
 export const useBridgeModule = create<ModuleState>()((set, get) => ({
   byGuild: {},
   requested: {},
+  wholeByGuild: {},
+  setWhole: (guildId, whole) =>
+    set((s) => ({ wholeByGuild: { ...s.wholeByGuild, [guildId]: whole } })),
   set: (guildId, on) => set((s) => ({ byGuild: { ...s.byGuild, [guildId]: on } })),
   load: async (guildId) => {
     if (get().requested[guildId]) return;
@@ -33,7 +39,7 @@ export const useBridgeModule = create<ModuleState>()((set, get) => ({
       get().set(guildId, false);
     }
   },
-  reset: () => set({ byGuild: {}, requested: {} }),
+  reset: () => set({ byGuild: {}, requested: {}, wholeByGuild: {} }),
 }));
 
 /**

@@ -118,6 +118,13 @@ audit_actions! {
     // A moderator restored a deleted message, or removed one attachment, from a case (N-21).
     ModerationMessageRestored = 214,
     ModerationAttachmentRemoved = 215,
+    // The Discord bridge, whole-guild mode (BRG-SYN-002, wave 35b design section 13). A change applied here from
+    // Discord writes the ordinary row of that change; these five are the bridge's own events.
+    BridgeModeUpdate = 220,
+    BridgeSyncRun = 221,
+    BridgePermissionReverted = 222,
+    BridgeConflict = 223,
+    BridgeObjectRemoved = 224,
 }
 
 /// One changed key, Discord shape: `{key, old_value, new_value}`.
@@ -301,6 +308,16 @@ mod tests {
         assert_eq!(AuditAction::MemberBanAdd.code(), 22);
         assert_eq!(AuditAction::AutoModerationRuleCreate.code(), 140);
         assert_eq!(AuditAction::from_code(9999), None);
+        // BRG-SYN-002: the bridge range after 215.
+        for (a, c) in [
+            (AuditAction::BridgeModeUpdate, 220),
+            (AuditAction::BridgeSyncRun, 221),
+            (AuditAction::BridgePermissionReverted, 222),
+            (AuditAction::BridgeConflict, 223),
+            (AuditAction::BridgeObjectRemoved, 224),
+        ] {
+            assert_eq!(a.code(), c);
+        }
     }
 
     #[test]

@@ -21,6 +21,7 @@
 //! configuration (the fake Discord of `e2e/support/fake-discord.mjs` in the end-to-end suite).
 
 pub mod discord;
+pub mod discord_structure;
 pub mod error;
 pub mod inbound;
 pub mod maps;
@@ -29,6 +30,7 @@ pub mod outbound;
 pub mod render;
 pub mod service;
 pub mod status;
+pub mod sync;
 pub mod teardown;
 pub mod tokens;
 
@@ -40,4 +42,6 @@ pub use service::{
     TokenSealer, Tuning,
 };
 pub use status::{MapView, MemberExport, StatusReport, Totals};
-pub use teardown::{Leftover, TeardownReason, TeardownReport};
+pub use teardown::{
+    FailedObject, Leftover, RemovalReport, TeardownOptions, TeardownReason, TeardownReport,
+};

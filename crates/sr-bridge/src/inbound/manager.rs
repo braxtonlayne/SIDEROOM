@@ -36,13 +36,24 @@ pub const INBOUND_INTENTS: u64 = intents::GUILDS
 /// asking for one it was not granted with close code 4014; the manager then steps down one rung and the bridge
 /// keeps working with fewer extras (no member list, no presence), never failing for want of them.
 pub fn intent_ladder(presence: bool) -> Vec<u64> {
-    let members = INBOUND_INTENTS | intents::GUILD_MEMBERS;
+    intent_ladder_for_mode("selective", presence)
+}
+
+/// [`intent_ladder`] for a bridge mode (BRG-SYN-003): whole-guild bridges also ask for `GUILD_MODERATION`
+/// (not privileged, so it is on every rung) to get the audit-log entries that name the Discord actor.
+pub fn intent_ladder_for_mode(mode: &str, presence: bool) -> Vec<u64> {
+    let extra = if mode == "whole_guild" {
+        crate::discord_structure::intents::GUILD_MODERATION
+    } else {
+        0
+    };
+    let members = INBOUND_INTENTS | intents::GUILD_MEMBERS | extra;
     let mut ladder = Vec::new();
     if presence {
         ladder.push(members | intents::GUILD_PRESENCES);
     }
     ladder.push(members);
-    ladder.push(INBOUND_INTENTS);
+    ladder.push(INBOUND_INTENTS | extra);
     ladder
 }
 
@@ -206,7 +217,7 @@ impl InboundManager {
 
     async fn start(self: &Arc<Self>, bridge: Bridge) -> BridgeResult<()> {
         let token = self.host.bot_token(bridge.guild_id).await?;
-        let ladder = intent_ladder(self.inbound.cfg.presence);
+        let ladder = intent_ladder_for_mode(&bridge.mode, self.inbound.cfg.presence);
         let level = self
             .levels
             .lock()

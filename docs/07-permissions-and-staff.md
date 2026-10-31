@@ -38,6 +38,19 @@ A server's bucket shelf (a Guild Shelf, see doc 12 section 3.1) is read and writ
 
 A read of any mount is decided in one place, `sr_storage::scopes::resolve`, and fails closed: the owner reads their own mount; a mutual friend reads the kinds the owner shared (Friend Shelf, `storage_mount_shares`, ended by unfriending or blocking); a guild member reads the kinds their grants open (403 when they lack the grant, 404 when they are not a member); a platform holder of `OPERATOR` may look at a mount that is not theirs and every such read is written to the staff access log (action `storage.read`, target the mount). A disabled mount, a mount whose owner is not active and a delisted key are refused to everyone, staff included.
 
+### Discord bridge: which bits cross (wave 35b, proposed D-386)
+
+Only in **Bridge the whole server** mode. This server is the master copy of permissions: role bits, `@everyone` bits and role overwrites go to Discord and are held there; an edit made to them on Discord is undone and logged. Nothing a Discord event does can raise any member's computed permissions here, any role's position, or any overwrite's allow set; the code path from Discord to this server has no permission or position field at all. Bridged Discord members are display rows, never accounts, and are never read by authorization. In "Only bridge these" mode no role or permission is synced.
+
+| Class | Bits | Behaviour |
+|---|---|---|
+| Shared | 0 to 46 and 48 to 52 (Discord's, same meaning) | Sent to Discord, this server authoritative. Undone if changed on Discord |
+| SIDE ROOM only | 56 to 60, and 61 and 62 once assigned | Stay on the role and overwrites here. Never sent, never cleared by sync, cannot be granted from Discord |
+| Discord only | 47, 53 to 55 and any bit Discord adds | Kept raw on Discord (stored with the role map so pushes preserve them), never stored in our permission word |
+| Unusable | 63 | Never |
+
+Push rule: role bits on Discord = (our bits & shared) | the Discord-only bits it already has. A per-person overwrite here has no Discord target and stays here only. On mirrored channels, Discord member overwrites and overwrites for Discord managed roles keep their denies and lose their allows. Role order is set here (a reorder on Discord is undone) because the order decides who can manage whom; a role deleted on Discord is deleted here only if no channel overwrite here denies anything to it, otherwise it is recreated there. Storage grants are not bits and are never sent. Settings keys: `bridge.delete_hold_hours`, `bridge.reconcile_minutes`, `bridge.struct_writes_per_sec`. The role editor shows a "Mirrored to Discord" badge, a group "SIDE ROOM only, not sent to Discord" and, read-only, "Set on Discord" for Discord-only bits.
+
 ### Server 2FA requirement (D-223)
 
 With a server's `mfa_level` set to 1 (owner only, `POST /guilds/{id}/mfa`), every action behind the elevated guild permissions needs a second factor proved on the session in the last 15 minutes: `KICK_MEMBERS`, `BAN_MEMBERS`, `ADMINISTRATOR`, `MANAGE_CHANNELS`, `MANAGE_GUILD`, `MANAGE_MESSAGES`, `MANAGE_ROLES`, `MANAGE_WEBHOOKS`, `MANAGE_THREADS`, `MANAGE_GUILD_EXPRESSIONS` and `MODERATE_MEMBERS` (AutoMod, community and safety settings and invite deletion included; invite creation and a member's own content excluded). A session that has a second factor and has not proved it gets `403 900004`; an account with no TOTP and no passkey gets `403 900123 MFA_ENROLLMENT_REQUIRED`. Bots pass when the owner of the application has a second factor enrolled and get `900123` otherwise. The route list is in doc 05 (server safety fields).

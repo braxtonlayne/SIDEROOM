@@ -138,7 +138,7 @@ fn allowed_mentions(ping_users: &[String]) -> Value {
 }
 
 impl WebhookPost {
-    fn body(&self) -> Value {
+    pub(crate) fn body(&self) -> Value {
         let mut v = json!({
             "content": self.content,
             "username": self.username,
@@ -157,6 +157,12 @@ pub struct DiscordApi {
     base: String,
     transport: Arc<dyn HttpTransport>,
     blocks: Arc<Mutex<HashMap<String, Instant>>>,
+    /// BRG-SYN-003: invalid responses (401, 403, 429) with their time and a one-way key of the bot token that got
+    /// them (never the token), for the invalid-request breakers. Shared by every clone, so one count covers the
+    /// instance (Discord's per-IP limit) and the key splits it per bridge.
+    pub(crate) invalid: Arc<Mutex<std::collections::VecDeque<(Instant, u64)>>>,
+    /// BRG-SYN-003: pacing of structural writes (`bridge.struct_writes_per_sec`).
+    pub(crate) pacer: Arc<crate::discord_structure::Pacer>,
 }
 
 impl std::fmt::Debug for DiscordApi {
@@ -213,6 +219,8 @@ impl DiscordApi {
             base: base.into().trim_end_matches('/').to_owned(),
             transport,
             blocks: Arc::new(Mutex::new(HashMap::new())),
+            invalid: Arc::new(Mutex::new(std::collections::VecDeque::new())),
+            pacer: Arc::new(crate::discord_structure::Pacer::new(2.0)),
         }
     }
 
@@ -255,6 +263,22 @@ impl DiscordApi {
         body: Option<Value>,
         key: Option<&str>,
     ) -> Result<Value, CallError> {
+        self.call_with(method, path, bot_token, body, key, None)
+            .await
+    }
+
+    /// [`call`](Self::call) plus the `X-Audit-Log-Reason` header (BRG-SYN-003): Discord shows the reason in its
+    /// audit log, and the gateway echoes it on `GUILD_AUDIT_LOG_ENTRY_CREATE`, which is how the bridge ignores
+    /// its own writes.
+    pub(crate) async fn call_with(
+        &self,
+        method: Method,
+        path: &str,
+        bot_token: Option<&str>,
+        body: Option<Value>,
+        key: Option<&str>,
+        reason: Option<&str>,
+    ) -> Result<Value, CallError> {
         let mut headers = vec![
             (
                 "User-Agent".to_owned(),
@@ -264,6 +288,12 @@ impl DiscordApi {
         ];
         if let Some(t) = bot_token {
             headers.push(("Authorization".into(), format!("Bot {t}")));
+        }
+        if let Some(r) = reason {
+            headers.push((
+                "X-Audit-Log-Reason".into(),
+                crate::discord_structure::encode_reason(r),
+            ));
         }
         let body_bytes = body.map(|b| b.to_string().into_bytes());
         if body_bytes.is_some() {
@@ -289,6 +319,9 @@ impl DiscordApi {
             {
                 self.block(key, secs(r));
             }
+        }
+        if matches!(resp.status, 401 | 403 | 429) {
+            self.note_invalid(bot_token);
         }
         if resp.status == 429 {
             let v: Value = serde_json::from_slice(&resp.body).unwrap_or(Value::Null);

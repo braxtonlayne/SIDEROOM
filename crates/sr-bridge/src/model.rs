@@ -88,7 +88,7 @@ pub struct Bridge {
     pub discord_guild_name: String,
     pub bot_user_id: i64,
     pub bot_name: String,
-    /// 'selective' (only the mapped channels); 'whole_guild' is reserved for wave 35b and refused for now.
+    /// 'selective' (only the mapped channels) or 'whole_guild' (the whole-server mirror, wave 35b, D-386).
     pub mode: String,
     pub status: BridgeStatus,
     pub intents_granted: i64,

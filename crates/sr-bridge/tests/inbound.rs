@@ -965,3 +965,98 @@ async fn the_member_intent_is_asked_for_first_and_dropped_when_discord_refuses_i
     m.stop_all();
     let _ = f.db.cleanup().await;
 }
+
+// ---------------------------------------------------------------------------------------------- structure (BRG-SYN-003)
+
+#[derive(Default)]
+struct RecSink {
+    looked: Mutex<Vec<sr_bridge::inbound::StructureEvent>>,
+    who: Mutex<Vec<(i64, i64, i64)>>,
+}
+
+#[async_trait]
+impl sr_bridge::inbound::StructureSink for RecSink {
+    async fn look_at(&self, _b: &Bridge, events: Vec<sr_bridge::inbound::StructureEvent>) {
+        self.looked.lock().unwrap().extend(events);
+    }
+    async fn attribute(&self, _b: &Bridge, target: i64, user: i64, action: i64) {
+        self.who.lock().unwrap().push((target, user, action));
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn structural_dispatches_reach_the_reconciler_and_the_bridges_own_echoes_do_not() {
+    let f = fx().await;
+    let b = f.bridge().await;
+    let rec = Arc::new(RecSink::default());
+    let inbound = Inbound::new(
+        f.db.pool().clone(),
+        f.sink.clone(),
+        InboundConfig::defaults(),
+    )
+    .with_structure(rec.clone());
+    let dg = b.discord_guild_id.to_string();
+    let send = |name: &str, data: Value| {
+        let inbound = &inbound;
+        let b = &b;
+        let name = name.to_owned();
+        async move {
+            inbound
+                .handle(
+                    b,
+                    &Dispatch {
+                        shard: 0,
+                        name,
+                        data,
+                    },
+                )
+                .await
+                .unwrap()
+        }
+    };
+    let o = send(
+        "CHANNEL_CREATE",
+        json!({"id": "555", "guild_id": dg, "type": 0, "name": "new"}),
+    )
+    .await;
+    assert_eq!(o, Outcome::Structure(1));
+    let o = send(
+        "GUILD_ROLE_UPDATE",
+        json!({"guild_id": dg, "role": {"id": "9", "name": "Mods", "color": 0, "position": 2}}),
+    )
+    .await;
+    assert_eq!(o, Outcome::Structure(1));
+    assert_eq!(rec.looked.lock().unwrap().len(), 2);
+    // Another server's event is dropped.
+    let o = send(
+        "CHANNEL_DELETE",
+        json!({"id": "555", "guild_id": "424242", "type": 0}),
+    )
+    .await;
+    assert_eq!(o, Outcome::Ignored(Why::OtherServer));
+    // The bridge's own write coming back through the audit log is an echo...
+    let o = send(
+        "GUILD_AUDIT_LOG_ENTRY_CREATE",
+        json!({"guild_id": dg, "target_id": "555", "user_id": b.bot_user_id.to_string(),
+               "action_type": 10, "reason": "sr-bridge:123"}),
+    )
+    .await;
+    assert_eq!(o, Outcome::Ignored(Why::Echo));
+    // ...a person's edit names the actor.
+    send(
+        "GUILD_AUDIT_LOG_ENTRY_CREATE",
+        json!({"guild_id": dg, "target_id": "555", "user_id": "31", "action_type": 11}),
+    )
+    .await;
+    assert_eq!(*rec.who.lock().unwrap(), vec![(555, 31, 11)]);
+    // Without a reconciler, structure is ignored (selective bridges of wave 35 are unchanged).
+    let o = f
+        .send(
+            "CHANNEL_CREATE",
+            json!({"id": "1", "guild_id": dg, "type": 0}),
+        )
+        .await;
+    assert_eq!(o, Outcome::Ignored(Why::NoReconciler));
+    let _ = f.db.cleanup().await;
+}

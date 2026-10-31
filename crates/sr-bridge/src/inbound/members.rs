@@ -147,12 +147,12 @@ pub async fn upsert(
     };
     sqlx::query(
         "INSERT INTO bridge_members \
-           (guild_id, discord_user_id, display_name, avatar_url, role_id, role_name, role_color, is_bot) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+           (guild_id, discord_user_id, display_name, avatar_url, role_id, role_name, role_color, is_bot, discord_role_ids) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          ON CONFLICT (guild_id, discord_user_id) DO UPDATE SET \
            display_name = EXCLUDED.display_name, avatar_url = EXCLUDED.avatar_url, \
            role_id = EXCLUDED.role_id, role_name = EXCLUDED.role_name, role_color = EXCLUDED.role_color, \
-           is_bot = EXCLUDED.is_bot, updated_at = now()",
+           is_bot = EXCLUDED.is_bot, discord_role_ids = EXCLUDED.discord_role_ids, updated_at = now()",
     )
     .bind(guild)
     .bind(m.user_id)
@@ -162,6 +162,7 @@ pub async fn upsert(
     .bind(rname)
     .bind(rcolor)
     .bind(m.bot)
+    .bind(&m.role_ids)
     .execute(pool)
     .await?;
     Ok(())
@@ -275,5 +276,34 @@ mod tests {
         assert_eq!(presence_of("dnd"), "dnd");
         assert_eq!(presence_of("invisible"), "offline");
         assert_eq!(presence_of("whatever"), "offline");
+    }
+}
+
+/// BRG-SYN-003 (design 7.2): the SIDE ROOM roles a bridged member is *shown* under. `discord_role_ids` are the
+/// member's Discord roles; `map` is (Discord role id, SIDE ROOM role id) from `bridge_role_maps`. Unmapped
+/// (managed or unknown) roles are skipped. The result keeps the member's order and has no duplicates.
+///
+/// DISPLAY ONLY: this is never an input to `sr_core::permissions::compute`.
+pub fn display_roles(discord_role_ids: &[i64], map: &[(i64, i64)]) -> Vec<i64> {
+    let mut out: Vec<i64> = Vec::new();
+    for d in discord_role_ids {
+        if let Some((_, sr)) = map.iter().find(|(dr, _)| dr == d)
+            && !out.contains(sr)
+        {
+            out.push(*sr);
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::display_roles;
+
+    #[test]
+    fn roles_translate_for_display_and_skip_unmapped() {
+        let map = [(10, 100), (11, 101)];
+        assert_eq!(display_roles(&[11, 99, 10, 11], &map), vec![101, 100]);
+        assert!(display_roles(&[], &map).is_empty());
     }
 }

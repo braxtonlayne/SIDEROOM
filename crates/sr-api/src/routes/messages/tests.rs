@@ -2148,6 +2148,7 @@ async fn bridged_members_are_listed_for_server_members_only() {
             role_color: Some(0x00ff_0000),
             bot: false,
             presence: Some("idle".into()),
+            role_ids: None,
         },
         BridgedMember {
             discord_user_id: "8".into(),
@@ -2157,6 +2158,7 @@ async fn bridged_members_are_listed_for_server_members_only() {
             role_color: None,
             bot: true,
             presence: None,
+            role_ids: None,
         },
     ];
     let list = |who: &'static str| {
@@ -2212,6 +2214,7 @@ async fn a_bridged_member_id_that_collides_with_an_account_never_pings_it() {
         role_color: None,
         bot: false,
         presence: None,
+        role_ids: None,
     }];
     let m = e.say("owner", &format!("hi <@{BOB}>")).await;
     assert_eq!(m["mentions"], json!([]), "{m}");

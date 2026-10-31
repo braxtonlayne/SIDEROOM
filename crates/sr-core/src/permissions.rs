@@ -97,6 +97,58 @@ impl<'de> serde::Deserialize<'de> for Permissions {
     }
 }
 
+/// The Discord bridge's classification of the permission word (BRG-SYN-002, doc 07 section 2, wave 35b design
+/// section 4). SIDE ROOM is the master copy of permissions: every bit is exactly one of
+///
+/// * **shared** ([`Permissions::BRIDGE_SHARED`]): bits 0 to 46 and 48 to 52, the bits Discord defines and SIDE
+///   ROOM mirrors. Sent to Discord, SIDE ROOM-authoritative;
+/// * **SIDE ROOM-only** ([`Permissions::SR_ONLY`]): bits 56 to 62 (as far as they are defined). They stay on the
+///   SIDE ROOM role and overwrite, are never sent, never cleared by a sync, and can never be granted from Discord;
+/// * **Discord-only** ([`DISCORD_ONLY_MASK`]): bits 47 and 53 to 55. They never enter a [`Permissions`] value
+///   (the deserializer truncates them); the bridge keeps them raw and preserves them on Discord.
+///
+/// Bit 63 is unusable and belongs to nobody. `unclassified_bits_are_none` (below) pins that a bit added to
+/// [`Permissions`] later fails the build until it is classified here.
+impl Permissions {
+    /// Bits 0 to 46 and 48 to 52 (every bit SIDE ROOM defines below 56).
+    pub const BRIDGE_SHARED: Self = Self::from_bits_truncate(SHARED_RAW);
+    /// The defined SIDE ROOM-only bits (56 to 60 now; 61 and 62 join when they are assigned, O-1).
+    pub const SR_ONLY: Self = Self::from_bits_truncate(SR_RESERVED_RAW);
+}
+
+const SHARED_RAW: u64 = 0x001F_7FFF_FFFF_FFFF;
+/// Bits 56 to 62: reserved for SIDE ROOM whether or not they are assigned yet.
+pub const SR_RESERVED_RAW: u64 = 0x7F00_0000_0000_0000;
+
+/// The bits only Discord defines (47 and 53 to 55), raw. On Discord they are Discord's alone.
+pub const DISCORD_ONLY_MASK: u64 = (1 << 47) | (0b111 << 53);
+
+/// A raw permission word as Discord sends it, split by who owns each bit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ClassifiedBits {
+    /// The shared bits, as a [`Permissions`] value.
+    pub shared: Permissions,
+    /// The bits only Discord defines, raw.
+    pub discord_only: u64,
+}
+
+impl ClassifiedBits {
+    /// Split what Discord sent. SIDE ROOM-only bits in `raw` (Discord has none; a hostile or buggy payload may
+    /// carry them) are dropped here: they can never be granted from Discord.
+    pub const fn from_discord(raw: u64) -> Self {
+        Self {
+            shared: Permissions::from_bits_truncate(raw & SHARED_RAW),
+            discord_only: raw & DISCORD_ONLY_MASK,
+        }
+    }
+
+    /// The word to send to Discord for a SIDE ROOM word: its shared bits, plus the Discord-only bits to
+    /// preserve. SIDE ROOM-only bits never appear.
+    pub const fn to_discord(sr: Permissions, preserved_discord_only: u64) -> u64 {
+        (sr.bits() & SHARED_RAW) | (preserved_discord_only & DISCORD_ONLY_MASK)
+    }
+}
+
 /// Whether an overwrite targets a role or a member.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OverwriteKind {
@@ -240,6 +292,76 @@ pub fn compute(input: &ComputeInput<'_>) -> Permissions {
             | Permissions::PRIORITY_SPEAKER);
     }
     perms
+}
+
+#[cfg(test)]
+mod bridge_mask_tests {
+    use super::*;
+
+    #[test]
+    fn unclassified_bits_are_none() {
+        // A bit added to `Permissions` must be classified: shared or SIDE ROOM-only, never neither.
+        assert_eq!(
+            Permissions::BRIDGE_SHARED | Permissions::SR_ONLY,
+            Permissions::ALL,
+            "a new permission bit is not classified for the Discord bridge: add it to BRIDGE_SHARED or SR_ONLY"
+        );
+        assert!((Permissions::BRIDGE_SHARED & Permissions::SR_ONLY).is_empty());
+        assert_eq!(SHARED_RAW & SR_RESERVED_RAW, 0);
+        assert_eq!(DISCORD_ONLY_MASK & (SHARED_RAW | SR_RESERVED_RAW), 0);
+    }
+
+    #[test]
+    fn the_shared_mask_is_discords_bits() {
+        for bit in (0..=46).chain(48..=52) {
+            assert!(SHARED_RAW & (1 << bit) != 0, "bit {bit} is shared");
+        }
+        for bit in (53..=63).chain([47]) {
+            assert!(SHARED_RAW & (1 << bit) == 0, "bit {bit} is not shared");
+        }
+        for bit in 56..=60 {
+            assert!(Permissions::SR_ONLY.bits() & (1 << bit) != 0, "bit {bit}");
+        }
+        assert_eq!(Permissions::SR_ONLY.bits(), 0x1F00_0000_0000_0000);
+    }
+
+    #[test]
+    fn every_defined_sideroom_bit_is_sr_only() {
+        for p in [
+            Permissions::START_WATCH_PARTY,
+            Permissions::CONTROL_WATCH_PARTY,
+            Permissions::USE_LIBRARY_EMBEDS,
+            Permissions::MANAGE_EXTENSIONS,
+            Permissions::USE_EXPRESSIONS_EXTERNALLY,
+        ] {
+            assert!(Permissions::SR_ONLY.contains(p));
+            assert!(!Permissions::BRIDGE_SHARED.intersects(p));
+        }
+    }
+
+    #[test]
+    fn from_discord_never_yields_a_sideroom_only_bit() {
+        let c = ClassifiedBits::from_discord(u64::MAX);
+        assert!(!c.shared.intersects(Permissions::SR_ONLY));
+        assert_eq!(c.shared, Permissions::BRIDGE_SHARED);
+        assert_eq!(c.discord_only, DISCORD_ONLY_MASK);
+        assert_eq!(
+            ClassifiedBits::from_discord(SR_RESERVED_RAW | (1 << 63)),
+            ClassifiedBits::default()
+        );
+    }
+
+    #[test]
+    fn to_discord_sends_shared_and_preserved_only() {
+        let sr = Permissions::SEND_MESSAGES
+            | Permissions::START_WATCH_PARTY
+            | Permissions::MANAGE_EXTENSIONS;
+        let out = ClassifiedBits::to_discord(sr, (1 << 47) | (1 << 57));
+        assert_eq!(out, Permissions::SEND_MESSAGES.bits() | (1 << 47));
+        let raw = Permissions::VIEW_CHANNEL.bits() | (1 << 47) | (1 << 54);
+        let c = ClassifiedBits::from_discord(raw);
+        assert_eq!(ClassifiedBits::to_discord(c.shared, c.discord_only), raw);
+    }
 }
 
 #[cfg(test)]
