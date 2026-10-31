@@ -8,6 +8,24 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 40 - 2026-10-31
+
+- **Help covers everything that is new.** The Help page now has a section each for your own storage, the player and
+  the jukebox, the utility drawer, profiles with status rings and the scrapbook, the Discord bridge (how a server
+  owner switches it on and off, and the two modes), Activities (the card table is play money), and retro games (bring
+  your own ROMs, and your own BIOS for PlayStation), next to the existing game-servers line that says they are coming
+  later.
+- **For operators: the module switches, written down.** Help > If you run this server (`/help/operators`) lists every
+  switch in Admin > Features and what it does. `deploy/OPERATOR.md` gains the storage, music, drawer, bridge and
+  emulator settings and every background job of the feature phase, and the owner checklist lists each decision and
+  download that is still waiting for a yes (SNES and Genesis cores, the homebrew games, the first real Discord run,
+  tantivy 0.27 on or after 2026-11-17, and the rest).
+- **Looking back.** Wave 33 was folded into the utility drawer of wave 32. Wave 38, game servers, is on hold at the
+  owner's request: only the "coming soon" page exists, and nothing else is planned until the owner says.
+- **Checked for the record.** The threat model now covers the Discord bridge (including its switch-off and the
+  whole-server mode), profile pages, status rings, the emulator and the drawer; the retention table lists every
+  new thing the instance keeps and for how long; and the lawyer brief has the question about music in voice.
+
 ## Phase 39 - 2026-10-31
 
 - **Game servers: coming soon.** Server Settings has a new Game Servers page (and the Activities picker in voice a

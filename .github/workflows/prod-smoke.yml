@@ -130,7 +130,7 @@ jobs:
         run: deploy/scripts/prod-smoke.sh preflight
       - name: Playwright entrance-smoke, noindex (OPS-IDX-001) and entrance-isolation (SEC-ENT-004) through Caddy
         run: |
-          pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+          ./scripts/playwright-install.sh chromium
           # Same specs and settings as playwright.config.ts, but against the running stack: no dev server, no
           # global setup (the stack is already migrated and bootstrapped), Chromium only, and Caddy's internal CA
           # is not in the browser's trust store.
@@ -331,7 +331,7 @@ jobs:
       # The same config as the stack job's entrance-smoke step, against the running stack.
       - name: Playwright entrance-smoke through Caddy (after the upgrade)
         run: |
-          pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+          ./scripts/playwright-install.sh chromium
           cat > e2e/playwright.prod-smoke.config.ts <<'EOF'
           import { defineConfig } from '@playwright/test';
           import base from './playwright.config';
