@@ -14,11 +14,14 @@ pub mod manager;
 pub mod members;
 pub mod sink;
 pub mod store;
+pub mod structure;
 
 pub use handler::{Inbound, InboundConfig, Outcome, Why};
 pub use manager::{
     INBOUND_INTENTS, InboundHost, InboundManager, Reconciled, ServiceHost, intent_ladder,
+    intent_ladder_for_mode,
 };
 pub use sink::{ChatSink, InboundAuthor, InboundPost};
 /// The real gateway transport (WebSocket over rustls), for the server wiring.
 pub use sr_sdk::gateway::WsConnector;
+pub use structure::{Change, StructureEvent, StructureKind, StructureSink};

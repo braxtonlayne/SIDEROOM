@@ -1,6 +1,8 @@
 //! Shared helpers of the Postgres tests: accounts, servers, a sealer, an in-memory Discord and a service.
 #![allow(dead_code)]
 
+pub mod fake_guild;
+
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};

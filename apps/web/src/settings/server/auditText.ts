@@ -85,6 +85,12 @@ export const AUDIT_ACTIONS: Record<number, ActionInfo> = {
   213: A('settings.auditText.a213'),
   214: A('settings.auditText.a214'),
   215: A('settings.auditText.a215'),
+  // BRG-SYN-002: the whole-server Discord bridge.
+  220: A('settings.auditText.a220'),
+  221: A('settings.auditText.a221'),
+  222: A('settings.auditText.a222'),
+  223: A('settings.auditText.a223'),
+  224: A('settings.auditText.a224'),
 };
 
 /** The action filter options, in number order. */

@@ -28,6 +28,10 @@ pub struct BridgedMemberObject {
     pub bot: bool,
     /// `online`, `idle`, `dnd` or `offline`; null unless the owner granted the presence intent.
     pub presence: Option<String>,
+    /// Whole-server bridges only: the SIDE ROOM role ids the member's Discord roles map to, for display (grouping,
+    /// colour). Never an authorization input; absent for a selective bridge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role_ids: Option<Vec<String>>,
 }
 
 /// The Discord members bridged into this server.
@@ -66,6 +70,7 @@ pub async fn list_bridge_members(
                 role_color: m.role_color.filter(|c| *c != 0),
                 bot: m.bot,
                 presence: m.presence,
+                role_ids: m.role_ids,
             })
             .collect(),
     ))

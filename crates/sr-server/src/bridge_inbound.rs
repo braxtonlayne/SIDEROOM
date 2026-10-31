@@ -388,6 +388,7 @@ pub fn spawn_inbound(
     bridge: Arc<BridgeService>,
     admin: sr_admin::AdminService,
     gateway: Option<String>,
+    structure: Arc<dyn sr_bridge::inbound::structure::StructureSink>,
 ) -> InboundTasks {
     use sr_admin::settings as k;
     let per_minute = Arc::new(AtomicU32::new(60));
@@ -409,7 +410,7 @@ pub fn spawn_inbound(
         pool: pool.clone(),
         messages,
     });
-    let inbound = Arc::new(Inbound::new(pool.clone(), sink, cfg));
+    let inbound = Arc::new(Inbound::new(pool.clone(), sink, cfg).with_structure(structure));
     let manager = InboundManager::new(
         pool,
         Arc::new(ServiceHost((*bridge).clone())),

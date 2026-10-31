@@ -6,9 +6,18 @@ import { bridgedAvatar, bridgedColor } from './members';
 import './bridge.css';
 
 /** One Discord member in the sidebar group "On Discord": avatar, name in their role colour, presence, tag. */
-export function BridgedMemberRow({ member, guildId }: { member: BridgedMember; guildId: string }) {
+export function BridgedMemberRow({
+  member,
+  guildId,
+  color: roleColor,
+}: {
+  member: BridgedMember;
+  guildId: string;
+  /** Whole-server bridge: the colour of the top coloured SIDE ROOM role their Discord roles map to. */
+  color?: string | null;
+}) {
   const t = useT();
-  const color = bridgedColor(member);
+  const color = roleColor ?? bridgedColor(member);
   return (
     <button
       type="button"

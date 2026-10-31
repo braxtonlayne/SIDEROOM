@@ -143,6 +143,9 @@ pub struct BridgedMember {
     pub bot: bool,
     /// `online`, `idle`, `dnd` or `offline`; none while the presence intent does not tell.
     pub presence: Option<String>,
+    /// Whole-guild bridges (BRG-SYN-003): the SIDE ROOM role ids the member's Discord roles map to, for DISPLAY
+    /// only (member-list grouping and colour). Never an authorization input. `None` for a selective bridge.
+    pub role_ids: Option<Vec<String>>,
 }
 
 #[async_trait]

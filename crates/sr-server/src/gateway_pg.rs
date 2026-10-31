@@ -224,14 +224,18 @@ impl PgGuildDirectory {
     async fn bridge_directions(
         &self,
         guild: GuildId,
-    ) -> BuildResult<std::collections::HashMap<i64, String>> {
-        let rows: Vec<(i64, String)> = sqlx::query_as(
-            "SELECT channel_id, direction FROM bridge_channel_maps WHERE guild_id = $1",
+    ) -> BuildResult<std::collections::HashMap<i64, Value>> {
+        let rows: Vec<(i64, String, String)> = sqlx::query_as(
+            "SELECT m.channel_id, m.direction, b.mode FROM bridge_channel_maps m \
+             JOIN bridges b ON b.guild_id = m.guild_id WHERE m.guild_id = $1",
         )
         .bind(guild.get() as i64)
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().collect())
+        Ok(rows
+            .into_iter()
+            .map(|(c, d, m)| (c, json!({ "direction": d, "mode": m })))
+            .collect())
     }
 
     /// GUILD_CREATE body: guild object, `channels`, `roles`, `threads`, and `members`
@@ -266,9 +270,10 @@ impl PgGuildDirectory {
                     .get("id")
                     .and_then(Value::as_str)
                     .and_then(|s| s.parse::<i64>().ok());
-                if let (Some(dir), Some(o)) = (id.and_then(|i| bridged.get(&i)), ch.as_object_mut())
+                if let (Some(state), Some(o)) =
+                    (id.and_then(|i| bridged.get(&i)), ch.as_object_mut())
                 {
-                    o.insert("sr_bridge".into(), json!({ "direction": dir }));
+                    o.insert("sr_bridge".into(), state.clone());
                 }
             }
         }
@@ -1063,16 +1068,18 @@ impl GuildDirectory for PgGuildDirectory {
     }
 
     async fn channel_bridge_state(&self, channel: ChannelId) -> Option<Value> {
-        let dir: Option<String> =
-            sqlx::query_scalar("SELECT direction FROM bridge_channel_maps WHERE channel_id = $1")
-                .bind(channel.get() as i64)
-                .fetch_optional(&self.pool)
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::error!(error = %e, "channel_bridge_state failed");
-                    None
-                });
-        dir.map(|d| json!({ "direction": d }))
+        let row: Option<(String, String)> = sqlx::query_as(
+            "SELECT m.direction, b.mode FROM bridge_channel_maps m \
+             JOIN bridges b ON b.guild_id = m.guild_id WHERE m.channel_id = $1",
+        )
+        .bind(channel.get() as i64)
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!(error = %e, "channel_bridge_state failed");
+            None
+        });
+        row.map(|(d, m)| json!({ "direction": d, "mode": m }))
     }
 
     async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {

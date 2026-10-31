@@ -385,6 +385,21 @@ impl BridgeService {
                 names.channels.insert(r.try_get("id")?, r.try_get("name")?);
             }
         }
+        // Whole-guild bridges (BRG-SYN-003): a mapped role or channel goes out as the real Discord mention (still
+        // never a ping: `allowed_mentions.parse` is empty). `mention_maps` is empty for a selective bridge.
+        if !role_ids.is_empty() || !channel_ids.is_empty() {
+            let maps = crate::sync::mention_maps(&self.pool, guild).await?;
+            for (d, s) in &maps.roles {
+                if role_ids.contains(s) {
+                    names.role_ids.insert(s.to_string(), d.to_string());
+                }
+            }
+            for (d, s) in &maps.channels {
+                if channel_ids.contains(s) {
+                    names.channel_ids.insert(s.to_string(), d.to_string());
+                }
+            }
+        }
         Ok(json!({
             "author_id": author,
             "username": name,

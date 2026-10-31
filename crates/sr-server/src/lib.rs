@@ -9,6 +9,7 @@ pub mod app;
 pub mod apps_jobs;
 pub mod backends;
 pub mod bridge_inbound;
+pub mod bridge_sync_wiring;
 pub mod bridge_wiring;
 pub mod cards_jobs;
 pub mod cinema_catalog;

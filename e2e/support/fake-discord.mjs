@@ -36,6 +36,7 @@
 
 import crypto from 'node:crypto';
 import http from 'node:http';
+import { createStructure } from './fake-discord-structure.mjs';
 
 const PORT = Number(process.env.SR_FAKE_DISCORD_PORT ?? 8090);
 export const FAKE_BOT_TOKEN = process.env.SR_FAKE_DISCORD_TOKEN ?? 'fake-bot-token-for-tests-only';
@@ -68,6 +69,14 @@ const fresh = () => ({
 });
 state = fresh();
 const nextId = () => (state.next++).toString();
+// BRG-SYN-003: roles, channels, overwrites, threads and tags (e2e/support/fake-discord-structure.mjs).
+const structure = createStructure({
+  guildId: GUILD_ID,
+  botId: BOT_ID,
+  channels: CHANNELS,
+  nextId: () => nextId(),
+  dispatch: (name, d) => dispatch(name, d),
+});
 
 const json = (res, status, body, headers = {}) => {
   const text = body === undefined ? '' : JSON.stringify(body);
@@ -113,6 +122,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (path === '/__fake/reset' && method === 'POST') {
     state = fresh();
+    structure.reset();
     return json(res, 200, { ok: true });
   }
   if (path === '/__fake/inject' && method === 'POST') {
@@ -168,6 +178,12 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
 
+  if (path.startsWith('/__fake/structure')) {
+    const b = method === 'POST' ? await readBody(req) : {};
+    const r = structure.handleControl(method, path, b);
+    if (r) return json(res, r.status, r.body);
+  }
+
   // ---- Discord
   const segs = path
     .replace(/^\/api\/v\d+\//, '')
@@ -185,13 +201,20 @@ const server = http.createServer(async (req, res) => {
   if (method === 'GET' && segs.join('/') === 'users/@me/guilds') {
     return bot ? json(res, 200, [{ id: GUILD_ID, name: 'Fake Discord' }]) : unauthorized();
   }
-  if (method === 'GET' && segs[0] === 'guilds' && segs[2] === 'channels' && segs.length === 3) {
-    if (!bot) return unauthorized();
-    return json(res, 200, segs[1] === GUILD_ID ? CHANNELS : []);
+  if (segs[0] === 'guilds' || (segs[0] === 'channels' && segs[2] !== 'webhooks')) {
+    const body = ['POST', 'PUT', 'PATCH'].includes(method) ? await readBody(req) : {};
+    const r = structure.handleRest(method, segs, body, req.headers, bot);
+    if (r) {
+      if (r.status === 204) {
+        res.writeHead(204);
+        return res.end();
+      }
+      return json(res, r.status, r.body, r.headers);
+    }
   }
   if (method === 'POST' && segs[0] === 'channels' && segs[2] === 'webhooks') {
     if (!bot) return unauthorized();
-    if (!CHANNELS.some((c) => c.id === segs[1]))
+    if (!structure.channelExists(segs[1]))
       return json(res, 404, { message: 'Unknown Channel', code: 10003 });
     const id = nextId();
     const token = `fakewhtoken${id}`;
@@ -221,9 +244,10 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const messageId = nextId();
       state.messages.set(`${id}:${messageId}`, body);
+      const target = structure.webhookTarget(hook.channel_id, url.searchParams, body, id);
       state.posts.push({
         webhook_id: id,
-        channel_id: hook.channel_id,
+        channel_id: target,
         message_id: messageId,
         content: body.content ?? '',
         username: body.username,
@@ -238,7 +262,7 @@ const server = http.createServer(async (req, res) => {
       return json(
         res,
         200,
-        { id: messageId, content: body.content ?? '', webhook_id: id },
+        { id: messageId, content: body.content ?? '', webhook_id: id, channel_id: target },
         headers,
       );
     }
@@ -327,8 +351,8 @@ const guildCreate = () => ({
   name: 'Fake Discord',
   unavailable: false,
   member_count: state.members.size + 1,
-  roles: [{ id: GUILD_ID, name: '@everyone', color: 0, position: 0, permissions: '0' }],
-  channels: CHANNELS.map((c, i) => ({ ...c, guild_id: GUILD_ID, position: i })),
+  roles: structure.snapshot().roles,
+  channels: structure.snapshot().channels,
   members: [...state.members.values()],
   presences: [],
 });

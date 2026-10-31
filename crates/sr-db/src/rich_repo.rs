@@ -64,7 +64,7 @@ impl RichStore for PgRichStore {
         guild: sr_core::GuildId,
     ) -> StoreResult<Vec<sr_chat::rich_repo::BridgedMember>> {
         let rows = sqlx::query(
-            "SELECT m.discord_user_id, m.display_name, m.avatar_url, m.role_name, m.role_color,                     m.is_bot, m.presence              FROM bridge_members m WHERE m.guild_id = $1              ORDER BY lower(m.display_name), m.discord_user_id LIMIT 5000",
+            "SELECT m.discord_user_id, m.display_name, m.avatar_url, m.role_name, m.role_color, m.is_bot, m.presence,              CASE WHEN b.mode = 'whole_guild' THEN ARRAY(SELECT rm.role_id FROM bridge_role_maps rm                WHERE rm.guild_id = m.guild_id AND NOT rm.is_everyone                AND rm.discord_role_id = ANY(COALESCE(m.discord_role_ids, '{}')) ORDER BY rm.role_id) END AS role_ids              FROM bridge_members m LEFT JOIN bridges b ON b.guild_id = m.guild_id WHERE m.guild_id = $1              ORDER BY lower(m.display_name), m.discord_user_id LIMIT 5000",
         )
         .bind(i(guild.get()))
         .fetch_all(&self.pool)
@@ -83,6 +83,10 @@ impl RichStore for PgRichStore {
                     role_color: r.try_get("role_color").map_err(sdb)?,
                     bot: r.try_get("is_bot").map_err(sdb)?,
                     presence: r.try_get("presence").map_err(sdb)?,
+                    role_ids: r
+                        .try_get::<Option<Vec<i64>>, _>("role_ids")
+                        .map_err(sdb)?
+                        .map(|v| v.into_iter().map(|id| id.to_string()).collect()),
                 })
             })
             .collect()

@@ -303,6 +303,8 @@ impl From<&ThreadMember> for ThreadMemberObject {
 pub struct BridgeChannelState {
     /// `both`, `to_discord` or `from_discord`.
     pub direction: String,
+    /// The bridge's mode (wave 35b): `selective` or `whole_guild` (the banner names the whole-server mirror).
+    pub mode: String,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

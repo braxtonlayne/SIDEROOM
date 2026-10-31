@@ -214,14 +214,18 @@ pub async fn list_channels(
     let mut out: Vec<ChannelObject> = list.iter().map(ChannelObject::from).collect();
     // The bridge state rides on the channel payload, so the client draws its banner without another request.
     if let Some(b) = bridge {
-        let dirs = b
-            .directions_for_guild(i64::try_from(gid.get()).unwrap_or(0))
-            .await
-            .unwrap_or_default();
+        let g = i64::try_from(gid.get()).unwrap_or(0);
+        let dirs = b.directions_for_guild(g).await.unwrap_or_default();
+        let mode = if dirs.is_empty() {
+            None
+        } else {
+            b.mode_of(g).await.ok().flatten()
+        };
         for c in &mut out {
             if let Some(d) = c.id.parse::<i64>().ok().and_then(|i| dirs.get(&i)) {
                 c.sr_bridge = Some(super::dto::BridgeChannelState {
                     direction: d.as_str().to_owned(),
+                    mode: mode.clone().unwrap_or_else(|| "selective".into()),
                 });
             }
         }
@@ -492,8 +496,14 @@ pub async fn get_channel(
             .direction_for_channel(i64::try_from(cid.get()).unwrap_or(0))
             .await
     {
+        let mode = b
+            .mode_for_channel(i64::try_from(cid.get()).unwrap_or(0))
+            .await
+            .ok()
+            .flatten();
         out.sr_bridge = Some(super::dto::BridgeChannelState {
             direction: d.as_str().to_owned(),
+            mode: mode.unwrap_or_else(|| "selective".into()),
         });
     }
     Ok(Json(out))

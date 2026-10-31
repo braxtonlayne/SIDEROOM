@@ -11,9 +11,11 @@ import './bridge.css';
 export function BridgeBanner({ channelId }: { channelId: string }) {
   const t = useT();
   const direction = useStore((s) => s.channels[channelId]?.sr_bridge?.direction);
+  const whole = useStore((s) => s.channels[channelId]?.sr_bridge?.mode === 'whole_guild');
   if (!direction) return null;
-  const text =
-    direction === 'both'
+  const text = whole
+    ? t('lounge.bridgeSync.bannerWhole')
+    : direction === 'both'
       ? t('lounge.bridge.bannerBoth')
       : direction === 'to_discord'
         ? t('lounge.bridge.bannerOut')

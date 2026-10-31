@@ -22,6 +22,9 @@ use sr_features::modules::bridge::BRIDGE_MODULE_ID;
 use crate::error::BridgeResult;
 use crate::service::{AUDIT_INTEGRATION_DELETE, AuditRow, BridgeService, SYSTEM_USER_ID};
 
+/// `AuditAction::BridgeObjectRemoved` (BRG-SYN-002 owns the enum).
+pub const AUDIT_OBJECT_REMOVED: i16 = 224;
+
 /// A Discord webhook the teardown could not delete.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Leftover {
@@ -40,6 +43,42 @@ pub struct TeardownReport {
     pub leftovers: Vec<Leftover>,
     /// SIDE ROOM channels that were told.
     pub channels_notified: Vec<i64>,
+    /// What the whole_guild options did on Discord.
+    pub removal: RemovalReport,
+}
+
+/// The choices of the whole_guild teardown dialog (design section 12). The default leaves Discord as it is.
+/// Discord objects the bridge did not create are never deleted by the bot: there is no option for it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct TeardownOptions {
+    /// Also delete the roles, categories, channels and threads the bridge created on Discord (map origin `sr`).
+    #[serde(default)]
+    pub remove_created: bool,
+    /// Also restore the permissions of roles and overwrites that existed before the bridge to the snapshot.
+    #[serde(default)]
+    pub restore_permissions: bool,
+}
+
+/// A Discord object the teardown could not remove or restore (ids only).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FailedObject {
+    pub kind: String,
+    pub id: i64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct RemovalReport {
+    pub roles: i64,
+    pub channels: i64,
+    pub restored_roles: i64,
+    pub restored_channels: i64,
+    pub failed: Vec<FailedObject>,
+}
+
+impl RemovalReport {
+    pub fn removed(&self) -> i64 {
+        self.roles + self.channels
+    }
 }
 
 /// Why the bridge is being torn down.
@@ -64,12 +103,25 @@ impl TeardownReason {
 pub const SWITCHED_OFF_NOTICE: &str = "The Discord bridge was switched off";
 
 impl BridgeService {
-    /// Tear down the server's bridge. Idempotent: a server with no bridge yields an empty report.
+    /// Tear down the server's bridge with the default options (Discord's structure is left as it is).
     pub async fn teardown(
         &self,
         guild: i64,
         actor: i64,
         reason: TeardownReason,
+    ) -> BridgeResult<TeardownReport> {
+        self.teardown_with(guild, actor, reason, TeardownOptions::default())
+            .await
+    }
+
+    /// Tear down the server's bridge. Idempotent: a server with no bridge yields an empty report. `opts` is the
+    /// whole_guild dialog (design section 12).
+    pub async fn teardown_with(
+        &self,
+        guild: i64,
+        actor: i64,
+        reason: TeardownReason,
+        opts: TeardownOptions,
     ) -> BridgeResult<TeardownReport> {
         // Teardowns are serialised, so the owner's request and the bus consumer's backstop never race: the second
         // finds nothing left and the first has finished by the time its caller hears.
@@ -131,7 +183,43 @@ impl BridgeService {
             }
         }
 
+        // The whole_guild options act on Discord while the maps and the snapshot still exist.
+        if opts.remove_created || opts.restore_permissions {
+            report.removal = self.teardown_discord_structure(guild, &opts).await;
+        }
+
         let mut tx = self.pool.begin().await?;
+        for l in &report.removal.failed {
+            sqlx::query(
+                "INSERT INTO bridge_teardown_residue (guild_id, discord_webhook_id, discord_channel_id, reason) \
+                 VALUES ($1, $2, $2, $3) ON CONFLICT DO NOTHING",
+            )
+            .bind(guild)
+            .bind(l.id)
+            .bind(format!("{} not removed on Discord", l.kind))
+            .execute(&mut *tx)
+            .await?;
+        }
+        if opts.remove_created
+            && (report.removal.removed() > 0 || !report.removal.failed.is_empty())
+        {
+            self.audit(
+                &mut tx,
+                AuditRow {
+                    guild,
+                    actor,
+                    action: AUDIT_OBJECT_REMOVED,
+                    target: None,
+                    changes: json!([]),
+                    options: json!({
+                        "roles": report.removal.roles,
+                        "channels": report.removal.channels,
+                        "failed": report.removal.failed.iter().map(|f| f.id.to_string()).collect::<Vec<_>>(),
+                    }),
+                },
+            )
+            .await?;
+        }
         for l in &report.leftovers {
             sqlx::query(
                 "INSERT INTO bridge_teardown_residue (guild_id, discord_webhook_id, discord_channel_id, reason) \
