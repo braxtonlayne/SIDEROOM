@@ -15,6 +15,7 @@ import {
   type RpcErrorBody,
   type SubscribeArgs,
 } from './protocol';
+import { ActivityData, type DataEventMap, type DataEventName, type DataTransport } from './data';
 
 /** The slice of `window` the SDK needs, injectable for tests. */
 export interface SdkEnv {
@@ -45,6 +46,11 @@ export interface SdkOptions {
   timeoutMs?: number;
   /** Test seam; defaults to the browser's `window`. */
   env?: SdkEnv;
+  /**
+   * The activity data channel (ACT-CH-001). Tests pass a `LoopbackHub` transport; in the client the host
+   * page provides the SFU-backed one. Without it `sdk.state` and `sdk.input` throw `NO_TRANSPORT`.
+   */
+  transport?: DataTransport;
 }
 
 function browserEnv(): SdkEnv {
@@ -81,17 +87,62 @@ export class SideRoomSDK {
   private seq = 0;
   private readyWaiter: { resolve: (c: ReadyConfig) => void } | null = null;
   private readonly onMessage = (e: MessageEvent) => this.receive(e);
+  private readonly data = new ActivityData();
 
   constructor(applicationId: string, opts: SdkOptions = {}) {
     this.applicationId = applicationId;
     this.env = opts.env ?? browserEnv();
     this.timeoutMs = opts.timeoutMs ?? 60_000;
     this.env.addEventListener('message', this.onMessage);
+    if (opts.transport) this.data.attach(opts.transport);
+  }
+
+  /** Attach (or replace) the data channel transport. */
+  attachTransport(transport: DataTransport): void {
+    this.data.attach(transport);
+  }
+
+  /** The instance's shared JSON document: last writer wins per key; `host:*` keys are the host's alone. */
+  get state() {
+    const d = this.data;
+    return {
+      get: <T = unknown>(key: string): T | undefined => d.get<T>(key),
+      /** A copy of every live key. */
+      all: (): Record<string, unknown> => d.snapshot(),
+      /** The document version (the highest key version seen). */
+      get version(): number {
+        return d.version;
+      },
+      set: (patch: Record<string, unknown>): void => d.set(patch),
+      delete: (...keys: string[]): void => d.delete(...keys),
+    };
+  }
+
+  /** Inputs to the host and the host's replies to one member. */
+  get input() {
+    const d = this.data;
+    return {
+      /** Send bytes to the instance's host. */
+      send: (bytes: Uint8Array): void => d.sendInput(bytes),
+      /** Host only: send bytes to one member (e.g. hole cards); other members ignore them. */
+      reply: (member: string, bytes: Uint8Array): void => d.reply(member, bytes),
+    };
+  }
+
+  /** Listen to `'state'` (the document changed) or `'input'` (an input for the host, or a host reply). */
+  on<K extends DataEventName>(event: K, cb: (e: DataEventMap[K]) => void): () => void {
+    return this.data.on(event, cb);
+  }
+
+  /** True when this participant launched the instance. */
+  get isHost(): boolean {
+    return this.data.isHost;
   }
 
   /** Stop listening. Pending commands fail. */
   close(): void {
     this.env.removeEventListener('message', this.onMessage);
+    this.data.detach();
     for (const [, p] of this.pending)
       p.reject(new SdkError({ code: 'CLOSED', message: 'The SDK was closed.' }));
     this.pending.clear();
