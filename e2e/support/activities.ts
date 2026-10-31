@@ -74,6 +74,9 @@ export async function startActivityForTwo(
 
   const a = await mediaContext(fx.browser, fx.browserName, alice);
   const b = await mediaContext(fx.browser, fx.browserName, bob);
+  // A taller window than the 1280 x 720 default: the Activity frame (60vh) sits below the call header and the
+  // jukebox, and the controls at the bottom of an Activity must be inside the viewport to be clicked.
+  for (const p of [a.page, b.page]) await p.setViewportSize({ width: 1280, height: 1000 });
   await trackPeerConnections(a.page);
   await trackPeerConnections(b.page);
   debugPage(a.page, 'A');

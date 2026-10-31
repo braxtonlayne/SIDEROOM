@@ -1,7 +1,7 @@
 import { Fog } from '../src/fog.js';
 import { verifyRecord } from '../src/dice.js';
 import { K, applyWrites, handleInput, mapImageUrl, safeImageUrl, splitChunks, view } from '../src/table.js';
-import { createLoopbackRoom, decodeInput, encodeInput, mayWrite, runHost } from '../src/transport.js';
+import { createLoopbackRoom, cryptoSeed, decodeInput, encodeInput, mayWrite, runHost } from '../src/transport.js';
 
 const MAP = { kind: 'square', size: 50, ox: 0, oy: 0, width: 500, height: 400, unit: 5, unitName: 'ft' };
 const env = (seed = 7n) => ({ hostId: 'host', now: 1000, seed: () => seed });
@@ -258,6 +258,20 @@ describe('two participants over the loopback transport', () => {
     expect(a).toEqual(h);
     expect(a[0].by).toBe('alice');
     expect(verifyRecord(a[0])).toBe(true);
+  });
+  it('rolls with the CSPRNG seed when none is injected (as the real Activity runs)', () => {
+    const room = createLoopbackRoom('host');
+    const host = room.join({ id: 'host', name: 'Hosta' });
+    const alice = room.join({ id: 'alice', name: 'Alice' });
+    runHost(host, handleInput);
+    alice.send({ t: 'roll', expr: '4d6dl1' });
+    alice.send({ t: 'roll', expr: '4d6dl1' });
+    const rolls = view(host.doc()).rolls;
+    expect(rolls).toHaveLength(2);
+    expect(rolls[0].seed).toMatch(/^[0-9a-f]{16}$/);
+    expect(rolls[0].seed).not.toBe(rolls[1].seed);
+    expect(rolls.every(verifyRecord)).toBe(true);
+    expect(typeof cryptoSeed()).toBe('bigint');
   });
   it('does not let a member impersonate another: identity comes from the channel, not the message', () => {
     const { host, alice } = setup();

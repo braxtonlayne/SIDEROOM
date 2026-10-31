@@ -140,11 +140,18 @@ export function sdkTransport(sdk, { me, hostId, people = () => [] }) {
   };
 }
 
+/** A fresh 64-bit roll seed from the browser's CSPRNG (the host picks one per roll). */
+export function cryptoSeed() {
+  const w = new Uint32Array(2);
+  crypto.getRandomValues(w);
+  return (BigInt(w[0]) << 32n) | BigInt(w[1]);
+}
+
 /**
  * Wire the host: apply every intent (own and others') with `handleInput` and write the results. Returns the
- * unsubscribe function. `seed` and `now` are injectable for tests.
+ * unsubscribe function. `seed` and `now` are injectable for tests; `seed` defaults to the CSPRNG.
  */
-export function runHost(transport, handleInput, { seed, now = Date.now, hooks = {} } = {}) {
+export function runHost(transport, handleInput, { seed = cryptoSeed, now = Date.now, hooks = {} } = {}) {
   return transport.onInput((from, msg) => {
     const res = handleInput(transport.doc(), from, msg, {
       hostId: transport.hostId,

@@ -8,6 +8,24 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 36 - 2026-10-31
+
+- **Activities can share what you do, privately.** An Activity started from a voice call can now keep a shared state
+  and pass moves between the people in it. It all travels through the call, sealed with the call's own keys, so the
+  server only relays bytes it cannot read. Each person's share is capped (`voice.datachannel_kbps`, 256 by default).
+- **Four built-in Activities.** **Whiteboard**: pens, shapes, text, pictures, pages, undo and PNG export, drawn
+  together. **Card table: Texas Hold'em** with play-money chips, blinds, a rotating dealer, side pots and showdown;
+  your hole cards go to you alone, a 60-second turn timer keeps play moving, and the table says plainly that it is a
+  friends' table, not cheat-proof. **Tabletop**: a grid or hex map with tokens, fog of war, initiative, measuring and
+  a dice tray whose rolls show their seed so anyone can check them. **Land.io**, the territory game, with bots and
+  every mode and map, hosted in the browser of whoever starts it.
+- **The starter hosts the game.** Whoever starts one of these Activities runs it; when they leave it or the call, it
+  ends for everyone.
+- **For operators.** The four Activities are installed like any Activity: build the zips with
+  `node scripts/build-activities.mjs`, upload them in the developer portal and approve them in the review queue.
+  Bundles may now declare the `datachannel` capability in `sideroom.json` (migration 1760); bots get the same channel
+  through `voice::DataChannel` in sr-sdk.
+
 ## Phase 35 - 2026-10-30
 
 - **Discord bridge (off until a server owner switches it on).** Under Server Settings > Modules ("Integrations,
