@@ -19,11 +19,11 @@
 //! owner-confirmed plan import and an SR actor's "Apply on SIDE ROOM", both through the ordinary SIDE ROOM
 //! services, never through this module.
 //!
-//! Permission translation (the bit masks, overwrite pushes, reverts, conflicts) is BRG-SYN-002: [] (role
-//! words, Discord-only bits, import, role-deletion guard), [] (channel overwrites, SIDE ROOM to Discord,
-//! trimming Discord-only targets) and [] (the conflict log and audit rows 220 to 224);
-//!  runs random Discord event sequences against them. Every Discord HTTP call is BRG-SYN-003
-//! and goes through [](crate::DiscordApi).
+//! Permission translation (the bit masks, overwrite pushes, reverts, conflicts) is BRG-SYN-002: [`perms`] (role
+//! words, Discord-only bits, import, role-deletion guard), [`overwrites`] (channel overwrites, SIDE ROOM to Discord,
+//! trimming Discord-only targets) and [`conflicts`] (the conflict log and audit rows 220 to 224);
+//! `tests/authz_property.rs` runs random Discord event sequences against them. Every Discord HTTP call is
+//! BRG-SYN-003 and goes through [`DiscordApi`](crate::DiscordApi).
 
 pub mod conflicts;
 pub mod eligible;
