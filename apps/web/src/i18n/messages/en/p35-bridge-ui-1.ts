@@ -108,6 +108,12 @@ export default {
     'Messages here are mirrored to Discord. Everything said in this channel is mirrored.',
   'lounge.bridge.bannerIn': 'Messages from Discord are shown here with a DISCORD tag.',
   'lounge.messageItem.bridgeTag': 'DISCORD',
+  'lounge.bridge.groupLabel': 'On Discord',
+  'lounge.bridge.searchMembers': 'Search Discord members',
+  'lounge.bridge.memberRowLabel': '{name}, on Discord, {status}',
+  'lounge.bridge.statusUnknown': 'status unknown',
+  'lounge.bridge.popoutVia': 'On Discord via the bridge',
+  'lounge.bridge.popoutRole': 'Discord role',
 
   // ---- the privacy page (the handbook's privacy section)
   'help.handbook.privacy.bridge':

@@ -260,7 +260,7 @@ function MessageItemImpl(props: MessageItemProps) {
     onOpenProfile,
   } = props;
   // A webhook has no profile to open.
-  const openProfile = m.author.webhook ? undefined : onOpenProfile;
+  const openProfile = m.author.webhook && !m.author.bridgeMember ? undefined : onOpenProfile;
   const t = useT();
   const reportEntry = useReportEntry();
   const prefs = useSavedPrefs();

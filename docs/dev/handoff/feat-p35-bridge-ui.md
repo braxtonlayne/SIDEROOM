@@ -49,10 +49,20 @@ they can be reconciled with bridge-core's routes in one place (see "Reconcile at
 - **i18n**: `apps/web/src/i18n/messages/en/p35-bridge-ui-1.ts` (all strings, no underscores in key segments).
 - **No migration**: nothing needed; 1740-1749 stays unused (`bridge_optouts` is being removed from 1720).
 
+- **Discord members look native (second OWNER DIRECTION)**: `lounge/bridge/members.ts` (store, asked once per server and again after a
+  minute, only when one of its channels has `sr_bridge`). An "On Discord" group with a search box at the end of the member sidebar (avatar,
+  name in the Discord role colour, presence dot when known, DISCORD or APP tag). A popout for a bridged member (`BridgedMemberViews.tsx`:
+  name, avatar, Discord role, DISCORD tag, "On Discord via the bridge"; no DM, friend, note or moderation). An inbound message's author opens
+  that popout and groups by the bridged member id (`sr_bridge.member_id` replaces the shared bridge author id). A bridged-member mention is a
+  normal chip (the MessageList user resolver falls back to bridged members) and opens the popout. The composer's @ autocomplete offers bridged
+  members in a channel whose direction sends to Discord and inserts `<@id>`. Discord typers show by name in the existing typing line.
+  Test: `lounge/__tests__/p35BridgeMembers.test.tsx` (10 tests).
+
 ## Files outside the Split row (small, additive; flagged)
 
 - `apps/web/src/lounge/{MessageItem.tsx, data.ts, liveMap.ts, messageRows.ts}`, `apps/web/src/store/types.ts`: the DISCORD tag needs the
   `sr_bridge` field, the mapping and the grouping rule (the row says "the DISCORD tag").
+- `apps/web/src/lounge/{MemberList.tsx, MessageList.tsx, Composer.tsx, live.tsx, msg/autocomplete.ts, profile/ProfilePopout.tsx}`: the Discord members (group, resolver, @ suggestions, typing, popout), small additive edits.
 - `apps/web/src/lounge/ChannelView.tsx`, `lounge/shell/useChannelMenu.ts`: the banner and the menu entry (named in the row).
 - `crates/sr-db/src/{bridge_dsr.rs (new), lib.rs, account_deletion.rs, admin_repo_dsr.rs, data_export.rs}`: the actual DSR work lives in
   sr-db (the Split names only `sr-admin/data_requests.rs`); same pattern as `scrapbook_legal`/`rings_dsr`. `bridge_dsr` treats a database
@@ -70,6 +80,9 @@ bridge-core had committed the schema and the module when I read it (`123b5594`, 
 | `POST /guilds/{g}/bridge/maps` `{channel_id, discord_channel_id, direction}` / `DELETE .../maps/{channel_id}` | the map / 204 |
 | `POST /guilds/{g}/bridge/test` `{channel_id}` | `{ok:true}` |
 | `PATCH /guilds/{g}/sr/features/bridge.enabled` | the `GuildFeature` plus optional `owner_only` and, on switch-off, `teardown: {maps_removed, failed_webhooks: [id]}` |
+| `GET /guilds/{g}/bridge/members` | `[{id, display_name, avatar (/cdn/external path or null), role_name or null, role_color (24-bit) or null, bot, presence (online/idle/dnd/offline) or null}]`, readable by any member of the server, `[]` while off. `id` is the Discord user id as a decimal string, so the standard `<@id>` token is the mention format both ways |
+| inbound message | `sr_bridge.member_id` = that id |
+| typing | `TYPING_START` with `user_id` = that id (no `member` object) |
 | channel object | `sr_bridge?: {direction: both|to_discord|from_discord}` on the guild channel, absent when not mapped |
 | message payload | `sr_bridge: {platform:"discord", author_name, author_avatar}` with `author_avatar` a `/cdn/external/` path |
 | outbound queue row for erasure | `bridge_outbox(kind='delete', payload {discord_message_id, webhook_id, reason:'erasure'})` with id `-sr_message_id`; the worker must delete from the payload because the map row is gone |

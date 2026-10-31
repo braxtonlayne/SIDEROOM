@@ -31,3 +31,10 @@
   gap: var(--space-2, 8px);
   padding-block: var(--space-1, 4px);
 }
+.lng-bridged-search {
+  margin-inline: var(--space-2, 8px);
+  margin-block-end: var(--space-1, 4px);
+}
+.lng-bridged-card {
+  min-inline-size: 240px;
+}

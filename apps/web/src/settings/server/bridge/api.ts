@@ -100,3 +100,31 @@ export const switchBridge = (guildId: string, enabled: boolean) =>
       enabled,
     },
   );
+
+// ---- the Discord side as members (owner direction: Discord should feel like part of SIDE ROOM)
+//
+// SHAPES DEFINED HERE FOR bridge-gateway TO RECONCILE (BRG-GW-001):
+//  * `GET /guilds/{g}/bridge/members` (any member of the server; [] while the bridge is off) -> BridgedMember[].
+//  * `BridgedMember.id` is the Discord user id as a decimal string, so the standard mention token `<@id>` carries it
+//    both ways (the markdown parser already reads `<@digits>`; the web resolves it to the bridged member).
+//  * An inbound message's `sr_bridge.member_id` is that same id.
+//  * A Discord typer arrives as `TYPING_START` with `user_id` = that id.
+//  * `avatar` is a same-origin `/cdn/external/...` path or null (a Discord URL is never loaded directly).
+
+export type BridgedPresence = 'online' | 'idle' | 'dnd' | 'offline';
+
+export interface BridgedMember {
+  id: string;
+  display_name: string;
+  avatar: string | null;
+  /** The member's top Discord role, for the group colour and the popout. */
+  role_name: string | null;
+  /** 24-bit colour of that role; 0 or null = none. */
+  role_color: number | null;
+  bot: boolean;
+  /** Present only while the bot's presence intent knows it. */
+  presence: BridgedPresence | null;
+}
+
+export const listBridgedMembers = (guildId: string) =>
+  apiFetch<BridgedMember[]>(path(guildId, '/members'), { retries: 0 });

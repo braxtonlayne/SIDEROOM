@@ -136,7 +136,13 @@ export interface Message {
    * Set on a message the Discord bridge brought in (BRG-GW-001): who wrote it on Discord. `author_avatar` is a
    * same-origin `/cdn/external/...` path (never a Discord URL). The Lounge shows a DISCORD tag beside the name.
    */
-  sr_bridge?: { platform: 'discord'; author_name: string; author_avatar?: string | null };
+  sr_bridge?: {
+    platform: 'discord';
+    author_name: string;
+    author_avatar?: string | null;
+    /** The Discord user id: the id of the bridged member (`GET /guilds/{g}/bridge/members`). */
+    member_id?: string;
+  };
   /** Application emoji ids in `content` that stay text because the author is not that application's bot (D-237). */
   sr_text_emoji?: string[];
   pinned?: boolean;

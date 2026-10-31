@@ -437,6 +437,8 @@ export function bridgeAuthor(b: NonNullable<S.Message['sr_bridge']>): Partial<Lo
   return {
     webhook: true,
     bridge: b.platform,
+    // A known Discord member: their id replaces the shared bridge author id, so grouping and the popout follow the person.
+    ...(b.member_id ? { id: b.member_id, bridgeMember: true as const } : {}),
     displayName: b.author_name,
     avatarUrl: b.author_avatar?.startsWith('/cdn/external/') ? b.author_avatar : null,
   };

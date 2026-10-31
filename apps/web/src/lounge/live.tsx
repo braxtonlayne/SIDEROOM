@@ -24,6 +24,7 @@ import type {
 } from './data';
 import { usePermEngine, type PermEngine } from './permEngine';
 import { applyMutes } from './shell/applyMutes';
+import { findBridgedMember, useBridgedMembers } from './bridge/members';
 import { useNotifSettings } from './shell/notifSettings';
 import {
   basePermissions,
@@ -371,6 +372,8 @@ export function useLiveTypingIds(channelId: string | undefined): Snowflake[] {
   const typing = useStore((s) => (channelId ? s.typing[channelId] : undefined));
   const users = useStore((s) => s.users);
   const pruneTyping = useStore((s) => s.pruneTyping);
+  // A Discord typer of a bridged server is not in `users`; the bridged members vouch for them.
+  const bridged = useBridgedMembers((s) => s.byGuild);
   useEffect(() => {
     if (!typing?.length) return;
     const next = Math.min(...typing.map((t) => t.expires_at));
@@ -380,9 +383,10 @@ export function useLiveTypingIds(channelId: string | undefined): Snowflake[] {
   return useMemo(() => {
     const now = Date.now();
     return (typing ?? [])
-      .filter((t) => t.expires_at > now && users[t.user_id])
+      .filter((t) => t.expires_at > now && (users[t.user_id] || findBridgedMember(t.user_id)))
       .map((t) => t.user_id);
-  }, [typing, users]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typing, users, bridged]);
 }
 
 export function useLivePresence(userId: Snowflake): Presence {
