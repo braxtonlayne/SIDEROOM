@@ -7522,6 +7522,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/bridge/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Discord members bridged into this server. */
+        get: operations["list_bridge_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/bulk-ban": {
         parameters: {
             query?: never;
@@ -16604,6 +16621,48 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        /**
+         * @description One Discord attachment link. Discord's links expire; past that `url` is absent and `expired` is true
+         *     (clients show "(link expired)").
+         */
+        BridgeLinkObject: {
+            expired: boolean;
+            expires_at?: string | null;
+            filename: string;
+            url?: string | null;
+        };
+        /** @description Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL. */
+        BridgeObject: {
+            author_avatar?: string | null;
+            author_name: string;
+            /** @description Attachments, as links only: nothing is re-hosted. */
+            links?: components["schemas"]["BridgeLinkObject"][];
+            /** @description The Discord user id (decimal string): the bridged member's id in `GET /guilds/{id}/bridge/members`. */
+            member_id?: string | null;
+            /** @description `discord`. */
+            platform: string;
+        };
+        /**
+         * @description A Discord member shown in the list. `id` is the Discord user id as a decimal string: the same as
+         *     `sr_bridge.member_id` on their messages, the `user_id` of a `TYPING_START` they cause, and the id inside the
+         *     standard `<@id>` mention token both ways.
+         */
+        BridgedMemberObject: {
+            /** @description An image-proxy path (`/cdn/external/...`), never the Discord URL; null without an avatar. */
+            avatar?: string | null;
+            bot: boolean;
+            display_name: string;
+            id: string;
+            /** @description `online`, `idle`, `dnd` or `offline`; null unless the owner granted the presence intent. */
+            presence?: string | null;
+            /**
+             * Format: int32
+             * @description `0xRRGGBB` as a number; null for a role without a colour.
+             */
+            role_color?: number | null;
+            /** @description The member's top role on Discord. */
+            role_name?: string | null;
+        };
         /** @description A template shipped with the server. */
         BuiltinTemplateObject: {
             description: string;
@@ -21358,6 +21417,7 @@ export interface components {
             /** @description Poll definition with live results (`results.answer_counts`). */
             poll?: Record<string, never> | null;
             reactions?: components["schemas"]["ReactionObject"][];
+            sr_bridge?: null | components["schemas"]["BridgeObject"];
             /**
              * @description Ids of `<:name:id>` tokens in `content` that resolve to an application emoji but were not
              *     sent by that application's bot: clients show them as `:name:` text (D-237).
@@ -52164,6 +52224,44 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_bridge_members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BridgedMemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

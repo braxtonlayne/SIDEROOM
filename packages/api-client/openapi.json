@@ -37880,6 +37880,69 @@
         ]
       }
     },
+    "/guilds/{guild_id}/bridge/members": {
+      "get": {
+        "tags": [
+          "bridge_members"
+        ],
+        "summary": "The Discord members bridged into this server.",
+        "operationId": "list_bridge_members",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BridgedMemberObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/bulk-ban": {
       "post": {
         "tags": [
@@ -79584,6 +79647,120 @@
           }
         }
       },
+      "BridgeLinkObject": {
+        "type": "object",
+        "description": "One Discord attachment link. Discord's links expire; past that `url` is absent and `expired` is true\n(clients show \"(link expired)\").",
+        "required": [
+          "filename",
+          "expired"
+        ],
+        "properties": {
+          "expired": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BridgeObject": {
+        "type": "object",
+        "description": "Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL.",
+        "required": [
+          "platform",
+          "author_name"
+        ],
+        "properties": {
+          "author_avatar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BridgeLinkObject"
+            },
+            "description": "Attachments, as links only: nothing is re-hosted."
+          },
+          "member_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Discord user id (decimal string): the bridged member's id in `GET /guilds/{id}/bridge/members`."
+          },
+          "platform": {
+            "type": "string",
+            "description": "`discord`."
+          }
+        }
+      },
+      "BridgedMemberObject": {
+        "type": "object",
+        "description": "A Discord member shown in the list. `id` is the Discord user id as a decimal string: the same as\n`sr_bridge.member_id` on their messages, the `user_id` of a `TYPING_START` they cause, and the id inside the\nstandard `<@id>` mention token both ways.",
+        "required": [
+          "id",
+          "display_name",
+          "bot"
+        ],
+        "properties": {
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An image-proxy path (`/cdn/external/...`), never the Discord URL; null without an avatar."
+          },
+          "bot": {
+            "type": "boolean"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "presence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`online`, `idle`, `dnd` or `offline`; null unless the owner granted the presence intent."
+          },
+          "role_color": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "`0xRRGGBB` as a number; null for a role without a colour."
+          },
+          "role_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The member's top role on Discord."
+          }
+        }
+      },
       "BuiltinTemplateObject": {
         "type": "object",
         "description": "A template shipped with the server.",
@@ -94098,6 +94275,17 @@
             "items": {
               "$ref": "#/components/schemas/ReactionObject"
             }
+          },
+          "sr_bridge": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BridgeObject",
+                "description": "Set when the message came in over the Discord bridge (BRG-GW-001): shown with a DISCORD tag."
+              }
+            ]
           },
           "sr_text_emoji": {
             "type": "array",
