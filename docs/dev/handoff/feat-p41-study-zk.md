@@ -1,11 +1,31 @@
 # Handoff: feat/p41-study-zk (wave 41-C, STU-ZK-001 "shelf access")
 
-Branch `feat/p41-study-zk`, base `integration/phase41` (roadmap revised: server-side shelf access, D-393/D-394, not zero-knowledge).
-Migrations used: `2020_shelf_access.sql` (range 2020-2029).
-
 ## Resume here
 
-(Filled in at the stop; see the end of this file's "Status" section.)
+Wound down early at the commander's request (about 16:45). Everything sound is committed; no process of mine is running.
+Keep the scratch DB `sr_p41_study_zk` (empty, safe to drop).
+
+DONE (all proven by a test that ran):
+- Migration `2020_shelf_access.sql`: `shelf_grants`, `shelf_objects` (trigger-synced from `storage_objects`, back-filled), `shelf_delist_strikes` (kept forever).
+- `sr_storage::shelf` contract; `scopes::access` honours live `shelf_grants` (friend while friends, guild role); `PgScopeFacts::delisted` also honours per-object delists, so the old `/storage/mounts/{id}/presign` refuses delisted objects too.
+- Routes (see table below), 10-minute URLs, grants audited in the hash-chained log, staff delist/relist with strike, owner title/cover/note edit.
+- `byos_read` accepted and handed to instances; `byos_write` accepted by the manifest validator, never handed to an instance (`sr-activities` bundle.rs/service.rs).
+- Threat model row T39 (docs/15-threat-model.md) - may collide with other agents' T39; renumber on merge.
+- Tests that passed: `cargo test -p sr-db --test shelf_access` (4), `secret_columns` (2), full `authz_matrix` (9 incl. new `shelf_access_holds_over_http`: two sessions of one account, revoke, delist + strike, no secret in grantee responses), `route_matrix` (6, before the operation-id rename), clippy -D warnings on sr-storage, sr-db, sr-moderation, sr-activities. OpenAPI and api-client regenerated.
+
+NOT YET RUN (next steps, in order):
+1. `cargo clippy -j 2 -p sr-api -p sr-server --all-targets -- -D warnings`
+2. `cargo test -p sr-api --test route_matrix -j 2` and `cargo test -p sr-api --test openapi_names` (after the handler rename to `*_shelf_*`).
+3. `cargo test -p sr-activities` (unit tests for the new capabilities; DB tests need SR_TEST_DATABASE_URL) and `cargo test -p sr-storage`.
+4. Re-run full `authz_matrix` once (handler rename only, expected green).
+
+STILL OPEN / owner questions:
+- Mount check refusing keys that pass a PutObject dry-run (P28-SHELF-1): NOT done; today's probe REQUIRES write (uploads, emulator saves). Owner decision needed.
+- Owner-client upload of the index in clear: not done; catalog is filled from the existing server-side indexer. `object_hash` = sha256 of path (not content hash).
+- Strikes from `shelf_delist_strikes` do not feed the takedown-notice strike counter (only `notice_id` is stored).
+- No web UI; sandbox CSP allow-listing of presigned hosts for `byos_read` not built.
+- study-shelves: any extra owner columns on `shelf_objects` must use a migration number above 2020 (take 2021+ from the integrator).
+- Existing per-kind shares and guild grants are unchanged (no destructive migration).
 
 ## Design in one paragraph
 
@@ -48,6 +68,3 @@ grants. `GET /shelves/visible` lists everything `access` admits, so legacy share
 mirrored into `shelf_objects` by a trigger (and back-filled by the migration), so every existing index feeds the catalog
 and the owner's title/cover/note and any delisting survive a re-index.
 
-## Status
-
-See the sections below, filled in as work lands.
