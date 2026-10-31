@@ -1735,6 +1735,7 @@ async fn openapi_fragment_documents_every_route() {
         "/channels/{channel_id}/pins",
         "/channels/{channel_id}/pins/{message_id}",
         "/channels/{channel_id}/typing",
+        "/channels/{channel_id}/bridge-members",
         "/channels/{channel_id}/attachments",
         "/channels/{channel_id}/attachments/{upload_id}/complete",
     ] {

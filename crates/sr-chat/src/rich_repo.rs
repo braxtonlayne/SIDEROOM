@@ -131,8 +131,27 @@ pub struct BridgeAuthor {
     pub links: Vec<BridgeLink>,
 }
 
+/// A member of the mapped Discord server, shown in the member list of a bridged channel. Not an account.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BridgedMember {
+    pub discord_user_id: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub role_name: Option<String>,
+    /// `0xRRGGBB`; none when the role has no colour.
+    pub role_color: Option<i32>,
+    pub bot: bool,
+    /// `online`, `idle`, `dnd` or `offline`.
+    pub presence: String,
+}
+
 #[async_trait]
 pub trait RichStore: Send + Sync {
+    /// The Discord members bridged into `channel` (empty when it is not mapped).
+    async fn bridged_members(&self, _channel: ChannelId) -> StoreResult<Vec<BridgedMember>> {
+        Ok(Vec::new())
+    }
+
     /// Remember who a bridged message is shown as. The default does nothing.
     async fn set_bridge_author(
         &self,

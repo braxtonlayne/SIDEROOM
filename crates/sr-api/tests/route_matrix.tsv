@@ -284,6 +284,7 @@ GET	/channels/{channel_id}/messages/pins	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/search	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/{message_id}	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/messages/{message_id}/reactions/{emoji}	authenticated	membership	allow	-	-
+GET	/channels/{channel_id}/bridge-members	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/pins	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/polls/{message_id}/answers/{answer_id}	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/sr/features	authenticated	membership	allow	-	-

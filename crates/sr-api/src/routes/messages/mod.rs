@@ -18,6 +18,7 @@ pub mod deps;
 pub mod error;
 pub mod list;
 
+pub mod bridge_members;
 pub mod call_record;
 pub mod model;
 pub mod pins;
@@ -88,6 +89,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/channels/{channel_id}/pins", get(pins::list_pins_legacy))
         .route(
+            "/channels/{channel_id}/bridge-members",
+            get(bridge_members::list_bridge_members),
+        )
+        .route(
             "/channels/{channel_id}/pins/{message_id}",
             put(pins::pin).delete(pins::unpin),
         )
@@ -144,6 +149,7 @@ pub fn router() -> Router<AppState> {
         reactions::clear_all,
         reactions::clear_emoji,
         pins::list_pins,
+        bridge_members::list_bridge_members,
         pins::list_pins_legacy,
         pins::pin,
         pins::unpin,
@@ -165,6 +171,11 @@ pub fn router() -> Router<AppState> {
         model::UserRef,
         model::AttachmentObject,
         model::PartialEmoji,
+        model::BridgeObject,
+        model::BridgeLinkObject,
+        bridge_members::BridgedMembersPage,
+        bridge_members::BridgedMemberObject,
+        bridge_members::BridgedRoleObject,
         model::ReactionObject,
         model::ReactionCountDetails,
         model::ReactionTypeQuery,

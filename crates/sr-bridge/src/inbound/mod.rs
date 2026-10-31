@@ -11,9 +11,12 @@ pub mod convert;
 pub mod handler;
 pub mod limit;
 pub mod manager;
+pub mod members;
 pub mod sink;
 pub mod store;
 
 pub use handler::{Inbound, InboundConfig, Outcome, Why};
-pub use manager::{INBOUND_INTENTS, InboundHost, InboundManager, Reconciled, ServiceHost};
+pub use manager::{
+    INBOUND_INTENTS, InboundHost, InboundManager, Reconciled, ServiceHost, intent_ladder,
+};
 pub use sink::{ChatSink, InboundAuthor, InboundPost};

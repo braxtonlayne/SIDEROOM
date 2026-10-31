@@ -31,6 +31,7 @@ struct Log {
     edits: Vec<(i64, Option<String>, Option<Vec<InLink>>)>,
     deletes: Vec<i64>,
     reactions: Vec<(i64, String, bool)>,
+    typing: Vec<(i64, i64)>,
 }
 
 #[derive(Default)]
@@ -66,6 +67,10 @@ impl ChatSink for MemSink {
     }
     async fn delete(&self, _channel_id: i64, message_id: i64) -> BridgeResult<()> {
         self.log.lock().unwrap().deletes.push(message_id);
+        Ok(())
+    }
+    async fn typing(&self, channel_id: i64, user: i64) -> BridgeResult<()> {
+        self.log.lock().unwrap().typing.push((channel_id, user));
         Ok(())
     }
     async fn react(
@@ -500,6 +505,7 @@ async fn the_teardown_deleting_the_maps_takes_the_reaction_and_message_rows_with
 
 struct Conn {
     rx: mpsc::UnboundedReceiver<Incoming>,
+    sent: Arc<Mutex<Vec<Value>>>,
 }
 
 #[async_trait]
@@ -510,7 +516,10 @@ impl GatewayConnection for Conn {
             None => std::future::pending().await,
         }
     }
-    async fn send(&mut self, _text: String) -> sr_sdk::Result<()> {
+    async fn send(&mut self, text: String) -> sr_sdk::Result<()> {
+        if let Ok(v) = serde_json::from_str(&text) {
+            self.sent.lock().unwrap().push(v);
+        }
         Ok(())
     }
 }
@@ -524,9 +533,18 @@ struct FakeGateway {
 impl FakeGateway {
     /// Queue one connection; the sender is the Discord side of it.
     fn queue(&self) -> mpsc::UnboundedSender<Incoming> {
+        self.queue_logged().0
+    }
+
+    /// As [`Self::queue`], plus the frames the client sent on this connection.
+    fn queue_logged(&self) -> (mpsc::UnboundedSender<Incoming>, Arc<Mutex<Vec<Value>>>) {
         let (tx, rx) = mpsc::unbounded_channel();
-        self.pending.lock().unwrap().push_back(Conn { rx });
-        tx
+        let sent = Arc::new(Mutex::new(Vec::new()));
+        self.pending.lock().unwrap().push_back(Conn {
+            rx,
+            sent: sent.clone(),
+        });
+        (tx, sent)
     }
 }
 
@@ -706,10 +724,229 @@ async fn a_refused_token_marks_the_bridge_and_a_refused_intent_is_not_retried_at
         status(f.db.pool(), f.guild).await == "disconnected"
     })
     .await;
+    // The first refusal steps down to the plain intents (see the intent ladder test); a refusal there, with
+    // nothing left to drop, is what leaves the bridge alone for a while.
+    let discord = gw.queue();
+    assert_eq!(m.reconcile().await.unwrap().started, [f.guild]);
+    discord.send(hello()).unwrap();
+    discord.send(Incoming::Close(Some(4014))).unwrap();
+    tokio::time::sleep(Duration::from_millis(500)).await;
     let again = m.reconcile().await.unwrap();
     assert!(
         again.started.is_empty(),
         "left alone for a while after a fatal close"
+    );
+    m.stop_all();
+    let _ = f.db.cleanup().await;
+}
+
+// ---------------------------------------------------------------------------------------------- members
+
+async fn members(pool: &PgPool, guild: i64) -> Vec<(i64, String, Option<String>, String)> {
+    sqlx::query_as(
+        "SELECT discord_user_id, display_name, role_name, presence FROM bridge_members \
+         WHERE guild_id = $1 ORDER BY discord_user_id",
+    )
+    .bind(guild)
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn discord_members_are_synced_into_the_bridged_member_list_and_are_not_accounts() {
+    let f = fx().await;
+    let dg = f.bridge().await.discord_guild_id;
+    let g = dg.to_string();
+    let user = |id: i64, name: &str, roles: Value| json!({"user": {"id": id.to_string(), "username": name}, "roles": roles});
+    // Roles arrive with GUILD_CREATE.
+    f.send(
+        "GUILD_CREATE",
+        json!({"id": g, "roles": [
+            {"id": g, "name": "@everyone", "color": 0, "position": 0},
+            {"id": "50", "name": "Mod", "color": 16711680, "position": 5}]}),
+    )
+    .await;
+    // A two-chunk sync.
+    let chunk = |i: i64, ms: Vec<Value>| json!({"guild_id": g, "chunk_index": i, "chunk_count": 2, "members": ms});
+    f.send(
+        "GUILD_MEMBERS_CHUNK",
+        chunk(
+            0,
+            vec![user(1, "ann", json!(["50"])), user(2, "ben", json!([]))],
+        ),
+    )
+    .await;
+    f.send(
+        "GUILD_MEMBERS_CHUNK",
+        chunk(1, vec![user(3, "cy", json!([]))]),
+    )
+    .await;
+    let got = members(f.db.pool(), f.guild).await;
+    assert_eq!(got.len(), 3);
+    assert_eq!(
+        got[0],
+        (1, "ann".into(), Some("Mod".into()), "offline".into())
+    );
+    assert_eq!(got[1].2, None, "no role, no role name");
+    // A member who left while the bridge was down is dropped by the next full sync.
+    f.send(
+        "GUILD_MEMBERS_CHUNK",
+        json!({"guild_id": g, "chunk_index": 0, "chunk_count": 1,
+               "members": [user(1, "ann", json!(["50"]))]}),
+    )
+    .await;
+    assert_eq!(members(f.db.pool(), f.guild).await.len(), 1);
+    // Live events.
+    f.send(
+        "GUILD_MEMBER_ADD",
+        json!({"guild_id": g, "nick": "Benny", "user": {"id": "2", "username": "ben"}, "roles": []}),
+    )
+    .await;
+    f.send(
+        "GUILD_MEMBER_UPDATE",
+        json!({"guild_id": g, "user": {"id": "1", "username": "ann"}, "nick": "Annie", "roles": ["50"]}),
+    )
+    .await;
+    f.send(
+        "PRESENCE_UPDATE",
+        json!({"guild_id": g, "user": {"id": "1"}, "status": "dnd"}),
+    )
+    .await;
+    f.send(
+        "GUILD_ROLE_UPDATE",
+        json!({"guild_id": g, "role": {"id": "50", "name": "Admin", "color": 255, "position": 5}}),
+    )
+    .await;
+    let got = members(f.db.pool(), f.guild).await;
+    assert_eq!(
+        got[0],
+        (1, "Annie".into(), Some("Admin".into()), "dnd".into())
+    );
+    assert_eq!(got[1].1, "Benny");
+    f.send(
+        "GUILD_MEMBER_REMOVE",
+        json!({"guild_id": g, "user": {"id": "2"}}),
+    )
+    .await;
+    assert_eq!(members(f.db.pool(), f.guild).await.len(), 1);
+    // Another Discord server the bot is in changes nothing.
+    assert_eq!(
+        f.send(
+            "GUILD_MEMBER_ADD",
+            json!({"guild_id": "999", "user": {"id": "8", "username": "zed"}})
+        )
+        .await,
+        Outcome::Ignored(Why::OtherServer)
+    );
+    // They are not accounts: nothing was added to accounts or guild_members.
+    let accounts: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts")
+        .fetch_one(f.db.pool())
+        .await
+        .unwrap();
+    let gm: i64 = sqlx::query_scalar("SELECT count(*) FROM guild_members WHERE guild_id = $1")
+        .bind(f.guild)
+        .fetch_one(f.db.pool())
+        .await
+        .unwrap();
+    assert_eq!((accounts, gm), (1, 1), "only the owner exists");
+    // The list the route reads is these rows, found by the mapped channel.
+    let via_channel: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM bridge_members m JOIN bridge_channel_maps c ON c.guild_id = m.guild_id \
+         WHERE c.channel_id = $1",
+    )
+    .bind(f.sr_channel)
+    .fetch_one(f.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(via_channel, 1);
+    let _ = f.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_discord_member_typing_shows_in_the_mapped_channel_only() {
+    let f = fx().await;
+    let ev = |ch: i64, u: i64| json!({"channel_id": ch.to_string(), "user_id": u.to_string(), "timestamp": 1});
+    assert_eq!(f.send("TYPING_START", ev(f.dch, 77)).await, Outcome::Typing);
+    assert_eq!(
+        f.send("TYPING_START", ev(f.dch, BOT)).await,
+        Outcome::Ignored(Why::OwnBot)
+    );
+    assert_eq!(
+        f.send("TYPING_START", ev(uid(), 77)).await,
+        Outcome::Ignored(Why::Unmapped)
+    );
+    assert_eq!(f.sink.log.lock().unwrap().typing, [(f.sr_channel, 77)]);
+    let _ = f.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_member_intent_is_asked_for_first_and_dropped_when_discord_refuses_it() {
+    use sr_bridge::inbound::INBOUND_INTENTS;
+    let f = fx().await;
+    let gw = Arc::new(FakeGateway::default());
+    let (discord, sent) = gw.queue_logged();
+    let host = Arc::new(Host {
+        off: Mutex::new(vec![]),
+    });
+    let m = manager(&f, gw.clone(), host, 10);
+    m.reconcile().await.unwrap();
+    discord.send(hello()).unwrap();
+    until("identify", || async { !sent.lock().unwrap().is_empty() }).await;
+    let identify = sent.lock().unwrap()[0].clone();
+    let asked = identify["d"]["intents"].as_u64().unwrap();
+    assert_eq!(asked & (1 << 1), 1 << 1, "GUILD_MEMBERS is asked for");
+    assert_eq!(asked & (1 << 8), 0, "presence is off unless configured");
+    assert_eq!(asked & INBOUND_INTENTS, INBOUND_INTENTS);
+    // READY: the whole member list is requested.
+    discord.send(ready()).unwrap();
+    until("request guild members", || async {
+        sent.lock().unwrap().iter().any(|v| v["op"] == 8)
+    })
+    .await;
+    let req = sent
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|v| v["op"] == 8)
+        .unwrap()
+        .clone();
+    assert_eq!(
+        req["d"]["guild_id"],
+        f.bridge().await.discord_guild_id.to_string()
+    );
+    assert_eq!(req["d"]["limit"], 0);
+    // Discord refuses the privileged intent: the next try goes without it, and keeps working.
+    discord.send(Incoming::Close(Some(4014))).unwrap();
+    until("disconnected", || async {
+        status(f.db.pool(), f.guild).await == "disconnected"
+    })
+    .await;
+    let (discord2, sent2) = gw.queue_logged();
+    assert_eq!(
+        m.reconcile().await.unwrap().started,
+        [f.guild],
+        "no cool-down for a step down"
+    );
+    discord2.send(hello()).unwrap();
+    until("second identify", || async {
+        !sent2.lock().unwrap().is_empty()
+    })
+    .await;
+    let asked2 = sent2.lock().unwrap()[0]["d"]["intents"].as_u64().unwrap();
+    assert_eq!(asked2 & (1 << 1), 0, "GUILD_MEMBERS dropped");
+    assert_eq!(asked2, INBOUND_INTENTS);
+    discord2.send(ready()).unwrap();
+    until("connected again", || async {
+        status(f.db.pool(), f.guild).await == "connected"
+    })
+    .await;
+    assert!(
+        sent2.lock().unwrap().iter().all(|v| v["op"] != 8),
+        "no member request without the intent"
     );
     m.stop_all();
     let _ = f.db.cleanup().await;

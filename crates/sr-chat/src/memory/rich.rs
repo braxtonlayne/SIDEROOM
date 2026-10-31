@@ -33,6 +33,13 @@ impl RichStore for MemoryBackend {
             .collect())
     }
 
+    async fn bridged_members(
+        &self,
+        _channel: ChannelId,
+    ) -> StoreResult<Vec<crate::rich_repo::BridgedMember>> {
+        Ok(self.data().bridged_members.clone())
+    }
+
     async fn set_bridge_author(
         &self,
         message: MessageId,

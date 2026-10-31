@@ -48,6 +48,11 @@ pub trait ChatSink: Send + Sync {
     ) -> BridgeResult<()>;
     /// Delete a bridged message (a Discord delete). Already gone is not an error.
     async fn delete(&self, channel_id: i64, message_id: i64) -> BridgeResult<()>;
+    /// A Discord member started typing in a mapped channel: shown through the existing typing event path with the
+    /// member's Discord id as the user id (clients resolve it against the channel's bridged members).
+    async fn typing(&self, _channel_id: i64, _discord_user_id: i64) -> BridgeResult<()> {
+        Ok(())
+    }
     /// Add or take away the integration author's reaction with a Unicode emoji.
     async fn react(
         &self,

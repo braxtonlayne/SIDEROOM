@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use sqlx::PgPool;
-use sr_sdk::gateway::{Dispatch, GatewayConnector, ShardConfig, run_shard};
+use sr_sdk::gateway::{Dispatch, GatewayConnector, ShardConfig, run_shard_with};
 use sr_sdk::intents;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -28,7 +28,23 @@ use crate::model::{Bridge, BridgeStatus};
 pub const INBOUND_INTENTS: u64 = intents::GUILDS
     | intents::GUILD_MESSAGES
     | intents::MESSAGE_CONTENT
-    | intents::GUILD_MESSAGE_REACTIONS;
+    | intents::GUILD_MESSAGE_REACTIONS
+    | intents::GUILD_MESSAGE_TYPING;
+
+/// The intents to try, richest first: members (privileged, for the bridged member list), then presences
+/// (privileged, optional), each only when the owner enabled it in the developer portal. Discord answers a bot
+/// asking for one it was not granted with close code 4014; the manager then steps down one rung and the bridge
+/// keeps working with fewer extras (no member list, no presence), never failing for want of them.
+pub fn intent_ladder(presence: bool) -> Vec<u64> {
+    let members = INBOUND_INTENTS | intents::GUILD_MEMBERS;
+    let mut ladder = Vec::new();
+    if presence {
+        ladder.push(members | intents::GUILD_PRESENCES);
+    }
+    ladder.push(members);
+    ladder.push(INBOUND_INTENTS);
+    ladder
+}
 
 /// How long a bridge whose shard ended on a fatal close (not a bad token) is left alone before it is tried again.
 const RETRY_AFTER_FATAL: Duration = Duration::from_secs(300);
@@ -65,6 +81,8 @@ pub struct InboundManager {
     running: Mutex<HashMap<i64, Running>>,
     /// Bridges whose shard ended on a fatal close, and when they may be tried again.
     cooling: Arc<Mutex<HashMap<i64, Instant>>>,
+    /// The rung of [`intent_ladder`] each bridge is on.
+    levels: Arc<Mutex<HashMap<i64, usize>>>,
 }
 
 impl InboundManager {
@@ -81,6 +99,7 @@ impl InboundManager {
             connector,
             running: Mutex::new(HashMap::new()),
             cooling: Arc::new(Mutex::new(HashMap::new())),
+            levels: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -174,30 +193,55 @@ impl InboundManager {
 
     async fn start(self: &Arc<Self>, bridge: Bridge) -> BridgeResult<()> {
         let token = self.host.bot_token(bridge.guild_id).await?;
-        let cfg = ShardConfig::discord(
-            token,
-            INBOUND_INTENTS,
-            self.inbound.cfg.gateway_url.as_deref(),
-        );
+        let ladder = intent_ladder(self.inbound.cfg.presence);
+        let level = self
+            .levels
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&bridge.guild_id)
+            .copied()
+            .unwrap_or(0)
+            .min(ladder.len() - 1);
+        let wanted = ladder[level];
+        let cfg = ShardConfig::discord(token, wanted, self.inbound.cfg.gateway_url.as_deref());
         let guild = bridge.guild_id;
         let me = Arc::clone(self);
         let task = tokio::spawn(async move {
-            me.run_bridge(bridge, cfg).await;
+            me.run_bridge(bridge, cfg, level, ladder.len()).await;
         });
         self.lock_running().insert(guild, Running { task });
         Ok(())
     }
 
     /// The life of one bridge's shard: dispatches in, effects out, status kept.
-    async fn run_bridge(self: Arc<Self>, bridge: Bridge, cfg: ShardConfig) {
+    async fn run_bridge(
+        self: Arc<Self>,
+        bridge: Bridge,
+        cfg: ShardConfig,
+        level: usize,
+        rungs: usize,
+    ) {
         let guild = bridge.guild_id;
+        let used = cfg.intents;
         let (tx, mut rx) = mpsc::channel::<Dispatch>(256);
+        let (out_tx, out_rx) = mpsc::channel::<String>(8);
         let connector = Arc::clone(&self.connector);
-        let shard = tokio::spawn(async move { run_shard(cfg, connector.as_ref(), tx).await });
+        let shard =
+            tokio::spawn(
+                async move { run_shard_with(cfg, connector.as_ref(), tx, Some(out_rx)).await },
+            );
         while let Some(d) = rx.recv().await {
             if d.name == "READY" {
                 let _ = store::set_status(&self.pool, guild, BridgeStatus::Connected).await;
-                let _ = store::set_intents_granted(&self.pool, guild, INBOUND_INTENTS).await;
+                let _ = store::set_intents_granted(&self.pool, guild, used).await;
+                // The initial member sync: everyone (and their presence when that intent is on).
+                if used & intents::GUILD_MEMBERS != 0 {
+                    let frame = serde_json::json!({"op": 8, "d": {
+                        "guild_id": bridge.discord_guild_id.to_string(),
+                        "query": "", "limit": 0,
+                        "presences": used & intents::GUILD_PRESENCES != 0}});
+                    let _ = out_tx.send(frame.to_string()).await;
+                }
                 continue;
             }
             if let Err(e) = self.inbound.handle(&bridge, &d).await {
@@ -211,6 +255,13 @@ impl InboundManager {
                 tracing::warn!(guild, code, reason, "bridge gateway closed for good");
                 if code == 4004 {
                     BridgeStatus::TokenInvalid
+                } else if code == 4014 && level + 1 < rungs {
+                    // An optional privileged intent was not granted: try again with fewer, at the next pass.
+                    self.levels
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .insert(guild, level + 1);
+                    BridgeStatus::Disconnected
                 } else {
                     self.cooling
                         .lock()

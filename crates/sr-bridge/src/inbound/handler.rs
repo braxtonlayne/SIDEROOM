@@ -9,6 +9,7 @@ use sr_sdk::gateway::Dispatch;
 
 use super::convert::{self, InMessage};
 use super::limit::BridgeLimiter;
+use super::members::{self, RoleCache};
 use super::sink::{ChatSink, InboundAuthor, InboundPost};
 use super::store;
 use crate::error::BridgeResult;
@@ -23,6 +24,8 @@ pub struct InboundConfig {
     pub max_bridges: Arc<dyn Fn() -> usize + Send + Sync>,
     /// The gateway to connect to; `None` is Discord's own. A fake Discord in tests and end-to-end runs.
     pub gateway_url: Option<String>,
+    /// Also ask for `GUILD_PRESENCES` (privileged): online/idle/dnd on the bridged members. Off by default.
+    pub presence: bool,
 }
 
 impl InboundConfig {
@@ -32,6 +35,7 @@ impl InboundConfig {
             messages_per_minute: Arc::new(|| 60),
             max_bridges: Arc::new(|| 10),
             gateway_url: None,
+            presence: false,
         }
     }
 }
@@ -42,7 +46,12 @@ pub enum Outcome {
     Posted(i64),
     Edited(i64),
     Deleted(usize),
-    Reacted { added: bool },
+    Reacted {
+        added: bool,
+    },
+    /// A bridged member changed (added, updated, removed, presence, a members chunk).
+    Member,
+    Typing,
     Ignored(Why),
 }
 
@@ -66,6 +75,8 @@ pub enum Why {
     NothingToChange,
     /// A custom emoji reaction: it does not exist here.
     CustomEmoji,
+    /// An event of another Discord server the bot is in.
+    OtherServer,
     /// Another dispatch the bridge has no use for.
     Other,
 }
@@ -76,6 +87,7 @@ pub struct Inbound {
     pub(crate) sink: Arc<dyn ChatSink>,
     pub(crate) limiter: BridgeLimiter,
     pub(crate) cfg: InboundConfig,
+    pub(crate) roles: RoleCache,
 }
 
 impl Inbound {
@@ -85,6 +97,7 @@ impl Inbound {
             sink,
             limiter: BridgeLimiter::new(),
             cfg,
+            roles: RoleCache::default(),
         }
     }
 
@@ -101,8 +114,137 @@ impl Inbound {
             "MESSAGE_REACTION_ADD" | "MESSAGE_REACTION_REMOVE" => {
                 self.reaction(bridge, &d.name, &d.data).await
             }
+            "TYPING_START" => self.typing(bridge, &d.data).await,
+            "GUILD_CREATE"
+            | "GUILD_MEMBER_ADD"
+            | "GUILD_MEMBER_UPDATE"
+            | "GUILD_MEMBER_REMOVE"
+            | "GUILD_MEMBERS_CHUNK"
+            | "GUILD_ROLE_CREATE"
+            | "GUILD_ROLE_UPDATE"
+            | "GUILD_ROLE_DELETE"
+            | "PRESENCE_UPDATE" => self.member_event(bridge, &d.name, &d.data).await,
             _ => Ok(Outcome::Ignored(Why::Other)),
         }
+    }
+
+    async fn typing(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
+        let (Some(ch), Some(user)) = (
+            data.get("channel_id").and_then(convert::id_of),
+            data.get("user_id").and_then(convert::id_of),
+        ) else {
+            return Ok(Outcome::Ignored(Why::Unparseable));
+        };
+        if user == bridge.bot_user_id {
+            return Ok(Outcome::Ignored(Why::OwnBot));
+        }
+        match store::map_for_discord_channel(&self.pool, bridge.guild_id, ch).await? {
+            Some(map) if map.direction.receives() => {
+                self.sink.typing(map.channel_id, user).await?;
+                Ok(Outcome::Typing)
+            }
+            _ => Ok(Outcome::Ignored(Why::Unmapped)),
+        }
+    }
+
+    /// Members, roles and presence of the bridge's Discord server. Events of other servers the bot is in are
+    /// ignored. Nothing here makes an account: the rows only feed the member list.
+    async fn member_event(&self, bridge: &Bridge, name: &str, d: &Value) -> BridgeResult<Outcome> {
+        let dg = bridge.discord_guild_id;
+        let g = bridge.guild_id;
+        let event_guild = if name == "GUILD_CREATE" {
+            d.get("id")
+        } else {
+            d.get("guild_id")
+        }
+        .and_then(convert::id_of);
+        if event_guild != Some(dg) {
+            return Ok(Outcome::Ignored(Why::OtherServer));
+        }
+        let put = |m: members::InMember| async move {
+            let top = self.roles.top(dg, &m.role_ids);
+            members::upsert(&self.pool, g, &m, top).await
+        };
+        match name {
+            "GUILD_CREATE" => {
+                self.roles.replace(
+                    dg,
+                    members::parse_roles(d.get("roles").unwrap_or(&Value::Null)),
+                );
+                for m in d
+                    .get("members")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(members::parse_member)
+                {
+                    put(m).await?;
+                }
+            }
+            "GUILD_MEMBER_ADD" | "GUILD_MEMBER_UPDATE" => {
+                if let Some(m) = members::parse_member(d) {
+                    put(m).await?;
+                }
+            }
+            "GUILD_MEMBER_REMOVE" => {
+                if let Some(u) = d.pointer("/user/id").and_then(convert::id_of) {
+                    members::remove(&self.pool, g, u).await?;
+                }
+            }
+            "GUILD_MEMBERS_CHUNK" => {
+                let index = d.get("chunk_index").and_then(Value::as_i64).unwrap_or(0);
+                let count = d.get("chunk_count").and_then(Value::as_i64).unwrap_or(1);
+                if index == 0 {
+                    members::mark_all_stale(&self.pool, g).await?;
+                }
+                for m in d
+                    .get("members")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(members::parse_member)
+                {
+                    put(m).await?;
+                }
+                for p in d
+                    .get("presences")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    if let (Some(u), Some(s)) = (
+                        p.pointer("/user/id").and_then(convert::id_of),
+                        p.get("status").and_then(Value::as_str),
+                    ) {
+                        members::set_presence(&self.pool, g, u, s).await?;
+                    }
+                }
+                if index + 1 >= count {
+                    members::drop_stale(&self.pool, g).await?;
+                }
+            }
+            "GUILD_ROLE_CREATE" | "GUILD_ROLE_UPDATE" => {
+                if let Some((id, role)) = d.get("role").and_then(members::parse_role) {
+                    members::update_role(&self.pool, g, id, &role.name, role.color).await?;
+                    self.roles.set(dg, id, role);
+                }
+            }
+            "GUILD_ROLE_DELETE" => {
+                if let Some(id) = d.get("role_id").and_then(convert::id_of) {
+                    self.roles.remove(dg, id);
+                }
+            }
+            "PRESENCE_UPDATE" => {
+                if let (Some(u), Some(s)) = (
+                    d.pointer("/user/id").and_then(convert::id_of),
+                    d.get("status").and_then(Value::as_str),
+                ) {
+                    members::set_presence(&self.pool, g, u, s).await?;
+                }
+            }
+            _ => {}
+        }
+        Ok(Outcome::Member)
     }
 
     async fn create(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
