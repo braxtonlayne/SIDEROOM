@@ -268,6 +268,33 @@ async fn guild_grants_resolve_with_owner_admin_and_manage_guild() {
     assert_eq!(all.len(), 1);
     assert_eq!(all[&61].names(), vec!["view_music"]);
 
+    // The sixth grant (wave 37, migration 1800): stored, listed in the role editor's order, and it opens only emu/.
+    facts
+        .set_role_grants(50, 61, &GrantSet::of([Grant::ViewMusic, Grant::ViewGames]))
+        .await
+        .unwrap();
+    assert_eq!(
+        facts.grants_of_guild(50).await.unwrap()[&61].names(),
+        vec!["view_music", "view_games"]
+    );
+    assert_eq!(
+        read(&facts, 2, &m, "emu/roms/a.nes").await,
+        Ok(Scope::Guild(50))
+    );
+    assert_eq!(
+        read(&facts, 5, &m, "emu/roms/a.nes").await,
+        Err(Refused::NoGrant)
+    );
+    assert_eq!(read(&facts, 2, &m, "a.mkv").await, Err(Refused::NoGrant));
+    facts
+        .set_role_grants(50, 61, &GrantSet::of([Grant::ViewMusic]))
+        .await
+        .unwrap();
+    assert_eq!(
+        read(&facts, 2, &m, "emu/roms/a.nes").await,
+        Err(Refused::NoGrant)
+    );
+
     let s = facts.shelves_summary(2).await.unwrap();
     assert_eq!((s.cinema, s.library, s.music), (0, 0, 1));
     let s5 = facts.shelves_summary(5).await.unwrap();

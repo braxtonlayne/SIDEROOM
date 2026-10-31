@@ -5858,6 +5858,39 @@ async fn storage_scopes_hold_over_http() {
         .await,
         204
     );
+    expect!(
+        "grant view_games",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["view_music", "view_games"])))
+        )
+        .await,
+        204
+    );
+    expect!(
+        "an unknown grant is refused",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["view_arcade"])))
+        )
+        .await,
+        400
+    );
+    expect!(
+        "restore view_music only",
+        srv.call(
+            &owner_a,
+            "PUT",
+            &grants_path,
+            Some(&put_grants(json!(["view_music"])))
+        )
+        .await,
+        204
+    );
     let roles = srv
         .call(&owner_a, "GET", &format!("/guilds/{gid}/roles"), None)
         .await;

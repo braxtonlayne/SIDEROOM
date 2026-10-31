@@ -852,6 +852,7 @@ async fn the_listing_tells_the_ui_what_the_caller_may_do() {
                     library: true,
                     music: true,
                 },
+                games: true,
                 unrestricted: true,
                 mount_id: m.id,
             },

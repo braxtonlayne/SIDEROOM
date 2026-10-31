@@ -29,7 +29,7 @@ impl Section {
     }
     /// Parse the path segment.
     pub fn parse(s: &str) -> Option<Self> {
-        Kind::parse(s).map(Self::from_kind)
+        Kind::parse(s).and_then(Self::from_kind)
     }
     /// The scope kind of the section.
     pub fn kind(self) -> Kind {
@@ -39,12 +39,13 @@ impl Section {
             Self::Music => Kind::Music,
         }
     }
-    /// The section of a scope kind.
-    pub fn from_kind(k: Kind) -> Self {
+    /// The section of a scope kind (`None` for games: the emulator lists ROMs through the bucket browser).
+    pub fn from_kind(k: Kind) -> Option<Self> {
         match k {
-            Kind::Cinema => Self::Cinema,
-            Kind::Library => Self::Library,
-            Kind::Music => Self::Music,
+            Kind::Cinema => Some(Self::Cinema),
+            Kind::Library => Some(Self::Library),
+            Kind::Music => Some(Self::Music),
+            Kind::Games => None,
         }
     }
 }

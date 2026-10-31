@@ -28,6 +28,8 @@ pub enum Class {
     Manga,
     /// An audio track.
     Track,
+    /// A game ROM under `emu/roms/` (wave 37).
+    Rom,
     /// A cover, poster or backdrop.
     Artwork,
     /// A subtitle file.
@@ -49,6 +51,7 @@ impl Class {
             Self::Comic => "comic",
             Self::Manga => "manga",
             Self::Track => "track",
+            Self::Rom => "rom",
             Self::Artwork => "artwork",
             Self::Subtitle => "subtitle",
             Self::Sidecar => "sidecar",
@@ -64,6 +67,7 @@ impl Class {
             "comic" => Self::Comic,
             "manga" => Self::Manga,
             "track" => Self::Track,
+            "rom" => Self::Rom,
             "artwork" => Self::Artwork,
             "subtitle" => Self::Subtitle,
             "sidecar" => Self::Sidecar,
@@ -77,6 +81,7 @@ impl Class {
             Self::Movie | Self::Episode => Some(Kind::Cinema),
             Self::Book | Self::Comic | Self::Manga => Some(Kind::Library),
             Self::Track => Some(Kind::Music),
+            Self::Rom => Some(Kind::Games),
             _ => None,
         }
     }
@@ -236,6 +241,10 @@ pub struct Classified {
     /// The browser-made playable copy of a video that does not play as it is: `converted/<stem>.mp4` (or
     /// `.webm`) found in the same listing (BYOS-CNV-001, migration 1480). Shelves play it instead of `key`.
     pub playable_key: Option<String>,
+    /// The platform of a ROM (`nes`, `gba`, ...); `None` when the extension cannot tell (a `.bin`).
+    pub platform: Option<&'static str>,
+    /// The emulator core that plays it (a directory name under `/emu/cores/`).
+    pub core: Option<&'static str>,
 }
 
 impl Classified {
@@ -590,6 +599,19 @@ pub fn classify(
     let sc = merged_sidecar(dirs, sidecars);
     if sc.ignore {
         return ignored(c, "ignored by sidecar");
+    }
+
+    // ROMs: only under `emu/roms/`; everything else under `emu/` (saves, BIOS) is never cataloged.
+    if key.starts_with(crate::scopes::EMU_PREFIX) {
+        if !key.starts_with(super::rom::ROM_PREFIX) || !super::rom::is_rom_ext(&ext) {
+            return ignored(c, "not a ROM");
+        }
+        c.class = Class::Rom;
+        c.title = spaced(stem_of(name));
+        let p = super::rom::by_extension(&ext);
+        c.platform = p.map(super::rom::Platform::as_str);
+        c.core = p.map(super::rom::Platform::core);
+        return c;
     }
 
     // Section: the sidecar's kind, else the first folder, else the extension.
@@ -1092,5 +1114,40 @@ mod tests {
         assert!(c("Movies/.DS_Store").ignored);
         assert!(c("Movies/Thumbs.db").ignored);
         assert_eq!(c("Movies/.sideroom.json").class, Class::Sidecar);
+    }
+}
+
+#[cfg(test)]
+mod rom_tests {
+    use super::*;
+
+    struct NoVideo;
+    impl NameParser for NoVideo {
+        fn video(&self, _path: &str) -> VideoFacts {
+            VideoFacts::default()
+        }
+    }
+
+    fn c(key: &str) -> Classified {
+        classify(key, 10, &NoVideo, &SidecarMap::new(), Options::default())
+    }
+
+    #[test]
+    fn roms_live_under_emu_roms_only() {
+        let nes = c("emu/roms/Test Game.nes");
+        assert_eq!(nes.class, Class::Rom);
+        assert_eq!(nes.class.kind(), Some(Kind::Games));
+        assert_eq!(nes.platform, Some("nes"));
+        assert_eq!(nes.core, Some("fceumm"));
+        assert_eq!(nes.title, "Test Game");
+        let bin = c("emu/roms/disc/game.bin");
+        assert_eq!(bin.class, Class::Rom);
+        assert_eq!(bin.platform, None);
+        // Saves, BIOS files and ROM look-alikes elsewhere are not cataloged as ROMs.
+        assert!(c("emu/saves/fceumm/ab/sram.srm").ignored);
+        assert!(c("emu/bios/scph1001.bin").ignored);
+        assert!(c("emu/roms/readme.txt").ignored);
+        assert_ne!(c("Games/x.nes").class, Class::Rom);
+        assert_eq!(Class::parse("rom"), Some(Class::Rom));
     }
 }
