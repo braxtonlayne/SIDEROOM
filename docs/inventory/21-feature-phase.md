@@ -266,12 +266,12 @@ databases, Chromium only for Playwright).
   `the_prune_job_revokes_old_unused_codes_and_never_touches_the_graph`), `sr-api` lib and `route_matrix`, `sr-admin`
   catalog tests, Vitest `p39invites` and `doorsClosed`, Playwright `doors-closed.spec.ts` (Chromium, dev server), entrance
   isolation (landing 114.1/120 KB). `docs/09` unchanged (`git diff` empty)_
-- [ ] **OPS-IMM-003** [TEST] The final IMMUTABLE RULE suite: the name test over the whole catalog, the deliberate
+- [x] **OPS-IMM-003** [TEST] The final IMMUTABLE RULE suite: the name test over the whole catalog, the deliberate
   `voice.e2ee_test` violation, the fourth state `KillAll`, `security-nightly.yml` _Merged tree: `immutable_rules` (22;
   `refusals_and_logs_hold_in_every_flag_state` green 2 of 3 runs, the first failed 6 admin-group checks under
   KillFeatures once, not reproduced, see the integration handoff), the full matrix locally with
-  `SR_SECURITY_NIGHTLY=1` (normal, kill_features, kill_all: 15987 refusals compared, 0 disagree). Waits on: the
-  nightly's first run on CI (dispatched after the push)_
+  `SR_SECURITY_NIGHTLY=1` (normal, kill_features, kill_all: 15987 refusals compared, 0 disagree). First CI run of
+  `security-nightly.yml` on main: green, run 41224789059 (2026-10-31)_
 
 ### GSV — Game servers
 
