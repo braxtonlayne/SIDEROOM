@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Whiteboard</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="app" class="wb">
+      <header class="wb-bar" role="toolbar" aria-label="Drawing tools">
+        <div class="wb-group" id="tools" role="radiogroup" aria-label="Tool"></div>
+        <div class="wb-group" id="colors" role="radiogroup" aria-label="Colour"></div>
+        <label class="wb-field"
+          ><span id="width-label">Width</span
+          ><input id="width" type="range" min="1" max="40" value="4" aria-labelledby="width-label"
+        /></label>
+        <label class="wb-field wb-check"
+          ><input id="fill" type="checkbox" /><span id="fill-label">Fill</span></label
+        >
+        <div class="wb-group">
+          <button id="undo" type="button"></button>
+          <button id="redo" type="button"></button>
+          <button id="clear" type="button"></button>
+          <button id="export" type="button"></button>
+        </div>
+        <output id="status" class="wb-status" aria-live="polite"></output>
+      </header>
+      <main class="wb-stage">
+        <canvas id="board" width="1600" height="900"></canvas>
+        <textarea id="text-input" class="wb-text" hidden rows="2"></textarea>
+      </main>
+      <footer class="wb-pages" aria-label="Pages">
+        <div id="pages" class="wb-group" role="tablist"></div>
+        <button id="page-add" type="button"></button>
+        <button id="page-rename" type="button"></button>
+        <button id="page-del" type="button"></button>
+        <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+      </footer>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

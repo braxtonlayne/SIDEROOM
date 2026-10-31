@@ -1,0 +1,13 @@
+{
+  "name": "@sideroom/activity-whiteboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Whiteboard built-in Activity (ACT-WB-001). Not yet a pnpm workspace member: see docs/dev/handoff/feat-p36-act-whiteboard.md for how to run it.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

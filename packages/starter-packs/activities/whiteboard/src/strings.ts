@@ -1,0 +1,41 @@
+// The whiteboard's own copy. It runs in a sandboxed iframe on its own origin, so it cannot use the client's
+// message catalogue; these strings are the single place to localise it later.
+export const S = {
+  title: 'Whiteboard',
+  tools: {
+    pen: 'Pen',
+    highlighter: 'Highlighter',
+    eraser: 'Eraser',
+    line: 'Line',
+    arrow: 'Arrow',
+    rect: 'Rectangle',
+    ellipse: 'Ellipse',
+    text: 'Text',
+    image: 'Image',
+  },
+  colour: 'Colour',
+  width: 'Width',
+  fill: 'Fill',
+  undo: 'Undo',
+  redo: 'Redo',
+  clear: 'Clear page',
+  clearConfirm: 'Clear this page for everyone? You can undo it.',
+  exportPng: 'Save PNG',
+  pageAdd: 'New page',
+  pageRename: 'Rename',
+  pageDelete: 'Delete page',
+  pageDeleteConfirm: 'Delete this page for everyone?',
+  pageRenamePrompt: 'Page name',
+  pageLast: 'The last page cannot be deleted.',
+  textPlaceholder: 'Type, then press Enter. Shift+Enter for a new line.',
+  imageUrlPrompt: 'Image address (https://...), or leave empty to choose a file',
+  imageTooBig: 'That image is too large to share. Try a smaller one.',
+  imageBad: 'That is not an image the board can show.',
+  imageHttps: 'Only https:// addresses can be used.',
+  status: (live: number, compactions: number): string =>
+    `${live} edit${live === 1 ? '' : 's'} since the last compaction` +
+    (compactions > 0 ? `, compacted ${compactions} time${compactions === 1 ? '' : 's'}` : ''),
+  loopback: 'Stand-alone mode: only tabs of this page share the board.',
+  connecting: 'Connecting to the room...',
+  failed: 'Could not connect to the room.',
+};
