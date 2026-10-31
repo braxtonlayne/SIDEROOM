@@ -123,7 +123,7 @@ pub(crate) async fn convert_policy(admin: Option<&AdminDeps>) -> ConvertPolicyVi
 pub struct GrantsBody {
     /// The role (snowflake).
     pub role_id: String,
-    /// The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`.
+    /// The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`, `view_games`.
     pub grants: Vec<String>,
 }
 

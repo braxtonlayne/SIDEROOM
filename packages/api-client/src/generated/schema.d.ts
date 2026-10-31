@@ -20019,7 +20019,7 @@ export interface components {
         };
         /** @description Body of `PUT /guilds/{guild_id}/storage/grants`. */
         GrantsBody: {
-            /** @description The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`. */
+            /** @description The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`, `view_games`. */
             grants: string[];
             /** @description The role (snowflake). */
             role_id: string;
@@ -24603,7 +24603,7 @@ export interface components {
             position: number;
             /**
              * @description The storage grants of the role (BYOS): `view_cinema`, `view_library`, `view_music`, `upload`,
-             *     `manage`. Present on the role list; edited through `PUT /guilds/{guild_id}/storage/grants`.
+             *     `manage`, `view_games` (wave 37). Present on the role list; edited through `PUT /guilds/{guild_id}/storage/grants`.
              */
             sr_storage_grants?: string[] | null;
             unicode_emoji?: string | null;

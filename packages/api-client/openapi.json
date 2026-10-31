@@ -90068,7 +90068,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`."
+            "description": "The grants the role holds afterwards: `view_cinema`, `view_library`, `view_music`, `upload`, `manage`, `view_games`."
           },
           "role_id": {
             "type": "string",
@@ -103977,7 +103977,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The storage grants of the role (BYOS): `view_cinema`, `view_library`, `view_music`, `upload`,\n`manage`. Present on the role list; edited through `PUT /guilds/{guild_id}/storage/grants`."
+            "description": "The storage grants of the role (BYOS): `view_cinema`, `view_library`, `view_music`, `upload`,\n`manage`, `view_games` (wave 37). Present on the role list; edited through `PUT /guilds/{guild_id}/storage/grants`."
           },
           "unicode_emoji": {
             "type": [
