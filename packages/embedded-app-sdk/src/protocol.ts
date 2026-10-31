@@ -24,12 +24,16 @@
 //     when no asset has that name. Calling it again replaces the activity; `{ activity: null }` clears it.
 //     The host clears it when the Activity closes or the instance ends.
 //   subscribe { event, args? } / unsubscribe { event }
+//   dataSend { b } -> { sent }          ACT-CH-001, needs the `datachannel` capability: `b` is base64 bytes (an
+//     SDK data envelope), sealed by the host page with the room's key and relayed by the SFU to the instance
 //
 // Events (after `subscribe`; `args.channel_id` is optional and, when given, must be the instance's channel):
 //   ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE { participants }
 //   VOICE_STATE_UPDATE { voice_state: { mute, deaf, self_mute, self_deaf, suppress }, user, nick, volume, mute,
 //     pan: { left, right } }     a member of the instance's voice channel changed their state (Discord's shape)
 //   SPEAKING_START / SPEAKING_STOP { channel_id, user_id }
+//   DATA_MESSAGE { from, b }          ACT-CH-001: bytes (base64) another member of the instance sent; `from` is
+//     authenticated by the room's key, never claimed by the sender
 // Voice events exist only for an Activity in a voice channel and only for that channel.
 
 export const PROTOCOL_VERSION = 1;
@@ -44,6 +48,7 @@ export const COMMANDS = [
   'setActivity',
   'subscribe',
   'unsubscribe',
+  'dataSend',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -53,6 +58,7 @@ export const EVENTS = [
   'VOICE_STATE_UPDATE',
   'SPEAKING_START',
   'SPEAKING_STOP',
+  'DATA_MESSAGE',
 ] as const;
 export type EventName = (typeof EVENTS)[number];
 
@@ -62,6 +68,12 @@ export interface ReadyConfig {
   instance_id: string;
   channel_id: string;
   guild_id: string;
+  /** The signed-in member (ACT-CH-001). */
+  user_id?: string;
+  /** The member who launched the instance: the only writer of `host:*` keys. */
+  host_id?: string;
+  /** What the reviewed bundle declared in `sideroom.json` (`datachannel`). */
+  capabilities?: string[];
 }
 
 export interface UserInfo {

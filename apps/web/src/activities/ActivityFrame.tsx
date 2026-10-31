@@ -10,6 +10,8 @@ import { useVoiceParticipants } from '../voice/hooks';
 import { activityOrigin, httpAssetsApi, httpOAuthApi } from './api';
 import { createActivityHost, type HostEnv, type VoicePerson } from './host';
 import { reportPresence } from './presence';
+import { activityDataPort } from '../voice/dataPort';
+import { useStore } from '../store/store';
 import type { ActivityInstance } from './types';
 
 type Ask = Parameters<HostEnv['confirm']>[0];
@@ -61,6 +63,8 @@ export function ActivityFrame({
         confirm: (a) => new Promise<boolean>((answer) => setAsk({ ask: a, answer })),
         openLink: (url) => void window.open(url, '_blank', 'noopener,noreferrer'),
         post: (f) => frame.current?.contentWindow?.postMessage(f, origin),
+        selfId: () => useStore.getState().currentUserId ?? null,
+        data: instance.channel_type === 'voice' ? activityDataPort : undefined,
         setPresence: (activity) => reportPresence({ activity }),
         assets: () => httpAssetsApi.list(instance.application_id),
       }),

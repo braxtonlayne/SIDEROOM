@@ -15,7 +15,14 @@ import {
   type RpcErrorBody,
   type SubscribeArgs,
 } from './protocol';
-import { ActivityData, type DataEventMap, type DataEventName, type DataTransport } from './data';
+import {
+  ActivityData,
+  b64,
+  unb64,
+  type DataEventMap,
+  type DataEventName,
+  type DataTransport,
+} from './data';
 
 /** The slice of `window` the SDK needs, injectable for tests. */
 export interface SdkEnv {
@@ -224,6 +231,33 @@ export class SideRoomSDK {
     };
   }
 
+  /** With the `datachannel` capability the host page relays our data envelopes through the SFU. */
+  private attachHostTransport(cfg: ReadyConfig): void {
+    if (this.data.self || !cfg.capabilities?.includes('datachannel')) return;
+    if (!cfg.user_id || !cfg.host_id) return;
+    const subs = new Set<(from: string, bytes: Uint8Array) => void>();
+    this.subscribe('DATA_MESSAGE', (d) => {
+      const m = d as { from?: unknown; b?: unknown };
+      if (typeof m.from !== 'string' || typeof m.b !== 'string') return;
+      let bytes: Uint8Array;
+      try {
+        bytes = unb64(m.b);
+      } catch {
+        return;
+      }
+      for (const s of subs) s(m.from, bytes);
+    });
+    this.data.attach({
+      self: cfg.user_id,
+      host: cfg.host_id,
+      send: (bytes) => void this.call('dataSend', { b: b64(bytes) }).catch(() => undefined),
+      onMessage: (cb) => {
+        subs.add(cb);
+        return () => subs.delete(cb);
+      },
+    });
+  }
+
   private post(frame: Frame): void {
     this.env.parent?.postMessage(frame, this.env.hostOrigin || '*');
   }
@@ -255,6 +289,7 @@ export class SideRoomSDK {
     if (!f) return;
     if (f.kind === 'ready' && this.readyWaiter) {
       this.config = f.config;
+      this.attachHostTransport(f.config);
       this.readyWaiter.resolve(f.config);
       this.readyWaiter = null;
     } else if (f.kind === 'response') {
