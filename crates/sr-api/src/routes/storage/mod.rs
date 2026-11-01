@@ -21,6 +21,7 @@ pub mod mounts;
 mod mounts_tests;
 pub(crate) mod objects;
 mod scopes;
+pub mod shelf_access;
 pub mod shelves;
 mod transcode;
 #[cfg(test)]
@@ -29,6 +30,7 @@ mod uploads;
 #[cfg(test)]
 mod uploads_tests;
 
+pub use shelf_access::ShelfAccessDeps;
 pub use shelves::{IndexHooks, ShelfDeps};
 pub use transcode::TranscodeDeps;
 
@@ -191,6 +193,27 @@ pub fn router() -> Router<AppState> {
             axum::routing::delete(transcode::revoke_token),
         )
         .route("/users/@me/games/roms", get(games::list_roms))
+        .route("/shelves/visible", get(shelf_access::visible_shelves))
+        .route(
+            "/shelves/{shelf_id}/objects",
+            get(shelf_access::shelf_catalog),
+        )
+        .route(
+            "/shelves/{shelf_id}/objects/{object_hash}",
+            patch(shelf_access::patch_shelf_object),
+        )
+        .route(
+            "/shelves/{shelf_id}/objects/{object_hash}/url",
+            get(shelf_access::shelf_object_url),
+        )
+        .route(
+            "/shelves/{shelf_id}/grants",
+            get(shelf_access::list_shelf_grants).post(shelf_access::create_shelf_grant),
+        )
+        .route(
+            "/shelves/{shelf_id}/grants/{shelf_grant_id}",
+            axum::routing::delete(shelf_access::revoke_shelf_grant),
+        )
         .route("/shelves/{section}", get(shelves::list))
         .route(
             "/shelves/{section}/{shelf_item_id}",
@@ -227,6 +250,13 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::abort,
         games::list_roms,
+        shelf_access::visible_shelves,
+        shelf_access::shelf_catalog,
+        shelf_access::shelf_object_url,
+        shelf_access::patch_shelf_object,
+        shelf_access::list_shelf_grants,
+        shelf_access::create_shelf_grant,
+        shelf_access::revoke_shelf_grant,
         shelves::list,
         shelves::get_item,
         shelves::patch_item,
@@ -264,6 +294,16 @@ pub fn router() -> Router<AppState> {
         uploads::CompletePart,
         uploads::CompleteUploadBody,
         uploads::CompletedUploadView,
+        shelf_access::VisibleShelf,
+        shelf_access::VisibleShelves,
+        shelf_access::CatalogObject,
+        shelf_access::CatalogPage,
+        shelf_access::ObjectUrl,
+        shelf_access::GrantView,
+        shelf_access::LegacyShareView,
+        shelf_access::GrantList,
+        shelf_access::GrantBody,
+        shelf_access::ObjectMetaBody,
         shelves::ShelfSourceView,
         shelves::ShelfItemView,
         shelves::ShelfPartView,

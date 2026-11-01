@@ -3288,6 +3288,43 @@ export interface paths {
         patch: operations["patch_settings"];
         trace?: never;
     };
+    "/admin/shelves/delist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delist one object of a shelf by `object_hash` (`MANAGE_TAKEDOWNS`): it vanishes from every catalog response and
+         *     can no longer be minted a URL, and a strike is logged against the shelf's owner. The bucket is untouched.
+         */
+        post: operations["delist_object"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/shelves/relist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put a delisted shelf object back (`MANAGE_TAKEDOWNS`; the strike row stays, marked restored). */
+        post: operations["relist_object"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/staff": {
         parameters: {
             query?: never;
@@ -12284,6 +12321,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/shelves/visible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The shelves the caller can see: their own, friends' shelves shared with them and server shelves their role
+         *     reaches. Each entry is decided by the same function as every read.
+         */
+        get: operations["visible_shelves"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/shelves/{section}": {
         parameters: {
             query?: never;
@@ -12334,6 +12391,99 @@ export interface paths {
         head?: never;
         /** Edit one episode or chapter (title, number, season). */
         patch: operations["patch_part"];
+        trace?: never;
+    };
+    "/shelves/{shelf_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who can see a shelf: its grants with history (the audit trail) and the older per-kind shares. The owner only. */
+        get: operations["list_shelf_grants"];
+        put?: never;
+        /**
+         * Grant a friend, or a server role you manage, read access to the whole shelf. The grant is tied to the account,
+         *     so it works on every device, and is written to the audit log.
+         */
+        post: operations["create_shelf_grant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shelves/{shelf_id}/grants/{shelf_grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a grant. It takes effect at the next URL mint; a URL minted earlier lives out its ten minutes. */
+        delete: operations["revoke_shelf_grant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shelves/{shelf_id}/objects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One page of the catalog of a shelf: only objects the caller may open and that nobody delisted. */
+        get: operations["shelf_catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shelves/{shelf_id}/objects/{object_hash}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit the title, cover and note of one object (the shelf's owner only). */
+        patch: operations["patch_shelf_object"];
+        trace?: never;
+    };
+    "/shelves/{shelf_id}/objects/{object_hash}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A presigned `GET` for one object of a shelf. Valid for that object and ten minutes at most (less when the
+         *     session ends sooner). The grant, the kind rule and every delisting are checked at the moment of minting, so
+         *     a revoked grant or a delisted object gets nothing; a URL minted earlier lives out its minutes.
+         */
+        get: operations["shelf_object_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/soundboard-default-sounds": {
@@ -17656,6 +17806,37 @@ export interface components {
             label_key: string;
             slug: string;
         };
+        /** @description An object of a shelf catalog. Never carries a bucket, an endpoint or a credential. */
+        CatalogObject: {
+            /** @description The classifier's class (`video`, `audio`, `reading`, `image`, ...). */
+            class: string;
+            /** @description The owner's cover (a key in the same shelf), empty when none. */
+            cover: string;
+            /** @description `cinema`, `library` or `music` when the classifier knows. */
+            kind?: string | null;
+            /** @description The owner's note, empty when none. */
+            note: string;
+            /** @description 64 lowercase hex characters. */
+            object_hash: string;
+            /** @description Mount-relative key. */
+            path: string;
+            /**
+             * Format: int64
+             * @description Size in bytes.
+             */
+            size: number;
+            /** @description The owner's title, empty when none. */
+            title: string;
+            /** @description Last change (ISO 8601). */
+            updated_at: string;
+        };
+        /** @description A page of the catalog. */
+        CatalogPage: {
+            /** @description Cursor of the next page, `null` at the end. */
+            next_cursor?: string | null;
+            /** @description Objects the caller may open, ordered by hash. */
+            objects: components["schemas"]["CatalogObject"][];
+        };
         /** @description Result of verifying the whole chain. */
         ChainReport: {
             /**
@@ -20521,6 +20702,13 @@ export interface components {
             usd_cents?: number | null;
             user_id?: string | null;
         };
+        /** @description Who can see a shelf: the grants with their history, and the older per-kind shares. */
+        GrantList: {
+            /** @description Newest first, revoked ones included (the audit trail). */
+            grants: components["schemas"]["GrantView"][];
+            /** @description Per-kind friend shares that predate shelf grants. */
+            legacy_shares: components["schemas"]["LegacyShareView"][];
+        };
         GrantPage: {
             items: components["schemas"]["GrantView"][];
             next_before?: string | null;
@@ -21661,6 +21849,17 @@ export interface components {
             discord_channel_id: string;
             /** @description The webhook's id: remove it from Discord's Integrations page by hand. */
             webhook_id: string;
+        };
+        /** @description An older per-kind friend share (`PUT /users/@me/storage/mounts/{mount_id}/shares/{user_id}`), which keeps working. */
+        LegacyShareView: {
+            /** @description Cinema shared. */
+            cinema: boolean;
+            /** @description The friend. */
+            friend_id: string;
+            /** @description Library shared. */
+            library: boolean;
+            /** @description Music shared. */
+            music: boolean;
         };
         LevelOffer: {
             /** Format: int32 */
@@ -23106,6 +23305,15 @@ export interface components {
             /** @description Objects the viewer may read. */
             objects: components["schemas"]["ObjectEntry"][];
         };
+        /** @description Body of `PATCH /shelves/{shelf_id}/objects/{object_hash}`; absent fields stay. */
+        ObjectMetaBody: {
+            /** @description Cover: a key in this shelf (up to 1024 characters; empty clears). */
+            cover?: string | null;
+            /** @description Note (up to 2000 characters; empty clears). */
+            note?: string | null;
+            /** @description Title (up to 300 characters; empty clears). */
+            title?: string | null;
+        };
         /** @description Metadata of one object. */
         ObjectMetaView: {
             /** @description Content type guessed from the extension. */
@@ -23121,6 +23329,13 @@ export interface components {
              * @description Size in bytes.
              */
             size: number;
+        };
+        /** @description A short-lived URL for one object. */
+        ObjectUrl: {
+            /** @description When it stops working (ISO 8601). */
+            expires_at: string;
+            /** @description Presigned `GET`, valid for one object and ten minutes at most. Never stored or logged. */
+            url: string;
         };
         OfferBody: {
             /** @description Account to invite to the staff. */
@@ -25948,6 +26163,17 @@ export interface components {
          * @enum {string}
          */
         Shelf: "reading" | "plan_to_read" | "completed" | "on_hold" | "dropped";
+        /** @description Body of `POST /admin/shelves/delist`. */
+        ShelfDelistBody: {
+            /** @description The takedown notice this belongs to, when there is one. */
+            notice_id?: string | null;
+            /** @description The object's hash (64 lowercase hex characters). */
+            object_hash: string;
+            /** @description Why. Required (or the `X-Audit-Log-Reason` header). */
+            reason?: string | null;
+            /** @description The shelf (storage mount snowflake). */
+            shelf_id: string;
+        };
         /** @description One item with its parts. */
         ShelfDetailView: {
             /** @description The viewer may edit the metadata. */
@@ -26025,6 +26251,14 @@ export interface components {
              * @description All that match.
              */
             total: number;
+        };
+        /** @description The answer of a shelf-object delist or relist. */
+        ShelfObjectLegal: {
+            object_hash: string;
+            path: string;
+            shelf_id: string;
+            /** @description The strike row (snowflake) the delisting was logged under. */
+            strike_id: string;
         };
         /** @description An episode, chapter or volume. */
         ShelfPartView: {
@@ -28342,6 +28576,35 @@ export interface components {
             slug: string;
             version: string;
             warnings: string[];
+        };
+        /** @description One shelf the caller can see. */
+        VisibleShelf: {
+            /** @description Whether the caller owns it and can edit titles, covers, notes and grants. */
+            can_manage: boolean;
+            /** @description For `guild`: the server (snowflake). */
+            guild_id?: string | null;
+            /** @description For `guild`: the server's name. */
+            guild_name?: string | null;
+            /** @description The mount's label. */
+            label: string;
+            /**
+             * Format: int64
+             * @description Objects in the catalog that the caller can open.
+             */
+            object_count: number;
+            /** @description The owning member's handle. */
+            owner_handle?: string | null;
+            /** @description The owning member (snowflake), absent for a server shelf. */
+            owner_id?: string | null;
+            /** @description The shelf (mount snowflake). */
+            shelf_id: string;
+            /** @description How it reaches the caller: `own`, `friend` or `guild`. */
+            via: string;
+        };
+        /** @description `GET /shelves/visible`. */
+        VisibleShelves: {
+            /** @description Own shelves first, then friends', then servers'. */
+            shelves: components["schemas"]["VisibleShelf"][];
         };
         VoiceStatusBody: {
             /** @description The new status, at most 500 characters. `null` or an empty string clears it. */
@@ -39829,6 +40092,116 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delist_object: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShelfDelistBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfObjectLegal"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    relist_object: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShelfDelistBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShelfObjectLegal"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -69017,6 +69390,33 @@ export interface operations {
             };
         };
     };
+    visible_shelves: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisibleShelves"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: {
@@ -69197,6 +69597,274 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_shelf_grants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shelf (mount) snowflake */
+                shelf_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantList"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_shelf_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shelf (mount) snowflake */
+                shelf_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_shelf_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shelf (mount) snowflake */
+                shelf_id: string;
+                /** @description Grant snowflake */
+                shelf_grant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    shelf_catalog: {
+        parameters: {
+            query?: {
+                /** @description next_cursor of the previous page */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Shelf (mount) snowflake */
+                shelf_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_shelf_object: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shelf (mount) snowflake */
+                shelf_id: string;
+                /** @description Object hash from the catalog */
+                object_hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ObjectMetaBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    shelf_object_url: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Shelf (mount) snowflake */
+                shelf_id: string;
+                /** @description Object hash from the catalog */
+                object_hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectUrl"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description CORS_NOT_READY */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -851,6 +851,8 @@ impl ActivityService {
         let id: i64 = r.try_get("id")?;
         let development: bool = r.try_get("dev")?;
         let mut capabilities = Self::capabilities(r)?;
+        // `byos_write` is reserved (D-399): accepted in a manifest, never handed to a running instance.
+        capabilities.retain(|c| c != bundle::BYOS_WRITE);
         if !self.datachannel_allowed() {
             capabilities.retain(|c| c != bundle::DATACHANNEL);
         }
