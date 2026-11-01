@@ -557,18 +557,14 @@ async fn the_badge_of_a_game_that_is_not_served_is_not_found() {
 async fn featuring_shows_only_while_the_current_code_is_signed() {
     let r = rig().await;
     let (app, owner) = released_game(&r, "console.log('v1')").await;
-    // Without the Arcade room's table nobody is featured; with it, the flag follows the row.
+    // Not on the Arcade front page: not featured; with a row in `arcade_featured` (migration 2040) it is.
     assert!(!r.svc.trust(app, None).await.unwrap().featured);
-    // The table (migration 2040 on the arcade-room branch) is not part of this branch: a stand-in.
-    sqlx::query("CREATE TABLE IF NOT EXISTS arcade_featured (application_id BIGINT PRIMARY KEY)")
-        .execute(r.db.pool())
-        .await
-        .unwrap();
     let key = operator_key(&r).await;
     let h1 = hash_of(&r, app).await;
     sign(&r, app, key, &h1).await;
-    sqlx::query("INSERT INTO arcade_featured (application_id) VALUES ($1)")
+    sqlx::query("INSERT INTO arcade_featured (application_id, featured_by) VALUES ($1, $2)")
         .bind(app)
+        .bind(owner)
         .execute(r.db.pool())
         .await
         .unwrap();

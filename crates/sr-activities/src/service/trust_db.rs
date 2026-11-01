@@ -319,16 +319,8 @@ impl ActivityService {
 
     // ------------------------------------------------------------------ the badge
 
-    /// Whether the operator has `app` on the Arcade front page. The `arcade_featured` table belongs to the
-    /// Arcade room (ARC-ROOM-001) and may not exist in a build without it; then nobody is featured. When both
-    /// are integrated this can become a plain `EXISTS`.
+    /// Whether the operator has `app` on the Arcade front page (`arcade_featured`, ARC-ROOM-001, migration 2040).
     async fn is_featured(&self, app: i64) -> ActivityResult<bool> {
-        let present: bool = sqlx::query_scalar("SELECT to_regclass('arcade_featured') IS NOT NULL")
-            .fetch_one(self.pool())
-            .await?;
-        if !present {
-            return Ok(false);
-        }
         Ok(sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM arcade_featured WHERE application_id = $1)",
         )
