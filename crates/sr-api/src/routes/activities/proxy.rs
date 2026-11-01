@@ -137,7 +137,8 @@ fn apply_csp(d: &ActivitiesDeps, spec: &ServeSpec, resp: &mut Response) {
         connect: &spec.connect,
     });
     if let Ok(v) = HeaderValue::from_str(&policy) {
-        resp.headers_mut().insert(header::CONTENT_SECURITY_POLICY, v);
+        resp.headers_mut()
+            .insert(header::CONTENT_SECURITY_POLICY, v);
     }
 }
 

@@ -109,24 +109,56 @@ const BLOCK: &[(&str, &str, &str)] = &[
     ("websocket", "WebSocket(", "direct network access"),
     ("event-source", "EventSource(", "direct network access"),
     ("beacon", "sendBeacon", "direct network access"),
-    ("webrtc", "RTCPeerConnection", "direct peer connections (use the SDK data channel)"),
+    (
+        "webrtc",
+        "RTCPeerConnection",
+        "direct peer connections (use the SDK data channel)",
+    ),
     ("webtransport", "WebTransport(", "direct network access"),
     ("import-scripts", "importScripts(", "loading outside code"),
     ("service-worker", "serviceWorker", "service workers"),
     ("top-window", "window.top", "reaching the top window"),
     ("top-window", "top.location", "reaching the top window"),
-    ("parent-document", "parent.document", "reaching the parent page"),
-    ("parent-document", "parent.window", "reaching the parent page"),
-    ("parent-document", "parent.location", "reaching the parent page"),
+    (
+        "parent-document",
+        "parent.document",
+        "reaching the parent page",
+    ),
+    (
+        "parent-document",
+        "parent.window",
+        "reaching the parent page",
+    ),
+    (
+        "parent-document",
+        "parent.location",
+        "reaching the parent page",
+    ),
     ("opener", "window.opener", "reaching the opener"),
-    ("popup", "window.open(", "opening windows (use the SDK openExternalLink)"),
+    (
+        "popup",
+        "window.open(",
+        "opening windows (use the SDK openExternalLink)",
+    ),
 ];
 
 /// Needles that are only worth a look.
 const WARN: &[(&str, &str, &str)] = &[
-    ("fetch", "fetch(", "network call; the CSP refuses hosts the manifest did not declare"),
-    ("worker", "new Worker(", "worker script; it needs a hosted file on the same origin"),
-    ("local-storage", "localStorage", "no storage in the sandbox (use sdk.storage)"),
+    (
+        "fetch",
+        "fetch(",
+        "network call; the CSP refuses hosts the manifest did not declare",
+    ),
+    (
+        "worker",
+        "new Worker(",
+        "worker script; it needs a hosted file on the same origin",
+    ),
+    (
+        "local-storage",
+        "localStorage",
+        "no storage in the sandbox (use sdk.storage)",
+    ),
     ("indexed-db", "indexedDB", "no storage in the sandbox"),
     ("dynamic-import", "import(", "dynamic import"),
 ];
@@ -173,13 +205,18 @@ fn url_findings(path: &str, text: &str, connect: &[String], out: &mut Vec<Findin
                 .unwrap_or(tail.len());
             let url = &tail[..end];
             let ok = URL_OK.iter().any(|p| url.starts_with(p))
-                || connect.iter().any(|c| c != "self" && url.starts_with(c.as_str()));
+                || connect
+                    .iter()
+                    .any(|c| c != "self" && url.starts_with(c.as_str()));
             if !ok && seen.insert(url.to_owned()) && seen.len() <= 20 {
                 out.push(Finding {
                     path: path.to_owned(),
                     rule: "absolute-url".to_owned(),
                     severity: Severity::Block,
-                    detail: format!("names the address {}", url.chars().take(80).collect::<String>()),
+                    detail: format!(
+                        "names the address {}",
+                        url.chars().take(80).collect::<String>()
+                    ),
                 });
             }
         }
@@ -354,7 +391,8 @@ pub fn parse_connect(manifest: &[u8]) -> Result<Vec<String>, String> {
             out.insert("self".to_owned());
             continue;
         }
-        let u = url::Url::parse(s).map_err(|_| format!("has the connect entry {s:?}, not an https origin"))?;
+        let u = url::Url::parse(s)
+            .map_err(|_| format!("has the connect entry {s:?}, not an https origin"))?;
         let host = u.host_str().unwrap_or_default();
         let origin_only = u.path() == "/" && u.query().is_none() && u.fragment().is_none();
         let bad = u.scheme() != "https"
@@ -444,8 +482,16 @@ mod tests {
 
     #[test]
     fn code_hash_covers_code_only_and_ignores_order() {
-        let a = code_sha256(files(&[("main.js", b"x"), ("pic.png", b"1"), ("g.wasm", b"\0asm")]));
-        let b = code_sha256(files(&[("g.wasm", b"\0asm"), ("pic.png", b"2"), ("main.js", b"x")]));
+        let a = code_sha256(files(&[
+            ("main.js", b"x"),
+            ("pic.png", b"1"),
+            ("g.wasm", b"\0asm"),
+        ]));
+        let b = code_sha256(files(&[
+            ("g.wasm", b"\0asm"),
+            ("pic.png", b"2"),
+            ("main.js", b"x"),
+        ]));
         assert_eq!(a, b, "assets do not change the hash, order does not matter");
         let c = code_sha256(files(&[("main.js", b"y"), ("g.wasm", b"\0asm")]));
         assert_ne!(a, c, "different code, different hash");
@@ -494,7 +540,11 @@ mod tests {
         ] {
             let r = audit(&[("m.js", src)], &[]);
             assert!(!r.passed(), "{rule}");
-            assert!(r.findings.iter().any(|f| f.rule == rule), "{rule}: {:?}", r.findings);
+            assert!(
+                r.findings.iter().any(|f| f.rule == rule),
+                "{rule}: {:?}",
+                r.findings
+            );
         }
     }
 
@@ -509,7 +559,10 @@ mod tests {
 
     #[test]
     fn warnings_do_not_block_and_declared_hosts_are_not_urls_to_flag() {
-        let r = audit(&[("m.js", b"fetch('x.json'); localStorage.getItem('a')")], &[]);
+        let r = audit(
+            &[("m.js", b"fetch('x.json'); localStorage.getItem('a')")],
+            &[],
+        );
         assert!(r.passed());
         assert!(r.findings.iter().all(|f| f.severity == Severity::Warn));
         assert_eq!(r.findings.len(), 2);
@@ -607,16 +660,25 @@ mod tests {
         assert_eq!(connect_src(&input(false, false, &[])), "'none'");
         assert_eq!(connect_src(&input(false, true, &[])), "'none'");
         let hosts = vec!["https://a.example.com".to_owned(), "self".to_owned()];
-        assert_eq!(connect_src(&input(false, false, &hosts)), "https://a.example.com 'self'");
+        assert_eq!(
+            connect_src(&input(false, false, &hosts)),
+            "https://a.example.com 'self'"
+        );
         // A mapping turns 'self' into a pipe to the developer's server: it is not honoured.
-        assert_eq!(connect_src(&input(false, true, &hosts)), "https://a.example.com");
+        assert_eq!(
+            connect_src(&input(false, true, &hosts)),
+            "https://a.example.com"
+        );
         assert_eq!(connect_src(&input(true, true, &[])), "'self'");
     }
 
     #[test]
     fn the_policy_enforces_the_sandbox_and_frames_only_the_shell() {
         let p = csp(&input(false, false, &[]));
-        assert!(p.starts_with("sandbox allow-scripts allow-pointer-lock;"), "{p}");
+        assert!(
+            p.starts_with("sandbox allow-scripts allow-pointer-lock;"),
+            "{p}"
+        );
         assert!(!p.contains("allow-same-origin"));
         assert!(p.contains("default-src 'none'"));
         assert!(p.contains("connect-src 'none';"));

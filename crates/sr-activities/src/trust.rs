@@ -141,7 +141,11 @@ pub fn headline(f: &Facts) -> BadgeKind {
     }
     // Not signed. Vouches on this very hash are the community's word for it; without them, an earlier build that
     // people trusted (or the operator signed) makes this a change nobody has looked at yet.
-    if f.vouches == 0 && f.previous.as_ref().is_some_and(|p| p.vouches > 0 || p.signed) {
+    if f.vouches == 0
+        && f.previous
+            .as_ref()
+            .is_some_and(|p| p.vouches > 0 || p.signed)
+    {
         return BadgeKind::UnverifiedUpdate;
     }
     BadgeKind::Unsigned
@@ -224,31 +228,52 @@ mod tests {
     #[test]
     fn the_badge_flips_when_the_hash_changes() {
         // Build 1: signed and vouched for.
-        assert_eq!(headline(&facts(true, false, 12, None)), BadgeKind::SwarmSafetySigned);
+        assert_eq!(
+            headline(&facts(true, false, 12, None)),
+            BadgeKind::SwarmSafetySigned
+        );
         // The developer ships build 2: new hash, no signature, no vouches, build 1 had 12.
         assert_eq!(
             headline(&facts(false, false, 0, prev(12, true))),
             BadgeKind::UnverifiedUpdate
         );
         // People start vouching for build 2: the warning goes, it is simply unsigned with vouches.
-        assert_eq!(headline(&facts(false, false, 1, prev(12, true))), BadgeKind::Unsigned);
+        assert_eq!(
+            headline(&facts(false, false, 1, prev(12, true))),
+            BadgeKind::Unsigned
+        );
         // The operator signs build 2.
-        assert_eq!(headline(&facts(true, false, 0, prev(12, true))), BadgeKind::SwarmSafetySigned);
+        assert_eq!(
+            headline(&facts(true, false, 0, prev(12, true))),
+            BadgeKind::SwarmSafetySigned
+        );
     }
 
     #[test]
     fn nothing_to_compare_with_is_just_unsigned() {
         assert_eq!(headline(&facts(false, false, 0, None)), BadgeKind::Unsigned);
-        assert_eq!(headline(&facts(false, false, 0, prev(0, false))), BadgeKind::Unsigned);
+        assert_eq!(
+            headline(&facts(false, false, 0, prev(0, false))),
+            BadgeKind::Unsigned
+        );
         // Only vouches on the previous build, never signed: still an unverified update.
-        assert_eq!(headline(&facts(false, false, 0, prev(3, false))), BadgeKind::UnverifiedUpdate);
+        assert_eq!(
+            headline(&facts(false, false, 0, prev(3, false))),
+            BadgeKind::UnverifiedUpdate
+        );
         // Only a signature on the previous build: also.
-        assert_eq!(headline(&facts(false, false, 0, prev(0, true))), BadgeKind::UnverifiedUpdate);
+        assert_eq!(
+            headline(&facts(false, false, 0, prev(0, true))),
+            BadgeKind::UnverifiedUpdate
+        );
     }
 
     #[test]
     fn featuring_only_counts_while_the_current_code_is_signed() {
-        assert_eq!(headline(&facts(true, true, 0, None)), BadgeKind::OperatorFeatured);
+        assert_eq!(
+            headline(&facts(true, true, 0, None)),
+            BadgeKind::OperatorFeatured
+        );
         assert_eq!(
             badges(&facts(true, true, 0, None)),
             vec![BadgeKind::OperatorFeatured, BadgeKind::SwarmSafetySigned]
@@ -258,7 +283,13 @@ mod tests {
             headline(&facts(false, true, 0, prev(5, true))),
             BadgeKind::UnverifiedUpdate
         );
-        assert_eq!(badges(&facts(false, true, 0, prev(5, true))), vec![BadgeKind::UnverifiedUpdate]);
-        assert_eq!(badges(&facts(true, false, 0, None)), vec![BadgeKind::SwarmSafetySigned]);
+        assert_eq!(
+            badges(&facts(false, true, 0, prev(5, true))),
+            vec![BadgeKind::UnverifiedUpdate]
+        );
+        assert_eq!(
+            badges(&facts(true, false, 0, None)),
+            vec![BadgeKind::SwarmSafetySigned]
+        );
     }
 }

@@ -235,7 +235,8 @@ impl ActivityService {
         audit: &AuditReport,
         signed_by: &str,
     ) -> ActivityResult<()> {
-        let audit = serde_json::to_value(audit).map_err(|e| ActivityError::Storage(e.to_string()))?;
+        let audit =
+            serde_json::to_value(audit).map_err(|e| ActivityError::Storage(e.to_string()))?;
         sqlx::query(
             "INSERT INTO arcade_code_signatures \
                (id, application_id, code_sha256, key_id, signature, audit, signed_by) \
@@ -328,12 +329,12 @@ impl ActivityService {
         if !present {
             return Ok(false);
         }
-        Ok(
-            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM arcade_featured WHERE application_id = $1)")
-                .bind(app)
-                .fetch_one(self.pool())
-                .await?,
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM arcade_featured WHERE application_id = $1)",
         )
+        .bind(app)
+        .fetch_one(self.pool())
+        .await?)
     }
 
     /// The hash of the code served for `app` now: its approved, reviewed bundle (computed and stored on first
@@ -408,7 +409,8 @@ impl ActivityService {
 
     /// Whether `account` may vouch: active, not a bot, old enough.
     pub async fn good_standing(&self, account: i64) -> ActivityResult<bool> {
-        let sql = format!("SELECT EXISTS (SELECT 1 FROM accounts a WHERE a.id = $1 AND {GOOD_STANDING})");
+        let sql =
+            format!("SELECT EXISTS (SELECT 1 FROM accounts a WHERE a.id = $1 AND {GOOD_STANDING})");
         Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
             .bind(account)
             .fetch_one(self.pool())
@@ -441,7 +443,11 @@ impl ActivityService {
 
     /// The build before `current` that people vouched for or the operator signed: the one with the most
     /// vouches, then a signed one, then the most recently vouched for.
-    async fn previous_build(&self, app: i64, current: &str) -> ActivityResult<Option<PreviousBuild>> {
+    async fn previous_build(
+        &self,
+        app: i64,
+        current: &str,
+    ) -> ActivityResult<Option<PreviousBuild>> {
         let sql = format!(
             "SELECT v.code_sha256, count(*) AS n, {} AS last_ms \
              FROM arcade_build_vouches v JOIN accounts a ON a.id = v.account_id \
@@ -512,7 +518,8 @@ impl ActivityService {
         let current = self.served_code_hash(app).await?;
         if current.as_deref() != Some(code_sha256) {
             return Err(ActivityError::Conflict(
-                "This game was updated. Reload to see the current build before you vouch.".to_owned(),
+                "This game was updated. Reload to see the current build before you vouch."
+                    .to_owned(),
             ));
         }
         if !self.good_standing(account).await? {
@@ -548,11 +555,13 @@ impl ActivityService {
     pub async fn unvouch(&self, app: i64, account: i64) -> ActivityResult<TrustView> {
         // The game must exist and be served, like a read of its badge.
         self.served_code_hash(app).await?;
-        sqlx::query("DELETE FROM arcade_build_vouches WHERE application_id = $1 AND account_id = $2")
-            .bind(app)
-            .bind(account)
-            .execute(self.pool())
-            .await?;
+        sqlx::query(
+            "DELETE FROM arcade_build_vouches WHERE application_id = $1 AND account_id = $2",
+        )
+        .bind(app)
+        .bind(account)
+        .execute(self.pool())
+        .await?;
         self.trust(app, Some(account)).await
     }
 }

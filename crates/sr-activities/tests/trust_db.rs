@@ -169,7 +169,14 @@ async fn sign(r: &Rig, app: i64, key: (i64, [u8; 32]), hash: &str) {
     let files = [("app.js", &b"x"[..])];
     let audit = sandbox::audit(&files, &[]);
     r.svc
-        .record_signature(app, hash, key.0, &trust::sign_hex(&key.1, hash), &audit, "tester")
+        .record_signature(
+            app,
+            hash,
+            key.0,
+            &trust::sign_hex(&key.1, hash),
+            &audit,
+            "tester",
+        )
         .await
         .unwrap();
 }
@@ -264,8 +271,15 @@ async fn connect_hosts_come_from_the_manifest_and_bad_ones_refuse_the_upload() {
         r#"{"connect":["https://10.0.0.1"]}"#,
         r#"{"connect":["https://assets.example.com/path"]}"#,
     ] {
-        let e = r.svc.upload_bundle(app, owner, with(bad)).await.unwrap_err();
-        assert!(matches!(e, ActivityError::Invalid("bundle", _)), "{bad}: {e:?}");
+        let e = r
+            .svc
+            .upload_bundle(app, owner, with(bad))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(e, ActivityError::Invalid("bundle", _)),
+            "{bad}: {e:?}"
+        );
     }
     ship(
         &r,
@@ -283,7 +297,11 @@ async fn connect_hosts_come_from_the_manifest_and_bad_ones_refuse_the_upload() {
     let (_, connect) = r
         .svc
         .bundle_manifest(
-            r.svc.builds_with_hash(&hash_of(&r, app).await).await.unwrap()[0].bundle_id,
+            r.svc
+                .builds_with_hash(&hash_of(&r, app).await)
+                .await
+                .unwrap()[0]
+                .bundle_id,
         )
         .await
         .unwrap();
@@ -310,13 +328,18 @@ async fn a_signature_counts_only_while_it_verifies_and_is_not_revoked() {
     let key = operator_key(&r).await;
     // Only one key signs at a time.
     assert!(matches!(
-        r.svc.add_signing_key(uid(), &trust::verify_key_hex(&[1; 32]), b"x").await,
+        r.svc
+            .add_signing_key(uid(), &trust::verify_key_hex(&[1; 32]), b"x")
+            .await,
         Err(ActivityError::Conflict(_))
     ));
     sign(&r, app, key, &h).await;
     let t = r.svc.trust(app, None).await.unwrap();
     assert_eq!(t.headline, BadgeKind::SwarmSafetySigned);
-    assert_eq!(t.signature.as_ref().unwrap().verify_key, trust::verify_key_hex(&key.1));
+    assert_eq!(
+        t.signature.as_ref().unwrap().verify_key,
+        trust::verify_key_hex(&key.1)
+    );
     assert_eq!(t.signature.as_ref().unwrap().audit_version, 1);
     assert_eq!(t.code_sha256.as_deref(), Some(h.as_str()));
 
@@ -328,17 +351,37 @@ async fn a_signature_counts_only_while_it_verifies_and_is_not_revoked() {
         .execute(r.db.pool())
         .await
         .unwrap();
-    assert_eq!(r.svc.trust(app, None).await.unwrap().headline, BadgeKind::Unsigned);
+    assert_eq!(
+        r.svc.trust(app, None).await.unwrap().headline,
+        BadgeKind::Unsigned
+    );
 
     // Signing again repairs it; revoking removes it at once; a retired key stops counting.
     sign(&r, app, key, &h).await;
-    assert_eq!(r.svc.trust(app, None).await.unwrap().headline, BadgeKind::SwarmSafetySigned);
-    assert!(r.svc.revoke_signature(app, &h, "found a problem").await.unwrap());
-    assert_eq!(r.svc.trust(app, None).await.unwrap().headline, BadgeKind::Unsigned);
+    assert_eq!(
+        r.svc.trust(app, None).await.unwrap().headline,
+        BadgeKind::SwarmSafetySigned
+    );
+    assert!(
+        r.svc
+            .revoke_signature(app, &h, "found a problem")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        r.svc.trust(app, None).await.unwrap().headline,
+        BadgeKind::Unsigned
+    );
     sign(&r, app, key, &h).await;
-    assert_eq!(r.svc.trust(app, None).await.unwrap().headline, BadgeKind::SwarmSafetySigned);
+    assert_eq!(
+        r.svc.trust(app, None).await.unwrap().headline,
+        BadgeKind::SwarmSafetySigned
+    );
     assert!(r.svc.retire_signing_key(key.0).await.unwrap());
-    assert_eq!(r.svc.trust(app, None).await.unwrap().headline, BadgeKind::Unsigned);
+    assert_eq!(
+        r.svc.trust(app, None).await.unwrap().headline,
+        BadgeKind::Unsigned
+    );
     // A new key can be made once the old one is retired.
     r.svc
         .add_signing_key(uid(), &trust::verify_key_hex(&[2; 32]), b"x")
@@ -371,7 +414,10 @@ async fn vouches_are_pinned_to_the_hash_and_the_badge_flips_on_an_update() {
     assert!(t.can_vouch && t.previous.is_none());
     // Someone who is not signed in sees the count and no button.
     let anon = r.svc.trust(app, None).await.unwrap();
-    assert_eq!((anon.vouches, anon.can_vouch, anon.vouched_by_me), (3, false, false));
+    assert_eq!(
+        (anon.vouches, anon.can_vouch, anon.vouched_by_me),
+        (3, false, false)
+    );
 
     // The developer ships different code. The hash changes; the old signature and vouches stay with the old
     // build; the new build has neither: the badge flips and remembers what people vouched for.
@@ -381,9 +427,15 @@ async fn vouches_are_pinned_to_the_hash_and_the_badge_flips_on_an_update() {
     let t = r.svc.trust(app, Some(people[0])).await.unwrap();
     assert_eq!(t.headline, BadgeKind::UnverifiedUpdate);
     assert_eq!(t.vouches, 0);
-    assert!(!t.vouched_by_me, "the old vouch does not follow the member to new code");
+    assert!(
+        !t.vouched_by_me,
+        "the old vouch does not follow the member to new code"
+    );
     let prev = t.previous.unwrap();
-    assert_eq!((prev.code_sha256.as_str(), prev.vouches, prev.signed), (h1.as_str(), 3, true));
+    assert_eq!(
+        (prev.code_sha256.as_str(), prev.vouches, prev.signed),
+        (h1.as_str(), 3, true)
+    );
     assert_eq!(prev.short, h1[..8]);
 
     // A vouch for the replaced build is refused: nobody vouches for code they did not see.
@@ -414,7 +466,10 @@ async fn only_members_in_good_standing_vouch_and_count() {
 
     // A day-old account, a bot and a deactivated account cannot vouch.
     let fresh = account(r.db.pool()).await;
-    assert!(matches!(r.svc.vouch(app, fresh, &h).await, Err(ActivityError::Forbidden)));
+    assert!(matches!(
+        r.svc.vouch(app, fresh, &h).await,
+        Err(ActivityError::Forbidden)
+    ));
     assert!(!r.svc.trust(app, Some(fresh)).await.unwrap().can_vouch);
     let bot = veteran(r.db.pool()).await;
     sqlx::query("UPDATE accounts SET is_bot = true WHERE id = $1")
@@ -422,7 +477,10 @@ async fn only_members_in_good_standing_vouch_and_count() {
         .execute(r.db.pool())
         .await
         .unwrap();
-    assert!(matches!(r.svc.vouch(app, bot, &h).await, Err(ActivityError::Forbidden)));
+    assert!(matches!(
+        r.svc.vouch(app, bot, &h).await,
+        Err(ActivityError::Forbidden)
+    ));
 
     // A vouch stops counting when the member is no longer in good standing.
     let a = veteran(r.db.pool()).await;
@@ -463,7 +521,10 @@ async fn a_member_cannot_vouch_in_bulk() {
         .await
         .unwrap();
     }
-    assert!(matches!(r.svc.vouch(app, farmer, &h).await, Err(ActivityError::Conflict(_))));
+    assert!(matches!(
+        r.svc.vouch(app, farmer, &h).await,
+        Err(ActivityError::Conflict(_))
+    ));
     // Someone else is not affected.
     let other = veteran(r.db.pool()).await;
     r.svc.vouch(app, other, &h).await.unwrap();
@@ -475,10 +536,16 @@ async fn the_badge_of_a_game_that_is_not_served_is_not_found() {
     let r = rig().await;
     let owner = account(r.db.pool()).await;
     let app = application(r.db.pool(), owner, "Draft").await;
-    assert!(matches!(r.svc.trust(app, None).await, Err(ActivityError::NotFound(_))));
+    assert!(matches!(
+        r.svc.trust(app, None).await,
+        Err(ActivityError::NotFound(_))
+    ));
     let (game, _) = released_game(&r, "1").await;
     set_state(&r, game, "suspended").await;
-    assert!(matches!(r.svc.trust(game, None).await, Err(ActivityError::NotFound(_))));
+    assert!(matches!(
+        r.svc.trust(game, None).await,
+        Err(ActivityError::NotFound(_))
+    ));
     assert!(matches!(
         r.svc.unvouch(game, owner).await,
         Err(ActivityError::NotFound(_))

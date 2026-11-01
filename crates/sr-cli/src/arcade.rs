@@ -33,9 +33,9 @@ async fn signing_seed(
     new_id: i64,
 ) -> Result<(i64, [u8; 32], bool)> {
     if let Some(k) = svc.active_signing_key().await? {
-        let plain = secrets
-            .open(&seed_aad(k.id), &k.seed_sealed)
-            .map_err(|_| anyhow::anyhow!("the signing seed does not open with server.secret_key"))?;
+        let plain = secrets.open(&seed_aad(k.id), &k.seed_sealed).map_err(|_| {
+            anyhow::anyhow!("the signing seed does not open with server.secret_key")
+        })?;
         let seed = <[u8; 32]>::try_from(plain.as_slice())
             .map_err(|_| anyhow::anyhow!("the stored signing seed has the wrong length"))?;
         return Ok((k.id, seed, false));
@@ -86,7 +86,10 @@ pub async fn sign_code(
     let code = svc
         .code_files(build.application_id, &build.bundle_sha256, &manifest)
         .await?;
-    let refs: Vec<(&str, &[u8])> = code.iter().map(|(p, d)| (p.as_str(), d.as_slice())).collect();
+    let refs: Vec<(&str, &[u8])> = code
+        .iter()
+        .map(|(p, d)| (p.as_str(), d.as_slice()))
+        .collect();
     let recomputed = sandbox::code_sha256(refs.iter().copied());
     if recomputed.as_deref() != Some(hash) {
         bail!("the stored code files do not hash to {hash}; refusing to sign");
@@ -141,7 +144,10 @@ mod tests {
     use sr_db::testing::TestDb;
     use sr_storage::{ObjectStorage, ObjectStoreStorage};
     use std::io::{Cursor, Write};
-    use std::sync::{Arc, atomic::{AtomicI64, Ordering}};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicI64, Ordering},
+    };
 
     static SEQ: AtomicI64 = AtomicI64::new(5_000_000_000);
     fn next() -> i64 {
@@ -151,7 +157,8 @@ mod tests {
     fn zip_of(files: &[(&str, &[u8])]) -> Vec<u8> {
         let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
         for (n, d) in files {
-            z.start_file(*n, zip::write::SimpleFileOptions::default()).unwrap();
+            z.start_file(*n, zip::write::SimpleFileOptions::default())
+                .unwrap();
             z.write_all(d).unwrap();
         }
         z.finish().unwrap().into_inner()
@@ -167,8 +174,14 @@ mod tests {
     async fn rig() -> Rig {
         let db = TestDb::new().await.unwrap();
         let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
-        let svc = ActivityService::new(db.pool().clone(), Arc::new(next)).with_storage(storage.clone());
-        Rig { db, svc, secrets: SecretBox::new([5; 32]), storage }
+        let svc =
+            ActivityService::new(db.pool().clone(), Arc::new(next)).with_storage(storage.clone());
+        Rig {
+            db,
+            svc,
+            secrets: SecretBox::new([5; 32]),
+            storage,
+        }
     }
 
     /// An application with `zip` uploaded and submitted (pending review). Returns (application, code hash).
@@ -199,23 +212,35 @@ mod tests {
         sqlx::query(
             "INSERT INTO applications (id, owner_id, bot_user_id, name, client_secret_hash) \
              VALUES ($1, $2, $3, 'Game', decode(repeat('ab', 32), 'hex'))",
-        ).bind(app).bind(owner).bind(bot).execute(r.db.pool()).await.unwrap();
-        let up = r.svc
+        )
+        .bind(app)
+        .bind(owner)
+        .bind(bot)
+        .execute(r.db.pool())
+        .await
+        .unwrap();
+        let up = r
+            .svc
             .upload_bundle(
                 app,
                 owner,
-                zip_of(&[("index.html", b"<p>"), ("app.js", code.as_bytes()), ("art/a.png", b"png")]),
+                zip_of(&[
+                    ("index.html", b"<p>"),
+                    ("app.js", code.as_bytes()),
+                    ("art/a.png", b"png"),
+                ]),
             )
             .await
             .unwrap();
         let id: i64 = up.bundle.id.parse().unwrap();
         r.svc.submit(app, id).await.unwrap();
-        let hash: String =
-            sqlx::query_scalar("SELECT code_sha256 FROM application_activity_bundles WHERE id = $1")
-                .bind(id)
-                .fetch_one(r.db.pool())
-                .await
-                .unwrap();
+        let hash: String = sqlx::query_scalar(
+            "SELECT code_sha256 FROM application_activity_bundles WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(r.db.pool())
+        .await
+        .unwrap();
         (app, hash)
     }
 
@@ -226,7 +251,9 @@ mod tests {
         let (app, hash) = submitted(&r, "sdk.state.set({a: 1});").await;
 
         // A dry run audits and signs nothing.
-        let d = sign_code(&r.svc, &r.secrets, next(), &hash, None, "tester", true).await.unwrap();
+        let d = sign_code(&r.svc, &r.secrets, next(), &hash, None, "tester", true)
+            .await
+            .unwrap();
         assert_eq!(d.application_id, app);
         assert!(r.svc.active_signing_key().await.unwrap().is_none());
 
@@ -236,7 +263,17 @@ mod tests {
                 r.storage.delete(&k.key).await.unwrap();
             }
         }
-        let s = sign_code(&r.svc, &r.secrets, next(), &hash, Some(app), "tester", false).await.unwrap();
+        let s = sign_code(
+            &r.svc,
+            &r.secrets,
+            next(),
+            &hash,
+            Some(app),
+            "tester",
+            false,
+        )
+        .await
+        .unwrap();
         assert!(s.key_created);
         assert_eq!(s.verify_key.len(), 64);
         // Signing is stored server-side; the server verifies it (the bundle is pending, so serve check is
@@ -251,21 +288,32 @@ mod tests {
         assert!(trust::verify_hex(&vk, &hash, &sig));
         // The seed is sealed, not stored in the clear: opening it needs the server secret.
         let key = r.svc.active_signing_key().await.unwrap().unwrap();
-        assert!(SecretBox::new([6; 32]).open(&seed_aad(key.id), &key.seed_sealed).is_err());
+        assert!(
+            SecretBox::new([6; 32])
+                .open(&seed_aad(key.id), &key.seed_sealed)
+                .is_err()
+        );
 
         // A second run reuses the key.
-        let again = sign_code(&r.svc, &r.secrets, next(), &hash, None, "tester", false).await.unwrap();
+        let again = sign_code(&r.svc, &r.secrets, next(), &hash, None, "tester", false)
+            .await
+            .unwrap();
         assert!(!again.key_created);
         assert_eq!(again.verify_key, s.verify_key);
 
         // Dangerous code is blocked: nothing is signed, no key is made.
         let r2 = rig().await;
-        let (_, bad) = submitted(&r2, "eval(location.hash); new WebSocket('wss://x.example')").await;
-        let e = sign_code(&r2.svc, &r2.secrets, next(), &bad, None, "tester", false).await.unwrap_err();
+        let (_, bad) =
+            submitted(&r2, "eval(location.hash); new WebSocket('wss://x.example')").await;
+        let e = sign_code(&r2.svc, &r2.secrets, next(), &bad, None, "tester", false)
+            .await
+            .unwrap_err();
         assert!(e.to_string().contains("blocked"), "{e}");
         assert!(r2.svc.active_signing_key().await.unwrap().is_none());
         let n: i64 = sqlx::query_scalar("SELECT count(*) FROM arcade_code_signatures")
-            .fetch_one(r2.db.pool()).await.unwrap();
+            .fetch_one(r2.db.pool())
+            .await
+            .unwrap();
         assert_eq!(n, 0);
     }
 
@@ -274,17 +322,43 @@ mod tests {
     async fn sign_code_refuses_unknown_and_tampered_builds() {
         let r = rig().await;
         let (app, hash) = submitted(&r, "console.log(1)").await;
-        let e = sign_code(&r.svc, &r.secrets, next(), &"0".repeat(64), None, "t", false).await.unwrap_err();
-        assert!(e.to_string().contains("no approved or submitted bundle"), "{e}");
-        assert!(sign_code(&r.svc, &r.secrets, next(), "nothex", None, "t", false).await.is_err());
-        assert!(sign_code(&r.svc, &r.secrets, next(), &hash, Some(app + 1), "t", false).await.is_err());
+        let e = sign_code(
+            &r.svc,
+            &r.secrets,
+            next(),
+            &"0".repeat(64),
+            None,
+            "t",
+            false,
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            e.to_string().contains("no approved or submitted bundle"),
+            "{e}"
+        );
+        assert!(
+            sign_code(&r.svc, &r.secrets, next(), "nothex", None, "t", false)
+                .await
+                .is_err()
+        );
+        assert!(
+            sign_code(&r.svc, &r.secrets, next(), &hash, Some(app + 1), "t", false)
+                .await
+                .is_err()
+        );
         // The stored code no longer matches its recorded hash: refuse.
         for k in r.storage.list("activities/").await.unwrap() {
             if k.key.ends_with("/app.js") {
-                r.storage.put(&k.key, bytes::Bytes::from_static(b"changed")).await.unwrap();
+                r.storage
+                    .put(&k.key, bytes::Bytes::from_static(b"changed"))
+                    .await
+                    .unwrap();
             }
         }
-        let e = sign_code(&r.svc, &r.secrets, next(), &hash, None, "t", false).await.unwrap_err();
+        let e = sign_code(&r.svc, &r.secrets, next(), &hash, None, "t", false)
+            .await
+            .unwrap_err();
         assert!(e.to_string().contains("do not hash"), "{e}");
         let _ = BadgeKind::Unsigned;
     }

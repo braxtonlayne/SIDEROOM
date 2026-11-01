@@ -22,7 +22,7 @@ use crate::rules;
 use crate::sandbox;
 
 mod trust_db;
-pub use trust_db::{BuildRef, SigningKeyRow, VOUCHES_PER_DAY, VOUCH_MIN_ACCOUNT_AGE_DAYS};
+pub use trust_db::{BuildRef, SigningKeyRow, VOUCH_MIN_ACCOUNT_AGE_DAYS, VOUCHES_PER_DAY};
 
 /// Source of snowflake ids.
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -438,8 +438,9 @@ impl ActivityService {
                 .map(|f| (f.path.as_str(), f.data.as_slice())),
         );
         let connect = match unpacked.files.iter().find(|f| f.path == bundle::MANIFEST) {
-            Some(f) => sandbox::parse_connect(&f.data)
-                .map_err(|m| ActivityError::Invalid("bundle", format!("{}: {m}", bundle::MANIFEST)))?,
+            Some(f) => sandbox::parse_connect(&f.data).map_err(|m| {
+                ActivityError::Invalid("bundle", format!("{}: {m}", bundle::MANIFEST))
+            })?,
             None => Vec::new(),
         };
         sqlx::query(

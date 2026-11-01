@@ -157,7 +157,10 @@ fn assert_hardened(h: &HeaderMap) {
         "{csp}"
     );
     // ARC-SBX-001: the server enforces the sandbox itself, and a bundle that declared no hosts may connect nowhere.
-    assert!(csp.starts_with("sandbox allow-scripts allow-pointer-lock;"), "{csp}");
+    assert!(
+        csp.starts_with("sandbox allow-scripts allow-pointer-lock;"),
+        "{csp}"
+    );
     assert!(!csp.contains("allow-same-origin"), "{csp}");
     assert!(csp.contains("script-src 'self'"), "{csp}");
     assert_eq!(h[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
@@ -202,7 +205,10 @@ async fn the_reviewed_bundle_is_served_from_storage_with_the_hardened_headers() 
 }
 
 fn csp_of(h: &HeaderMap) -> String {
-    h[header::CONTENT_SECURITY_POLICY].to_str().unwrap().to_owned()
+    h[header::CONTENT_SECURITY_POLICY]
+        .to_str()
+        .unwrap()
+        .to_owned()
 }
 
 #[tokio::test]

@@ -20,7 +20,8 @@ use sr_db::{
 };
 
 use crate::{
-    ArcadeCmd, Cli, Command, EmuCmd, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd, guilds,
+    ArcadeCmd, Cli, Command, EmuCmd, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd,
+    guilds,
 };
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
 use sr_db::admin_repo::PgAdminRepo;
@@ -1084,8 +1085,8 @@ async fn arcade(pool: &PgPool, cfg: &Config, ids: IdSource, cmd: ArcadeCmd) -> R
     )
     .context("configuring object storage")?;
     let new_key_id = ids();
-    let svc = sr_activities::ActivityService::new(pool.clone(), ids)
-        .with_storage(Arc::new(storage));
+    let svc =
+        sr_activities::ActivityService::new(pool.clone(), ids).with_storage(Arc::new(storage));
     match cmd {
         ArcadeCmd::SignCode {
             hash,
@@ -1095,11 +1096,20 @@ async fn arcade(pool: &PgPool, cfg: &Config, ids: IdSource, cmd: ArcadeCmd) -> R
         } => {
             let secrets = mount_box(cfg)?;
             let r = crate::arcade::sign_code(
-                &svc, &secrets, new_key_id, &hash, application, &signed_by, dry_run,
+                &svc,
+                &secrets,
+                new_key_id,
+                &hash,
+                application,
+                &signed_by,
+                dry_run,
             )
             .await?;
             if dry_run {
-                println!("dry run: application {} would be signed ({} warnings)", r.application_id, r.warnings);
+                println!(
+                    "dry run: application {} would be signed ({} warnings)",
+                    r.application_id, r.warnings
+                );
             } else {
                 if r.key_created {
                     println!("made the operator signing key");

@@ -355,10 +355,25 @@ mod tests {
         let c = Cli::try_parse_from(["sr-cli", "arcade", "sign-code", "--hash", "ab"]).unwrap();
         assert!(matches!(
             c.command,
-            Command::Arcade(ArcadeCmd::SignCode { dry_run: false, application: None, .. })
+            Command::Arcade(ArcadeCmd::SignCode {
+                dry_run: false,
+                application: None,
+                ..
+            })
         ));
         assert!(Cli::try_parse_from(["sr-cli", "arcade", "sign-code"]).is_err());
-        assert!(Cli::try_parse_from(["sr-cli", "arcade", "revoke-code", "--hash", "a", "--application", "1"]).is_err());
+        assert!(
+            Cli::try_parse_from([
+                "sr-cli",
+                "arcade",
+                "revoke-code",
+                "--hash",
+                "a",
+                "--application",
+                "1"
+            ])
+            .is_err()
+        );
     }
 
     #[test]
