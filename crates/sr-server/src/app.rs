@@ -1493,6 +1493,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )));
     // Serious bans that push an inviter over a threshold open a case for senior staff (MOD-SUS-002).
     admin_service.set_suspicion_observer(Arc::new(moderation.clone()));
+    // MOD-VCH-001 (wave 44-B): the vouch tier weighs automated penalties, and a serious ban removes the vouches for
+    // the banned member and tells their vouchers privately.
+    let moderation = moderation.with_strike_weight(Arc::new(
+        crate::vouch_wiring::VouchStrikeWeight(vouches.clone()),
+    ));
+    admin_service.subscribe_serious_ban(Arc::new(crate::vouch_wiring::VouchFallout {
+        vouches: vouches.clone().with_notifier(staff_voice.clone()),
+        pool: pool.clone(),
+    }));
     let moderation_deps = Arc::new(
         routes::moderation::ModerationDeps::new(moderation.clone()).with_features(features.clone()),
     );

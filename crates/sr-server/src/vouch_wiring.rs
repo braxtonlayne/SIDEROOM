@@ -49,10 +49,12 @@ pub fn category_label(category: Option<&str>) -> String {
 impl SeriousBanObserver for VouchFallout {
     async fn serious_ban(&self, ban: &SeriousBan) {
         let label = category_label(ban.reason_category.as_deref());
-        let accounts: Vec<i64> = match sqlx::query_scalar("SELECT id FROM accounts WHERE person_id = $1")
-            .bind(ban.person_id)
-            .fetch_all(&self.pool)
-            .await
+        let accounts: Vec<i64> = match sqlx::query_scalar(
+            "SELECT id FROM accounts WHERE person_id = $1",
+        )
+        .bind(ban.person_id)
+        .fetch_all(&self.pool)
+        .await
         {
             Ok(a) => a,
             Err(e) => {
