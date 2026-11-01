@@ -4,6 +4,10 @@ import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { renderAt, useLibraryApi } from '../../library/__tests__/harness';
 import { http, HttpResponse, server } from '../../test/server';
 import type { ContentRequest } from '../types';
+import { switchStudySurfacesOn } from '../../study/testing';
+
+// The Requests board is a storefront surface, off by default since wave 41 (D-400): this suite switches it on.
+beforeEach(() => switchStudySurfacesOn());
 
 const request = (id: string, o: Partial<ContentRequest> = {}): ContentRequest => ({
   id,
