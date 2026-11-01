@@ -2948,6 +2948,82 @@ async fn seed(
         .unwrap();
         a.insert("guest_lobby_token", lobby_token);
     }
+    // MOD-GRD-001: a subtree case with a node, a warning with an open appeal (staff routes), a warning on `member`
+    // (the member appeal route), a pending sterilization request and an approved branch-action request.
+    {
+        let (root, node, member) = (u("insider"), u("friendtwo"), u("member"));
+        let case = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO moderation_subtree_cases (id, root_account_id, category, opened_by) VALUES ($1, $2, 'fraud', $3)",
+        )
+        .bind(case)
+        .bind(root)
+        .bind(u("staffowner"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        for (acct, role, depth, status) in [
+            (root, "root", 0, "banned"),
+            (node, "descendant", 1, "review"),
+        ] {
+            sqlx::query(
+                "INSERT INTO moderation_subtree_nodes (case_id, account_id, role, depth, registered_at, unactivated, status) \
+                 VALUES ($1, $2, $3, $4, now(), false, $5)",
+            )
+            .bind(case)
+            .bind(acct)
+            .bind(role)
+            .bind(depth)
+            .bind(status)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let mut new_id = || ids.generate().get() as i64;
+        let (r_staff, r_member, q_ster, q_branch) = (new_id(), new_id(), new_id(), new_id());
+        for (id, acct, appeal) in [(r_staff, node, true), (r_member, member, false)] {
+            sqlx::query(
+                "INSERT INTO member_restrictions (id, account_id, kind, reason, imposed_by, ends_at, appeal_message, appealed_at, appeal_state) \
+                 VALUES ($1, $2, 'warn', 'authz matrix', $3, now() + interval '180 days', \
+                         CASE WHEN $4 THEN 'please' END, CASE WHEN $4 THEN now() END, CASE WHEN $4 THEN 'open' END)",
+            )
+            .bind(id)
+            .bind(acct)
+            .bind(root)
+            .bind(appeal)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO moderation_requests (id, kind, case_id, target_account_id, reason, proposed_by) \
+             VALUES ($1, 'sterilize', $2, $3, 'authz matrix: a reason long enough to count', $4)",
+        )
+        .bind(q_ster)
+        .bind(case)
+        .bind(node)
+        .bind(root)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO moderation_requests (id, kind, case_id, action, reason, proposed_by, approved_by, state) \
+             VALUES ($1, 'branch_action', $2, 'freeze', 'authz matrix: a reason long enough to count', $3, $4, 'approved')",
+        )
+        .bind(q_branch)
+        .bind(case)
+        .bind(root)
+        .bind(u("staffbasic"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("subtree_case_id", case.to_string());
+        a.insert("subtree_node_account_id", node.to_string());
+        a.insert("mod_request_id", q_ster.to_string());
+        a.insert("branch_request_id", q_branch.to_string());
+        a.insert("restriction_id", r_staff.to_string());
+        a.insert("my_restriction_id", r_member.to_string());
+    }
     let zipped = tiny_zip("2;");
     let r = srv
         .call_bytes(
@@ -4734,6 +4810,26 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
 /// consulted before [`body_override`].
 fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
+        ("POST", "/admin/moderation/branch-action") => r#"{"request_id":"{branch_request_id}"}"#,
+        ("POST", "/admin/moderation/members/{account_id}/timeout") => {
+            r#"{"minutes":5,"reason":"authz matrix"}"#
+        }
+        ("POST", "/admin/moderation/members/{account_id}/invite-freeze") => {
+            r#"{"days":1,"reason":"authz matrix"}"#
+        }
+        ("POST", "/admin/moderation/members/{account_id}/ban")
+        | ("POST", "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban") => {
+            r#"{"reason_category":"other","reason":"authz matrix"}"#
+        }
+        ("POST", "/admin/moderation/subtree-cases/{case_id}/requests") => {
+            r#"{"kind":"sterilize","account_id":"{subtree_node_account_id}","reason":"authz matrix: a reason long enough to count"}"#
+        }
+        ("POST", "/admin/moderation/restrictions/{restriction_id}/appeal-decision") => {
+            r#"{"decision":"upheld","reason":"authz matrix"}"#
+        }
+        ("POST", "/sr/moderation/restrictions/{restriction_id}/appeal") => {
+            r#"{"message":"authz matrix appeal"}"#
+        }
         ("POST", "/admin/arcade/coming-soon") => {
             r#"{"title":"Authz soon two","summary":"authz","tier":"TIER_2_REIMPLEMENTATION","repo_url":"https://github.com/example/two"}"#
         }
@@ -5438,6 +5534,27 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         "proxy_instance_id",
     ),
     (&["/users/@me/guestbook/"], "entry_id", "pending_entry_id"),
+    // MOD-GRD-001: the seeded subtree case, its node, the sterilization request and the member's own warning.
+    (
+        &["/admin/moderation/subtree-cases/"],
+        "case_id",
+        "subtree_case_id",
+    ),
+    (
+        &["/admin/moderation/subtree-cases/"],
+        "account_id",
+        "subtree_node_account_id",
+    ),
+    (
+        &["/admin/moderation/requests/"],
+        "request_id",
+        "mod_request_id",
+    ),
+    (
+        &["/sr/moderation/restrictions/"],
+        "restriction_id",
+        "my_restriction_id",
+    ),
     // ARC-ROOM-001: the Arcade routes act on the seeded entry, cartridge and released game.
     (
         &["/arcade/coming-soon/", "/admin/arcade/coming-soon/"],
