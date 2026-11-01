@@ -1,9 +1,9 @@
 // The Study's sidebar (STU-SHF-001): by source, never by genre.
 //
 // The sidebar is built from ONE data-source interface shaped like 41-C's `GET /api/v1/shelves/visible` (a list of
-// shelves the viewer may see, each tagged own / friend / guild). Today `legacyVisible` derives that list from the
-// existing mount, friend-share, shelf and games APIs. When 41-C lands, replace `legacyVisible` by a fetch of
-// `/shelves/visible` and nothing else in the Study changes. The server decides every access either way.
+// shelves the viewer may see, each tagged own / friend / guild); `./api#visibleShelves` fetches it. `legacyVisible`
+// derives the same list from the older mount, friend-share, shelf and games APIs (kept for tests and as a fallback
+// shape). The server decides every access either way.
 
 export type StudyGroup = 'mine' | 'friends' | 'guilds';
 
@@ -13,7 +13,11 @@ export interface VisibleShelf {
   kind: 'own' | 'friend' | 'guild';
   label: string;
   owner_id?: string;
+  /** The owner's handle, as the server knows it (the badge falls back to it). */
+  owner_handle?: string;
   guild_id?: string;
+  /** The server's name, as the server knows it. */
+  guild_name?: string;
 }
 
 /** The single seam: where the visible shelves come from. */
@@ -31,7 +35,9 @@ export interface StudyEntry {
   id: string;
   group: StudyGroup;
   ownerId?: string;
+  ownerHandle?: string;
   guildId?: string;
+  guildName?: string;
   mounts: StudyMount[];
 }
 
@@ -114,6 +120,7 @@ export function buildSidebar(visible: readonly VisibleShelf[]): StudySidebar {
         id: `friend:${v.owner_id}`,
         group: 'friends' as const,
         ownerId: v.owner_id,
+        ...(v.owner_handle ? { ownerHandle: v.owner_handle } : {}),
         mounts: [],
       };
       e.mounts.push(mount);
@@ -123,6 +130,7 @@ export function buildSidebar(visible: readonly VisibleShelf[]): StudySidebar {
         id: `guild:${v.guild_id}`,
         group: 'guilds' as const,
         guildId: v.guild_id,
+        ...(v.guild_name ? { guildName: v.guild_name } : {}),
         mounts: [],
       };
       e.mounts.push(mount);
@@ -165,9 +173,11 @@ export function provenanceOf(
 ): Provenance {
   if (entry.group === 'mine') return { kind: 'own', handle: selfId ? handleOf(selfId) : null };
   if (entry.group === 'friends') {
-    return { kind: 'friend', handle: entry.ownerId ? handleOf(entry.ownerId) : null };
+    const known = entry.ownerId ? handleOf(entry.ownerId) : null;
+    return { kind: 'friend', handle: known ?? entry.ownerHandle ?? null };
   }
-  return { kind: 'guild', name: entry.guildId ? guildNameOf(entry.guildId) : null };
+  const known = entry.guildId ? guildNameOf(entry.guildId) : null;
+  return { kind: 'guild', name: known ?? entry.guildName ?? null };
 }
 
 /** The entry that holds a mount, or null. */

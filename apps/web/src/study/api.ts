@@ -1,40 +1,32 @@
 import { apiFetch } from '../api/client';
-import { listShelf, type ShelfSection } from '../storage/shelves/api';
-import { listMounts } from '../settings/user/storage/api';
-import { legacyVisible, type VisibleShelf, type VisibleSource, type LegacyInputs } from './sources';
+import type { VisibleShelf, VisibleSource } from './sources';
 
-interface Incoming {
-  mount_id: string;
-  owner_id: string;
+/** One row of `GET /shelves/visible` (41-C, `crates/sr-api/src/routes/storage/shelf_access.rs`). */
+interface VisibleRow {
+  shelf_id: string;
   label: string;
+  via: 'own' | 'friend' | 'guild';
+  owner_id?: string;
+  owner_handle?: string;
+  guild_id?: string;
+  guild_name?: string;
 }
-interface Roms {
-  roms: { mount_id: string; mount_label: string; scope: string; guild_id?: string }[];
-}
-
-const SECTIONS: ShelfSection[] = ['cinema', 'library', 'music'];
-
-/** A failed side query leaves its part empty: the sidebar shows what it could learn, never an error page. */
-const soft = <T>(p: Promise<T>, empty: T): Promise<T> => p.catch(() => empty);
 
 /**
- * Where the visible shelves come from today: the mount, friend-share, shelf and games APIs, combined by
- * `legacyVisible`. 41-C replaces this one function by `GET /shelves/visible` (same `VisibleShelf` rows).
+ * The shelves the viewer may see, decided on the server by the same function as every read (`scopes::access`): their
+ * own, friends' shelves shared with them, and server shelves their role reaches. Own first, then friends', then servers'.
  */
 export const visibleShelves: VisibleSource = async (): Promise<VisibleShelf[]> => {
-  const [own, incoming, roms, ...sections] = await Promise.all([
-    soft(listMounts({ kind: 'user' }), []),
-    soft(apiFetch<Incoming[]>('/users/@me/storage/shares', { retries: 0 }), []),
-    soft(apiFetch<Roms>('/users/@me/games/roms', { retries: 0 }), { roms: [] }),
-    ...SECTIONS.map((s) => soft(listShelf(s, { limit: 1 }), null)),
-  ]);
-  const inputs: LegacyInputs = {
-    own: own.map((m) => ({ id: m.id, label: m.label, status: m.status })),
-    incoming,
-    shelf: sections.flatMap((s) => s?.sources ?? []),
-    roms: roms.roms,
-  };
-  return legacyVisible(inputs);
+  const r = await apiFetch<{ shelves: VisibleRow[] }>('/shelves/visible', { retries: 0 });
+  return r.shelves.map((s) => ({
+    shelf_id: s.shelf_id,
+    kind: s.via,
+    label: s.label,
+    ...(s.owner_id ? { owner_id: s.owner_id } : {}),
+    ...(s.owner_handle ? { owner_handle: s.owner_handle } : {}),
+    ...(s.guild_id ? { guild_id: s.guild_id } : {}),
+    ...(s.guild_name ? { guild_name: s.guild_name } : {}),
+  }));
 };
 
 export const studyKeys = {

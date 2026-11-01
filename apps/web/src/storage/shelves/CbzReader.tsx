@@ -2,6 +2,7 @@ import { Button, Notice, Spinner } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { openCbz, type CbzBook, type PageLister } from '../../library/reader/cbzRange';
+import type { Presigned } from '../api';
 import { presignShelfFile } from './api';
 import './shelves.css';
 
@@ -27,6 +28,7 @@ export function CbzReader({
   lister: injected,
   startPage,
   onPage,
+  presign = presignShelfFile,
 }: {
   mountId: string;
   objectKey: string;
@@ -37,6 +39,8 @@ export function CbzReader({
   startPage?: number;
   /** Called when the page changes. */
   onPage?: (index: number, total: number) => void;
+  /** Where the short-lived link comes from (the Study passes its per-object URL mint). */
+  presign?: (mountId: string, key: string) => Promise<Presigned>;
 }) {
   const t = useT();
   const [book, setBook] = useState<CbzBook | null>(null);
@@ -48,11 +52,11 @@ export function CbzReader({
 
   const open = useCallback(async () => {
     const [signed, api] = await Promise.all([
-      presignShelfFile(mountId, objectKey),
+      presign(mountId, objectKey),
       injected ?? wasmLister(),
     ]);
     return openCbz(signed.url, api);
-  }, [mountId, objectKey, injected]);
+  }, [mountId, objectKey, injected, presign]);
 
   useEffect(() => {
     let alive = true;

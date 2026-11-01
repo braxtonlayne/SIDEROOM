@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { presignGet } from '../storage/api';
+import { shelfObjectUrl } from './objectUrl';
 import { NATIVE_VIDEO } from '../storage/shelves/api';
 import { CoverQueue, coverSource, extractCover, type CoverDeps } from './covers';
 import { extOf } from './fileTypes';
@@ -63,7 +63,7 @@ export function useCover(
     const src = coverSource(key);
     const direct = ownerCover ?? (src === 'image' ? key : null);
     if (direct) {
-      presignGet(mountId, direct)
+      shelfObjectUrl(mountId, direct)
         .then((p) => alive && setUrl(p.url))
         .catch(() => undefined);
       return () => {
@@ -75,7 +75,7 @@ export function useCover(
     if (src === 'video' && !NATIVE_VIDEO.has(extOf(key))) return;
     coverQueue
       .get(`${mountId}:${key}:${size}`, async () => {
-        const signed = await presignGet(mountId, key);
+        const signed = await shelfObjectUrl(mountId, key);
         return extractCover(key, signed.url, size, wasmDeps);
       })
       .then((u) => alive && setUrl(u))

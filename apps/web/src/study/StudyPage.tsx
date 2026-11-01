@@ -19,6 +19,8 @@ import {
   type Opened,
   type Pin,
 } from './rails';
+import { RoomsNav } from './RoomsNav';
+import { StudyAreas } from './StudyAreas';
 import { StudyFiles } from './StudyFiles';
 import {
   allEntries,
@@ -77,7 +79,7 @@ interface Selection {
 /**
  * The Study (STU-SHF-001): a sidebar by source (My Files, Friends' Shelves, Guild Shelves), the files of the chosen
  * shelf with type filters and covers taken from the files, and three personal rails. The shelves come through one
- * `VisibleSource`, so the move to `GET /shelves/visible` (41-C) is a one-line swap in `./api`.
+ * `VisibleSource` (`GET /shelves/visible` by default); file bodies through per-object URLs (`./objectUrl`).
  */
 export function StudyPage({ source = visibleShelves }: { source?: VisibleSource }) {
   const t = useT();
@@ -88,8 +90,8 @@ export function StudyPage({ source = visibleShelves }: { source?: VisibleSource 
   const nameOf = useCallback(
     (e: StudyEntry) =>
       (e.group === 'friends'
-        ? names.handleOf(e.ownerId ?? '')
-        : names.guildNameOf(e.guildId ?? '')) ??
+        ? (names.handleOf(e.ownerId ?? '') ?? e.ownerHandle)
+        : (names.guildNameOf(e.guildId ?? '') ?? e.guildName)) ??
       e.mounts[0]?.label ??
       '',
     [names],
@@ -194,65 +196,73 @@ export function StudyPage({ source = visibleShelves }: { source?: VisibleSource 
     );
 
   return (
-    <div className="stu-page">
-      <nav className="stu-side" aria-label={t('study.side.label')}>
-        <h1>{t('study.title')}</h1>
-        {visible.isPending && <p className="stu-muted">{t('study.loading')}</p>}
-        {visible.isError && <Notice variant="danger">{t('study.error')}</Notice>}
-        {sidebar.mine && group(t('study.side.mineGroup'), [sidebar.mine])}
-        {group(t('study.side.friends'), friends)}
-        {group(t('study.side.guilds'), guilds)}
-      </nav>
-      <main className="stu-main">
-        {visible.isSuccess && entries.length === 0 && (
-          <Notice variant="info">{t('study.noShelves')}</Notice>
-        )}
-        <Rails
-          watching={rails.watching}
-          reading={rails.reading}
-          recent={recent.map((r) => ({ mountId: r.mountId, key: r.key }))}
-          pins={livePins}
-          onOpen={(o, r) => goto(o.mountId, o.key, o.key.slice(0, o.key.lastIndexOf('/') + 1), r)}
-          onPin={(p) => goto(p.mountId, null, p.prefix)}
-        />
-        {current && mount && mountId && prov && (
-          <>
-            {current.mounts.length > 1 && (
-              <div className="stu-mounts" role="group" aria-label={t('study.mounts')}>
-                {current.mounts.map((m) => (
-                  <button
-                    key={m.mountId}
-                    type="button"
-                    aria-pressed={m.mountId === mountId}
-                    onClick={() => setSel({ entryId: current.id, mountId: m.mountId, prefix: '' })}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            <StudyFiles
-              key={mountId}
-              mountId={mountId}
-              mountLabel={mount.label}
-              prefix={prefix}
-              onPrefix={(p) => setSel({ entryId: current.id, mountId, prefix: p })}
-              badge={text(prov)}
-              badgeKind={badgeKind}
-              pinned={pins.some((p) => p.mountId === mountId && p.prefix === prefix)}
-              onTogglePin={flipPin}
-              onOpened={onOpened}
-              resume={resume}
-              openRequest={openKey}
-              onOpenDone={() => {
-                setOpenKey(null);
-                setResume(undefined);
-              }}
-            />
-          </>
-        )}
-      </main>
-    </div>
+    <>
+      <header className="stu-bar">
+        <RoomsNav current="study" className="stu-bar-nav" linkClassName="stu-bar-link" />
+        <StudyAreas current="shelves" className="stu-bar-nav" linkClassName="stu-bar-link" />
+      </header>
+      <div className="stu-page">
+        <nav className="stu-side" aria-label={t('study.side.label')}>
+          <h1>{t('study.title')}</h1>
+          {visible.isPending && <p className="stu-muted">{t('study.loading')}</p>}
+          {visible.isError && <Notice variant="danger">{t('study.error')}</Notice>}
+          {sidebar.mine && group(t('study.side.mineGroup'), [sidebar.mine])}
+          {group(t('study.side.friends'), friends)}
+          {group(t('study.side.guilds'), guilds)}
+        </nav>
+        <main className="stu-main">
+          {visible.isSuccess && entries.length === 0 && (
+            <Notice variant="info">{t('study.noShelves')}</Notice>
+          )}
+          <Rails
+            watching={rails.watching}
+            reading={rails.reading}
+            recent={recent.map((r) => ({ mountId: r.mountId, key: r.key }))}
+            pins={livePins}
+            onOpen={(o, r) => goto(o.mountId, o.key, o.key.slice(0, o.key.lastIndexOf('/') + 1), r)}
+            onPin={(p) => goto(p.mountId, null, p.prefix)}
+          />
+          {current && mount && mountId && prov && (
+            <>
+              {current.mounts.length > 1 && (
+                <div className="stu-mounts" role="group" aria-label={t('study.mounts')}>
+                  {current.mounts.map((m) => (
+                    <button
+                      key={m.mountId}
+                      type="button"
+                      aria-pressed={m.mountId === mountId}
+                      onClick={() =>
+                        setSel({ entryId: current.id, mountId: m.mountId, prefix: '' })
+                      }
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <StudyFiles
+                key={mountId}
+                mountId={mountId}
+                mountLabel={mount.label}
+                prefix={prefix}
+                onPrefix={(p) => setSel({ entryId: current.id, mountId, prefix: p })}
+                badge={text(prov)}
+                badgeKind={badgeKind}
+                pinned={pins.some((p) => p.mountId === mountId && p.prefix === prefix)}
+                onTogglePin={flipPin}
+                onOpened={onOpened}
+                resume={resume}
+                openRequest={openKey}
+                onOpenDone={() => {
+                  setOpenKey(null);
+                  setResume(undefined);
+                }}
+              />
+            </>
+          )}
+        </main>
+      </div>
+    </>
   );
 }
 

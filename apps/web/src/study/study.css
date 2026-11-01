@@ -215,3 +215,31 @@
   border-radius: var(--ui-radius-md, 6px);
   padding: 8px;
 }
+/* The room bar (STU-NAV-001): the three rooms, then the Study's own areas. */
+.stu-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  padding-block: 12px;
+  padding-inline: clamp(16px, 4vw, 48px);
+  border-block-end: 1px solid var(--ui-border);
+}
+.stu-bar-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.stu-bar-link {
+  color: var(--ui-text-muted);
+  text-decoration: none;
+}
+.stu-bar-link[aria-current='page'] {
+  color: var(--ui-text);
+  font-weight: 600;
+}
+.stu-bar-link:hover,
+.stu-bar-link:focus-visible {
+  color: var(--ui-text);
+  text-decoration: underline;
+}

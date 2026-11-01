@@ -2,6 +2,7 @@ import { Notice, Spinner } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
+import type { Presigned } from '../api';
 import { presignShelfFile } from './api';
 import './shelves.css';
 
@@ -21,6 +22,7 @@ export function ShelfPlayer({
   title,
   startAt,
   onTime,
+  presign = presignShelfFile,
 }: {
   mountId: string;
   objectKey: string;
@@ -30,6 +32,8 @@ export function ShelfPlayer({
   startAt?: number;
   /** Called about every 5 seconds of playback and on pause, with the position and length in seconds. */
   onTime?: (at: number, of: number) => void;
+  /** Where the short-lived link comes from (the Study passes its per-object URL mint). */
+  presign?: (mountId: string, key: string) => Promise<Presigned>;
 }) {
   const t = useT();
   const lastTick = useRef(0);
@@ -42,7 +46,7 @@ export function ShelfPlayer({
   const load = useCallback(
     async (live: () => boolean) => {
       try {
-        const p = await presignShelfFile(mountId, objectKey);
+        const p = await presign(mountId, objectKey);
         if (!live()) return;
         const media = el.current;
         if (media && !media.paused) resume.current = { at: media.currentTime, playing: true };
@@ -62,7 +66,7 @@ export function ShelfPlayer({
         setError(code === 'CORS_NOT_READY' ? t('shelves.cors') : t('shelves.playFailed'));
       }
     },
-    [mountId, objectKey, t],
+    [mountId, objectKey, t, presign],
   );
 
   useEffect(() => {

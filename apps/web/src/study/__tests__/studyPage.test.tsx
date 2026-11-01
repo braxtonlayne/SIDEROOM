@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createHash } from 'node:crypto';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { createAppRouter } from '../../router';
@@ -25,37 +26,46 @@ const FILES: Record<string, { key: string; size: number }[]> = {
 
 interface Seen {
   puts: unknown[];
+  urls: string[];
 }
 
+const sha = (k: string) => createHash('sha256').update(k, 'utf8').digest('hex');
+
 function useStudyApi(canEdit: boolean): Seen {
-  const seen: Seen = { puts: [] };
-  const notes: { key: string; title?: string; note?: string; cover_key?: string }[] = [];
+  const seen: Seen = { puts: [], urls: [] };
+  const notes = new Map<string, { title: string; note: string; cover: string }>();
   server.use(
     http.get('*/api/v1/users/@me', () => HttpResponse.json({ id: '1', username: 'me' })),
-    http.get('*/api/v1/users/@me/storage/mounts', () =>
-      HttpResponse.json([{ id: '501', label: 'Home', status: 'active' }]),
-    ),
-    http.get('*/api/v1/users/@me/storage/shares', () =>
-      HttpResponse.json([
-        {
-          mount_id: '502',
-          owner_id: '20',
-          label: 'Alex stuff',
-          cinema: true,
-          library: true,
-          music: false,
-        },
-      ]),
-    ),
-    http.get('*/api/v1/users/@me/games/roms', () => HttpResponse.json({ roms: [] })),
-    http.get('*/api/v1/shelves/:section', ({ params }) =>
+    http.get('*/api/v1/shelves/visible', () =>
       HttpResponse.json({
-        items: [],
-        total: 0,
-        sources:
-          params.section === 'cinema'
-            ? [{ mount_id: '503', label: 'Club shelf', scope: 'guild', guild_id: '70' }]
-            : [],
+        shelves: [
+          {
+            shelf_id: '501',
+            label: 'Home',
+            via: 'own',
+            owner_id: '1',
+            object_count: 4,
+            can_manage: true,
+          },
+          {
+            shelf_id: '502',
+            label: 'Alex stuff',
+            via: 'friend',
+            owner_id: '20',
+            owner_handle: 'alex',
+            object_count: 1,
+            can_manage: false,
+          },
+          {
+            shelf_id: '503',
+            label: 'Club shelf',
+            via: 'guild',
+            guild_id: '70',
+            guild_name: 'Club',
+            object_count: 1,
+            can_manage: false,
+          },
+        ],
       }),
     ),
     http.get('*/api/v1/storage/mounts/:mount/objects', ({ params }) => {
@@ -68,21 +78,40 @@ function useStudyApi(canEdit: boolean): Seen {
         can_manage: canEdit,
       });
     }),
-    http.get('*/api/v1/storage/mounts/:mount/notes', () =>
-      HttpResponse.json({ notes, can_edit: canEdit }),
-    ),
-    http.put('*/api/v1/storage/mounts/:mount/notes', async ({ request }) => {
-      const b = (await request.json()) as { key: string; title: string };
-      seen.puts.push(b);
-      notes.push({ key: b.key, title: b.title });
-      return new HttpResponse(null, { status: 204 });
+    http.get('*/api/v1/shelves/:shelf/objects', ({ params }) => {
+      const files = FILES[String(params.shelf)] ?? [];
+      return HttpResponse.json({
+        objects: files.map((f) => ({
+          object_hash: sha(f.key),
+          path: f.key,
+          size: f.size,
+          class: 'other',
+          title: notes.get(f.key)?.title ?? '',
+          cover: notes.get(f.key)?.cover ?? '',
+          note: notes.get(f.key)?.note ?? '',
+          updated_at: '2026-10-01T00:00:00Z',
+        })),
+        next_cursor: null,
+        can_edit: canEdit,
+      });
     }),
-    http.post('*/api/v1/storage/mounts/:mount/presign', () =>
-      HttpResponse.json({
+    http.get('*/api/v1/shelves/:shelf/objects/:hash/url', ({ params }) => {
+      seen.urls.push(String(params.hash));
+      return HttpResponse.json({
         url: 'https://bucket.example/x?sig=1',
         expires_at: new Date(Date.now() + 600_000).toISOString(),
-      }),
-    ),
+      });
+    }),
+    // The PATCH records the body against the path its hash names (the catalog hash is sha256 of the path).
+    http.patch('*/api/v1/shelves/:shelf/objects/:hash', async ({ params, request }) => {
+      const b = (await request.json()) as { title: string; note: string; cover: string };
+      const files = Object.values(FILES).flat();
+      const f = files.find((x) => sha(x.key) === params.hash);
+      if (!f) return HttpResponse.json({ code: 10004, message: 'Unknown' }, { status: 404 });
+      seen.puts.push({ key: f.key, ...b });
+      notes.set(f.key, b);
+      return HttpResponse.json({});
+    }),
   );
   return seen;
 }
@@ -147,7 +176,7 @@ describe('The Study page (STU-SHF-001)', () => {
     await user.type(title, 'My cut');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(seen.puts).toHaveLength(1));
-    expect(seen.puts[0]).toEqual({ key: 'Films/a.mp4', title: 'My cut', note: '', cover_key: '' });
+    expect(seen.puts[0]).toEqual({ key: 'Films/a.mp4', title: 'My cut', note: '', cover: '' });
     expect(await screen.findByRole('button', { name: /Open My cut, / })).toBeInTheDocument();
   });
 
@@ -156,6 +185,20 @@ describe('The Study page (STU-SHF-001)', () => {
     open();
     await screen.findByRole('button', { name: /Open a, / });
     expect(screen.queryByRole('button', { name: /Edit details of/ })).toBeNull();
+  });
+
+  it('opens a file through its per-object URL (the catalog hash of its path)', async () => {
+    const user = userEvent.setup();
+    const seen = useStudyApi(false);
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    open();
+    await user.click(await screen.findByRole('button', { name: /Open notes, / }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Open file' }));
+    await waitFor(() => expect(opened).toHaveBeenCalled());
+    expect(seen.urls).toContain(sha('notes.txt'));
+    expect(opened.mock.calls[0]?.[0]).toBe('https://bucket.example/x?sig=1');
+    opened.mockRestore();
   });
 
   it('shows the recently added rail and has no axe violations', async () => {

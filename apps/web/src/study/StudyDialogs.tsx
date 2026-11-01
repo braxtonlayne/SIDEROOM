@@ -1,7 +1,7 @@
 import { Button, Modal, Notice, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
-import { presignGet } from '../storage/api';
+import { shelfObjectUrl } from './objectUrl';
 import { playableKind, NATIVE_VIDEO } from '../storage/shelves/api';
 import { CbzReader } from '../storage/shelves/CbzReader';
 import { PresignedReader } from '../storage/shelves/PresignedReader';
@@ -44,6 +44,7 @@ export function StudyViewer({
             title={title}
             startAt={resume?.at}
             onTime={onProgress}
+            presign={shelfObjectUrl}
           />
         )}
         {kind === 'cbz' && (
@@ -53,6 +54,7 @@ export function StudyViewer({
             title={title}
             startPage={resume?.at}
             onPage={(i, total) => onProgress(i, total)}
+            presign={shelfObjectUrl}
           />
         )}
         {(kind === 'epub' || kind === 'pdf') && (
@@ -62,6 +64,7 @@ export function StudyViewer({
             kind={kind}
             title={title}
             seriesId={`study-${mountId}`}
+            presign={shelfObjectUrl}
           />
         )}
         {kind === 'none' && type === 'images' && (
@@ -92,7 +95,7 @@ function ImageView({
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let alive = true;
-    presignGet(mountId, fileKey)
+    shelfObjectUrl(mountId, fileKey)
       .then((p) => alive && setUrl(p.url))
       .catch(() => alive && setFailed(true));
     return () => {
@@ -116,7 +119,7 @@ function LinkButton({ mountId, fileKey }: { mountId: string; fileKey: string }) 
         onClick={() => {
           setBusy(true);
           setFailed(false);
-          presignGet(mountId, fileKey)
+          shelfObjectUrl(mountId, fileKey)
             .then((p) => window.open(p.url, '_blank', 'noopener,noreferrer'))
             .catch(() => setFailed(true))
             .finally(() => setBusy(false));

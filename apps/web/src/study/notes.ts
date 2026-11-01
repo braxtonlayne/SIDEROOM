@@ -1,6 +1,8 @@
-// The owner's own words on a file (STU-SHF-001): `GET|PUT /storage/mounts/{mount}/notes`.
+// The owner's own words on a file (STU-SHF-001): the title, cover and note columns of the shelf catalog
+// (`GET /shelves/{shelf_id}/objects`, 41-C) and `PATCH /shelves/{shelf_id}/objects/{object_hash}` to change them.
 import { apiFetch } from '../api/client';
 import { baseName, titleOf } from './fileTypes';
+import { objectHash, objectPath } from './objectUrl';
 
 export interface FileNote {
   key: string;
@@ -14,17 +16,49 @@ export interface FileNoteList {
   can_edit: boolean;
 }
 
-const path = (mountId: string) => `/storage/mounts/${encodeURIComponent(mountId)}/notes`;
+/** One catalog page as `GET /shelves/{shelf_id}/objects` returns it (the fields the Study reads). */
+interface CatalogPage {
+  objects: { path: string; title: string; cover: string; note: string }[];
+  next_cursor: string | null;
+  can_edit: boolean;
+}
 
-export const listNotes = (mountId: string) => apiFetch<FileNoteList>(path(mountId), { retries: 0 });
+/** Most catalog pages (200 objects each) read for the notes of one shelf. */
+const MAX_PAGES = 25;
 
-/** Set the note of a file; an empty title, note and cover removes it. */
-export const putNote = (mountId: string, n: FileNote) =>
-  apiFetch<void>(path(mountId), {
-    method: 'PUT',
-    json: { key: n.key, title: n.title ?? '', note: n.note ?? '', cover_key: n.cover_key ?? '' },
+export async function listNotes(shelfId: string): Promise<FileNoteList> {
+  const notes: FileNote[] = [];
+  let cursor: string | null = null;
+  let canEdit = false;
+  for (let i = 0; i < MAX_PAGES; i++) {
+    const q: string = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    const page: CatalogPage = await apiFetch<CatalogPage>(
+      `/shelves/${encodeURIComponent(shelfId)}/objects${q}`,
+      { retries: 0 },
+    );
+    canEdit = page.can_edit;
+    for (const o of page.objects) {
+      if (!o.title && !o.note && !o.cover) continue;
+      const n: FileNote = { key: o.path };
+      if (o.title) n.title = o.title;
+      if (o.note) n.note = o.note;
+      if (o.cover) n.cover_key = o.cover;
+      notes.push(n);
+    }
+    cursor = page.next_cursor;
+    if (!cursor) break;
+  }
+  return { notes, can_edit: canEdit };
+}
+
+/** Set the note of a file; an empty title, note and cover clears it. */
+export async function putNote(shelfId: string, n: FileNote): Promise<void> {
+  await apiFetch<unknown>(objectPath(shelfId, await objectHash(n.key)), {
+    method: 'PATCH',
+    json: { title: n.title ?? '', note: n.note ?? '', cover: n.cover_key ?? '' },
     retries: 0,
   });
+}
 
 export type NoteMap = Map<string, FileNote>;
 
