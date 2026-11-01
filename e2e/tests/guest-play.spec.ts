@@ -6,7 +6,7 @@ import {
   type Page,
   type WebSocketRoute,
 } from '@playwright/test';
-import { apiPost, test, loginApi, registerUser } from '../support/fixtures';
+import { test } from '../support/fixtures';
 import { builtInActivityBundle, zip } from '../support/activityBundle';
 import { startActivityForTwo } from '../support/activities';
 import { VOICE_STACK } from '../support/voice';
@@ -423,7 +423,7 @@ test.describe('wave 43 gate proof (real stack)', () => {
       // Alice (the host) opens Share link and reads the link; the key was made in her browser.
       await a.page.getByRole('button', { name: 'Share link' }).click();
       await a.page.getByRole('button', { name: 'Create link' }).click();
-      const href = await a.page.getByLabel('Guest link').inputValue();
+      const href = await a.page.getByRole('textbox', { name: 'Guest link' }).inputValue();
       expect(href).toMatch(/\/play\/[0-9a-f]{64}#key=[A-Za-z0-9_-]{43}$/);
       await expect(a.page.getByRole('img', { name: 'QR code for the guest link' })).toBeVisible();
       await a.page.getByRole('button', { name: 'Done' }).click();
@@ -454,7 +454,11 @@ test.describe('wave 43 gate proof (real stack)', () => {
           timeout: 15_000,
         })
         .toBeGreaterThan(t0 + 14);
-      // The guest's player exists in the host's engine: guest -> member as well as member -> guest.
+      // The guest's player exists in the host's engine: guest -> member as well as member -> guest. The relay
+      // chose the callsign (random); the runner's bar shows it.
+      const bar = await g.getByText(/^Playing as /).innerText();
+      const callsign = /^Playing as (.+?)(?: · .*)?$/.exec(bar.trim())?.[1] ?? '';
+      expect(callsign).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+ \d{2}$/);
       const fa = a.page.frames().find((f) => f.url().includes('.activities.'))!;
       await expect
         .poll(
@@ -467,20 +471,19 @@ test.describe('wave 43 gate proof (real stack)', () => {
             ),
           { timeout: 20_000 },
         )
-        .toContain('Amber');
+        .toContain(callsign);
 
-      // 403/Drop at the relay: a guest socket that forges a second subscription is dropped before any SDK sees it.
-      const closeCode = await g.evaluate(
-        () =>
-          new Promise<number>((resolve) => {
-            const ws = new WebSocket(`ws://${location.host}/gateway/guest?v=1`);
-            ws.onclose = (e) => resolve(e.code);
-            ws.onopen = () =>
-              ws.send(JSON.stringify({ op: 'hello', guest_token: 'srg_' + '0'.repeat(64) }));
-            setTimeout(() => resolve(-1), 8000);
-          }),
-      );
-      expect([4401, 4403]).toContain(closeCode);
+      // Guest bundle isolation (D-385, D-397): the guest's browser asked the server for the guest-play shell, the
+      // one join call and the one game's own origin, nothing else: no other Activity host, no other API route.
+      const appHost = `${session.appId}.activities.`;
+      for (const u of guestRequests) {
+        const url = new URL(u);
+        if (url.hostname.includes('.activities.'))
+          expect(url.hostname, u).toMatch(new RegExp(`^${appHost}`));
+        if (url.pathname.startsWith('/api/'))
+          expect(url.pathname, u).toMatch(/^\/api\/v1\/play\/[0-9a-f]{64}\/join$/);
+      }
+      expect(await incognito.cookies()).toEqual([]);
 
       // REST: a guest session token opens nothing (chat, members, profiles, shelves). The join route's answer is
       // the guest's only credential, taken from the page's own call.
@@ -490,19 +493,62 @@ test.describe('wave 43 gate proof (real stack)', () => {
       const joined = (await (await req.post(new URL(joinReq).pathname)).json()) as {
         guest_token: string;
       };
-      const bearer = { Authorization: `Bearer ${joined.guest_token}` };
-      for (const path of [
+      // Real routes of this call's server (a made-up path would answer 404/405, which proves nothing), as a bearer
+      // token and as the session cookie.
+      const sv = session.server;
+      const probes = [
         '/api/v1/users/@me',
-        '/api/v1/guilds',
-        '/api/v1/channels/1/messages',
-        '/api/v1/guilds/1/members',
-        '/api/v1/users/1',
-        '/api/v1/shelves',
+        '/api/v1/users/@me/guilds',
+        `/api/v1/channels/${sv.textChannelId}/messages`,
+        `/api/v1/channels/${sv.voiceChannelId}/messages`,
+        `/api/v1/guilds/${sv.guildId}/members`,
+        `/api/v1/users/@me/guilds/${sv.guildId}/member`,
+        '/api/v1/users/1/profile',
+        '/api/v1/shelves/visible',
         '/api/v1/activities',
-      ]) {
-        const res = await req.get(path, { headers: bearer });
-        expect(res.status(), path).toBe(403);
+      ];
+      const credentials: Record<string, string>[] = [
+        { Authorization: `Bearer ${joined.guest_token}` },
+        { Cookie: `sr_session=${joined.guest_token}` },
+      ];
+      for (const headers of credentials) {
+        for (const path of probes) {
+          const res = await req.get(path, { headers });
+          expect(res.status(), `${Object.keys(headers)[0]} ${path}`).toBe(403);
+        }
       }
+      // 403/Drop at the relay. A made-up guest token is refused (4401); a real one that forges a second
+      // subscription (another lobby's topic) after `ready` is dropped (4403) before anything reaches a lobby.
+      const bogus = await g.evaluate(
+        () =>
+          new Promise<number>((resolve) => {
+            const ws = new WebSocket(`ws://${location.host}/gateway/guest?v=1`);
+            ws.onclose = (e) => resolve(e.code);
+            ws.onopen = () =>
+              ws.send(JSON.stringify({ op: 'hello', guest_token: 'srg_' + '0'.repeat(64) }));
+            setTimeout(() => resolve(-1), 8000);
+          }),
+      );
+      expect(bogus).toBe(4401);
+      const forged = await g.evaluate(
+        (t) =>
+          new Promise<{ ready: boolean; code: number }>((resolve) => {
+            let ready = false;
+            const ws = new WebSocket(`ws://${location.host}/gateway/guest?v=1`);
+            ws.onclose = (e) => resolve({ ready, code: e.code });
+            ws.onopen = () => ws.send(JSON.stringify({ op: 'hello', guest_token: t }));
+            ws.onmessage = (e) => {
+              const f = JSON.parse(String(e.data)) as { op: string };
+              if (f.op !== 'ready') return;
+              ready = true;
+              ws.send(JSON.stringify({ op: 'subscribe', topic: `game:${'f'.repeat(64)}` }));
+            };
+            setTimeout(() => resolve({ ready, code: -1 }), 8000);
+          }),
+        joined.guest_token,
+      );
+      expect(forged).toEqual({ ready: true, code: 4403 });
+
       // The main gateway and the voice stream refuse a guest token too.
       const main = await g.evaluate(
         (t) =>
@@ -524,38 +570,54 @@ test.describe('wave 43 gate proof (real stack)', () => {
     }
   });
 
-  test('a manifest declaring ingame_voice validates, and the runner refuses it', async ({
+  test('a manifest declaring ingame_voice validates, runs for members, and the runner refuses it for a guest', async ({
     browser,
+    browserName,
     owner,
     playwright,
   }) => {
-    const base = process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173';
-    const req = await playwright.request.newContext({ baseURL: base });
-    const dev = await registerUser(req, 'gstv');
-    await loginApi(req, dev);
-    const staff = await playwright.request.newContext({ baseURL: base });
-    await loginApi(staff, owner);
+    test.skip(
+      browserName !== 'chromium',
+      'Chromium resolves *.localhost activity hosts by itself.',
+    );
+    // A Tier 1 game declaring the reserved `ingame_voice` flag next to `guest_play`: the upload validates (D-399),
+    // members can run it (the flag is never handed to a running instance), a link can be made, and the real
+    // relay's join answer names the flag, so the guest's runner refuses before it opens any socket.
     const bundle = zip({
-      'index.html': '<!doctype html><title>Voice game</title><p>hi</p>',
+      'index.html': '<!doctype html><meta charset="utf-8"><title>Voice game</title><p>hi</p>',
       'sideroom.json': JSON.stringify({
         tier: 'TIER_1_ORIGINAL',
         capabilities: ['datachannel', 'guest_play', 'lobby_channel', 'ingame_voice'],
       }),
     });
-    const app = await apiPost<{ application: { id: string } }>(req, '/applications', {
-      name: `E2E voice ${Date.now().toString(36)}`,
-      description: 'ingame_voice: validates, refused by the runner',
-    });
-    // The upload validates: ingame_voice is a known, reserved flag (D-399).
-    const up = await req.post(`/api/v1/applications/${app.application.id}/activity/bundles`, {
-      data: bundle,
-      headers: { 'content-type': 'application/zip' },
-    });
-    expect(up.status()).toBeLessThan(300);
-    // The runner side of the same refusal is proven with the join route's answer in part 1 (it needs a running
-    // instance to mint a link); the real-stack link for a running instance is made in the test above.
-    await req.dispose();
-    await staff.dispose();
-    void browser;
+    const session = await startActivityForTwo(
+      { browser, browserName, owner, playwright },
+      bundle,
+      'gstv',
+    );
+    try {
+      const { a } = session;
+      await a.page.getByRole('button', { name: 'Share link' }).click();
+      await a.page.getByRole('button', { name: 'Create link' }).click();
+      const href = await a.page.getByRole('textbox', { name: 'Guest link' }).inputValue();
+      expect(href).toMatch(/\/play\/[0-9a-f]{64}#key=[A-Za-z0-9_-]{43}$/);
+      await a.page.getByRole('button', { name: 'Done' }).click();
+
+      const incognito = await browser.newContext();
+      const g = await incognito.newPage();
+      const sockets: string[] = [];
+      g.on('websocket', (ws) => sockets.push(ws.url()));
+      const join = g.waitForResponse((r) => /\/api\/v1\/play\/[0-9a-f]{64}\/join$/.test(r.url()));
+      await g.goto(href);
+      await g.getByRole('button', { name: 'Join the game' }).click();
+      const answer = (await (await join).json()) as { capabilities: string[] };
+      expect(answer.capabilities).toContain('ingame_voice');
+      await expect(g.locator('main [role="alert"]')).toContainText('in-game voice');
+      await expect(g.locator('iframe')).toHaveCount(0);
+      expect(sockets.filter((u) => u.includes('/gateway/guest'))).toEqual([]);
+      await incognito.close();
+    } finally {
+      await session.close();
+    }
   });
 });
