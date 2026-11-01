@@ -693,6 +693,21 @@
   {
     "client_visible": true,
     "default_enabled": false,
+    "description": "Shows signed-in members a Preview populated state toggle that fills the web client with made-up sample servers, shelves and games, with a banner on every screen. The sample data lives only in the browser: nothing is read or written on the server. For beta and test deployments; off by default.",
+    "gated_by": null,
+    "id": "platform.showroom",
+    "name": "Showroom (populated preview)",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 45,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Study"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": false,
     "description": "The Movies, Series and Anime browse pages of the Cinema. Off by default: the Study shows shelves and sources instead of a catalog storefront. The routes stay.",
     "gated_by": null,
     "id": "platform.storefront_categories",

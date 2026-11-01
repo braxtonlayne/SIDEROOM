@@ -65,6 +65,8 @@ fn every_feature_of_waves_27_to_39_is_registered_with_its_scopes_and_default() {
         ("platform.global_trending", P, false, true),
         ("platform.requests_board", P, false, true),
         ("platform.ingest_queues", P, false, true),
+        // UX-SHOW-001: the populated preview for beta and test deployments; OFF by default.
+        ("platform.showroom", P, false, true),
     ];
     for (id, scopes, default_on, client) in expected {
         let f = reg

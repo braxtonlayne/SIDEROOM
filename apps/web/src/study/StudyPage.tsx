@@ -1,6 +1,6 @@
 import { Notice } from '@sideroom/ui';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { apiFetch } from '../api/client';
 import { useT } from '../i18n';
 import { useStore } from '../store/store';
@@ -19,6 +19,7 @@ import {
   type Opened,
   type Pin,
 } from './rails';
+import { useShowroomActive } from '../showroom/state';
 import { RoomsNav } from './RoomsNav';
 import { StudyAreas } from './StudyAreas';
 import { StudyFiles } from './StudyFiles';
@@ -81,7 +82,21 @@ interface Selection {
  * shelf with type filters and covers taken from the files, and three personal rails. The shelves come through one
  * `VisibleSource` (`GET /shelves/visible` by default); file bodies through per-object URLs (`./objectUrl`).
  */
-export function StudyPage({ source = visibleShelves }: { source?: VisibleSource }) {
+// UX-SHOW-001: the sample shelves live in a lazy chunk and replace the page (not the data) while the preview is on.
+const PreviewStudy = lazy(() => import('../showroom/PreviewStudy'));
+
+export function StudyPage(props: { source?: VisibleSource }) {
+  const preview = useShowroomActive();
+  if (preview)
+    return (
+      <Suspense fallback={null}>
+        <PreviewStudy />
+      </Suspense>
+    );
+  return <RealStudyPage {...props} />;
+}
+
+function RealStudyPage({ source = visibleShelves }: { source?: VisibleSource }) {
   const t = useT();
   const names = useNames();
   const text = useProvenanceText();

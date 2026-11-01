@@ -1,0 +1,112 @@
+/* UX-SHOW-001: the Showroom (populated preview). Semantic tokens only (--ui-*); logical properties only. */
+.srm-banner {
+  position: fixed;
+  inset-block-end: 12px;
+  inset-inline: 12px;
+  z-index: 2000;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 2px dashed var(--ui-accent);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-surface-2, var(--ui-bg));
+  color: var(--ui-text);
+  font-size: 0.875rem;
+}
+.srm-hint {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+  font-weight: 600;
+}
+.srm-toggle,
+.srm-chip,
+.srm-banner-off {
+  padding-block: 4px;
+  padding-inline: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.srm-toggle[aria-pressed='true'],
+.srm-chip[aria-pressed='true'] {
+  background: var(--ui-surface-2, transparent);
+  border-color: var(--ui-accent);
+  font-weight: 600;
+}
+.srm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.srm-count {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+}
+.srm-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.srm-row {
+  display: grid;
+  inline-size: 100%;
+  gap: 2px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md, 6px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.srm-row[aria-pressed='true'] {
+  border-color: var(--ui-accent);
+}
+.srm-row-title {
+  font-weight: 600;
+}
+.srm-row-meta,
+.srm-local {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}
+.srm-detail {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+}
+.srm-detail h2 {
+  margin: 0;
+}
+.srm-detail dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.srm-detail dt {
+  color: var(--ui-text-muted);
+}
+.srm-detail dd {
+  margin: 0;
+}
+.srm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
