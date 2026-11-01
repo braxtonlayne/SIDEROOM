@@ -60,7 +60,7 @@ pub struct Eligibility {
     pub featured: bool,
     /// Runs in the desktop app only.
     pub desktop_only: bool,
-    /// Needs the local base-game hint of the desktop launcher (46-B).
+    /// Needs the local base-game hint of the desktop launcher (48-B).
     pub needs_base_game_hint: bool,
 }
 
