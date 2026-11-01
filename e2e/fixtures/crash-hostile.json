@@ -1,0 +1,119 @@
+{
+  "_comment": "OPS-CRASH-001 (wave 45-A). A crash report stuffed with everything the allow-list must drop. Every value is made up; nothing here is a live credential. Fed to the server's sanitizer (crates/sr-api/src/routes/crash/allow_list.rs tests), to the client's (apps/web/src/crash/__tests__) and, as the body of a POST, to the Playwright gate. `needles` are literal substrings that must not survive anywhere in the card; `expect` is the card both sanitizers must build.",
+  "payload": {
+    "commit": "0123abc4567",
+    "kind": "wasm_panic",
+    "route": "https://app.example.test/lounge/123456789012345678/987654321098765432?token=abc",
+    "at": 1,
+    "frames": [
+      {
+        "file": "https://app.example.test:8443/assets/index-Bx3k9Qa1.js?X-Amz-Signature=deadbeefcafe1234deadbeefcafe1234&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE#frag",
+        "line": 120,
+        "col": 15,
+        "fn": "renderChannel"
+      },
+      {
+        "file": "https://user:pa55w0rd@10.0.0.7/app/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08/chunk.js",
+        "line": 3,
+        "col": 9,
+        "fn": "Bearer srg_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "file": "wasm://wasm/0a1b2c3d4e5f6071:wasm-function[412]:0x3f4a",
+        "line": 0,
+        "col": 0,
+        "fn": "sr_e2ee_wasm::mls::decrypt"
+      },
+      {
+        "file": "C:\\Users\\alice\\project\\src\\lib.rs",
+        "line": 77,
+        "col": 5,
+        "fn": "sr_core::panic_here"
+      },
+      {
+        "file": "https://cdn.example.test/u/123456789012345678/avatar.js",
+        "line": 1,
+        "col": 1,
+        "fn": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27"
+      },
+      { "file": "http://203.0.113.77/x.js", "line": 8, "col": 2, "fn": "tickLoop" },
+      { "file": "https://alice@example.org", "line": 1, "col": 1, "fn": "noPath" }
+    ],
+    "ticks": [
+      { "t": 1, "src": "activity", "input": "jump" },
+      { "t": 2, "src": "game", "input": "typed: hunter2-message-body-DO-NOT-LEAK" },
+      { "t": 3, "src": "evil", "input": "up" },
+      { "t": 4, "src": "emulator", "input": "bridge_data_send", "payload": "SECRET-TICK-PAYLOAD" }
+    ],
+    "caps": {
+      "webgpu": true,
+      "wasm": true,
+      "engine": "chromium",
+      "touch": "yes",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) victim@example.org",
+      "ip": "203.0.113.77",
+      "gpu": "NVIDIA GeForce RTX 3080"
+    },
+    "message": "hunter2-message-body-DO-NOT-LEAK see https://s3.example.test/bucket/obj.png?X-Amz-Signature=deadbeefcafe1234deadbeefcafe1234",
+    "messages": [{ "id": "123456789012345678", "content": "hunter2-message-body-DO-NOT-LEAK" }],
+    "e2eeKey": "E2EEKEY-0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "authorization": "Bearer srg_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "jwt": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+    "cookie": "sr_session=0123456789abcdef0123456789abcdef",
+    "email": "victim@example.org",
+    "ip": "203.0.113.77",
+    "ipv6": "2001:db8::8a2e:370:7334",
+    "url": "https://s3.example.test/bucket/obj.png?X-Amz-Signature=deadbeefcafe1234deadbeefcafe1234",
+    "userAgent": "Mozilla/5.0 victim@example.org 203.0.113.77"
+  },
+  "needles": [
+    "hunter2-message-body-DO-NOT-LEAK",
+    "E2EEKEY-0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "X-Amz-Signature",
+    "X-Amz-Credential",
+    "deadbeefcafe1234deadbeefcafe1234",
+    "AKIAIOSFODNN7EXAMPLE",
+    "srg_0123456789abcdef",
+    "Bearer",
+    "eyJhbGciOiJIUzI1NiJ9",
+    "203.0.113.77",
+    "10.0.0.7",
+    "2001:db8",
+    "victim@example.org",
+    "example.org",
+    "pa55w0rd",
+    "alice",
+    "sr_session",
+    "SECRET-TICK-PAYLOAD",
+    "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "123456789012345678",
+    "987654321098765432",
+    "s3.example.test",
+    "app.example.test",
+    "cdn.example.test",
+    "token=abc",
+    "NVIDIA",
+    "Mozilla"
+  ],
+  "expect": {
+    "v": 1,
+    "commit": "0123abc4567",
+    "kind": "wasm_panic",
+    "route": "unknown",
+    "frames": [
+      { "file": "assets/index-Bx3k9Qa1.js", "line": 120, "col": 15, "fn": "renderChannel" },
+      { "file": "app/:id/chunk.js", "line": 3, "col": 9 },
+      { "file": "wasm", "line": 0, "col": 0, "fn": "sr_e2ee_wasm::mls::decrypt" },
+      { "file": ":id/project/src/lib.rs", "line": 77, "col": 5, "fn": "sr_core::panic_here" },
+      { "file": "u/:id/avatar.js", "line": 1, "col": 1 },
+      { "file": "x.js", "line": 8, "col": 2, "fn": "tickLoop" }
+    ],
+    "caps": { "wasm": true, "webgpu": true },
+    "engine": "chromium",
+    "ticks": [
+      { "t": 1, "src": "activity", "input": "jump" },
+      { "t": 2, "src": "game", "input": "other" },
+      { "t": 4, "src": "emulator", "input": "bridge_data_send" }
+    ]
+  }
+}

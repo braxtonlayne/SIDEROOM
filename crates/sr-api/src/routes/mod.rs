@@ -48,6 +48,7 @@ pub mod cdn;
 pub mod cinema;
 pub mod cinema_media;
 pub mod cinema_social;
+pub mod crash;
 pub mod developer;
 pub mod directory;
 pub mod donations;
@@ -143,6 +144,7 @@ pub fn all() -> Router<AppState> {
         .merge(arcade::router())
         .merge(packages::router())
         .merge(vouch::router())
+        .merge(crash::router())
         .merge(developer::router())
         .merge(directory::router())
         .merge(donations::router())
@@ -193,6 +195,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(arcade::openapi());
     doc.merge(packages::openapi());
     doc.merge(vouch::openapi());
+    doc.merge(crash::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
     doc.merge(userset::openapi());

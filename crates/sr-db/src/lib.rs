@@ -19,6 +19,7 @@ pub mod cards_repo;
 pub mod chat_repo;
 pub mod cinema_repo;
 pub mod cinema_uploads;
+pub mod crash_reports;
 pub mod csp_reports;
 pub mod data_export;
 pub mod directory_repo;
