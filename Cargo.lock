@@ -6847,6 +6847,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-vouch"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "sqlx",
+ "sr-db",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sr-watchparty"
 version = "0.0.0"
 dependencies = [
