@@ -2,6 +2,7 @@
 # METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER	PLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row: NAME, A+B for all, A|B for any, never mixed)
 DELETE	/activities/{application_id}/vouch	authenticated	self	allow	-	-
 DELETE	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
+DELETE	/activity-instances/{instance_id}/guest-links/{lobby_token}	authenticated	membership	allow	-	-
 DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
 DELETE	/admin/arcade/coming-soon/{entry_id}	authenticated	staff	deny	-	OPERATOR
 DELETE	/admin/arcade/featured/{application_id}	authenticated	staff	deny	-	OPERATOR
@@ -705,6 +706,7 @@ PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allo
 PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-	-
 PATCH	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
 PATCH	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
+POST	/activity-instances/{instance_id}/guest-links	authenticated	membership	allow	-	-
 POST	/activity-instances/{instance_id}/join	authenticated	membership	allow	-	-
 POST	/activity-instances/{instance_id}/leave	authenticated	membership	allow	-	-
 POST	/activity-instances/{instance_id}/proxy-token	authenticated	membership	allow	-	-
@@ -973,6 +975,7 @@ POST	/oauth2/token/revoke	public	none	allow	-	-
 POST	/packages	authenticated	user	deny	-	-
 POST	/packages/versions/{version_id}/withdraw	authenticated	author	deny	-	-
 POST	/packages/{package_id}/create-guild	authenticated	user	deny	-	-
+POST	/play/{lobby_token}/join	public	none	allow	-	-
 POST	/public/profiles/{handle}/guestbook	public	none	allow	-	-
 POST	/read-states/ack-bulk	authenticated	membership	allow	-	-
 POST	/requests	authenticated	user	allow	-	-

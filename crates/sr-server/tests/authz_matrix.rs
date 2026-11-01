@@ -2926,6 +2926,27 @@ async fn seed(
             .await
             .unwrap();
         a.insert("proxy_instance_id", instance.to_string());
+        // ARC-GST-001: the game declares guest_play and lobby_channel, and a live guest link exists for the
+        // write phase (a fixed token; only its digest is stored, like every lobby token).
+        sqlx::query(
+            "UPDATE application_activity_bundles SET capabilities = ARRAY['guest_play','lobby_channel']              WHERE id = (SELECT reviewed_bundle_id FROM application_activities WHERE application_id = $1::text::bigint)",
+        )
+        .bind(aid.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
+        let lobby_token = "5a".repeat(32);
+        sqlx::query(
+            "INSERT INTO activity_guest_links (id, instance_id, created_by, lobby_sha256, expires_at)              VALUES ($1, $2, $3, sha256(convert_to($4, 'UTF8')), now() + interval '1 day')",
+        )
+        .bind(ids.generate().get() as i64)
+        .bind(instance)
+        .bind(u("ownera"))
+        .bind(&lobby_token)
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("guest_lobby_token", lobby_token);
     }
     let zipped = tiny_zip("2;");
     let r = srv
@@ -4700,6 +4721,10 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
         vec![("signal_id", world.a["signal2_id"].clone())]
     } else if r.path.starts_with("/watch-parties/") && r.path.contains("{user_id}") {
         vec![("user_id", world.users["insider"].to_string())]
+    } else if r.path.contains("{lobby_token}") {
+        // ARC-GST-001: only the write phase holds the seeded lobby token; every refusal and observe pass uses a
+        // made-up one, so no guest session is written by a call that must not write.
+        vec![("lobby_token", world.a["guest_lobby_token"].clone())]
     } else {
         Vec::new()
     }
@@ -5405,7 +5430,10 @@ fn ctx_for(
 const OVERLAYS: &[(&[&str], &str, &str)] = &[
     // ARC-SBX-001 (D-399): the proxy token is minted on the seeded running instance owner A takes part in.
     (
-        &["/activity-instances/{instance_id}/proxy-token"],
+        &[
+            "/activity-instances/{instance_id}/proxy-token",
+            "/activity-instances/{instance_id}/guest-links",
+        ],
         "instance_id",
         "proxy_instance_id",
     ),
