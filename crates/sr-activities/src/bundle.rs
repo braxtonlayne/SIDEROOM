@@ -38,8 +38,6 @@ pub const BYOS_READ: &str = "byos_read";
 /// Reserved (D-399): persistent saves to the developer's own bucket. The validator accepts the flag; the runner
 /// refuses it (never handed to an instance) until it ships.
 pub const BYOS_WRITE: &str = "byos_write";
-/// Capabilities a manifest may declare. `datachannel`: the Activity uses `sdk.state` / `sdk.input` (ACT-CH-001).
-pub const CAPABILITIES: &[&str] = &[DATACHANNEL, STORAGE, BYOS_READ, BYOS_WRITE];
 /// The storage capability (ARC-SBX-001): the host keeps a small key-value store for the Activity and sends it
 /// in `ready`, because the sandboxed frame has no `localStorage`.
 pub const STORAGE: &str = "storage";
@@ -126,7 +124,7 @@ pub struct Unpacked {
     pub entries: usize,
     /// Total unpacked bytes.
     pub total: u64,
-    /// Capabilities the bundle declares in `sideroom.json` (see [`CAPABILITIES`]), sorted, no duplicates.
+    /// Capabilities the bundle declares in `sideroom.json` (see [`crate::arcade::FLAGS`], the one catalogue), sorted, no duplicates.
     pub capabilities: Vec<String>,
     /// The tier the manifest declares (ARC-ROOM-001); `None` for a manifest written before tiers.
     pub tier: Option<crate::arcade::Tier>,

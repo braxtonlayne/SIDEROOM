@@ -118,22 +118,29 @@ pub struct Flag {
     pub summary: &'static str,
 }
 
-/// The capability flags a manifest may declare (roadmap rule 5, D-399). Active: `datachannel` (the SFU data
-/// channel, ACT-CH-001) and `byos_read` (scoped read of a shelf, STU-ZK-001 on the wave-41 branch; this wave only
-/// names it). Reserved: the rest; the validator accepts them and nothing hands them to an instance yet.
+/// The capability flags a manifest may declare (roadmap rule 5, D-399): the one catalogue, which the validator,
+/// the runner and the immutable-rules name check all read. Active: `datachannel` (the SFU data channel,
+/// ACT-CH-001), `storage` (the host-kept key-value store of the sandboxed frame, ARC-SBX-001) and `byos_read`
+/// (scoped read of a shelf, STU-ZK-001). Reserved: the rest; the validator accepts them and nothing hands them to
+/// an instance yet.
 pub const FLAGS: &[Flag] = &[
     Flag {
-        name: "datachannel",
+        name: bundle::DATACHANNEL,
         status: FlagStatus::Active,
         summary: "Shared game state and inputs through the call's encrypted data channel.",
     },
     Flag {
-        name: "byos_read",
+        name: bundle::STORAGE,
+        status: FlagStatus::Active,
+        summary: "A small saved store for the game, kept by the app (the sandboxed frame has no browser storage).",
+    },
+    Flag {
+        name: bundle::BYOS_READ,
         status: FlagStatus::Active,
         summary: "Read files from a shelf the member granted, through short-lived links.",
     },
     Flag {
-        name: "byos_write",
+        name: bundle::BYOS_WRITE,
         status: FlagStatus::Reserved,
         summary: "Save to the developer's own bucket.",
     },
@@ -169,15 +176,22 @@ pub fn flag(name: &str) -> Option<&'static Flag> {
     FLAGS.iter().find(|f| f.name == name)
 }
 
-/// Whether the manifest validator accepts `name`: the capabilities the bundle module knows plus every flag above.
+/// Whether the manifest validator accepts `name`: every flag above, active or reserved.
 pub fn accepts(name: &str) -> bool {
-    bundle::CAPABILITIES.contains(&name) || flag(name).is_some()
+    flag(name).is_some()
 }
 
 /// Whether the platform enforces `name` today. A reserved flag is never handed to a running instance.
 pub fn is_active(name: &str) -> bool {
-    bundle::CAPABILITIES.contains(&name)
-        || flag(name).is_some_and(|f| f.status == FlagStatus::Active)
+    flag(name).is_some_and(|f| f.status == FlagStatus::Active)
+}
+
+/// The active flags' names, in catalogue order (what an instance in development runs with).
+pub fn active_flags() -> impl Iterator<Item = &'static str> {
+    FLAGS
+        .iter()
+        .filter(|f| f.status == FlagStatus::Active)
+        .map(|f| f.name)
 }
 
 /// The rules that tie flags to tiers. `Err` is the text for the developer.

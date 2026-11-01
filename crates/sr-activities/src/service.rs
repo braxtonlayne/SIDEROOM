@@ -882,14 +882,11 @@ impl ActivityService {
             .map_err(Into::into)
     }
 
-    /// The capabilities an instance row runs with: its reviewed bundle's, or every one in development.
+    /// The capabilities an instance row runs with: its reviewed bundle's, or every active one in development.
     fn capabilities(r: &PgRow) -> ActivityResult<Vec<String>> {
         let development: bool = r.try_get("dev")?;
         Ok(if development {
-            bundle::CAPABILITIES
-                .iter()
-                .map(|c| (*c).to_owned())
-                .collect()
+            crate::arcade::active_flags().map(str::to_owned).collect()
         } else {
             r.try_get::<Option<Vec<String>>, _>("caps")?
                 .unwrap_or_default()
@@ -900,12 +897,11 @@ impl ActivityService {
         let id: i64 = r.try_get("id")?;
         let development: bool = r.try_get("dev")?;
         let mut capabilities = Self::capabilities(r)?;
-        // `byos_write` is reserved (D-399): accepted in a manifest, never handed to a running instance.
-        capabilities.retain(|c| c != bundle::BYOS_WRITE);
         if !self.datachannel_allowed() {
             capabilities.retain(|c| c != bundle::DATACHANNEL);
         }
-        // A reserved flag (ARC-ROOM-001) is accepted in a manifest but never handed to a running instance.
+        // A reserved flag (ARC-ROOM-001; `byos_write`, D-399) is accepted in a manifest but never handed to a
+        // running instance.
         capabilities.retain(|c| crate::arcade::is_active(c));
         Ok(InstanceView {
             id: id.to_string(),
