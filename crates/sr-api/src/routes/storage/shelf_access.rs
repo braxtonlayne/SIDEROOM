@@ -8,7 +8,7 @@
 //! `sr-server`: they can read credentials and catalogs. The mitigation is the read-only, prefix-scoped key the
 //! owner supplies. Object bodies never pass through the server.
 
-use super::objects::{Reach, bucket_error, reach, session_left, storage_for};
+use super::objects::{Reach, bucket_error, capabilities, reach, session_left, storage_for};
 use super::{ScopeDeps, facts_failed, parse_row, refusal, uid};
 use crate::auth::SessionOnly;
 use crate::openapi::ErrorBody;
@@ -124,6 +124,8 @@ pub struct CatalogPage {
     pub objects: Vec<CatalogObject>,
     /// Cursor of the next page, `null` at the end.
     pub next_cursor: Option<String>,
+    /// The caller may edit titles, covers and notes here (the owner; on a server shelf, a manager of it).
+    pub can_edit: bool,
 }
 
 /// Query of `GET /shelves/{shelf_id}/objects`.
@@ -403,9 +405,11 @@ pub async fn shelf_catalog(
             objects.push(CatalogObject::from(e));
         }
     }
+    let can_edit = capabilities(&d, &r, uid(&p)).await.1;
     Ok(Json(CatalogPage {
         objects,
         next_cursor: if more { last } else { None },
+        can_edit,
     }))
 }
 
@@ -477,7 +481,7 @@ pub async fn shelf_object_url(
     }))
 }
 
-/// Edit the title, cover and note of one object (the shelf's owner only).
+/// Edit the title, cover and note of one object (the shelf's owner; on a server shelf, a manager of it).
 #[utoipa::path(
     patch,
     path = "/shelves/{shelf_id}/objects/{object_hash}",
@@ -489,6 +493,7 @@ pub async fn shelf_object_url(
     responses(
         (status = 200, body = CatalogObject),
         (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),
     ),
     security(("session" = []))
@@ -500,7 +505,13 @@ pub async fn patch_shelf_object(
     Path((shelf_id, object_hash)): Path<(String, String)>,
     ApiJson(body): ApiJson<ObjectMetaBody>,
 ) -> MsgResult<Json<CatalogObject>> {
-    let m = owned(&d, uid(&p), &shelf_id).await?;
+    // The owner, or a manager on a server shelf (`scopes::may_manage`; owner default of wave 41). Anyone else who
+    // reaches the shelf is refused; nobody learns of a shelf they cannot reach.
+    let r = reach(&d, None, uid(&p), None, &shelf_id).await?;
+    if !capabilities(&d, &r, uid(&p)).await.1 {
+        return Err(ErrorCode::MissingPermissions.into());
+    }
+    let m = &r.mount;
     if !is_object_hash(&object_hash) {
         return Err(invalid(
             "object_hash",

@@ -7587,7 +7587,7 @@ async fn shelf_access_holds_over_http() {
         .await,
         404
     );
-    // The grantee cannot edit or manage.
+    // The grantee cannot edit (403: they reach the shelf, they do not manage it) or manage grants (404).
     expect!(
         "the grantee cannot edit a title",
         srv.call(
@@ -7597,7 +7597,7 @@ async fn shelf_access_holds_over_http() {
             Some(&json!({"title": "mine"}))
         )
         .await,
-        404
+        403
     );
     expect!(
         "the grantee cannot list grants",
@@ -7624,6 +7624,9 @@ async fn shelf_access_holds_over_http() {
     );
     if !c.body.contains("\"title\":\"Pilot\"") {
         failures.push("the owner's title is not in the catalog".into());
+    }
+    if !c.body.contains("\"can_edit\":false") {
+        failures.push("a grantee's catalog must say can_edit false".into());
     }
     let gl = expect!(
         "the owner lists the grants",
