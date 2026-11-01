@@ -65,6 +65,11 @@ BEGIN
         UPDATE shelf_objects SET listed = FALSE, updated_at = now()
          WHERE shelf_id = OLD.mount_id AND object_hash = shelf_object_hash(OLD.key);
     END IF;
+    -- storage_objects has no foreign key to its mount: a row of a mount that is gone (deleted mid-index) is not
+    -- catalogued instead of failing the indexer (the back-fill below joins the mounts for the same reason).
+    IF NOT EXISTS (SELECT 1 FROM storage_mounts WHERE id = NEW.mount_id) THEN
+        RETURN NEW;
+    END IF;
     INSERT INTO shelf_objects (shelf_id, object_hash, path, size, kind, class, listed)
     VALUES (NEW.mount_id, shelf_object_hash(NEW.key), NEW.key, NEW.size_bytes, NEW.kind, NEW.class,
             NEW.state = 'indexed')
