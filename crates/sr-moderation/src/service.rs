@@ -86,6 +86,7 @@ pub struct Moderation {
     pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
     pub(crate) channel_sink: Option<Arc<dyn crate::age::ChannelSink>>,
     pub(crate) item_index_sink: Option<Arc<dyn crate::age::ItemIndexSink>>,
+    pub(crate) strike_weight: Option<Arc<dyn sr_admin::StrikeWeight>>,
 }
 
 impl Moderation {
@@ -101,6 +102,23 @@ impl Moderation {
             blocklist: None,
             channel_sink: None,
             item_index_sink: None,
+            strike_weight: None,
+        }
+    }
+
+    /// The accountability multiplier (MOD-GRD-001 seam, 44-B supplies the real one). Without one every account
+    /// weighs 1.0.
+    pub fn with_strike_weight(mut self, w: Arc<dyn sr_admin::StrikeWeight>) -> Self {
+        self.strike_weight = Some(w);
+        self
+    }
+
+    /// `strike_weight_multiplier(account)`: how much heavier an automated timeout, hold or strike weighs for
+    /// this account. Never below 1.0.
+    pub async fn strike_weight_multiplier(&self, account: i64) -> f32 {
+        match &self.strike_weight {
+            Some(w) => w.strike_weight_multiplier(account).await.max(1.0),
+            None => 1.0,
         }
     }
 

@@ -65,6 +65,7 @@ pub struct AdminService {
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) stats_cache: Arc<Mutex<Option<(i64, SystemCounts)>>>,
     suspicion: Arc<crate::suspicion_hook::ObserverSlot>,
+    serious_bans: Arc<crate::serious_ban::SeriousBanSlot>,
 }
 
 impl AdminService {
@@ -78,12 +79,19 @@ impl AdminService {
             clock: Arc::new(SystemClock),
             stats_cache: Arc::new(Mutex::new(None)),
             suspicion: Arc::default(),
+            serious_bans: Arc::default(),
         }
     }
 
     /// Where threshold crossings and clears are reported (MOD-SUS-002). Shared by every clone.
     pub fn set_suspicion_observer(&self, o: Arc<dyn crate::suspicion_hook::SuspicionObserver>) {
         self.suspicion.set(o);
+    }
+
+    /// Subscribe to serious bans (MOD-GRD-001 seam): called after the ban is committed, for every clone of the
+    /// service. Any number of subscribers.
+    pub fn subscribe_serious_ban(&self, o: Arc<dyn crate::serious_ban::SeriousBanObserver>) {
+        self.serious_bans.subscribe(o);
     }
 
     /// Storage of offers, announcements, alerts and private reads (phase 10).
@@ -775,6 +783,21 @@ impl AdminService {
         category: BanCategory,
         note: Option<&str>,
     ) -> AdminResult<BanOutcome> {
+        self.ban_person_with_reason(c, person_id, source_account, category, None, note)
+            .await
+    }
+
+    /// [`Self::ban_person`] naming the `ban_reason_category` the ban is for. The value rides on the serious-ban
+    /// event (MOD-GRD-001) and in the audit entry; stamping it on the ban row stays with the caller.
+    pub async fn ban_person_with_reason(
+        &self,
+        c: &Caller,
+        person_id: i64,
+        source_account: Option<i64>,
+        category: BanCategory,
+        reason_category: Option<&str>,
+        note: Option<&str>,
+    ) -> AdminResult<BanOutcome> {
         self.require(c, P::PLATFORM_BAN, "person.ban").await?;
         let note = Self::reason(note)?;
         let person = self
@@ -819,7 +842,7 @@ impl AdminService {
             "person.ban",
             Some(("person", person_id)),
             &note,
-            json!({ "category": category.as_str() }),
+            json!({ "category": category.as_str(), "reason_category": reason_category }),
         );
         let out = self
             .repo
@@ -869,6 +892,18 @@ impl AdminService {
                 })
                 .await;
             }
+        }
+        if category == BanCategory::Serious {
+            self.serious_bans
+                .emit(&crate::serious_ban::SeriousBan {
+                    ban_id: out.ban.id,
+                    person_id,
+                    source_account_id: source_account,
+                    actor_id: c.user_id,
+                    reason_category: reason_category.map(str::to_owned),
+                    note: note.clone(),
+                })
+                .await;
         }
         Ok(out)
     }
