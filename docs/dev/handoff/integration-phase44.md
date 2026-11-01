@@ -2,7 +2,7 @@
 
 Branch `integration/phase44`, base `origin/integration/phase43` (fast-forwarded to 09704378, PR #74's CI fixes
 `50969e4d` and `09704378`), then `feat/p44-mod-tools` (86fc295a, MOD-GRD-001) and `feat/p44-heavy-crown` (8906d7a1,
-MOD-VCH-001), both `--no-ff`. Not pushed; no PR opened.
+MOD-VCH-001), both `--no-ff`, and at the end `origin/main` 16df52e5 (PR #74 merged; no content change). Not pushed; no PR opened.
 
 Handoffs: [feat-p44-mod-tools](feat-p44-mod-tools.md), [feat-p44-heavy-crown](feat-p44-heavy-crown.md).
 Decisions: D-420 to D-424 (44-A), D-425 to D-429 (44-B); D-422 amended by the integrator (the Operator, below).
@@ -74,11 +74,40 @@ the integrator added none.
 
 ## Gates
 
-GATES_TABLE
+Scratch DBs `sr_p44_integ` (tests) and `sr_p44_e2e` (Playwright), both dropped at the end. `-j 2`, one cargo or test
+process at a time.
+
+| Gate | Result |
+|---|---|
+| `cargo fmt --all --check`; clippy `--all-targets -D warnings` (sr-admin, sr-moderation, sr-vouch, sr-api, sr-gateway, sr-server, sr-cli, sr-db) | ok |
+| sr-db `secret_columns` / `migration_versions` / `account_deletion` / `data_export` | 4 / 1 / 5 / 2 pass |
+| sr-admin lib; sr-vouch (unit + Postgres `vouches`); sr-moderation `--test graduated` | 74; 6 + 8; 9 pass |
+| sr-api lib (`--include-ignored`) | 814 pass (first run: `routes::moderation::tests::evasion_signals_and_the_panel_over_http` failed once, passed alone and on the full rerun; untouched by wave 44, flaky) |
+| sr-api `route_matrix` / `openapi_names` | 6 / 2 pass (`KNOWN_CLASHES` empty) |
+| sr-gateway lib | 206 pass |
+| sr-server lib (`--include-ignored`) / `web_gate` / `feature_registry` | 252 / 22 / 7 pass |
+| sr-server `immutable_rules` (`--include-ignored`) | 25 pass |
+| sr-server `immutable_rules` nightly, `SR_IMMUTABLE_STATES=normal,kill_features,kill_all` | groups 0, 2-5 clean in all three states; the admin group had 5 "status 0 timeout or connection failure" calls in `kill_all` (no real admission; the same run's table-change note listed job tables) and passed on the rerun `SR_IMMUTABLE_GROUPS=1`, normal + kill_all |
+| sr-server `authz_matrix` (`--include-ignored`, all 11 incl. the gate proof) | 11 pass; no ceiling, `WRITE_OBSERVED` or length changed |
+| OpenAPI, api-client types, MSW handlers regenerated once; `mocks:check` | 1199 operations, ok |
+| `pnpm typecheck` (incl. e2e), `pnpm lint` (eslint + `prettier --check .`) | ok |
+| vitest full `--maxWorkers=2` (wasm built first) | 440 files, 4018 tests pass |
+| `node --test scripts/*.test.mjs`; `i18n-audit`; `check-css-tokens` | 100 pass (2 skipped); TOTAL 0; 69 files clean |
+| `build-web.mjs`; `check-bundle-budget.mjs`; `check-entrance-isolation.mjs` | ok; ok; every public surface clean (profile 113.5/150 KB, guest-play 114.0/120 KB) |
+| Playwright Chromium (dev server + sr-server on 8080, in-memory storage): exit-gate, moderation-gate, lounge-shell | 7 pass |
+| Playwright Chromium: i18n-pseudo (all rows + "admin subtree cases" and "profile vouch panel", desktop and phone) | 30 pass (both new pages called their APIs, 200) |
+| Playwright Chromium: a11y-signed-in, lounge-gaps (the specs that touch profiles) | 39 pass, 1 fail: axe `label-content-name-mismatch` on **library home** (`._link_` of the Library section bar, wave 41 `bed2fd5d`); no wave 44 file is involved, left for a follow-up |
+| origin/main (16df52e5, PR #74) merged at the end | tree identical to the tested tree (`git diff HEAD~1 HEAD` empty), so no gate re-run was needed |
 
 ## Not done
 
-NOT_DONE
+- No automated **hold** and no automated timeout in 44-A's engine to scale: `sr_vouch::tiers::scale_hold` and
+  `Moderation::automated_timeout_minutes` have no production caller (AutoMod timeouts are scaled by 44-B's decorator).
+  Nothing was invented.
+- The a11y-signed-in library-home finding above (pre-existing, Library section bar).
+- `noindex.spec` not run (Caddy only); Firefox and WebKit not run locally.
+- The CLI branch action still asks for no TOTP code (owner question).
+- Signed-out `/~handle` (public profile surface, D-385) shows no vouch panel (44-B, unchanged).
 
 ## Owner items
 
@@ -88,4 +117,6 @@ needs a visible profile.
 
 ## Resume here
 
-RESUME
+Nothing half-done. Next: the owner's go-ahead to push `integration/phase44` and open the PR
+"MOD-GRD-001, MOD-VCH-001: graduated moderation and Heavy Crown profile vouches (wave 44)". Optional follow-up: the
+Library section bar's accessible name (a11y-signed-in, library home).
