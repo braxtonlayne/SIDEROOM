@@ -25,16 +25,22 @@ export function CbzReader({
   objectKey,
   title,
   lister: injected,
+  startPage,
+  onPage,
 }: {
   mountId: string;
   objectKey: string;
   title: string;
   /** Tests inject the WebAssembly module's stand-in. */
   lister?: PageLister;
+  /** 0-based page to open on (the Study's Continue rail). */
+  startPage?: number;
+  /** Called when the page changes. */
+  onPage?: (index: number, total: number) => void;
 }) {
   const t = useT();
   const [book, setBook] = useState<CbzBook | null>(null);
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(startPage ?? 0);
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const urls = useRef<string[]>([]);
@@ -57,6 +63,11 @@ export function CbzReader({
       alive = false;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (book) onPage?.(index, book.pages.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book, index]);
 
   useEffect(() => {
     if (!book) return;
