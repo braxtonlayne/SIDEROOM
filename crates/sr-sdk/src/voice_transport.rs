@@ -1015,11 +1015,21 @@ mod tests {
                 .to_owned()
         };
         let (m, s) = (section(mic), section(music));
+        // Whether a line of the section names the payload type (the m= line's format list or an rtpmap, fmtp or
+        // rtcp-fb attribute). A bare substring check matched random SSRCs and ICE credentials (3111586947).
+        let names = |sec: &str, pt: &str| {
+            sec.split("\r\n").any(|l| {
+                ["a=rtpmap:", "a=fmtp:", "a=rtcp-fb:"]
+                    .iter()
+                    .any(|a| l.starts_with(&format!("{a}{pt} ")))
+                    || (l.contains("RTP/SAVPF") && l.split(' ').skip(3).any(|p| p == pt))
+            })
+        };
         assert!(
-            m.contains("a=rtpmap:111") && !m.contains("112") && !m.contains("stereo"),
+            names(&m, "111") && !names(&m, "112") && !m.contains("stereo"),
             "{m}"
         );
-        assert!(s.contains("a=rtpmap:112") && !s.contains("111"), "{s}");
+        assert!(names(&s, "112") && !names(&s, "111"), "{s}");
         assert!(
             s.contains("stereo=1") && s.contains("sprop-stereo=1"),
             "{s}"
