@@ -99,12 +99,14 @@ fn bundle_of(r: &PgRow) -> Result<BundleView, sqlx::Error> {
         reviewed_at_ms: r.try_get("reviewed_ms")?,
         note: r.try_get("note")?,
         capabilities: r.try_get("capabilities")?,
+        tier: r.try_get("tier")?,
+        tip_links: crate::arcade::tips_from_json(r.try_get("tip_links")?),
     })
 }
 
 fn bundle_columns() -> String {
     format!(
-        "b.id, b.sha256, b.byte_size, b.entry_count, b.state, b.note, b.capabilities, {} AS uploaded_ms, \
+        "b.id, b.sha256, b.byte_size, b.entry_count, b.state, b.note, b.capabilities, b.tier, b.tip_links, {} AS uploaded_ms, \
          {} AS reviewed_ms",
         ms("b.uploaded_at"),
         ms("b.reviewed_at")
@@ -408,7 +410,7 @@ impl ActivityService {
                 sqlx::query(
                     "INSERT INTO application_activity_bundles \
                      (id, application_id, sha256, byte_size, entry_count, manifest, uploaded_by, \
-                      capabilities) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                      capabilities, tier, tip_links) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
                 )
                 .bind(id)
                 .bind(app)
@@ -418,6 +420,8 @@ impl ActivityService {
                 .bind(json!(manifest))
                 .bind(user)
                 .bind(&unpacked.capabilities)
+                .bind(unpacked.tier.map(|t| t.as_str()))
+                .bind(json!(unpacked.tip_links))
                 .execute(&mut *tx)
                 .await?;
                 (id, true)
@@ -854,6 +858,8 @@ impl ActivityService {
         if !self.datachannel_allowed() {
             capabilities.retain(|c| c != bundle::DATACHANNEL);
         }
+        // A reserved flag (ARC-ROOM-001) is accepted in a manifest but never handed to a running instance.
+        capabilities.retain(|c| crate::arcade::is_active(c));
         Ok(InstanceView {
             id: id.to_string(),
             application_id: r.try_get::<i64, _>("application_id")?.to_string(),
@@ -972,6 +978,12 @@ impl ActivityService {
         }
         if !self.may_start(user, app, p.guild_id).await? {
             return Err(ActivityError::NotFound("activity"));
+        }
+        // TIER_2_REIMPLEMENTATION games run in the desktop app only (ARC-ROOM-001).
+        if crate::arcade::desktop_only(self.pool(), app).await? {
+            return Err(ActivityError::Conflict(
+                "This game runs in the desktop app only.".to_owned(),
+            ));
         }
         let id = (self.inner.ids)();
         let mut tx = self.pool().begin().await?;
